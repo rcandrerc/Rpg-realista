@@ -4,7 +4,7 @@
 import { Simulacao, MAPA_CLAREIRA, GUERRA, RIVAIS, FALAS_GUERRA, TOTENS, RACAS } from '../../shared/index.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
-const d = s.adicionarJogador('andre', 'André', 'ruiva', {});
+const d = s.adicionarJogador('andre', 'André', 'ruiva', {}); d.conta = 'c1';
 for (const x of s.amigosIa) x.amigaEntrar('andre');
 const ctx = (id) => s.amigoIaDe(id), kira = ctx('kira').amiga, rufo = ctx('rufo').amiga, lis = ctx('lis').amiga, dario = ctx('dario').amiga;
 ok(kira && rufo && lis && [kira, rufo, lis].every((o) => s.racaDe(o) === 'geada'), 'Kira, Rufo e Lis entram, da Geada');
@@ -39,7 +39,7 @@ s.ferir(d, 1e6, kira);
 ok(d.morto && d.prog.xp === 1000 && d.prog.equip.corpo.d < 100, `morte de guerra: XP igual (${d.prog.xp}), equipamento desgastou (${d.prog.equip.corpo.d})`);
 const mem = kira.guerraMem[d.conta || d.nome || d.id];
 ok(mem && mem.v === 1 && mem.poupa > Date.now(), 'a Kira lembra que derrubou e vai poupar por um tempo');
-ok(s.eventos.slice(ev0).some((e) => e.t === 'fala' && e.npc === 'kira'), 'a Kira fala quando derruba');
+ok(s.eventos.slice(ev0).some((e) => e.t === 'chat' && e.canal === 'local' && e.c === 'a:kira'), 'a Kira fala (no Local) quando derruba');
 // cérebro: Rufo (coragem alta) ataca quem chega perto no campo
 for (let i = 0; i < 20 * 6; i++) s.passo(0.05); // André renasce
 nivel(d, 42); por(d, v5.x, v5.z); por(rufo, v5.x + 8, v5.z); por(kira, C.x, C.z); por(lis, C.x + 2, C.z);
@@ -83,4 +83,53 @@ ok(Object.keys(FALAS_GUERRA).every((k) => ['kira', 'rufo', 'lis', 'dario'].inclu
   ok(!s2.inimigosDe(g).includes(k2) && s2.inimigosDe(g).includes(d2), 'o ataque dele pega o Dario e não a Kira');
   const ev = s2.eventos.length; s2.duelo('gelo', { acao: 'pedir', com: k2.id });
   ok(!s2.eventos.slice(ev).some((e) => e.t === 'fala' && e.npc === 'kira' && /Chama|inimigos|Recuso|Nem/.test(e.texto)), 'duelo com a Kira não é recusado pela raça');
+}
+
+// ---------- chat Local (André 2026-11-18): quem está perto lê, balão em cima da cabeça, a Geada responde, duplas, feito no Geral ----------
+{
+  const s3 = new Simulacao(MAPA_CLAREIRA);
+  const a = s3.adicionarJogador('a', 'Ana', 'ruiva', {}), b = s3.adicionarJogador('b', 'Beto', 'ruiva', {}), c = s3.adicionarJogador('c', 'Caio', 'ruiva', {});
+  Object.assign(a, { conta: 'ca' }); Object.assign(b, { conta: 'cb' }); Object.assign(c, { conta: 'cc' });
+  for (const x of s3.amigosIa) x.amigaEntrar('a');
+  const todos = []; { const ev0 = s3.evento.bind(s3); s3.evento = (e) => { todos.push(e); return ev0(e); }; } // passo() limpa a fila de eventos: guarda tudo aqui
+  const k3 = s3.amigoIaDe('kira').amiga, r3 = s3.amigoIaDe('rufo').amiga, l3 = s3.amigoIaDe('lis').amiga;
+  Object.assign(a, { x: v5.x, z: v5.z }); Object.assign(b, { x: v5.x + 10, z: v5.z }); Object.assign(c, { x: v5.x + 200, z: v5.z });
+  Object.assign(k3, { x: v5.x + 5, z: v5.z }); Object.assign(r3, { x: C.x, z: C.z }); Object.assign(l3, { x: C.x + 3, z: C.z });
+  const msg = s3.chat('a', { canal: 'local', texto: 'cadê o Kael, Kira?' });
+  ok(msg && msg.ouvem.includes('ca') && msg.ouvem.includes('cb') && !msg.ouvem.includes('cc'), 'Local: quem está a até 30 m lê; longe não');
+  const e0 = s3.eventos.length; s3.receberChat(msg);
+  const ev = s3.eventos.slice(e0);
+  ok(ev.some((e) => e.t === 'chat' && e.para === 'b' && e.canal === 'local') && !ev.some((e) => e.para === 'c') && ev.some((e) => e.t === 'balao' && e.para === 'b' && e.id === 'a'), 'Local chega a quem está perto, com balão em cima de quem falou');
+  ok(!ev.some((e) => e.t === 'chat' && 'ouvem' in e), 'a lista de quem ouve não vai para o app');
+  ok(ev.some((e) => e.t === 'chat' && e.para === 'b' && e.texto === 'cadê o Kael, Kira?' && !e.lingua), 'a mesma raça lê normal');
+  // língua (André 2026-11-18, "igual no ArcheAge"): a outra raça lê embaralhado, no chat e no balão
+  const g = s3.adicionarJogador('g', 'Gil', 'ruiva', {}); Object.assign(g, { conta: 'cg', raca: 'geada', x: v5.x + 6, z: v5.z });
+  a.chatT = -99; const eg = s3.eventos.length; s3.receberChat(s3.chat('a', { canal: 'local', texto: 'Cadê o Kael, Kira?' }));
+  const cg = s3.eventos.slice(eg).find((e) => e.t === 'chat' && e.para === 'g'), bg = s3.eventos.slice(eg).find((e) => e.t === 'balao' && e.para === 'g');
+  ok(cg && cg.lingua === 'chama' && cg.texto !== 'Cadê o Kael, Kira?' && /^[A-Z]\S* \S+ \S+, [A-Z]\S*\?$/.test(cg.texto) && bg?.texto === cg.texto, `a Geada lê a Chama embaralhado: "${cg?.texto}"`);
+  ok(s3.linguaDe('Kael', 'chama') === s3.linguaDe('Kael', 'chama') && s3.linguaDe('Kael', 'chama') !== s3.linguaDe('Kael', 'geada'), 'a mesma palavra vira sempre a mesma, e cada raça tem a sua língua');
+  const brutas = []; { const rc = s3.receberChat.bind(s3); s3.receberChat = (m) => { brutas.push(m); return rc(m); }; }
+  const e1 = todos.length; s3.ouvirLocal('a', 'cadê o Kael, Kira?');
+  for (let i = 0; i < 20 * 4; i++) s3.passo(0.05);
+  const resp = todos.slice(e1).find((e) => e.t === 'chat' && e.canal === 'local' && e.c === 'a:kira' && e.para === 'a');
+  const bruta = brutas.find((m) => m.c === 'a:kira');
+  const { FALAS_GUERRA: FG } = await import('../../shared/dados.js');
+  ok(bruta && FG.kira.lingua.some((f) => bruta.texto.includes(f.replace(/\{nome\}/g, 'Ana'))), `a Kira não entende a Chama e responde isso: "${bruta?.texto}"`);
+  ok(resp && resp.lingua === 'geada' && resp.texto !== bruta.texto, `e a Ana lê a Kira embaralhado: "${resp?.texto}"`);
+  ok(todos.slice(e1).some((e) => e.t === 'chat' && e.para === 'g' && e.c === 'a:kira' && e.texto === bruta.texto), 'o Gil (Geada) lê a Kira normal');
+  ok(todos.slice(e1).some((e) => e.t === 'balao' && e.id === k3.id), 'com balão em cima dela');
+  Object.assign(g, { x: v5.x + 300, z: v5.z });
+  // duplas: Rufo e Lis juntos, alguém perto ouvindo
+  Object.assign(b, { x: C.x + 4, z: C.z }); Object.assign(r3, { x: C.x, z: C.z }); Object.assign(l3, { x: C.x + 3, z: C.z }); s3.duplaT = 0; const e2 = todos.length;
+  for (let i = 0; i < 20 * 5; i++) s3.passo(0.05);
+  const falas = todos.slice(e2).filter((e) => e.t === 'chat' && e.canal === 'local' && e.para === 'b' && ['a:rufo', 'a:lis', 'a:kira'].includes(e.c));
+  ok(falas.length >= 2 && new Set(falas.map((e) => e.c)).size >= 2, `dois da Geada conversam entre si: ${falas.map((e) => e.nome + ': ' + e.texto).join(' / ')}`);
+  // feito no Geral, no máximo 1 a cada 10 min
+  let anuncios = []; s3.aoAnuncio = (m) => anuncios.push(m);
+  for (const o of [a, k3]) { o.prog.nivel = 45; s3.aplicarStatus(o); }
+  Object.assign(a, { x: v5.x, z: v5.z }); Object.assign(k3, { x: v5.x + 2, z: v5.z }); s3.guerraT = 0; s3.passo(0.05);
+  s3.ferir(a, 1e6, k3);
+  ok(anuncios.length === 1 && /Kira \(Geada\) derrubou Ana \(Chama\)/.test(anuncios[0].texto), `feito no Geral: "${anuncios[0]?.texto}"`);
+  for (let i = 0; i < 20 * 6; i++) s3.passo(0.05); s3.guerraT = 0; s3.passo(0.05); s3.ferir(a, 1e6, k3);
+  ok(anuncios.length === 1, 'o segundo em menos de 10 min não vai para o Geral');
 }
