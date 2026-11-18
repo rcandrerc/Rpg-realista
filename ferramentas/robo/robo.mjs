@@ -244,6 +244,7 @@ function lutar(e, agora) {
 
 // ---------- caçar (sem missão para o nível dele, ou esperando) ----------
 let campoCaca = null, campoT = 0;
+const camposRuins = new Set(); let campoXp = -2, campoXpT = 0; // campos onde não ganhou XP neste turno
 function cacar(agora) {
   // ronda 2026-11-17: com raio de 40 m em volta dele, o robô ficava na vila matando Puglin Nv 1 (renasce sempre) e nunca
   // chegava ao campo do nível. Agora: só o que está no campo, ou o que encosta nele (até 5 m) no caminho
@@ -251,11 +252,19 @@ function cacar(agora) {
   if (e && campoCaca && d2(e, campoCaca) > 40 && d2(eu, e) > 5) e = null;
   if (e) return lutar(e, agora);
   if (CAMPO) campoCaca = CAMPO;
+  // ronda 2026-11-18: no Nv 53 (c14) passou 45 min sem XP; o campo Nv 52 fica na Ilha do Meio (sem barco não chega).
+  // Campo onde ficou 10 min sem ganhar XP (no caminho ou lá) fica de fora neste turno e ele escolhe outro
+  if (campoCaca && !CAMPO) {
+    if ((prog?.xp ?? -1) !== campoXp) { campoXp = prog?.xp ?? -1; campoXpT = agora; }
+    else if (agora - campoXpT > 10 * 60e3) { camposRuins.add(campoCaca.nome); log('campo sem XP há 10 min, troca:', campoCaca.nome); campoCaca = null; campoXpT = agora; }
+  }
+  if (CAMPO) { /* fixo */ }
   else if (!campoCaca || agora - campoT > 20 * 60e3) {
     const nv = prog?.nivel || 1;
+    if (camposRuins.size >= 6) camposRuins.clear(); // nenhum serviu: tenta todos de novo
     // ronda 2026-11-17: no Nv 47 (h11) o robô passou 2 turnos sem XP indo para o campo Nv 42, que está na névoa, e para o
     // covil da gruta. Só campo aberto e fora das grutas
-    const bons = CACA.filter((c) => !c.boss && (c.nivel || 1) <= nv && (c.nivel || 1) >= nv - 6 && !/^Covil/.test(c.nome || '') && !(prog && zonaFechadaEm(prog, c.x, c.z))).sort((a, b) => d2(eu, a) - d2(eu, b));
+    const bons = CACA.filter((c) => !c.boss && (c.nivel || 1) <= nv && (c.nivel || 1) >= nv - 6 && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && !(/\(Ilha/.test(c.nome || '') && !/\(Ilha/.test(campoCaca?.nome || '') && Math.hypot(eu.x - c.x, eu.z - c.z) > 120) && !(prog && zonaFechadaEm(prog, c.x, c.z))).sort((a, b) => d2(eu, a) - d2(eu, b));
     campoCaca = bons[Math.floor(Math.random() * Math.min(3, bons.length))] || CACA[0]; campoT = agora;
   }
   if (irPara(campoCaca.x + (Math.random() - 0.5) * 6, campoCaca.z + (Math.random() - 0.5) * 6, 4)) parar();
