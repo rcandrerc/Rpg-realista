@@ -2,7 +2,8 @@
 // reclamar de coisas, perguntar coisas pessoais"; "se eu falar que meu pai morreu... ela guarda?"; "não quero que ela fique me
 // pentelhando"; "quando a IA esgotar... ela dizer que vai descansar... só diz que tá meio ocupada". Sem rede: fetch de mentira.
 // Uso: node ferramentas/testes/cecilia-natural.mjs
-import { Simulacao, MAPA_CLAREIRA, AMIGA, DARIO } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, AMIGA, DARIO, IA_CONVERSA } from '../../shared/index.js';
+IA_CONVERSA.ligada = true; // testa o sistema de IA guardado (desligado no jogo desde 2026-11-18)
 import { register } from 'node:module';
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(s, c, n) { return s === '@rpg/shared' ? { url: ${JSON.stringify(new URL('../../shared/index.js', import.meta.url).href)}, shortCircuit: true } : n(s, c); }`));
 const { pensarAmiga, puxarAssunto, iaEsgotada, mensagensConversa } = await import('../../server/ia-amiga.js');

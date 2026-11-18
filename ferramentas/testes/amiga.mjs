@@ -1,7 +1,8 @@
 // Cecília, a amiga (shared/amiga.js, André 2026-11-09): entra com o dono, levanta a casa inteira, cuida da horta,
 // só o dono conversa, pede ajuda e paga de volta, guarda tudo no terreno e não ocupa vaga nas Terras.
 // Uso: node ferramentas/testes/amiga.mjs
-import { Simulacao, MAPA_CLAREIRA, AMIGA, ITENS, LOJA, precoLoja } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, AMIGA, ITENS, LOJA, precoLoja, IA_CONVERSA } from '../../shared/index.js';
+IA_CONVERSA.ligada = true; // testa o sistema de IA guardado (desligado no jogo desde 2026-11-18)
 import { contar, guardar } from '../../shared/progresso.js';
 import { PESCA, HISTORIA } from '../../shared/dados.js';
 // estes testes são de pesca, estrada e time; a história dela (que agora começa do zero, André 2026-11-17) fica aberta aqui

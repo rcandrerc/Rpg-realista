@@ -3114,6 +3114,10 @@ export const AVENTUREIROS = AV.map(([id, nome, g, penteado, cabelo, olhos, pele,
 }));
 // os amigos virtuais do jogo, na ordem (a Cecília é a própria Simulacao; os outros vêm em shared/amiga.js contextoDeAmigo)
 export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
+// IA nas conversas dos NPCs (André 2026-11-18: "desliga a IA ... fica lá no fundo registrado ... se liberar a conta free
+// para geral, a gente usa"; "todo mundo igual"). Desligada: todos respondem pelo repertório pronto (regras + falas), sem
+// botão de ativar chave. O sistema de IA continua no código (server/ia-amiga.js): ligada: true volta tudo como era.
+export const IA_CONVERSA = { ligada: false };
 // Quantos aventureiros andam no mundo agora (André 2026-11-11: o ping foi a 29 mil com os 20; "diminui pra 4 e vai
 // aumentando aos poucos"). A lista inteira continua acima; para aumentar é só pôr mais ids aqui (null = todos os 20).
 // André 2026-11-12: "reduz para 2 de volta, Dário e Cecília só... só deixa eles independentes quando eu estiver offline"
