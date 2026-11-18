@@ -1,4 +1,4 @@
-import { BALCOES_L } from '../../shared/vilas.js'; // balcões em L dos corredores da Casa do Comércio
+import { BALCOES_L, BALCAO_EMENDA } from '../../shared/vilas.js'; // balcões em L dos corredores da Casa do Comércio
 // As casas e os enfeites das mini vilas (ferramentas/vilas/montar.mjs junta tudo em godot-prototipo/vilas3d/vilas.glb).
 // Cada entrada: nome -> [[peça do kit, [x, y, z], giro em radianos, escala], ...]. A casa fica com o meio do chão na
 // origem e a porta virada para +z (o jogo gira a casa para a praça). Módulo de parede: 2 m de largura e 3 m de altura;
@@ -259,6 +259,8 @@ function casaDoComercio() {
     for (let i = 0; i < n; i++) dentro.push(['@balcao', [x, 0, z0 + (i + 0.5) * (z1 - z0) / n], PI / 2, [(z1 - z0) / n, 1.1, 0.8]]);
     dentro.push(['@balcao', [x + sx * 1.3, 0, zc], 0, [1.8, 1.1, 0.8]]);
   }
+  // a emenda: o balcão do Otávio atravessa a arcada até os balcões dos corredores (mesma altura e fundo do dele)
+  { const { z, x0, x1 } = BALCAO_EMENDA; for (const sx of [-1, 1]) dentro.push(['@balcao', [sx * (x0 + x1) / 2, 0, z], 0, [x1 - x0, 1.1, 0.9]]); }
   dentro.push(['Bench', [-7.2, 0, 7.8], PI / 2], ['Bench', [-5.6, 0, 8.8], 0], ['Barrel', [7.2, 0, 8.8], 0], ['Barrel_Apples', [6.4, 0, 9], 0], ['FarmCrate_Apple', [7.3, 0, 6.6], 1.2],
     ['Crate_Wooden', [7.2, 0, 3.4], 0.3], ['Chest_Wood', [6.0, 0, 1.2], 0.1]);
   return { comercio_grande: base, comercio_grande_cima: cima, comercio_grande_dentro: dentro };
