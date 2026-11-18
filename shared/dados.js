@@ -3122,6 +3122,143 @@ export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
 export const NPCS_NO_MUNDO = { aventureiros: [] };
 export const npcNoMundo = (d) => !AVENTUREIROS.includes(d) || NPCS_NO_MUNDO.aventureiros == null || NPCS_NO_MUNDO.aventureiros.includes(d.id);
 
+// ---------- Chama x Geada (André 2026-11-18, fase 1; plano: https://claude.ai/artifact/53pVbmJ3U39wpzRxQcXubf) ----------
+// Duas raças rivais. A mesma raça não se ataca (só duelo); a outra raça está sempre em guerra fora da zona segura.
+// Fase 1: todo jogador é da Chama (a escolha da raça no criador é a fase 3); a Geada são três NPCs (Kira, Rufo e Lis),
+// sem IA paga: falas montadas por peças (FALAS_GUERRA), com memória de cada pessoa. A Cecília continua a única com IA.
+// Ninguém luta até o Nv `tregua` (Trégua). Zona segura: toda vila, `totem` m em volta de cada totem e todo campo de caça
+// até o Nv `campoAte` (André 2026-11-18: "todas as cidades, todos os totens com raio, e todos os spots até nível 30").
+// Morrer na guerra só desgasta o equipamento (não perde XP). Matar não dá nada (Honra e Infâmia é a fase 2).
+// cor: o nome em cima da cabeça; capa: as cores da capa (fora, dentro, friso). casa: onde mora quem é da raça (NPCs).
+export const RACAS = {
+  chama: { nome: 'Chama', cor: 'ff9a3c', capa: { fora: 'b8321e', dentro: '5a140c', friso: 'f0a030' } },
+  // capa (André 2026-11-18: a azul-clara "parecia asa de anjo"): azul-marinho quase preto com borda azul-gelo
+  geada: { nome: 'Geada', cor: '8fd0ff', capa: { fora: '1c2a4a', dentro: '0e1424', friso: '6fa8d8' }, casa: { nome: 'Juncal', x: 546, z: 43, r: 12 } },
+};
+export const RACA_PADRAO = 'chama';
+// recheca: s entre as conferências de quem pode lutar. ve: m que o NPC enxerga para decidir. persegue: m que ele corre
+// atrás de quem fugiu (conta de onde a briga começou). poupa: s sem atacar de novo quem ele acabou de derrubar
+// (nada de ficar matando na volta do totem). marca: s em que um golpe da outra raça faz a morte ser "de guerra".
+// ouvir: m em volta de quem fala que ouve a fala. falaEntre: s entre duas falas do mesmo NPC. avistar: s antes de comentar
+// de novo a mesma pessoa. desisteVida: vida (0 a 1) em que ele larga a briga e foge. foge: s correndo para casa.
+// aviso: s mínimos entre dois avisos de "zona de guerra"/"zona segura" para o mesmo jogador.
+export const GUERRA = { tregua: 30, totem: 25, campoAte: 30, campoFolga: 6, vilaFolga: 4, recheca: 0.5, ve: 40, persegue: 60, poupa: 300, marca: 15,
+  ouvir: 26, falaEntre: 6, avistar: 120, desisteVida: 0.25, foge: 20, aviso: 20, lembrar: 30 };
+// Os três da Geada (fase 1, aprovados pelo André 2026-11-18; fotos em /mnt/project-files/racas-rivais/). Iguais aos
+// aventureiros por dentro (caçam, vendem, consertam, sobem de nível), moram no Juncal (casa da Geada) e caçam nos campos
+// do leste. guerra: coragem (ataca mesmo em desvantagem), honra (poupa quem é muito mais fraco), paciencia (espera a hora
+// certa em vez de pular na briga). Kael, o líder da Geada, é só da história por enquanto (não luta).
+const rivalGeada = (base, id, nome, papel, extra) => mesclarAmigo(base, {
+  id, nome, conta: 'a:' + id, papel, raca: 'geada', rival: true, terreno: null, gosto: 'cacar', lar: RACAS.geada.casa, // lar: onde mora ("casa" já é a lista de peças da casa da Cecília)
+  puxaAssunto: false, naoInsiste: false, seguivel: false, convida: false, recomecoJogo: null, ...extra,
+});
+export const KIRA = rivalGeada(AMIGA, 'kira', 'Kira', 'a guerreira da Geada', {
+  genero: 'f', visual: 'ruiva', nivelInicial: 45,
+  persona: 'a guerreira mais forte da Geada: fria, honrada, de poucas palavras; respeita quem luta bem e despreza covarde',
+  aparencia: { cabelo: 0xe9e4d8, olhos: 0xc02a2a, roupa: 0x7aa6d0, calca: 0x2a3a5a, altura: 1.04, penteado: 'shibu_sombrio' },
+  equip: { corpo: { k: 'peitoral', r: 3 }, pernas: { k: 'calca', r: 3 }, pes: { k: 'botas', r: 3 }, capa: { k: 'capa', r: 3 }, espada: { k: 'espada', r: 1 } },
+  guerra: { coragem: 0.75, honra: 0.9, paciencia: 0.7 },
+});
+export const RUFO = rivalGeada(DARIO, 'rufo', 'Rufo', 'o encrenqueiro da Geada', {
+  genero: 'm', visual: 'cabelo_m', nivelInicial: 42,
+  persona: 'o encrenqueiro da Geada: falastrão, provocador, adora emboscada e conta vantagem de tudo',
+  aparencia: { cabelo: 0xa8401c, olhos: 0xe0b030, roupa: 0x24345c, calca: 0x3c3a52, altura: 1.0, penteado: 'fumiriya' },
+  equip: { corpo: { k: 'peitoral', r: 2 }, pernas: { k: 'calca', r: 2 }, pes: { k: 'botas', r: 2 }, capa: { k: 'capa', r: 2 }, espada: { k: 'espada', r: 1 } },
+  guerra: { coragem: 0.95, honra: 0.2, paciencia: 0.15 },
+});
+export const LIS = rivalGeada(AMIGA, 'lis', 'Lis', 'a estrategista da Geada', {
+  genero: 'f', visual: 'ruiva', nivelInicial: 43,
+  persona: 'a estrategista da Geada: maga do cajado, calculista, irônica e educada; só luta quando a conta fecha',
+  aparencia: { cabelo: 0x2f4f9c, olhos: 0x7a4ac0, roupa: 0x7a7c80, calca: 0x2a3a5a, altura: 0.93, penteado: 'shino' },
+  equip: { corpo: { k: 'peitoral', r: 1 }, pernas: { k: 'short', r: 1 }, pes: { k: 'botas', r: 1 }, capa: { k: 'capa', r: 2 }, cajado: { k: 'cajado', r: 1 } },
+  guerra: { coragem: 0.45, honra: 0.6, paciencia: 0.9 },
+});
+export const RIVAIS = [KIRA, RUFO, LIS];
+// O Dario é o líder da Chama (André 2026-11-18): defende os seus. Só o jeito na guerra (as falas estão em FALAS_GUERRA).
+DARIO.guerra = { coragem: 0.7, honra: 0.85, paciencia: 0.5 };
+
+// Falas da guerra, montadas por peças (sem IA). Cada NPC: gatilho -> frases. Um gatilho com sufixo é mais específico e
+// ganha quando a situação bate: _rev (ele já me derrubou mais vezes do que eu a ele), _fregues (eu já o derrubei mais),
+// _tregua (quem fala com ele ainda está na Trégua). abre/fecho: pedacinhos que às vezes entram antes/depois (só nos
+// gatilhos de conversa e de avistar). {nome} = a outra pessoa, {n} = quantas vezes já se viram, {eu}/{ele} = placar.
+// Anti-repetição: as últimas GUERRA.lembrar frases ditas por ele não voltam.
+// Gatilhos: avista, ataca, ajuda, foge, poupa, desiste, segura (o outro entrou na zona segura), mata, morre, conversa,
+// recusa (pediu time, troca, amizade ou duelo).
+export const FALAS_GUERRA = {
+  kira: {
+    abre: ['Hm.', '{nome}.', 'Você de novo.', 'Escuta.'],
+    fecho: ['Não me faça perder tempo.', 'A Geada não esquece.', 'Fique esperto.', 'Kael manda lembranças.'],
+    avista: ['Um da Chama. Longe de casa.', 'Mostra se você aguenta, {nome}.', 'Esse campo é da Geada.', 'Vejo você, {nome}.', 'Não corre. Seria feio.'],
+    avista_rev: ['{nome}. Hoje a conta muda.', 'Você me deve uma, {nome}.', 'Aprendi com a última vez.'],
+    avista_fregues: ['{nome}? Já te derrubei {eu} vezes.', 'Voltou pra apanhar, {nome}?', 'Não aprendeu ainda?'],
+    ataca: ['Em guarda.', 'Sem truque. Só aço.', 'Pela Geada.', 'Agora.', 'Levanta essa espada.'],
+    ajuda: ['Segura, estou chegando.', 'Ninguém encosta nos meus.', 'Dois contra um? Agora são dois contra dois.'],
+    foge: ['Recuo. Não é derrota.', 'Outro dia, {nome}.', 'Isso não acabou.'],
+    poupa: ['Fraco demais. Vai embora.', 'Não luto com quem não pode lutar.', 'Volta quando tiver nível, {nome}.'],
+    desiste: ['Correu. Ótimo, corre mesmo.', 'Fugir também é escolha.', 'Pode ir. Eu lembro do seu rosto.'],
+    segura: ['Escondido na vila. Esperto.', 'Lá dentro você está salvo. Por enquanto.', 'Vou esperar.'],
+    mata: ['Lutou bem. Não o bastante.', 'Levanta e tenta de novo.', 'A Geada venceu hoje.', 'Sem rancor, {nome}.'],
+    morre: ['Bom golpe... {nome}.', 'Não vai se repetir.', 'Você mereceu essa.'],
+    conversa: ['Fale rápido, {nome}.', 'Chama e Geada não conversam. Mas fale.', 'O que quer?', 'Eu sou Kira, da Geada. E você está no meu caminho.'],
+    conversa_tregua: ['Você ainda está na Trégua. Cresça primeiro.', 'Nível baixo não me interessa. Treine.'],
+    conversa_rev: ['Você me venceu {ele} vezes. Eu conto cada uma.', 'Respeito. Mas a próxima é minha.'],
+    conversa_fregues: ['{eu} a {ele}. Quer melhorar esse placar?', 'Treinou desde a última vez?'],
+    recusa: ['Não. Você é da Chama.', 'Somos inimigos, {nome}.', 'Nem pense nisso.'],
+  },
+  rufo: {
+    abre: ['Ei, ei!', 'Olha só!', 'Ha!', 'Opa!', 'Psiu, {nome}!'],
+    fecho: ['Vai chorar?', 'Hehe.', 'Fala que eu sou o melhor!', 'A Geada manda aqui!', 'Conta pros seus amigos!'],
+    avista: ['Achei um Chaminha perdido!', 'Ô {nome}, cadê seus amigos?', 'Hoje tem caça grande!', 'Que cheiro de fumaça... é a Chama!', 'Bem na hora, tava entediado.'],
+    avista_rev: ['Você de novo! Aquela foi sorte, tá?', '{nome}, revanche! Agora!', 'Ganhou {ele} vezes? Pura sorte!'],
+    avista_fregues: ['{nome}, meu freguês favorito!', 'Já são {eu} pra mim! Quer a próxima?', 'Olha quem voltou pra apanhar!'],
+    ataca: ['Surpresa!', 'Pega!', 'Agora é comigo!', 'Emboscada!', 'Aguenta essa!'],
+    ajuda: ['Deixa que eu ajudo! Ou atrapalho, sei lá!', 'Briga sem mim? Nunca!', 'Chegou o reforço!'],
+    foge: ['Recuo estratégico! Estratégico!', 'Volto já! Juro!', 'Não tô fugindo, tô... indo ali!'],
+    poupa: ['Você é pequeno demais, nem vale.', 'Cresce primeiro, {nome}!', 'Bater em filhote não tem graça.'],
+    desiste: ['Corre, Chaminha, corre!', 'Fugiu! Eu sabia!', 'Volta aqui! ...tá, deixa.'],
+    segura: ['Ah, se escondendo na vila? Covarde!', 'Uma hora você sai, {nome}.', 'Vou ficar aqui. Não tenho pressa. Tenho sim.'],
+    mata: ['Mais um pra conta!', 'Rufo, {eu}! {nome}, {ele}!', 'Fácil demais!', 'Conta pro Dario quem fez isso!'],
+    morre: ['Ai! Foi sorte!', 'Não valeu, eu tropecei!', 'Isso não vai ficar assim, {nome}!'],
+    conversa: ['Que foi, Chaminha?', 'Quer um autógrafo?', 'Sou o Rufo, o terror da estrada. Já ouviu falar?', 'Fala logo que eu tô ocupado sendo incrível.'],
+    conversa_tregua: ['Nem chego perto de Trégua. Cresce aí!', 'Você ainda é filhote. Volta no Nv 31!'],
+    conversa_rev: ['Tá, tá, você ganhou {ele} vezes. Ninguém tá contando. Eu tô.', 'Para de me olhar assim, vou ganhar a próxima!'],
+    conversa_fregues: ['Placar: Rufo {eu}, você {ele}. Bonito, né?', 'Meu freguês! Trouxe presente?'],
+    recusa: ['Ha! Time com a Chama? Nunca!', 'Nem a pau, {nome}!', 'Tá maluco? Você é da Chama!'],
+  },
+  lis: {
+    abre: ['Hmm.', 'Ora, ora.', 'Interessante.', 'Com licença, {nome}.'],
+    fecho: ['Anotado.', 'Nada pessoal.', 'Eu sempre calculo.', 'A Geada agradece.'],
+    avista: ['Um da Chama. Sozinho. Que conveniente.', 'Calculando suas chances, {nome}.', 'Você está no lugar errado.', 'Eu vi você primeiro.'],
+    avista_rev: ['{nome}. Revisei aquela luta. Não vai repetir.', 'Você tem {ele} vitórias. Estatística muda.'],
+    avista_fregues: ['{nome}, {eu} a {ele}. A tendência é clara.', 'Você de novo. Previsível.'],
+    ataca: ['A conta fechou.', 'Gelo, por favor.', 'Agora é a hora certa.', 'Nada pessoal, {nome}.'],
+    ajuda: ['Cobrindo você.', 'Vantagem numérica. Ótimo.', 'Eu cuido de longe.'],
+    foge: ['Recuar é matemática.', 'Essa conta não fecha. Até logo.', 'Volto com reforço.'],
+    poupa: ['Você é fraco demais pra valer a mana.', 'Desperdício. Pode ir.', 'Volte quando for um desafio.'],
+    desiste: ['Fugiu. Era o mais lógico.', 'Não vale a corrida.', 'Te pego no próximo cálculo.'],
+    segura: ['Zona segura. Bem pensado.', 'Inteligente. Irritante, mas inteligente.', 'Eu espero. Paciência é vantagem.'],
+    mata: ['Previsto.', 'Conforme o plano.', 'Lição grátis, {nome}.', 'Obrigada pela aula prática.'],
+    morre: ['Errei a conta...', 'Variável que eu não vi.', 'Impressionante, {nome}. Não se acostume.'],
+    conversa: ['Lis, da Geada. Prazer é seu.', 'Pergunte. Talvez eu responda.', 'Sabe que somos inimigos, certo?', 'Curioso você vir falar comigo.'],
+    conversa_tregua: ['Trégua ainda. Aproveite enquanto dura.', 'Nível baixo. Volte depois do 30.'],
+    conversa_rev: ['{ele} vitórias suas. Estou estudando você.', 'Você é um problema interessante.'],
+    conversa_fregues: ['{eu} a {ele}. Quer recalcular?', 'Os números não mentem, {nome}.'],
+    recusa: ['Não. Conflito de interesses.', 'Chama com Geada? Não fecha a conta.', 'Recuso, educadamente.'],
+  },
+  dario: { // o líder da Chama (só falas de guerra; a conversa normal dele continua a de sempre)
+    avista: ['Geada à vista. Fiquem perto.', 'É {nome}. Atenção.', 'Lá vem a Geada.'],
+    ataca: ['Pela Chama!', 'Ninguém mexe com os meus.', 'Vem, {nome}.'],
+    ajuda: ['Tô contigo!', 'Segura que eu chego!'],
+    foge: ['Recua, recua!', 'Agora não. Pra vila!'],
+    poupa: ['Não vale a briga, {nome}.'],
+    desiste: ['Deixa ir. Não vale.'],
+    segura: ['Na vila não. Regra é regra.'],
+    mata: ['A Chama segue acesa.', 'Volta pro gelo, {nome}.'],
+    morre: ['Boa, {nome}... Na próxima.'],
+    recusa: ['Não dá, {nome}. Você é da Geada.'],
+  },
+};
+
 // Vida própria dos NPCs (André 2026-11-11: "quero que eles andem sozinhos"; os 22 iguais). Fora do time cada um sai
 // para caçar no campo do nível dele, volta para a vila para vender, consertar e comprar poção, e de noite fica na vila.
 // moradia: a vila de cada faixa de nível (André: começam na vila inicial e mudam conforme evoluem: Porto de Vael no Nv 50
@@ -3202,6 +3339,10 @@ export const CEREBRO = {
   jeitos: {
     cecilia: { coragem: 0.75, cuidado: 0.5, cajado: 0.25 }, // brincalhona e corajosa: espada na cara
     dario: { coragem: 0.6, cuidado: 0.85, cajado: 0.35 }, // calmo e leal: protege quem está apanhando
+    // a Geada (Chama x Geada, André 2026-11-18): Kira na espada, Rufo pula na briga, Lis no cajado de longe
+    kira: { coragem: 0.8, cuidado: 0.6, cajado: 0.15 },
+    rufo: { coragem: 0.95, cuidado: 0.2, cajado: 0.1 },
+    lis: { coragem: 0.45, cuidado: 0.9, cajado: 0.95 },
     // os 20 aventureiros (lista aprovada pelo André 2026-11-11)
     lia: { coragem: 0.9, cuidado: 0.3, cajado: 0.2 },
     tome: { coragem: 0.7, cuidado: 0.6, cajado: 0.1 },

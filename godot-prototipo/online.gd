@@ -781,7 +781,8 @@ func outro(j: Dictionary) -> void:
 				# o corpo guardado já está com a cor e a roupa de antes: só pinta e veste de novo se mudou (André 2026-11-11:
 				# "passa alguma coisa, vai pra 22": pintar de novo o corpo e o penteado custava ~120 ms a cada NPC que voltava)
 				"ap": g.get("ap", ""), "roupa": g.get("roupa", "-"),
-				"tit": g.get("tit", "")} # o título que o corpo ainda mostra: o de quem chega troca ou some (titulos.gd)
+				"tit": g.get("tit", ""), # o título que o corpo ainda mostra: o de quem chega troca ou some (titulos.gd)
+				"raca": g.get("raca", "")} # Chama x Geada: nome e capa ainda com a cor da raça de antes (abaixo troca)
 			g.no.position = o.alvo
 			g.no.visible = true
 			g.no.process_mode = Node.PROCESS_MODE_INHERIT
@@ -824,6 +825,15 @@ func outro(j: Dictionary) -> void:
 		m.titulos.por(o.no, o.placa, tit)
 	if j.has("bot"):
 		o.bot = true # a Cecília: não pede troca nem amizade (troca.gd)
+	# Chama x Geada (André 2026-11-18): a raça vem só para quem não é da Chama (Kira, Rufo e Lis na fase 1). O nome fica da
+	# cor da raça e a capa ganha as cores dela (RACAS em shared/dados.js); a Chama continua com o visual de sempre
+	var raca := str(j.get("raca", ""))
+	if raca != str(o.get("raca", "")):
+		o.raca = raca
+		if o.placa != null:
+			o.placa.modulate = Color(str(_raca(raca).get("cor", "ffffff")))
+		o.capa_raca = "" # pinta de novo depois que a roupa vier
+		o.roupa = "-" # veste de novo: a capa volta ao material normal (corpo reaproveitado de alguém de outra raça)
 	o.alvo = Vector3(float(j.x), float(j.y), float(j.z))
 	o.ry = float(j.ry)
 	# roupa que aparece no corpo (armadura.gd) e a capa abrindo com a velocidade (a foto vem 20 vezes por segundo)
@@ -837,7 +847,11 @@ func outro(j: Dictionary) -> void:
 		tv = _marca("o:vestir", tv)
 		preload("res://junta_pecas.gd").juntar(o.no) # peças da armadura numa malha por material (junta_pecas.gd)
 		_marca("o:juntar", tv)
+		o.capa_raca = "" # capa nova: pinta de novo (abaixo)
 		o.lod = -1 # peça nova vem com sombra e contorno: o detalhe por distância confere de novo
+	if raca != "" and str(o.get("capa_raca", "")) != raca + roupa and not recem:
+		o.capa_raca = raca + roupa
+		_pintar_capa(o.no, _raca(raca).get("capa", {}))
 	var mexeu: bool = j.get("_mexeu", true) # área de interesse: sem posição nova, nada de amostra (senão ele tranca)
 	if roupa.contains("capa") and mexeu:
 		m.Armadura.vento(o.no, Vector2(o.alvo.x - antes.x, o.alvo.z - antes.z).length() * 20.0, 0.05)
@@ -1913,3 +1927,27 @@ func _corpo_humano(e: Dictionary, hc: String) -> void:
 	e.anim = h.anim
 	e.barra = h.barra
 	e.monstro = guarda
+
+# Chama x Geada (André 2026-11-18): as cores de cada raça (shared/dados.js RACAS, exportado em habilidades.json)
+func _raca(raca: String) -> Dictionary:
+	if raca == "":
+		return {}
+	var r = m.P.dados.get("racas", {}).get(raca, {})
+	return r if r is Dictionary else {}
+
+# a capa com as cores da raça: o material é copiado só para este corpo (a capa dos outros não muda)
+func _pintar_capa(no: Node3D, capa: Dictionary) -> void:
+	if capa.is_empty():
+		return
+	for dono in no.find_children("*", "Node3D", true, false):
+		if not dono.has_meta("capa_mi"):
+			continue
+		var mi = dono.get_meta("capa_mi")
+		if not (mi is MeshInstance3D) or not (mi.material_override is ShaderMaterial):
+			continue
+		var mat: ShaderMaterial = mi.material_override.duplicate()
+		for k in ["fora", "dentro", "friso"]:
+			if capa.has(k):
+				mat.set_shader_parameter(k, Color(str(capa[k])))
+		mi.material_override = mat
+

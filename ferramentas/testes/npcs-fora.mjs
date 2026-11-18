@@ -8,7 +8,7 @@ const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 
 ok(AVENTUREIROS.length === 20 && AMIGOS_VIRTUAIS.length === 22, 'os 20 continuam na lista (nada some)');
 ok(Array.isArray(NPCS_NO_MUNDO.aventureiros) && NPCS_NO_MUNDO.aventureiros.length === 0, 'nenhum aventureiro no mundo com gente jogando');
 const s = new Simulacao(MAPA_CLAREIRA);
-ok(s.amigosIa.length === 2 && s.amigosIa.map((x) => x.AMIGA.id).sort().join() === 'cecilia,dario', 'na sala: só Cecília e Dario');
+{ const aqui = s.amigosIa.filter((x) => !x.AMIGA.rival); ok(aqui.length === 2 && aqui.map((x) => x.AMIGA.id).sort().join() === 'cecilia,dario', 'na sala: só Cecília e Dario (e a Geada, Chama x Geada: guerra.mjs)'); }
 ok(AMIGOS_VIRTUAIS.filter(npcNoMundo).length === 2, 'a lista de quem conversa também só tem os dois');
 
 // evolui com a sala vazia: 2 dias fora sobe devagar; nunca passa do teto

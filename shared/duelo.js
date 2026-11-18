@@ -56,6 +56,7 @@ export const Duelo = {
     if (!o || o === j) return;
     const eu = this.motivoSemDuelo(j, true); if (eu) return aviso(eu);
     const ele = this.motivoSemDuelo(o); if (ele) return aviso(ele);
+    if (this.recusaGuerra(j, o)) return; // Chama x Geada (André 2026-11-18): com a outra raça é guerra, não duelo
     if (longe(j, o) > DUELO.perto) return aviso(`Chegue mais perto de ${o.nome} pra duelar`);
     if (o.bot) { // a Cecília ou o Dario: decide na hora (sem cartão)
       const ctx = this.amigoIaDe(o);
