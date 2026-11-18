@@ -18,7 +18,7 @@ const s = new Simulacao(MAPA_CLAREIRA);
 s.nivelTetoNpc = 15;
 s.adicionarJogador('andre', 'André', 'ruiva', {});
 for (const x of s.amigosIa) x.amigaEntrar('andre', false);
-const av = s.amigosIa.filter((x) => !x.AMIGA.terreno);
+const av = s.amigosIa.filter((x) => !x.AMIGA.terreno && !x.AMIGA.rival); // a Geada (Chama x Geada) tem teste próprio: guerra.mjs
 const M0 = NPC_VIDA.moradia[0];
 const coletores = av.filter((x) => R[x.AMIGA.id].coleta > 0);
 ok(coletores.every((x) => x.amiga.prog.mochila.some((o) => o && o.k === x.AMIGA.atividades[x.AMIGA.gosto].ferramenta)), 'quem coleta já tem a ferramenta');

@@ -1903,6 +1903,32 @@
   "max": 16,
   "troca": 10000
  },
+ "racas": {
+  "chama": {
+   "nome": "Chama",
+   "cor": "ff9a3c",
+   "capa": {
+    "fora": "b8321e",
+    "dentro": "5a140c",
+    "friso": "f0a030"
+   }
+  },
+  "geada": {
+   "nome": "Geada",
+   "cor": "8fd0ff",
+   "capa": {
+    "fora": "8ab8e0",
+    "dentro": "2a4468",
+    "friso": "dfe8f0"
+   },
+   "casa": {
+    "nome": "Juncal",
+    "x": 546,
+    "z": 43,
+    "r": 12
+   }
+  }
+ },
  "estamina": {
   "base": 50,
   "porNivel": 2,
