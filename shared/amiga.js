@@ -105,6 +105,12 @@ export function textoLicoes(L) {
 
 // André 2026-11-17 (print): "Destino: Campo dos Lobos e Golens (Vael)" soava robô: o nome sai sem a região entre parênteses
 export function nomeLugarAmiga(nome) { return String(nome || '').replace(/\s*\([^)]*\)\s*$/, ''); }
+// André 2026-11-18 ("parece que está travada com informações antigas"): o diário guardava estado do jogo como lembrança
+// ("preciso de 2 couros e um capacete melhor", "estou na porta da casa cuidando da horta", "combinamos caçar amanhã cedo")
+// e ela repetia isso dias depois, contra a ficha (bota era a peça pior; ela usa cajado). Estado do jogo vem da ficha, na hora:
+// lembrança assim não vai para a IA nem entra no diário (o que está guardado fica no banco, só não é lido).
+const ESTADO_DO_JOGO = /capacete|casco|bota|luva|couro|pe[cç]a|equip|cajado|espada|\barma\b|n[ií]vel|level|\blvl\b|\bup(ar|ei|ou)?\b|miss[aã]o|quest|horta|milho|planta|colh|boost|upgrade|reset|preciso|precis(o|ando)|estou (na|no|em)|t[oô] (na|no|em)|vindo|amanh[aã]/i;
+export function lembrancaBoa(t) { return typeof t === 'string' && !!t.trim() && !ESTADO_DO_JOGO.test(t); }
 // a fala da IA no gênero de quem fala (ela: "tô pronta"; ele: "tô pronto"), só nos jeitos de falar de si mesmo
 const ADJ_GENERO = ['pronto', 'cansado', 'sozinho', 'ocupado', 'animado', 'preparado', 'acostumado', 'cansadão', 'atrasado', 'perdido', 'preocupado', 'empolgado', 'ligado', 'focado', 'liberado', 'parado', 'quebrado', 'morto', 'feliz'];
 export function generoFala(fala, genero = 'f') {
@@ -1568,8 +1574,8 @@ export const Amiga = {
       ouro: a.prog.ouro | 0,
       mochila: Object.entries(a.prog.mochila.reduce((m, o) => { if (o) m[ITENS[o.k]?.nome || o.k] = (m[ITENS[o.k]?.nome || o.k] || 0) + (o.n || 1); return m; }, {})).slice(0, 8).map(([k, n]) => `${n} ${k}`).join(', '),
       conversa: this.chatDeAmiga(j).slice(-this.histAmiga()), // André 2026-11-13: com menos ela perdia o fio; 2026-11-17: 40 e salvas no banco
-      memoria: (a.memorias?.[j.conta] || []).slice(0, this.AMIGA.memoria.max),
-      fatos: (a.fatos?.[j.conta] || []).slice(-this.AMIGA.fatos.max), esforco: this.AMIGA.puxaAssunto ? this.AMIGA.chat.esforco || null : null, // só a Cecília pensa mais (André 2026-11-17)
+      memoria: (a.memorias?.[j.conta] || []).filter(lembrancaBoa).slice(0, this.AMIGA.memoria.max),
+      fatos: (a.fatos?.[j.conta] || []).filter((f) => !/miss[aã]o|quest/i.test(f) || HISTORIA.some((M) => f.toLowerCase().includes(M.nome.toLowerCase()))).slice(-this.AMIGA.fatos.max), esforco: this.AMIGA.puxaAssunto ? this.AMIGA.chat.esforco || null : null, // só a Cecília pensa mais (André 2026-11-17)
       // ela puxou conversa e ele demorou para responder (naoInsiste): retoma numa boa, sem cobrar (André 2026-11-17)
       ignorada: this.esperandoAmiga(a, j) && this.tempo - a.ia.espera[j.conta].t > 90,
       temas: this.AMIGA.puxaAssunto ? (a.ia.temas ||= []) : null, // os últimos assuntos que ela puxou (server/ia-amiga.js puxarAssunto não repete)
@@ -1601,7 +1607,7 @@ export const Amiga = {
       fechadoDele: !j.bot && a.ia.av?.c && ['ir', 'cacar'].includes(a.ia.av.fase) && this.fechadoParaAmiga(j, a.ia.av.c) ? nomeLugarAmiga(a.ia.av.c.nome) : null, // só o nome: ela não explica (André 2026-11-17)
       loja: `para ${j.nome} (nível ${j.prog.nivel}): poção de vida ${preco('pocao')} de ouro e de mana ${preco('pocao_mana')} na Rosa (para você, ${preco('pocao', a.prog.nivel)}); peça de armadura comum ${precoLoja(LOJA.find((o) => o.r === 0), j.prog.nivel) || 60} e rara ${precoLoja(LOJA.find((o) => o.r === 1), j.prog.nivel) || 240}; o preço sobe com o nível de quem compra; conserto no Tomás (ferreiro)`,
       missaoDele: M ? `${M.nome}${E ? ` (agora: ${E.txt})` : ' (ainda não aceitou: fala com o NPC da missão)'}` : null,
-      vida, pocoes: contar(a.prog.mochila, 'pocao'), arma: a.modo === 'Magia' ? 'cajado (magia)' : 'espada',
+      vida, pocoes: contar(a.prog.mochila, 'pocao'), arma: `espada e cajado (troca entre os dois na luta; agora: ${a.modo === 'Magia' ? 'cajado' : 'espada'})`, // André 2026-11-18: ela dizia que não usa cajado
       sozinha: this.podeSairAmiga(a, j), naLista: this.ehAmigoAmiga(j),
       missaoDela: a.semTeto && missaoAtual(a.prog) ? `${missaoAtual(a.prog).nome}${a.prog.hist?.ac && etapaAtual(a.prog) ? ` (agora: ${etapaAtual(a.prog).txt})` : ''}` : null,
     };
@@ -1921,7 +1927,7 @@ export const Amiga = {
   anotarAmiga(conta, r) {
     const M = this.AMIGA.memoria, L = this.loteDaAmiga(), a = this.amiga || L?.amiga; if (!a || !r) return; // ela já saiu da sala: grava no terreno
     if (Array.isArray(r.memorias)) {
-      const lista = r.memorias.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.replace(/\s+/g, ' ').trim().slice(0, M.tamanho)).slice(0, M.max);
+      const lista = r.memorias.filter(lembrancaBoa).map((t) => t.replace(/\s+/g, ' ').trim().slice(0, M.tamanho)).slice(0, M.max);
       if (lista.length) (a.memorias ||= {})[conta] = lista;
     }
     // fatos novos (André 2026-11-17): só somam; o mesmo fato (sem acento e caixa) não entra de novo; cheio sai o mais velho
@@ -2060,7 +2066,7 @@ export const Amiga = {
   notaEquipAmiga(it) { return it ? it.r * 100 + (it.e || 0) * 10 - (it.d || 0) : -1; },
   listaEquipAmiga() {
     const e = this.amiga?.prog.equip || {};
-    return Object.entries(e).filter(([l, it]) => it && l !== 'cajado').map(([, it]) => nomeDoItem(it)).join(', ');
+    return Object.entries(e).filter(([, it]) => it).map(([, it]) => nomeDoItem(it)).join(', '); // com o cajado: ela usa os dois (André 2026-11-18)
   },
   // a peça mais fraca dela (que ainda dá para melhorar): { l, it }
   pecaFracaAmiga() {

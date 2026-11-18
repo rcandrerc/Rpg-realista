@@ -2754,7 +2754,7 @@ export const AMIGA = {
     time: ['Bora! Tô no seu time. Vai na frente que eu cuido das suas costas.', 'Fechou! Time formado. Quem cair primeiro paga o jantar!', 'Partiu! Espada afiada e cenoura no bolso.'],
     // André 2026-11-13 ("como se fosse um jogador real"): no chat ela só topa; quem dá o time é ele, pelo botão
     timeCombinado: ['Bora! Manda o convite do time.', 'Topo! Me chama pro time que eu vou.', 'Fechou! Manda o time aí.'],
-    timeConvidou: ['Claro, vem! Te mandei o convite do time.', 'Bora! Mandei o time, aceita aí.', 'Vem comigo! Já te chamei pro time.'], // ela manda o convite (convida)
+    timeConvidou: ['Claro, vem! Te mandei o convite da pt.', 'Bora! Mandei a pt, aceita aí.', 'Vem comigo! Já te chamei pra pt.'], // ela manda o convite (convida)
     // aceitou com ele bem mais fraco (André 2026-11-16: "vou te ajudar porque você é meu amigo... mas não tão grosseira")
     nivelBaixo: ['Vou sim, você é meu amigo! Mas tá {n} níveis abaixo de mim, hein... bora upar você um pouco.', 'Bora! Só não some do meu lado, que com {n} níveis de diferença os mobs te pegam fácil kkk.', 'Tô dentro! Mas cê tá {n} níveis atrás, vou ter que segurar o aggro pra você.'],
     jaNoTime: ['Ué, eu já tô no seu time! Bora caçar!'],
