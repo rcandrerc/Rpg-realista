@@ -1628,7 +1628,10 @@ export const Amiga = {
     if (a.morto) return { ok: false, motivo: 'você caiu e está renascendo', fala: 'acabei de cair, tô renascendo' };
     if (a.time && a.time === j.time) return { ok: false, motivo: 'você está no time dele caçando junto', fala: 'tô no seu time, bora caçar junto' };
     if (a.ia.av && ['ir', 'cacar'].includes(a.ia.av.fase)) return { ok: false, motivo: 'você já está caçando', ja: true };
-    if (!naHoraDe(this.rotinaAmiga(), horaDoJogo(a.prog.dia))) return { ok: false, motivo: 'está fora do seu horário de caçar (de noite você fica na vila até amanhecer)', fala: 'de noite eu não saio, só quando amanhecer' };
+    if (!naHoraDe(this.rotinaAmiga(), horaDoJogo(a.prog.dia))) { // André 2026-11-18 (ronda): "ainda é dia, temos que ficar até a noite" (inventou): o horário de verdade
+      const R = this.rotinaAmiga(), hh = (h) => `${Math.floor(h)}h`;
+      return { ok: false, motivo: `está fora do seu horário de caçar ${this.AMIGA.genero === "m" ? "sozinho" : "sozinha"} (você sai das ${hh(R.saiDe)} às ${hh(R.voltaDe)}; agora são ${hh(horaDoJogo(a.prog.dia))})`, fala: ehNoite(horaDoJogo(a.prog.dia)) ? 'de noite eu não saio, só quando amanhecer' : 'agora não é meu horário de sair, mais tarde eu vou' };
+    }
     if (this.grindAcabouAmiga(a)) return { ok: false, motivo: 'você já caçou o bastante hoje (só amanhã de novo; pode pescar, minerar ou ficar na vila)', fala: 'já farmei demais hoje, amanhã eu volto pro grind' };
     if (!contar(a.prog.mochila, 'pocao') && a.prog.ouro < (precoLoja(LOJA.find((o) => o.k === 'pocao'), a.prog.nivel) || 15)) return { ok: false, motivo: 'você está sem poção e sem ouro', fala: 'tô sem poção e sem ouro' };
     return { ok: true };
