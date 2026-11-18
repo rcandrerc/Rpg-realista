@@ -16,7 +16,7 @@ ok(precoLoja(pocao, 10) === 40 && precoLoja(pocao, 50) === 120 && precoLoja(mana
 ok(LOJA.filter((o) => o.r === 0).every((o) => o.preco === 150) && LOJA.filter((o) => o.r === 1).every((o) => o.preco === 900), 'peça Comum 150, Rara 900');
 ok(LOJA.some((o) => o.k === 'lenha' && o.preco === 80) && LOJA.some((o) => o.k === 'pedra' && o.preco === 80) && LOJA.some((o) => o.k === 'semente_cenoura'), 'lenha e pedra a 80, sementes continuam (material de pack)');
 ok(ECONOMIA.semente === 2.5 && LOJA.filter((o) => o.k.startsWith('semente_')).every((o) => o.preco >= 2), 'sementes 2,5x mais caras');
-ok(MORTE.consertoTabela.join() === '50,400,2000,8000,30000' && custoConserto({ k: 'peitoral', r: 1, d: 0 }) === 400 && custoConserto({ k: 'peitoral', r: 1, d: 90 }) === 40, 'conserto pesa pela raridade (Comum 50, Rara 400, Épico 2.000)');
+ok(MORTE.consertoTabela.join() === '100,800,4000,16000,60000' && custoConserto({ k: 'peitoral', r: 1, d: 0 }) === 800 && custoConserto({ k: 'peitoral', r: 1, d: 90 }) === 80, 'conserto pesa pela raridade (André 2026-11-18, o dobro: Comum 100, Rara 800, Épico 4.000)');
 
 // pack: Aurora deixa de pagar área 1
 const M = Object.fromEntries(MAPA_CLAREIRA.npcs.filter((n) => n.funcao === 'pack').map((n) => [n.id, n]));

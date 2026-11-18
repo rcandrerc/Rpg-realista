@@ -3914,17 +3914,17 @@
   "maxFila": 20
  },
  "morte": {
-  "ouro": 0.1,
+  "ouro": 0,
   "desgaste": 10,
   "durMax": 100,
   "conserto": 0.3,
   "xp": 0.05,
   "consertoTabela": [
-   50,
-   400,
-   2000,
-   8000,
-   30000
+   100,
+   800,
+   4000,
+   16000,
+   60000
   ]
  },
  "reforco": {
