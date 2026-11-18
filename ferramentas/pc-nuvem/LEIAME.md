@@ -12,3 +12,13 @@ Oracle, ActorCore, Mixamo). Depois as threads usam esse Chrome pela extensão.
 - Desligar: `sudo systemctl disable --now pc-desktop pc-novnc caddy`. Religar: `enable --now`.
 - Só HTTPS sai para fora (Caddy + sslip.io). A tela e o noVNC escutam só em 127.0.0.1, e o
   firewall impede o usuário do runner de abrir a tela do Chrome logado.
+
+## RDP (celular com o app Windows App)
+
+- Opcional: rode `cloudshell-bastion.sh` com `PC_VNC='<senha da tela>'` além do `PC_HASH`
+  (os dois em `chaves/pc-nuvem.txt`). O xrdp (porta 3389) mostra a MESMA tela do Chrome.
+- A porta 3389 abre num NSG `pc-nuvem-rdp` preso só na placa de rede da builds-runner. A
+  Security List da sub-rede (também da VM do jogo) não muda.
+- Com o RDP ligado a tela pede a senha `PC_VNC` (8 caracteres, limite do VNC); o noVNC entra
+  com ela sozinho. Contra chute de senha: no máximo 6 conexões novas por minuto por IP.
+- Desligar o RDP: `sudo systemctl disable --now xrdp` e tirar o NSG da placa da builds-runner.

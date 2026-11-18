@@ -3,8 +3,10 @@
 # passando por um Bastion temporário (a VM não tem chave SSH e o Run command não tem sudo).
 # NUNCA toca na VM do jogo. No fim apaga o Bastion.
 # Uso: PC_HASH='<hash de chaves/pc-nuvem.txt>' bash cloudshell-bastion.sh
+# Com RDP: PC_HASH='...' PC_VNC='<senha da tela, chaves/pc-nuvem.txt>' bash cloudshell-bastion.sh
 set -euo pipefail
 : "${PC_HASH:?falta PC_HASH}"
+PC_VNC="${PC_VNC:-}"
 REG=sa-saopaulo-1
 TEN="${OCI_TENANCY:?Cloud Shell sem OCI_TENANCY}"
 INST=ocid1.instance.oc1.sa-saopaulo-1.antxeljr2cr4ewicm2bln2bbiavknvzgz76ebxwnfuvlkjv357w665b2t5za  # builds-runner
@@ -14,6 +16,29 @@ SUB=$(oci compute instance list-vnics --instance-id "$INST" --query 'data[0]."su
 IPVM=$(oci compute instance list-vnics --instance-id "$INST" --query 'data[0]."private-ip"' --raw-output)
 MEUIP=$(curl -fsS https://api.ipify.org)
 echo "== builds-runner $IPVM, Cloud Shell $MEUIP"
+
+if [ -n "$PC_VNC" ]; then
+  # RDP: a porta 3389 abre num grupo de segurança (NSG) preso SÓ na placa de rede da builds-runner.
+  # A Security List da sub-rede (que a VM do jogo também usa) não muda.
+  echo "== 0/4 Porta 3389 só para a builds-runner (NSG pc-nuvem-rdp)"
+  VNIC=$(oci compute instance list-vnics --instance-id "$INST" --query 'data[0].id' --raw-output)
+  VCN=$(oci network subnet get --subnet-id "$SUB" --query 'data."vcn-id"' --raw-output)
+  NSG=$(oci network nsg list -c "$TEN" --vcn-id "$VCN" --display-name pc-nuvem-rdp \
+    --query 'data[0].id' --raw-output 2>/dev/null || true)
+  if [ -z "$NSG" ] || [ "$NSG" = null ]; then
+    NSG=$(oci network nsg create -c "$TEN" --vcn-id "$VCN" --display-name pc-nuvem-rdp \
+      --wait-for-state AVAILABLE --query 'data.id' --raw-output)
+    oci network nsg rules add --nsg-id "$NSG" --security-rules \
+      '[{"direction":"INGRESS","protocol":"6","source":"0.0.0.0/0","sourceType":"CIDR_BLOCK","isStateless":false,"tcpOptions":{"destinationPortRange":{"min":3389,"max":3389}},"description":"RDP do PC na nuvem"}]' >/dev/null
+  fi
+  ATUAIS=$(oci network vnic get --vnic-id "$VNIC" --query 'data."nsg-ids"' 2>/dev/null || echo '[]')
+  [ -n "$ATUAIS" ] && [ "$ATUAIS" != null ] || ATUAIS='[]'
+  if ! echo "$ATUAIS" | grep -q "$NSG"; then
+    NOVOS=$(echo "$ATUAIS" | jq -c --arg n "$NSG" '. + [$n]')   # mantém os que já existiam
+    oci network vnic update --vnic-id "$VNIC" --nsg-ids "$NOVOS" --force >/dev/null
+  fi
+  echo "nsg $NSG na builds-runner"
+fi
 
 # O Cloud Shell sai por outro IP no SSH, então a ponte temporária aceita qualquer origem
 # (só entra quem tem a chave gerada aqui; a ponte é apagada no fim). OK do André 2026-11-18.
@@ -49,7 +74,7 @@ done
 
 echo "== 3/4 Instalando (uns 10 min)"
 ssh "${SSHOPT[@]}" "ubuntu@$IPVM" \
-  "F=\$(mktemp) && curl -fsSL https://raw.githubusercontent.com/rcandrerc/Rpg-realista/claude/project-thread-pw8cm4/ferramentas/pc-nuvem/instalar-pc-nuvem.sh -o \$F && sudo PC_HASH='$PC_HASH' bash \$F 2>&1 | tail -25"
+  "F=\$(mktemp) && curl -fsSL https://raw.githubusercontent.com/rcandrerc/Rpg-realista/claude/project-thread-pw8cm4/ferramentas/pc-nuvem/instalar-pc-nuvem.sh -o \$F && sudo PC_HASH='$PC_HASH' PC_VNC='$PC_VNC' bash \$F 2>&1 | tail -25"
 # (arquivo novo com mktemp: /tmp/pc.sh já existe, de outro usuário, de uma tentativa pelo Run command)
 rm -f ~/.ssh/pcn ~/.ssh/pcn.pub
 echo "== FIM"
