@@ -20,14 +20,16 @@ set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "ERRO: rode com sudo" >&2; exit 1; }
 : "${PC_HASH:?ERRO: falta PC_HASH (hash bcrypt de chaves/pc-nuvem.txt no repositório de fontes)}"
 PC_VNC="${PC_VNC:-}"
-# PC_RDP=1: liga o RDP e a própria VM cria (ou reaproveita) a senha da tela, sem senha na linha.
+# PC_RDP=1 (ou PC_RDP=novo para trocar a senha): liga o RDP e a própria VM cria (ou reaproveita) a senha da tela, sem senha na linha.
 # A senha fica em /etc/pc-nuvem/vnc.txt (só root) e em https://<endereço>/senha-rdp.txt (atrás do login).
 if [ -n "${PC_RDP:-}" ] && [ -z "$PC_VNC" ]; then
   install -d -m 700 /etc/pc-nuvem
-  if [ -s /etc/pc-nuvem/vnc.txt ]; then
+  if [ -s /etc/pc-nuvem/vnc.txt ] && [ "$PC_RDP" != novo ]; then
     PC_VNC=$(cat /etc/pc-nuvem/vnc.txt)
   else
-    PC_VNC=$(python3 -c 'import secrets,string;a=string.ascii_letters+string.digits;print("".join(secrets.choice(a) for _ in range(8)))')
+    # só minúsculas e números, começando com número: o teclado do celular não põe maiúscula sozinho,
+    # e no RDP do celular (teclas "unicode") maiúscula com shift falhava. Sem l/i/o/0/1 (confundem).
+    PC_VNC=$(python3 -c 'import secrets;a="abcdefghjkmnpqrstuvwxyz23456789";print(secrets.choice("23456789")+"".join(secrets.choice(a) for _ in range(7)))')
   fi
 fi
 if [ -n "$PC_VNC" ] && ! [[ "$PC_VNC" =~ ^[A-Za-z0-9]{8}$ ]]; then
