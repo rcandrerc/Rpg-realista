@@ -178,6 +178,7 @@ func _ready() -> void:
 	plano = FazendaPlano.new(self)
 	add_child(plano)
 	_montar_tela()
+	_montar_setas()
 	# botões da HUD: comprar terreno (nas terras, sem terreno), construir (no meu terreno) e a estação perto (Alfaiate/Ferreiro)
 	m.hud._botao("construir", Vector2(597, 160), 30, "construir", m.hud.COR_TROCA)
 	m.hud.botoes[-1].oculto = true
@@ -2727,32 +2728,33 @@ func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void
 		fechar_forno()
 
 # câmera flutuante (Quimera iD): o joystick move a mira a 7 m/s na direção da câmera; a mira não sai do terreno
-# (construindo) nem das terras (comprando)
+# (construindo) nem das terras (comprando).
+# Câmera solta da mira (André 2026-11-18: "quando eu clico num lugar a câmera volta para aquele lugar e eu perco a
+# visão"): a câmera olha para o próprio ponto (foco). Tocar no chão só mexe a mira (marca/escolhe); as setas no canto
+# de baixo à esquerda andam só com a câmera; o joystick anda com as duas juntas, como antes. Vale no modo construção
+# todo (Casa, Móveis, Fazenda, árvores na área de plantio, Terreno) e na compra do terreno.
+var foco := Vector3.ZERO
+var _foco_ok := false # false: na próxima conta a câmera começa onde a mira está (abrir, mudar de modo)
+var _seta := Vector2.ZERO # seta apertada (x: direita, y: para baixo na tela = para perto)
+var setas: Control
 func _mover_mira(dt: float) -> void:
+	if not _foco_ok:
+		foco = mira
+		_foco_ok = true
 	var j: Vector2 = m.hud.mover
 	if j.length() > 0.12:
-		mira += Vector3(j.x, 0, j.y).rotated(Vector3.UP, m.cam.yaw) * VEL_MIRA * minf(dt, 0.1) * minf(1.0, j.length() * 1.2)
-	if ativo and na_area:
-		var hpm: Vector3 = m.heroi.position
-		var dv := Vector2(mira.x - hpm.x, mira.z - hpm.z).limit_length(m.plantio.RAIO_MODO)
-		mira.x = hpm.x + dv.x
-		mira.z = hpm.z + dv.y
-	elif ativo and lotes.has(meu):
-		var l: Dictionary = lotes[meu].def
-		mira.x = clampf(mira.x, float(l.x0) - 1.5, float(l.x1) + 1.5)
-		mira.z = clampf(mira.z, float(l.z0) - 1.5, float(l.z1) + 1.5)
-	elif comprando:
-		var A: Dictionary = terras.area
-		mira.x = clampf(mira.x, float(A.x) - float(A.rx) - 2.0, float(A.x) + float(A.rx) + 2.0)
-		mira.z = clampf(mira.z, float(A.z) - float(A.rz) - 2.0, float(A.z) + float(A.rz) + 2.0)
-	if na_area: # área de plantio (André 2026-11-17: em Rio Claro a câmera ia para debaixo da cidade): o chão de verdade,
-		# com relevo e calçada; o _piso só conhece o chão do terreno (0 fora das vilas do mundo grande)
-		mira.y = m.terreno.altura(mira.x, mira.z)
-	else:
-		mira.y = _piso(mira.x, mira.z) # dentro da casa a mira fica no piso, não em cima do telhado
-	if andar == "telhado" and lotes.has(meu): # mexendo no telhado (André 2026-11-05): a câmera sobe até o alto das paredes
-		mira.y = maxf(mira.y, _topo_parede(mira.x, mira.z) - 0.6)
-	m.cam.entrar_livre(mira)
+		var dj := Vector3(j.x, 0, j.y).rotated(Vector3.UP, m.cam.yaw) * VEL_MIRA * minf(dt, 0.1) * minf(1.0, j.length() * 1.2)
+		mira += dj
+		foco += dj
+	if _seta != Vector2.ZERO:
+		foco += Vector3(_seta.x, 0, _seta.y).rotated(Vector3.UP, m.cam.yaw) * VEL_MIRA * minf(dt, 0.1)
+	mira = _prender(mira, 0.0)
+	foco = _prender(foco, 2.0) # a câmera vai um pouco além da borda, para ver o canto inteiro
+	mira.y = _altura_mira(mira)
+	foco.y = _altura_mira(foco)
+	if setas:
+		setas.visible = true
+	m.cam.entrar_livre(foco)
 	if _mira_no == null:
 		_mira_no = MeshInstance3D.new()
 		var t := TorusMesh.new()
@@ -2778,6 +2780,74 @@ func _mover_mira(dt: float) -> void:
 func camera_livre() -> bool:
 	return ativo or comprando
 
+# o ponto não sai de onde dá para mexer (folga: metros a mais além da borda, para a câmera)
+func _prender(p: Vector3, folga: float) -> Vector3:
+	if ativo and na_area:
+		var hpm: Vector3 = m.heroi.position
+		var dv := Vector2(p.x - hpm.x, p.z - hpm.z).limit_length(m.plantio.RAIO_MODO + folga)
+		p.x = hpm.x + dv.x
+		p.z = hpm.z + dv.y
+	elif ativo and lotes.has(meu):
+		var l: Dictionary = lotes[meu].def
+		p.x = clampf(p.x, float(l.x0) - 1.5 - folga, float(l.x1) + 1.5 + folga)
+		p.z = clampf(p.z, float(l.z0) - 1.5 - folga, float(l.z1) + 1.5 + folga)
+	elif comprando:
+		var A: Dictionary = terras.area
+		p.x = clampf(p.x, float(A.x) - float(A.rx) - 2.0 - folga, float(A.x) + float(A.rx) + 2.0 + folga)
+		p.z = clampf(p.z, float(A.z) - float(A.rz) - 2.0 - folga, float(A.z) + float(A.rz) + 2.0 + folga)
+	return p
+
+func _altura_mira(p: Vector3) -> float:
+	var y: float
+	if na_area: # área de plantio (André 2026-11-17: em Rio Claro a câmera ia para debaixo da cidade): o chão de verdade,
+		# com relevo e calçada; o _piso só conhece o chão do terreno (0 fora das vilas do mundo grande)
+		y = m.terreno.altura(p.x, p.z)
+	else:
+		y = _piso(p.x, p.z) # dentro da casa a mira fica no piso, não em cima do telhado
+	if andar == "telhado" and lotes.has(meu): # mexendo no telhado (André 2026-11-05): a câmera sobe até o alto das paredes
+		y = maxf(y, _topo_parede(p.x, p.z) - 0.6)
+	return y
+
+# setas da câmera (André 2026-11-18): canto de baixo à esquerda, segurar anda com a câmera (não mexe na mira)
+func _montar_setas() -> void:
+	setas = Control.new()
+	setas.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	setas.visible = false
+	tela.add_child(setas)
+	var tam := 54.0
+	var vao := 4.0
+	var lado := tam * 3.0 + vao * 2.0
+	setas.offset_left = 12
+	setas.offset_right = 12 + lado
+	setas.offset_top = -14 - lado
+	setas.offset_bottom = -14
+	for s_ in [[1, 0, Vector2(0, -1)], [0, 1, Vector2(-1, 0)], [2, 1, Vector2(1, 0)], [1, 2, Vector2(0, 1)]]:
+		var b := Button.new()
+		b.focus_mode = Control.FOCUS_NONE
+		b.position = Vector2(s_[0] * (tam + vao), s_[1] * (tam + vao))
+		b.size = Vector2(tam, tam)
+		b.tooltip_text = Idioma.frase("Mover a câmera")
+		Menu.estilo_botao(b, false)
+		var d: Vector2 = s_[2]
+		# a setinha é um triângulo desenhado (a fonte do jogo não tem ▲ ◀ ▶ ▼)
+		var tri := Polygon2D.new()
+		var lado_t := Vector2(-d.y, d.x)
+		tri.polygon = PackedVector2Array([d * 13.0, -d * 9.0 + lado_t * 13.0, -d * 9.0 - lado_t * 13.0])
+		tri.position = Vector2(tam, tam) * 0.5 + d * 2.0
+		tri.color = Menu.OURO_CLARO
+		b.add_child(tri)
+		b.button_down.connect(func(): _seta = d)
+		b.button_up.connect(func():
+			if _seta == d:
+				_seta = Vector2.ZERO)
+		setas.add_child(b)
+
+func _esconder_setas() -> void:
+	_seta = Vector2.ZERO
+	_foco_ok = false
+	if setas:
+		setas.visible = false
+
 # ---------- modo construção ----------
 func abrir() -> void:
 	if not m.on():
@@ -2801,13 +2871,14 @@ func abrir() -> void:
 	var hp: Vector3 = m.heroi.position
 	var ry: float = m.mov.ry
 	mira = hp + Vector3(sin(ry), 0, cos(ry)) * 2.0
+	_foco_ok = false
 	painel.visible = true
 	painel_acoes.visible = true
 	_montar_itens()
 	_alt.clear()
 	_mostrar_borda(true)
 	_refrescar_placas()
-	m.hud.aviso("Modo construção: o joystick move a câmera e a mira. Toque no chão para mirar.")
+	m.hud.aviso("Modo construção: as setas movem a câmera, o joystick move câmera e mira. Toque no chão para mirar.")
 	if m.lentidao: # quanto o modo construção levou para abrir (lentidao.gd, tipo "menu")
 		m.lentidao.menu_aberto("construir", t0, 0)
 
@@ -2835,6 +2906,7 @@ func abrir_area(s := "") -> void:
 	var hp: Vector3 = m.heroi.position
 	var ry: float = m.mov.ry
 	mira = hp + Vector3(sin(ry), 0, cos(ry)) * 3.0
+	_foco_ok = false
 	painel.visible = true
 	painel_acoes.visible = true
 	for k in _botoes_abas:
@@ -2863,6 +2935,7 @@ func sair() -> void:
 		_mira_no.visible = false
 	_mostrar_borda(false)
 	_refrescar_placas()
+	_esconder_setas()
 	m.cam.sair_livre()
 
 func _mostrar_borda(v: bool) -> void:
@@ -3344,6 +3417,7 @@ func perguntar_compra() -> void:
 	_ret = {}
 	_mudar_ini = {}
 	mira = m.heroi.position
+	_foco_ok = false
 	_abrir_tela_compra()
 
 func sair_compra() -> void:
@@ -3357,6 +3431,7 @@ func sair_compra() -> void:
 		if n:
 			n.visible = false
 	_mostrar_alcas(false)
+	_esconder_setas()
 	m.cam.sair_livre()
 	if voltar and lotes.has(meu) and m.h.morto <= 0.0 and not m.menu.aberto():
 		abrir() # volta para o modo construção, na aba Terreno
@@ -3404,6 +3479,7 @@ func perguntar_mudar() -> void:
 	_canto_a = null
 	_canto_b = null
 	mira = Vector3((float(d.x0) + float(d.x1)) / 2.0, 0, (float(d.z0) + float(d.z1)) / 2.0)
+	_foco_ok = false
 	_abrir_tela_compra()
 	m.cam.zoom(1.35) # um pouco mais longe: o terreno inteiro cabe na tela
 
@@ -3413,7 +3489,7 @@ func _abrir_tela_compra() -> void:
 	painel_compra.visible = true
 	_desenhar_outros()
 	_atualizar_compra()
-	m.hud.aviso("Joystick: anda com a câmera · arraste a tela: gira · dois dedos: zoom")
+	m.hud.aviso("Setas ou joystick: anda com a câmera · arraste a tela: gira · dois dedos: zoom")
 
 # botão da barra: na compra apaga o marcado (marca de novo); no mudar volta ao tamanho de antes
 # (mexeu e quer voltar: Desfazer; já está no tamanho de antes: Marcar de novo, para marcar outro pedaço perto)
@@ -3810,7 +3886,7 @@ func comprar() -> void:
 
 # ---------- tela: barra de itens embaixo, no meio (como a do Quimera); o joystick à esquerda continua livre ----------
 func cobre(p: Vector2) -> bool:
-	for pn in [painel, painel_acoes, painel_compra, painel_bau, painel_forno, painel_qtd, painel_fab]:
+	for pn in [painel, painel_acoes, painel_compra, painel_bau, painel_forno, painel_qtd, painel_fab, setas]:
 		if pn != null and pn.visible and pn.get_global_rect().grow(6).has_point(p):
 			return true
 	return false
@@ -3857,23 +3933,34 @@ func _montar_tela() -> void:
 		b.custom_minimum_size = Vector2(118, 42)
 		_botoes_abas[k] = b
 		linha_abas.add_child(b)
-	var pc := Menu.rotulo("", 17, Menu.APAGADO)
+	# barra mais enxuta (André 2026-11-18: "a barra é gigantesca, o campo de plantação fica curto"; os botões ficam do
+	# mesmo tamanho): o texto ao lado das abas quebra em até duas linhas na altura das abas (antes esticava a barra
+	# para a direita e era cortado), e o nome com o aviso (verde pode / vermelho não pode) dividem uma linha só
+	var pc := Menu.rotulo("", 15, Menu.APAGADO)
 	pc.name = "pecas"
 	pc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pc.custom_minimum_size = Vector2(200, 0)
+	pc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	pc.max_lines_visible = 2
 	pc.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	pc.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	linha_abas.add_child(pc)
-	txt_nome = Menu.rotulo("", 19, Menu.OURO_CLARO)
+	var linha_txt := HBoxContainer.new()
+	linha_txt.add_theme_constant_override("separation", 10)
+	col.add_child(linha_txt)
+	txt_nome = Menu.rotulo("", 17, Menu.OURO_CLARO)
 	txt_nome.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	txt_nome.custom_minimum_size = Vector2(700, 0)
-	col.add_child(txt_nome)
-	txt_motivo = Menu.rotulo("", 18, Color("ffb3a3"))
+	txt_nome.custom_minimum_size = Vector2(480, 0)
+	txt_nome.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	linha_txt.add_child(txt_nome)
+	txt_motivo = Menu.rotulo("", 17, Color("ffb3a3"))
 	txt_motivo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	txt_motivo.custom_minimum_size = Vector2(700, 0)
-	col.add_child(txt_motivo)
+	txt_motivo.custom_minimum_size = Vector2(300, 0)
+	txt_motivo.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	linha_txt.add_child(txt_motivo)
 	var rolar := ScrollContainer.new()
 	rolar.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	rolar.custom_minimum_size = Vector2(760, 96)
+	rolar.custom_minimum_size = Vector2(800, 96) # um pouco mais larga e mais baixa: cabe nome e aviso numa linha
 	col.add_child(rolar)
 	linha_itens = HBoxContainer.new()
 	linha_itens.add_theme_constant_override("separation", 6)
@@ -4856,7 +4943,7 @@ func _montar_itens() -> void:
 		n.queue_free()
 	var L = lotes.get(meu)
 	var pc: Label = linha_abas.get_node("pecas")
-	pc.text = Idioma.frase(("Peças %d/%d" % [L.pecas.size(), max_pecas(L, D.lote)] if L else "") if aba != "fazenda" else "Arar → Plantar → Regar → Colher · Vigor %d · Água do regador %d/%d" % [int(m.P.vigor()), agua_regador(), int(D.horta.get("agua", 20))])
+	pc.text = Idioma.frase(("Peças %d/%d" % [L.pecas.size(), max_pecas(L, D.lote)] if L else "") if aba != "fazenda" else "Arar → Plantar → Regar → Colher · Vigor %d · Água %d/%d" % [int(m.P.vigor()), agua_regador(), int(D.horta.get("agua", 20))])
 	var nome := ""
 	if na_area: # Fazenda na área de plantio: só as mudas de árvore
 		pc.text = Idioma.t("Área de plantio · Vigor %d") % int(m.P.vigor())
