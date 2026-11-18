@@ -168,8 +168,10 @@ export function mensagensConversa(ctx, texto) {
     ctx.noTime ? `Vocês JÁ estão no mesmo time: nunca peça para ${ctx.amigo} te chamar pro time.` : '',
     ctx.chamou ? `Se a resposta dele for curta ("bora", "sim", "vamos", "pode ser"), ele está aceitando o que VOCÊ chamou; não trate como convite dele.` : '',
     humorTime(ctx),
-    ctx.equip ? `Você está usando: ${ctx.equip}.${ctx.pecaFraca ? ` A peça mais fraca é ${ctx.pecaFraca} (se ele oferecer ajuda ou falar de equipamento, dá para pedir uma melhor pela troca).` : ''}` : '',
-    `Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? `; na mochila: ${ctx.mochila}` : ''}.${ctx.pedido ? ` Está precisando de ${ctx.pedido}.` : ''}`,
+    ctx.equip ? `Você está usando: ${ctx.equip}.${ctx.pecaFraca && !jaFalou(ctx, ctx.pecaFraca) ? ` A peça mais fraca é ${ctx.pecaFraca} (se ele oferecer ajuda ou falar de equipamento, dá para pedir uma melhor pela troca).` : ''}` : '',
+    `Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? `; na mochila: ${ctx.mochila}` : ''}.${ctx.pedido && !jaFalou(ctx, ctx.pedido) ? ` Está precisando de ${ctx.pedido}.` : ''}`,
+    ctx.caiuHa != null ? (ctx.morta ? 'Você CAIU agora (morreu) e está renascendo em casa.' : `Você caiu (morreu) há ${ctx.caiuHa} min e já renasceu.`) : '',
+    ctx.barco ? `Barquinho: ${ctx.barco}. Se ${ctx.amigo} falar de barquinho, você sabe fazer: diga que vai juntar o material e fazer (não diga que não consegue).` : '',
     ctx.fatos?.length ? `Fatos que você SABE sobre ${ctx.amigo} (ele te contou; nunca esqueça nem contradiga; use com tato e só de vez em quando, sem perguntar da mesma coisa duas vezes na conversa): ${ctx.fatos.join('; ')}.` : '',
     ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} e de vocês de outros dias (use com naturalidade quando fizer sentido): ${ctx.memoria.join('; ')}.` : '',
     `Sua vida: ${ctx.vida ?? 100}%. Poções de vida na mochila: ${ctx.pocoes ?? 0}. Você luta de ${ctx.arma || 'espada'}.`,
@@ -259,6 +261,14 @@ export function salvarResposta(txt) {
   if (!m && /^\{/.test(t)) return null; // JSON cortado no meio da fala: melhor o próximo modelo que meia frase
   if (fala.length < 2 || /^[{\["]/.test(fala) || /"(fala|acao)"/.test(fala)) return null;
   return { assunto: 'conversa', fala: fala.slice(0, 300) };
+}
+// André 2026-11-17 (ronda): ela repetia o pedido ("2 couros e um capacete melhor") em 6 de 25 falas, mesmo depois de ele
+// dizer que estava sem ouro. A ficha só lembra o pedido se ela não falou dele nas últimas 8 falas dela.
+const semAcento = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+export function jaFalou(ctx, oQue) {
+  const ps = semAcento(oQue).split(/[^a-z]+/).filter((w) => w.length >= 4);
+  if (!ps.length) return false;
+  return (ctx.conversa || []).filter((m) => m.de === 'ela').slice(-8).some((m) => { const t = semAcento(m.texto); return ps.some((w) => t.includes(w.replace(/s$/, ''))); });
 }
 // {"fala", "acao"} da IA -> { assunto, fala } (ação fora da lista vira conversa)
 function lerResposta(txt) {
