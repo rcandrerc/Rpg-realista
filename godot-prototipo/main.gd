@@ -324,6 +324,8 @@ func _ready() -> void:
 	get_tree().create_timer(Grafico.PARALELO_OK).timeout.connect(func():
 		if is_instance_valid(grafico):
 			grafico.paralelo_confirmar())
+	# cardápio do app no balde da Oracle, sem APK novo (André 2026-11-18): grava o endereço para a próxima abertura
+	add_child(preload("res://balde_cardapio.gd").new())
 	montar_versao()
 	P = Progresso.new()
 	h.vida = P.st.vidaMax
@@ -2947,6 +2949,10 @@ func ligar_disparada(v: bool) -> void:
 		hud.aviso("Sem fôlego!")
 		hud.negar("disparada")
 		return
+	if v and montaria == null and P.prog.get("pack") is Dictionary: # pack pesa: só anda (André 2026-11-18)
+		hud.aviso("Com pack nas costas não dá pra correr")
+		hud.negar("disparada")
+		return
 	mov.disparada = v
 	hud.ligar_botao("disparada", v)
 
@@ -2964,6 +2970,9 @@ func _tentar(qual: String) -> bool:
 			if montaria != null:
 				montar_lobo(false)
 			elif nevoa and not nevoa.liberado("lobo", true): # lobo ainda não amansado (missão do Bento): nem tenta
+				hud.negar("montar")
+			elif P.prog.get("pack") is Dictionary: # pack nas costas: só o carrinho leva (André 2026-11-18; o servidor também nega)
+				hud.aviso("Com pack nas costas não dá pra montar. Use o carrinho!")
 				hud.negar("montar")
 			elif mov.esc != null or not mov.chao or not acao.is_empty() or mov.arrancada != null:
 				hud.negar("montar")

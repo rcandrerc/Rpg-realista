@@ -316,11 +316,12 @@ export function consertarPecas(p, lista) {
   return { custo, n: pecas.size };
 }
 // caiu: perde XP (ouro só se MORTE.ouro > 0; 0 desde André 2026-11-18) e cada peça do corpo desgasta. Devolve { ouro, quebrou: [nomes das que chegaram a 0] }
-export function penalidadeMorte(p) {
-  const ouro = Math.floor((p.ouro || 0) * MORTE.ouro);
+// semXp: morte na guerra Chama x Geada (André 2026-11-18): só o desgaste, o XP fica
+export function penalidadeMorte(p, { semXp = false } = {}) {
+  const ouro = semXp ? 0 : Math.floor((p.ouro || 0) * MORTE.ouro);
   p.ouro = (p.ouro || 0) - ouro;
   // André 2026-11-11: "5% da XP atual, do nível atual": só do que já juntou neste nível, então nunca desce de nível
-  const xp = Math.floor(Math.max(0, p.xp || 0) * (MORTE.xp || 0));
+  const xp = semXp ? 0 : Math.floor(Math.max(0, p.xp || 0) * (MORTE.xp || 0));
   p.xp = Math.max(0, (p.xp || 0) - xp);
   const quebrou = [];
   for (const l of LUGARES) {

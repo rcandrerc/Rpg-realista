@@ -1903,6 +1903,32 @@
   "max": 16,
   "troca": 10000
  },
+ "racas": {
+  "chama": {
+   "nome": "Chama",
+   "cor": "ff9a3c",
+   "capa": {
+    "fora": "b8321e",
+    "dentro": "5a140c",
+    "friso": "f0a030"
+   }
+  },
+  "geada": {
+   "nome": "Geada",
+   "cor": "8fd0ff",
+   "capa": {
+    "fora": "1c2a4a",
+    "dentro": "0e1424",
+    "friso": "6fa8d8"
+   },
+   "casa": {
+    "nome": "Juncal",
+    "x": 546,
+    "z": 43,
+    "r": 12
+   }
+  }
+ },
  "estamina": {
   "base": 50,
   "porNivel": 2,
@@ -1921,7 +1947,11 @@
   "seguidaMax": 2.4,
   "seguidaJanela": 1.3,
   "folego": 0.2,
-  "combate": 5
+  "combate": 5,
+  "nado": 2.5,
+  "nadoFundo": 3.5,
+  "voltaAgua": 0.35,
+  "nadoCansado": 0.55
  },
  "regen": {
   "vida": 1,
@@ -4504,7 +4534,7 @@
   "navio": 1.5,
   "navioMin": 30,
   "costas": {
-   "vel": 0.68
+   "vel": 0.5
   },
   "pegar": 2.5,
   "falar": 4

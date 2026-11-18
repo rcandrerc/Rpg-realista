@@ -116,7 +116,17 @@ func passo_estamina(dt: float) -> void:
 	var trote: float = float(m.P.dados.heroiCorrer) * float(E.trote)
 	var mov = m.mov
 	var correndo: bool = mov.chao and mov.arrancada == null and mov.esc == null and m.h.lunge == null and mov.montado.is_empty() and mov.velocidade() > trote * 1.12
-	if correndo:
+	# nado (André 2026-11-18): nadando gasta estamina (submerso mais); boiando parado não gasta, mas volta devagar.
+	# Igual ao servidor (shared/simulacao.js nadando e passoEstamina)
+	var na_agua: bool = mov.veiculo.is_empty() and mov.nadando()
+	if na_agua and not correndo and mov.velocidade() > 0.35:
+		sta = max(0.0, sta - float(E.get("nadoFundo", 3.5) if mov.submerso() else E.get("nado", 2.5)) * dt)
+		sta_t = max(sta_t, float(E.espera))
+		if sta <= 0.0 and not sem_folego:
+			sem_folego = true
+			m.hud.aviso("Sem fôlego!")
+			mov.disparada = false
+	elif correndo:
 		var c := em_combate()
 		sta = max(0.0, sta - float(E.correr) * (float(E.combateK) if c else 1.0) * dt)
 		sta_t = max(sta_t, float(E.esperaCombate) if c else float(E.espera))
@@ -127,10 +137,20 @@ func passo_estamina(dt: float) -> void:
 	elif sta_t > 0.0:
 		sta_t -= dt
 	else:
-		sta = min(mx, sta + mx * float(E.volta) * (float(E.voltaCombate) if em_combate() else 1.0) * dt)
+		sta = min(mx, sta + mx * float(E.volta) * (float(E.voltaCombate) if em_combate() else 1.0) * (float(E.get("voltaAgua", 0.35)) if na_agua else 1.0) * dt)
 	if sem_folego and sta >= mx * float(E.folego):
 		sem_folego = false
 	mov.vel_max = trote if sem_folego else 99.0
+	mov.nado_k = float(E.get("nadoCansado", 0.55)) if sem_folego else 1.0
+	# pack nas costas pesa (André 2026-11-18): anda a PACK_REGRAS.costas.vel da corrida (2,7 m/s), sem disparada
+	if m.P.prog.get("pack") is Dictionary and m.montaria != null and m.h.morto <= 0.0:
+		m.montar_lobo(false, false) # pegou pack montado: desce na hora (o servidor já desceu)
+	if m.P.prog.get("pack") is Dictionary and mov.montado.is_empty():
+		var pr: Dictionary = m.P.dados.get("packRegras", {})
+		mov.vel_max = min(mov.vel_max, float(m.P.dados.heroiCorrer) * float(pr.get("costas", {}).get("vel", 0.5)))
+		if mov.disparada:
+			mov.disparada = false
+			m.hud.aviso("Com pack nas costas não dá pra correr")
 
 # o servidor manda a estamina dele 20 vezes por segundo: aqui só acerta quando os dois se perdem
 func do_servidor(v: float) -> void:

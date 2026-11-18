@@ -2213,6 +2213,7 @@
 "Você chegou em {1} (-{2} de ouro)": "You arrived at {1} (-{2} gold)",
 "Você recolheu a linha": "You reeled in the line",
 "Com pack nas costas não dá pra montar. Use o carrinho!": "Can't mount with a pack on your back. Use the cart!",
+"Com pack nas costas não dá pra correr": "Can't run with a pack on your back",
 "Nome inválido: de {1} a {2} letras ou números": "Invalid name: {1} to {2} letters or numbers",
 "Esse já é o seu nome": "That's already your name",
 "Falta ouro: trocar o nome custa {1}": "Not enough gold: a name change costs {1}",
@@ -3700,5 +3701,9 @@
 "Terreno vendido. A conta passou do valor: pagou {1} de ouro": "Plot sold. The bill was more than the value: you paid {1} gold",
 "Terreno vendido. A conta passou do valor: pagou {1} de ouro. As peças voltaram para a mochila": "Plot sold. The bill was more than the value: you paid {1} gold. The pieces went back to your bag",
 "Você está em combate": "You're in combat",
-"{1} está em combate": "{1} is in combat"
+"{1} está em combate": "{1} is in combat",
+"Zona segura": "Safe zone",
+"Zona de guerra: a outra raça pode atacar": "War zone: the other race can attack",
+"{1} é da {2}: não dá": "{1} is from {2}: can't do that",
+"{1} é da {2}: aqui é guerra": "{1} is from {2}: this is war"
 }

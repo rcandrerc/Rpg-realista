@@ -5,7 +5,7 @@ import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos } from './progresso.js';
 import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura, TITULOS } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
-import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
+import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
 import { Transporte, carrinhoNovo, topoCarrinho } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
 import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo } from './dados.js';
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
@@ -21,6 +21,8 @@ import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (A
 import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
 import { Guilda } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11-18)
 import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
+import { Guerra } from './guerra.js'; // Chama x Geada (André 2026-11-18)
+import { RIVAIS, RACA_PADRAO, GUERRA, RACAS } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -303,6 +305,7 @@ export class Simulacao {
     this.amiga = null; this.amigaDono = null; this.amigaFalam = new Set(); // Cecília (shared/amiga.js): o corpo dela, quem ela acompanha e quem pode conversar
     this.AMIGA = AMIGA; // a definição dela (dados.js); os outros amigos virtuais (Dario, André 2026-11-11) são contextos com os próprios campos
     this.amigosIa = [this, ...AMIGOS_VIRTUAIS.filter((d) => d !== AMIGA && npcNoMundo(d)).map((d) => contextoDeAmigo(this, d))];
+    for (const d of RIVAIS) this.amigosIa.push(contextoDeAmigo(this, d)); // a Geada: Kira, Rufo e Lis (Chama x Geada, André 2026-11-18)
     this.inimigos = [];
     this.projeteis = [];
     this.campos = [];
@@ -602,6 +605,7 @@ export class Simulacao {
     const sub = c.tipo === 'jogador' ? this.naCaverna(c) : !!c.sub;
     const l = (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando && !(o.bot && !o.time) && (o.tipo === 'jogador' ? this.naCaverna(o) : !!o.sub) === sub);
     if (c.tipo === 'jogador' && c.duelo?.luta) { const o = this.oponenteDuelo(c); if (o && !o.morto) l.push(o); } // duelo (shared/duelo.js): o outro vira alvo
+    if (c.tipo === 'jogador' && c.guerra) for (const o of this.jogadores.values()) if (this.emGuerra(c, o) && this.naCaverna(o) === sub && !l.includes(o)) l.push(o); // Chama x Geada (shared/guerra.js): a outra raça fora da zona segura
     return l;
   }
   maisPerto(c, max = 22) {
@@ -739,7 +743,7 @@ export class Simulacao {
     if (noLago(p.x, p.z) && p.y < AGUA.nivel) baixo = Math.min(baixo, Math.max(relevo(p.x, p.z), chao - MERGULHO_MAX));
     const tele = j.tele && j.tele.ate > this.tempo ? j.tele.m : 0; // Salto Arcano: o herói some e aparece metros à frente
     const preso = (j.presoAte || 0) > this.tempo && j.presoEm && Math.hypot(p.x - j.presoEm.x, p.z - j.presoEm.z) > 0.6; // atordoado, congelado ou derrubado por boss: não sai do lugar
-    const ok = !preso && d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && (dentroDoMapa(this.mapa, p.x, p.z) || naCais(this.mapa, p.x, p.z) || ((j.veiculo === 'barquinho' || j.veiculo === 'navio') && !!noLago(p.x, p.z))) // barco: o mar também (FASE 3)
+    const ok = !preso && d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && (dentroDoMapa(this.mapa, p.x, p.z) || naCais(this.mapa, p.x, p.z) || ((j.veiculo === 'barquinho' || j.veiculo === 'navio') && !!noLago(p.x, p.z)) || (!j.veiculo && marNadavel(p.x, p.z))) // barco: o mar também (FASE 3); a nado também (André 2026-11-18)
       && (j.caverna || !this.alemDoSelo(p.x, p.z, p.y)) // caverna da montanha: do selo para dentro só com o passe usado
       && !this.naNevoa(j, p.x, p.z); // progressão (André 2026-11-10): zona ainda fechada pela névoa, fica na borda
     if (!ok || (j.veiculo && !this.andouVeiculo(j, p.x, p.z, d))) { // veículo: carrinho não entra na água, barco não sai dela
@@ -761,6 +765,18 @@ export class Simulacao {
         jan.d = 0; jan.t = 0;
       }
     } else if (j.janCorrida) { j.janCorrida.d = 0; j.janCorrida.t = 0; }
+    // nado (André 2026-11-18: "um gasto de estamina"): na água funda, com os pés fora do fundo (igual a andar.gd nadando),
+    // andando gasta estamina; submerso (mergulho) gasta mais. Mesma janela de ~0,3 s da corrida (rede oscilando)
+    const fundoAgua = !mont && !j.veiculo && !j.esc && noLago(p.x, p.z) ? AGUA.nivel - p.y : 0;
+    j.naAgua = fundoAgua >= AGUA.peito - 0.12;
+    if (j.ciente && j.naAgua && j.cliente) {
+      const jan = j.janNado || (j.janNado = { d: 0, t: 0 });
+      jan.d += d; jan.t += dtc;
+      if (jan.t >= 0.3) {
+        if (jan.d / jan.t > 0.35) this.nadando(j, jan.t, fundoAgua > AGUA.peito + 0.3);
+        jan.d = 0; jan.t = 0;
+      }
+    } else if (j.janNado) { j.janNado.d = 0; j.janNado.t = 0; }
     if (j.coleta && Math.hypot(p.x - j.coleta.x, p.z - j.coleta.z) > 0.5) this.pararColeta(j); // saiu do lugar: para de coletar
     if (j.pesca && j.pesca.st !== 'pegou' && Math.hypot(p.x - j.pesca.ox, p.z - j.pesca.oz) > 0.7) this.pararPesca(j, 'Você recolheu a linha'); // Quimera: andar recolhe a linha
     if (j.canal && Math.hypot(p.x - j.canal.x, p.z - j.canal.z) > 0.6) this.cancelarCanal(j); // andou: a magia concentrada não sai
@@ -1937,6 +1953,7 @@ export class Simulacao {
     const livre = (c) => c && !c.morto && !c.criando;
     if (m.acao === 'pedir' || m.acao === 'aceitar') {
       const o = this.jogadores.get(String(m.com));
+      if (o && this.recusaGuerra(j, o)) return; // Chama x Geada: não troca com a outra raça
       const ctx = this.amigoIaDe(o);
       if (o && o.bot && ctx) { // a Cecília ou o Dario (fase 3): decide na hora, sem cartão de pedido
         const r = ctx.abrirTrocaAmiga(j); if (r !== true) ctx.falarAmiga(r);
@@ -2087,6 +2104,7 @@ export class Simulacao {
     // pm: só para quem está na sua lista de amigos (m.para = conta do amigo)
     const para = canal === 'pm' ? String(m.para || '').slice(0, 32) : '';
     const ctxPm = canal === 'pm' ? this.amigosIa.find((x) => x.AMIGA.conta === para) : null; // Cecília ou Dario
+    if (canal === 'pm' && ctxPm?.amiga && this.outraRaca(j, ctxPm.amiga)) return aviso(`${ctxPm.AMIGA.nome} é da ${this.nomeRaca(ctxPm.amiga)}: aqui é guerra`); // Chama x Geada
     if (canal === 'pm' && ctxPm && !ctxPm.ehAmigoAmiga(j)) return aviso(`Adicione ${ctxPm.AMIGA.nome} como amigo para mandar mensagem`); // André 2026-11-16: amizade conquistada
     if (canal === 'pm' && !j.amigos.has(para) && !(ctxPm && ctxPm.podeAmiga(id))) return aviso(ctxPm ? `Ative a conversa com IA para falar com ${ctxPm.AMIGA.nome}` : 'Só dá para mandar mensagem privada para amigo'); // a Cecília: quem tem a chave Groq (shared/amiga.js)
     if ((j.chatT ?? -99) > this.tempo - CHAT.entre) return aviso('Calma, espere um pouquinho para mandar outra');
@@ -2185,7 +2203,7 @@ export class Simulacao {
     }
     { // os amigos virtuais (Cecília, Dario) aparecem na busca pelo nome, com o selo de NPC (André 2026-11-16)
       const tira = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR'), k = tira(termo);
-      for (const x of this.amigosIa) if (x.amiga && tira(x.AMIGA.nome).includes(k) && !achou.some((a) => a.c === x.AMIGA.conta)) achou.unshift({ c: x.AMIGA.conta, nome: x.AMIGA.nome, npc: 1 });
+      for (const x of this.amigosIa) if (x.amiga && !this.outraRaca(j, x.amiga) && tira(x.AMIGA.nome).includes(k) && !achou.some((a) => a.c === x.AMIGA.conta)) achou.unshift({ c: x.AMIGA.conta, nome: x.AMIGA.nome, npc: 1 });
     }
     achou = achou.filter((a) => a.c !== j.conta).slice(0, AMIGOS.buscaMax);
     j.busca = new Map(achou.map((a) => [a.c, a.nome])); // só dá para pedir quem apareceu na busca
@@ -2197,6 +2215,7 @@ export class Simulacao {
   amigoPedirConta(j, c) {
     const aviso = (texto, para = j.id) => this.evento({ t: 'aviso', para, texto });
     const npc = this.amigosIa.find((x) => x.amiga && x.AMIGA.conta === c);
+    if (npc && this.recusaGuerra(j, npc.amiga)) return; // Chama x Geada: a outra raça não vira amigo
     if (npc) return j.busca?.has(c) ? npc.pedidoAmizadeAmiga(j.id) : undefined; // Cecília/Dario respondem na hora (André 2026-11-16)
     if (j.pedidosRec.has(c)) return this.amigoAceitarConta(j, c); // a outra pessoa já tinha pedido: viram amigos
     const nome = j.busca?.get(c); if (!nome || c === j.conta) return;
@@ -2308,6 +2327,7 @@ export class Simulacao {
     // com: id do jogador na sala ou a conta do amigo (lista de amigos)
     const o = this.jogadores.get(String(m.com || '')) || this.porConta(String(m.com || ''));
     // Cecília e Dario (André 2026-11-13, "como se fosse um jogador real"): o botão só convida ou tira do time, sem fala no chat
+    if (o && m.acao === 'convidar' && this.recusaGuerra(j, o)) return; // Chama x Geada: time só com a mesma raça
     const ctxIa = o?.bot ? this.amigoIaDe(o) : null;
     if (ctxIa && m.acao === 'convidar') return ctxIa.conviteTimeAmiga(j.id);
     if (ctxIa && m.acao === 'aceitar') return ctxIa.aceitouConviteAmiga(j.id); // ela mandou o convite (André 2026-11-17)
@@ -2449,10 +2469,17 @@ export class Simulacao {
     j.staT = Math.max(j.staT, c ? E.esperaCombate : E.espera);
     if (j.sta <= 0 && !j.semFolego) { j.semFolego = true; this.evento({ t: 'aviso', para: j.id, texto: 'Sem fôlego!' }); }
   }
+  // nadando (posicaoCliente): fundo = submerso, gasta mais. Sem fôlego o app nada mais devagar (andar.gd)
+  nadando(j, dt, fundo) {
+    const E = ESTAMINA;
+    j.sta = Math.max(0, j.sta - (fundo ? E.nadoFundo : E.nado) * dt);
+    j.staT = Math.max(j.staT, E.espera);
+    if (j.sta <= 0 && !j.semFolego) { j.semFolego = true; this.evento({ t: 'aviso', para: j.id, texto: 'Sem fôlego!' }); }
+  }
   passoEstamina(j, dt) {
     const E = ESTAMINA;
     if (j.staT > 0) { j.staT -= dt; return; }
-    if (j.sta < j.staMax) j.sta = Math.min(j.staMax, j.sta + j.staMax * E.volta * (this.emCombate(j) ? E.voltaCombate : 1) * dt);
+    if (j.sta < j.staMax) j.sta = Math.min(j.staMax, j.sta + j.staMax * E.volta * (this.emCombate(j) ? E.voltaCombate : 1) * (j.naAgua ? E.voltaAgua : 1) * dt); // na água funda volta devagar (André 2026-11-18)
     if (j.semFolego && j.sta >= j.staMax * E.folego) j.semFolego = false;
   }
 
@@ -3775,8 +3802,10 @@ export class Simulacao {
   ferir(alvo, n, de, h = null) {
     if (alvo.morto || alvo.arrancada || alvo.criando || alvo.voando) return; // voando: boss no ar (skill 'voo' ou 'sumir')
     if (alvo.tipo === 'jogador' && alvo.cenaAte > this.tempo) return; // vendo uma cena da história (cena())
-    const duelo = alvo.tipo === 'jogador' && de?.tipo === 'jogador'; // jogador em jogador: só no duelo (shared/duelo.js)
+    const guerra = alvo.tipo === 'jogador' && de?.tipo === 'jogador' && this.emGuerra(alvo, de); // Chama x Geada (shared/guerra.js): de verdade, sem o "ninguém morre" do duelo
+    const duelo = alvo.tipo === 'jogador' && de?.tipo === 'jogador' && !guerra; // jogador em jogador: só no duelo (shared/duelo.js) ou na guerra
     if (duelo && !this.duelando(alvo, de)) return;
+    if (guerra) { alvo.pvpDe = de.id; alvo.pvpT = this.tempo; de.pvpAlvo = alvo.id; de.pvpT = this.tempo; }
     if (de?.tipo === 'jogador' && alvo.tipo !== 'jogador' && this.mobFechadoPara(alvo, de)) return; // monstro de região fechada: a névoa protege (André 2026-11-11)
     let crit = false;
     if (h?.q && de?.st) { n *= 0.85 + Math.random() * 0.3; if (Math.random() < de.st.critico) { n = n * 2 + (de.st.danoCritico || 0); crit = true; } } // como no Quimera: ±15% e crítico ×2 (+ dano crítico do equipamento, André 2026-11-17)
@@ -3871,15 +3900,20 @@ export class Simulacao {
       if (c.caverna) { c.caverna = null; this.evento({ t: 'caverna', id: c.id, aberta: false }); } // morreu: a entrada acabou
       if (c.prog.pos) { delete c.prog.pos; c.progSujo = true; } // morreu: entra de novo na vila (André 2026-11-03)
       // penalidade (André 2026-11-05, MORTE em shared/dados.js): perde XP (o ouro não, André 2026-11-18) e o equipamento desgasta
-      const pen = penalidadeMorte(c.prog); c.progSujo = true; if (pen?.ouro) this.caixa(c, 'morte', -pen.ouro);
+      // Chama x Geada (André 2026-11-18): morte de guerra (golpe da outra raça nos últimos GUERRA.marca s) só desgasta
+      const matou = c.pvpDe && this.tempo - (c.pvpT ?? -1e9) <= GUERRA.marca ? this.jogadores.get(c.pvpDe) : null;
+      const pen = penalidadeMorte(c.prog, { semXp: !!matou });
+      if (matou) this.morteGuerra(c, matou);
+      c.pvpDe = null; c.progSujo = true; if (pen?.ouro) this.caixa(c, 'morte', -pen.ouro);
       this.aplicarStatus(c); this.avisarProg(c);
       this.depois(HEROI.renascer, () => {
         // cama no terreno (como no Quimera): renasce do lado dela
         // totem de teleporte (André 2026-11-10): renasce no último tocado; o da vila (ou nenhum) deixa a cama valer
         const T = TOTENS.lista.find((t) => t.id === c.prog.totem && t.id !== 'clareira');
         const L = !T && this.loteDe(c), cama = L && L.pecas.find((o) => o.k === 'cama');
-        const n = T ? this.ladoDoTotem(T) : cama ? { x: cama.x + ((cama.r & 1) ? 0 : 1.5), z: cama.z + ((cama.r & 1) ? 1.5 : 0) } : this.mapa.nascimento;
-        Object.assign(c, { morto: false, vida: c.vidaMax, mana: c.manaMax ?? HEROI.mana, x: n.x, z: n.z, y: T ? this.terreno.altura(n.x, n.z) : 0, vy: 0, chao: true, trava: 0, acao: null });
+        const casaRaca = !T && !cama && RACAS[this.racaDe(c)]?.casa; // a Geada renasce no Juncal (Chama x Geada, André 2026-11-18)
+        const n = T ? this.ladoDoTotem(T) : cama ? { x: cama.x + ((cama.r & 1) ? 0 : 1.5), z: cama.z + ((cama.r & 1) ? 1.5 : 0) } : casaRaca ? { x: casaRaca.x + 3, z: casaRaca.z + 3 } : this.mapa.nascimento;
+        Object.assign(c, { morto: false, vida: c.vidaMax, mana: c.manaMax ?? HEROI.mana, x: n.x, z: n.z, y: T || casaRaca ? this.terreno.altura(n.x, n.z) : 0, vy: 0, chao: true, trava: 0, acao: null });
         this.evento({ t: 'aviso', para: c.id, texto: 'Você se levanta de novo' + textoPenalidade(pen) });
       });
     } else {
@@ -4170,6 +4204,7 @@ export class Simulacao {
         }
       }
     }
+    this.passoGuerra(); // Chama x Geada (shared/guerra.js): quem pode lutar agora e as falas de quem avistou alguém
     for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
     for (const j of this.jogadores.values()) this.passoJogador(j, dt);
     this.passoTrocas();
@@ -4622,7 +4657,8 @@ export class Simulacao {
         tit: j.prog.tit?.uso || null, // título em uso (aparece em cima da cabeça para todos)
         pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
-        cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])), ...(j.bot ? { bot: 1 } : {}) })), // bot: a Cecília (só o dono conversa)
+        cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])), ...(j.bot ? { bot: 1 } : {}),
+        ...(this.racaDe(j) !== RACA_PADRAO ? { raca: this.racaDe(j) } : {}), ...(j.guerra ? { guerra: 1 } : {}) })), // Chama x Geada: a raça (só quem não é da Chama) e se está na zona de guerra // bot: a Cecília (só o dono conversa)
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ...(e.hc ? { hc: e.hc, esc: e.esc, cor: e.cor } : {}), ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
       // veios das zonas de mineração e árvores já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
       veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),
@@ -4644,6 +4680,7 @@ Object.assign(Simulacao.prototype, Diarias); // missões diárias (André 2026-1
 Object.assign(Simulacao.prototype, Guilda); // Guilda dos Aventureiros: contratos e ranks F a SS (André 2026-11-18)
 Object.assign(Simulacao.prototype, Economia); // livro-caixa da economia (André 2026-11-16)
 Object.assign(Simulacao.prototype, Duelo); // duelo (André 2026-11-17)
+Object.assign(Simulacao.prototype, Guerra); // Chama x Geada (André 2026-11-18, shared/guerra.js)
 // o amigo virtual (contexto da Cecília ou do Dario) pelo corpo, pelo id ou pela conta; null = não é amigo virtual
 Simulacao.prototype.amigoIaDe = function (o) {
   if (!o) return null;
