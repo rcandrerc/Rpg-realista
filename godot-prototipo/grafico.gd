@@ -296,7 +296,12 @@ const TENTA_40 := true
 const ESCALA_MIN := 0.4
 const QUENTE_TERM := 2 # Android: 2 = já freando de leve
 const QUENTE_FOLGA := 0.6 # 1.0 = começa a frear daqui a 10 s
-const QUENTE_BAT := 42.0 # °C
+# André 2026-11-18: com 42 °C o Poco X7 Pro caía para 30 em ~10 min e não voltava (a 30 a bateria fica em 42 a 43 °C),
+# com o Android sem acusar calor (term 0, folga até 0,57). Agora a bateria só manda descer a partir de 44 °C; o aviso do
+# próprio Android (term e folga) continua valendo como antes.
+const QUENTE_BAT := 44.0 # °C
+const FRIO_BAT := 1.5 # sobe de novo com a bateria este tanto abaixo de QUENTE_BAT (era 2,5)
+const FRIO_FOLGA := 0.08 # e a folga do Android este tanto abaixo de QUENTE_FOLGA (era 0,15)
 var auto := false
 var degrau := 0
 var hz := 60 # frequência da tela agora (DisplayServer): os limites de FPS do Auto dividem ela
@@ -478,7 +483,7 @@ func decidir(d: int, gpu: float, term: int, folga: float, bat: float, fps := -1.
 	# a placa trabalha mais ou menos pelo número de pontos desenhados (resolução ao quadrado)
 	var k := pow(float(acima.escala) / float(P.escala), 2.0)
 	var orc_acima := 1000.0 / float(acima.fps) if int(acima.fps) > 0 else 1000.0 / 60.0
-	var frio := term < 1 and folga < QUENTE_FOLGA - 0.15 and bat < QUENTE_BAT - 2.5 and (gpu < 0.0 or gpu * k < orc_acima * 0.75) \
+	var frio := term < 1 and folga < QUENTE_FOLGA - FRIO_FOLGA and bat < QUENTE_BAT - FRIO_BAT and (gpu < 0.0 or gpu * k < orc_acima * 0.75) \
 		and (fps < 0.0 or fps >= alvo * 0.95)
 	return d - 1 if frio else d
 
