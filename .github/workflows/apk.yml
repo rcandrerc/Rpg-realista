@@ -315,6 +315,19 @@ jobs:
           ORACLE_URL: ${{ vars.ORACLE_URL }}
         run: bash ferramentas/atualizacao/publicar-conteudo.sh "$((1000 + CODIGO))"
 
+  # Par do job "fila" do pages.yml: no repositório privado o push que muda o jogo não publica o site na hora (espera
+  # o pacote). Se o pacote não saiu (falhou, foi cancelado ou pulado), publica o site e o servidor do mesmo jeito.
+  site-reserva:
+    needs: [modelos-chave, pacote]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.repository.private && needs.pacote.result != 'success'
+    runs-on: ${{ github.event.repository.private && vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - name: Publicar o site sem o pacote novo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref main -R "$GITHUB_REPOSITORY"
+
   apk:
     needs: [modelos-chave, modelos, modelos-prontos, pacote]
     # os APKs saem depois do pacote (que já confere modelos-chave/modelos/modelos-prontos)

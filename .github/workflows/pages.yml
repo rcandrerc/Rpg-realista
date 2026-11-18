@@ -27,7 +27,37 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Repositório PRIVADO (runner da Oracle, um build por vez): push que também muda o jogo (client/, shared/ ou o
+  # apk.yml) já vai chamar este workflow de novo depois do pacote novo (publicar-conteudo.sh). Publicar agora
+  # só passava na frente do pacote na fila do runner e atrasava a atualização ~3 min. Então pula este; o do
+  # apk.yml publica tudo (site, servidor e atualização) do mesmo commit. Se o pacote falhar, o apk.yml chama este
+  # workflow do mesmo jeito (job "site-reserva"). Repositório público (máquinas do GitHub em paralelo): como antes.
+  fila:
+    if: github.event_name == 'push' && github.event.repository.private
+    runs-on: ${{ github.event.repository.private && vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    outputs:
+      pular: ${{ steps.olha.outputs.pular }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          lfs: false
+      - id: olha
+        env:
+          ANTES: ${{ github.event.before }}
+        run: |
+          git fetch -q --depth=1 origin "$ANTES" 2>/dev/null && BASE="$ANTES" || BASE=HEAD^1
+          MUDOU="$(git diff --name-only "$BASE" HEAD || true)"
+          echo "$MUDOU" | head -40
+          if echo "$MUDOU" | grep -qE '^(client/|shared/|\.github/workflows/apk\.yml$)'; then
+            echo "O apk.yml vai publicar o site depois do pacote novo: este fica de fora."
+            echo "pular=true" >> "$GITHUB_OUTPUT"
+          fi
+
   publicar:
+    needs: fila
+    if: always() && needs.fila.outputs.pular != 'true'
     # Com a variável RUNNER_BUILD definida e o repositório PRIVADO, roda no runner próprio da Oracle (não gasta cota
     # do GitHub). Repositório público ou sem a variável: roda no GitHub (ubuntu-latest). Ver ferramentas/runner/LEIAME.md.
     runs-on: ${{ github.event.repository.private && vars.RUNNER_BUILD || 'ubuntu-latest' }}
