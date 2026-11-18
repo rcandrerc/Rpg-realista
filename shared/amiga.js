@@ -119,6 +119,8 @@ export function generoFala(fala, genero = 'f') {
   const re = new RegExp(`\\b((?:t[oô]|estou|fiquei|fico|ando|sou)\\s+(?:meio\\s+|muito\\s+|bem\\s+|super\\s+)?)(${adj.join('|')})\\b`, 'gi');
   return String(fala).replace(re, (m, a, w) => a + (w.endsWith('ona') ? w.slice(0, -3) + 'ão' : w.endsWith('ão') ? w.slice(0, -2) + 'ona' : w.slice(0, -1) + para));
 }
+// repertório único (André 2026-11-18): {feminino|masculino} pelo gênero de quem fala
+export function vozAmiga(texto, genero = 'f') { return String(texto).replace(/\{([^{}|]*)\|([^{}|]*)\}/g, (m, f, mm) => (genero === 'm' ? mm : f)); }
 export const Amiga = {
   // ---------- entra e sai junto com o dono ----------
   // o servidor chama quando o dono entra na sala (contas de teste do André; sem contas, o primeiro que entra)
@@ -1529,7 +1531,9 @@ export const Amiga = {
     for (const k of ['sairTime', 'vir', 'time']) if (tem(k)) { if (!negado(k)) return k; negou = true; }
     if (negou) return 'naoAcao'; // "não vamos caçar", "nem vem": não faz nada
     if (ia?.chamado && ia.chamado.ate > this.tempo) { if (tem('nao')) return 'nao'; if (tem('sim')) return 'sim'; } // resposta ao chamado dela
-    for (const k of ['tchau', 'comoVai', 'ajuda', 'dungeon', 'piada', 'obrigado', 'elogio', 'casa', 'horta', 'troca', 'oi']) if (tem(k)) return k;
+    if (A.fazendo && tem('fazendo')) return 'fazendo'; // "tá fazendo o quê?" (repertório 2026-11-18)
+    if (/(^| )(k{3,}|(ha){2,}h?|(rs){2,}|kk)( |$)/.test(t) && t.trim().split(' ').length <= 3) return 'risada';
+    for (const k of ['tchau', 'comoVai', 'ajuda', 'dungeon', 'piada', 'obrigado', 'carinho', 'elogio', 'desabafo', 'casa', 'horta', 'troca', 'oi']) if (A[k] && tem(k)) return k;
     return 'naoEntendi';
   },
   // André 2026-11-12 ("tá respondendo coisa sem sentido"): a ação das regras só passa por cima da fala da IA quando é um
@@ -1886,6 +1890,7 @@ export const Amiga = {
         break;
       }
       case 'horta': case 'dungeon': fala = sorteia(FA[r.assunto]); break;
+      case 'fazendo': { const ag = this.contextoAmiga(id)?.fazendo || 'de boa por aqui'; fala = sorteia(F.fazendo).replace('{agora}', ag).replace('{Agora}', ag[0].toUpperCase() + ag.slice(1)); break; }
       default: fala = sorteia(F[r.assunto] || F.naoEntendi);
     }
     // a IA escreve a fala dela; a ação continua sendo decidida aqui (ela pode recusar mesmo que a IA queira aceitar)
@@ -1899,7 +1904,7 @@ export const Amiga = {
   // manda a mensagem dela no chat privado depois de uns segundos (fila em ia.chatFila)
   dizerAmiga(texto, agora = false, para = null) {
     const a = this.amiga; if (!a || !texto) return;
-    para ??= this.amigaDono;
+    para ??= this.amigaDono; texto = vozAmiga(texto, this.AMIGA.genero || 'f');
     const [d0, d1] = this.AMIGA.chat.digitando, ultimo = (a.ia.chatFila || []).reduce((m, x) => Math.max(m, x.t), this.tempo);
     (a.ia.chatFila ||= []).push({ t: agora ? this.tempo : ultimo + d0 + Math.random() * (d1 - d0) + Math.min(2, texto.length / 60), texto: String(texto).slice(0, 300), para });
   },
