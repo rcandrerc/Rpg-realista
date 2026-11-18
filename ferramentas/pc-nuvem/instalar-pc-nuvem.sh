@@ -20,6 +20,16 @@ set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "ERRO: rode com sudo" >&2; exit 1; }
 : "${PC_HASH:?ERRO: falta PC_HASH (hash bcrypt de chaves/pc-nuvem.txt no repositório de fontes)}"
 PC_VNC="${PC_VNC:-}"
+# PC_RDP=1: liga o RDP e a própria VM cria (ou reaproveita) a senha da tela, sem senha na linha.
+# A senha fica em /etc/pc-nuvem/vnc.txt (só root) e em https://<endereço>/senha-rdp.txt (atrás do login).
+if [ -n "${PC_RDP:-}" ] && [ -z "$PC_VNC" ]; then
+  install -d -m 700 /etc/pc-nuvem
+  if [ -s /etc/pc-nuvem/vnc.txt ]; then
+    PC_VNC=$(cat /etc/pc-nuvem/vnc.txt)
+  else
+    PC_VNC=$(python3 -c 'import secrets,string;a=string.ascii_letters+string.digits;print("".join(secrets.choice(a) for _ in range(8)))')
+  fi
+fi
 if [ -n "$PC_VNC" ] && ! [[ "$PC_VNC" =~ ^[A-Za-z0-9]{8}$ ]]; then
   echo "ERRO: PC_VNC precisa ter 8 letras/números (limite do VNC)" >&2; exit 1
 fi
@@ -138,6 +148,8 @@ for regra in "--dport 6080 -m owner ! --uid-owner caddy" "--dport 5901 -m owner 
   iptables -C OUTPUT -o lo -p tcp $regra -j REJECT 2>/dev/null || iptables -I OUTPUT 1 -o lo -p tcp $regra -j REJECT
 done
 if [ -n "$PC_VNC" ]; then
+  install -d -m 700 /etc/pc-nuvem
+  printf '%s\n' "$PC_VNC" > /etc/pc-nuvem/vnc.txt; chmod 600 /etc/pc-nuvem/vnc.txt
   # senha da tela (só o usuário pc lê)
   install -d -o "$USUARIO" -g "$USUARIO" -m 700 "/home/$USUARIO/.vnc"
   printf '%s\n' "$PC_VNC" | vncpasswd -f > "/home/$USUARIO/.vnc/passwd"
@@ -213,6 +225,7 @@ $DOM {
 		basicauth {
 			andre $PC_HASH
 		}
+		${PC_VNC:+respond /senha-rdp.txt "$PC_VNC" 200}
 		redir / /vnc.html?autoconnect=1&resize=remote&reconnect=1&show_dot=1&path=websockify${PC_VNC:+&password=$PC_VNC}
 		reverse_proxy 127.0.0.1:6080
 	}

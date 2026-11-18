@@ -3,10 +3,12 @@
 # passando por um Bastion temporário (a VM não tem chave SSH e o Run command não tem sudo).
 # NUNCA toca na VM do jogo. No fim apaga o Bastion.
 # Uso: PC_HASH='<hash de chaves/pc-nuvem.txt>' bash cloudshell-bastion.sh
-# Com RDP: PC_HASH='...' PC_VNC='<senha da tela, chaves/pc-nuvem.txt>' bash cloudshell-bastion.sh
+# Com RDP: PC_HASH='...' PC_RDP=1 bash cloudshell-bastion.sh  (a senha da tela nasce na VM)
 set -euo pipefail
 : "${PC_HASH:?falta PC_HASH}"
 PC_VNC="${PC_VNC:-}"
+PC_RDP="${PC_RDP:-}"   # PC_RDP=1: RDP com senha criada na própria VM (linha sem senha)
+REF="${REF:-claude/project-thread-pw8cm4}"   # commit ou ramo do instalador (commit evita cache do GitHub)
 REG=sa-saopaulo-1
 TEN="${OCI_TENANCY:?Cloud Shell sem OCI_TENANCY}"
 INST=ocid1.instance.oc1.sa-saopaulo-1.antxeljr2cr4ewicm2bln2bbiavknvzgz76ebxwnfuvlkjv357w665b2t5za  # builds-runner
@@ -17,7 +19,7 @@ IPVM=$(oci compute instance list-vnics --instance-id "$INST" --query 'data[0]."p
 MEUIP=$(curl -fsS https://api.ipify.org)
 echo "== builds-runner $IPVM, Cloud Shell $MEUIP"
 
-if [ -n "$PC_VNC" ]; then
+if [ -n "$PC_VNC" ] || [ -n "$PC_RDP" ]; then
   # RDP: a porta 3389 abre num grupo de segurança (NSG) preso SÓ na placa de rede da builds-runner.
   # A Security List da sub-rede (que a VM do jogo também usa) não muda.
   echo "== 0/4 Porta 3389 só para a builds-runner (NSG pc-nuvem-rdp)"
@@ -74,7 +76,7 @@ done
 
 echo "== 3/4 Instalando (uns 10 min)"
 ssh "${SSHOPT[@]}" "ubuntu@$IPVM" \
-  "F=\$(mktemp) && curl -fsSL https://raw.githubusercontent.com/rcandrerc/Rpg-realista/claude/project-thread-pw8cm4/ferramentas/pc-nuvem/instalar-pc-nuvem.sh -o \$F && sudo PC_HASH='$PC_HASH' PC_VNC='$PC_VNC' bash \$F 2>&1 | tail -25"
+  "F=\$(mktemp) && curl -fsSL https://raw.githubusercontent.com/rcandrerc/Rpg-realista/$REF/ferramentas/pc-nuvem/instalar-pc-nuvem.sh -o \$F && sudo PC_HASH='$PC_HASH' PC_VNC='$PC_VNC' PC_RDP='$PC_RDP' bash \$F 2>&1 | tail -25"
 # (arquivo novo com mktemp: /tmp/pc.sh já existe, de outro usuário, de uma tentativa pelo Run command)
 rm -f ~/.ssh/pcn ~/.ssh/pcn.pub
 echo "== FIM"
