@@ -54,17 +54,24 @@ void fragment() {
 	// relevo vindo do próprio desenho da textura: os traços de músculo, costela e clavícula viram volume de verdade
 	float lum = dot(t.rgb, vec3(0.3, 0.59, 0.11));
 	pr += lum * 0.35 * (1.0 - rosto);
-	vec3 gx = dFdx(q);
-	vec3 gy = dFdy(q);
+	// em milímetros (q * 1000): a conta dá o mesmo resultado (a escala some na divisão por det), mas det fica perto de 1.
+	// Em metros det ficava ~0,000001, e no Mali-G72 (Note 10 Lite da filha, André 2026-11-18: personagem rosa) a placa
+	// faz essa conta com meia precisão: det virava 0, a normal virava infinito e a luz da pele saía rosa e branca.
+	vec3 gx = dFdx(q * 1000.0);
+	vec3 gy = dFdy(q * 1000.0);
 	float hx = dFdx(pr);
 	float hy = dFdy(pr);
 	vec3 r1 = cross(gy, NORMAL);
 	vec3 r2 = cross(NORMAL, gx);
 	float det = dot(gx, r1);
 	vec3 grad = sign(det) * (hx * r1 + hy * r2);
-	NORMAL = normalize(NORMAL - grad * 0.004 * poros * longe * (1.0 - 0.7 * rosto) / max(abs(det), 1e-8) * length(gx));
+	vec3 nb = NORMAL - grad * 0.004 * poros * longe * (1.0 - 0.7 * rosto) / max(abs(det), 0.0001) * length(gx);
+	// conta que estourou (infinito ou NaN): fica a normal do modelo
+	if (dot(nb, nb) > 0.0001 && dot(nb, nb) < 10000.0) {
+		NORMAL = normalize(nb);
+	}
 	// vincos: a normal vira depressa nas dobras (curvatura de tela) -> sombra de contato
-	float curva = length(fwidth(NORMAL)) / max(length(fwidth(q)) * 120.0, 1e-4);
+	float curva = length(fwidth(NORMAL)) / max(length(fwidth(q * 1000.0)) * 0.12, 1e-4); // mm, mesma conta
 	c *= 1.0 - clamp(curva * 0.15, 0.0, 0.06) * vinco * (1.0 - 0.6 * rosto);
 	// cor mais viva (o toon lavava a pele) e luz ambiente mais fraca embaixo (queixo, peito, barriga, axila):
 	// é a sombra de contato que dá peso ao corpo e ameniza a junção entre queixo e pescoço
