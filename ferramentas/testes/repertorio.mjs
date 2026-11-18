@@ -15,7 +15,7 @@ const s = new Simulacao(MAPA_CLAREIRA), j = s.adicionarJogador('andre', 'André'
 for (const x of s.amigosIa) x.amigaEntrar('andre', true); s.passo(0.05);
 for (const [id, g] of [['cecilia', 'f'], ['dario', 'm']]) {
   const c = s.amigosIa.find((x) => x.AMIGA.id === id);
-  for (const [t, k] of [['tá fazendo o que?', 'fazendo'], ['kkkk', 'risada'], ['tô cansado do trabalho', 'desabafo'], ['te amo', 'carinho'], ['vc é muito fofa', 'elogio'], ['oi', 'oi']]) ok(c.assuntoAmiga(t) === k, `${id}: "${t}" = ${k}`);
+  for (const [t, k] of [['tá fazendo o que?', 'fazendo'], ['kkkk', 'risada'], ['te amo kkk', 'carinho'], ['kkkk hahaha', 'risada'], ['tô cansado do trabalho', 'desabafo'], ['te amo', 'carinho'], ['vc é muito fofa', 'elogio'], ['oi', 'oi']]) ok(c.assuntoAmiga(t) === k, `${id}: "${t}" = ${k}`);
   c.amiga.ia.chatFila = []; c.respostaAmiga('andre', { assunto: 'fazendo' });
   const f = c.amiga.ia.chatFila.at(-1)?.texto || '';
   ok(f && !/\{/.test(f), `${id}: "tá fazendo o quê" fala o que está fazendo de verdade (${f})`);

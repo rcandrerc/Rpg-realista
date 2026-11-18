@@ -1532,7 +1532,7 @@ export const Amiga = {
     if (negou) return 'naoAcao'; // "não vamos caçar", "nem vem": não faz nada
     if (ia?.chamado && ia.chamado.ate > this.tempo) { if (tem('nao')) return 'nao'; if (tem('sim')) return 'sim'; } // resposta ao chamado dela
     if (A.fazendo && tem('fazendo')) return 'fazendo'; // "tá fazendo o quê?" (repertório 2026-11-18)
-    if (/(^| )(k{3,}|(ha){2,}h?|(rs){2,}|kk)( |$)/.test(t) && t.trim().split(' ').length <= 3) return 'risada';
+    if (t.trim().split(' ').every((w) => /^(k{2,}|(ha){2,}h?|(rs){2,}|\.)$/.test(w))) return 'risada'; // só risada ("kkkk"); "te amo kkk" é carinho
     for (const k of ['tchau', 'comoVai', 'ajuda', 'dungeon', 'piada', 'obrigado', 'carinho', 'elogio', 'desabafo', 'casa', 'horta', 'troca', 'oi']) if (A[k] && tem(k)) return k;
     return 'naoEntendi';
   },
