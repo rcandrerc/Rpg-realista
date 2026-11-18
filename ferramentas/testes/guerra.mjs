@@ -101,14 +101,26 @@ ok(Object.keys(FALAS_GUERRA).every((k) => ['kira', 'rufo', 'lis', 'dario'].inclu
   const ev = s3.eventos.slice(e0);
   ok(ev.some((e) => e.t === 'chat' && e.para === 'b' && e.canal === 'local') && !ev.some((e) => e.para === 'c') && ev.some((e) => e.t === 'balao' && e.para === 'b' && e.id === 'a'), 'Local chega a quem está perto, com balão em cima de quem falou');
   ok(!ev.some((e) => e.t === 'chat' && 'ouvem' in e), 'a lista de quem ouve não vai para o app');
+  ok(ev.some((e) => e.t === 'chat' && e.para === 'b' && e.texto === 'cadê o Kael, Kira?' && !e.lingua), 'a mesma raça lê normal');
+  // língua (André 2026-11-18, "igual no ArcheAge"): a outra raça lê embaralhado, no chat e no balão
+  const g = s3.adicionarJogador('g', 'Gil', 'ruiva', {}); Object.assign(g, { conta: 'cg', raca: 'geada', x: v5.x + 6, z: v5.z });
+  a.chatT = -99; const eg = s3.eventos.length; s3.receberChat(s3.chat('a', { canal: 'local', texto: 'Cadê o Kael, Kira?' }));
+  const cg = s3.eventos.slice(eg).find((e) => e.t === 'chat' && e.para === 'g'), bg = s3.eventos.slice(eg).find((e) => e.t === 'balao' && e.para === 'g');
+  ok(cg && cg.lingua === 'chama' && cg.texto !== 'Cadê o Kael, Kira?' && /^[A-Z]\S* \S+ \S+, [A-Z]\S*\?$/.test(cg.texto) && bg?.texto === cg.texto, `a Geada lê a Chama embaralhado: "${cg?.texto}"`);
+  ok(s3.linguaDe('Kael', 'chama') === s3.linguaDe('Kael', 'chama') && s3.linguaDe('Kael', 'chama') !== s3.linguaDe('Kael', 'geada'), 'a mesma palavra vira sempre a mesma, e cada raça tem a sua língua');
+  const brutas = []; { const rc = s3.receberChat.bind(s3); s3.receberChat = (m) => { brutas.push(m); return rc(m); }; }
   const e1 = todos.length; s3.ouvirLocal('a', 'cadê o Kael, Kira?');
   for (let i = 0; i < 20 * 4; i++) s3.passo(0.05);
   const resp = todos.slice(e1).find((e) => e.t === 'chat' && e.canal === 'local' && e.c === 'a:kira' && e.para === 'a');
+  const bruta = brutas.find((m) => m.c === 'a:kira');
   const { FALAS_GUERRA: FG } = await import('../../shared/dados.js');
-  ok(resp && FG.kira.kael.some((f) => resp.texto.includes(f.replace(/\{nome\}/g, 'Ana'))), `a Kira responde sobre o Kael no Local: "${resp?.texto}"`);
+  ok(bruta && FG.kira.lingua.some((f) => bruta.texto.includes(f.replace(/\{nome\}/g, 'Ana'))), `a Kira não entende a Chama e responde isso: "${bruta?.texto}"`);
+  ok(resp && resp.lingua === 'geada' && resp.texto !== bruta.texto, `e a Ana lê a Kira embaralhado: "${resp?.texto}"`);
+  ok(todos.slice(e1).some((e) => e.t === 'chat' && e.para === 'g' && e.c === 'a:kira' && e.texto === bruta.texto), 'o Gil (Geada) lê a Kira normal');
   ok(todos.slice(e1).some((e) => e.t === 'balao' && e.id === k3.id), 'com balão em cima dela');
+  Object.assign(g, { x: v5.x + 300, z: v5.z });
   // duplas: Rufo e Lis juntos, alguém perto ouvindo
-  Object.assign(b, { x: C.x + 4, z: C.z }); s3.duplaT = 0; const e2 = todos.length;
+  Object.assign(b, { x: C.x + 4, z: C.z }); Object.assign(r3, { x: C.x, z: C.z }); Object.assign(l3, { x: C.x + 3, z: C.z }); s3.duplaT = 0; const e2 = todos.length;
   for (let i = 0; i < 20 * 5; i++) s3.passo(0.05);
   const falas = todos.slice(e2).filter((e) => e.t === 'chat' && e.canal === 'local' && e.para === 'b' && ['a:rufo', 'a:lis', 'a:kira'].includes(e.c));
   ok(falas.length >= 2 && new Set(falas.map((e) => e.c)).size >= 2, `dois da Geada conversam entre si: ${falas.map((e) => e.nome + ': ' + e.texto).join(' / ')}`);

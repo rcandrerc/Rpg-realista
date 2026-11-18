@@ -32,10 +32,13 @@ func por(j: Dictionary, p: Vector3, ry: float) -> void:
 	x.z = p.z
 	x.ry = ry
 	m.online.outro(x)
-func local(id: String, nome: String, texto: String, meu := false) -> void:
+# a Geada fala na língua dela: o herói (Chama) lê embaralhado (o texto vem do servidor, linguaDe em shared/guerra.js)
+func local(id: String, nome: String, texto: String, meu := false, lingua := "") -> void:
 	var ev := {"t": "chat", "canal": "local", "c": "c1" if meu else "a:" + id, "nome": nome, "texto": texto, "hora": Time.get_unix_time_from_system() * 1000.0, "meu": meu}
+	if lingua != "":
+		ev.lingua = lingua
 	m.chat.do_servidor(ev)
-	m.online._balao("eu" if meu else id, texto, not meu)
+	m.online._balao("eu" if meu else id, texto, not meu, lingua != "")
 func _initialize() -> void:
 	root.size = Vector2i(1280, 576)
 	m = load("res://main.tscn").instantiate()
@@ -87,13 +90,13 @@ func _initialize() -> void:
 	local("", "André", "Kira, cadê o Kael? Fugiu de novo?", true)
 	await esperar(60)
 	await foto("1-balao-andre")
-	local("kira", "Kira", "Kael vê mais longe que todos vocês.")
+	local("kira", "Kira", "Ul ostdra ul nöeld kja helrün.", false, "geada") # "Não entendo essa língua de brasa."
 	await esperar(75)
 	await foto("2-balao-kira")
-	local("rufo", "Rufo", "Kael? Ele nem lembra meu nome. Mas vai lembrar!")
+	local("rufo", "Rufo", "Vyr? Ith ulkja, sarkar kja ys!", false, "geada") # "Hã? Fala direito, cabeça de fogo!"
 	await esperar(90)
 	await foto("3-balao-rufo")
-	local("kira", "Kira", "Rufo, quieto. Deixa ele falar sozinho.")
+	local("kira", "Kira", "Rün, eldskä. Vyrul kar vihel rünsar.", false, "geada") # "Rufo, quieto. Deixa ele falar sozinho."
 	await esperar(60)
 	m.chat.abrir("local")
 	await esperar(40)

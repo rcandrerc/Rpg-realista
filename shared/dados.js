@@ -3131,10 +3131,14 @@ export const npcNoMundo = (d) => !AVENTUREIROS.includes(d) || NPCS_NO_MUNDO.aven
 // até o Nv `campoAte` (André 2026-11-18: "todas as cidades, todos os totens com raio, e todos os spots até nível 30").
 // Morrer na guerra só desgasta o equipamento (não perde XP). Matar não dá nada (Honra e Infâmia é a fase 2).
 // cor: o nome em cima da cabeça; capa: as cores da capa (fora, dentro, friso). casa: onde mora quem é da raça (NPCs).
+// lingua (André 2026-11-18, "igual no ArcheAge"): no chat Local e no balão, a fala da outra raça chega embaralhada nas
+// sílabas da língua de quem falou; a mesma raça lê normal. A mesma palavra vira sempre a mesma (dá para "aprender").
 export const RACAS = {
-  chama: { nome: 'Chama', cor: 'ff9a3c', capa: { fora: 'b8321e', dentro: '5a140c', friso: 'f0a030' } },
+  chama: { nome: 'Chama', cor: 'ff9a3c', capa: { fora: 'b8321e', dentro: '5a140c', friso: 'f0a030' },
+    lingua: ['ka', 'ra', 'sha', 'zul', 'ash', 'ir', 'tah', 'mar', 'khe', 'an', 'dur', 'sol', 'ru', 'hai', 'or', 'ves'] },
   // capa (André 2026-11-18: a azul-clara "parecia asa de anjo"): azul-marinho quase preto com borda azul-gelo
-  geada: { nome: 'Geada', cor: '8fd0ff', capa: { fora: '1c2a4a', dentro: '0e1424', friso: '6fa8d8' }, casa: { nome: 'Juncal', x: 546, z: 43, r: 12 } },
+  geada: { nome: 'Geada', cor: '8fd0ff', capa: { fora: '1c2a4a', dentro: '0e1424', friso: '6fa8d8' }, casa: { nome: 'Juncal', x: 546, z: 43, r: 12 },
+    lingua: ['skä', 'vyr', 'nö', 'fjel', 'kar', 'eld', 'rün', 'hel', 'vi', 'sar', 'ith', 'kja', 'ul', 'ys', 'dra', 'ost'] },
 };
 export const RACA_PADRAO = 'chama';
 // recheca: s entre as conferências de quem pode lutar. ve: m que o NPC enxerga para decidir. persegue: m que ele corre
@@ -3210,6 +3214,7 @@ export const FALAS_GUERRA = {
     recusa: ['Não. Você é da Chama.', 'Somos inimigos, {nome}.', 'Nem pense nisso.'],
     kael: ['Kael é o motivo de eu ainda lutar.', 'Fale o nome dele com respeito.', 'Kael vê mais longe que todos vocês.'],
     provoca: ['Palavras não cortam, {nome}.', 'Fala menos. Luta mais.', 'Grite à vontade. A neve não escuta.'],
+    lingua: ['Não entendo essa língua de brasa.', 'Fale a língua da Geada, ou cale.', 'Sons de fogo. Não me dizem nada.'],
   },
   rufo: {
     abre: ['Ei, ei!', 'Olha só!', 'Ha!', 'Opa!', 'Psiu, {nome}!'],
@@ -3232,6 +3237,7 @@ export const FALAS_GUERRA = {
     recusa: ['Ha! Time com a Chama? Nunca!', 'Nem a pau, {nome}!', 'Tá maluco? Você é da Chama!'],
     kael: ['O chefe? O Kael me deve três jantares!', 'Kael? Ele nem lembra meu nome. Mas vai lembrar!', 'Não fala do Kael, ele escuta tudo. Sério.'],
     provoca: ['Ah é? Vem aqui falar isso!', 'Minha avó bate mais forte que você!', 'Uuuh, que medo, {nome}!'],
+    lingua: ['Hã? Fala direito, cabeça de fogo!', 'Não entendi nada. Mas não gostei!', 'Isso foi xingamento? Parece xingamento.'],
   },
   lis: {
     abre: ['Hmm.', 'Ora, ora.', 'Interessante.', 'Com licença, {nome}.'],
@@ -3254,6 +3260,7 @@ export const FALAS_GUERRA = {
     recusa: ['Não. Conflito de interesses.', 'Chama com Geada? Não fecha a conta.', 'Recuso, educadamente.'],
     kael: ['Kael tem um plano. Eu só faço as contas.', 'Curioso sobre o Kael? Isso tem preço.', 'O Kael não perde tempo com a Chama. Eu perco.'],
     provoca: ['Provocação anotada. E ignorada.', 'Interessante. Previsível, mas interessante.', 'Você fala alto pra quem perde tanto.'],
+    lingua: ['Língua da Chama. Curioso. Inútil, mas curioso.', 'Não traduzo de graça, {nome}.', 'Seus sons não me dizem nada.'],
   },
   dario: { // o líder da Chama (só falas de guerra; a conversa normal dele continua a de sempre)
     avista: ['Geada à vista. Fiquem perto.', 'É {nome}. Atenção.', 'Lá vem a Geada.'],
@@ -3266,6 +3273,7 @@ export const FALAS_GUERRA = {
     mata: ['A Chama segue acesa.', 'Volta pro gelo, {nome}.'],
     morre: ['Boa, {nome}... Na próxima.'],
     recusa: ['Não dá, {nome}. Você é da Geada.'],
+    lingua: ['Não entendo uma palavra da Geada.', 'Língua de gelo. Guarda pra você.', 'Fala de gente, {nome}.'],
   },
 };
 // O que alguém escreveu no chat Local e que muda a resposta (sem acento, minúsculas). Sem nenhuma: 'conversa'.

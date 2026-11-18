@@ -2140,8 +2140,11 @@ export class Simulacao {
       if (msg.canal === 'local') { // Local (André 2026-11-18): só quem estava perto; o balão aparece em cima de quem falou
         if (!msg.ouvem?.includes(o.conta)) continue;
         const { ouvem, ...m } = msg;
+        // a outra raça lê na língua de quem falou, embaralhado (André 2026-11-18, "igual no ArcheAge"); a mesma raça lê normal
+        const quem = msg.id ? this.jogadores.get(msg.id) : null;
+        if (quem && o.conta !== msg.c && this.outraRaca(o, quem)) { m.lingua = this.racaDe(quem); m.texto = this.linguaDe(msg.texto, m.lingua); }
         this.evento({ t: 'chat', para: o.id, ...m, meu: o.conta === msg.c });
-        if (msg.id) this.evento({ t: 'balao', para: o.id, id: msg.id, texto: msg.texto, npc: msg.c.startsWith('a:') ? 1 : 0 });
+        if (msg.id) this.evento({ t: 'balao', para: o.id, id: msg.id, texto: m.texto, npc: msg.c.startsWith('a:') ? 1 : 0, ...(m.lingua ? { lingua: m.lingua } : {}) });
         continue;
       }
       this.evento({ t: 'chat', para: o.id, ...msg, meu: o.conta === msg.c });

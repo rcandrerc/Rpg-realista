@@ -642,9 +642,13 @@ func _linha(x: Dictionary, tam: int, com_hora: bool) -> RichTextLabel:
 	elif pm: # na caixa de baixo: de quem veio ou para quem foi
 		s += "[color=#%s][lb]%s %s][/color] " % [COR_PM.to_html(false), "Para" if x.get("meu", false) == true else "De", _seguro(outro_nome(x))]
 	var texto := str(x.get("texto", ""))
-	if x.get("meu", false) != true and str(x.get("c", "")).begins_with("a:"): # fala pronta da Cecília, do Dario e dos aventureiros: no idioma do jogo (André 2026-11-15)
+	var lingua: bool = str(x.get("lingua", "")) != "" # a outra raça fala na língua dela: chega embaralhado (André 2026-11-18, "igual no ArcheAge")
+	if not lingua and x.get("meu", false) != true and str(x.get("c", "")).begins_with("a:"): # fala pronta da Cecília, do Dario e dos aventureiros: no idioma do jogo (André 2026-11-15)
 		texto = Idioma.frase(texto)
-	s += "[b][color=#%s]%s:[/color][/b] %s" % [cor_nome.to_html(false), _seguro(str(x.get("nome", "?"))), _seguro(texto)]
+	if lingua:
+		s += "[b][color=#%s]%s:[/color][/b] [i][color=#%s]%s[/color][/i]" % [cor_nome.to_html(false), _seguro(str(x.get("nome", "?"))), Menu.APAGADO.to_html(false), _seguro(texto)]
+	else:
+		s += "[b][color=#%s]%s:[/color][/b] %s" % [cor_nome.to_html(false), _seguro(str(x.get("nome", "?"))), _seguro(texto)]
 	r.text = s
 	return r
 
