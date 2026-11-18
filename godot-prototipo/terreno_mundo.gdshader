@@ -68,10 +68,26 @@ varying vec4 v_nr;
 #define nm v_nr.xyz
 #define rio v_nr.w
 void vertex() {
+	// MediaTek com PowerVR (Moto G54, 2026-11-18): o compilador do driver caía (libufwriter, SIGSEGV) com escrita
+	// em pedaço de varying (v_pk.xyz = ...). Aqui as contas vão em variáveis soltas e o varying sai inteiro de uma vez
+#undef mundo
+#undef estrada
+#undef nm
+#undef rio
+	vec3 mundo;
+	float estrada;
+	vec3 nm;
+	float rio;
 	mundo = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	nm = NORMAL;
 	estrada = COLOR.r;
 	rio = COLOR.g;
+	v_mu = vec4(mundo, estrada);
+	v_nr = vec4(nm, rio);
+#define mundo v_mu.xyz
+#define estrada v_mu.w
+#define nm v_nr.xyz
+#define rio v_nr.w
 }
 // (leveza 2026-11-10) no chão quase plano só a projeção de cima conta: as dos lados só são lidas onde pesam
 vec3 tri(vec3 p, vec3 b, float esc) {
