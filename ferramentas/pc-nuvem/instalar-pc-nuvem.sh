@@ -29,7 +29,8 @@ if [ -n "${PC_RDP:-}" ] && [ -z "$PC_VNC" ]; then
   else
     # só minúsculas e números, começando com número: o teclado do celular não põe maiúscula sozinho,
     # e no RDP do celular (teclas "unicode") maiúscula com shift falhava. Sem l/i/o/0/1 (confundem).
-    PC_VNC=$(python3 -c 'import secrets;a="abcdefghjkmnpqrstuvwxyz23456789";print(secrets.choice("23456789")+"".join(secrets.choice(a) for _ in range(7)))')
+    # senha fácil de digitar no celular (pedido do André): palavra de 4 letras + 4 números, tudo minúsculo
+    PC_VNC=$(python3 -c 'import secrets;w="bola casa gato lobo mesa pato rato sapo vaca faca dado lata mala pena rede roda sino taco tela vela fogo lago mapa nave ouro peixe".split();w=[x for x in w if len(x)==4];print(secrets.choice(w)+"".join(secrets.choice("23456789") for _ in range(4)))')
   fi
 fi
 if [ -n "$PC_VNC" ] && ! [[ "$PC_VNC" =~ ^[A-Za-z0-9]{8}$ ]]; then
@@ -38,6 +39,7 @@ fi
 USUARIO=pc
 export DEBIAN_FRONTEND=noninteractive
 
+if [ -n "${PC_RAPIDO:-}" ]; then echo "== modo rápido: pula pacotes e Chrome (já instalados) =="; else
 echo "== 1/7 Pacotes (área de trabalho leve, VNC, noVNC, Caddy) =="
 apt-get update -y
 apt-get install -y --no-install-recommends \
@@ -52,6 +54,7 @@ if ! command -v google-chrome >/dev/null; then
   curl -fsSL "https://dl.google.com/linux/direct/google-chrome-stable_current_${ARQ}.deb" -o /tmp/chrome.deb
   apt-get install -y /tmp/chrome.deb
   rm -f /tmp/chrome.deb
+fi
 fi
 # Claude in Chrome já instalado; o resto é só deixar o Chrome quieto
 mkdir -p /etc/opt/chrome/policies/managed

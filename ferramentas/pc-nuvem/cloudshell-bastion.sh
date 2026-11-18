@@ -76,7 +76,7 @@ done
 
 echo "== 3/4 Instalando (uns 10 min)"
 ssh "${SSHOPT[@]}" "ubuntu@$IPVM" \
-  "F=\$(mktemp) && curl -fsSL https://raw.githubusercontent.com/rcandrerc/Rpg-realista/$REF/ferramentas/pc-nuvem/instalar-pc-nuvem.sh -o \$F && sudo PC_HASH='$PC_HASH' PC_VNC='$PC_VNC' PC_RDP='$PC_RDP' bash \$F 2>&1 | tail -25"
+  "F=\$(mktemp) && curl -fsSL https://raw.githubusercontent.com/rcandrerc/Rpg-realista/$REF/ferramentas/pc-nuvem/instalar-pc-nuvem.sh -o \$F && sudo PC_HASH='$PC_HASH' PC_VNC='$PC_VNC' PC_RDP='$PC_RDP' PC_RAPIDO='${PC_RAPIDO:-}' bash \$F 2>&1 | tail -25"
 # (arquivo novo com mktemp: /tmp/pc.sh já existe, de outro usuário, de uma tentativa pelo Run command)
 rm -f ~/.ssh/pcn ~/.ssh/pcn.pub
 echo "== FIM"
