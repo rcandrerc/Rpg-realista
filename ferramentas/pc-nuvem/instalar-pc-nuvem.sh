@@ -149,7 +149,8 @@ CADDY
 
 echo "== 7/7 Ligando =="
 systemctl daemon-reload
-systemctl enable --now pc-desktop.service pc-novnc.service
+systemctl enable pc-desktop.service pc-novnc.service
+systemctl restart pc-desktop.service pc-novnc.service   # pega mudanças ao rodar de novo (logins ficam salvos)
 systemctl enable caddy
 systemctl restart caddy
 sleep 15
