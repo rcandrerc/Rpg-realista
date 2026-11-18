@@ -32,3 +32,12 @@ ok(/Esta ficha é a verdade AGORA/.test(sis), 'ficha vale mais que conversa e me
 ok(/NÃO está precisando de material nenhum/.test(sis), 'sem pedido: esquece couro/capacete da conversa velha');
 // 4) gíria certa
 ok(/"DG" \(nunca "DM"/.test(sis) && /"pt"/.test(sis) && /"mob"/.test(sis) && /"farmar"/.test(sis), 'gírias: DG, pt, mob, farmar');
+// 5) ronda 2026-11-18: número de amizade vazava ("10 de amizade") e ela inventava o horário ("ainda é dia, até a noite")
+{
+  const t = mensagensConversa({ ...ctx2, amizade: 10 }, 'oi')[0].content;
+  ok(/Amizade: melhores amigos/.test(t) && !/Amizade: 10/.test(t), 'amizade vai em palavras, sem número');
+  const R = c.rotinaAmiga(), fora = (R.voltaDe + 1) % 24;
+  a.prog.dia = { h: fora, t: Date.now() }; a.ia.av = null;
+  const sz = c.podeSairAmiga(a, j);
+  ok(sz && !sz.ok && /você sai das \d+h às \d+h; agora são \d+h/.test(sz.motivo || ''), `fora do horário diz as horas de verdade (${sz?.motivo})`);
+}

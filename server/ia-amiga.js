@@ -126,6 +126,8 @@ function humorTime(ctx) {
 // esse peitoral", e às vezes trocava quem disse o quê. Agora é como um chat de verdade: as regras do jeito de falar no
 // "system", a ficha separada como "só para você saber", e a conversa em mensagens de verdade (ele = user, ela = assistant),
 // com a última mensagem dele por último. A ficha continua inteira: ela sabe de tudo, só não fica repetindo.
+// André 2026-11-18 (ronda): "depois de 3 meses de chat e 10 de amizade": o número da ficha vazava na fala
+function amizadeEmPalavras(n) { n = +n || 0; return n >= 9 ? 'melhores amigos' : n >= 6 ? 'bem próximos' : n >= 3 ? 'amigos' : 'se conhecendo ainda'; }
 export function mensagensConversa(ctx, texto) {
   const homem = ctx.genero === 'm', o = homem ? 'o' : 'a', amig = homem ? 'amigo' : 'amiga';
   const sistema = [
@@ -159,7 +161,7 @@ export function mensagensConversa(ctx, texto) {
   ];
   const ficha = [
     `Agora (não fique repetindo isso): ${ctx.fazendo}. ${ctx.noite ? 'É noite.' : 'É dia.'} Distância até ${ctx.amigo}: ${ctx.distancia} m. ${ctx.noTime ? 'Vocês estão no mesmo time.' : 'Vocês não estão no mesmo time.'}`,
-    `Seu nível ${ctx.nivel}, o de ${ctx.amigo} ${ctx.nivelAmigo}. Amizade: ${ctx.amizade} (0 = começo).${ctx.semCasa ? '' : ` Sua casa: ${ctx.casaPronta ? 'pronta' : 'em obra'}.`}`,
+    `Seu nível ${ctx.nivel}, o de ${ctx.amigo} ${ctx.nivelAmigo}. Amizade: ${amizadeEmPalavras(ctx.amizade)} (nunca diga número de amizade nem conte dias ou meses de conversa).${ctx.semCasa ? '' : ` Sua casa: ${ctx.casaPronta ? 'pronta' : 'em obra'}.`}`,
     ctx.comOutro ? `Agora você está acompanhando ${ctx.comOutro} (outro amigo); para fazer algo com ${ctx.amigo}, só depois.` : '',
     ctx.chamou ? `Há pouco você chamou ${ctx.amigo} (${ctx.chamou}) e espera a resposta.` : '',
     // André 2026-11-17: "quando eu voltar, desculpa tava ocupado, ela continua normal"

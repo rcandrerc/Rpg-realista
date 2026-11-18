@@ -13,7 +13,7 @@ extends Node
 # piscando ele luta com o monstro mais perto (golpe, habilidades e poção). Etapa parada TRAVA_S s vira "travou": anota e
 # pula (missaoTeste, só a conta de robô). O modo "passeio" é o de antes: volta na vila, estrada e luta na Clareira.
 #
-# robo.cfg (ConfigFile): [robo] sessao="...", duracao=240, turno="tl-...", modo="missoes"|"passeio"
+# robo.cfg (ConfigFile): [robo] sessao="...", duracao=240, turno="tl-...", modo="missoes"|"passeio", sair=true (fecha o jogo no fim)
 # No PC dá para testar com a variável RPG_ROBO_CFG=/caminho/robo.cfg.
 
 const PASTAS := [
@@ -47,7 +47,8 @@ static func config() -> Dictionary:
 		var s := str(c.get_value("robo", "sessao", ""))
 		if s == "":
 			continue
-		_cfg = {"sessao": s, "duracao": float(c.get_value("robo", "duracao", 240.0)), "turno": str(c.get_value("robo", "turno", "tl-%d" % int(Time.get_unix_time_from_system())))}
+		_cfg = {"sessao": s, "duracao": float(c.get_value("robo", "duracao", 240.0)), "turno": str(c.get_value("robo", "turno", "tl-%d" % int(Time.get_unix_time_from_system()))),
+			"modo": str(c.get_value("robo", "modo", "missoes")), "sair": bool(c.get_value("robo", "sair", false))}
 		print("CELULAR robô ligado por ", p)
 		break
 	return _cfg
@@ -361,5 +362,9 @@ func _terminar(erro: String) -> void:
 	var h := HTTPRequest.new()
 	h.timeout = 20.0
 	add_child(h)
-	h.request_completed.connect(func(res, cod, _hh, _c): print("CELULAR relatório enviado: ", res, " ", cod))
+	h.request_completed.connect(func(res, cod, _hh, _c):
+		print("CELULAR relatório enviado: ", res, " ", cod)
+		# Test Lab no modo game loop (robo.cfg sair=true): fechar o jogo encerra o teste na hora, com o relatório já enviado
+		if config().get("sair", false):
+			get_tree().create_timer(3.0).timeout.connect(get_tree().quit))
 	h.request(RELATORIO, ["Content-Type: application/json", "Authorization: Bearer " + str(config().get("sessao", ""))], HTTPClient.METHOD_POST, JSON.stringify(rel))

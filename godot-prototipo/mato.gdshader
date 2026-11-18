@@ -43,11 +43,13 @@ float sombra_pintada(vec2 xz) {
 	}
 	return 1.0 - clamp(copa + (1.0 - s.g), 0.0, 0.72) * sombra_forca;
 }
-varying float altura;
-varying float sombra_v;
+// PowerVR (Moto G54) aceita no máximo 16 varyings contando os do Godot: os três números vão juntos num vec3
+varying vec3 v_mt;
+#define altura v_mt.x
+#define sombra_v v_mt.y
+#define metade v_mt.z
 varying vec3 cor_chao;
 varying vec3 nw;
-varying float metade;
 void vertex() {
 	altura = UV.y;
 	metade = COLOR.a;

@@ -315,6 +315,13 @@ func _aparelho(e: Dictionary) -> void:
 		_drv = RenderingServer.get_current_rendering_driver_name().substr(0, 16)
 	e.placa = _placa
 	e.drv = _drv
+	# pele rosa no Mali-G72 (André 2026-11-18): de onde o jogo leu as texturas e a cor média da pele que saiu
+	e.img = preload("res://imagem_cpu.gd").origem
+	var peles := {}
+	for k in preload("res://aparencia.gd")._medias:
+		if str(k).ends_with("|true") and peles.size() < 6:
+			peles[str(k).get_file().replace("|true", "")] = (preload("res://aparencia.gd")._medias[k] as Color).to_html(false)
+	e.pele = peles
 
 func _comum(e: Dictionary) -> void:
 	e.min = snappedf(Time.get_ticks_msec() / 60000.0, 0.1)
