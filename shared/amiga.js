@@ -125,7 +125,6 @@ export const Amiga = {
   // fala: quem entrou pode conversar com ele (chave de IA ou conta de teste). André 2026-11-11 ("quero que eles andem
   // sozinhos"): o NPC fica no mundo para todo mundo da sala; só quem pode conversar vira o "dono" que ele acompanha.
   amigaEntrar(donoId, fala = true) {
-    if (this.AMIGA.rival) fala = false; // a Geada (Chama x Geada, André 2026-11-18): não acompanha ninguém da Chama
     if (fala) (this.amigaFalam ||= new Set()).add(donoId); else this.amigaFalam ||= new Set();
     if (!this.amiga) {
       const L = this.loteDaAmiga(true);
@@ -205,8 +204,10 @@ export const Amiga = {
     }
     // André 2026-11-15: com ou sem chave, todo mundo toca nele e vê Mensagem/Time (a chave só troca a resposta pela IA).
     // Acompanhar quem chegou na hora de entrar: só quem tem a chave (sem chave, passa a acompanhar quando falar com ele)
+    const outra = this.outraRaca(this.jogadores.get(donoId), this.amiga); // Chama x Geada (André 2026-11-18): da outra raça é "monstro", da mesma é igual ao Dario
+    if (outra) fala = false;
     if (fala && !this.jogadores.has(this.amigaDono)) this.mudarDonoAmiga(donoId); // ninguém com ela: acompanha quem chegou
-    if (this.AMIGA.rival) return; // a Geada não é amigo virtual: o app mostra só Conversar e Equipamento
+    if (outra) return; // da outra raça não vira amigo virtual de quem entrou
     this.evento({ t: 'amiga', para: donoId, id: this.AMIGA.id, nome: this.AMIGA.nome, papel: this.AMIGA.papel, lote: this.loteDaAmiga()?.def.id || null, segue: !!this.AMIGA.seguivel });
     this.avisarVirtuaisAmiga(); // ela aparece em "Amigos virtuais" (para todos; quem não tem chave vê o botão de ativar)
   },
@@ -785,7 +786,7 @@ export const Amiga = {
   // m = { acao: 'oi' | 'casa' | 'ajuda' | 'dar' | 'time' | 'dungeon' | 'troca' | 'tchau' }
   conversaAmiga(id, m) {
     const j = this.jogadores.get(id), a = this.amiga;
-    if (this.AMIGA.rival && j && a && m && !j.bot) return m.acao === 'conversa' || m.acao === 'oi' ? this.conversaGuerra(id) : this.recusaGuerra(j, a); // a Geada: só conversa (falas de guerra)
+    if (j && a && m && !j.bot && this.outraRaca(j, a)) return this.recusaGuerra(j, a); // Chama x Geada: da outra raça é guerra (time, troca, duelo e amizade não)
     if (!j || !a || !this.podeAmiga(id) || !m || typeof m.acao !== 'string') return;
     if (m.acao === 'seguir' || m.acao === 'naoSegue') return this.seguirAmiga(id, m.acao === 'seguir');
     if (Math.hypot(a.x - j.x, a.z - j.z) > 4.5) return this.evento({ t: 'aviso', para: id, texto: `Chegue mais perto de ${this.AMIGA.nome}` });

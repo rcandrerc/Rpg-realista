@@ -161,9 +161,12 @@ func tocou_tela(pos: Vector2) -> void:
 	if dist > perto():
 		m.hud.aviso("Chegue mais perto de %s" % nome)
 		return
-	# Chama x Geada (André 2026-11-18): Kira, Rufo e Lis (a outra raça) respondem com as falas de guerra
-	if str(outros[achou].get("raca", "")) != "":
-		ver = [["Conversar", func(): esconder_cartao(); m.rede("amiga", {"acao": "conversa", "id": achou})]] + ver
+	# Chama x Geada (André 2026-11-18: "os da outra raça ficam como se fossem monstros... clicando nele só entra em modo de
+	# combate"): sem cartão; o ataque pega ele como pega um monstro (o servidor decide em shared/guerra.js)
+	var raca_dele := str(outros[achou].get("raca", ""))
+	if raca_dele != "":
+		m.hud.aviso("%s é da %s: aqui é guerra" % [nome, str(m.P.dados.get("racas", {}).get(raca_dele, {}).get("nome", raca_dele))])
+		return
 	mostrar_cartao(nome, ver + [["Agora não", esconder_cartao]], 8.0)
 
 # o cartão de ações, igual para jogador e para Cecília/Dario (André 2026-11-17): Pedir troca, time, Mensagem (ou Adicionar

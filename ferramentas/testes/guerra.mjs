@@ -46,7 +46,7 @@ nivel(d, 42); por(d, v5.x, v5.z); por(rufo, v5.x + 8, v5.z); por(kira, C.x, C.z)
 rufo.ia.guerra = null; rufo.ia.falaGuerraT = -1e9; rufo.vida = rufo.vidaMax;
 for (let i = 0; i < 20 * 3; i++) { d.entrada = { mx: 0, mz: 0 }; s.passo(0.05); }
 ok(rufo.ia.guerra?.alvo === d.id, 'o Rufo parte para cima do André');
-ok(d.vida < d.vidaMax || Math.hypot(rufo.x - d.x, rufo.z - d.z) < 3, 'e chega ou bate');
+ok(d.vida < d.vidaMax || Math.hypot(rufo.x - d.x, rufo.z - d.z) < (rufo.modo === 'Magia' ? 9 : 3), 'e chega ou bate (de espada colado; de cajado a até 9 m)');
 // André entra na zona segura (totem): o Rufo larga
 const T = TOTENS.lista.find((t) => t.id === 'juncos'); por(d, T.x + 5, T.z); por(rufo, T.x + 30, T.z);
 for (let i = 0; i < 20 * 2; i++) s.passo(0.05);
@@ -55,9 +55,9 @@ ok(!d.guerra && rufo.ia.guerra?.alvo !== d.id, 'no totem o André fica em paz');
 const ck = ctx('kira'); kira.ia.ditasGuerra = [];
 const ditas = new Set(); for (let i = 0; i < 6; i++) ditas.add(ck.montarFalaGuerra('mata', d));
 ok(ditas.size >= 4 && [...ditas].every((t) => !/\{/.test(t)), `falas variadas e montadas: ${[...ditas].join(' | ')}`);
-// conversar: tocou e escolheu Conversar
-por(kira, d.x + 2, d.z); const ev1 = s.eventos.length; ck.conversaAmiga('andre', { acao: 'conversa' });
-ok(s.eventos.slice(ev1).some((e) => e.t === 'fala' && e.para === 'andre' && e.npc === 'kira'), 'Conversar com a Kira: ela responde');
+// André 2026-11-18: "para a Chama, os da Geada são como monstros": conversa/time pelo NPC é recusada com fala
+por(kira, d.x + 2, d.z); const ev1 = s.eventos.length; ck.conversaAmiga('andre', { acao: 'time' });
+ok(!kira.time && s.eventos.slice(ev1).some((e) => e.t === 'fala' && e.para === 'andre' && e.npc === 'kira'), 'Chama chamando a Kira pro time: ela recusa');
 // bloqueios: time, troca, duelo com a outra raça
 const ev2 = s.eventos.length;
 s.time('andre', { acao: 'convidar', com: kira.id }); s.troca('andre', { acao: 'pedir', com: kira.id }); s.duelo('andre', { acao: 'pedir', com: kira.id });
@@ -69,3 +69,18 @@ ok(f.find((o) => o.id === kira.id)?.raca === 'geada' && !f.find((o) => o.id === 
 // save: a memória vai junto
 ck.guardarAmiga(); ok(s.npcSalvos.get('kira')?.guerra?.[d.conta || d.nome || d.id]?.v === 1, 'o placar vai para o save');
 ok(Object.keys(FALAS_GUERRA).every((k) => ['kira', 'rufo', 'lis', 'dario'].includes(k)) && RIVAIS.length === 3, '3 contra 3');
+
+// André 2026-11-18: "se você for do lado de Geada, aí você consegue dar trade, duelo... tudo igualzinho que eu faço com o Dário"
+{
+  const s2 = new Simulacao(MAPA_CLAREIRA);
+  const g = s2.adicionarJogador('gelo', 'Gelo', 'ruiva', {}); g.raca = 'geada';
+  for (const x of s2.amigosIa) x.amigaEntrar('gelo');
+  const k2 = s2.amigoIaDe('kira').amiga, d2 = s2.amigoIaDe('dario').amiga;
+  ok(!s2.outraRaca(g, k2) && s2.outraRaca(g, d2), 'jogador da Geada: a Kira é do lado dele, o Dario é inimigo');
+  ok(s2.eventos.some((e) => e.t === 'amiga' && e.para === 'gelo' && e.id === 'kira') && !s2.eventos.some((e) => e.t === 'amiga' && e.para === 'gelo' && e.id === 'dario'), 'a Kira vira amigo virtual dele (como o Dario para a Chama); o Dario não');
+  g.prog.nivel = 45; s2.aplicarStatus(g); Object.assign(g, { x: v5.x, z: v5.z }); Object.assign(k2, { x: v5.x + 2, z: v5.z }); Object.assign(d2, { x: v5.x + 3, z: v5.z }); d2.prog.nivel = 45;
+  s2.guerraT = 0; s2.passo(0.05);
+  ok(!s2.inimigosDe(g).includes(k2) && s2.inimigosDe(g).includes(d2), 'o ataque dele pega o Dario e não a Kira');
+  const ev = s2.eventos.length; s2.duelo('gelo', { acao: 'pedir', com: k2.id });
+  ok(!s2.eventos.slice(ev).some((e) => e.t === 'fala' && e.npc === 'kira' && /Chama|inimigos|Recuso|Nem/.test(e.texto)), 'duelo com a Kira não é recusado pela raça');
+}

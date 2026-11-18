@@ -2104,7 +2104,7 @@ export class Simulacao {
     // pm: só para quem está na sua lista de amigos (m.para = conta do amigo)
     const para = canal === 'pm' ? String(m.para || '').slice(0, 32) : '';
     const ctxPm = canal === 'pm' ? this.amigosIa.find((x) => x.AMIGA.conta === para) : null; // Cecília ou Dario
-    if (canal === 'pm' && ctxPm?.amiga && this.outraRaca(j, ctxPm.amiga)) return aviso(`${ctxPm.AMIGA.nome} é da ${this.nomeRaca(ctxPm.amiga)}: chegue perto e toque em Conversar`); // Chama x Geada
+    if (canal === 'pm' && ctxPm?.amiga && this.outraRaca(j, ctxPm.amiga)) return aviso(`${ctxPm.AMIGA.nome} é da ${this.nomeRaca(ctxPm.amiga)}: aqui é guerra`); // Chama x Geada
     if (canal === 'pm' && ctxPm && !ctxPm.ehAmigoAmiga(j)) return aviso(`Adicione ${ctxPm.AMIGA.nome} como amigo para mandar mensagem`); // André 2026-11-16: amizade conquistada
     if (canal === 'pm' && !j.amigos.has(para) && !(ctxPm && ctxPm.podeAmiga(id))) return aviso(ctxPm ? `Ative a conversa com IA para falar com ${ctxPm.AMIGA.nome}` : 'Só dá para mandar mensagem privada para amigo'); // a Cecília: quem tem a chave Groq (shared/amiga.js)
     if ((j.chatT ?? -99) > this.tempo - CHAT.entre) return aviso('Calma, espere um pouquinho para mandar outra');
@@ -2203,7 +2203,7 @@ export class Simulacao {
     }
     { // os amigos virtuais (Cecília, Dario) aparecem na busca pelo nome, com o selo de NPC (André 2026-11-16)
       const tira = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR'), k = tira(termo);
-      for (const x of this.amigosIa) if (x.amiga && !x.AMIGA.rival && tira(x.AMIGA.nome).includes(k) && !achou.some((a) => a.c === x.AMIGA.conta)) achou.unshift({ c: x.AMIGA.conta, nome: x.AMIGA.nome, npc: 1 });
+      for (const x of this.amigosIa) if (x.amiga && !this.outraRaca(j, x.amiga) && tira(x.AMIGA.nome).includes(k) && !achou.some((a) => a.c === x.AMIGA.conta)) achou.unshift({ c: x.AMIGA.conta, nome: x.AMIGA.nome, npc: 1 });
     }
     achou = achou.filter((a) => a.c !== j.conta).slice(0, AMIGOS.buscaMax);
     j.busca = new Map(achou.map((a) => [a.c, a.nome])); // só dá para pedir quem apareceu na busca
