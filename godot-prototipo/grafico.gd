@@ -285,7 +285,14 @@ const DEGRAUS := 8 # degraus do Auto na Média e na Alta (a Baixa tem menos: deg
 const ESCADA_FPS := [55, 50, 45, 40]
 const LENTO := 0.9 # FPS de verdade abaixo de 90% do limite: o celular não chega lá
 const TRANCO_S := 0.25 # quadro maior que isto (carregamento) fica fora da conta do FPS do Auto
-const CALOR_BAT_S := 45.0
+const CALOR_BAT_S := 90.0 # a bateria leva minutos para mostrar o efeito de um degrau (com 45 s, 60 -> 30 em 3 min)
+# 2026-11-18 (registros do Poco X7 Pro com o #628: hz 60, 42 a 55 FPS, bateria de 29 a 43 °C em 10 min e 30 FPS logo
+# depois): o Godot entrega o limite de FPS ao Swappy (frame pacing do Android), que pede à tela a frequência que casa
+# com ele. Com limite 60 a tela fica em 60 Hz e o 40 não cabe; com limite 40 o Swappy pode pedir 120 Hz e aí 40 fica
+# liso. Então, numa tela a 60 Hz, o primeiro degrau do calor é um teste de 40: se depois de uma janela a tela foi para
+# 120 Hz, fica (escada de 120: 60, 40, 30); se continuou em 60, o teste sai até o jogo abrir de novo (_sem_40) e segue
+# para a resolução. A lentidão sozinha não usa o teste (fazendo 45 no 60, fica no 60).
+const TENTA_40 := true
 const ESCALA_MIN := 0.4
 const QUENTE_TERM := 2 # Android: 2 = já freando de leve
 const QUENTE_FOLGA := 0.6 # 1.0 = começa a frear daqui a 10 s
@@ -293,6 +300,7 @@ const QUENTE_BAT := 42.0 # °C
 var auto := false
 var degrau := 0
 var hz := 60 # frequência da tela agora (DisplayServer): os limites de FPS do Auto dividem ela
+var _sem_40 := not TENTA_40 # o teste de 40 já falhou nesta abertura (a tela não foi a 120 Hz)
 var _t_auto := AUTO_S
 var _frio_s := 0.0
 var _espera_sobe := AUTO_SOBE_S
@@ -318,7 +326,9 @@ static func ler_hz() -> int:
 
 # os degraus do Auto para um nível (0 = o nível cheio). Degrau que não mudaria nada fica de fora (a Baixa já é 30
 # FPS: começa direto na resolução). Limite de FPS só os que dividem a frequência da tela (h).
-static func escada(base: Dictionary, h := 60) -> Array:
+# tenta_40: tela a 60 Hz que talvez vá a 120 (ver TENTA_40): entra um degrau de teste de 40 FPS logo abaixo do nível
+# cheio, marcado "tenta" (os degraus seguintes continuam a partir do de antes, não dele)
+static func escada(base: Dictionary, h := 60, tenta_40 := false) -> Array:
 	var lista: Array = [base]
 	var p: Dictionary = base
 	for f in ESCADA_FPS:
@@ -328,6 +338,11 @@ static func escada(base: Dictionary, h := 60) -> Array:
 			p = p.duplicate()
 			p.fps = f
 			lista.append(p)
+	if tenta_40 and h == 60 and int(p.fps) == 60:
+		var t := p.duplicate()
+		t.fps = 40
+		t.tenta = true
+		lista.append(t)
 	p = p.duplicate()
 	p.escala = maxf(ESCALA_MIN, float(base.escala) * 0.88)
 	if p != lista.back():
@@ -349,13 +364,17 @@ static func escada(base: Dictionary, h := 60) -> Array:
 		lista.append(p)
 	return lista
 
-static func preset_auto(base: Dictionary, d: int, h := 60) -> Dictionary:
-	var e := escada(base, h)
+static func preset_auto(base: Dictionary, d: int, h := 60, tenta_40 := false) -> Dictionary:
+	var e := escada(base, h, tenta_40)
 	return e[clampi(d, 0, e.size() - 1)]
+
+# a escada de agora (nível, frequência da tela e se o teste de 40 ainda vale)
+func _escada() -> Array:
+	return escada(PRESETS[nivel], hz, not _sem_40)
 
 # quantos degraus o Auto tem no nível de agora (menu_topo.gd mostra "aliviando 2 de 5")
 func degraus() -> int:
-	return escada(PRESETS[nivel], hz).size() - 1
+	return _escada().size() - 1
 
 func _process(dt: float) -> void:
 	if _aos_poucos:
@@ -388,6 +407,13 @@ func _process(dt: float) -> void:
 	var h := ler_hz()
 	if h != hz:
 		_trocar_hz(h)
+	elif P.get("tenta", false) and Time.get_ticks_msec() / 1000.0 - maxf(_desceu_em, _subiu_em) >= AUTO_S * 0.9:
+		# uma janela inteira no teste de 40 e a tela continuou em 60 Hz: 40 vira 30 de verdade. Tira o teste da escada;
+		# o mesmo número de degrau passa a ser o seguinte (resolução menor no 60)
+		_sem_40 = true
+		_desceu_em = Time.get_ticks_msec() / 1000.0
+		_mudar(degrau)
+		return
 	# tela de entrada ou de carregamento na frente, ou o jogo acabou de aparecer (a fila de entrada pesa): não conta
 	var on = m.online
 	if m.heroi == null or (on and (on._cobrindo or (on.capa and on.capa.visible))):
@@ -419,7 +445,7 @@ func _process(dt: float) -> void:
 # o degrau que o Auto quer agora (um passo por vez): gpu = ms médios da placa (-1 = sem medida); term/folga/bat -1 = sem leitura
 # fps = quadros por segundo de verdade na janela (-1 = sem conta): bem abaixo do alvo também é "sem folga"
 func decidir(d: int, gpu: float, term: int, folga: float, bat: float, fps := -1.0) -> int:
-	var esc := escada(PRESETS[nivel], hz)
+	var esc := _escada()
 	var n := esc.size() - 1
 	d = clampi(d, 0, n)
 	var alvo := float(P.fps) if int(P.fps) > 0 else 60.0
@@ -429,7 +455,7 @@ func decidir(d: int, gpu: float, term: int, folga: float, bat: float, fps := -1.
 		# não chega no limite: desce só o FPS até o limite que ele aguenta (40 numa tela de 120 Hz, 45 na de 90). Sem
 		# limite de FPS abaixo (tela de 60 Hz), só desce se nem 33 ele faz: dali, um degrau por vez até o 30
 		var j := d + 1
-		if j < n and int(esc[j].fps) < int(esc[d].fps) and float(esc[j].escala) == float(esc[d].escala):
+		if j < n and int(esc[j].fps) < int(esc[d].fps) and float(esc[j].escala) == float(esc[d].escala) and not esc[j].get("tenta", false):
 			if fps >= float(esc[j].fps) * 1.15:
 				return d # faz bem mais que o limite de baixo (ex.: 50 com limite 60 numa tela de 120 Hz): fica
 			_motivo = "lento"
@@ -460,18 +486,24 @@ func decidir(d: int, gpu: float, term: int, folga: float, bat: float, fps := -1.
 func _trocar_hz(h: int) -> void:
 	var antes: Dictionary = P
 	hz = h
-	var esc := escada(PRESETS[nivel], hz)
+	var esc := _escada()
 	var novo := esc.size() - 1
 	for i in esc.size():
 		if float(esc[i].escala) == float(antes.escala) and float(esc[i].alcance) == float(antes.alcance) and int(esc[i].fps) <= int(antes.fps):
 			novo = i
 			break
+	if novo == esc.size() - 1 and int(antes.fps) > 30: # nenhum com o mesmo FPS: o de mesma qualidade (não cai para o 30)
+		for i in esc.size():
+			if float(esc[i].escala) == float(antes.escala) and float(esc[i].alcance) == float(antes.alcance):
+				novo = i
+				break
 	_mudar(novo)
 
 func _mudar(d: int) -> void:
 	var antes: Dictionary = P
 	degrau = clampi(d, 0, degraus())
-	P = preset_auto(PRESETS[nivel], degrau, hz)
+	var esc := _escada()
+	P = esc[degrau]
 	if P.alcance != antes.alcance or P.grama != antes.grama or P.grama_qtd != antes.grama_qtd or P.nevoa != antes.nevoa:
 		aplicar(true) # degrau da vista: confere o alcance de tudo que está na cena, aos poucos
 	else:
