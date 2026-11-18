@@ -1,0 +1,35 @@
+# TEMPORÁRIO (medição 2026-11-18): mede no runner da Oracle cada passo do site, sem publicar nada. Sai antes do PR.
+name: Medir site na Oracle
+on:
+  push:
+    branches: [claude/project-thread-tf785f]
+    paths: ['.github/workflows/medir-site.yml']
+permissions:
+  contents: read
+jobs:
+  medir:
+    runs-on: ${{ vars.RUNNER_BUILD }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: bash ferramentas/servidor/empacotar.sh
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p client/dist/atualizacao
+          gh release download atualizacao -D client/dist/atualizacao --clobber || true
+          gh release download conteudo -D client/dist/atualizacao --clobber || true
+          du -sh client/dist client/dist/* | sort -h | tail -8
+      - name: tar como o upload-pages-artifact
+        run: time tar --dereference --hard-dereference -cvf /tmp/site.tar -C client/dist . > /dev/null && ls -la /tmp/site.tar && rm -f /tmp/site.tar
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: client/dist
+          name: medir-site
+          retention-days: 1
