@@ -27,6 +27,9 @@ const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20,
 // terreno, não conversa e não convida ninguém: assim não estraga a economia nem o jogo de quem joga de verdade
 const ROBO_NAO = new Set(['troca', 'chat', 'amigo', 'time', 'amiga', 'chaveIa', 'trocarNome', 'lote', 'venderLote', 'mudarLote', 'pagarTaxa', 'construir', 'desmontar', 'nivelTeste', 'verEquip', 'duelo']);
 const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0, picoPing: 0, picoPingT: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
+// Entrada lenta (ronda 2026-11-18, Note 10 Lite: o WebSocket abria e o "conectado" só vinha 12 a 15 s depois; no Poco
+// 3,5 s): quanto o servidor leva do onAuth ao fim do onJoin, por pedaço. As últimas 20 entradas aparecem em /saude
+const entradasSrv = [];
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // a conta já está jogando (ligada agora) em alguma sala, por outro aparelho (outra sessão de login: cada aparelho tem a
 // sua). O próprio aparelho com um socket velho que o servidor ainda não viu cair não conta: esse sai como sempre saiu
@@ -398,6 +401,7 @@ class SalaClareira extends Room {
 
   // Só entra quem tem sessão de uma conta Google (quando as contas estão ligadas)
   onAuth(_client, opcoes) {
+    (_client.userData ||= {}).t0 = Date.now();
     if (!contas) return true;
     const conta = contas.porSessao(opcoes?.sessao);
     if (!conta) throw new ServerError(401, 'login');
@@ -409,6 +413,8 @@ class SalaClareira extends Room {
   }
 
   onJoin(client, opcoes) {
+    const tj = Date.now(), pedacos = {}; let tp = tj;
+    const marca = (n) => { const a = Date.now(); pedacos[n] = a - tp; tp = a; };
     if (opcoes?.json === true) (client.userData ||= {}).json = true;
     if (typeof opcoes?.sessao === 'string') (client.userData ||= {}).sessao = opcoes.sessao; // de qual aparelho (contaLigadaEmOutro)
     if (opcoes?.json === true && opcoes?.aoi === true) client.userData.aoi = true; // só o que está perto (server/visao.js)
@@ -439,17 +445,20 @@ class SalaClareira extends Room {
         const espera = this.esperas?.get(vj.id); if (espera) { this.esperas.delete(vj.id); espera.reject(new Error('substituido')); }
       }
     }
+    marca('velhos');
     const nome = conta?.nome || String(opcoes?.nome || '').slice(0, 20) || `Andarilho ${this.clients.length}`;
     // com conta: o criador abre uma vez só, enquanto a conta não tem personagem; sem contas, o aparelho é quem sabe
     const podeCriar = conta ? !conta.visual : opcoes?.criando === true;
     this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual, { podeCriar, aparencia: conta?.aparencia || opcoes?.aparencia, progresso: conta?.progresso, testador: !!conta?.testador, conta: conta?.id ?? null, robo: !!conta?.robo });
     // voltou de uma queda (a conta saiu há pouco): o caminho que andou sem internet vale
     if (conta && saidas.has(conta.id)) { const seg = (Date.now() - saidas.get(conta.id)) / 1000; saidas.delete(conta.id); if (seg < 120) this.sim.folgaDaQueda(client.sessionId, seg); }
+    marca('jogador');
     if (conta) { const l = contas.loteDoDono('c' + conta.id); this.sim.esquecerLotesDe('c' + conta.id, l?.id); if (l) this.sim.carregarLotes([l]); } // o lote dele como está no banco
     this.sim.enviarLotes(client.sessionId); // Vila dos Lotes: todos os lotes e qual é o dele
     if (conta) (this.contaDe ||= new Map()).set(client.sessionId, conta);
     if (conta?.build) this.sim.definirBuild(client.sessionId, conta.build);
     if (conta) this.sim.definirAmigos(client.sessionId, contas.amigos(conta.id).map((a) => ({ c: 'c' + a.id, nome: a.nome })), contas.pedidos(conta.id, AMIGOS.pedidoDias));
+    marca('lotes_amigos');
     this.sim.historicoChat(client.sessionId, historicoChat.geral, historicoChat.amigos, historicoChat.pm, historicoChat.time); // as últimas mensagens do chat
     if (podeCriar) this.sim.definirCriando(client.sessionId, true);
     // Cecília (André 2026-11-09): entra na sala junto com o dono (as contas de teste do André; sem contas, o primeiro
@@ -460,6 +469,9 @@ class SalaClareira extends Room {
     // queda curta (André 2026-11-12): o time e a Cecília/Dario continuam com ele, nada se desfaz
     for (const id of velhos) this.sim.trocarSessao(id, client.sessionId);
     for (const id of fantasmas) { this.sim.removerJogador(id); this.visao.esquecer(id); }
+    marca('npcs');
+    entradasSrv.push({ t: tj, auth: tj - (client.userData?.t0 ?? tj), join: Date.now() - tj, ...pedacos, sala: this.clients.length });
+    if (entradasSrv.length > 20) entradasSrv.shift();
   }
 
   // Religou na mesma sessão (o app guarda o token de reconexão; André 2026-11-12, internet caindo): o herói ficou no
@@ -696,7 +708,7 @@ app.get('/saude', (_req, res) => {
   if (s0) { if (relogioSrv.sim != null && agoraR > relogioSrv.t) relogio = +((s0.sim.tempo - relogioSrv.sim) / ((agoraR - relogioSrv.t) / 1000)).toFixed(3); relogioSrv.sim = s0.sim.tempo; relogioSrv.t = agoraR; }
   // desde a última leitura: correcoes = "corrigir" mandados (rollback), silencioMaxMs = maior tempo sem posição de um
   // celular, engasgos = silêncios de mais de 1 s
-  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +carga.pico.toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes, silencioMaxMs: carga.silencioMs, engasgos: carga.engasgos, relogio, reserva: reserva.estado });
+  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +carga.pico.toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes, silencioMaxMs: carga.silencioMs, engasgos: carga.engasgos, relogio, reserva: reserva.estado, entradas: entradasSrv });
   carga.pico = 0; carga.silencioMs = 0; carga.engasgos = 0;
 });
 // Reinício com aviso na tela (André 2026-11-12): faixa "o servidor reinicia em 1 minuto" e depois a contagem grande de
