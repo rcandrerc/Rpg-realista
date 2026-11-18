@@ -49,6 +49,7 @@ done
 
 echo "== 3/4 Instalando (uns 10 min)"
 ssh "${SSHOPT[@]}" "ubuntu@$IPVM" \
-  "curl -fsSL https://raw.githubusercontent.com/rcandrerc/Rpg-realista/claude/project-thread-pw8cm4/ferramentas/pc-nuvem/instalar-pc-nuvem.sh -o /tmp/pc.sh && sudo PC_HASH='$PC_HASH' bash /tmp/pc.sh 2>&1 | tail -25"
+  "F=\$(mktemp) && curl -fsSL https://raw.githubusercontent.com/rcandrerc/Rpg-realista/claude/project-thread-pw8cm4/ferramentas/pc-nuvem/instalar-pc-nuvem.sh -o \$F && sudo PC_HASH='$PC_HASH' bash \$F 2>&1 | tail -25"
+# (arquivo novo com mktemp: /tmp/pc.sh já existe, de outro usuário, de uma tentativa pelo Run command)
 rm -f ~/.ssh/pcn ~/.ssh/pcn.pub
 echo "== FIM"
