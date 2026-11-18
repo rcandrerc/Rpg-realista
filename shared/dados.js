@@ -2246,9 +2246,14 @@ export const VILAS_MUNDO = [
           'Aqui o mundo inteiro vende e compra. Quem sabe negociar não precisa caçar tudo.',
           'Ponha à venda, escolha o preço e o prazo. Quando vender, o ouro fica comigo até você vir buscar.',
           'A casa fica com cinco por cento de cada venda. Justo, não acha?'] },
-      { id: 'v_iara', nome: 'Mestra Iara, a instrutora', visual: 'shino', onde: 'peca:comercio:-5.2:-4.5:1.5708', escala: 1.0, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
+      { id: 'v_iara', nome: 'Mestra Iara, a instrutora', visual: 'shino', onde: 'peca:comercio:-6.4:-4:1.5708', escala: 1.0, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
         tinta: { cabelo: 0x1a1a22, roupa: 0x5a2a3a, calca: 0x2b2a30 }, funcao: 'resetar', acoes: ['resetar'], falas: [
           'Quer lutar de outro jeito? Eu devolvo seus pontos de atributo. As skills ficam, porque sobem usando.'] },
+      // Guilda dos Aventureiros (2026-11-18, PROVISÓRIA para a foto do esboço; só entra com o OK do André): atrás do
+      // balcão lateral da frente, com o quadro de contratos na parede
+      { id: 'v_brenda', nome: 'Brenda, da Guilda', visual: 'vita', onde: 'peca:comercio:-6.4:4.6:1.5708', escala: 1.0, roupa: 'peitoral1,calca1,botas1,capa1', arma: 'espada',
+        tinta: { cabelo: 0x7a3a1e, roupa: 0x5a4028, calca: 0x2e2a26 }, funcao: 'dica', acoes: [], falas: [
+          'Contrato novo no quadro. Escolha o seu.'] },
       ferreiroDe('v_galdino', 'Galdino, o ferreiro', 'cabelo_m', { cabelo: 0x2a1a10, roupa: 0x5a3a22, calca: 0x2f2a24 }, { tunica: 0x8a6a4a }, [
         'A bigorna, o forninho e a bancada são de todos. Use à vontade, eu só conserto e compro.',
         'Peça batida? Eu deixo nova por um punhado de ouro.'], { escala: 1.1 }),
@@ -2462,7 +2467,7 @@ export const VILAS_MUNDO = [
 ];
 // Mirela, a alquimista, muda para o Rio Claro (André 2026-11-11, plano aprovado: "a alquimia passa a ser lá"; a casa
 // dela na Clareira continua de pé, como o laboratório antigo). Fica na porta da casa grande, perto da Casa do Comércio.
-const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'peca:comercio:4.9:-5.2:-1.5708' } }; // 2026-11-16: dentro da Casa do Comércio grande
+const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'peca:comercio:6.4:-4:-1.5708' } }; // 2026-11-16: dentro da Casa do Comércio grande
 {
   const G = gradeDoMundo(), mar = -0.05;
   const totem = (id) => TOTENS.lista.find((t) => t.id === id);

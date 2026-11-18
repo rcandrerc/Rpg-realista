@@ -61,6 +61,7 @@ const MAT_AURORA = {}; // nome do material do kit -> material da cidade
   MAT_AURORA['@ferro_rio'] = cor('Ferro_Rio', lin([0.17, 0.16, 0.15, 1])); // ferro escuro dos lampiões
   MAT_AURORA['@vidro_rio'] = cor('Vidro_Rio', lin([0.92, 0.78, 0.5, 1])); // vidro das lanternas do Rio Claro (acende de noite)
   MAT_AURORA['@ouro'] = cor('Tapete_Ouro', lin([0.79, 0.64, 0.23, 1]));
+  MAT_AURORA['@papel'] = cor('Papel_Guilda', lin([0.88, 0.82, 0.68, 1])); // contratos presos no quadro da guilda
   const placa = path.join(tmpTex, 'placa.png'); // a placa: madeira escura, moldura e letras douradas (fonte DejaVu Serif, livre)
   execFileSync('python3', ['-c', `from PIL import Image, ImageDraw, ImageFont\nim=Image.new('RGB',(1024,256),(58,36,20))\nd=ImageDraw.Draw(im)\nd.rectangle([12,12,1011,243],outline=(201,162,58),width=14)\nf=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf',86)\nt='CASA DO COMÉRCIO'\nw=d.textlength(t,font=f)\nd.text(((1024-w)/2,74),t,fill=(232,195,90),font=f)\nim.save(r'${placa}')`]);
   MAT_AURORA['@placa'] = comTex('Placa_Comercio', tex('T_PlacaComercio', fs.readFileSync(placa)));
@@ -87,6 +88,18 @@ function gerar(nome) {
     const q = 0.2, y = 3.05, P = [[-q, -q], [q, -q], [q, q], [-q, q]], M = nome === '@canto' ? 'MI_UnevenBrick' : '@pedra'; // @pedra: a pedra do kit, sem clarear
     for (let i = 0; i < 4; i++) { const [ax, az] = P[i], [bx, bz] = P[(i + 1) % 4]; add(M, [ax, 0, az], [ax, y, az], [bx, y, bz]); add(M, [ax, 0, az], [bx, y, bz], [bx, 0, bz]); }
     add(M, [-q, y, -q], [q, y, q], [q, y, -q]); add(M, [-q, y, -q], [-q, y, q], [q, y, q]);
+  } else if (nome === '@coluna') { // coluna de pedra da arcada da Casa do Comércio (2026-11-18): base, fuste e capitel, 3 m
+    const bloco = (x, y0, y1) => caixa((m, ...v) => add(m, ...v.map(([q, t]) => [[q[0] * x, y0 + q[1] * (y1 - y0), q[2] * x], t])), '@pedra');
+    bloco(0.62, 0, 0.35); bloco(0.46, 0.35, 2.62); bloco(0.62, 2.62, 2.8);
+  } else if (nome === '@viga') { // viga de madeira (caixa 1 x 1 x 1; a escala dá o tamanho)
+    caixa(add, '@madeira');
+  } else if (nome === '@quadro') { // quadro de contratos da Guilda, preso na parede acima da cabeça: 2,2 x 1,3 m e os papéis
+    const bloco = (m, x0, x1, y0, y1, z0, z1) => caixa((mm, ...v) => add(mm, ...v.map(([q, t]) => [[x0 + (q[0] + 0.5) * (x1 - x0), y0 + q[1] * (y1 - y0), z0 + (q[2] + 0.5) * (z1 - z0)], t])), m);
+    bloco('@tampo', -1.1, 1.1, 1.55, 2.85, 0, 0.06);
+    for (const [x0, x1, y0, y1] of [[-1.17, 1.17, 1.48, 1.56], [-1.17, 1.17, 2.84, 2.92], [-1.17, -1.09, 1.48, 2.92], [1.09, 1.17, 1.48, 2.92]]) bloco('@madeira', x0, x1, y0, y1, 0, 0.1);
+    for (const [x, y, w, h] of [[-0.78, 2.5, 0.42, 0.5], [-0.24, 2.55, 0.38, 0.44], [0.3, 2.48, 0.44, 0.52], [0.8, 2.53, 0.36, 0.42],
+      [-0.7, 1.9, 0.4, 0.5], [-0.15, 1.88, 0.44, 0.46], [0.4, 1.94, 0.38, 0.48], [0.86, 1.86, 0.3, 0.4]])
+      bloco('@papel', x - w / 2, x + w / 2, y - h / 2, y + h / 2, 0.06, 0.075);
   } else if (nome === '@agua') { // disco de raio 1
     const r = anel(20, 1, 0);
     for (let i = 0; i < 20; i++) add('@agua', [0, 0, 0], r[i], r[(i + 1) % 20]);

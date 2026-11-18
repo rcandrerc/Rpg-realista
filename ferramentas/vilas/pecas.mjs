@@ -159,6 +159,8 @@ for (const k of Object.keys(CIDADE_AURORA)) CIDADE_AURORA[k] = leve(CIDADE_AUROR
 // (térreo e chão), comercio_grande_dentro (balcão, móveis e tapetes: só aparece de perto e não faz sombra) e
 // comercio_grande_cima (andar de cima, galeria, lustres, telhados e o alto das torres): com o herói lá dentro e a câmera
 // lá no alto (visão do alto), o de cima some (vilas_mundo.gd), como o telhado da casa do jogador.
+// colunas da arcada (z no espaço da casa; shared/vilas.js COMERCIO_GRANDE.pilares usa as mesmas)
+const ARCADA = [-10, -6, -2, 2, 6];
 function casaDoComercio() {
   const base = [], cima = [], dentro = [];
   const P = { p: 'Wall_UnevenBrick_Straight', j: 'Wall_UnevenBrick_Window_Wide_Round', J: 'Wall_UnevenBrick_Window_Thin_Round', a: 'Wall_Plaster_Door_RoundInset',
@@ -177,8 +179,12 @@ function casaDoComercio() {
   // térreo: nave (frente com os dois arcos abertos no meio), arcos para os corredores e as paredes de fora
   lado(base, 0, 10, 0, 4, 'paap');
   lado(base, 0, -10, PI, 4, 'pppp');
-  lado(base, 4, 0, PI / 2, 10, 'aaaaaaaaaa');
-  lado(base, -4, 0, -PI / 2, 10, 'aaaaaaaaaa');
+  // arcada entre o salão e os corredores (André 2026-11-18: as portinhas de arco deixavam tudo apertado): vãos largos
+  // de 4 m entre colunas de pedra, com uma viga de madeira por cima segurando o andar de cima
+  for (const sx of [-4, 4]) {
+    for (const z of ARCADA) base.push(['@coluna', [sx, 0, z], 0]);
+    for (let z = -8; z <= 8; z += 4) base.push(['@viga', [sx, 2.72, z], 0, [0.36, 0.34, 4.0]]);
+  }
   for (const sx of [-6, 6]) { lado(base, sx, 10, 0, 2, 'jj'); lado(base, sx, -10, PI, 2, 'pp'); }
   lado(base, 8, 0, PI / 2, 10, 'pjpjppjpjp');
   lado(base, -8, 0, -PI / 2, 10, 'pjpjppjpjp');
@@ -230,15 +236,21 @@ function casaDoComercio() {
   dentro.push(['Bookcase_2', [-2.2, 0, -9.6], 0], ['Bookcase_2', [2.2, 0, -9.6], 0], ['Chest_Wood', [0, 0, -9.1], 0], ['Coin_Pile', [-0.3, 0.7, -9.1], 0, 2.5],
     ['Chest_Wood', [-3.3, 0, -8.2], PI / 2], ['Crate_Wooden', [3.3, 0, -8.6], 0.2], ['Crate_Wooden', [3.2, 0.93, -8.6], 0.6], ['Banner_1_Cloth', [0, 5.3, -9.75], 0, 1.6]);
   // corredor oeste: a Mestra Iara (resetar build), com bonecos de treino, armas e o livro
-  dentro.push(['Dummy', [-6.2, 0, -7.5], 0.3], ['Dummy', [-6.4, 0, -5.4], -0.2], ['WeaponStand', [-7.4, 0, -3.2], PI / 2], ['BookStand', [-5.2, 0, -2.4], 0.6],
-    ['Banner_2_Cloth', [-7.85, 2.7, -4.5], PI / 2], ['@tapete_vinho', [-6, 0.04, -4.5], 0, [2.8, 1, 4.2]]);
+  // 2026-11-18: cada NPC dos corredores atende atrás de um balcão lateral, virado para o salão (vão largo da arcada)
+  dentro.push(['Dummy', [-6.2, 0, -7.5], 0.3], ['Dummy', [-7.2, 0, -6.0], -0.2], ['WeaponStand', [-7.4, 0, -2.4], PI / 2], ['BookStand', [-7.0, 0, -1.0], 0.6],
+    ['Banner_2_Cloth', [-7.85, 2.7, -4.5], PI / 2], ['@tapete_vinho', [-6, 0.04, -4.5], 0, [2.8, 1, 4.2]], ['@balcao', [-5.2, 0, -4], PI / 2, [2.6, 1.1, 0.8]]);
   // corredor leste: a Mirela (alquimia), com o caldeirão, estantes de frascos e a bancada
   dentro.push(['Cauldron', [6, 0, -6.5], 0], ['Shelf_Small_Bottles', [7.7, 1.2, -5.0], -PI / 2], ['Shelf_Small_Bottles', [7.7, 1.9, -5.0], -PI / 2], ['Shelf_Small_Bottles', [7.7, 1.2, -7.6], -PI / 2],
-    ['Workbench', [6.6, 0, -3.0], -PI / 2], ['Potion_1', [6.5, 0.9, -3.2], 0], ['Potion_2', [6.7, 0.9, -2.7], 0], ['SmallBottles_1', [6.5, 0.9, -3.6], 0],
+    ['Workbench', [6.9, 0, -1.6], -PI / 2], ['Potion_1', [6.8, 0.9, -1.8], 0], ['Potion_2', [7.0, 0.9, -1.3], 0], ['SmallBottles_1', [6.8, 0.9, -2.2], 0],
+    ['@balcao', [5.2, 0, -4], -PI / 2, [2.6, 1.1, 0.8]], ['Potion_1', [5.2, 1.12, -4.6], 0], ['SmallBottles_1', [5.25, 1.12, -3.4], 0],
     ['CandleStick_Stand', [5.0, 0, -8.6], 0], ['Banner_2_Cloth', [7.85, 2.7, -6], -PI / 2], ['@tapete_roxo', [6, 0.04, -5], 0, [2.8, 1, 4.6]]);
   // o salão: tapete vermelho da entrada até o balcão, bancos e mercadoria nos corredores da frente
   dentro.push(['@tapete_vermelho', [0, 0.04, 2.5], 0, [2.6, 1, 14]]);
-  dentro.push(['Bench', [-6.5, 0, 4], PI / 2], ['Bench', [-6.5, 0, 7], PI / 2], ['Barrel', [7.2, 0, 8.8], 0], ['Barrel_Apples', [6.4, 0, 9], 0], ['FarmCrate_Apple', [7.3, 0, 6.6], 1.2],
+  // Guilda dos Aventureiros (2026-11-18, provisório até o OK do André): balcão, a Brenda atrás e o quadro de contratos
+  // na parede de fora; os bancos de espera foram para as pontas do corredor
+  dentro.push(['@balcao', [-5.2, 0, 4.4], PI / 2, [2.6, 1.1, 0.8]], ['@quadro', [-7.72, 0, 5], PI / 2, [0.9, 1, 1]], ['Scroll_1', [-5.2, 1.12, 4.0], 0.3, 1.4],
+    ['Banner_2_Cloth', [-7.85, 2.9, 1.6], PI / 2]);
+  dentro.push(['Bench', [-7.2, 0, 7.6], PI / 2], ['Bench', [-7.2, 0, 0.4], PI / 2], ['Barrel', [7.2, 0, 8.8], 0], ['Barrel_Apples', [6.4, 0, 9], 0], ['FarmCrate_Apple', [7.3, 0, 6.6], 1.2],
     ['Crate_Wooden', [7.2, 0, 3.4], 0.3], ['Chest_Wood', [6.0, 0, 1.2], 0.1]);
   return { comercio_grande: base, comercio_grande_cima: cima, comercio_grande_dentro: dentro };
 }
