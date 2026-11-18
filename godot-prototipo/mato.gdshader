@@ -51,6 +51,14 @@ varying vec3 v_mt;
 varying vec3 cor_chao;
 varying vec3 nw;
 void vertex() {
+	// MediaTek com PowerVR (Moto G54, 2026-11-18): o compilador do driver caía (libufwriter, SIGSEGV) com escrita
+	// em pedaço de varying (v_pk.xyz = ...). Aqui as contas vão em variáveis soltas e o varying sai inteiro de uma vez
+#undef altura
+#undef sombra_v
+#undef metade
+	float altura;
+	float sombra_v;
+	float metade;
 	altura = UV.y;
 	metade = COLOR.a;
 	vec3 o = MODEL_MATRIX[3].xyz;
@@ -78,6 +86,10 @@ void vertex() {
 	vec2 w = vec2(o.x, -o.z);
 	cor_chao = textureLod(grama_tex, w * (70.0 / 320.0), 5.0).rgb * tom_grama;
 	sombra_v = sombra_pintada(o.xz);
+	v_mt = vec3(altura, sombra_v, metade);
+#define altura v_mt.x
+#define sombra_v v_mt.y
+#define metade v_mt.z
 }
 void fragment() {
 	vec3 ponta = COLOR.rgb * tom_ponta;

@@ -62,9 +62,18 @@ float fbm(vec3 x) {
 }
 
 void vertex() {
+	// MediaTek com PowerVR (Moto G54, 2026-11-18): o compilador do driver caía (libufwriter, SIGSEGV) com escrita
+	// em pedaço de varying (v_pk.xyz = ...). Aqui as contas vão em variáveis soltas e o varying sai inteiro de uma vez
+#undef v_pos
+#undef v_dist
+	vec3 v_pos;
+	float v_dist;
 	v_dist = UV2.x;
 	v_seg = UV2.y;
 	v_pos = VERTEX;
+	v_pk = vec4(v_pos, v_dist);
+#define v_pos v_pk.xyz
+#define v_dist v_pk.w
 }
 
 void fragment() {
