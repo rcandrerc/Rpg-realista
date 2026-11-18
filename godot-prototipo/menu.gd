@@ -47,7 +47,7 @@ const MEDALHAO := 52.0
 # André 2026-11-12: aba Títulos (títulos com bônus; um em uso por vez)
 const ABAS_PERSONAGEM := ["status", "habilidades", "profissoes", "titulos", "aparencia"]
 # André 2026-11-11: Missões saiu do menu do personagem e ganhou ícone no menu do topo (abre só ela)
-const ABAS_MISSOES := ["missoes", "diarias"] # História e Diárias (André 2026-11-16)
+const ABAS_MISSOES := ["missoes", "diarias", "guilda"] # História e Diárias (André 2026-11-16); Guilda (2026-11-18)
 const ABAS_BOLSA := ["mochila", "criar", "loja"]
 # submenus da aba Criar
 # "aqui" (André 2026-11-05: "unificar os menus"): o botão de ação da mesa abre esta mesma aba Criar no submenu do que
@@ -819,7 +819,7 @@ func montar_direita() -> Control:
 	col.add_theme_constant_override("separation", 8)
 	var abas := HBoxContainer.new()
 	abas.add_theme_constant_override("separation", 6)
-	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["titulos", "Títulos"], ["missoes", "História"], ["diarias", "Diárias"], ["aparencia", "Aparência"],
+	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["titulos", "Títulos"], ["missoes", "História"], ["diarias", "Diárias"], ["guilda", "Guilda"], ["aparencia", "Aparência"],
 			["mochila", "Mochila"], ["criar", "Criar"], ["loja", "Loja"]]:
 		var b := botao(a[1], func(): trocar_aba(a[0]), 16)
 		b.custom_minimum_size = Vector2(126, 40)
@@ -921,6 +921,8 @@ func abrir(qual := "", sub := "") -> void:
 		aba = qual
 		if qual == "diarias":
 			_viu_diarias.call_deferred()
+		if qual == "guilda" and m.on(): # o "perto do mural" e os contratos do dia vêm do servidor na hora
+			m.rede("guilda", {"acao": "ver"})
 	elif aba in ABAS_BOLSA or aba in ABAS_MISSOES: # barra de vida: só o menu do personagem
 		aba = "status"
 	sel_mochila = -1
@@ -1074,6 +1076,8 @@ func atualizar() -> void:
 		montar_missoes()
 	elif aba == "diarias":
 		montar_diarias()
+	elif aba == "guilda":
+		montar_guilda()
 	elif aba == "titulos":
 		montar_titulos()
 	elif aba == "profissoes":
@@ -1727,6 +1731,106 @@ func montar_diarias() -> void:
 	conteudo.add_child(pb)
 
 # o servidor respondeu o "Ir" de uma diária (evento diaria_ir): fecha o menu e vai pela estrada, como o Ir da missão
+# Guilda dos Aventureiros (André 2026-11-18; regras em shared/guilda.js): o rank (F a SS), os pontos, a Prova e os
+# contratos do dia. Pega no mural ou com a Brenda (Rio Claro); "Ir" e "Receber" valem em qualquer lugar.
+const COR_RANK := {"F": Color(0.62, 0.62, 0.62), "E": Color(0.5, 0.72, 0.38), "D": Color(0.35, 0.66, 0.78), "C": Color(0.3, 0.45, 0.85),
+	"B": Color(0.6, 0.38, 0.85), "A": Color(0.88, 0.56, 0.18), "S": Color(0.88, 0.3, 0.25), "SS": Color(1.0, 0.84, 0.32)}
+func montar_guilda() -> void:
+	var G: Dictionary = m.P.guilda
+	if G.is_empty() or not G.has("l"):
+		conteudo.add_child(rotulo("A Guilda abre no Nv 30, no Rio Claro.", 14, APAGADO))
+		return
+	var rk := str(G.get("rank", "F"))
+	var cab := PanelContainer.new()
+	cab.add_theme_stylebox_override("panel", caixa(FUNDO2, COR_RANK.get(rk, OURO), 2, RAIO_JANELA))
+	var hc := HBoxContainer.new()
+	hc.add_theme_constant_override("separation", 12)
+	cab.add_child(hc)
+	var selo := PanelContainer.new()
+	selo.add_theme_stylebox_override("panel", caixa(COR_RANK.get(rk, OURO), Color(0, 0, 0, 0.4), 1, 10))
+	selo.custom_minimum_size = Vector2(64, 64)
+	var lr := rotulo(rk, 30, Color(0.1, 0.08, 0.06))
+	lr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lr.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	selo.add_child(lr)
+	hc.add_child(selo)
+	var vc := VBoxContainer.new()
+	vc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vc.add_theme_constant_override("separation", 4)
+	hc.add_child(vc)
+	vc.add_child(rotulo("Rank %s da Guilda" % rk, 17, OURO_CLARO))
+	var prox = G.get("prox")
+	if prox is Dictionary:
+		var pm := int(G.get("pgMax", 1))
+		var lp := HBoxContainer.new()
+		lp.add_theme_constant_override("separation", 8)
+		var bp := barra_prog(clampf(float(G.get("pg", 0)) / maxf(1.0, float(pm)), 0.0, 1.0), COR_RANK.get(rk, OURO), 10.0)
+		bp.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		lp.add_child(bp)
+		lp.add_child(rotulo("%d/%d pontos" % [int(G.get("pg", 0)), pm], 13, TEXTO))
+		vc.add_child(lp)
+		vc.add_child(rotulo("Próximo: Rank %s · Nv %d · Prova" % [str(prox.rank), int(prox.nv)], 12, APAGADO))
+	else:
+		vc.add_child(rotulo("Rank máximo!", 13, VERDE_DIARIA))
+	conteudo.add_child(cab)
+	var perto: bool = G.get("perto", false) == true
+	if G.get("pv", false) == true:
+		conteudo.add_child(rotulo("Prova aceita: vença o elite vermelho num campo da sua faixa.", 14, Color(1.0, 0.55, 0.45)))
+	elif G.get("prova", false) == true:
+		var bpv := botao("Fazer a Prova do rank %s" % str(prox.rank), func(): m.rede("guilda", {"acao": "prova"}), 16, true)
+		bpv.disabled = not perto
+		bpv.custom_minimum_size = Vector2(0, 48)
+		conteudo.add_child(bpv)
+		if not perto:
+			conteudo.add_child(rotulo("A Prova se pega no mural.", 12, APAGADO))
+	var falta := maxf(0.0, float(G.get("fim", 0)) - float(Time.get_ticks_msec() - m.P.guilda_t))
+	conteudo.add_child(rotulo("Cada um: %d ouro · %d XP · %d pontos" % [int(G.get("ouro", 0)), int(G.get("xp", 0)), int(G.get("pgGanha", 0))], 13, OURO))
+	if G.get("cat", false) == true:
+		conteudo.add_child(rotulo("Chance de runa ou selo", 12, OURO))
+	conteudo.add_child(rotulo(("Pegue até %d no mural." % int(G.get("ativos", 3))) if perto else "Pegue contratos no mural do Rio Claro.", 13, VERDE_DIARIA if perto else APAGADO))
+	conteudo.add_child(rotulo("Novos em %d h %d min" % [int(falta / 3600000.0), int(fmod(falta, 3600000.0) / 60000.0)], 12, APAGADO))
+	for c in G.l:
+		var e := str(c.get("e", "livre"))
+		var feito := e == "feito"
+		var pc := PanelContainer.new()
+		pc.add_theme_stylebox_override("panel", caixa(FUNDO2, VERDE_DIARIA if feito else (OURO if e == "ativo" else Color(0.3, 0.26, 0.2)), 2 if feito else 1, RAIO_JANELA))
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 10)
+		pc.add_child(h)
+		var v := VBoxContainer.new()
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		v.add_theme_constant_override("separation", 3)
+		h.add_child(v)
+		var nome := rotulo(str(c.txt), 16, VERDE_DIARIA if feito else (APAGADO if e == "recebido" else TEXTO))
+		if feito or e == "recebido":
+			nome.text = "✓ " + nome.text
+		v.add_child(nome)
+		if e == "ativo" or feito:
+			var linha := HBoxContainer.new()
+			linha.add_theme_constant_override("separation", 8)
+			var bpr := barra_prog(clampf(float(c.n) / maxf(1.0, float(c.t)), 0.0, 1.0), VERDE_DIARIA if feito else LILAS, 10.0)
+			bpr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			linha.add_child(bpr)
+			linha.add_child(rotulo("%d/%d" % [int(c.n), int(c.t)], 13, TEXTO))
+			v.add_child(linha)
+		var id := str(c.id)
+		var bt: Button
+		match e:
+			"recebido":
+				bt = botao("Recebido", func(): pass, 15)
+				bt.disabled = true
+			"feito":
+				bt = botao("Receber", func(): m.rede("guilda", {"acao": "receber", "id": id}), 15, true)
+			"ativo":
+				bt = botao("Ir", func(): m.rede("guilda", {"acao": "ir", "id": id}), 15)
+			_:
+				bt = botao("Pegar", func(): m.rede("guilda", {"acao": "aceitar", "id": id}), 15, perto)
+				bt.disabled = not perto
+		bt.custom_minimum_size = Vector2(110, 44)
+		bt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(bt)
+		conteudo.add_child(pc)
+
 func ir_diaria(ev: Dictionary) -> void:
 	var a = ev.get("alvo")
 	if not (a is Dictionary) or m.rota == null or m.heroi == null:
