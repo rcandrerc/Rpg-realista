@@ -1905,7 +1905,10 @@ export const PACK_REGRAS = {
   mercado: { livres: 4, cai: 0.03, minimo: 0.5, volta: 360 },
   mercador: { material: 0.15, preco: 0.25 },
   navio: 1.5, navioMin: 30,
-  costas: { vel: 0.68 }, // nas costas: velocidade x0,68 e sem corrida
+  // nas costas: velocidade x0,5 da corrida (5,4 -> 2,7 m/s), sem corrida e sem montaria. André 2026-11-18: "dá uma nerfada
+  // na velocidade... como se eu estivesse carregando peso mesmo... não consegue correr... só de carrinho" (era x0,68 = 3,67
+  // m/s, quase o trote de 3,78, e não pesava). O servidor confere (Simulacao.posicaoCliente) e o app segue (trabalho.gd).
+  costas: { vel: 0.5 },
   pegar: 2.5, // metros para pegar um pack do chão
   falar: 4, // metros do mercador para fazer ou entregar
 };

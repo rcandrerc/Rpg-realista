@@ -131,6 +131,15 @@ func passo_estamina(dt: float) -> void:
 	if sem_folego and sta >= mx * float(E.folego):
 		sem_folego = false
 	mov.vel_max = trote if sem_folego else 99.0
+	# pack nas costas pesa (André 2026-11-18): anda a PACK_REGRAS.costas.vel da corrida (2,7 m/s), sem disparada
+	if m.P.prog.get("pack") is Dictionary and m.montaria != null and m.h.morto <= 0.0:
+		m.montar_lobo(false, false) # pegou pack montado: desce na hora (o servidor já desceu)
+	if m.P.prog.get("pack") is Dictionary and mov.montado.is_empty():
+		var pr: Dictionary = m.P.dados.get("packRegras", {})
+		mov.vel_max = min(mov.vel_max, float(m.P.dados.heroiCorrer) * float(pr.get("costas", {}).get("vel", 0.5)))
+		if mov.disparada:
+			mov.disparada = false
+			m.hud.aviso("Com pack nas costas não dá pra correr")
 
 # o servidor manda a estamina dele 20 vezes por segundo: aqui só acerta quando os dois se perdem
 func do_servidor(v: float) -> void:
