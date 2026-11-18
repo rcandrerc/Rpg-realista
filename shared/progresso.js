@@ -297,7 +297,24 @@ export function consertarTudo(p) {
   for (const x of lista) delete (x.onde === 'equip' ? p.equip[x.l] : p.mochila[x.i]).d;
   return { custo, n: lista.length };
 }
-// caiu: perde parte do ouro e cada peça do corpo desgasta. Devolve { ouro, quebrou: [nomes das que chegaram a 0] }
+// consertar as peças marcadas (André 2026-11-18: "reparo por peça mas não parcial: ou repara a peça toda ou não
+// consegue"; na tela do equipamento a pessoa marca as peças ou toca em Consertar tudo). lista = [{ lugar } (no corpo) ou
+// { i } (mochila)]: todas inteiras ou nenhuma. Devolve { custo, n } ou { falta, custo } ou null (nenhuma gasta)
+export function consertarPecas(p, lista) {
+  const pecas = new Set();
+  for (const o of Array.isArray(lista) ? lista.slice(0, 60) : []) {
+    const it = typeof o?.lugar === 'string' ? (LUGARES.includes(o.lugar) ? p.equip?.[o.lugar] : null)
+      : Number.isInteger(o?.i) && o.i >= 0 ? p.mochila?.[o.i] : null;
+    if (custoConserto(it)) pecas.add(it);
+  }
+  if (!pecas.size) return null;
+  const custo = [...pecas].reduce((s, it) => s + custoConserto(it), 0);
+  if ((p.ouro || 0) < custo) return { falta: custo - (p.ouro || 0), custo };
+  p.ouro -= custo;
+  for (const it of pecas) delete it.d;
+  return { custo, n: pecas.size };
+}
+// caiu: perde XP (ouro só se MORTE.ouro > 0; 0 desde André 2026-11-18) e cada peça do corpo desgasta. Devolve { ouro, quebrou: [nomes das que chegaram a 0] }
 export function penalidadeMorte(p) {
   const ouro = Math.floor((p.ouro || 0) * MORTE.ouro);
   p.ouro = (p.ouro || 0) - ouro;

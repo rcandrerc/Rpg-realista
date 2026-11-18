@@ -3621,5 +3621,18 @@
 "Próxima parada: {1}. Cola aí.": "Next stop: {1}. Tag along.",
 "Tirar névoa": "Hide mist",
 "Pôr névoa": "Show mist",
-"Esconder lista": "Hide list"
+"Esconder lista": "Hide list",
+"Toque nas peças gastas (no corpo ou na mochila) para marcar. Cada uma volta inteira.": "Tap worn pieces (worn or in the bag) to mark them. Each one comes back fully repaired.",
+"Essa peça está inteira": "That piece isn't damaged",
+"Consertar %d · %d de ouro": "Repair %d · %d gold",
+"Marque as peças": "Mark the pieces",
+"Toque nas peças gastas para marcar": "Tap worn pieces to mark them",
+"Faltam %d de ouro para consertar tudo": "You need %d more gold to repair everything",
+"Tudo · %d": "All · %d",
+"Está tudo inteiro": "Nothing is damaged",
+"A conta do terreno ({1} de ouro) passa do valor da venda: faltam {2} de ouro": "The plot bill ({1} gold) is more than the sale value: you need {2} more gold",
+"Terreno vendido. A conta passou do valor: pagou {1} de ouro": "Plot sold. The bill was more than the value: you paid {1} gold",
+"Terreno vendido. A conta passou do valor: pagou {1} de ouro. As peças voltaram para a mochila": "Plot sold. The bill was more than the value: you paid {1} gold. The pieces went back to your bag",
+"Você está em combate": "You're in combat",
+"{1} está em combate": "{1} is in combat"
 }

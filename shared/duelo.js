@@ -9,8 +9,11 @@
 // - Acaba quando um chega a DUELO.fim da vida (ninguém morre), quando alguém sai, cai para um monstro ou desiste;
 //   sem limite de tempo (André 2026-11-17: "quem quiser encerrar só sai do círculo").
 // - Sem castigo: não perde ouro, item nem XP, e o equipamento não desgasta (só a morte desgasta, e no duelo ninguém morre).
-//   Não dá XP nem drop. No fim os dois voltam com vida e mana cheias. O placar (prog.duelos) fica na conta.
-import { DUELO, HEROI } from './dados.js';
+//   Não dá XP nem drop. O placar (prog.duelos) fica na conta.
+// - André 2026-11-18 (conselho, opção 2: "duelo não começa em combate e quando termina não deveria encher, a pessoa tem que
+//   se recuperar por conta própria com poções e cura"): não começa com nenhum dos dois em combate, e no fim cada um sai
+//   com a vida e a mana que tinha (antes voltavam cheias; dava para usar o duelo como cura de graça no meio da luta).
+import { DUELO } from './dados.js';
 
 const longe = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
@@ -25,6 +28,7 @@ export const Duelo = {
     if (j.veiculo === 'barquinho' || j.veiculo === 'navio') return f('Você está no barco', `${n} está no barco`);
     if (j.veiculo) return f('Você está no carrinho', `${n} está no carrinho`);
     if (this.naCaverna(j)) return f('Você está na caverna', `${n} está na caverna`);
+    if (this.emCombate(j)) return f('Você está em combate', `${n} está em combate`);
     if (this.inimigos.some((b) => b.bm && !b.morto && b.arena && this.naArena(b, j, 10))) return f('Você está perto de um chefe', `${n} está perto de um chefe`);
     return '';
   },
@@ -131,8 +135,8 @@ export const Duelo = {
     const nomeV = vencedor?.nome || '';
     for (const j of js) {
       j.duelo = null;
-      if (!j.morto) { // os dois saem inteiros (André: sem castigo)
-        j.vida = j.vidaMax; j.mana = j.manaMax ?? HEROI.mana;
+      if (!j.morto) { // sem castigo, mas sem cura: a vida e a mana ficam como estão (André 2026-11-18)
+        j.vida = Math.max(1, j.vida); // o duelo nunca mata (DUELO.fim)
         j.vuln = null; j.lentoH = null;
         if (j.presoAte > this.tempo) { j.presoAte = 0; if (j.trava !== Infinity) j.trava = 0; }
       }
