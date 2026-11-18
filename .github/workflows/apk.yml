@@ -381,6 +381,11 @@ jobs:
           gh release download atualizacao -R "$GITHUB_REPOSITORY" -D client/dist/atualizacao --clobber
           gh release download conteudo -R "$GITHUB_REPOSITORY" -D client/dist/atualizacao --clobber
           ls -la client/dist/atualizacao
+      - name: Cardápio e servidor também no balde da Oracle (o jogo não depende do Pages; ver espelhar-balde.sh)
+        env:
+          ORACLE_PAR: ${{ secrets.ORACLE_PAR }}
+          ORACLE_URL: ${{ vars.ORACLE_URL }}
+        run: bash ferramentas/atualizacao/espelhar-balde.sh client/dist
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
