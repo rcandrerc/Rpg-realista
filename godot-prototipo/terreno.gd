@@ -81,15 +81,25 @@ func terra_mundo(x: float, z: float) -> bool:
 	return str(mundo_g.terra)[j * int(mundo_g.nx) + i] != "0"
 
 # nado no mar (André 2026-11-18: "igualzinho nos lagos"): o mar dentro da grade do mundo, a MAR_BORDA m da borda dela
-# (fora da grade o mar não acaba). Mesma conta de shared/relevo.js marNadavel: o servidor confere
+# (fora da grade o mar não acaba), mais a areia baixa da beira (até MAR_AREIA de altura, com mar a MAR_PERTO m). Mesma conta de shared/relevo.js marNadavel: o servidor confere. Só depois da terra (andar.gd)
 const MAR_BORDA := 24.0
+const MAR_AREIA := 0.9
+const MAR_PERTO := 3.0
 func mar_nadavel(x: float, z: float) -> bool:
 	if mundo_g.is_empty():
 		return false
 	var b: float = MAR_BORDA / float(mundo_g.passo)
 	var fx: float = (x - float(mundo_g.x0)) / float(mundo_g.passo)
 	var fz: float = (z - float(mundo_g.z0)) / float(mundo_g.passo)
-	return fx >= b and fz >= b and fx <= int(mundo_g.nx) - 1 - b and fz <= int(mundo_g.nz) - 1 - b and altura_mundo(x, z) < 0.0
+	if fx < b or fz < b or fx > int(mundo_g.nx) - 1 - b or fz > int(mundo_g.nz) - 1 - b:
+		return false
+	var h := altura_mundo(x, z)
+	if h < 0.0:
+		return true
+	if h > MAR_AREIA:
+		return false
+	var p := MAR_PERTO
+	return altura_mundo(x + p, z) < 0.0 or altura_mundo(x - p, z) < 0.0 or altura_mundo(x, z + p) < 0.0 or altura_mundo(x, z - p) < 0.0
 
 # FASE 3, Parte 7b: em cima de um cais de madeira (mundo.cais) também se anda, mesmo por cima do mar (shared/simulacao.js naCais)
 func na_cais(x: float, z: float) -> bool:

@@ -189,11 +189,11 @@ func colidir() -> void:
 	if str(veiculo.get("k", "")) in ["barquinho", "navio"] and not T.no_lago(x, z).is_empty():
 		_pos_ok = Vector2(x, z)
 		return
-	# a nado no mar (André 2026-11-18: "igualzinho nos lagos"); de carrinho não (o servidor confere: marNadavel)
-	if veiculo.is_empty() and T.mar_nadavel(x, z):
+	if dentro_do_mapa(x, z, 2.2):
 		_pos_ok = Vector2(x, z)
 		return
-	if dentro_do_mapa(x, z, 2.2):
+	# a nado no mar (André 2026-11-18: "igualzinho nos lagos"); de carrinho não (o servidor confere: marNadavel)
+	if veiculo.is_empty() and T.mar_nadavel(x, z):
 		_pos_ok = Vector2(x, z)
 		return
 	# na beira do mar (e de todo o mundo grande) a borda segura o herói onde ele estava, sem puxar para longe

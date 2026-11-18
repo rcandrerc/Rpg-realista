@@ -182,12 +182,19 @@ export const gradeDoMundo = () => MUNDO_G;
 export const MAR = { id: 'mar', nome: 'Mar', mar: true, fundo: 7 };
 const mundoEm = (x, z) => (MUNDO_G ? alturaMundo(MUNDO_G, x, z) : 0);
 // nado no mar (André 2026-11-18: "igualzinho nos lagos"): o mar dentro da grade do mundo, longe da borda dela (fora da
-// grade o mar não acaba nunca). Mesma conta no Godot (terreno.gd mar_nadavel).
-export const MAR_BORDA = 24;
+// grade o mar não acaba nunca). Na beira, a areia baixa (até MAR_AREIA de altura) com mar a MAR_PERTO m também vale:
+// a terra com folga de 2,2 m acaba antes da água e o herói parava na praia sem entrar. Mesma conta no Godot
+// (terreno.gd mar_nadavel). Quem chama só pergunta depois que a terra (andavelMundo) disse não.
+export const MAR_BORDA = 24, MAR_AREIA = 0.9, MAR_PERTO = 3;
 export function marNadavel(x, z) {
   const G = MUNDO_G; if (!G) return false;
   const fx = (x - G.x0) / G.passo, fz = (z - G.z0) / G.passo, b = MAR_BORDA / G.passo;
-  return fx >= b && fz >= b && fx <= G.nx - 1 - b && fz <= G.nz - 1 - b && mundoEm(x, z) < 0;
+  if (fx < b || fz < b || fx > G.nx - 1 - b || fz > G.nz - 1 - b) return false;
+  const h = mundoEm(x, z);
+  if (h < 0) return true;
+  if (h > MAR_AREIA) return false;
+  const p = MAR_PERTO;
+  return mundoEm(x + p, z) < 0 || mundoEm(x - p, z) < 0 || mundoEm(x, z + p) < 0 || mundoEm(x, z - p) < 0;
 }
 
 export function alturaMontanha(x, z) {

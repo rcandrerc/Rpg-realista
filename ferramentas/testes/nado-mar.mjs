@@ -60,3 +60,18 @@ ok(AGUA.nado < 1.7 && AGUA.nadoFundo < AGUA.nado, `nado mais lento: ${AGUA.nado}
   ok(!marNadavel(x, z), 'perto da borda da grade não dá para nadar');
   ok(!marNadavel(G.x0 - 50, z), 'fora da grade não dá para nadar');
 }
+// da praia para dentro do mar, andando (a terra com folga acaba antes da água: a areia baixa da beira vale)
+{
+  const s = new Simulacao(MAPA_CLAREIRA);
+  const j = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 });
+  j.criando = false; j.x = -196; j.z = 390; j.y = s.terreno.altura(-196, 390, 50);
+  s.passo(TICK); s.eventos = [];
+  let z = 390, corr = 0;
+  while (z < 412) {
+    s.passo(TICK); z += 1.4 * TICK;
+    const y = s.terreno.altura(-196, z, 50);
+    if (!s.posicaoCliente('A', { x: -196, y, z, ry: 0, e: 1 })) corr++;
+    s.eventos = [];
+  }
+  ok(corr === 0 && j.z > 411, `entra no mar andando da praia (${corr} recusas, z ${j.z.toFixed(1)})`);
+}
