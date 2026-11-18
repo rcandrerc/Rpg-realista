@@ -14,7 +14,7 @@
 //   A amizade é de cada um (j.amizades[conta]); j.amizade é a de quem ela acompanha agora.
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { DIARIAS, DUELO } from './dados.js';
+import { DIARIAS, DUELO, IA_CONVERSA } from './dados.js';
 import { CEREBRO, NPC_VIDA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
@@ -119,6 +119,8 @@ export function generoFala(fala, genero = 'f') {
   const re = new RegExp(`\\b((?:t[oô]|estou|fiquei|fico|ando|sou)\\s+(?:meio\\s+|muito\\s+|bem\\s+|super\\s+)?)(${adj.join('|')})\\b`, 'gi');
   return String(fala).replace(re, (m, a, w) => a + (w.endsWith('ona') ? w.slice(0, -3) + 'ão' : w.endsWith('ão') ? w.slice(0, -2) + 'ona' : w.slice(0, -1) + para));
 }
+// repertório único (André 2026-11-18): {feminino|masculino} pelo gênero de quem fala
+export function vozAmiga(texto, genero = 'f') { return String(texto).replace(/\{([^{}|]*)\|([^{}|]*)\}/g, (m, f, mm) => (genero === 'm' ? mm : f)); }
 export const Amiga = {
   // ---------- entra e sai junto com o dono ----------
   // o servidor chama quando o dono entra na sala (contas de teste do André; sem contas, o primeiro que entra)
@@ -185,6 +187,7 @@ export const Amiga = {
       const porConta = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
       j.memorias = porConta(salvo.memorias); j.regras = porConta(salvo.regras); j.gostos = porConta(salvo.gostos);
       j.fatos = porConta(salvo.fatos); j.semIa = porConta(salvo.semIa); j.conversasSalvas = porConta(salvo.conversas); // André 2026-11-17: fatos e a conversa recente
+      j.registro = porConta(salvo.registro); // André 2026-11-18: a conversa do dia inteiro (hoje e ontem) para a ronda
       // dicas que viraram regra do cérebro (entrega 2, André 2026-11-11): valem para todo mundo; o banco é conferido de novo
       j.dicas = Array.isArray(salvo.dicas) ? salvo.dicas.map((d) => validarRegra(d, CEREBRO)).filter(Boolean).slice(-CEREBRO.dicas.max) : [];
       j.licoes = licoesValidas(salvo.licoes); // o que aprendeu caindo (entrega 4)
@@ -216,7 +219,7 @@ export const Amiga = {
   // conversa (respostas prontas, das regras), chama para o time e troca. A resposta da IA é só de quem tem a chave
   // (amigaFalam: quem colou a chave Groq e as contas de teste), ver iaAmiga e server/index.js falarComAmigoIa.
   podeAmiga(id) { const j = id != null && this.jogadores.get(id); return !!this.amiga && !!j && !j.bot; },
-  iaAmiga(id) { return !!this.amiga && id != null && (!this.iaPorChave ? this.podeAmiga(id) : !!this.amigaFalam?.has(id)); },
+  iaAmiga(id) { return IA_CONVERSA.ligada && !!this.amiga && id != null && (!this.iaPorChave ? this.podeAmiga(id) : !!this.amigaFalam?.has(id)); }, // IA desligada (André 2026-11-18): repertório pronto
   // ocupada com quem ela acompanha agora: no time dele, coletando junto, trocando ou indo até ele
   ocupadaAmiga() {
     const a = this.amiga, dono = this.jogadores.get(this.amigaDono); if (!a || !dono) return false;
@@ -368,7 +371,7 @@ export const Amiga = {
   guardarAmiga() {
     const j = this.amiga, L = this.loteDaAmiga(); if (!j || (!L && this.AMIGA.terreno)) return;
     const amizades = { ...(j.amizades || {}) }; if (j.donoConta) amizades[j.donoConta] = j.amizade | 0;
-    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, evolucao: j.evolucao || [], ...(this.AMIGA.terreno ? { histReal: 1 } : {}), ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), guerra: j.guerraMem || {}, memorias: j.memorias || {}, fatos: j.fatos || {}, semIa: j.semIa || {}, conversas: this.conversasParaSalvarAmiga(j), regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(this.AMIGA.recomecoJogo ? { recomecoJogo: this.AMIGA.recomecoJogo } : {}), ...(j.amigaAntesJogo ? { antesJogo: j.amigaAntesJogo } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
+    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, evolucao: j.evolucao || [], ...(this.AMIGA.terreno ? { histReal: 1 } : {}), ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), guerra: j.guerraMem || {}, memorias: j.memorias || {}, fatos: j.fatos || {}, semIa: j.semIa || {}, conversas: this.conversasParaSalvarAmiga(j), registro: j.registro || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(this.AMIGA.recomecoJogo ? { recomecoJogo: this.AMIGA.recomecoJogo } : {}), ...(j.amigaAntesJogo ? { antesJogo: j.amigaAntesJogo } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
     if (!L) { (this.npcSalvos ||= new Map()).set(this.AMIGA.id, dados); (this.npcsMudados ||= new Set()).add(this.AMIGA.id); return; } // sem casa: tabela mundo do banco
     L.amiga = dados;
     this.lotesMudados.add(L.def.id);
@@ -1528,7 +1531,9 @@ export const Amiga = {
     for (const k of ['sairTime', 'vir', 'time']) if (tem(k)) { if (!negado(k)) return k; negou = true; }
     if (negou) return 'naoAcao'; // "não vamos caçar", "nem vem": não faz nada
     if (ia?.chamado && ia.chamado.ate > this.tempo) { if (tem('nao')) return 'nao'; if (tem('sim')) return 'sim'; } // resposta ao chamado dela
-    for (const k of ['tchau', 'comoVai', 'ajuda', 'dungeon', 'piada', 'obrigado', 'elogio', 'casa', 'horta', 'troca', 'oi']) if (tem(k)) return k;
+    if (A.fazendo && tem('fazendo')) return 'fazendo'; // "tá fazendo o quê?" (repertório 2026-11-18)
+    if (t.trim().split(' ').every((w) => /^(k{2,}|(ha){2,}h?|(rs){2,}|\.)$/.test(w))) return 'risada'; // só risada ("kkkk"); "te amo kkk" é carinho
+    for (const k of ['tchau', 'comoVai', 'ajuda', 'dungeon', 'piada', 'obrigado', 'carinho', 'elogio', 'desabafo', 'casa', 'horta', 'troca', 'oi']) if (A[k] && tem(k)) return k;
     return 'naoEntendi';
   },
   // André 2026-11-12 ("tá respondendo coisa sem sentido"): a ação das regras só passa por cima da fala da IA quando é um
@@ -1885,6 +1890,7 @@ export const Amiga = {
         break;
       }
       case 'horta': case 'dungeon': fala = sorteia(FA[r.assunto]); break;
+      case 'fazendo': { const ag = this.contextoAmiga(id)?.fazendo || 'de boa por aqui'; fala = sorteia(F.fazendo).replace('{agora}', ag).replace('{Agora}', ag[0].toUpperCase() + ag.slice(1)); break; }
       default: fala = sorteia(F[r.assunto] || F.naoEntendi);
     }
     // a IA escreve a fala dela; a ação continua sendo decidida aqui (ela pode recusar mesmo que a IA queira aceitar)
@@ -1898,7 +1904,7 @@ export const Amiga = {
   // manda a mensagem dela no chat privado depois de uns segundos (fila em ia.chatFila)
   dizerAmiga(texto, agora = false, para = null) {
     const a = this.amiga; if (!a || !texto) return;
-    para ??= this.amigaDono;
+    para ??= this.amigaDono; texto = vozAmiga(texto, this.AMIGA.genero || 'f');
     const [d0, d1] = this.AMIGA.chat.digitando, ultimo = (a.ia.chatFila || []).reduce((m, x) => Math.max(m, x.t), this.tempo);
     (a.ia.chatFila ||= []).push({ t: agora ? this.tempo : ultimo + d0 + Math.random() * (d1 - d0) + Math.min(2, texto.length / 60), texto: String(texto).slice(0, 300), para });
   },
@@ -1906,6 +1912,16 @@ export const Amiga = {
   chatDeAmiga(j) { const a = this.amiga, c = (a.ia.conversas ||= {}); return (c[j.conta] ||= (a.conversasSalvas?.[j.conta] || []).slice(-this.histAmiga())); },
   ultimaFalaAmiga(j) { const l = j ? this.chatDeAmiga(j) : []; for (let i = l.length - 1; i >= 0; i--) if (l[i].de === 'ela') return l[i].texto; return ''; },
   histAmiga() { return this.AMIGA.chat.historico || 12; },
+  // ---------- registro do dia (André 2026-11-18: "eu vou ficar todo dia jogando conversa fora com o Dário ... e você vai
+  // adicionando mais opções de resposta"): a conversa de cima guarda só as últimas falas (o fio da IA); este guarda o dia
+  // inteiro, hoje e ontem (horário de Brasília), para a ronda das 9h ler tudo. Não vai para a IA.
+  registrarAmiga(a, conta, de, texto, nome) {
+    if (!a || conta == null) return;
+    const R = this.AMIGA.chat.registro || { max: 600 }, dia = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+    const reg = (a.registro ||= {}); for (const d of Object.keys(reg)) if (d < new Date(Date.now() - 27 * 3600e3).toISOString().slice(0, 10)) delete reg[d];
+    const l = ((reg[dia] ||= {})[conta] ||= []); l.push({ de, texto: String(texto).slice(0, 300), h: new Date(Date.now() - 3 * 3600e3).toISOString().slice(11, 16), ...(nome ? { nome } : {}) });
+    if (l.length > R.max) l.splice(0, l.length - R.max);
+  },
   // a conversa recente de cada pessoa vai para o banco junto com ela (voltar ao jogo amanhã: ela lembra do fio)
   conversasParaSalvarAmiga(j) {
     const r = { ...(j.conversasSalvas || {}) }, n = this.histAmiga();
@@ -1965,6 +1981,7 @@ export const Amiga = {
   ouvirAmiga(id, texto) {
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j || !this.podeAmiga(id)) return;
     const c = this.chatDeAmiga(j); c.push({ de: 'ele', texto: String(texto).slice(0, 200) }); if (c.length > this.histAmiga()) c.shift();
+    this.registrarAmiga(a, j.conta, 'ele', texto);
     const d = ((a.ia.diario ||= {})[j.conta] ||= { novas: 0, ultima: 0, id }); d.novas++; d.falas = (d.falas | 0) + 1; d.ultima = this.tempo; d.id = id; d.nome = j.nome;
     if (a.ia.espera) delete a.ia.espera[j.conta]; // ele respondeu: ela volta a puxar assunto quando quiser
   },
@@ -1989,6 +2006,7 @@ export const Amiga = {
       const msg = T ? { canal: 'time', c: this.AMIGA.conta, nome: this.AMIGA.nome, texto, hora: Date.now(), membros: this.contasDoTime(T) } : { canal: 'pm', c: this.AMIGA.conta, nome: this.AMIGA.nome, texto, hora: Date.now(), alvo: quem.conta, alvoNome: quem.nome };
       ia.ultimaFala = this.tempo;
       const c = this.chatDeAmiga(quem); c.push({ de: 'ela', texto }); if (c.length > this.histAmiga()) c.shift();
+      this.registrarAmiga(a, quem.conta, 'ela', texto);
       // no time, os outros NPCs leem o que ela disse (André 2026-11-13: cada um respondia sem saber do outro)
       if (T) for (const x of this.amigosIa) if (x !== this && x.amiga && x.amiga.time === T && x.podeAmiga(quem.id)) { const h = x.chatDeAmiga(quem); h.push({ de: 'outro', nome: this.AMIGA.nome, texto }); if (h.length > x.histAmiga()) h.shift(); }
       if (this.aoChatAmiga) this.aoChatAmiga(msg); else this.receberChat(msg);

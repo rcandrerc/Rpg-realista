@@ -3115,6 +3115,49 @@ export const AVENTUREIROS = AV.map(([id, nome, g, penteado, cabelo, olhos, pele,
 }));
 // os amigos virtuais do jogo, na ordem (a Cecília é a própria Simulacao; os outros vêm em shared/amiga.js contextoDeAmigo)
 export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
+// IA nas conversas dos NPCs (André 2026-11-18: "desliga a IA ... fica lá no fundo registrado ... se liberar a conta free
+// para geral, a gente usa"; "todo mundo igual"). Desligada: todos respondem pelo repertório pronto (regras + falas), sem
+// botão de ativar chave. O sistema de IA continua no código (server/ia-amiga.js): ligada: true volta tudo como era.
+export const IA_CONVERSA = { ligada: false };
+// ---------- repertório único de conversa (André 2026-11-18: "a única coisa que tem que diferenciar é masculino de
+// feminino ... conversar com a Cecília, sempre ela respondendo em feminino; com o Dário, sempre masculino") ----------
+// Um repertório só para todos os NPCs. {feminino|masculino} escolhe pelo gênero de quem fala (shared/amiga.js vozAmiga).
+// Junta todas as falas que já eram da Cecília e do Dário (nada some) e as novas tiradas das conversas do André com eles.
+// A ronda das 9h lê as conversas do dia (registro) e acrescenta aqui o que faltou.
+export const REPERTORIO = {
+  assuntos: {
+    oi: ['oi', 'oii', 'ola', 'e ai', 'eai', 'opa', 'bom dia', 'boa tarde', 'boa noite', 'salve', 'fala', 'E aí! Bom ver mensagem sua, tava parado demais.', 'Opa! Fala, aventureiro.', 'E aí, parceiro! Sumido, hein.', 'Opa! Acabei de voltar do treino.'],
+    comoVai: ['como vai', 'como voce ta', 'como vc ta', 'como ce ta', 'tudo bem', 'td bem', 'tudo bom', 'como esta', 'beleza?', 'suave', 'de boa', 'Tô {ótima|ótimo}! A horta tá linda e eu tô {cheia|cheio} de energia.', 'Tudo certo por aqui! E você, matou muito lobo hoje?', 'Tô bem, só com fome. E aí, como tá sua aventura?', 'Tô bem! Treinei cedo e a horta tá firme.', 'Tudo certo. E você, derrubou muito lobo hoje?', 'Suave! E você, como tá o nível?'],
+    elogio: ['linda', 'lindo', 'bonita', 'bonito', 'legal', 'gosto de voce', 'te adoro', 'melhor amiga', 'melhor amigo', 'incrivel', 'top', 'forte', 'brabo', 'braba', 'fofa', 'fofo', 'sinistra', 'sinistro', 'gata', 'gato', 'monstra', 'monstro', 'mito', 'Para com isso, assim eu fico sem graça.', 'Eu sei. Mas valeu mesmo assim!'],
+    obrigado: ['obrigado', 'obrigada', 'valeu', 'vlw', 'brigado', 'agradeco', 'tmj', 'De nada! Amigo é pra isso.', 'Imagina, você faria o mesmo.', 'Tamo junto!'],
+    piada: ['piada', 'conta uma', 'me faz rir', 'algo engracado', 'Por que o esqueleto não luta? Porque não tem estômago pra isso.'],
+    tchau: ['tchau', 'falou', 'flw', 'ate mais', 'ate logo', 'fui', 'boa noite cecilia', 'boa noite dario', 'vou dormir', 'vou sair', 'vou off', 'vou deslogar', 'Vai lá! Não morre pra lobo, hein?', 'Falou! Me chama quando quiser.', 'Tchau! Vou voltar pra minha horta.', 'Falou, parceiro. Até a próxima caçada.'],
+    // novos (conversas de 2026-11-17 e 18)
+    fazendo: ['fazendo o que', 'fazendo oq', 'fazendo o q', 'ta fazendo', 'tá fazendo', 'faz o que', 'que ce ta fazendo', 'oq ce ta fazendo', 'oq vc ta fazendo', 'ocupada', 'ocupado', 'ta ai', 'ta on'],
+    desabafo: ['cansado', 'cansada', 'trabalho', 'trampo', 'trabalhando', 'dia ruim', 'dia pesado', 'triste', 'estressado', 'estressada', 'exausto', 'exausta', 'dor de cabeca', 'sono', 'com sono', 'chateado', 'chateada'],
+    carinho: ['te amo', 'saudade', 'saudades', 'senti sua falta', 'gosto muito de voce', 'gosto mt de vc', 'minha amiga', 'meu amigo', 'casa comigo'],
+  },
+  falas: {
+    oi: ['Oii! Tava pensando em você agora mesmo, sério.', 'Ei! Que bom que mandou mensagem, tava {entediada|parado demais}.', 'Opa! Fala, aventureiro!', 'Aeee, apareceu! Tudo certo por aí?', 'Oi oi! Tava aqui arrancando mato da horta.', 'Olha só quem lembrou de mim, hehe.', 'Fala! Tava afiando a espada aqui.', 'Salve! Tudo tranquilo por aí?', 'E aí! Sumido, hein.', 'Opa! Acabei de voltar do farm.', 'Eae! Bora upar hoje?'],
+    comoVai: ['Tô {ótima|ótimo}! {Cheia|Cheio} de energia.', 'Tudo certo por aqui! E você, farmou muito mob hoje?', 'Bem! Meio {suja|sujo} de terra, mas {feliz|inteiro}.', 'De boa! Um lobo quase me pegou cedo, mas tô {inteira|inteiro}.', 'Tô bem, só com fome. E aí, como tá o grind?', 'Melhor agora que você apareceu, hehe.', 'Tranquilo. Só a espada que tá pedindo briga.', 'Suave! E você, upou quanto hoje?', 'Tô bem! Treinei cedo e tô no pique.'],
+    elogio: ['Para, assim eu fico {vermelha|sem graça}!', 'Hehe, você também é {demais|brabo}!', 'Eu sei, eu sei. Mas {obrigada|valeu} mesmo assim!', 'Ai, para! Mas pode continuar, hehe.', 'Kkk só porque tô com a build no talo.', 'Lenda é você, que não para de upar.', 'Hehe, tô ficando {mal-acostumada|mal-acostumado} com tanto elogio.'],
+    obrigado: ['De nada! {Amiga|Parceiro} é pra isso.', 'Imagina! Você faria o mesmo por mim.', 'Que nada! Tamo junto.', 'Disponha, sempre!', 'Tmj!'],
+    piada: ['Sabe por que o lobo não joga cartas? Porque sempre tem um lobo na manga... tá, essa foi ruim.', 'Minha cenoura falou que me ama. Ela é bem raiz!', 'Por que o esqueleto não briga? Porque ele não tem estômago pra isso!', 'Sabe por que o lobo perdeu o duelo? Faltou dente pra tanta coragem... tá, essa foi fraca.', 'Minha batata me desafiou. Descasquei ela na hora.', 'Sabe qual o mob mais educado? O que dropa obrigado.'],
+    naoEntendi: ['Hmm, não peguei. Fala de outro jeito?', 'Kkk boiei total. Explica de novo?', 'Haha, sério? Conta mais!', 'Hmm, saquei mais ou menos. Mas bora farmar que aí eu entendo, kkk', 'Kkk não peguei essa. Quer farmar, pescar ou só bater papo?', 'Tô meio {distraída|distraído} aqui, repete pra mim?', 'Isso foi charada? Explica aí.', 'Haha, entendi nada, mas tô contigo.', 'Repete aí, tava amolando a espada.', 'Hmm, não entendi direito. Fala de outro jeito?', 'Hã? Tô aqui regando a horta, me explica melhor!', 'Hehe, você tá falando enigma? Me explica!', 'Hmm, faz sentido... acho. Mas me chama pra caçar que eu entendo na hora!', 'Kkk não peguei essa. Quer caçar, pescar ou só bater papo?', 'Tô meio {distraída|distraído} com a horta, repete pra mim?', 'Hmm, não entendi. Fala de outro jeito?', 'Hã? Tava {concentrada|concentrado} na horta, me explica melhor.', 'Hmm, saquei mais ou menos. Bora caçar que eu entendo melhor!'],
+    tchau: ['Tchau! Me chama quando quiser.', 'Até mais! Cuidado por aí.', 'Falou! Vou voltar pra minha horta.', 'Vai lá! Não morre pra mob, hein?', 'Beijo! Amanhã tem mais.', 'Vai firme! Qualquer coisa me chama.', 'Falou! Até a próxima DG.', 'Flw! Descansa aí.'],
+    // {agora}: o que ela está fazendo de verdade agora (shared/amiga.js)
+    fazendo: ['Tô {agora}. E você?', 'Agora? {Agora}, kkk. Por quê, bora fazer algo?', '{Agora}. Tava precisando de uma pausa, aliás.', 'Nada demais, {agora}. Tá precisando de algo?'],
+    risada: ['Kkkkk', 'Kkk tô rindo aqui', 'Hahaha para', 'Kkkk você não existe', 'Kkk eu sabia que ia rir disso', 'Rsrs'],
+    desabafo: ['Poxa... descansa um pouco, sério. O grind espera.', 'Eita, dia puxado? Respira, toma uma água.', 'Que chato isso. Quer falar sobre?', 'Aff, entendo. Se quiser, a gente só farma de boa pra relaxar.', 'Força aí! Amanhã é outro dia.', 'Vixe. Tira essa bunda da cadeira um pouco, kkk, e descansa.'],
+    carinho: ['Ownt, também gosto muito de você!', 'Para, assim eu fico {boba|bobo}, kkk', 'Também senti sua falta! Sumiu, hein.', 'Hehe, você é {o meu duo favorito|meu parceiro favorito}.', 'Ai ai, você não presta, kkk. Mas também gosto de você.'],
+  },
+};
+// Dá o repertório para todos os NPCs que conversam (a Cecília, o Dario e os aventureiros, que herdam deles).
+for (const D of AMIGOS_VIRTUAIS) {
+  for (const [k, l] of Object.entries(REPERTORIO.assuntos)) D.chat.assuntos[k] = [...new Set([...(D.chat.assuntos[k] || []), ...l])];
+  for (const [k, l] of Object.entries(REPERTORIO.falas)) D.chat.falas[k] = l;
+}
+
 // Quantos aventureiros andam no mundo agora (André 2026-11-11: o ping foi a 29 mil com os 20; "diminui pra 4 e vai
 // aumentando aos poucos"). A lista inteira continua acima; para aumentar é só pôr mais ids aqui (null = todos os 20).
 // André 2026-11-12: "reduz para 2 de volta, Dário e Cecília só... só deixa eles independentes quando eu estiver offline"
