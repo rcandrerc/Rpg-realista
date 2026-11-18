@@ -66,9 +66,15 @@ jobs:
         run: |
           m="${{ github.event.inputs.minutos }}"; [ -z "$m" ] && m=10
           echo "DURACAO=$((m * 60))" >> $GITHUB_ENV
-          # o robô do Test Lab só espera (WAIT): quem joga é o robô de dentro do jogo. Entrar leva até 7 min no pior caso.
-          ESPERA=$((m + 5)); echo "TEMPO=$((ESPERA + 3))m" >> $GITHUB_ENV
-          python3 -c "import json; json.dump([{'eventType': 'WAIT', 'delayTime': 60000}] * $ESPERA, open('espera.json', 'w'))"
+          # quem joga é o robô de dentro do jogo; o Test Lab só abre o app e espera. Entrar leva até 7 min no pior caso.
+          echo "TEMPO=$((m + 8))m" >> $GITHUB_ENV
+          # modo "game loop" se o APK tem a porta TEST_LOOP (plugin fundo, 2026-11-18); senão o "robo" antigo, que cai em ~3 min
+          if unzip -p rpg-realista.apk AndroidManifest.xml | strings -el | grep -q com.google.intent.action.TEST_LOOP; then
+            echo "TIPO=game-loop" >> $GITHUB_ENV; echo "Test Lab: game loop"
+          else
+            echo "TIPO=robo" >> $GITHUB_ENV; echo "::warning::APK sem TEST_LOOP: modo robo (o teste cai em ~3 min)"
+            python3 -c "import json; json.dump([{'eventType': 'WAIT', 'delayTime': 60000}] * $((m + 5)), open('espera.json', 'w'))"
+          fi
           echo "TURNO=tl-${{ github.run_id }}" >> $GITHUB_ENV
           lista=""
           for c in $(echo "${{ github.event.inputs.celulares }}" | tr ',' ' '); do
@@ -87,8 +93,9 @@ jobs:
             sessao=$(jq -n --arg c "$(pedir)" --argjson n $n '{cracha: $c, n: $n}' | curl -sS -X POST -H 'Content-Type: application/json' -d @- "$SERVIDOR/conta/robo" | jq -r '.sessao // empty')
             [ -z "$sessao" ] && { echo "::error::o servidor não deu a conta do robô $n"; exit 1; }
             echo "::add-mask::$sessao"
-            mkdir -p "cel/$c"; printf '[robo]\nsessao="%s"\nduracao=%s\nturno="%s"\nmodo="%s"\n' "$sessao" "$DURACAO" "$TURNO" "${{ github.event.inputs.modo || 'missoes' }}" > "cel/$c/robo.cfg"
-            gcloud firebase test android run --type robo --app rpg-realista.apk --robo-script espera.json \
+            mkdir -p "cel/$c"; printf '[robo]\nsessao="%s"\nduracao=%s\nturno="%s"\nmodo="%s"\nsair=true\n' "$sessao" "$DURACAO" "$TURNO" "${{ github.event.inputs.modo || 'missoes' }}" > "cel/$c/robo.cfg"
+            extra=""; [ "$TIPO" = robo ] && extra="--robo-script espera.json"
+            gcloud firebase test android run --type "$TIPO" --app rpg-realista.apk $extra \
               --other-files "$PASTA_APP/robo.cfg=cel/$c/robo.cfg" --device "model=$c,version=$v,locale=pt_BR,orientation=landscape" \
               --timeout "$TEMPO" --results-bucket "$BALDE" --results-dir "robo-real/${{ github.run_id }}/$c" --results-history-name 'Robô celular' \
               > "cel/$c/gcloud.txt" 2>&1 &

@@ -30,9 +30,12 @@ uniform float zenite = 0.45;
 uniform float crista_esc = 1.0;
 uniform float ganho = 2.1;
 
-varying float v_dist;
 varying float v_seg;
-varying vec3 v_pos;
+// Moto G54 e outros PowerVR (robô no celular de verdade, 2026-11-18: "Too many varyings used in shader (17 used,
+// maximum supported is 16)"): posição e distância vão juntas num vec4 só, um varying a menos
+varying vec4 v_pk;
+#define v_pos v_pk.xyz
+#define v_dist v_pk.w
 varying float v_metal;
 
 float hash3(vec3 p) {
