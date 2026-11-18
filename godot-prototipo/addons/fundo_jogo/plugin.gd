@@ -11,17 +11,6 @@ class Exportar extends EditorExportPlugin:
 		return p is EditorExportPlatformAndroid
 	func _get_android_libraries(_p: EditorExportPlatform, _debug: bool) -> PackedStringArray:
 		return PackedStringArray(["fundo_jogo/bin/fundo-release.aar"])
-	# Robô nos celulares de verdade (2026-11-18): o Firebase Test Lab no modo "game loop" abre o jogo por esta porta
-	# (TEST_LOOP) e deixa jogar o tempo todo; o modo "robo" encerrava o teste em ~3 min. Vai dentro da tela do jogo
-	# (GodotApp) e não muda nada para o jogador: só o Test Lab manda esse pedido.
-	func _get_android_manifest_activity_element_contents(_p: EditorExportPlatform, _debug: bool) -> String:
-		return """
-            <intent-filter>
-                <action android:name="com.google.intent.action.TEST_LOOP" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="application/javascript" />
-            </intent-filter>
-"""
 
 var exp: Exportar
 
