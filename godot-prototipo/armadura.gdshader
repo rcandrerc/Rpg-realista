@@ -20,12 +20,15 @@ uniform float junta_y = -1.0; // junta entre peito e barriga (coordenada das fai
 uniform float ganho = 2.1; // compensa a curva de tom do jogo (ACES 0,68) para as cores chegarem na tela como as da direção de arte
 uniform float luz_ref = 2.83; // LIGHT_COLOR do sol do jogo (cor x energia 0,9 x PI): luz mais fraca soma menos
 
-varying float v_dist;
 varying float v_seg;
 varying float v_friso;
 varying float v_esc;
 varying vec3 v_env;
-varying vec3 v_pos;
+// Moto G54 e outros PowerVR (robô no celular de verdade, 2026-11-18: "Too many varyings used in shader (17 used,
+// maximum supported is 16)"): posição e distância vão juntas num vec4 só, um varying a menos
+varying vec4 v_pk;
+#define v_pos v_pk.xyz
+#define v_dist v_pk.w
 uniform vec2 horizonte = vec2(-0.12, 0.08); // faixa escura do reflexo (peitoral: só o que olha para baixo)
 uniform float chao = 0.33; // abaixo da faixa escura, quanto o reflexo leva para voltar ao meio-tom (peitoral: rápido, barriga clara)
 uniform float zenite = 0.45; // quanto o reflexo escurece olhando para o alto (capacete: 0,9)
