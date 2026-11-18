@@ -1377,6 +1377,9 @@ func evento(ev: Dictionary) -> void:
 			if m.leilao:
 				m.leilao.do_servidor(ev)
 			return
+		"balao": # chat Local (André 2026-11-18): a frase em cima da cabeça de quem falou, por uns segundos
+			_balao(str(ev.get("id", "")), str(ev.get("texto", "")), int(ev.get("npc", 0)) == 1)
+			return
 		"fala":
 			var fala_txt := Idioma.frase(str(ev.texto)) # inglês: a fala do NPC chega em português (a da IA já vem no idioma)
 			if not (m.conversa and m.conversa.fala(str(ev.get("npc", "")), fala_txt, ev)): # janela do NPC aberta: a fala aparece nela
@@ -1950,4 +1953,39 @@ func _pintar_capa(no: Node3D, capa: Dictionary) -> void:
 			if capa.has(k):
 				mat.set_shader_parameter(k, Color(str(capa[k])))
 		mi.material_override = mat
+
+# balão do chat Local (André 2026-11-18): Label3D em cima da cabeça, some sozinho; um por corpo (o novo troca o velho)
+const BALAO_DUR := 5.0
+func _balao(id: String, texto: String, npc: bool) -> void:
+	var no: Node3D = m.heroi if id == meu_id else (outros[id].no if outros.has(id) and is_instance_valid(outros[id].no) else null)
+	if no == null or texto == "":
+		return
+	var b: Label3D = no.get_node_or_null("Balao")
+	if b == null:
+		b = Label3D.new()
+		b.name = "Balao"
+		b.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		b.fixed_size = true # mesmo tamanho na tela perto ou longe, como o nome
+		b.no_depth_test = true
+		b.font = m.fonte_nome()
+		b.font_size = 48
+		b.outline_size = 16
+		b.outline_modulate = Color(0.06, 0.04, 0.02, 1.0)
+		b.pixel_size = 0.0008 # letra de ~22 px (o nome tem 14): a frase é o que importa
+		b.width = 560.0
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		b.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM # frase comprida cresce para cima, sem cobrir o nome
+		b.offset = Vector2(0, 40)
+		b.position = Vector3(0, 1.95, 0)
+		no.add_child(b)
+	b.text = Idioma.frase(texto) if npc else texto
+	b.modulate = Color(1.0, 0.97, 0.88) if npc else Color(1, 1, 1)
+	b.render_priority = 2 # por cima dos nomes
+	b.outline_render_priority = 1
+	b.visible = true
+	var seq: int = int(b.get_meta("seq", 0)) + 1
+	b.set_meta("seq", seq)
+	await get_tree().create_timer(BALAO_DUR).timeout
+	if is_instance_valid(b) and int(b.get_meta("seq", 0)) == seq:
+		b.visible = false
 

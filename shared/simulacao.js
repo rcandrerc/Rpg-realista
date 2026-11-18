@@ -2112,6 +2112,7 @@ export class Simulacao {
     const msg = { canal, c: j.conta, nome: j.nome, texto, hora: Date.now() };
     if (canal === 'pm') { msg.alvo = para; msg.alvoNome = this.porConta(para)?.nome || j.amigos.get(para) || ''; } // alvo: 'para' é de quem recebe o evento
     if (canal === 'time') msg.membros = this.contasDoTime(j.time); // quem estava no time quando ele falou (o histórico usa a mesma lista)
+    if (canal === 'local') { msg.id = j.id; msg.ouvem = this.ouvemLocal(j); } // Local (André 2026-11-18): quem está perto agora
     return msg;
   }
   // chat de time (André 2026-11-11: "eu falo com eles todos"): as contas de todos do time, NPCs inclusive
@@ -2136,6 +2137,13 @@ export class Simulacao {
       if (msg.canal === 'amigos' && o.conta !== msg.c && !o.amigos?.has(msg.c)) continue;
       if (msg.canal === 'pm' && o.conta !== msg.c && o.conta !== msg.alvo) continue; // pm: só as duas pontas
       if (msg.canal === 'time' && !msg.membros?.includes(o.conta)) continue; // time: só quem está nele
+      if (msg.canal === 'local') { // Local (André 2026-11-18): só quem estava perto; o balão aparece em cima de quem falou
+        if (!msg.ouvem?.includes(o.conta)) continue;
+        const { ouvem, ...m } = msg;
+        this.evento({ t: 'chat', para: o.id, ...m, meu: o.conta === msg.c });
+        if (msg.id) this.evento({ t: 'balao', para: o.id, id: msg.id, texto: msg.texto, npc: msg.c.startsWith('a:') ? 1 : 0 });
+        continue;
+      }
       this.evento({ t: 'chat', para: o.id, ...msg, meu: o.conta === msg.c });
     }
   }
@@ -4204,7 +4212,7 @@ export class Simulacao {
         }
       }
     }
-    this.passoGuerra(); // Chama x Geada (shared/guerra.js): quem pode lutar agora e as falas de quem avistou alguém
+    this.passoGuerra(); this.passoDuplasGuerra(); // Chama x Geada (shared/guerra.js): quem pode lutar agora e as falas de quem avistou alguém
     for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
     for (const j of this.jogadores.values()) this.passoJogador(j, dt);
     this.passoTrocas();

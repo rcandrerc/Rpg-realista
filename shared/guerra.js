@@ -9,7 +9,7 @@
 //   morteGuerra (só desgaste, sem perder XP; fala de quem matou e de quem caiu; quem matou poupa por GUERRA.poupa s).
 // - guerraAmiga: o cérebro de guerra dos NPCs com jeito de guerra (AMIGA.guerra: Kira, Rufo, Lis e o Dario).
 // - falaGuerra: as falas por peças (FALAS_GUERRA), com memória de cada pessoa e sem repetir as últimas.
-import { GUERRA, RACAS, RACA_PADRAO, TOTENS, VILAS_MUNDO, vilaEm, FALAS_GUERRA } from './dados.js';
+import { GUERRA, RACAS, RACA_PADRAO, TOTENS, VILAS_MUNDO, vilaEm, FALAS_GUERRA, CHAT, ASSUNTOS_GUERRA, DUPLAS_GUERRA } from './dados.js';
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const sorteia = (l) => l[Math.floor(Math.random() * l.length)];
@@ -95,10 +95,48 @@ export const Guerra = {
     if (!para && !forte && this.tempo < (ia.falaGuerraT ?? -1e9) + GUERRA.falaEntre) return '';
     const txt = this.montarFalaGuerra(gatilho, o); if (!txt) return '';
     if (!para) ia.falaGuerraT = this.tempo;
-    const ev = { t: 'fala', npc: this.AMIGA.id, texto: `${this.AMIGA.nome}: ${txt}`, guerra: this.racaDe(a) };
-    if (para) this.evento({ ...ev, para });
-    else for (const j of this.jogadores.values()) if (!j.bot && dist(j, a) <= GUERRA.ouvir) this.evento({ ...ev, para: j.id });
+    if (para) this.evento({ t: 'fala', npc: this.AMIGA.id, texto: `${this.AMIGA.nome}: ${txt}`, guerra: this.racaDe(a), para });
+    else this.falaLocal(a, this.AMIGA.conta, txt); // André 2026-11-18: no chat Local, com balão em cima da cabeça
     return txt;
+  },
+  // ---------- chat Local (André 2026-11-18: "conversa local", balão em cima da cabeça) ----------
+  // quem (de verdade) está a até CHAT.local m de c: as contas que leem a mensagem
+  ouvemLocal(c) { return [...this.jogadores.values()].filter((o) => !o.bot && !o.criando && o.conta && dist(o, c) <= CHAT.local).map((o) => o.conta); },
+  // um NPC fala no Local (o mesmo caminho da mensagem de um jogador: receberChat entrega e põe o balão)
+  falaLocal(corpo, conta, texto) {
+    const ouvem = this.ouvemLocal(corpo); if (!ouvem.length) return null;
+    const msg = { canal: 'local', c: conta, nome: corpo.nome, texto: String(texto).slice(0, CHAT.max), hora: Date.now(), id: corpo.id, ouvem };
+    this.receberChat(msg);
+    return msg;
+  },
+  // alguém escreveu no Local: cada NPC de guerra da outra raça que está perto responde (provocação, Kael ou conversa),
+  // depois de uns segundos, no máximo uma vez a cada GUERRA.falaEntre s
+  ouvirLocal(id, texto) {
+    const j = this.jogadores.get(id); if (!j || j.bot) return;
+    const t = String(texto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const assunto = ASSUNTOS_GUERRA.find(([, re]) => re.test(t))?.[0] || 'conversa';
+    for (const ctx of this.amigosIa) {
+      const a = ctx.amiga; if (!a || a.morto || !FALAS_GUERRA[ctx.AMIGA.id] || !this.outraRaca(j, a) || dist(a, j) > CHAT.local) continue;
+      if (this.tempo < (a.ia.respLocalT ?? -1e9) + GUERRA.falaEntre) continue;
+      a.ia.respLocalT = this.tempo;
+      const [d0, d1] = GUERRA.resposta;
+      this.depois(d0 + Math.random() * (d1 - d0), () => {
+        if (!ctx.amiga || ctx.amiga.morto || !this.jogadores.has(j.id)) return;
+        const txt = ctx.montarFalaGuerra(FALAS_GUERRA[ctx.AMIGA.id][assunto] ? assunto : 'conversa', j);
+        if (txt) ctx.falaLocal(ctx.amiga, ctx.AMIGA.conta, txt);
+      });
+    }
+  },
+  // dois da mesma raça perto um do outro (e alguém de verdade ouvindo) conversam de vez em quando (DUPLAS_GUERRA)
+  passoDuplasGuerra() {
+    const W = GUERRA;
+    if (this.tempo < (this.duplaT ??= this.tempo + W.dupla[0] * Math.random())) return;
+    this.duplaT = this.tempo + W.dupla[0] + Math.random() * (W.dupla[1] - W.dupla[0]);
+    const corpo = (id) => { const x = this.amigoIaDe(id); return x?.amiga && !x.amiga.morto && !x.amiga.ia?.guerra?.alvo ? x : null; };
+    const ok = DUPLAS_GUERRA.filter(([[a], [b]]) => { const A = corpo(a), B = corpo(b); return A && B && dist(A.amiga, B.amiga) <= W.duplaPerto && this.ouvemLocal(A.amiga).length; });
+    if (!ok.length) return;
+    const D = sorteia(ok);
+    D.forEach(([id, txt], i) => this.depois(i * 3, () => { const x = corpo(id); if (x) x.falaLocal(x.amiga, x.AMIGA.conta, txt); }));
   },
   // tocou nele e escolheu Conversar (o app manda 'rival'): a fala de conversa, sempre só para quem tocou
   conversaGuerra(id) {
@@ -119,6 +157,8 @@ export const Guerra = {
     const ctxC = c.bot ? this.amigoIaDe(c) : null, ctxK = k?.bot ? this.amigoIaDe(k) : null;
     if (ctxK?.amiga) { const m = ctxK.memGuerra(k, c); m.v = (m.v | 0) + 1; m.poupa = Date.now() + GUERRA.poupa * 1000; if (k.ia?.guerra) k.ia.guerra.alvo = null; ctxK.falaGuerra('mata', c); }
     if (ctxC?.amiga && k) { const m = ctxC.memGuerra(c, k); m.d = (m.d | 0) + 1; if (c.ia) c.ia.falaGuerraT = -1e9; ctxC.falaGuerra('morre', k); }
+    // o feito vai para o Geral (André 2026-11-18: "só os feitos grandes"), no máximo um a cada GUERRA.feito s
+    if (k && this.tempo >= (this.feitoGuerraT ?? -1e9) + GUERRA.feito) { this.feitoGuerraT = this.tempo; this.anunciar(`${k.nome} (${this.nomeRaca(k)}) derrubou ${c.nome} (${this.nomeRaca(c)})`); }
   },
   // ---------- cérebro de guerra (NPC com AMIGA.guerra, fora do time do dono) ----------
   // A cada GUERRA.recheca s: ajudar quem é da raça dele e está brigando perto; senão o mais perto da outra raça que dá

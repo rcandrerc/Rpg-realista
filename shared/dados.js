@@ -1398,7 +1398,8 @@ export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3, buscaMin: 2, busca
 // max: letras por mensagem; entre: segundos entre duas mensagens; historico: quantas o servidor guarda para quem acabou de entrar.
 // pm (André 2026-11-06: "tipo um pm, private msg pra cada amigo"): conversa só entre você e um amigo; historicoPm = quantas
 // mensagens privadas o servidor guarda (de todo mundo junto) para quem acabou de entrar.
-export const CHAT = { max: 120, entre: 1.2, historico: 40, historicoPm: 300, canais: ['geral', 'amigos', 'pm', 'time'], respostaTime: 30 }; // time (André 2026-11-11): fala com todos do time de uma vez; os NPCs do time respondem no time por respostaTime segundos
+export const CHAT = { max: 120, entre: 1.2, historico: 40, historicoPm: 300, canais: ['geral', 'amigos', 'pm', 'time', 'local'], respostaTime: 30, local: 30 }; // time (André 2026-11-11): fala com todos do time de uma vez; os NPCs do time respondem no time por respostaTime segundos
+// local (André 2026-11-18, Chama x Geada): quem está a até CHAT.local m (as duas raças) lê; balão em cima da cabeça; não fica no histórico
 // Reinício programado do servidor (André 2026-11-11: "a cada 5 horas tem um reset, reinicia automaticamente"):
 // avisa no chat geral antes (minutos), grava o progresso de todos e reinicia; o systemd liga de novo em segundos.
 // Faixa na tela (André 2026-11-12: "um aviso na tela, em cima, meio grande... servidor está reiniciando em 10, 9, 8"; "primeiro
@@ -3143,7 +3144,10 @@ export const RACA_PADRAO = 'chama';
 // de novo a mesma pessoa. desisteVida: vida (0 a 1) em que ele larga a briga e foge. foge: s correndo para casa.
 // aviso: s mínimos entre dois avisos de "zona de guerra"/"zona segura" para o mesmo jogador.
 export const GUERRA = { tregua: 30, totem: 25, campoAte: 30, campoFolga: 6, vilaFolga: 4, recheca: 0.5, ve: 40, persegue: 60, poupa: 300, marca: 15,
-  ouvir: 26, falaEntre: 6, avistar: 120, desisteVida: 0.25, foge: 20, aviso: 20, lembrar: 30 };
+  ouvir: 26, falaEntre: 6, avistar: 120, desisteVida: 0.25, foge: 20, aviso: 20, lembrar: 30,
+  // chat (André 2026-11-18): responder no Local (s de espera), conversa entre dois da mesma raça (a cada s, a até m, com
+  // alguém de verdade perto), feito grande no Geral (no máximo um a cada s)
+  resposta: [1.5, 3], dupla: [180, 360], duplaPerto: 10, feito: 600 };
 // Os três da Geada (fase 1, aprovados pelo André 2026-11-18; fotos em /mnt/project-files/racas-rivais/). Iguais aos
 // aventureiros por dentro (caçam, vendem, consertam, sobem de nível), moram no Juncal (casa da Geada) e caçam nos campos
 // do leste. guerra: coragem (ataca mesmo em desvantagem), honra (poupa quem é muito mais fraco), paciencia (espera a hora
@@ -3204,6 +3208,8 @@ export const FALAS_GUERRA = {
     conversa_rev: ['Você me venceu {ele} vezes. Eu conto cada uma.', 'Respeito. Mas a próxima é minha.'],
     conversa_fregues: ['{eu} a {ele}. Quer melhorar esse placar?', 'Treinou desde a última vez?'],
     recusa: ['Não. Você é da Chama.', 'Somos inimigos, {nome}.', 'Nem pense nisso.'],
+    kael: ['Kael é o motivo de eu ainda lutar.', 'Fale o nome dele com respeito.', 'Kael vê mais longe que todos vocês.'],
+    provoca: ['Palavras não cortam, {nome}.', 'Fala menos. Luta mais.', 'Grite à vontade. A neve não escuta.'],
   },
   rufo: {
     abre: ['Ei, ei!', 'Olha só!', 'Ha!', 'Opa!', 'Psiu, {nome}!'],
@@ -3224,6 +3230,8 @@ export const FALAS_GUERRA = {
     conversa_rev: ['Tá, tá, você ganhou {ele} vezes. Ninguém tá contando. Eu tô.', 'Para de me olhar assim, vou ganhar a próxima!'],
     conversa_fregues: ['Placar: Rufo {eu}, você {ele}. Bonito, né?', 'Meu freguês! Trouxe presente?'],
     recusa: ['Ha! Time com a Chama? Nunca!', 'Nem a pau, {nome}!', 'Tá maluco? Você é da Chama!'],
+    kael: ['O chefe? O Kael me deve três jantares!', 'Kael? Ele nem lembra meu nome. Mas vai lembrar!', 'Não fala do Kael, ele escuta tudo. Sério.'],
+    provoca: ['Ah é? Vem aqui falar isso!', 'Minha avó bate mais forte que você!', 'Uuuh, que medo, {nome}!'],
   },
   lis: {
     abre: ['Hmm.', 'Ora, ora.', 'Interessante.', 'Com licença, {nome}.'],
@@ -3244,6 +3252,8 @@ export const FALAS_GUERRA = {
     conversa_rev: ['{ele} vitórias suas. Estou estudando você.', 'Você é um problema interessante.'],
     conversa_fregues: ['{eu} a {ele}. Quer recalcular?', 'Os números não mentem, {nome}.'],
     recusa: ['Não. Conflito de interesses.', 'Chama com Geada? Não fecha a conta.', 'Recuso, educadamente.'],
+    kael: ['Kael tem um plano. Eu só faço as contas.', 'Curioso sobre o Kael? Isso tem preço.', 'O Kael não perde tempo com a Chama. Eu perco.'],
+    provoca: ['Provocação anotada. E ignorada.', 'Interessante. Previsível, mas interessante.', 'Você fala alto pra quem perde tanto.'],
   },
   dario: { // o líder da Chama (só falas de guerra; a conversa normal dele continua a de sempre)
     avista: ['Geada à vista. Fiquem perto.', 'É {nome}. Atenção.', 'Lá vem a Geada.'],
@@ -3258,6 +3268,19 @@ export const FALAS_GUERRA = {
     recusa: ['Não dá, {nome}. Você é da Geada.'],
   },
 };
+// O que alguém escreveu no chat Local e que muda a resposta (sem acento, minúsculas). Sem nenhuma: 'conversa'.
+export const ASSUNTOS_GUERRA = [['kael', /\bkael\b|\bcaio\b/], ['provoca', /fraco|covarde|lixo|noob|medroso|perdedor|ruim|vem|vou te|bora lutar|duvido/]];
+// Conversa entre dois da mesma raça (André 2026-11-18: "eles conversam entre eles"): sai no Local de quem está perto
+export const DUPLAS_GUERRA = [
+  [['rufo', 'Kira, hoje eu pego uns cinco da Chama!'], ['kira', 'Pega um primeiro. Depois conversamos.']],
+  [['rufo', 'Lis, faz a conta: quantos eu derrubei essa semana?'], ['lis', 'Contando os espantalhos? Dois.']],
+  [['lis', 'Kira, o Dario anda caçando perto do rio.'], ['kira', 'Deixa ele vir. O gelo espera.']],
+  [['kira', 'Rufo, menos barulho. Assim eles ouvem.'], ['rufo', 'Essa é a ideia! Eles vêm, eu bato.']],
+  [['lis', 'Rufo, sua estratégia é correr gritando?'], ['rufo', 'E funciona! ...às vezes.']],
+  [['kira', 'Alguém viu o Kael hoje?'], ['lis', 'Na torre. Pediu silêncio. Olhou pro Rufo quando falou.']],
+  [['rufo', 'Tô com fome. A Chama pelo menos tem fogueira.'], ['kira', 'Fale isso de novo e você dorme na neve.']],
+  [['lis', 'Kira, minha mana acabou na última luta.'], ['kira', 'Fique atrás de mim na próxima.']],
+];
 
 // Vida própria dos NPCs (André 2026-11-11: "quero que eles andem sozinhos"; os 22 iguais). Fora do time cada um sai
 // para caçar no campo do nível dele, volta para a vila para vender, consertar e comprar poção, e de noite fica na vila.
