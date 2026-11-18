@@ -1609,13 +1609,42 @@ func segurar_ferramenta_depois(no: Node3D, k: String) -> bool:
 		no.transform.basis = no.transform.basis.orthonormalized()
 		no.position -= no.transform.basis.y * 0.2
 	no.visible = true
-	_ferr_mao = {"no": no, "k": k, "t": FERRAMENTA_DEPOIS}
+	_ferr_mao = {"no": no, "k": k, "t": FERRAMENTA_DEPOIS, "esc": no.global_transform.basis.get_scale()}
+	_pose_ferramenta_mao()
 	armas_guardadas = false
 	_parado_livre = 0.0
 	return true
 
 func ferramenta_na_mao(k := "") -> bool:
 	return not _ferr_mao.is_empty() and (k == "" or _ferr_mao.k == k)
+
+# pose B (André 2026-11-18, "b pras 2"): segura pelo cabo e a ferramenta fica caída ao lado da perna, de pé para
+# baixo (o peso puxa), seja qual for a parada. Picareta com a ponta para a frente, machado com o fio para fora. A vara
+# (1,7 m) não cabe de pé: vai baixa, apontada para a frente, com a ponta acima do chão.
+func _pose_ferramenta_mao() -> void:
+	var no: Node3D = _ferr_mao.no
+	var pai := no.get_parent() as Node3D
+	if pai == null:
+		return
+	# a mão de verdade é o BoneAttachment (já com o braco_espada e as outras correções); a ferramenta fica solta dele
+	# (top_level) para o giro do pulso não balançar a ferramenta, só a posição da mão conta
+	no.top_level = true
+	var mao: Vector3 = pai.global_transform.origin
+	var fr := Vector3(sin(heroi.rotation.y), 0, cos(heroi.rotation.y))
+	var di := fr.cross(Vector3.UP) # direita do herói
+	var y: Vector3
+	var z: Vector3
+	var pos: Vector3
+	if _ferr_mao.k == "vara":
+		y = (fr * 0.9 - Vector3.UP * 0.26 + di * 0.15).normalized()
+		z = (Vector3.DOWN - y * y.dot(Vector3.DOWN)).normalized() # molinete para baixo
+		pos = mao - y * 0.2 # a mão no cabo de cortiça
+	else:
+		y = Vector3.DOWN
+		z = fr if _ferr_mao.k == "min" else di
+		pos = mao + y * 0.08 # do pulso até o meio da palma
+	var b := Basis(y.cross(z).normalized(), y, z).orthonormalized().scaled(_ferr_mao.esc)
+	no.global_transform = Transform3D(b, pos)
 
 # combate, golpe, morte ou o corpo indo para outro lugar (montar, nadar, escalar, dirigir): a ferramenta sai na hora
 func _sai_da_mao() -> bool:
@@ -1630,6 +1659,7 @@ func soltar_ferramenta_mao(armar_depois: bool) -> void:
 	_ferr_mao = {}
 	if is_instance_valid(no):
 		no.visible = false
+		no.top_level = false
 		soltar_arma(no)
 		add_child(no)
 		if pesca != null and no == pesca.vara:
@@ -1648,6 +1678,7 @@ func passo_ferramenta_mao(dt: float) -> void:
 			cajado.visible = true
 		return
 	_ferr_mao.t -= dt
+	_pose_ferramenta_mao()
 	if _ferr_mao.k == "vara" and pesca != null:
 		pesca.vara_na_mao()
 	if _ferr_mao.t > 0.0:
