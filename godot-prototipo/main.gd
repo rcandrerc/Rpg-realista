@@ -1418,6 +1418,7 @@ func trocar_corpo(v, salvar := true) -> void:
 		pesca.recolher() # a vara sai das mãos antes de trocar o corpo
 	if trabalho:
 		trabalho.parar(true) # a picareta e o machado saem da mão antes (senão iam junto com o corpo velho)
+		soltar_ferramenta_mao(false) # e a que ficou na mão depois de coletar ou pescar
 		for k in trabalho.ferramentas:
 			var f: Node3D = trabalho.ferramentas[k]
 			if f.get_parent() != self:
@@ -1570,9 +1571,10 @@ var armas_guardadas := false
 var _parado_livre := 0.0
 func passo_maos_livres(dt: float, _vel: float) -> void:
 	# André 2026-11-13: andando e correndo fora de combate também vão nas costas ("só no combate ... fica com a arma na mão")
+	passo_ferramenta_mao(dt)
 	var pode: bool = heroi_anim.tem_vazia and not heroi_anim.em_guarda and acao.is_empty() and h.morto <= 0.0 \
 		and (trabalho == null or trabalho.coletando == null) and mov.esc == null and montaria == null and not _nadando \
-		and mov.veiculo.is_empty() and not (pesca != null and pesca.ativo())
+		and mov.veiculo.is_empty() and not (pesca != null and pesca.ativo()) and _ferr_mao.is_empty()
 	_parado_livre = _parado_livre + dt if pode else 0.0
 	if pode and not armas_guardadas and _parado_livre >= GUARDAR_DEPOIS:
 		armas_guardadas = true
@@ -1581,10 +1583,84 @@ func passo_maos_livres(dt: float, _vel: float) -> void:
 	elif not pode and armas_guardadas:
 		armas_guardadas = false
 		# escalando, coletando ou pescando quem arruma as armas é quem começou (armar("Escalada") / armar("Coleta"))
-		if mov.esc == null and (trabalho == null or trabalho.coletando == null) and not (pesca != null and pesca.ativo()):
+		if mov.esc == null and (trabalho == null or trabalho.coletando == null) and not (pesca != null and pesca.ativo()) \
+			and _ferr_mao.is_empty():
 			armar(h.modo)
 			sons.tocar("pano", -10.0)
 	heroi_anim.maos_livres = armas_guardadas
+
+# Ferramenta na mão depois do trabalho (André 2026-11-18: "entre uma mineração e outra aparece uma espada na mão"):
+# parou de minerar, cortar lenha ou pescar, a picareta, o machado ou a vara fica na mão FERRAMENTA_DEPOIS s, com as
+# armas nas costas. Entrou em combate (bateu, levou golpe, usou skill): a ferramenta some e a arma vem na hora.
+# Passou o tempo sem combate: a ferramenta some e as mãos ficam vazias (as armas nas costas, como em AFK).
+const FERRAMENTA_DEPOIS := 10.0
+const FERRAMENTA_MAO := true # false volta para o jeito antigo (a arma volta para a mão quando para de coletar)
+var _ferr_mao := {} # {no: Node3D, k: "min"/"len"/"vara", t: s que faltam}
+
+# trabalho.gd e pesca.gd chamam ao parar. Devolve false quando não dá para segurar (aí quem chamou arma como antes).
+func segurar_ferramenta_depois(no: Node3D, k: String) -> bool:
+	soltar_ferramenta_mao(false)
+	if not FERRAMENTA_MAO or no == null or heroi_esq == null or _sai_da_mao():
+		return false
+	armar("Coleta") # espada e cajado nas costas, cruzados
+	var L: Dictionary = lugar_armas()
+	prender(heroi_esq, no, L.espadaMao)
+	if k == "vara": # a vara não cresce com a escala da espada; a mão fica no cabo de cortiça (0,2 m do pé)
+		no.transform.basis = no.transform.basis.orthonormalized()
+		no.position -= no.transform.basis.y * 0.2
+	no.visible = true
+	_ferr_mao = {"no": no, "k": k, "t": FERRAMENTA_DEPOIS}
+	armas_guardadas = false
+	_parado_livre = 0.0
+	return true
+
+func ferramenta_na_mao(k := "") -> bool:
+	return not _ferr_mao.is_empty() and (k == "" or _ferr_mao.k == k)
+
+# combate, golpe, morte ou o corpo indo para outro lugar (montar, nadar, escalar, dirigir): a ferramenta sai na hora
+func _sai_da_mao() -> bool:
+	return trabalho.em_combate() or not acao.is_empty() or h.morto > 0.0 or montaria != null \
+		or _nadando or mov.esc != null or not mov.veiculo.is_empty()
+
+# tira a ferramenta da mão e devolve para o main (escondida). armar_depois: arruma as armas para o modo atual.
+func soltar_ferramenta_mao(armar_depois: bool) -> void:
+	if _ferr_mao.is_empty():
+		return
+	var no: Node3D = _ferr_mao.no
+	_ferr_mao = {}
+	if is_instance_valid(no):
+		no.visible = false
+		soltar_arma(no)
+		add_child(no)
+		if pesca != null and no == pesca.vara:
+			pesca.vara_guardada()
+	if armar_depois and mov.esc == null: # escalando quem arruma é a escalada
+		armar(h.modo)
+
+func passo_ferramenta_mao(dt: float) -> void:
+	if _ferr_mao.is_empty():
+		return
+	if not is_instance_valid(_ferr_mao.no) or _sai_da_mao():
+		soltar_ferramenta_mao(true) # combate: a arma vem para a mão na hora
+		if is_instance_valid(espada):
+			espada.visible = true
+		if is_instance_valid(cajado):
+			cajado.visible = true
+		return
+	_ferr_mao.t -= dt
+	if _ferr_mao.k == "vara" and pesca != null:
+		pesca.vara_na_mao()
+	if _ferr_mao.t > 0.0:
+		return
+	# acabou o tempo sem combate: mãos vazias, as armas ficam nas costas (como em AFK)
+	soltar_ferramenta_mao(false)
+	if heroi_anim.tem_vazia:
+		armas_guardadas = true
+		_parado_livre = GUARDAR_DEPOIS
+		heroi_anim.maos_livres = true
+	else:
+		armar(h.modo)
+	sons.tocar("pano", -10.0)
 
 # roupas que aparecem no corpo (armadura.gd): refaz só quando o equipamento muda
 var _roupa := "-"
@@ -3963,7 +4039,7 @@ func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
 	elif not mov.chao or mov.esc != null or montaria != null or not mov.veiculo.is_empty():
 		vel_anim = 0.0
 	# postura de luta só em combate ou logo depois de um golpe/magia (fora disso, parada relaxada)
-	if not acao.is_empty():
+	if not acao.is_empty() and not acao.get("nome", "") in ["coleta", "pesca"]: # minerar, cortar e pescar não é luta
 		_guarda_ate = tempo + GUARDA_DEPOIS
 	heroi_anim.em_guarda = trabalho.em_combate() or tempo < _guarda_ate
 	# parado com o cajado na mão: postura de mago em guarda (no chão, sem montaria e sem escalar)
