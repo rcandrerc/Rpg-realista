@@ -73,5 +73,5 @@ for velho in $(gh release view pacotes --json assets -q '.assets[].name' | grep 
 done
 
 # 4) site
-gh workflow run pages.yml --ref main
+[ -n "${SITE_AQUI:-}" ] || gh workflow run pages.yml --ref main # SITE_AQUI=1: o job site do apk.yml publica
 cd "$RAIZ"

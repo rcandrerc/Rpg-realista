@@ -23,6 +23,8 @@ on:
 permissions:
   contents: write
   actions: write # para chamar o pages.yml depois de gerar o pacote de atualização
+  pages: write # job "site" (Oracle): publica o site daqui mesmo, sem esperar o pages.yml
+  id-token: write
 
 # Na main o build que está rodando NÃO é cancelado quando entra outro merge: ele termina (o André já testa aquela
 # versão) e o novo espera na fila. Cancelar jogava fora até 10 min de build (2026-11-05, execução 379). Se entrarem
@@ -303,23 +305,87 @@ jobs:
       - name: Atualização dentro do app (pacote só com o que mudou desde o APK base)
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
+          SITE_AQUI: ${{ (github.event.repository.private || inputs.maquina == 'oracle') && '1' || '' }} # o job site publica
           GH_TOKEN: ${{ github.token }}
           CODIGO: ${{ github.run_number }}
         run: bash ferramentas/atualizacao/publicar.sh "$((1000 + CODIGO))"
       - name: Conteúdo do APK casca (jogo completo em partes + mudanças)
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
+          SITE_AQUI: ${{ (github.event.repository.private || inputs.maquina == 'oracle') && '1' || '' }} # o job site publica
           GH_TOKEN: ${{ github.token }}
           CODIGO: ${{ github.run_number }}
           ORACLE_PAR: ${{ secrets.ORACLE_PAR }}
           ORACLE_URL: ${{ vars.ORACLE_URL }}
         run: bash ferramentas/atualizacao/publicar-conteudo.sh "$((1000 + CODIGO))"
 
+
+  # Oracle (repositório privado ou maquina=oracle): o site (npm, build, pacote do servidor) é montado AO MESMO TEMPO
+  # que o pacote do jogo, na vaga de testes (aethra-testes). O mesmo job espera o pacote sair, junta a atualização nova
+  # e publica, sem passar o site por um artifact (medido 2026-11-18: baixar e subir de novo custava ~45 s). O job apk
+  # só começa depois deste: os APKs (gradle e aapt2 emulado) disputavam a CPU e o envio do site levou 2 min em vez de
+  # 40 s. O publicar.sh e o publicar-conteudo.sh não chamam o pages.yml nesse modo (SITE_AQUI=1). Se o site não sair
+  # por aqui, o job site-reserva chama o pages.yml como antes.
+  site:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (github.event.repository.private || inputs.maquina == 'oracle')
+    runs-on: ${{ vars.RUNNER_TESTES || vars.RUNNER_BUILD }}
+    timeout-minutes: 40
+    # mesma fila do pages.yml (o grupo vale para o repositório inteiro): um deploy de cada vez, sem cancelar
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: bash ferramentas/servidor/empacotar.sh # o servidor sai junto; a máquina da Oracle se atualiza a partir daqui
+        env:
+          GEMINI_CHAVE: ${{ secrets.GEMINI_CHAVE }}
+          GROQ_CHAVE: ${{ secrets.GROQ_CHAVE }}
+      - name: Espera o pacote do jogo sair (job pacote desta execução)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for _ in $(seq 240); do
+            r=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=50" \
+              -q '.jobs[] | select(.name == "pacote") | "\(.status) \(.conclusion)"' | head -1)
+            case "$r" in
+              "completed success") echo "pacote pronto"; exit 0 ;;
+              completed*) echo "::error::pacote terminou sem sucesso ($r); o site-reserva publica"; exit 1 ;;
+            esac
+            sleep 5
+          done
+          echo "::error::pacote não saiu em 20 min"; exit 1
+      - name: Atualização do app Godot em /atualizacao (a que o job pacote acabou de subir)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p client/dist/atualizacao
+          gh release download atualizacao -R "$GITHUB_REPOSITORY" -D client/dist/atualizacao --clobber
+          gh release download conteudo -R "$GITHUB_REPOSITORY" -D client/dist/atualizacao --clobber
+          ls -la client/dist/atualizacao
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: client/dist
+      - id: deploy
+        uses: actions/deploy-pages@v4
+        env:
+          GITHUB_SHA: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }} # ver pages.yml
+
   # Par do job "fila" do pages.yml: no repositório privado o push que muda o jogo não publica o site na hora (espera
   # o pacote). Se o pacote não saiu (falhou, foi cancelado ou pulado), publica o site e o servidor do mesmo jeito.
   site-reserva:
-    needs: [modelos-chave, pacote]
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.repository.private && needs.pacote.result != 'success'
+    needs: [modelos-chave, pacote, site]
+    # Oracle: se o site não saiu pelo job site (pacote ou site falhou, foi cancelado ou pulado), chama o pages.yml
+    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (github.event.repository.private || inputs.maquina == 'oracle') && needs.site.result != 'success'
     runs-on: ${{ github.event.repository.private && vars.RUNNER_BUILD || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
@@ -329,7 +395,7 @@ jobs:
         run: gh workflow run pages.yml --ref main -R "$GITHUB_REPOSITORY"
 
   apk:
-    needs: [modelos-chave, modelos, modelos-prontos, pacote]
+    needs: [modelos-chave, modelos, modelos-prontos, pacote, site] # site: na Oracle os APKs esperam o site publicar
     # os APKs saem depois do pacote (que já confere modelos-chave/modelos/modelos-prontos)
     if: always() && needs.pacote.result == 'success'
     # Com a variável RUNNER_BUILD definida (ex.: "aethra-build") e o repositório PRIVADO, roda no runner próprio da
