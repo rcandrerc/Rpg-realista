@@ -88,7 +88,8 @@ Mobs, Cecília e Dário rodam no servidor do jogo (outra máquina) e não usam o
 - Repositório fechado em 2026-11-18 15:07 UTC. Primeiro build todo na Oracle: 4,9 min do merge até o jogo
   (pacote 2,8 + site no runner 2,1), contra 3,1 min no GitHub com o repositório aberto.
 - Agora o job `site` do `apk.yml` monta o site (npm, build, pacote do servidor) na vaga de testes **ao mesmo tempo**
-  que o pacote; o job `publicar-site` só junta a atualização nova e publica. O `publicar.sh` e o
+  que o pacote, espera o pacote sair, junta a atualização nova e publica. Os APKs só começam depois dele: na 1ª
+  versão (#648, job `publicar-site` separado) os APKs disputaram a CPU, o envio do site levou 2 min e o total foi pior. O `publicar.sh` e o
   `publicar-conteudo.sh` não chamam o `pages.yml` nesse modo (`SITE_AQUI=1`). Se o site não sair por ali, o job
   `site-reserva` chama o `pages.yml` como antes.
 - Vagas abertas com `ferramentas/runner/cloudshell-vagas.sh` no Cloud Shell da Oracle (código de registro do GitHub
