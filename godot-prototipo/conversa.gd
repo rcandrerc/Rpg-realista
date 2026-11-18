@@ -404,6 +404,7 @@ func _abrir(n: Dictionary, toque: bool) -> void:
 		opcoes.add_child(_opcao("Conversar", "falar", func(): escolher("conversar")))
 		opcoes.add_child(_opcao("Até logo", "sair", fechar))
 	retrato_ui.texture = _retrato(n)
+	_ultimo_retrato = str(n.id)
 	retrato_ui.modulate = Color.WHITE
 	_aberto_ms = Time.get_ticks_msec() if toque else -ESPERA_TOQUE
 	raiz.visible = true
@@ -458,6 +459,9 @@ func _reabrir() -> void:
 		return
 	if m.menu.aberto() or (m.cinematica and m.cinematica.ativa):
 		return # espera a cena ou o menu (até REABRE)
+	if m.missao_fala and m.missao_fala.aberto(): # o jogador está lendo a fala da missão: reabre depois do Ok
+		_depois.ate = m.tempo + REABRE
+		return
 	var hi: Dictionary = m.P.hist_info
 	if JSON.stringify(hi) == str(_depois.hi):
 		return # a resposta ainda não chegou
@@ -713,6 +717,13 @@ func _arquivo_retrato(n: Dictionary) -> String:
 	# o visual do NPC muda (modelo, cores, roupa) ou quando RETRATO_VERSAO sobe (mudou o jeito de desenhar o retrato)
 	var visual := str([n.get("modelo", "vivi"), n.get("aparencia", {}), n.get("info", {})]).hash()
 	return "%s/%s_r%d_%d.png" % [RETRATOS, str(n.id).validate_filename(), RETRATO_VERSAO, visual]
+
+# o rosto do NPC para a janela da missão (missao_fala.gd): a foto pronta ou o que a janela dele mostrou por último
+func retrato_de(n: Dictionary) -> Texture2D:
+	if _retratos.has(n.id):
+		return _retratos[n.id]
+	return retrato_ui.texture if _ultimo_retrato == str(n.id) else null
+var _ultimo_retrato := ""
 
 func _retrato(n: Dictionary) -> Texture2D:
 	if _retratos.has(n.id):

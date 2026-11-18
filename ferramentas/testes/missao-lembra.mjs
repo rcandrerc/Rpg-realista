@@ -33,3 +33,11 @@ ok(!f.some((t) => t.startsWith('Primeiro:')), 'não começa mais com a ordem sec
 p.hist.e = 2; p.hist.n = 0; guardar(p.mochila, { k: 'barra_cobre', n: 1 });
 f = falar();
 ok(f.some((t) => t.startsWith(M.lembra + '\n') && /Ainda falta: .*1\/2/.test(t)), `entrega incompleta: o porquê e o que ainda falta (${JSON.stringify(f)})`);
+
+// André 2026-11-18 ("os chats das missões devem aparecer em outra aba"): a fala da missão abre uma janela só dela
+{
+  const gd = (f) => readFileSync(new URL('../../godot-prototipo/' + f, import.meta.url), 'utf8');
+  ok(/ev\.get\("missao", ""\)\) != "" and m\.missao_fala[\s\S]{0,200}missao_fala\.mostrar\(/.test(gd('online.gd')), 'fala com missão vai para a janela da missão (missao_fala.gd), não para a janela do NPC');
+  ok(/MissaoFala\.new\(self\)/.test(gd('main.gd')) && /func mostrar\(npc_id: String, texto: String, missao: String\)/.test(gd('missao_fala.gd')), 'a janela da missão existe no jogo');
+  ok(/missao_fala\.aberto\(\)/.test(gd('conversa.gd')), 'a janela do NPC só reabre depois do Ok da fala da missão');
+}

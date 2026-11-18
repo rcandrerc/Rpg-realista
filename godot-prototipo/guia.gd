@@ -304,6 +304,8 @@ func _janela() -> Dictionary:
 		return {"raiz": m.transporte._jan, "tipo": "veiculo"}
 	if m.conversa != null and m.conversa.aberto():
 		return {"raiz": m.conversa.raiz, "tipo": "conversa"}
+	if m.get("missao_fala") != null and m.missao_fala.aberto(): # lendo a fala da missão: o guia volta depois do Ok
+		return {"esconde": true}
 	if m.minimapa != null and m.minimapa.aberto:
 		return {"tipo": "mapa"}
 	if m.menu_topo != null and m.menu_topo.janela != null and m.menu_topo.janela.visible:
