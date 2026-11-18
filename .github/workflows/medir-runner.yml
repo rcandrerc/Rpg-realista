@@ -4,6 +4,7 @@ on:
   push:
     branches: [claude/project-thread-tf785f]
     paths: ['.github/workflows/medir-runner.yml']
+  workflow_dispatch:
 jobs:
   site:
     runs-on: aethra-build
