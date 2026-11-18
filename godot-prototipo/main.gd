@@ -2037,6 +2037,23 @@ func criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
 		lentidao.ev("npc:" + id, t0)
 
 func _criar_npc(id: String, pos: Vector3, nome: String, info := {}) -> void:
+	if str(info.get("funcao", "")) == "mural": # mural da Guilda (André 2026-11-18): sem corpo (o quadro é da Casa do
+		# Comércio); só o nome em cima e o botão de ação perto, como um NPC (André: tudo com botão de ação)
+		var mu := Node3D.new()
+		add_child(mu)
+		mu.position = Vector3(pos.x, terreno.altura(pos.x, pos.z) if terreno else 0.0, pos.z)
+		mu.rotation.y = float(info.get("ry", 0.0))
+		barra_vida(mu, nome, Color(0, 0, 0, 0))
+		for l in mu.get_children():
+			if l is Label3D:
+				l.font = load("res://fontes/AlegreyaSans-Bold.ttf")
+				l.pixel_size = 0.00034 * 1.5
+				l.position.y = 3.05
+				l.offset = Vector2.ZERO
+		titulo_npc(mu, str(info.get("cargo", "")))
+		npcs.append({"aparencia": {}, "modelo": "", "no": mu, "funcao": "mural", "id": str(info.get("id", id)), "info": info, "folga": 1.3,
+			"nome": str(info.get("nome", nome)), "acoes": [], "falas": info.get("falas", []), "missao": ""})
+		return
 	var no := modelo(id)
 	no.position = pos
 	no.position.y = terreno.altura(pos.x, pos.z) if terreno else 0.0

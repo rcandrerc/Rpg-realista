@@ -33,13 +33,23 @@ export const MODELOS_VILA = {
 // paredes que se escalam (centro x, z, meia largura, meio fundo, altura), as duas torres, o balcão do Otávio e os
 // pilares dos arcos entre o salão e os corredores (círculos que não deixam passar). A entrada são os dois arcos do meio da
 // frente (x de -2 a 2).
+// balcões contínuos em L dos corredores (André 2026-11-18): [x, z0, z1 (a perna comprida, ao longo do corredor), zc (a
+// perna curta, do fim até a parede de fora), lado (-1 oeste, 1 leste)]. Oeste: Iara e a Guilda; leste: Mirela.
+export const BALCOES_L = [[-5.2, -5.95, 6.5, 6.1, -1], [5.2, -5.95, -1.0, -1.4, 1]];
+// André 2026-11-18 ("não ficou em L, eles não se conectam"): o balcão do Otávio passa pela arcada e emenda nos dois
+// balcões dos corredores (um balcão só, em U, do Otávio até a Iara, a Brenda e a Mirela)
+export const BALCAO_EMENDA = { z: -5.5, x0: 3.2, x1: 5.6 };
 export const COMERCIO_GRANDE = {
   paredes: [[0, -10, 8, 0.2, 6.1], [-8, 0, 0.2, 10, 6.1], [8, 0, 0.2, 10, 6.1], [-6, 10, 2, 0.2, 6.1], [6, 10, 2, 0.2, 6.1], [-3, 10, 1, 0.2, 6.1], [3, 10, 1, 0.2, 6.1],
     [-10, 8, 2, 2, 9.1], [10, 8, 2, 2, 9.1]],
   balcao: [0, -5.5, 3.25, 0.5, 1.15],
-  pilares: [-10, -8, -6, -4, -2, 0, 2, 4, 6, 8].flatMap((z) => [[-4, z], [4, z]]),
-  moveis: [[6, -6.5, 0.5], [6.6, -3, 0.6], [-6.2, -7.5, 0.35], [-6.4, -5.4, 0.35], [-7.4, -3.2, 0.5], [-2.2, -9.6, 0.6], [2.2, -9.6, 0.6], [0, -9.1, 0.6],
-    [-3.3, -8.2, 0.5], [3.3, -8.6, 0.5], [-6.5, 4, 0.4], [-6.5, 7, 0.4], [7.0, 8.9, 0.8], [7.3, 6.6, 0.4], [7.2, 3.4, 0.5], [6.0, 1.2, 0.6]],
+  // 2026-11-18: arcada de vãos largos (colunas a cada 4 m, ferramentas/vilas/pecas.mjs ARCADA) no lugar das portinhas
+  pilares: [-10, -6, -2, 2, 6].flatMap((z) => [[-4, z], [4, z]]),
+  // balcões laterais (Iara, Mirela e a Guilda): três círculos ao longo de cada um
+  moveis: [[6, -6.5, 0.5], [6.9, -1.6, 0.6], [-6.2, -7.5, 0.35], [-7.2, -6.0, 0.35], [-7.4, -2.4, 0.5], [-2.2, -9.6, 0.6], [2.2, -9.6, 0.6], [0, -9.1, 0.6],
+    [-3.3, -8.2, 0.5], [3.3, -8.6, 0.5], [-7.2, 0.4, 0.4], [-7.2, 7.6, 0.4], [7.0, 8.9, 0.8], [7.3, 6.6, 0.4], [7.2, 3.4, 0.5], [6.0, 1.2, 0.6],
+    ...BALCOES_L.flatMap(([x, z0, z1, zc, sx]) => [...Array.from({ length: Math.round((z1 - z0) / 0.8) + 1 }, (_, i) => [x, z0 + i * (z1 - z0) / Math.round((z1 - z0) / 0.8), 0.45]),
+      [x + sx * 0.9, zc, 0.45], [x + sx * 1.8, zc, 0.45]]), ...[3.6, 4.4].flatMap((x) => [[-x, -5.5, 0.45], [x, -5.5, 0.45]])],
 };
 // o cavalo da carroça de carga fica entre os varais (a caçamba é o fundo da peça, z de -3,15 a -1,7; os varais vão
 // até +0,9) e olha para +z
