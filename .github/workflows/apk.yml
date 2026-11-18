@@ -332,7 +332,11 @@ jobs:
           printf '\n[aethra]\n\natualizacao/base="%s"\n' "$((1000 + ${{ github.run_number }}))" >> project.godot
           # número da versão dentro do pacote: o jogo mostra no canto da tela (versao.gd, main.gd montar_versao)
           printf '# Gerado pelo CI (apk.yml).\nconst NUMERO := "%s"\n' "$((1000 + ${{ github.run_number }}))" > versao.gd
+          # texturas do mundo comprimidas para a placa do celular (conselho 18/11/2026; ferramentas/texturas/celular.mjs):
+          # antes (os .import do cache) e depois (textura nova só ganha .import na primeira importação); mudou, importa de novo
+          node ../ferramentas/texturas/celular.mjs .
           $GODOT_BIN --headless --import || true
+          if node ../ferramentas/texturas/celular.mjs . | grep -qv ': 0 mudaram'; then $GODOT_BIN --headless --import || true; fi
       - name: Pacote do jogo desta versão (mesmo conteúdo do APK)
         working-directory: godot-prototipo
         run: |

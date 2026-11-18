@@ -26,6 +26,7 @@ const ACOES := {
 	"pack": ["Packs (fazer e entregar)", "it_pack"], # mercadores de pack (FASE 1, transporte.gd)
 	"alquimia": ["Sintetizar catalisador", "it_selo_epico"], # Mirela, a alquimista (André 2026-11-09)
 	"leilao": ["Leilão (comprar e vender)", "negociar"], # Otávio, na Casa do Comércio do Rio Claro (história v2, Entrega 3)
+	"guilda": ["Contratos da Guilda", "it_tomo"], # Brenda, Guilda dos Aventureiros no Rio Claro (André 2026-11-18)
 	# Cecília, a amiga (shared/amiga.js, André 2026-11-09): o servidor decide o que ela responde
 	"amiga_casa": ["Como vai a casa?", "lote"],
 	"amiga_ajuda": ["Precisa de ajuda?", "falar"],
@@ -332,6 +333,10 @@ func _abrir(n: Dictionary, toque: bool) -> void:
 		m.minimapa.abrir_totem(n.totem)
 		m.sons.tocar("q_anel_1", -14.0)
 		return
+	if n.funcao == "mural": # mural da Guilda (André 2026-11-18): abre direto a aba Guilda da janela de Missões
+		m.menu.abrir("guilda")
+		m.sons.tocar("q_anel_1", -14.0)
+		return
 	if m.trabalho.coletando != null:
 		m.trabalho.parar(true)
 	npc = n
@@ -543,21 +548,16 @@ func escolher(a: String) -> void:
 		"habilidades":
 			fechar()
 			m.menu.abrir("habilidades")
-		"consertar": # tudo o que desgastou, no corpo e na mochila, de uma vez (online o servidor confere e cobra)
+		"consertar": # André 2026-11-18: abre a janela do conserto por cima do equipamento: Consertar tudo ou só a peça
+			# que quiser (cada uma inteira ou nada; online o servidor confere e cobra). Antes consertava tudo direto daqui.
 			var custo: int = m.P.custo_conserto_tudo()
 			if custo <= 0:
 				fala_ui.text = Idioma.frase("Seu equipamento está inteiro. Volte quando ele apanhar lá fora.")
-			elif int(m.P.prog.ouro) < custo:
-				fala_ui.text = Idioma.frase("Esse conserto sai por %d de ouro. Você tem %d." % [custo, int(m.P.prog.ouro)])
-			elif m.on():
-				m.rede("item", {"acao": "consertar"})
-				fala_ui.text = Idioma.frase("Pronto, ficou como novo. São %d de ouro." % custo)
-				m.sons.tocar("forja", -4.0)
 			else:
-				var r: String = m.P.consertar_tudo()
-				fala_ui.text = Idioma.frase("Pronto, ficou como novo. São %d de ouro." % custo)
-				m.hud.aviso(r)
-				m.sons.tocar("forja", -4.0)
+				fechar()
+				m.menu.abrir("mochila")
+				m.menu.abrir_conserto()
+				return
 			_atualizar_consertar()
 		"pack": # FASE 1: as opções do mercador (fazer o pack, entregar o das costas, do carrinho ou do porão)
 			var r: Array = m.transporte.opcoes_mercador(n)
@@ -617,6 +617,9 @@ func escolher(a: String) -> void:
 				fala_ui.text = Idioma.frase("Pronto, novinho em folha. Vá com cuidado lá fora.")
 			else:
 				fala_ui.text = Idioma.frase("As missões só valem online (o progresso fica na sua conta).")
+		"guilda": # Brenda: a aba Guilda da janela de Missões (contratos, rank e Prova)
+			fechar()
+			m.menu.abrir("guilda")
 		"conversar":
 			if m.on():
 				m.rede("falar", {"npc": n.id, "conversa": true})

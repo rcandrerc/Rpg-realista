@@ -3914,17 +3914,17 @@
   "maxFila": 20
  },
  "morte": {
-  "ouro": 0.1,
+  "ouro": 0,
   "desgaste": 10,
   "durMax": 100,
   "conserto": 0.3,
   "xp": 0.05,
   "consertoTabela": [
-   50,
-   400,
-   2000,
-   8000,
-   30000
+   100,
+   800,
+   4000,
+   16000,
+   60000
   ]
  },
  "reforco": {
@@ -25316,6 +25316,91 @@
    },
    "cond": {
     "hist": "f3"
+   }
+  },
+  "guilda_E": {
+   "nome": "Aventureiro Rank E",
+   "r": 0,
+   "como": "Chegou ao rank E da Guilda",
+   "txt": "+2% XP dos monstros",
+   "b": {
+    "xp": 0.02
+   },
+   "cond": {
+    "guilda": "E"
+   }
+  },
+  "guilda_D": {
+   "nome": "Aventureiro Rank D",
+   "r": 0,
+   "como": "Chegou ao rank D da Guilda",
+   "txt": "+3% ouro dos monstros",
+   "b": {
+    "ouro": 0.03
+   },
+   "cond": {
+    "guilda": "D"
+   }
+  },
+  "guilda_C": {
+   "nome": "Aventureiro Rank C",
+   "r": 1,
+   "como": "Chegou ao rank C da Guilda",
+   "txt": "+3% dano",
+   "b": {
+    "dano": 0.03
+   },
+   "cond": {
+    "guilda": "C"
+   }
+  },
+  "guilda_B": {
+   "nome": "Aventureiro Rank B",
+   "r": 1,
+   "como": "Chegou ao rank B da Guilda",
+   "txt": "+4% defesa",
+   "b": {
+    "defesa": 0.04
+   },
+   "cond": {
+    "guilda": "B"
+   }
+  },
+  "guilda_A": {
+   "nome": "Aventureiro Rank A",
+   "r": 2,
+   "como": "Chegou ao rank A da Guilda",
+   "txt": "+3% crítico",
+   "b": {
+    "critico": 0.03
+   },
+   "cond": {
+    "guilda": "A"
+   }
+  },
+  "guilda_S": {
+   "nome": "Aventureiro Rank S",
+   "r": 3,
+   "como": "Chegou ao rank S da Guilda",
+   "txt": "+5% dano",
+   "b": {
+    "dano": 0.05
+   },
+   "cond": {
+    "guilda": "S"
+   }
+  },
+  "guilda_SS": {
+   "nome": "Aventureiro Rank SS",
+   "r": 4,
+   "como": "Chegou ao rank SS da Guilda",
+   "txt": "+6% dano, +3% crítico",
+   "b": {
+    "dano": 0.06,
+    "critico": 0.03
+   },
+   "cond": {
+    "guilda": "SS"
    }
   },
   "min10": {

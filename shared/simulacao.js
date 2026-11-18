@@ -2,7 +2,7 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos } from './progresso.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos } from './progresso.js';
 import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura, TITULOS } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS } from './relevo.js';
@@ -19,6 +19,7 @@ import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a
 import { Kit, pedidosDaEtapa, soNoMar, gMissao } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
 import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (André 2026-11-16)
 import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
+import { Guilda } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11-18)
 import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
 
 const TAU = Math.PI * 2;
@@ -862,7 +863,7 @@ export class Simulacao {
   // Manda para o próprio jogador o progresso e os números do herói (o menu do personagem mostra)
   avisarProg(j) {
     const st = Object.fromEntries(Object.entries(j.st).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4]));
-    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), di: j.bot ? null : this.diariasInfo(j), ...(j.testador && CONTA_TESTE.nivel ? { teste: true } : {}), ...(j.testador && CONTA_TESTE.missoes ? { testeMissoes: true } : {}) }); // hi: a etapa da história (app)
+    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), di: j.bot ? null : this.diariasInfo(j), gu: j.bot ? null : this.guildaInfo(j), ...(j.testador && CONTA_TESTE.nivel ? { teste: true } : {}), ...(j.testador && CONTA_TESTE.missoes ? { testeMissoes: true } : {}) }); // hi: a etapa da história (app)
     j.progSujo = true;
   }
   // O servidor grava na conta quem mudou (index.js chama de tempos em tempos e quando o jogador sai)
@@ -977,11 +978,11 @@ export class Simulacao {
   // monstro c caiu e j ganhou: conta na etapa de matar (campo, tipo e chefe da história)
   contarHistoria(j, c) {
     const campo = c.sp?.caca != null ? this.cacas[c.sp.caca]?.def?.id : null;
-    this.historia(j, 'matar', { campo, tipo: c.tipo, hc: c.hc || null, sala: c.sp?.caverna || null });
+    this.historia(j, 'matar', { campo, tipo: c.tipo, hc: c.hc || null, sala: c.sp?.caverna || null, nivel: c.nivel || 1 }); // nivel: contrato de caça da Guilda
   }
   // Algo aconteceu com j (ev e dados d): conta na etapa da vez se casar (shared/historia.js casaEtapa)
   historia(j, ev, d = {}) {
-    if (ev !== 'diaria' && ev !== 'diaria_vista') this.contarDiaria(j, ev, d); // as diárias contam pelo mesmo funil (shared/diarias.js)
+    if (ev !== 'diaria' && ev !== 'diaria_vista') { this.contarDiaria(j, ev, d); this.contarGuilda(j, ev, d); } // diárias e contratos da Guilda contam pelo mesmo funil
     const p = j?.prog, h = p?.hist; if (!h?.ac || j.bot) return;
     const M = HISTORIA[h.p], E = M && etapasDe(M)[h.e]; if (!E) return;
     // colheu antes da etapa "Colha" (a horta da missão fica pronta ao plantar, e dá para colher já na etapa de regar):
@@ -1873,12 +1874,13 @@ export class Simulacao {
       liberarPaginas(p, tem + 1);
       aviso(`Página ${tem + 1} da mochila liberada (+${MOCHILA} lugares)`);
     } else if (m.acao === 'consertar') {
-      // Tomás conserta tudo o que desgastou (corpo e mochila) de uma vez (MORTE em shared/dados.js)
+      // Tomás conserta tudo o que desgastou (corpo e mochila) de uma vez, ou só as peças marcadas na tela do equipamento
+      // (m.lista = [{ lugar } | { i }]; André 2026-11-18: cada peça inteira ou nada). MORTE em shared/dados.js
       if (!this.pertoDeQuemConserta(j)) return aviso('Conserte com o Tomás, o ferreiro');
-      const r = consertarTudo(p);
+      const r = Array.isArray(m.lista) ? consertarPecas(p, m.lista) : consertarTudo(p);
       if (!r) return aviso('Nada para consertar: está tudo inteiro');
       if (r.falta) return aviso(`O conserto custa ${r.custo} de ouro (faltam ${r.falta})`);
-      this.caixa(j, 'conserto', -r.custo);
+      this.caixa(j, 'conserto', -r.custo); this.aplicarStatus(j);
       aviso(`Tomás consertou ${r.n} ${r.n === 1 ? 'peça' : 'peças'} por ${r.custo} de ouro`);
     } else if (m.acao === 'reforcar') {
       // reforço de equipamento (igual ao Quimera, REFORCO em shared/dados.js): peça da mochila (i) ou do corpo (lugar).
@@ -2560,7 +2562,7 @@ export class Simulacao {
     if (p.nivel < NIVEL_MAX) this.ganharXP(j, Math.max(1, Math.round(C.vigor))); else this.avisarProg(j); // um pouco de XP pelo trabalho (Quimera: mgVgXp)
     this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: s.n, volta });
     for (const g of ganhou) this.historia(j, 'item', { k: g.k, n: g.n, de: 'coleta' });
-    if (ganhou.length) this.contarDiaria(j, 'coleta', { tipo: no.tipo }); // diária "Corte ou minere": uma por batida
+    if (ganhou.length) { this.contarDiaria(j, 'coleta', { tipo: no.tipo }); this.contarGuilda(j, 'coleta', { tipo: no.tipo }); } // diária "Corte ou minere" e contrato da Guilda: uma por batida
     if (!ganhou.length) return this.pararColeta(j, null);
     if (s.n <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`);
     if (vigorAgora(p.vigor) < this.custoVigor(j, C)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
@@ -2982,7 +2984,10 @@ export class Simulacao {
     const prova = j.prog.mochila.map((o) => (o ? { ...o } : null));
     for (const p of L.pecas) if (!guardar(prova, { k: 'obra_' + p.k, n: 1 })) return aviso('Mochila cheia: as peças do terreno não cabem');
     const w = L.def.x1 - L.def.x0, d = L.def.z1 - L.def.z0, c = contaTerreno(L.def, L.taxa, Date.now(), L.pecas?.length);
-    const valor = Math.max(0, vendaTerreno(w, d) - c.valor);
+    // a conta em aberto sai do valor da venda; se for maior que ele, o resto sai do ouro (André 2026-11-18: vender e
+    // comprar de novo não zera mais a dívida). Sem ouro para o resto, não vende.
+    const valor = vendaTerreno(w, d) - c.valor;
+    if (valor < 0 && j.prog.ouro < -valor) return aviso(`A conta do terreno (${c.valor} de ouro) passa do valor da venda: faltam ${-valor - j.prog.ouro} de ouro`);
     if (this.aoVenderLote) this.aoVenderLote(L.def.id);
     j.prog.mochila = prova;
     j.prog.ouro += valor; this.caixa(j, 'terrenoVenda', valor);
@@ -2990,7 +2995,8 @@ export class Simulacao {
     this.lotesMudados.delete(L.def.id);
     this.lotesSoltos.add(L.def.id);
     this.refazerSolidosLotes();
-    aviso(`Terreno vendido por ${valor} de ouro` + (c.valor ? ` (a conta de ${c.valor} saiu do valor)` : '') + (L.pecas.length ? '. As peças voltaram para a mochila' : ''));
+    aviso((valor >= 0 ? `Terreno vendido por ${valor} de ouro` : `Terreno vendido. A conta passou do valor: pagou ${-valor} de ouro`)
+      + (c.valor && valor >= 0 ? ` (a conta de ${c.valor} saiu do valor)` : '') + (L.pecas.length ? '. As peças voltaram para a mochila' : ''));
     this.evento({ t: 'lote', lote: L.def.id, dono: null });
     this.evento({ t: 'meuLote', para: id, lote: '' });
     this.avisarProg(j);
@@ -3864,7 +3870,7 @@ export class Simulacao {
       this.morreuComCarga(c); // o pack das costas cai no chão; o veículo fica onde estava
       if (c.caverna) { c.caverna = null; this.evento({ t: 'caverna', id: c.id, aberta: false }); } // morreu: a entrada acabou
       if (c.prog.pos) { delete c.prog.pos; c.progSujo = true; } // morreu: entra de novo na vila (André 2026-11-03)
-      // penalidade (André 2026-11-05, MORTE em shared/dados.js): perde parte do ouro e o equipamento desgasta
+      // penalidade (André 2026-11-05, MORTE em shared/dados.js): perde XP (o ouro não, André 2026-11-18) e o equipamento desgasta
       const pen = penalidadeMorte(c.prog); c.progSujo = true; if (pen?.ouro) this.caixa(c, 'morte', -pen.ouro);
       this.aplicarStatus(c); this.avisarProg(c);
       this.depois(HEROI.renascer, () => {
@@ -4174,6 +4180,7 @@ export class Simulacao {
     this.passoCaixa(dt); // livro-caixa da economia (André 2026-11-16)
     this.passoBosses(dt); // bosses de mundo (André 2026-11-11)
     this.passoHistoria(dt); // história com etapas (André 2026-11-11)
+    this.passoGuilda(dt); // elite e Prova da Guilda aparecem para quem chega no campo da faixa
     this.passoCaverna(dt);
     this.passoProjeteis(dt);
     this.passoCampos(dt);
@@ -4634,6 +4641,7 @@ Object.assign(Simulacao.prototype, Amiga);
 Object.assign(Simulacao.prototype, Kit);
 Object.assign(Simulacao.prototype, Plantio); // árvores plantadas (André 2026-11-16)
 Object.assign(Simulacao.prototype, Diarias); // missões diárias (André 2026-11-16)
+Object.assign(Simulacao.prototype, Guilda); // Guilda dos Aventureiros: contratos e ranks F a SS (André 2026-11-18)
 Object.assign(Simulacao.prototype, Economia); // livro-caixa da economia (André 2026-11-16)
 Object.assign(Simulacao.prototype, Duelo); // duelo (André 2026-11-17)
 // o amigo virtual (contexto da Cecília ou do Dario) pelo corpo, pelo id ou pela conta; null = não é amigo virtual

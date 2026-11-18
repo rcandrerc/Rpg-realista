@@ -17,6 +17,8 @@ var teste_missoes := false # só a conta do André: "Voltar 1 missão" e "Zerar 
 var mudou := false # o menu redesenha quando muda
 var diarias: Dictionary = {} # missões diárias (André 2026-11-16): o resumo do servidor (shared/diarias.js diariasInfo)
 var diarias_t := 0 # Time.get_ticks_msec() de quando chegou (o relógio "Novas em" conta daí)
+var guilda: Dictionary = {} # Guilda dos Aventureiros (André 2026-11-18): o resumo do servidor (shared/guilda.js guildaInfo)
+var guilda_t := 0
 var hist_info: Dictionary = {} # história v2 (André 2026-11-11): a etapa da vez que o servidor manda (texto, NPC, alvo do Ir)
 var relogio := 0.0 # ms: relógio do servidor - relógio do celular (o vigor enche pelo relógio do servidor)
 
@@ -115,6 +117,9 @@ func do_servidor(ev: Dictionary) -> void:
 	if ev.has("di"):
 		diarias = ev.di if ev.di is Dictionary else {}
 		diarias_t = Time.get_ticks_msec()
+	if ev.has("gu"):
+		guilda = ev.gu if ev.gu is Dictionary else {}
+		guilda_t = Time.get_ticks_msec()
 	carrinho_no_mundo()
 	teste = bool(ev.get("teste", false))
 	teste_missoes = bool(ev.get("testeMissoes", false))
@@ -522,7 +527,56 @@ func consertar_tudo() -> String:
 	mudou = true
 	return "Tomás consertou %d %s por %d de ouro" % [n, "peça" if n == 1 else "peças", custo]
 
-# sem internet, caiu: perde parte do ouro e o equipamento do corpo desgasta. Devolve o texto para quando levantar
+# peça gasta escolhida na tela do conserto (André 2026-11-18): {"lugar": l} (no corpo) ou {"i": i} (mochila); null = não há
+func peca_em(onde: Dictionary):
+	if onde.has("lugar"):
+		return prog.equip.get(str(onde.lugar))
+	var i := int(onde.get("i", -1))
+	return prog.mochila[i] if i >= 0 and i < prog.mochila.size() else null
+
+# todas as peças gastas, corpo primeiro: [{"lugar": l} ou {"i": i}, ...]
+func pecas_gastas() -> Array:
+	var r := []
+	for l in dados.lugares:
+		if custo_conserto(prog.equip.get(l)) > 0:
+			r.append({"lugar": l})
+	for i in prog.mochila.size():
+		if custo_conserto(prog.mochila[i]) > 0:
+			r.append({"i": i})
+	return r
+
+# ouro para consertar as peças marcadas
+func custo_conserto_lista(lista: Array) -> int:
+	var t := 0
+	for o in lista:
+		t += custo_conserto(peca_em(o))
+	return t
+
+# sem internet: as peças marcadas, todas inteiras ou nenhuma (igual a shared/progresso.js consertarPecas)
+func consertar_pecas(lista: Array) -> String:
+	var pecas := []
+	var vistos := {} # a mesma peça marcada duas vezes conta uma (pela posição: duas peças iguais são peças diferentes)
+	for o in lista:
+		var chave := ("l:%s" % o.lugar) if o.has("lugar") else ("i:%d" % int(o.get("i", -1)))
+		var it = peca_em(o)
+		if custo_conserto(it) > 0 and not vistos.has(chave):
+			vistos[chave] = true
+			pecas.append(it)
+	if pecas.is_empty():
+		return "Nada para consertar: está tudo inteiro"
+	var custo := 0
+	for it in pecas:
+		custo += custo_conserto(it)
+	if int(prog.ouro) < custo:
+		return "O conserto custa %d de ouro (faltam %d)" % [custo, custo - int(prog.ouro)]
+	prog.ouro = int(prog.ouro) - custo
+	for it in pecas:
+		it.erase("d")
+	st = calcular_status()
+	mudou = true
+	return "Tomás consertou %d %s por %d de ouro" % [pecas.size(), "peça" if pecas.size() == 1 else "peças", custo]
+
+# sem internet, caiu: perde XP e o equipamento do corpo desgasta. Devolve o texto para quando levantar (ouro: MORTE.ouro = 0 desde André 2026-11-18)
 func penalidade_morte() -> String:
 	var M := morte_dados()
 	var ouro := int(floor(int(prog.ouro) * float(M.ouro)))
