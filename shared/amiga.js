@@ -850,7 +850,9 @@ export const Amiga = {
     let c = null, fala;
     if (noTime) {
       c = ia.seguido?.id === id && ia.seguido.c ? ia.seguido.c : ia.atividade ? null : this.campoAmiga(a);
-      fala = c ? sorteia(F.campo).replace('{lugar}', nomeLugarAmiga(c.nome)) : sorteia(F.junto);
+      // ronda 2026-11-18: tocando Seguir três vezes, ela disse "Vem comigo, sei onde tem bicho bom" duas vezes: outra frase
+      const ult = this.ultimaFalaAmiga(j), opc = F.campo.filter((f) => f.replace('{lugar}', nomeLugarAmiga(c?.nome || '')) !== ult);
+      fala = c ? sorteia(opc.length ? opc : F.campo).replace('{lugar}', nomeLugarAmiga(c.nome)) : sorteia(F.junto);
     } else if (av && ['ir', 'cacar', 'missao'].includes(av.fase) && av.c?.nome) fala = sorteia(F.solo).replace('{lugar}', nomeLugarAmiga(av.c.nome));
     else if (av && ['voltar', 'descansar'].includes(av.fase) && this.AMIGA.terreno) fala = sorteia(F.casa);
     else fala = sorteia(F.junto);
@@ -1892,6 +1894,7 @@ export const Amiga = {
   },
   // a conversa do chat com cada amigo fica separada (a IA lê só a de quem está falando)
   chatDeAmiga(j) { const a = this.amiga, c = (a.ia.conversas ||= {}); return (c[j.conta] ||= (a.conversasSalvas?.[j.conta] || []).slice(-this.histAmiga())); },
+  ultimaFalaAmiga(j) { const l = j ? this.chatDeAmiga(j) : []; for (let i = l.length - 1; i >= 0; i--) if (l[i].de === 'ela') return l[i].texto; return ''; },
   histAmiga() { return this.AMIGA.chat.historico || 12; },
   // a conversa recente de cada pessoa vai para o banco junto com ela (voltar ao jogo amanhã: ela lembra do fio)
   conversasParaSalvarAmiga(j) {
@@ -1992,6 +1995,9 @@ export const Amiga = {
     if (dono.morto || dono.criando) return;
     const g = this.gostoTopoAmiga(dono), M = this.AMIGA.memoria;
     // André 2026-11-17 ("mais variado"): nunca a mesma chamada duas vezes seguidas
+    // ronda 2026-11-18: o servidor reinicia com cada atualização e ia.ultimaChama se perdia; ela mandava "Bora caçar de novo?"
+    // duas vezes seguidas. Com naoInsiste (a Cecília), a última fala dela no chat com ele também conta
+    if (this.AMIGA.naoInsiste && !ia.ultimaChama) ia.ultimaChama = this.ultimaFalaAmiga(dono);
     const lista = this.AMIGA.chat.falas.chama, livres = lista.length > 1 ? lista.filter((x) => x.texto !== ia.ultimaChama) : lista;
     const ch = g && Math.random() < M.gostoChance && this.AMIGA.chat.falas.chamaGosto[g] !== ia.ultimaChama ? { texto: this.AMIGA.chat.falas.chamaGosto[g], quer: g } : sorteia(livres); // o que vocês mais fazem juntos
     ia.chamado = { quer: ch.quer, ate: this.tempo + C.espera }; ia.ultimaChama = ch.texto;
