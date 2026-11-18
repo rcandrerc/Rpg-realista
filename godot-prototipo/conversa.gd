@@ -26,6 +26,7 @@ const ACOES := {
 	"pack": ["Packs (fazer e entregar)", "it_pack"], # mercadores de pack (FASE 1, transporte.gd)
 	"alquimia": ["Sintetizar catalisador", "it_selo_epico"], # Mirela, a alquimista (André 2026-11-09)
 	"leilao": ["Leilão (comprar e vender)", "negociar"], # Otávio, na Casa do Comércio do Rio Claro (história v2, Entrega 3)
+	"guilda": ["Contratos da Guilda", "it_tomo"], # Brenda, Guilda dos Aventureiros no Rio Claro (André 2026-11-18)
 	# Cecília, a amiga (shared/amiga.js, André 2026-11-09): o servidor decide o que ela responde
 	"amiga_casa": ["Como vai a casa?", "lote"],
 	"amiga_ajuda": ["Precisa de ajuda?", "falar"],
@@ -332,6 +333,10 @@ func _abrir(n: Dictionary, toque: bool) -> void:
 		m.minimapa.abrir_totem(n.totem)
 		m.sons.tocar("q_anel_1", -14.0)
 		return
+	if n.funcao == "mural": # mural da Guilda (André 2026-11-18): abre direto a aba Guilda da janela de Missões
+		m.menu.abrir("guilda")
+		m.sons.tocar("q_anel_1", -14.0)
+		return
 	if m.trabalho.coletando != null:
 		m.trabalho.parar(true)
 	npc = n
@@ -612,6 +617,9 @@ func escolher(a: String) -> void:
 				fala_ui.text = Idioma.frase("Pronto, novinho em folha. Vá com cuidado lá fora.")
 			else:
 				fala_ui.text = Idioma.frase("As missões só valem online (o progresso fica na sua conta).")
+		"guilda": # Brenda: a aba Guilda da janela de Missões (contratos, rank e Prova)
+			fechar()
+			m.menu.abrir("guilda")
 		"conversar":
 			if m.on():
 				m.rede("falar", {"npc": n.id, "conversa": true})
