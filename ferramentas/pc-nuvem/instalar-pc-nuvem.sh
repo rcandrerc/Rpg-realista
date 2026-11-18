@@ -75,7 +75,7 @@ cat > /opt/pc-nuvem/sessao.sh <<'SH'
 export DISPLAY=:1
 rm -f /tmp/.X1-lock /tmp/.X11-unix/X1
 Xvnc :1 -geometry 1280x800 -depth 24 -rfbport 5901 -localhost -SecurityTypes None \
-  -AlwaysShared -AcceptSetDesktopSize=0 &
+  -AlwaysShared -AcceptSetDesktopSize=1 &
 XPID=$!
 for _ in $(seq 100); do [ -e /tmp/.X11-unix/X1 ] && break; sleep 0.1; done
 openbox &
@@ -141,7 +141,7 @@ $DOM {
 		basicauth {
 			andre $PC_HASH
 		}
-		redir / /vnc.html?autoconnect=1&resize=scale&reconnect=1&path=websockify
+		redir / /vnc.html?autoconnect=1&resize=remote&reconnect=1&show_dot=1&path=websockify
 		reverse_proxy 127.0.0.1:6080
 	}
 }
