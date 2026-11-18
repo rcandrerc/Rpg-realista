@@ -6,6 +6,7 @@ extends Control
 # Peso: a maquete é montada uma vez (numa linha de fundo, ~0,6 s no PC) e fica num mundo 3D só dela (SubViewport).
 # Com o mapa aberto, o mundo do jogo para de ser desenhado (root.disable_3d), então só a maquete custa.
 
+const BLOCO := 64 # pontos da grade de 4 m por pedaço do terreno (256 m): a câmera e a sombra pulam o que não veem
 const PASSO := 2 # pontos da grade de 4 m por faceta (8 m)
 const EXAG := 1.6 # relevo um pouco exagerado para aparecer de longe
 const UMA_ARVORE_EM := 9 # do mata do mundo, 1 a cada 9 vira árvore grande (o Albion usa poucas e grandes)
@@ -354,40 +355,47 @@ func _montar_dados() -> void:
 	seco.seed = 5
 	seco.frequency = 1.0 / 170.0
 	seco.fractal_octaves = 1
-	var V := PackedVector3Array()
-	var N := PackedVector3Array()
-	var C := PackedColorArray()
-	for j in range(0, nz - PASSO, PASSO):
-		for i in range(0, nx - PASSO, PASSO):
-			var P: Array[Vector3] = [_ponto(i, j), _ponto(i + PASSO, j), _ponto(i + PASSO, j + PASSO), _ponto(i, j + PASSO)]
-			var tris: Array = [[0, 1, 2], [0, 2, 3]] if (i / PASSO + j / PASSO) % 2 == 0 else [[0, 1, 3], [1, 2, 3]]
-			var mx := X0 + (i + 1) * 4.0 # o ruído uma vez por quadrado de 8 m (os dois triângulos usam o mesmo)
-			var mz := Z0 + (j + 1) * 4.0
-			var k1 := mancha.get_noise_2d(mx, mz)
-			var k2 := seco.get_noise_2d(mx, mz)
-			for t in tris:
-				var a3: Vector3 = P[t[0]]
-				var b3: Vector3 = P[t[1]]
-				var c3: Vector3 = P[t[2]]
-				var nn := (c3 - a3).cross(b3 - a3).normalized()
-				var cx := (a3 + b3 + c3) / 3.0
-				var ci := clampi(int((cx.x - X0) / 4.0), 0, nx - 1)
-				var cj := clampi(int((cx.z - Z0) / 4.0), 0, nz - 1)
-				var v0: float = hh[cj * nx + ci]
-				var incl := sqrt(maxf(0.0, 1.0 - nn.y * nn.y)) / maxf(nn.y, 0.05)
-				var cor := _cor(v0, incl, dens[mini(cj / PASSO, hq - 1) * w + mini(ci / PASSO, w - 1)], praia[cj * nx + ci] == 1)
-				if v0 >= 0.0:
-					cor = _manchar(cor, k1, k2, cx, incl, v0)
-				var df: float = fora[cj * nx + ci]
-				if df > 0.0: # terra sem acesso: mais apagada e sumindo na névoa
-					var kf := clampf((df - 60.0) / (ALEM * 4.0 - 100.0), 0.0, 1.0)
-					var cinza := Color(cor.get_luminance(), cor.get_luminance(), cor.get_luminance())
-					cor = cor.lerp(cinza, 0.15 + 0.35 * kf).darkened(0.06 + 0.1 * kf)
-				for v in [a3, b3, c3]:
-					V.append(v)
-					N.append(nn)
-					C.append(cor)
-	_dados = {"V": V, "N": N, "C": C, "arvores": arvores}
+	# em pedaços de BLOCO pontos (André 2026-11-18, registros do celular: 1,9 M triângulos por quadro com o mapa aberto):
+	# o terreno era uma malha só, desenhada inteira mesmo fora da tela e de novo em cada faixa da sombra. Em pedaços, a
+	# câmera e a sombra só desenham os pedaços que enxergam. A imagem não muda.
+	var pedacos := {} # Vector2i -> [V, N, C]
+	for bj in range(0, nz - PASSO, BLOCO):
+		for bi in range(0, nx - PASSO, BLOCO):
+			var V := PackedVector3Array()
+			var N := PackedVector3Array()
+			var C := PackedColorArray()
+			for j in range(bj, mini(bj + BLOCO, nz - PASSO), PASSO):
+				for i in range(bi, mini(bi + BLOCO, nx - PASSO), PASSO):
+					var P: Array[Vector3] = [_ponto(i, j), _ponto(i + PASSO, j), _ponto(i + PASSO, j + PASSO), _ponto(i, j + PASSO)]
+					var tris: Array = [[0, 1, 2], [0, 2, 3]] if (i / PASSO + j / PASSO) % 2 == 0 else [[0, 1, 3], [1, 2, 3]]
+					var mx := X0 + (i + 1) * 4.0 # o ruído uma vez por quadrado de 8 m (os dois triângulos usam o mesmo)
+					var mz := Z0 + (j + 1) * 4.0
+					var k1 := mancha.get_noise_2d(mx, mz)
+					var k2 := seco.get_noise_2d(mx, mz)
+					for t in tris:
+						var a3: Vector3 = P[t[0]]
+						var b3: Vector3 = P[t[1]]
+						var c3: Vector3 = P[t[2]]
+						var nn := (c3 - a3).cross(b3 - a3).normalized()
+						var cx := (a3 + b3 + c3) / 3.0
+						var ci := clampi(int((cx.x - X0) / 4.0), 0, nx - 1)
+						var cj := clampi(int((cx.z - Z0) / 4.0), 0, nz - 1)
+						var v0: float = hh[cj * nx + ci]
+						var incl := sqrt(maxf(0.0, 1.0 - nn.y * nn.y)) / maxf(nn.y, 0.05)
+						var cor := _cor(v0, incl, dens[mini(cj / PASSO, hq - 1) * w + mini(ci / PASSO, w - 1)], praia[cj * nx + ci] == 1)
+						if v0 >= 0.0:
+							cor = _manchar(cor, k1, k2, cx, incl, v0)
+						var df: float = fora[cj * nx + ci]
+						if df > 0.0: # terra sem acesso: mais apagada e sumindo na névoa
+							var kf := clampf((df - 60.0) / (ALEM * 4.0 - 100.0), 0.0, 1.0)
+							var cinza := Color(cor.get_luminance(), cor.get_luminance(), cor.get_luminance())
+							cor = cor.lerp(cinza, 0.15 + 0.35 * kf).darkened(0.06 + 0.1 * kf)
+						for v in [a3, b3, c3]:
+							V.append(v)
+							N.append(nn)
+							C.append(cor)
+			pedacos[Vector2i(bi, bj)] = [V, N, C]
+	_dados = {"pedacos": pedacos, "arvores": arvores}
 
 # aumenta a grade para os lados: o que é terra na borda continua (o muro de montanha vai baixando para morros e serras
 # de ruído); o que é mar na borda continua mar
@@ -576,17 +584,22 @@ func _montar_cena() -> void:
 	cam.far = 4500.0
 	mundo3d.add_child(cam)
 	# terreno
-	var arr := []
-	arr.resize(Mesh.ARRAY_MAX)
-	arr[Mesh.ARRAY_VERTEX] = _dados.V
-	arr[Mesh.ARRAY_NORMAL] = _dados.N
-	arr[Mesh.ARRAY_COLOR] = _dados.C
-	var am := ArrayMesh.new()
-	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
-	var ter := MeshInstance3D.new()
-	ter.mesh = am
-	ter.material_override = _mat_nevoa()
-	mundo3d.add_child(ter)
+	var mat_ter := _mat_nevoa()
+	for chave in _dados.pedacos:
+		var pd: Array = _dados.pedacos[chave]
+		if (pd[0] as PackedVector3Array).is_empty():
+			continue
+		var arr := []
+		arr.resize(Mesh.ARRAY_MAX)
+		arr[Mesh.ARRAY_VERTEX] = pd[0]
+		arr[Mesh.ARRAY_NORMAL] = pd[1]
+		arr[Mesh.ARRAY_COLOR] = pd[2]
+		var am := ArrayMesh.new()
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		var ter := MeshInstance3D.new()
+		ter.mesh = am
+		ter.material_override = mat_ter
+		mundo3d.add_child(ter)
 	# mar
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(7000, 7000)
