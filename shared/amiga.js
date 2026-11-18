@@ -163,7 +163,7 @@ export const Amiga = {
       liberarPaginas(j.prog, this.AMIGA.mochila.paginas); // fase 3: 4 páginas, como a mochila do André
       // aventureiro novo (André 2026-11-11): começa no nível da lista, mas nunca acima do jogador mais alto do servidor
       if (!salvo.prog && this.AMIGA.nivelInicial > 1) {
-        const n = Math.max(1, Math.min(this.AMIGA.nivelInicial, this.nivelTetoNpc ?? Infinity));
+        const n = Math.max(1, Math.min(this.AMIGA.nivelInicial, this.AMIGA.rival ? Infinity : this.nivelTetoNpc ?? Infinity)); // a Geada começa acima da Trégua
         j.prog.pontos += (n - j.prog.nivel) * PONTOS_POR_NIVEL; j.prog.nivel = n; j.prog.xp = 0; j.prog.ouro += 25 * n;
       }
       if (!j.prog.equip.cajado) j.prog.equip.cajado = { k: 'cajado', r: this.AMIGA.justa.raridade }; // espada E cajado, como todo herói
@@ -193,7 +193,9 @@ export const Amiga = {
       j.pedido = salvo.pedido && ITENS[salvo.pedido.k] ? { k: salvo.pedido.k, n: salvo.pedido.n | 0 } : null;
       j.amigaAntes = antes; j.amigaAntesJogo = antesJogo;
       j.ia = { fase: 'pensar', ate: 0 };
-      j.semTeto = !!this.AMIGA.terreno; // Cecília e Dario sobem sem o teto do jogador mais alto (André 2026-11-16)
+      j.semTeto = !!this.AMIGA.terreno || !!this.AMIGA.rival; // Cecília e Dario sobem sem o teto do jogador mais alto (André 2026-11-16); a Geada também
+      if (this.AMIGA.raca) j.raca = this.AMIGA.raca; // Chama x Geada (shared/guerra.js): sem raça = Chama
+      j.guerraMem = salvo.guerra && typeof salvo.guerra === 'object' && !Array.isArray(salvo.guerra) ? Object.fromEntries(Object.entries(salvo.guerra).slice(-300)) : {}; // quem ele já viu e o placar
       this.pocoesAmiga(j);
       // aparece na porta de casa (ou no canto do terreno, se a casa ainda não existe); sem casa, na vila do nível dele
       const def = L?.def, M = !def && this.moradiaAmiga(j), x = def ? def.x0 + this.AMIGA.porta[0] : M ? M.x : this.mapa.nascimento.x + 2, z = def ? def.z0 + this.AMIGA.porta[1] : M ? M.z : this.mapa.nascimento.z + 2;
@@ -203,7 +205,10 @@ export const Amiga = {
     }
     // André 2026-11-15: com ou sem chave, todo mundo toca nele e vê Mensagem/Time (a chave só troca a resposta pela IA).
     // Acompanhar quem chegou na hora de entrar: só quem tem a chave (sem chave, passa a acompanhar quando falar com ele)
+    const outra = this.outraRaca(this.jogadores.get(donoId), this.amiga); // Chama x Geada (André 2026-11-18): da outra raça é "monstro", da mesma é igual ao Dario
+    if (outra) fala = false;
     if (fala && !this.jogadores.has(this.amigaDono)) this.mudarDonoAmiga(donoId); // ninguém com ela: acompanha quem chegou
+    if (outra) return; // da outra raça não vira amigo virtual de quem entrou
     this.evento({ t: 'amiga', para: donoId, id: this.AMIGA.id, nome: this.AMIGA.nome, papel: this.AMIGA.papel, lote: this.loteDaAmiga()?.def.id || null, segue: !!this.AMIGA.seguivel });
     this.avisarVirtuaisAmiga(); // ela aparece em "Amigos virtuais" (para todos; quem não tem chave vê o botão de ativar)
   },
@@ -364,7 +369,7 @@ export const Amiga = {
   guardarAmiga() {
     const j = this.amiga, L = this.loteDaAmiga(); if (!j || (!L && this.AMIGA.terreno)) return;
     const amizades = { ...(j.amizades || {}) }; if (j.donoConta) amizades[j.donoConta] = j.amizade | 0;
-    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, evolucao: j.evolucao || [], ...(this.AMIGA.terreno ? { histReal: 1 } : {}), ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), memorias: j.memorias || {}, fatos: j.fatos || {}, semIa: j.semIa || {}, conversas: this.conversasParaSalvarAmiga(j), registro: j.registro || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(this.AMIGA.recomecoJogo ? { recomecoJogo: this.AMIGA.recomecoJogo } : {}), ...(j.amigaAntesJogo ? { antesJogo: j.amigaAntesJogo } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
+    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, evolucao: j.evolucao || [], ...(this.AMIGA.terreno ? { histReal: 1 } : {}), ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), guerra: j.guerraMem || {}, memorias: j.memorias || {}, fatos: j.fatos || {}, semIa: j.semIa || {}, conversas: this.conversasParaSalvarAmiga(j), registro: j.registro || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(this.AMIGA.recomecoJogo ? { recomecoJogo: this.AMIGA.recomecoJogo } : {}), ...(j.amigaAntesJogo ? { antesJogo: j.amigaAntesJogo } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
     if (!L) { (this.npcSalvos ||= new Map()).set(this.AMIGA.id, dados); (this.npcsMudados ||= new Set()).add(this.AMIGA.id); return; } // sem casa: tabela mundo do banco
     L.amiga = dados;
     this.lotesMudados.add(L.def.id);
@@ -417,6 +422,7 @@ export const Amiga = {
     if (j.morto) { if (!ia.caiu) { ia.caiu = true; ia.caiuT = this.tempo; this.evolucaoAmiga(j, 'morreu', ia.av?.c?.nome || (j.time ? 'no time' : '')); const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
     ia.caiu = false;
     if (j.duelo) return this.passoDueloAmiga(j); // duelando (shared/duelo.js): só luta contra quem chamou
+    if (this.guerraAmiga(j, dt)) return; // Chama x Geada (shared/guerra.js): atacar, ajudar, fugir ou poupar a outra raça
     // subiu de nível: os pontos vão pelo jeito dele (André 2026-11-11): quem gosta de cajado põe em Inteligência, o resto
     // em Força, e todos em Vitalidade (antes era só metade Força e metade Vitalidade)
     if (j.prog.pontos > 0) this.pontosAmiga(j);
@@ -475,6 +481,7 @@ export const Amiga = {
   // ---------- vida própria (André 2026-11-11: "quero que eles andem sozinhos"; os 22 iguais) ----------
   // a vila onde ele mora agora (muda com o nível: NPC_VIDA.moradia); o ponto é espalhado por NPC para não juntar todos
   moradiaAmiga(j) {
+    if (this.AMIGA.lar) { const C = this.AMIGA.lar, h = hashNpc(this.AMIGA.id), a = (h % 360) * Math.PI / 180; return { ...C, x: C.x + Math.cos(a) * C.r * 0.6, z: C.z + Math.sin(a) * C.r * 0.6 }; } // a Geada mora no Juncal
     let M = NPC_VIDA.moradia[0];
     for (const m of NPC_VIDA.moradia) if ((j.prog.nivel | 0) >= m.nivel) M = m;
     let h = 0; for (const c of this.AMIGA.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
@@ -504,6 +511,8 @@ export const Amiga = {
     // André 2026-11-16: Cecília e Dario só caçam onde a história deles já abriu (como o jogador)
     const ok = this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (c.nivel || 1) <= n + A.campoAcima - (j.licoes?.acima || 0) && !(fora && fora.has(c.id)) && !(j.semTeto && zonaFechadaEm(j.prog, c.x, c.z)));
     ok.sort((a, b) => (b.nivel || 1) - (a.nivel || 1) || Math.hypot(a.x - j.x, a.z - j.z) - Math.hypot(b.x - j.x, b.z - j.z));
+    // a Geada caça perto de casa (os campos do leste, em volta do Juncal); sem campo do nível por lá, vale o de sempre
+    if (this.AMIGA.lar) { const C = this.AMIGA.lar, l = ok.filter((c) => Math.hypot(c.x - C.x, c.z - C.z) < 360); if (l.length) ok.splice(0, ok.length, ...l); }
     // a faixa que ele prefere (rotina.campo): alto = os 3 mais fortes; medio = do 2º ao 4º; baixo = do 3º ao 6º (mais
     // seguro); longe = qualquer um, de preferência longe da vila. Dentro da faixa, o que tem menos NPC (cada NPC lá pesa 2)
     const R = this.rotinaAmiga(), faixa = { alto: [0, 3], medio: [1, 4], baixo: [2, 6], longe: [0, 99] }[R.campo] || [0, 3];
@@ -517,7 +526,7 @@ export const Amiga = {
   alvoSozinhoAmiga(j, c) {
     const A = NPC_VIDA.aventura; let melhor = null, md = Infinity;
     for (const e of this.inimigosDe(j)) {
-      if (e.treino || e.bm || e.hc || e.tipo === 'chefe' || TIPOS_INIMIGO[e.tipo]?.chefe) continue;
+      if (e.tipo === 'jogador' || e.treino || e.bm || e.hc || e.tipo === 'chefe' || TIPOS_INIMIGO[e.tipo]?.chefe) continue; // a outra raça: quem decide é o cérebro de guerra (shared/guerra.js)
       if ((e.nivel || 1) > (j.prog.nivel | 0) + A.mobAcima - (j.licoes?.acima || 0) || Math.hypot(e.x - c.x, e.z - c.z) > (c.r || 12) + A.raio) continue;
       const d = Math.hypot(e.x - j.x, e.z - j.z); if (d < md) { md = d; melhor = e; }
     }
@@ -778,6 +787,7 @@ export const Amiga = {
   // m = { acao: 'oi' | 'casa' | 'ajuda' | 'dar' | 'time' | 'dungeon' | 'troca' | 'tchau' }
   conversaAmiga(id, m) {
     const j = this.jogadores.get(id), a = this.amiga;
+    if (j && a && m && !j.bot && this.outraRaca(j, a)) return this.recusaGuerra(j, a); // Chama x Geada: da outra raça é guerra (time, troca, duelo e amizade não)
     if (!j || !a || !this.podeAmiga(id) || !m || typeof m.acao !== 'string') return;
     if (m.acao === 'seguir' || m.acao === 'naoSegue') return this.seguirAmiga(id, m.acao === 'seguir');
     if (Math.hypot(a.x - j.x, a.z - j.z) > 4.5) return this.evento({ t: 'aviso', para: id, texto: `Chegue mais perto de ${this.AMIGA.nome}` });
@@ -1297,7 +1307,7 @@ export const Amiga = {
     if (!area) for (const f of this.camposBoss || []) if (Math.hypot(f.x - j.x, f.z - j.z) <= f.r + 0.3) { area = { F: { f: 'c', x: f.x, z: f.z, r: f.r } }; break; }
     s.naAreaDePerigo = !!area;
     s.alvoChefe = !!alvo && !!(alvo.tipo === 'chefe' || TIPOS_INIMIGO[alvo.tipo]?.chefe || alvo.hc || alvo.bm);
-    s.alvoAcima = alvo ? (alvo.nivel || 1) - (j.prog.nivel | 0) : 0;
+    s.alvoAcima = alvo ? (alvo.nivel || alvo.prog?.nivel || 1) - (j.prog.nivel | 0) : 0; // alvo jogador (guerra): o nível dele
     s.arma = j.modo === 'Magia' ? 'Magia' : 'Espada';
     s.temAlvo = !!alvo; s.distAlvo = alvo ? Math.hypot(alvo.x - j.x, alvo.z - j.z) : 99;
     s.pertoDeMim = 0; s.agrupados = 0;

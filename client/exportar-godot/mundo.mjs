@@ -7,7 +7,7 @@ import { GRADES } from '../../shared/rochas.js';
 import { historiaParaApp } from '../../shared/historia.js';
 import { LAGOS, AGUA, BEIRA, GRADE_MONTANHA, INGREME, beiraDosLagos, gradeDoMundo } from '../../shared/relevo.js';
 import { CAVERNA, TUNEL } from '../../shared/caverna.js';
-import { TUNEIS_MUNDO, VILAS_MUNDO, cargoNpc, iconeNpc, TITULOS, tituloAtivo } from '../../shared/dados.js';
+import { TUNEIS_MUNDO, VILAS_MUNDO, cargoNpc, iconeNpc, TITULOS, tituloAtivo, RACAS } from '../../shared/dados.js';
 import { CALCADA } from '../../shared/vilas.js';
 import zlib from 'node:zlib';
 import { gerarLonge, copasDeFora, LONGE } from './longe.mjs';
@@ -154,6 +154,8 @@ const habs = {
   conjunto: CONJUNTO, conjuntoCritico: CONJUNTO_CRITICO, vendaEquip: VENDA_EQUIP, vendaTomo: VENDA_TOMO, romano: ROMANO, loja: LOJA, lojaDistancia: LOJA_DISTANCIA, lojaMax: LOJA_MAX, troca: TROCA, amigos: AMIGOS, time: TIME,
   // criador de personagem: cores (número 0xRRGGBB, null = original), altura e formato do rosto; nome de 3 a 16 letras
   criador: CRIADOR, nome: NOME,
+  // Chama x Geada (André 2026-11-18): a cor do nome e da capa de cada raça (online.gd)
+  racas: RACAS,
   // estamina, vigor e profissões (Parte 3)
   estamina: ESTAMINA, regen: REGEN, vigor: VIGOR, dia: DIA, cama: CAMA, profissoes: PROFISSOES, ranks: RANKS, profMax: PROF_MAX, mercador: MERCADOR, coleta: COLETA, arvoresPlantio: ARVORES_PLANTIO, plantio: PLANTIO, // árvores plantadas (2026-11-16); as áreas vão junto (filtro do mapa e modo plantio)
   coletaDistancia: COLETA_DISTANCIA, receitas: RECEITAS, oficina: OFICINA, oficinaDistancia: OFICINA_DISTANCIA, raridadeCriar: RARIDADE_CRIAR,
