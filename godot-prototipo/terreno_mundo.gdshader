@@ -29,7 +29,10 @@ uniform float boca_ate = 10.0;
 uniform sampler2D sombra_mapa : filter_linear, repeat_disable;
 uniform vec4 sombra_area = vec4(0.0, 0.0, 1.0, 1.0);
 uniform float sombra_forca = 0.0;
-varying vec3 mundo;
+// PowerVR (Moto G54) aceita no máximo 16 varyings contando os do Godot: mundo e estrada vão juntos, normal e rio juntos
+varying vec4 v_mu;
+#define mundo v_mu.xyz
+#define estrada v_mu.w
 // Versão PC no modo OpenGL (Compatibility): a foto chega sem a conversão para linear (mais clara) e as contas de ruído
 // abaixo mudavam (mais rocha e terra). No celular (Mobile) e no Vulkan do PC não muda nada. Igual ao chao.gdshader.
 vec3 brilho_linear(vec3 c) {
@@ -61,9 +64,9 @@ float sombra_pintada(vec2 xz) {
 	}
 	return 1.0 - clamp(copa + (1.0 - s.g), 0.0, 0.72) * sombra_forca;
 }
-varying vec3 nm;
-varying float estrada;
-varying float rio;
+varying vec4 v_nr;
+#define nm v_nr.xyz
+#define rio v_nr.w
 void vertex() {
 	mundo = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	nm = NORMAL;
