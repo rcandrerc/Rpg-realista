@@ -101,5 +101,14 @@ func _initialize() -> void:
 	m.chat.abrir("local")
 	await esperar(40)
 	await foto("4-aba-local")
+	# dois falando juntos, lado a lado: o balão de quem está mais longe sobe e a pontinha estica
+	m.chat.fechar()
+	m.online.outros.rufo.no.global_position = m.online.outros.kira.no.global_position + lado * 0.9 + fr * 0.6
+	await esperar(10)
+	local("kira", "Kira", "Skä vyr nö, fjel kar eld rün!", false, "geada")
+	local("rufo", "Rufo", "Hel vi sar ith kja ul!", false, "geada")
+	local("", "André", "Os dois juntos não dá pra entender nada!", true)
+	await esperar(30)
+	await foto("5-tres-juntos")
 	await esperar(60)
 	quit()
