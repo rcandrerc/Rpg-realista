@@ -56,3 +56,16 @@ não roda (cota ou limite de gasto do Actions), o job `modelos-prontos` pega os 
    arquivos que mudaram entre os dois e `modelos/mudaram.txt` com os nomes, um por linha.
 
 Só vale enquanto `client/`, `shared/` e `package-lock.json` não mudarem depois do `commit.txt`.
+
+## Velocidade (medido em 2026-11-18, runner 2 OCPU / 12 GB)
+
+- O runner faz **um build por vez**. Por isso o `apk.yml` tem o job **`pacote`** (pacote do jogo + atualização
+  do app) antes do job **`apk`** (os dois APKs, ~8 min no ARM porque o `aapt2` roda emulado). O site
+  (`pages.yml`, que publica o `conteudo.json` novo) entra na fila entre os dois, então a atualização chega
+  sem esperar os APKs.
+- O Godot 4.7 fica guardado na pasta de ferramentas do runner (`$RUNNER_TOOL_CACHE/godot/`): antes o `.env`
+  apontava o Godot 4.5 e cada build baixava 1,2 GB de novo (~70 s).
+- Repositório privado: push que muda `client/`, `shared/` ou o `apk.yml` não publica o site na hora (job `fila`
+  do `pages.yml`); o `apk.yml` publica depois do pacote, e o job `site-reserva` publica se o pacote falhar.
+- Para medir à mão no runner com o repositório público: Actions → APK do app Godot → Run workflow →
+  `maquina: oracle` num ramo (fora da main não publica nada).
