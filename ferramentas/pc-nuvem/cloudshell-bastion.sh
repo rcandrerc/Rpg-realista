@@ -24,7 +24,7 @@ limpar() { echo "== 4/4 Apagando o Bastion"; oci bastion bastion delete --bastio
 trap limpar EXIT
 
 echo "== 2/4 Sessão SSH de 1 hora como ubuntu"
-rm -f ~/.ssh/pcn ~/.ssh/pcn.pub; ssh-keygen -q -t ed25519 -N '' -f ~/.ssh/pcn
+rm -f ~/.ssh/pcn ~/.ssh/pcn.pub; ssh-keygen -q -t rsa -b 4096 -N '' -f ~/.ssh/pcn  # RSA: o Cloud Shell (FIPS) recusa ED25519
 SID=$(oci bastion session create-managed-ssh --bastion-id "$BID" --target-resource-id "$INST" \
   --target-os-username ubuntu --ssh-public-key-file ~/.ssh/pcn.pub --session-ttl 3600 \
   --wait-for-state SUCCEEDED --query 'data.resources[0].identifier' --raw-output)
