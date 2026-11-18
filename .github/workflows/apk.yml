@@ -306,11 +306,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CODIGO: ${{ github.run_number }}
         run: bash ferramentas/atualizacao/publicar.sh "$((1000 + CODIGO))"
-      - name: TEMPORÁRIO (medir a fila no runner) chama o site de teste como o publicar-conteudo.sh chama o pages.yml
-        if: github.ref == 'refs/heads/claude/project-thread-tf785f'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run medir-runner.yml --ref claude/project-thread-tf785f
       - name: Conteúdo do APK casca (jogo completo em partes + mudanças)
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
