@@ -14,5 +14,19 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Mantém a partida online aberta por alguns minutos enquanto o jogador vê outro app" />
         </service>
+        <!-- Robô nos celulares de verdade (2026-11-18): o Firebase Test Lab no modo "game loop" abre o jogo por esta porta
+             (TEST_LOOP) e deixa jogar o tempo todo; o modo "robo" encerrava o teste em ~3 min. O GodotApp do Godot 4.7
+             não é exportado, então a porta é um apelido exportado dele, sem ícone: o jogador não vê nada. Vem no AAR
+             (a biblioteca entra no manifesto depois da tela do jogo, como o Android exige para um apelido). -->
+        <activity-alias
+            android:name="com.rcandrerc.fundo.TesteLoop"
+            android:targetActivity="com.godot.game.GodotApp"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.intent.action.TEST_LOOP" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/javascript" />
+            </intent-filter>
+        </activity-alias>
     </application>
 </manifest>
