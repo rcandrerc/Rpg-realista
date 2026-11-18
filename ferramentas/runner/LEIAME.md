@@ -82,3 +82,15 @@ máquina de builds (`instalar-vagas.sh`, precisa de root uma vez):
 | apk.yml job `modelos` (Chromium) | GitHub (no ARM passou de 50 min e derrubou o runner) | GitHub |
 
 Mobs, Cecília e Dário rodam no servidor do jogo (outra máquina) e não usam o GitHub Actions.
+
+## Site montado junto com o pacote (repositório privado, 2026-11-18)
+
+- Repositório fechado em 2026-11-18 15:07 UTC. Primeiro build todo na Oracle: 4,9 min do merge até o jogo
+  (pacote 2,8 + site no runner 2,1), contra 3,1 min no GitHub com o repositório aberto.
+- Agora o job `site` do `apk.yml` monta o site (npm, build, pacote do servidor) na vaga de testes **ao mesmo tempo**
+  que o pacote; o job `publicar-site` só junta a atualização nova e publica. O `publicar.sh` e o
+  `publicar-conteudo.sh` não chamam o `pages.yml` nesse modo (`SITE_AQUI=1`). Se o site não sair por ali, o job
+  `site-reserva` chama o `pages.yml` como antes.
+- Vagas abertas com `ferramentas/runner/cloudshell-vagas.sh` no Cloud Shell da Oracle (código de registro do GitHub
+  na linha; o André aperta Enter). A instalação pesa na máquina e o PC na nuvem pode cair um instante; se o Bastion
+  `vagastemp` sobrar, apague: `oci bastion bastion list -c "$OCI_TENANCY" --all` e `oci bastion bastion delete`.
