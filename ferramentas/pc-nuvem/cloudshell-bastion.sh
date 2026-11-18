@@ -15,9 +15,12 @@ IPVM=$(oci compute instance list-vnics --instance-id "$INST" --query 'data[0]."p
 MEUIP=$(curl -fsS https://api.ipify.org)
 echo "== builds-runner $IPVM, Cloud Shell $MEUIP"
 
-echo "== 1/4 Bastion temporário (só aceita o IP deste Cloud Shell)"
+# O Cloud Shell sai por outro IP no SSH, então a ponte temporária aceita qualquer origem
+# (só entra quem tem a chave gerada aqui; a ponte é apagada no fim). OK do André 2026-11-18.
+CIDR="${CIDR:-0.0.0.0/0}"
+echo "== 1/4 Bastion temporário (aceita $CIDR, apagado no fim)"
 BID=$(oci bastion bastion create --bastion-type standard --compartment-id "$TEN" --target-subnet-id "$SUB" \
-  --client-cidr-list "[\"$MEUIP/32\"]" --name pcnuvemtemp --wait-for-state SUCCEEDED \
+  --client-cidr-list "[\"$CIDR\"]" --name pcnuvemtemp --wait-for-state SUCCEEDED \
   --query 'data.resources[0].identifier' --raw-output)
 echo "bastion $BID"
 limpar() { echo "== 4/4 Apagando o Bastion"; oci bastion bastion delete --bastion-id "$BID" --force >/dev/null || true; }
