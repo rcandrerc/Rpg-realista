@@ -2080,6 +2080,13 @@ func perto_de_quem_compra() -> bool:
 			return true
 	return false
 
+# perto do Tomás (quem conserta)? O servidor confere o mesmo (pertoDeQuemConserta)
+func perto_de_quem_conserta() -> bool:
+	for n in npcs:
+		if "consertar" in n.get("acoes", []) and Vector2(n.no.position.x - heroi.position.x, n.no.position.z - heroi.position.z).length() < float(P.dados.lojaDistancia) - 0.3:
+			return true
+	return false
+
 func perto_do_npc(funcao: String, metros: float) -> bool:
 	for n in npcs:
 		if n.funcao == funcao and Vector2(n.no.position.x - heroi.position.x, n.no.position.z - heroi.position.z).length() < metros:

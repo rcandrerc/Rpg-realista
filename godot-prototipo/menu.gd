@@ -109,6 +109,9 @@ var _segurou_ms := -1 # segurar um item (perto de quem compra) liga o Vender vá
 # André 2026-11-04: perto de quem compra (Rosa, Tomás) dá para marcar vários itens, ou Selecionar tudo, e vender de uma vez
 var vendendo := false # modo de marcar itens para vender
 var marcados := {} # lugar da mochila -> true
+# André 2026-11-18: conserto do Tomás na tela do equipamento (modo_consertar): peças marcadas para consertar
+var consertando := false
+var marc_conserto := {} # "l:<lugar>" ou "i:<lugar da mochila>" -> {"lugar": l} ou {"i": i}
 # André 2026-11-07: filtro de coleta (botão Filtro da mochila). O que está desmarcado não entra na mochila (o servidor decide)
 var filtro_aberto := false
 var filtro_lista := false # lista de todos os recursos aberta
@@ -629,7 +632,8 @@ func atualizar_slots() -> void:
 	for id in slots_ui:
 		var u: Dictionary = slots_ui[id]
 		var it = m.P.prog.equip.get(lugar_de(id))
-		var escolhido: bool = (sel_equip != "" and sel_equip == lugar_de(id)) or (janela_lugar != "" and janela_lugar == lugar_de(id))
+		var escolhido: bool = (sel_equip != "" and sel_equip == lugar_de(id)) or (janela_lugar != "" and janela_lugar == lugar_de(id)) \
+			or (consertando and marc_conserto.has("l:" + lugar_de(id)))
 		if u.has("reforco"):
 			u.reforco.text = "+%d" % int(it.get("e", 0)) if it != null and int(it.get("e", 0)) > 0 else ""
 		if u.has("dur_num"):
@@ -668,6 +672,9 @@ func _durabilidade_slot(u: Dictionary, it) -> void:
 
 func tocar_slot(id: String) -> void:
 	var l := lugar_de(id)
+	if consertando: # conserto do Tomás: o toque marca a peça (André 2026-11-18)
+		marcar_conserto({"lugar": l})
+		return
 	sel_mochila = -1
 	sel_equip = l
 	if aba != "mochila" and aba in ABAS_BOLSA: # no menu do personagem a janela da peça abre por cima, sem trocar de menu
@@ -921,6 +928,8 @@ func abrir(qual := "", sub := "") -> void:
 	janela_lugar = ""
 	vendendo = false
 	marcados = {}
+	consertando = false
+	marc_conserto = {}
 	filtro_aberto = false
 	raiz.visible = true
 	m.hud.bloqueado = true
@@ -2860,10 +2869,13 @@ func montar_mochila() -> void:
 		fil.add_theme_color_override("font_color", OURO_CLARO)
 	ferramentas_bolsa.add_child(fil)
 	var compra: bool = m.perto_de_quem_compra()
+	if consertando and (not m.perto_de_quem_conserta() or filtro_aberto): # longe do Tomás o conserto desliga
+		consertando = false
+		marc_conserto = {}
 	if not compra:
 		vendendo = false
 		marcados = {}
-	elif not vendendo and not filtro_aberto:
+	elif not vendendo and not filtro_aberto and not consertando:
 		var bv := botao("Vender vários", func(): modo_vender(true), 15, true)
 		bv.custom_minimum_size = Vector2(132, 40)
 		ferramentas_bolsa.add_child(bv)
@@ -2877,7 +2889,7 @@ func montar_mochila() -> void:
 	pag_mochila = clampi(pag_mochila, 0, total_pag - 1)
 	var linha := HBoxContainer.new()
 	linha.add_theme_constant_override("separation", 6)
-	if not vendendo:
+	if not vendendo and not consertando:
 		var tp := rotulo("Página", 15, APAGADO)
 		tp.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		linha.add_child(tp)
@@ -2892,7 +2904,9 @@ func montar_mochila() -> void:
 			b.expand_icon = false
 			b.add_theme_constant_override("icon_max_width", 18)
 		linha.add_child(b)
-	if vendendo:
+	if consertando:
+		barra_conserto(linha)
+	elif vendendo:
 		barra_venda(linha)
 	else:
 		var esp_ := Control.new()
@@ -2926,7 +2940,9 @@ func montar_mochila() -> void:
 				g2.add_child(cel)
 			conteudo.add_child(g2)
 	var dica := ""
-	if vendendo:
+	if consertando:
+		dica = "Toque nas peças gastas (no corpo ou na mochila) para marcar. Cada uma volta inteira."
+	elif vendendo:
 		dica = "Toque para marcar. Pilha vende inteira."
 	elif sel_mochila >= 0 and P.prog.mochila[sel_mochila] != null:
 		if PAINEL_AO_LADO:
@@ -2952,11 +2968,12 @@ func montar_mochila() -> void:
 # célula da mochila: tocar escolhe (ou marca, no Vender vários); segurar perto de quem compra liga o Vender vários
 func celula_mochila(i: int, compra: bool) -> Button:
 	var P = m.P
-	var b := celula(P.prog.mochila[i], i == sel_mochila or marcados.has(i), func():
+	var marcada: bool = marcados.has(i) or marc_conserto.has("i:%d" % i)
+	var b := celula(P.prog.mochila[i], i == sel_mochila or marcada, func():
 		if Time.get_ticks_msec() - _segurou_ms < 600: # o soltar do segurar não desmarca
 			return
-		tocar_mochila(i), CEL_MOCHILA, marcados.has(i))
-	if P.prog.mochila[i] != null and not marcados.has(i):
+		tocar_mochila(i), CEL_MOCHILA, marcada)
+	if P.prog.mochila[i] != null and not marcada:
 		seta_comparar(b, P.prog.mochila[i])
 	if compra and not vendendo and P.prog.mochila[i] != null:
 		b.button_down.connect(func():
@@ -3247,6 +3264,9 @@ func pagina_trancada(n: int, tem: int) -> Control:
 	return cx
 
 func tocar_mochila(i: int) -> void:
+	if consertando:
+		marcar_conserto({"i": i})
+		return
 	if vendendo:
 		if marcados.has(i):
 			marcados.erase(i)
@@ -3642,6 +3662,82 @@ func perguntar_vender_varios() -> void:
 	var lista: Array = marcados.keys()
 	lista.sort()
 	confirmar("Vender de uma vez", txt, "Vender", func(): acao_item({"acao": "vender_varios", "lista": lista}))
+
+# ---------- conserto do Tomás (André 2026-11-18: "menu visual, não lista: aparece igual à interface do meu equipamento
+# vestido, aí posso selecionar manualmente as partes a serem reparadas ou clicar reparar tudo") ----------
+# Como o Vender vários: o Consertar do Tomás abre a mochila com o boneco e liga este modo. Tocar num medalhão gasto (ou
+# numa peça gasta da mochila) marca; embaixo ficam Consertar marcadas · ouro, Consertar tudo · ouro e Pronto. Cada peça
+# volta inteira ou não é consertada (nunca pela metade). Online o servidor confere e cobra (shared/progresso.js).
+func abrir_conserto() -> void:
+	modo_consertar(true)
+
+func modo_consertar(ligar: bool) -> void:
+	consertando = ligar
+	marc_conserto = {}
+	vendendo = false
+	marcados = {}
+	sel_mochila = -1
+	sel_equip = ""
+	janela_lugar = ""
+	if aba != "mochila":
+		aba = "mochila"
+	atualizar()
+
+func _chave_conserto(onde: Dictionary) -> String:
+	return ("l:%s" % onde.lugar) if onde.has("lugar") else ("i:%d" % int(onde.i))
+
+func marcar_conserto(onde: Dictionary) -> void:
+	var P = m.P
+	var k := _chave_conserto(onde)
+	if marc_conserto.has(k):
+		marc_conserto.erase(k)
+	elif P.peca_em(onde) == null:
+		pass
+	elif P.custo_conserto(P.peca_em(onde)) <= 0:
+		m.hud.aviso("Essa peça está inteira")
+	else:
+		marc_conserto[k] = onde
+	atualizar()
+
+func barra_conserto(l: HBoxContainer) -> void:
+	var P = m.P
+	for k in marc_conserto.keys(): # consertou, vendeu ou mudou de lugar: sai da marcação
+		if P.custo_conserto(P.peca_em(marc_conserto[k])) <= 0:
+			marc_conserto.erase(k)
+	var lista: Array = marc_conserto.values()
+	var custo: int = P.custo_conserto_lista(lista)
+	var ouro := int(P.prog.ouro)
+	var mb := botao("Consertar %d · %d de ouro" % [lista.size(), custo] if lista.size() > 0 else "Marque as peças", func(): consertar_lista(lista), 15, lista.size() > 0)
+	mb.custom_minimum_size = Vector2(0, 38)
+	mb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mb.disabled = lista.is_empty() or ouro < custo
+	avisar_travado(mb, func(): return "Toque nas peças gastas para marcar" if lista.is_empty() else "Faltam %d de ouro" % (custo - ouro))
+	l.add_child(mb)
+	var total: int = P.custo_conserto_tudo()
+	var tb := botao("Tudo · %d" % total, func(): consertar_lista([]), 15, total > 0)
+	tb.custom_minimum_size = Vector2(120, 38)
+	tb.disabled = total <= 0 or ouro < total
+	avisar_travado(tb, func(): return "Está tudo inteiro" if total <= 0 else "Faltam %d de ouro para consertar tudo" % (total - ouro))
+	l.add_child(tb)
+	var pr := botao("Pronto", func(): modo_consertar(false), 15)
+	pr.custom_minimum_size = Vector2(90, 38)
+	l.add_child(pr)
+
+# [] = Consertar tudo (corpo e mochila); senão só as marcadas
+func consertar_lista(lista: Array) -> void:
+	var msg := {"acao": "consertar"}
+	if not lista.is_empty():
+		msg["lista"] = lista.duplicate(true)
+	marc_conserto = {}
+	acao_item(msg)
+	m.sons.tocar("forja", -4.0)
+	if m.on(): # o progresso novo chega um instante depois: a barra mostra o preço que sobrou
+		await get_tree().create_timer(0.6).timeout
+	if consertando and aberto():
+		if m.P.pecas_gastas().is_empty():
+			modo_consertar(false)
+		else:
+			atualizar()
 
 # ---------- catalisador (André 2026-11-07, como no Quimera; números em CATALISADOR, shared/dados.js) ----------
 # Runa = catalisador de arma (espada, cajado); Selo = de armadura (o resto). O servidor sorteia e confere tudo.
@@ -4709,8 +4805,8 @@ func acao_item(msg: Dictionary) -> void:
 				P.prog.mochila[i] = null
 				P.mudou = true
 				m.hud.aviso("Jogou fora %s" % P.nome_item(it))
-		"consertar":
-			m.hud.aviso(P.consertar_tudo())
+		"consertar": # sem internet: tudo, ou só as peças marcadas na tela do equipamento (André 2026-11-18)
+			m.hud.aviso(P.consertar_pecas(msg.lista) if msg.has("lista") else P.consertar_tudo())
 		"vender", "comprar", "vender_varios":
 			m.hud.aviso("A loja só funciona online (o ouro fica na sua conta)")
 		"pagina":
