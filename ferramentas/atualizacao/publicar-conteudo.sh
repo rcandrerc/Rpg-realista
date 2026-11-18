@@ -116,4 +116,4 @@ for velho in $(gh release view conteudo --json assets -q '.assets[].name'); do
 done
 
 # site (o publicar.sh já chamou antes; esta chamada mais nova cancela a outra e leva o conteúdo novo junto)
-[ -n "${SITE_AQUI:-}" ] || gh workflow run pages.yml --ref main # SITE_AQUI=1: o job publicar-site do apk.yml publica
+[ -n "${SITE_AQUI:-}" ] || gh workflow run pages.yml --ref main # SITE_AQUI=1: o job site do apk.yml publica
