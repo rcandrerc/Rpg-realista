@@ -3,9 +3,13 @@
 # na VM builds-runner passando por um Bastion temporário, como o PC na nuvem (ferramentas/pc-nuvem/cloudshell-bastion.sh).
 # NUNCA toca na VM do jogo. No fim apaga o Bastion.
 # Uso: TOKEN='<código de registro do GitHub>' REF=<commit> bash cloudshell-vagas.sh
+# Repositório PRIVADO (o raw.githubusercontent.com não abre sem login): passe o instalador junto, em base64:
+#   TOKEN=... VAGAS='atualizacao atualizacao2' INSTALADOR_B64=$(base64 -w0 instalar-vagas.sh) bash cloudshell-vagas.sh
 set -euo pipefail
 : "${TOKEN:?falta TOKEN (código de registro do GitHub, vale 1 hora)}"
 REF="${REF:-main}"
+VAGAS="${VAGAS:-testes robo atualizacao atualizacao2}"
+INSTALADOR_B64="${INSTALADOR_B64:-}"
 REG=sa-saopaulo-1
 TEN="${OCI_TENANCY:?Cloud Shell sem OCI_TENANCY}"
 INST=ocid1.instance.oc1.sa-saopaulo-1.antxeljr2cr4ewicm2bln2bbiavknvzgz76ebxwnfuvlkjv357w665b2t5za  # builds-runner
@@ -49,7 +53,12 @@ done
 [ "$ok" = 1 ] || { echo "ERRO: não entrou pela ponte depois de 8 tentativas"; exit 1; }
 
 echo "== 3/4 Abrindo as vagas (uns 3 min)"
+if [ -n "$INSTALADOR_B64" ]; then
+  PEGA="echo '$INSTALADOR_B64' | base64 -d > \$F"
+else
+  PEGA="curl -fsSL https://raw.githubusercontent.com/rcandrerc/Rpg-realista/$REF/ferramentas/runner/instalar-vagas.sh -o \$F"
+fi
 ssh "${SSHOPT[@]}" "ubuntu@$IPVM" \
-  "F=\$(mktemp) && curl -fsSL https://raw.githubusercontent.com/rcandrerc/Rpg-realista/$REF/ferramentas/runner/instalar-vagas.sh -o \$F && sudo TOKEN='$TOKEN' bash \$F 2>&1 | tail -30"
+  "F=\$(mktemp) && $PEGA && sudo TOKEN='$TOKEN' VAGAS='$VAGAS' bash \$F 2>&1 | tail -30"
 rm -f ~/.ssh/pcn ~/.ssh/pcn.pub
 echo "== FIM"

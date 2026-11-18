@@ -88,9 +88,23 @@ Mobs, Cecília e Dário rodam no servidor do jogo (outra máquina) e não usam o
 - Repositório fechado em 2026-11-18 15:07 UTC. Primeiro build todo na Oracle: 4,9 min do merge até o jogo
   (pacote 2,8 + site no runner 2,1), contra 3,1 min no GitHub com o repositório aberto.
 - Agora o job `site` do `apk.yml` monta o site (npm, build, pacote do servidor) na vaga de testes **ao mesmo tempo**
-  que o pacote; o job `publicar-site` só junta a atualização nova e publica. O `publicar.sh` e o
+  que o pacote, espera o pacote sair, junta a atualização nova e publica. Os APKs só começam depois dele: na 1ª
+  versão (#648, job `publicar-site` separado) os APKs disputaram a CPU, o envio do site levou 2 min e o total foi pior. O `publicar.sh` e o
   `publicar-conteudo.sh` não chamam o `pages.yml` nesse modo (`SITE_AQUI=1`). Se o site não sair por ali, o job
   `site-reserva` chama o `pages.yml` como antes.
 - Vagas abertas com `ferramentas/runner/cloudshell-vagas.sh` no Cloud Shell da Oracle (código de registro do GitHub
   na linha; o André aperta Enter). A instalação pesa na máquina e o PC na nuvem pode cair um instante; se o Bastion
   `vagastemp` sobrar, apague: `oci bastion bastion list -c "$OCI_TENANCY" --all` e `oci bastion bastion delete`.
+
+## Vaga só da atualização e fila por job (2026-11-18)
+
+Medindo o #649 vimos dois gargalos do repositório privado:
+1. A fila da main era da execução inteira: a atualização de um merge esperava os APKs do merge anterior (~15 min).
+   Agora a fila da main é por job (`pacote` um de cada vez, `apk` um de cada vez); o site sai assim que o pacote sai.
+2. Uma vaga de build só: a atualização esperava a versão de Windows e APKs de teste de PR. Agora existe a vaga
+   `aethra-atualizacao` (2 runners: atualizacao e atualizacao2; CPUWeight 40, Nice 0, até 4 GB cada), usada pelos jobs
+   modelos-chave, modelos-prontos, pacote e site da main quando a variável `RUNNER_ATUALIZACAO=aethra-atualizacao`
+   existe. São 2 porque o site espera o pacote ocupando uma vaga. Sem a variável, tudo volta como era.
+
+Instalar (uma vez, no Cloud Shell, como as outras vagas; o repositório privado não deixa baixar pelo raw):
+`TOKEN=<código> VAGAS='atualizacao atualizacao2' INSTALADOR_B64=<instalar-vagas.sh em base64> bash <(echo <cloudshell-vagas.sh em base64> | base64 -d)`
