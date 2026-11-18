@@ -1115,9 +1115,12 @@ func _relogio(c: Control, pos: Vector2) -> void:
 
 # os amigos virtuais (shared/amiga.js: Cecília e Dario, André 2026-11-11): onde cada um está ([{x, z, nome}]) para quem conversa com eles
 const COR_AMIGA := Color("ff6fae")
+# Sem coração no mapa (André 2026-11-18: "Esquece essa coisa de coração"): Cecília e Dario só aparecem quando estão
+# no meu time, com o símbolo de time igual ao de qualquer jogador (_time). Fica guardado aqui, desligado.
+const CORACAO_NO_MAPA := false
 func _amigas() -> Array:
 	var r := []
-	if not (m.online and m.online.get("ligado")):
+	if not CORACAO_NO_MAPA or not (m.online and m.online.get("ligado")):
 		return r
 	for aid in m.online.get("amiga_ids") if m.online.get("amiga_ids") is Array else []:
 		var a := _amiga(str(aid))
@@ -1152,12 +1155,18 @@ func _coracao(c: Control, q: Vector2, r: float) -> void:
 func _time() -> Array:
 	return m.amigos.pontos_time() if m.amigos and m.amigos.em_time() else []
 
+func _ids_amigas() -> Array:
+	var ids = m.online.get("amiga_ids") if m.online else null
+	return ids if ids is Array else []
+
 # jogadores online perto (posições do online.gd)
 func _outros() -> Array:
 	var l: Array = []
 	if m.online and m.online.get("ligado") and m.online.get("outros") is Dictionary:
 		for id in m.online.outros:
 			var o = m.online.outros[id]
+			if str(id) in _ids_amigas(): # Cecília e Dario: só no time, com o símbolo de time (_time)
+				continue
 			if o is Dictionary and o.has("no") and is_instance_valid(o.no):
 				l.append(Vector2(o.no.position.x, o.no.position.z))
 		# área de interesse: quem está longe não vem na foto, mas vem na lista leve do mapa (a cada 0,5 s)
@@ -1165,7 +1174,7 @@ func _outros() -> Array:
 		var lista = m.online.get("no_mapa")
 		if lista is Array:
 			for p in lista:
-				if p is Array and p.size() >= 3 and str(p[0]) != meu and not m.online.outros.has(str(p[0])):
+				if p is Array and p.size() >= 3 and str(p[0]) != meu and not m.online.outros.has(str(p[0])) and not str(p[0]) in _ids_amigas():
 					l.append(Vector2(float(p[1]), float(p[2])))
 	var r: Array = []
 	for v in l:
