@@ -3129,7 +3129,8 @@ export const npcNoMundo = (d) => !AVENTUREIROS.includes(d) || NPCS_NO_MUNDO.aven
 // cor: o nome em cima da cabeça; capa: as cores da capa (fora, dentro, friso). casa: onde mora quem é da raça (NPCs).
 export const RACAS = {
   chama: { nome: 'Chama', cor: 'ff9a3c', capa: { fora: 'b8321e', dentro: '5a140c', friso: 'f0a030' } },
-  geada: { nome: 'Geada', cor: '8fd0ff', capa: { fora: '8ab8e0', dentro: '2a4468', friso: 'dfe8f0' }, casa: { nome: 'Juncal', x: 546, z: 43, r: 12 } },
+  // capa (André 2026-11-18: a azul-clara "parecia asa de anjo"): azul-marinho quase preto com borda azul-gelo
+  geada: { nome: 'Geada', cor: '8fd0ff', capa: { fora: '1c2a4a', dentro: '0e1424', friso: '6fa8d8' }, casa: { nome: 'Juncal', x: 546, z: 43, r: 12 } },
 };
 export const RACA_PADRAO = 'chama';
 // recheca: s entre as conferências de quem pode lutar. ve: m que o NPC enxerga para decidir. persegue: m que ele corre
