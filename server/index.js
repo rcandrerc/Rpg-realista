@@ -210,6 +210,9 @@ class SalaClareira extends Room {
       if (!m || typeof m.canal !== 'string' || typeof m.texto !== 'string' || m.texto.length > 400) return;
       const msg = this.sim.chat(c.sessionId, { canal: m.canal, texto: m.texto, para: typeof m.para === 'string' ? m.para : undefined });
       if (!msg) return;
+      // Local (André 2026-11-18, Chama x Geada): só quem está perto nesta sala; não fica no histórico. Os NPCs de guerra da
+      // outra raça que estão perto respondem com as falas prontas (shared/guerra.js ouvirLocal)
+      if (msg.canal === 'local') { this.sim.receberChat(msg); this.sim.ouvirLocal(c.sessionId, msg.texto); return; }
       const h = historicoChat[msg.canal];
       h.push(msg); if (h.length > (msg.canal === 'pm' ? CHAT.historicoPm : CHAT.historico)) h.shift();
       for (const s of salas) s.sim.receberChat(msg);

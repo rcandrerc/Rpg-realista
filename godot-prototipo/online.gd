@@ -1377,6 +1377,9 @@ func evento(ev: Dictionary) -> void:
 			if m.leilao:
 				m.leilao.do_servidor(ev)
 			return
+		"balao": # chat Local (André 2026-11-18): a frase em cima da cabeça de quem falou, por uns segundos
+			_balao(str(ev.get("id", "")), str(ev.get("texto", "")), int(ev.get("npc", 0)) == 1, str(ev.get("lingua", "")) != "")
+			return
 		"fala":
 			var fala_txt := Idioma.frase(str(ev.texto)) # inglês: a fala do NPC chega em português (a da IA já vem no idioma)
 			if not (m.conversa and m.conversa.fala(str(ev.get("npc", "")), fala_txt, ev)): # janela do NPC aberta: a fala aparece nela
@@ -1950,4 +1953,15 @@ func _pintar_capa(no: Node3D, capa: Dictionary) -> void:
 			if capa.has(k):
 				mat.set_shader_parameter(k, Color(str(capa[k])))
 		mi.material_override = mat
+
+# balão do chat Local (André 2026-11-18): balão de quadrinho em cima da cabeça de quem falou (baloes.gd), some sozinho
+var baloes = null
+func _balao(id: String, texto: String, npc: bool, lingua := false) -> void: # lingua: da outra raça, embaralhado
+	var no: Node3D = m.heroi if id == meu_id else (outros[id].no if outros.has(id) and is_instance_valid(outros[id].no) else null)
+	if no == null or texto == "":
+		return
+	if baloes == null:
+		baloes = preload("res://baloes.gd").new(m)
+		add_child(baloes)
+	baloes.falar(no, Idioma.frase(texto) if npc and not lingua else texto, lingua)
 
