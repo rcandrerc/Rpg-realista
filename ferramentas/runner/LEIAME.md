@@ -102,8 +102,9 @@ Medindo o #649 vimos dois gargalos do repositório privado:
 1. A fila da main era da execução inteira: a atualização de um merge esperava os APKs do merge anterior (~15 min).
    Agora a fila da main é por job (`pacote` um de cada vez, `apk` um de cada vez); o site sai assim que o pacote sai.
 2. Uma vaga de build só: a atualização esperava a versão de Windows e APKs de teste de PR. Agora existe a vaga
-   `aethra-atualizacao` (CPUWeight 40, Nice 0, até 4 GB), usada pelos jobs modelos-chave, modelos-prontos e pacote
-   da main quando a variável `RUNNER_ATUALIZACAO=aethra-atualizacao` existe. Sem a variável, tudo volta à vaga dos builds.
+   `aethra-atualizacao` (2 runners: atualizacao e atualizacao2; CPUWeight 40, Nice 0, até 4 GB cada), usada pelos jobs
+   modelos-chave, modelos-prontos, pacote e site da main quando a variável `RUNNER_ATUALIZACAO=aethra-atualizacao`
+   existe. São 2 porque o site espera o pacote ocupando uma vaga. Sem a variável, tudo volta como era.
 
 Instalar (uma vez, no Cloud Shell, como as outras vagas; o repositório privado não deixa baixar pelo raw):
-`TOKEN=<código> VAGAS=atualizacao INSTALADOR_B64=<instalar-vagas.sh em base64> bash <(echo <cloudshell-vagas.sh em base64> | base64 -d)`
+`TOKEN=<código> VAGAS='atualizacao atualizacao2' INSTALADOR_B64=<instalar-vagas.sh em base64> bash <(echo <cloudshell-vagas.sh em base64> | base64 -d)`

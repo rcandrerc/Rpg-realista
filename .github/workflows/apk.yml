@@ -337,7 +337,8 @@ jobs:
   # por aqui, o job site-reserva chama o pages.yml como antes.
   site:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (github.event.repository.private || inputs.maquina == 'oracle')
-    runs-on: ${{ vars.RUNNER_TESTES || vars.RUNNER_BUILD }}
+    # vaga da atualização (são 2: esta espera o pacote na outra); sem ela, a dos testes (ficava atrás de testes de PR)
+    runs-on: ${{ vars.RUNNER_ATUALIZACAO || vars.RUNNER_TESTES || vars.RUNNER_BUILD }}
     timeout-minutes: 40
     # mesma fila do pages.yml (o grupo vale para o repositório inteiro): um deploy de cada vez, sem cancelar
     concurrency:

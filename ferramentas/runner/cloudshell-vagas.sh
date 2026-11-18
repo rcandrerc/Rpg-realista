@@ -4,11 +4,11 @@
 # NUNCA toca na VM do jogo. No fim apaga o Bastion.
 # Uso: TOKEN='<código de registro do GitHub>' REF=<commit> bash cloudshell-vagas.sh
 # Repositório PRIVADO (o raw.githubusercontent.com não abre sem login): passe o instalador junto, em base64:
-#   TOKEN=... VAGAS=atualizacao INSTALADOR_B64=$(base64 -w0 instalar-vagas.sh) bash cloudshell-vagas.sh
+#   TOKEN=... VAGAS='atualizacao atualizacao2' INSTALADOR_B64=$(base64 -w0 instalar-vagas.sh) bash cloudshell-vagas.sh
 set -euo pipefail
 : "${TOKEN:?falta TOKEN (código de registro do GitHub, vale 1 hora)}"
 REF="${REF:-main}"
-VAGAS="${VAGAS:-testes robo atualizacao}"
+VAGAS="${VAGAS:-testes robo atualizacao atualizacao2}"
 INSTALADOR_B64="${INSTALADOR_B64:-}"
 REG=sa-saopaulo-1
 TEN="${OCI_TENANCY:?Cloud Shell sem OCI_TENANCY}"

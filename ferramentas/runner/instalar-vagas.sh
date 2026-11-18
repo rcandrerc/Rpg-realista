@@ -4,7 +4,8 @@
 #   - aethra-robo:   robôs de teste (robô 1 joga horas, robô 2 com Vulkan por software, celulares do Test Lab);
 #   - aethra-atualizacao: só a atualização do jogo na main (modelos-chave, pacote), para ela não ficar na fila
 #     atrás da versão de Windows nem de APK de teste (2026-11-18). Variável RUNNER_ATUALIZACAO=aethra-atualizacao.
-# VAGAS escolhe quais instalar (padrão: as três). Ex.: VAGAS=atualizacao só abre a nova, sem reiniciar as outras.
+#     São 2 vagas com essa etiqueta (atualizacao e atualizacao2): o job site fica numa esperando o pacote na outra.
+# VAGAS escolhe quais instalar (padrão: todas). Ex.: VAGAS="atualizacao atualizacao2" só abre as novas.
 # Assim, com o repositório PRIVADO, nada disso gasta a cota do GitHub e nada fica na fila atrás do APK.
 # NÃO mexe no runner dos builds (aethra-build), no PC na nuvem nem na máquina do jogo.
 #
@@ -24,7 +25,7 @@ REPO="${REPO:-rcandrerc/Rpg-realista}"
 TOKEN="${TOKEN:-COLE_O_CODIGO_AQUI}"
 USUARIO="${USUARIO:-runner}"   # o mesmo usuário do runner dos builds (aproveita Android SDK, npm e Godot guardados)
 RUNNER_VERSION="${RUNNER_VERSION:-}"
-VAGAS="${VAGAS:-testes robo atualizacao}"
+VAGAS="${VAGAS:-testes robo atualizacao atualizacao2}"
 
 if [ "$TOKEN" = "COLE_O_CODIGO_AQUI" ]; then
   echo "ERRO: falta o TOKEN (código de registro do GitHub)." >&2; exit 1
@@ -85,6 +86,7 @@ echo "== 2/3 Vagas =="
 vaga testes aethra-testes 10
 vaga robo aethra-robo 5
 vaga atualizacao aethra-atualizacao 40 0 4G godot
+vaga atualizacao2 aethra-atualizacao 40 0 4G godot  # 2ª vaga: o job site espera o pacote ocupando uma vaga
 
 echo "== 3/3 Pronto =="
 echo "No GitHub, crie as variáveis RUNNER_TESTES=aethra-testes, RUNNER_ROBO=aethra-robo e RUNNER_ATUALIZACAO=aethra-atualizacao."
