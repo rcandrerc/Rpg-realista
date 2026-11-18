@@ -29,8 +29,10 @@ permissions:
 # Na main o build que está rodando NÃO é cancelado quando entra outro merge: ele termina (o André já testa aquela
 # versão) e o novo espera na fila. Cancelar jogava fora até 10 min de build (2026-11-05, execução 379). Se entrarem
 # vários merges durante um build, o GitHub guarda só o mais novo na fila, que já traz todos. Em PR continua cancelando.
+# Desde 2026-11-18 (repositório privado) a fila da main é POR JOB (pacote e apk), não da execução inteira: antes a
+# atualização de um merge esperava os APKs do merge anterior (~15 min no Oracle) antes de começar.
 concurrency:
-  group: apk-${{ github.ref }}
+  group: apk-${{ github.ref == 'refs/heads/main' && github.run_id || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
@@ -47,7 +49,8 @@ jobs:
   modelos-chave:
     # PR sem a etiqueta "gerar apk" não gera APK (job pulado não gasta minuto)
     if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'gerar apk') && (github.event.action != 'labeled' || github.event.label.name == 'gerar apk'))
-    runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    # main: vaga só da atualização (RUNNER_ATUALIZACAO), não espera Windows nem APK de teste; sem ela, a dos builds
+    runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && (github.ref == 'refs/heads/main' && vars.RUNNER_ATUALIZACAO || vars.RUNNER_BUILD) || 'ubuntu-latest' }}
     timeout-minutes: 10
     outputs:
       tem: ${{ steps.olha.outputs.cache-hit }}
@@ -129,7 +132,8 @@ jobs:
   modelos-prontos:
     needs: [modelos-chave, modelos]
     if: always() && needs.modelos.result == 'failure'
-    runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    # main: vaga só da atualização (RUNNER_ATUALIZACAO), não espera Windows nem APK de teste; sem ela, a dos builds
+    runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && (github.ref == 'refs/heads/main' && vars.RUNNER_ATUALIZACAO || vars.RUNNER_BUILD) || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -167,8 +171,13 @@ jobs:
     # Com a variável RUNNER_BUILD definida (ex.: "aethra-build") e o repositório PRIVADO, roda no runner próprio da
     # Oracle e NÃO gasta cota do GitHub. Repositório público (máquinas do GitHub de graça) ou sem a variável: roda no
     # GitHub (ubuntu-latest), mais rápido. Ver ferramentas/runner/LEIAME.md.
-    runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    # main: vaga só da atualização (RUNNER_ATUALIZACAO), não espera Windows nem APK de teste; sem ela, a dos builds
+    runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && (github.ref == 'refs/heads/main' && vars.RUNNER_ATUALIZACAO || vars.RUNNER_BUILD) || 'ubuntu-latest' }}
     timeout-minutes: 45
+    # um pacote de cada vez na main (publicar.sh e publicar-conteudo.sh em ordem); o mais novo na fila traz todos
+    concurrency:
+      group: pacote-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - &passo1
         uses: actions/checkout@v4
@@ -385,8 +394,9 @@ jobs:
   site-reserva:
     needs: [modelos-chave, pacote, site]
     # Oracle: se o site não saiu pelo job site (pacote ou site falhou, foi cancelado ou pulado), chama o pages.yml
-    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (github.event.repository.private || inputs.maquina == 'oracle') && needs.site.result != 'success'
-    runs-on: ${{ github.event.repository.private && vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    # pacote cancelado = entrou um merge mais novo na fila, e a execução dele publica o site
+    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (github.event.repository.private || inputs.maquina == 'oracle') && needs.site.result != 'success' && needs.pacote.result != 'cancelled'
+    runs-on: ${{ github.event.repository.private && (vars.RUNNER_ATUALIZACAO || vars.RUNNER_BUILD) || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - name: Publicar o site sem o pacote novo
@@ -403,6 +413,10 @@ jobs:
     # GitHub (ubuntu-latest), mais rápido. Ver ferramentas/runner/LEIAME.md.
     runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && vars.RUNNER_BUILD || 'ubuntu-latest' }}
     timeout-minutes: 60
+    # um APK de cada vez por ramo; o mais novo na fila substitui o que esperava
+    concurrency:
+      group: apk-job-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - *passo1
       - *passo2

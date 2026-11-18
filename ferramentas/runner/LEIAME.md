@@ -95,3 +95,15 @@ Mobs, Cecília e Dário rodam no servidor do jogo (outra máquina) e não usam o
 - Vagas abertas com `ferramentas/runner/cloudshell-vagas.sh` no Cloud Shell da Oracle (código de registro do GitHub
   na linha; o André aperta Enter). A instalação pesa na máquina e o PC na nuvem pode cair um instante; se o Bastion
   `vagastemp` sobrar, apague: `oci bastion bastion list -c "$OCI_TENANCY" --all` e `oci bastion bastion delete`.
+
+## Vaga só da atualização e fila por job (2026-11-18)
+
+Medindo o #649 vimos dois gargalos do repositório privado:
+1. A fila da main era da execução inteira: a atualização de um merge esperava os APKs do merge anterior (~15 min).
+   Agora a fila da main é por job (`pacote` um de cada vez, `apk` um de cada vez); o site sai assim que o pacote sai.
+2. Uma vaga de build só: a atualização esperava a versão de Windows e APKs de teste de PR. Agora existe a vaga
+   `aethra-atualizacao` (CPUWeight 40, Nice 0, até 4 GB), usada pelos jobs modelos-chave, modelos-prontos e pacote
+   da main quando a variável `RUNNER_ATUALIZACAO=aethra-atualizacao` existe. Sem a variável, tudo volta à vaga dos builds.
+
+Instalar (uma vez, no Cloud Shell, como as outras vagas; o repositório privado não deixa baixar pelo raw):
+`TOKEN=<código> VAGAS=atualizacao INSTALADOR_B64=<instalar-vagas.sh em base64> bash <(echo <cloudshell-vagas.sh em base64> | base64 -d)`
