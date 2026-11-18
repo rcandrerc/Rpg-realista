@@ -63,10 +63,14 @@ func _initialize() -> void:
 	m.hud.set("_aviso_t", 0.0)
 	await esperar(5)
 	await foto(opcao)
-	if OS.get_environment("FOTO_SETA") != "": # segura a seta da esquerda por 0,6 s: só a câmera anda
-		c._seta = Vector2(-1, 0)
+	if OS.get_environment("FOTO_MARCAR") != "": # aperta o Marcar no quadrado que o toque marcou: continua marcado
+		c.colocar()
+		await esperar(10)
+		await foto(opcao + "-marcar")
+	if OS.get_environment("FOTO_SETA") != "": # joystick para a esquerda por 0,3 s: câmera e mira andam juntas
+		m.hud.mover = Vector2(-1, 0)
 		await esperar(18)
-		c._seta = Vector2.ZERO
+		m.hud.mover = Vector2.ZERO
 		await esperar(60)
 		await foto(opcao + "-seta")
 	quit()

@@ -178,7 +178,6 @@ func _ready() -> void:
 	plano = FazendaPlano.new(self)
 	add_child(plano)
 	_montar_tela()
-	_montar_setas()
 	# botões da HUD: comprar terreno (nas terras, sem terreno), construir (no meu terreno) e a estação perto (Alfaiate/Ferreiro)
 	m.hud._botao("construir", Vector2(597, 160), 30, "construir", m.hud.COR_TROCA)
 	m.hud.botoes[-1].oculto = true
@@ -2730,13 +2729,11 @@ func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void
 # câmera flutuante (Quimera iD): o joystick move a mira a 7 m/s na direção da câmera; a mira não sai do terreno
 # (construindo) nem das terras (comprando).
 # Câmera solta da mira (André 2026-11-18: "quando eu clico num lugar a câmera volta para aquele lugar e eu perco a
-# visão"): a câmera olha para o próprio ponto (foco). Tocar no chão só mexe a mira (marca/escolhe); as setas no canto
-# de baixo à esquerda andam só com a câmera; o joystick anda com as duas juntas, como antes. Vale no modo construção
-# todo (Casa, Móveis, Fazenda, árvores na área de plantio, Terreno) e na compra do terreno.
+# visão"): a câmera olha para o próprio ponto (foco). Tocar no chão só mexe a mira (marca/escolhe); o joystick anda
+# com as duas juntas. Vale no modo construção todo (Casa, Móveis, Fazenda, árvores na área de plantio, Terreno) e na
+# compra do terreno. As setas da câmera saíram a pedido do André (versão 2613: "as setas estão estranhas, pode tirar").
 var foco := Vector3.ZERO
 var _foco_ok := false # false: na próxima conta a câmera começa onde a mira está (abrir, mudar de modo)
-var _seta := Vector2.ZERO # seta apertada (x: direita, y: para baixo na tela = para perto)
-var setas: Control
 func _mover_mira(dt: float) -> void:
 	if not _foco_ok:
 		foco = mira
@@ -2746,14 +2743,10 @@ func _mover_mira(dt: float) -> void:
 		var dj := Vector3(j.x, 0, j.y).rotated(Vector3.UP, m.cam.yaw) * VEL_MIRA * minf(dt, 0.1) * minf(1.0, j.length() * 1.2)
 		mira += dj
 		foco += dj
-	if _seta != Vector2.ZERO:
-		foco += Vector3(_seta.x, 0, _seta.y).rotated(Vector3.UP, m.cam.yaw) * VEL_MIRA * minf(dt, 0.1)
 	mira = _prender(mira, 0.0)
 	foco = _prender(foco, 2.0) # a câmera vai um pouco além da borda, para ver o canto inteiro
 	mira.y = _altura_mira(mira)
 	foco.y = _altura_mira(foco)
-	if setas:
-		setas.visible = true
 	m.cam.entrar_livre(foco)
 	if _mira_no == null:
 		_mira_no = MeshInstance3D.new()
@@ -2808,45 +2801,8 @@ func _altura_mira(p: Vector3) -> float:
 		y = maxf(y, _topo_parede(p.x, p.z) - 0.6)
 	return y
 
-# setas da câmera (André 2026-11-18): canto de baixo à esquerda, segurar anda com a câmera (não mexe na mira)
-func _montar_setas() -> void:
-	setas = Control.new()
-	setas.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	setas.visible = false
-	tela.add_child(setas)
-	var tam := 54.0
-	var vao := 4.0
-	var lado := tam * 3.0 + vao * 2.0
-	setas.offset_left = 12
-	setas.offset_right = 12 + lado
-	setas.offset_top = -14 - lado
-	setas.offset_bottom = -14
-	for s_ in [[1, 0, Vector2(0, -1)], [0, 1, Vector2(-1, 0)], [2, 1, Vector2(1, 0)], [1, 2, Vector2(0, 1)]]:
-		var b := Button.new()
-		b.focus_mode = Control.FOCUS_NONE
-		b.position = Vector2(s_[0] * (tam + vao), s_[1] * (tam + vao))
-		b.size = Vector2(tam, tam)
-		b.tooltip_text = Idioma.frase("Mover a câmera")
-		Menu.estilo_botao(b, false)
-		var d: Vector2 = s_[2]
-		# a setinha é um triângulo desenhado (a fonte do jogo não tem ▲ ◀ ▶ ▼)
-		var tri := Polygon2D.new()
-		var lado_t := Vector2(-d.y, d.x)
-		tri.polygon = PackedVector2Array([d * 13.0, -d * 9.0 + lado_t * 13.0, -d * 9.0 - lado_t * 13.0])
-		tri.position = Vector2(tam, tam) * 0.5 + d * 2.0
-		tri.color = Menu.OURO_CLARO
-		b.add_child(tri)
-		b.button_down.connect(func(): _seta = d)
-		b.button_up.connect(func():
-			if _seta == d:
-				_seta = Vector2.ZERO)
-		setas.add_child(b)
-
-func _esconder_setas() -> void:
-	_seta = Vector2.ZERO
+func _soltar_camera() -> void:
 	_foco_ok = false
-	if setas:
-		setas.visible = false
 
 # ---------- modo construção ----------
 func abrir() -> void:
@@ -2878,7 +2834,7 @@ func abrir() -> void:
 	_alt.clear()
 	_mostrar_borda(true)
 	_refrescar_placas()
-	m.hud.aviso("Modo construção: as setas movem a câmera, o joystick move câmera e mira. Toque no chão para mirar.")
+	m.hud.aviso("Modo construção: o joystick move a câmera e a mira. Toque no chão para mirar.")
 	if m.lentidao: # quanto o modo construção levou para abrir (lentidao.gd, tipo "menu")
 		m.lentidao.menu_aberto("construir", t0, 0)
 
@@ -2935,7 +2891,7 @@ func sair() -> void:
 		_mira_no.visible = false
 	_mostrar_borda(false)
 	_refrescar_placas()
-	_esconder_setas()
+	_soltar_camera()
 	m.cam.sair_livre()
 
 func _mostrar_borda(v: bool) -> void:
@@ -3125,7 +3081,7 @@ func tocou_tela(pos: Vector2) -> void:
 		mira = p
 		if aba == "fazenda" and plano and plano.planeja(sel): # fazenda: tocar no canteiro já marca (ou desmarca)
 			_atualizar_mira()
-			colocar()
+			colocar(true)
 
 func _atualizar_mira() -> void:
 	var p: Vector3 = mira
@@ -3376,7 +3332,9 @@ func _destaque_em(pos, tam := Vector3.ONE, cor := Color.WHITE) -> void:
 	(_destaque.mesh as BoxMesh).size = tam
 	(_destaque.material_override as StandardMaterial3D).albedo_color = cor
 
-func colocar() -> void:
+# do_toque: veio do toque no chão (marca ou desmarca). O botão Marcar só marca (André 2026-11-18, versão 2613: tocava no
+# quadrado, marcava, depois apertava Marcar e desmarcava sem querer)
+func colocar(do_toque := false) -> void:
 	if aba == "terreno" and alvo.get("ok", false):
 		if sel == "vender":
 			_perguntar_venda()
@@ -3388,6 +3346,9 @@ func colocar() -> void:
 		m.sons.tocar("dash", -12.0)
 		return
 	if alvo.tipo == "horta" and plano and plano.planeja(str(alvo.dados.acao)): # só marca; o Salvar faz tudo
+		if not do_toque and plano.marcado(alvo.dados):
+			m.hud.aviso("Já está marcado · para desmarcar, toque no quadrado")
+			return
 		plano.alternar(alvo.dados)
 		_montar_itens()
 		_atualizar_mira()
@@ -3431,7 +3392,7 @@ func sair_compra() -> void:
 		if n:
 			n.visible = false
 	_mostrar_alcas(false)
-	_esconder_setas()
+	_soltar_camera()
 	m.cam.sair_livre()
 	if voltar and lotes.has(meu) and m.h.morto <= 0.0 and not m.menu.aberto():
 		abrir() # volta para o modo construção, na aba Terreno
@@ -3489,7 +3450,7 @@ func _abrir_tela_compra() -> void:
 	painel_compra.visible = true
 	_desenhar_outros()
 	_atualizar_compra()
-	m.hud.aviso("Setas ou joystick: anda com a câmera · arraste a tela: gira · dois dedos: zoom")
+	m.hud.aviso("Joystick: anda com a câmera · arraste a tela: gira · dois dedos: zoom")
 
 # botão da barra: na compra apaga o marcado (marca de novo); no mudar volta ao tamanho de antes
 # (mexeu e quer voltar: Desfazer; já está no tamanho de antes: Marcar de novo, para marcar outro pedaço perto)
@@ -3886,7 +3847,7 @@ func comprar() -> void:
 
 # ---------- tela: barra de itens embaixo, no meio (como a do Quimera); o joystick à esquerda continua livre ----------
 func cobre(p: Vector2) -> bool:
-	for pn in [painel, painel_acoes, painel_compra, painel_bau, painel_forno, painel_qtd, painel_fab, setas]:
+	for pn in [painel, painel_acoes, painel_compra, painel_bau, painel_forno, painel_qtd, painel_fab]:
 		if pn != null and pn.visible and pn.get_global_rect().grow(6).has_point(p):
 			return true
 	return false
