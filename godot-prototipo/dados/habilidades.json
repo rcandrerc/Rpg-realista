@@ -1947,7 +1947,11 @@
   "seguidaMax": 2.4,
   "seguidaJanela": 1.3,
   "folego": 0.2,
-  "combate": 5
+  "combate": 5,
+  "nado": 2.5,
+  "nadoFundo": 3.5,
+  "voltaAgua": 0.35,
+  "nadoCansado": 0.55
  },
  "regen": {
   "vida": 1,
