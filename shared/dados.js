@@ -2249,11 +2249,14 @@ export const VILAS_MUNDO = [
       { id: 'v_iara', nome: 'Mestra Iara, a instrutora', visual: 'shino', onde: 'peca:comercio:-6.4:-4:1.5708', escala: 1.0, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
         tinta: { cabelo: 0x1a1a22, roupa: 0x5a2a3a, calca: 0x2b2a30 }, funcao: 'resetar', acoes: ['resetar'], falas: [
           'Quer lutar de outro jeito? Eu devolvo seus pontos de atributo. As skills ficam, porque sobem usando.'] },
-      // Guilda dos Aventureiros (2026-11-18, PROVISÓRIA para a foto do esboço; só entra com o OK do André): atrás do
-      // balcão lateral da frente, com o quadro de contratos na parede
-      { id: 'v_brenda', nome: 'Brenda, da Guilda', visual: 'vita', onde: 'peca:comercio:-6.4:3.4:1.5708', escala: 1.0, roupa: 'peitoral1,calca1,botas1,capa1', arma: 'espada',
-        tinta: { cabelo: 0x7a3a1e, roupa: 0x5a4028, calca: 0x2e2a26 }, funcao: 'dica', acoes: [], falas: [
-          'Contrato novo no quadro. Escolha o seu.'] },
+      // Guilda dos Aventureiros (André 2026-11-18; regras em shared/guilda.js, GUILDA aqui embaixo): a Brenda atrás do
+      // balcão em L do corredor da frente e o mural de contratos na parede atrás dela. O mural não tem corpo (o quadro é
+      // da Casa do Comércio, @quadro): é um "NPC objeto" só para o botão de ação aparecer perto (André: tudo com botão)
+      { id: 'v_brenda', nome: 'Brenda, mestra da guilda', visual: 'vita', onde: 'peca:comercio:-6.4:3.4:1.5708', escala: 1.0, roupa: 'peitoral1,calca1,botas1,capa1', arma: 'espada',
+        tinta: { cabelo: 0x7a3a1e, roupa: 0x5a4028, calca: 0x2e2a26 }, funcao: 'guilda', acoes: ['guilda'], falas: [
+          'Contrato novo no mural. Escolha o seu.', 'Do F ao SS. Cada contrato conta.', 'Subir de rank pede pontos, nível e a Prova.'] },
+      { id: 'v_mural_guilda', nome: 'Mural de contratos', cargo: 'Guilda dos Aventureiros', funcao: 'mural', objeto: true, onde: 'peca:comercio:-7.4:5:1.5708',
+        acoes: [], falas: ['Contratos do dia. Pegue até 3.'] },
       ferreiroDe('v_galdino', 'Galdino, o ferreiro', 'cabelo_m', { cabelo: 0x2a1a10, roupa: 0x5a3a22, calca: 0x2f2a24 }, { tunica: 0x8a6a4a }, [
         'A bigorna, o forninho e a bancada são de todos. Use à vontade, eu só conserto e compro.',
         'Peça batida? Eu deixo nova por um punhado de ouro.'], { escala: 1.1 }),
@@ -4257,6 +4260,14 @@ export const TITULOS = {
   vento_mar: { nome: 'Vento do Mar', r: 2, como: 'Fechou o Ato IV', cond: { hist: 'h13' }, b: { xp: 0.05 } },
   luz_aurora: { nome: 'Luz de Aurora', r: 3, como: 'Fechou o Ato V', cond: { hist: 'h15' }, b: { vida: 0.06, critico: 0.03 } },
   estrela_aethra: { nome: 'Estrela de Aethra', r: 4, como: 'Venceu a Vesper', cond: { hist: 'f3' }, b: { dano: 0.06, critico: 0.05, vida: 0.05 } },
+  // Guilda dos Aventureiros (André 2026-11-18): subir de rank dá o título do rank (shared/guilda.js)
+  guilda_E: { nome: 'Aventureiro Rank E', r: 0, como: 'Chegou ao rank E da Guilda', cond: { guilda: 'E' }, b: { xp: 0.02 } },
+  guilda_D: { nome: 'Aventureiro Rank D', r: 0, como: 'Chegou ao rank D da Guilda', cond: { guilda: 'D' }, b: { ouro: 0.03 } },
+  guilda_C: { nome: 'Aventureiro Rank C', r: 1, como: 'Chegou ao rank C da Guilda', cond: { guilda: 'C' }, b: { dano: 0.03 } },
+  guilda_B: { nome: 'Aventureiro Rank B', r: 1, como: 'Chegou ao rank B da Guilda', cond: { guilda: 'B' }, b: { defesa: 0.04 } },
+  guilda_A: { nome: 'Aventureiro Rank A', r: 2, como: 'Chegou ao rank A da Guilda', cond: { guilda: 'A' }, b: { critico: 0.03 } },
+  guilda_S: { nome: 'Aventureiro Rank S', r: 3, como: 'Chegou ao rank S da Guilda', cond: { guilda: 'S' }, b: { dano: 0.05 } },
+  guilda_SS: { nome: 'Aventureiro Rank SS', r: 4, como: 'Chegou ao rank SS da Guilda', cond: { guilda: 'SS' }, b: { dano: 0.06, critico: 0.03 } },
 };
 // profissões: Nv 10 (Raro) e Nv 20 (Lendário) de cada uma
 for (const [k, n10, n20, bk, v] of [
@@ -4325,6 +4336,35 @@ export const DIARIAS = { nivel: 8, fuso: -3, ouro: 30, ouroNv: 3, xp: 0.08, bonu
   { id: 'peixes', ev: 'pesca', n: 5, txt: 'Pesque 5 peixes', ir: 'pesca' },
   { id: 'coleta', ev: 'coleta', n: 15, tipos: ['arvore', 'pedra', 'cobre', 'ferro', 'cristal'], txt: 'Corte ou minere 15 vezes', ir: 'coleta' },
 ] };
+// Guilda dos Aventureiros (André 2026-11-18: "contratos de caça... npc de guilda dos aventureiros... ranks de F a SS,
+// missões fáceis subindo e melhorando o reward"; esboço aprovado: /mnt/project-files/guilda/). Regras em shared/guilda.js.
+// Abre no Nv nivel (quando se chega ao Rio Claro). Todo dia (meia-noite de Brasília, como as diárias) o mural oferece
+// porDia contratos do rank; pega até ativos de uma vez, no mural ou com a Brenda (perto metros); recebe em qualquer
+// lugar (Missões > Guilda). Cada um paga ouro (ouro x nível), XP (fração do nível), pontos de guilda (pg) e, do C em
+// diante, chance de catalisador (cat; no SS também mitico). Subir: pg cheio + nível do próximo rank + vencer a Prova
+// (um elite forte do próximo rank). Elite e Prova: um monstro de um campo da sua faixa vira elite quando você chega
+// perto (como os chefes da história). tipos: n = quanto pede em cada rank (0 = não sai nesse rank).
+export const GUILDA = { nivel: 30, porDia: 5, ativos: 3, perto: 5.5, faixa: 6,
+  ranks: [
+    { r: 'F', nv: 30, pg: 60, ouro: 6, xp: 0.10, pg1: 10 },
+    { r: 'E', nv: 36, pg: 70, ouro: 8, xp: 0.12, pg1: 12 },
+    { r: 'D', nv: 42, pg: 84, ouro: 10, xp: 0.15, pg1: 14 },
+    { r: 'C', nv: 50, pg: 96, ouro: 14, xp: 0.18, pg1: 16, cat: 0.10 },
+    { r: 'B', nv: 60, pg: 108, ouro: 18, xp: 0.22, pg1: 18, cat: 0.15 },
+    { r: 'A', nv: 72, pg: 120, ouro: 22, xp: 0.25, pg1: 20, cat: 0.20 },
+    { r: 'S', nv: 85, pg: 150, ouro: 26, xp: 0.30, pg1: 25, cat: 0.25 },
+    { r: 'SS', nv: 100, pg: 0, ouro: 30, xp: 0.35, pg1: 30, cat: 0.30, mitico: 0.02 },
+  ],
+  tipos: {
+    caca: { ev: 'matar', txt: 'Derrube {n} monstros Nv {a}+', n: [15, 20, 25, 30, 30, 35, 40, 50] },
+    coleta: { ev: 'coleta', txt: 'Corte ou minere {n} vezes', n: [10, 12, 15, 18, 20, 22, 25, 30], tipos: ['arvore', 'pedra', 'cobre', 'ferro', 'cristal'] },
+    pesca: { ev: 'pesca', txt: 'Pesque {n} peixes', n: [5, 6, 8, 10, 10, 12, 12, 15] },
+    pack: { ev: 'pack', txt: 'Entregue {n} pack', n: [0, 0, 1, 1, 1, 1, 1, 2] },
+    elite: { ev: 'matar', txt: 'Vença {n} elite da Guilda', n: [0, 0, 0, 1, 1, 2, 2, 3] },
+  },
+  elite: { nome: 'Elite da Guilda', vida: 4, dano: 1.3, escala: 1.35, cor: 0xffb02e },
+  prova: { nome: 'Prova do rank {r}', vida: 6, dano: 1.45, escala: 1.5, cor: 0xff4a3a },
+};
 export const ARVORES_PLANTIO = {
   betula: { nome: 'Bétula', h: 4, semente: 3, lenha: 5, v: 1, copa: '#c4dc7c', tronco: '#e6e0d2', s: 0.85, desc: 'Tronco branco. Cresce rápido.' },
   carvalho: { nome: 'Carvalho', h: 8, semente: 5, lenha: 8, v: 0, copa: '#6a9a40', s: 1.05, desc: 'A comum, de copa larga.' },

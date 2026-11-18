@@ -19,6 +19,7 @@ import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a
 import { Kit, pedidosDaEtapa, soNoMar, gMissao } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
 import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (André 2026-11-16)
 import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
+import { Guilda } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11-18)
 import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
 
 const TAU = Math.PI * 2;
@@ -862,7 +863,7 @@ export class Simulacao {
   // Manda para o próprio jogador o progresso e os números do herói (o menu do personagem mostra)
   avisarProg(j) {
     const st = Object.fromEntries(Object.entries(j.st).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4]));
-    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), di: j.bot ? null : this.diariasInfo(j), ...(j.testador && CONTA_TESTE.nivel ? { teste: true } : {}), ...(j.testador && CONTA_TESTE.missoes ? { testeMissoes: true } : {}) }); // hi: a etapa da história (app)
+    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), di: j.bot ? null : this.diariasInfo(j), gu: j.bot ? null : this.guildaInfo(j), ...(j.testador && CONTA_TESTE.nivel ? { teste: true } : {}), ...(j.testador && CONTA_TESTE.missoes ? { testeMissoes: true } : {}) }); // hi: a etapa da história (app)
     j.progSujo = true;
   }
   // O servidor grava na conta quem mudou (index.js chama de tempos em tempos e quando o jogador sai)
@@ -977,11 +978,11 @@ export class Simulacao {
   // monstro c caiu e j ganhou: conta na etapa de matar (campo, tipo e chefe da história)
   contarHistoria(j, c) {
     const campo = c.sp?.caca != null ? this.cacas[c.sp.caca]?.def?.id : null;
-    this.historia(j, 'matar', { campo, tipo: c.tipo, hc: c.hc || null, sala: c.sp?.caverna || null });
+    this.historia(j, 'matar', { campo, tipo: c.tipo, hc: c.hc || null, sala: c.sp?.caverna || null, nivel: c.nivel || 1 }); // nivel: contrato de caça da Guilda
   }
   // Algo aconteceu com j (ev e dados d): conta na etapa da vez se casar (shared/historia.js casaEtapa)
   historia(j, ev, d = {}) {
-    if (ev !== 'diaria' && ev !== 'diaria_vista') this.contarDiaria(j, ev, d); // as diárias contam pelo mesmo funil (shared/diarias.js)
+    if (ev !== 'diaria' && ev !== 'diaria_vista') { this.contarDiaria(j, ev, d); this.contarGuilda(j, ev, d); } // diárias e contratos da Guilda contam pelo mesmo funil
     const p = j?.prog, h = p?.hist; if (!h?.ac || j.bot) return;
     const M = HISTORIA[h.p], E = M && etapasDe(M)[h.e]; if (!E) return;
     // colheu antes da etapa "Colha" (a horta da missão fica pronta ao plantar, e dá para colher já na etapa de regar):
@@ -2560,7 +2561,7 @@ export class Simulacao {
     if (p.nivel < NIVEL_MAX) this.ganharXP(j, Math.max(1, Math.round(C.vigor))); else this.avisarProg(j); // um pouco de XP pelo trabalho (Quimera: mgVgXp)
     this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: s.n, volta });
     for (const g of ganhou) this.historia(j, 'item', { k: g.k, n: g.n, de: 'coleta' });
-    if (ganhou.length) this.contarDiaria(j, 'coleta', { tipo: no.tipo }); // diária "Corte ou minere": uma por batida
+    if (ganhou.length) { this.contarDiaria(j, 'coleta', { tipo: no.tipo }); this.contarGuilda(j, 'coleta', { tipo: no.tipo }); } // diária "Corte ou minere" e contrato da Guilda: uma por batida
     if (!ganhou.length) return this.pararColeta(j, null);
     if (s.n <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`);
     if (vigorAgora(p.vigor) < this.custoVigor(j, C)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
@@ -4174,6 +4175,7 @@ export class Simulacao {
     this.passoCaixa(dt); // livro-caixa da economia (André 2026-11-16)
     this.passoBosses(dt); // bosses de mundo (André 2026-11-11)
     this.passoHistoria(dt); // história com etapas (André 2026-11-11)
+    this.passoGuilda(dt); // elite e Prova da Guilda aparecem para quem chega no campo da faixa
     this.passoCaverna(dt);
     this.passoProjeteis(dt);
     this.passoCampos(dt);
@@ -4634,6 +4636,7 @@ Object.assign(Simulacao.prototype, Amiga);
 Object.assign(Simulacao.prototype, Kit);
 Object.assign(Simulacao.prototype, Plantio); // árvores plantadas (André 2026-11-16)
 Object.assign(Simulacao.prototype, Diarias); // missões diárias (André 2026-11-16)
+Object.assign(Simulacao.prototype, Guilda); // Guilda dos Aventureiros: contratos e ranks F a SS (André 2026-11-18)
 Object.assign(Simulacao.prototype, Economia); // livro-caixa da economia (André 2026-11-16)
 Object.assign(Simulacao.prototype, Duelo); // duelo (André 2026-11-17)
 // o amigo virtual (contexto da Cecília ou do Dario) pelo corpo, pelo id ou pela conta; null = não é amigo virtual
