@@ -1019,10 +1019,12 @@ func veios_comuns(lista: Array) -> void:
 				continue
 			veio_comum(str(v[0]), int(v[1]), float(v[2]), null, false)
 
-# parou (o servidor mandou "coletaFim", ou o joystick aqui): ferramenta volta para a bolsa, arma volta para a mão
+# parou (o servidor mandou "coletaFim", ou o joystick aqui): a ferramenta fica na mão uns segundos (main.gd,
+# segurar_ferramenta_depois) e depois volta para a bolsa; em combate a arma volta para a mão na hora
 func parar(avisar_servidor := false) -> void:
 	if coletando == null:
 		return
+	var prof: String = str(coletando.get("prof", ""))
 	coletando = null
 	if avisar_servidor:
 		m.rede("coletar", {"no": "", "parar": true})
@@ -1038,14 +1040,16 @@ func parar(avisar_servidor := false) -> void:
 		if ferramentas[k].get_parent() != m:
 			ferramentas[k].get_parent().remove_child(ferramentas[k])
 			m.add_child(ferramentas[k])
-	m.armar(m.h.modo)
 	m.espada.visible = true
 	m.cajado.visible = true
+	if not m.segurar_ferramenta_depois(ferramentas.get(prof), prof):
+		m.armar(m.h.modo)
 
 func _segurar_ferramenta(prof: String) -> void:
 	var f: Node3D = ferramentas.get(prof)
 	if f == null:
 		return
+	m.soltar_ferramenta_mao(false) # a que ficou na mão da coleta de antes
 	var L: Dictionary = m.lugar_armas()
 	m.armar("Coleta") # as duas armas nas costas, cruzadas em X
 	m.prender(m.heroi_esq, f, L.espadaMao)

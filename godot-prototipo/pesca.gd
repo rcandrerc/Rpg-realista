@@ -339,8 +339,29 @@ func _fim() -> void:
 	st = ""
 	if m.acao.get("nome", "") == "pesca":
 		m.acao = {}
+	# a vara fica na mão uns segundos (main.gd, segurar_ferramenta_depois); em combate a arma volta na hora
+	boia.visible = false
+	linha.visible = false
+	_barra.visible = false
+	if peixe_no:
+		peixe_no.queue_free()
+		peixe_no = null
+	if not m.segurar_ferramenta_depois(vara, "vara"):
+		_esconder()
+		m.armar(m.h.modo)
+
+# segurando a vara depois de pescar: a haste (desenhada no mundo) segue a mão, quase reta, só a ponta caída
+func vara_na_mao() -> void:
+	var b: Basis = vara.global_transform.basis
+	var cabo: Vector3 = b.y.normalized()
+	var dir: Vector3 = b.x.normalized()
+	var dobra: Vector3 = -Vector3.UP + cabo * cabo.dot(Vector3.UP)
+	dobra = dobra.normalized() if dobra.length() > 0.05 else b.z.normalized()
+	curva = 0.08
+	_desenhar_haste(vara.global_position, cabo, dobra, dir)
+
+func vara_guardada() -> void:
 	_esconder()
-	m.armar(m.h.modo)
 
 # ---------- o que o servidor manda ----------
 func evento(ev: Dictionary) -> void:
@@ -350,6 +371,7 @@ func evento(ev: Dictionary) -> void:
 			_esperando = 0.0
 			if m.trabalho.coletando != null:
 				m.trabalho.parar(false)
+			m.soltar_ferramenta_mao(false) # a picareta, o machado ou a vara que ficou na mão
 			st = "lancando"
 			t = 0.0
 			boia_x = float(ev.x)
