@@ -2,7 +2,8 @@
 // do nível, voltam para a vila, vendem, consertam, compram poção, de noite ficam na vila), sem casa, save na tabela mundo,
 // nunca passam do jogador mais alto do servidor, e ganham XP devagar no tempo em que ninguém jogou.
 // Uso: node ferramentas/testes/aventureiros.mjs
-import { Simulacao, MAPA_CLAREIRA, AVENTUREIROS, AMIGOS_VIRTUAIS, CEREBRO, NPC_VIDA, CRIADOR, aparenciaValida } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, AVENTUREIROS, AMIGOS_VIRTUAIS, CEREBRO, NPC_VIDA, CRIADOR, aparenciaValida, IA_CONVERSA } from '../../shared/index.js';
+IA_CONVERSA.ligada = true; // testa o sistema de IA guardado (desligado no jogo desde 2026-11-18)
 import { NPCS_NO_MUNDO } from '../../shared/dados.js'; NPCS_NO_MUNDO.aventureiros = null; // aqui o teste usa os 20 (no jogo andam só os de NPCS_NO_MUNDO)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 

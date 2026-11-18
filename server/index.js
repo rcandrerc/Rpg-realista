@@ -922,7 +922,7 @@ app.get('/npcs/conversas.json', async (req, res) => {
     if (!d) { l.push({ nome: D.nome, id: D.id, salvo: false }); continue; }
     const conversas = { ...(d.conversasSalvas || d.conversas || {}) };
     for (const [k, c] of Object.entries(d.ia?.conversas || {})) if (Array.isArray(c) && c.length) conversas[k] = c.map((m) => ({ de: m.de, texto: String(m.texto).slice(0, 300), ...(m.nome ? { nome: m.nome } : {}) }));
-    l.push({ nome: D.nome, id: D.id, noMundo: vivo, conversas, fatos: d.fatos || {}, memorias: d.memorias || {} });
+    l.push({ nome: D.nome, id: D.id, noMundo: vivo, conversas, registro: d.registro || {}, fatos: d.fatos || {}, memorias: d.memorias || {} }); // registro: o dia inteiro (André 2026-11-18)
   }
   res.json({ t: Date.now(), npcs: l });
 });

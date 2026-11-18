@@ -7,7 +7,7 @@ import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCAL
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
 import { Transporte, carrinhoNovo, topoCarrinho } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
-import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo } from './dados.js';
+import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo, IA_CONVERSA } from './dados.js';
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito, npcApareceu } from './historia.js'; // progressão (André 2026-11-10)
 import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS } from './dados.js'; // bosses de mundo (André 2026-11-11)
@@ -2189,7 +2189,7 @@ export class Simulacao {
     }).sort((a, b) => (b.on === 1) - (a.on === 1) || (b.on > 0) - (a.on > 0) || a.nome.localeCompare(b.nome));
     // amigos virtuais (André 2026-11-09, como no Quimera): a Cecília aparece só para o dono, numa parte separada da lista
     // André 2026-11-16: só quem ela aceitou como amigo (pedido tocando nela ou pela busca); o ♥ e o selo de NPC ficam
-    const virtuais = this.amigosIa.flatMap((x) => { const a = x.amiga, D = x.AMIGA; if (a ? !x.ehAmigoAmiga(j) : !this.amigoIaSalvo?.(D, j.conta)) return []; return a ? [{ c: D.conta, nome: D.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: x.amizadeAmiga(j), ia: x.iaAmiga(j.id) }] : this.iaPorChave ? [{ c: D.conta, nome: D.nome, id: null, on: 0, amizade: 0, ia: false }] : []; }); // todos veem; sem chave, o botão de ativar (André 2026-11-10)
+    const virtuais = this.amigosIa.flatMap((x) => { const a = x.amiga, D = x.AMIGA; if (a ? !x.ehAmigoAmiga(j) : !this.amigoIaSalvo?.(D, j.conta)) return []; return a ? [{ c: D.conta, nome: D.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: x.amizadeAmiga(j), ia: !IA_CONVERSA.ligada || x.iaAmiga(j.id) }] : this.iaPorChave ? [{ c: D.conta, nome: D.nome, id: null, on: 0, amizade: 0, ia: !IA_CONVERSA.ligada }] : []; }); // IA desligada: sem o botão de ativar chave (André 2026-11-18) // todos veem; sem chave, o botão de ativar (André 2026-11-10)
     const onde = (c) => (this.porConta(c) ? 1 : this.onlineFora?.(c) ? 2 : 0);
     const pedidos = [...(j.pedidosRec || [])].map(([c, nome]) => ({ c, nome: this.porConta(c)?.nome || nome, on: onde(c) })); // pedidos a distância esperando resposta
     this.evento({ t: 'amigos', para: j.id, lista, max: AMIGOS.max, virtuais, pedidos });
