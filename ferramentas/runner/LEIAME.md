@@ -56,3 +56,17 @@ não roda (cota ou limite de gasto do Actions), o job `modelos-prontos` pega os 
    arquivos que mudaram entre os dois e `modelos/mudaram.txt` com os nomes, um por linha.
 
 Só vale enquanto `client/`, `shared/` e `package-lock.json` não mudarem depois do `commit.txt`.
+
+## Testes e robôs na Oracle (repositório privado)
+
+Com o repositório privado, os testes e os robôs gastariam ~1.000 min por dia da cota do GitHub (robô 1 ~700,
+testes de PR/merge ~200, robô 2 ~60). Por isso eles também vão para a Oracle, em vagas próprias na mesma
+máquina de builds (`instalar-vagas.sh`, precisa de root uma vez):
+
+| Workflow | Repositório privado | Público |
+|---|---|---|
+| testes, scripts-godot, idioma, motor-teste, cecilia-conversas | vaga `aethra-testes` (`RUNNER_TESTES`); sem ela, o runner dos builds | GitHub |
+| robo, robo-celular, robo-celular-real | vaga `aethra-robo` (`RUNNER_ROBO`); sem ela, **não roda** | GitHub |
+| apk.yml job `modelos` (Chromium) | GitHub (no ARM passou de 50 min e derrubou o runner) | GitHub |
+
+Mobs, Cecília e Dário rodam no servidor do jogo (outra máquina) e não usam o GitHub Actions.
