@@ -2251,7 +2251,7 @@ export const VILAS_MUNDO = [
           'Quer lutar de outro jeito? Eu devolvo seus pontos de atributo. As skills ficam, porque sobem usando.'] },
       // Guilda dos Aventureiros (2026-11-18, PROVISÓRIA para a foto do esboço; só entra com o OK do André): atrás do
       // balcão lateral da frente, com o quadro de contratos na parede
-      { id: 'v_brenda', nome: 'Brenda, da Guilda', visual: 'vita', onde: 'peca:comercio:-6.4:4.6:1.5708', escala: 1.0, roupa: 'peitoral1,calca1,botas1,capa1', arma: 'espada',
+      { id: 'v_brenda', nome: 'Brenda, da Guilda', visual: 'vita', onde: 'peca:comercio:-6.4:3.4:1.5708', escala: 1.0, roupa: 'peitoral1,calca1,botas1,capa1', arma: 'espada',
         tinta: { cabelo: 0x7a3a1e, roupa: 0x5a4028, calca: 0x2e2a26 }, funcao: 'dica', acoes: [], falas: [
           'Contrato novo no quadro. Escolha o seu.'] },
       ferreiroDe('v_galdino', 'Galdino, o ferreiro', 'cabelo_m', { cabelo: 0x2a1a10, roupa: 0x5a3a22, calca: 0x2f2a24 }, { tunica: 0x8a6a4a }, [

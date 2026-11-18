@@ -35,6 +35,7 @@ func _initialize() -> void:
 	await vista("c-mirela", -226.5, 113.0, PI / 2, 0.22, 3.4)
 	await vista("d-guilda", -225.5, 105.0, -PI / 2, 0.22, 3.4)
 	await vista("g-guilda-perto", -223.6, 103.2, -2.11, 0.12, 3.0)
+	await vista("h-mural", -222.6, 104.2, -PI / 2 - 0.25, -0.05, 2.4)
 	await vista("e-entrando-esq", -225.0, 99.0, PI - 0.35, 0.18, 4.0)
 	ir(-226.0, 109.0, 16.25)
 	m.menu_topo.camera_travada = true
