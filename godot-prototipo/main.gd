@@ -324,6 +324,8 @@ func _ready() -> void:
 	get_tree().create_timer(Grafico.PARALELO_OK).timeout.connect(func():
 		if is_instance_valid(grafico):
 			grafico.paralelo_confirmar())
+	# cardápio do app no balde da Oracle, sem APK novo (André 2026-11-18): grava o endereço para a próxima abertura
+	add_child(preload("res://balde_cardapio.gd").new())
 	montar_versao()
 	P = Progresso.new()
 	h.vida = P.st.vidaMax

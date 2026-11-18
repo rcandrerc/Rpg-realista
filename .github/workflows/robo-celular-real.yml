@@ -52,13 +52,13 @@ jobs:
           workload_identity_provider: projects/803551951520/locations/global/workloadIdentityPools/github/providers/github
           service_account: test-lab@age-of-embers-testes.iam.gserviceaccount.com
       - uses: google-github-actions/setup-gcloud@v2
-      # o APK com o jogo inteiro dentro, da última execução boa do apk.yml na main (guardado 14 dias); sem ele, a casca
+      # o APK com o jogo inteiro dentro, da última execução boa do apk.yml na main, por push ou à mão (guardado 14 dias); sem ele, a casca
       # 2505, que baixa o jogo da main ao abrir (por isso o robô espera até 7 min para entrar)
       - name: APK da main
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          id=$(gh run list -R ${{ github.repository }} -w apk.yml -b main -e push -s success -L 1 --json databaseId -q '.[0].databaseId')
+          id=$(gh run list -R ${{ github.repository }} -w apk.yml -b main -s success -L 1 --json databaseId -q '.[0].databaseId')
           if [ -n "$id" ] && gh run download "$id" -R ${{ github.repository }} -n rpg-realista-apk -D apk; then mv apk/rpg-realista.apk .; echo "APK da execução $id"
           else curl -fsSL --retry 4 -o rpg-realista.apk https://media.githubusercontent.com/media/rcandrerc/Rpg-realista/claude/project-thread-mtjcjj/godot-prototipo/apk/age-of-embers-casca-2505.apk; echo "casca 2505"; fi
           ls -la rpg-realista.apk
