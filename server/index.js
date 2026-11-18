@@ -577,6 +577,17 @@ function aparelhoLentidao(e, r) {
   // placa de vídeo e motor de desenho (vulkan / opengl3): qual celular caiu no OpenGL e qual placa dá problema
   if (typeof e.placa === 'string' && e.placa.length <= 40 && /^[\w .()+\-/]*$/.test(e.placa)) r.placa = e.placa;
   if (typeof e.drv === 'string' && /^[a-z0-9_]{1,16}$/.test(e.drv)) r.drv = e.drv;
+  // pele rosa no Mali-G72 (2026-11-18): de onde o jogo leu as texturas (imagem_cpu.gd) e a cor média da pele
+  if (e.img && typeof e.img === 'object' && !Array.isArray(e.img)) {
+    const p = {};
+    for (const k of ['arq', 'gpu', 'nulo']) if (Number.isFinite(e.img[k])) p[k] = e.img[k];
+    if (Object.keys(p).length) r.img = p;
+  }
+  if (e.pele && typeof e.pele === 'object' && !Array.isArray(e.pele)) {
+    const p = {};
+    for (const [k, v] of Object.entries(e.pele).slice(0, 6)) if (/^[\w.\-:]{1,40}$/.test(k) && /^[0-9a-f]{6}$/.test(v)) p[k] = v;
+    if (Object.keys(p).length) r.pele = p;
+  }
   return r;
 }
 function guardarLentidao(c, e, sala) {
