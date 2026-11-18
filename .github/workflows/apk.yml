@@ -381,6 +381,11 @@ jobs:
           gh release download atualizacao -R "$GITHUB_REPOSITORY" -D client/dist/atualizacao --clobber
           gh release download conteudo -R "$GITHUB_REPOSITORY" -D client/dist/atualizacao --clobber
           ls -la client/dist/atualizacao
+      - name: Cardápio e servidor também no balde da Oracle (o jogo não depende do Pages; ver espelhar-balde.sh)
+        env:
+          ORACLE_PAR: ${{ secrets.ORACLE_PAR }}
+          ORACLE_URL: ${{ vars.ORACLE_URL }}
+        run: bash ferramentas/atualizacao/espelhar-balde.sh client/dist
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -526,12 +531,14 @@ jobs:
         with:
           name: rpg-realista-apk
           path: rpg-realista.apk
-          retention-days: 14
+          # 2 dias (era 14): com o repositório privado a cota de artefatos é pequena e 14 dias de APKs somaram 143 GB
+          # (2026-11-18). O APK da main fica no release "apk"; o de PR dá para baixar por 2 dias.
+          retention-days: 2
       - uses: actions/upload-artifact@v4
         with:
           name: rpg-realista-casca-apk
           path: rpg-realista-casca.apk
-          retention-days: 14
+          retention-days: 2 # ver acima
       # Só em PR (troca de motor, 2026-11-12): abre a vila de verdade (servidor local, Vulkan por software), anda ~45 s
       # com o desenho em paralelo e depois junto, e falha se aparecer erro de script ou de shader. Pega o que o
       # motor novo quebrar antes de ir para a main. Os números de FPS daqui não valem para o celular.

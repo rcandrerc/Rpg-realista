@@ -9,6 +9,27 @@ import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 
 const PAGINA = process.env.PAGINA_SERVIDOR || 'https://rcandrerc.github.io/Rpg-realista/servidor'; // a troca serve só para teste local
+// André 2026-11-18: o jogo não pode depender do GitHub para atualizar. O CI também copia o pacote para o balde da
+// Oracle (ferramentas/atualizacao/espelhar-balde.sh). O servidor olha os dois e fica com o publicado por último
+// (Last-Modified): se um deles parar de ser atualizado, o outro manda. Sem PAGINA_SERVIDOR de teste, usa os dois.
+const BALDE = process.env.BALDE_SERVIDOR ?? (process.env.PAGINA_SERVIDOR ? ''
+  : 'https://objectstorage.sa-saopaulo-1.oraclecloud.com/n/gri0v6lf72rz/b/Aethra-jofo/o/servidor');
+
+// Lê a versão em cada origem e devolve a mais recente: { origem, versao } (ou null se nenhuma respondeu).
+export async function versaoMaisNova(origens, buscar = fetch) {
+  let melhor = null;
+  for (const origem of origens) {
+    try {
+      const r = await buscar(`${origem}/pacote-versao.txt`, { cache: 'no-store' });
+      if (!r.ok) continue;
+      const versao = (await r.text()).trim();
+      if (!versao) continue;
+      const quando = Date.parse(r.headers?.get?.('last-modified') || '') || 0;
+      if (!melhor || quando > melhor.quando) melhor = { origem, versao, quando };
+    } catch { /* origem fora do ar: fica com a outra */ }
+  }
+  return melhor;
+}
 
 // Abre o pacote trancado. Formato: { versao, chave (AES embrulhada em RSA-OAEP), iv, tag, dados } em base64.
 export function abrirPacote(pacote, chavePrivada) {
@@ -39,12 +60,12 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
     if (ocupado) return;
     ocupado = true;
     try {
-      const r = await fetch(`${PAGINA}/pacote-versao.txt`, { cache: 'no-store' });
-      if (!r.ok) return;
-      const nova = (await r.text()).trim();
+      const achou = await versaoMaisNova([BALDE, PAGINA].filter(Boolean));
+      if (!achou) return;
+      const nova = achou.versao;
       const atual = fs.readFileSync(path.join(pasta, 'versao.txt'), 'utf8').trim();
       if (!nova || nova === atual) return;
-      const pacote = await (await fetch(`${PAGINA}/pacote.json`, { cache: 'no-store' })).json();
+      const pacote = await (await fetch(`${achou.origem}/pacote.json`, { cache: 'no-store' })).json();
       if (String(pacote.versao) !== nova) return; // o site ainda está trocando os arquivos
       const { arquivos } = abrirPacote(pacote, chavePrivada);
       if (!arquivos?.['servidor.mjs'] || !arquivos?.['package.json']) throw new Error('pacote sem servidor.mjs/package.json');
