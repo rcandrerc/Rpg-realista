@@ -4534,7 +4534,7 @@
   "navio": 1.5,
   "navioMin": 30,
   "costas": {
-   "vel": 0.68
+   "vel": 0.5
   },
   "pegar": 2.5,
   "falar": 4

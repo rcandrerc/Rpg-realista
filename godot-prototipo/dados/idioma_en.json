@@ -2213,6 +2213,7 @@
 "Você chegou em {1} (-{2} de ouro)": "You arrived at {1} (-{2} gold)",
 "Você recolheu a linha": "You reeled in the line",
 "Com pack nas costas não dá pra montar. Use o carrinho!": "Can't mount with a pack on your back. Use the cart!",
+"Com pack nas costas não dá pra correr": "Can't run with a pack on your back",
 "Nome inválido: de {1} a {2} letras ou números": "Invalid name: {1} to {2} letters or numbers",
 "Esse já é o seu nome": "That's already your name",
 "Falta ouro: trocar o nome custa {1}": "Not enough gold: a name change costs {1}",
