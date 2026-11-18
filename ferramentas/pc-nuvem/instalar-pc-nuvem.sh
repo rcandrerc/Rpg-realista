@@ -82,7 +82,9 @@ openbox &
 tint2 &
 while kill -0 "$XPID" 2>/dev/null; do
   google-chrome --lang=pt-BR --no-first-run --no-default-browser-check \
-    --password-store=basic --start-maximized --disable-features=Translate || true
+    --password-store=basic --start-maximized --disable-features=Translate \
+    --ignore-gpu-blocklist --enable-unsafe-swiftshader || true
+  # (sem placa de vídeo: WebGL pelo processador, para o Mixamo abrir)
   sleep 3
 done
 SH
