@@ -24,7 +24,11 @@ concurrency:
 
 jobs:
   jogar:
-    runs-on: ubuntu-latest
+    if: ${{ !github.event.repository.private || vars.RUNNER_ROBO != '' }}
+    # Repositório PRIVADO: só roda na vaga dos robôs da Oracle (variável RUNNER_ROBO). Sem a vaga, fica parado em vez
+    # de gastar a cota do GitHub (jogaria ~700 min por dia) ou prender o runner dos builds por horas.
+    # Público: máquina do GitHub, como antes. Ver ferramentas/runner/LEIAME.md.
+    runs-on: ${{ github.event.repository.private && vars.RUNNER_ROBO || 'ubuntu-latest' }}
     timeout-minutes: 358
     steps:
       - uses: actions/checkout@v4
