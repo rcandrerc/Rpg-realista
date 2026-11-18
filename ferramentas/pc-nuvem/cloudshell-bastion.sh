@@ -31,8 +31,21 @@ SID=$(oci bastion session create-managed-ssh --bastion-id "$BID" --target-resour
 echo "sessao $SID"
 PROXY="ssh -i ~/.ssh/pcn -o StrictHostKeyChecking=no -W %h:%p -p 22 $SID@host.bastion.$REG.oci.oraclecloud.com"
 
+# a sessão leva um tempo para valer de verdade depois de criada: espera ACTIVE e tenta algumas vezes
+for _ in $(seq 30); do
+  [ "$(oci bastion session get --session-id "$SID" --query 'data."lifecycle-state"' --raw-output)" = ACTIVE ] && break; sleep 5
+done
+SSHOPT=(-i ~/.ssh/pcn -o StrictHostKeyChecking=no -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ProxyCommand="$PROXY")
+ok=0
+for t in 1 2 3 4 5 6 7 8; do
+  sleep 20
+  if ssh "${SSHOPT[@]}" "ubuntu@$IPVM" true; then ok=1; break; fi
+  echo "(tentativa $t: a ponte ainda não deixou entrar, tentando de novo)"
+done
+[ "$ok" = 1 ] || { echo "ERRO: não entrou pela ponte depois de 8 tentativas"; exit 1; }
+
 echo "== 3/4 Instalando (uns 10 min)"
-ssh -i ~/.ssh/pcn -o StrictHostKeyChecking=no -o ProxyCommand="$PROXY" "ubuntu@$IPVM" \
+ssh "${SSHOPT[@]}" "ubuntu@$IPVM" \
   "curl -fsSL https://raw.githubusercontent.com/rcandrerc/Rpg-realista/claude/project-thread-pw8cm4/ferramentas/pc-nuvem/instalar-pc-nuvem.sh -o /tmp/pc.sh && sudo PC_HASH='$PC_HASH' bash /tmp/pc.sh 2>&1 | tail -25"
 rm -f ~/.ssh/pcn ~/.ssh/pcn.pub
 echo "== FIM"
