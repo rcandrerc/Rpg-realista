@@ -3081,7 +3081,9 @@ func tocou_tela(pos: Vector2) -> void:
 		mira = p
 		if aba == "fazenda" and plano and plano.planeja(sel): # fazenda: tocar no canteiro já marca (ou desmarca)
 			_atualizar_mira()
-			colocar(true)
+			_do_toque = true
+			colocar()
+			_do_toque = false
 
 func _atualizar_mira() -> void:
 	var p: Vector3 = mira
@@ -3332,9 +3334,10 @@ func _destaque_em(pos, tam := Vector3.ONE, cor := Color.WHITE) -> void:
 	(_destaque.mesh as BoxMesh).size = tam
 	(_destaque.material_override as StandardMaterial3D).albedo_color = cor
 
-# do_toque: veio do toque no chão (marca ou desmarca). O botão Marcar só marca (André 2026-11-18, versão 2613: tocava no
+# _do_toque: veio do toque no chão (marca ou desmarca). O botão Marcar só marca (André 2026-11-18, versão 2613: tocava no
 # quadrado, marcava, depois apertava Marcar e desmarcava sem querer)
-func colocar(do_toque := false) -> void:
+var _do_toque := false
+func colocar() -> void:
 	if aba == "terreno" and alvo.get("ok", false):
 		if sel == "vender":
 			_perguntar_venda()
@@ -3346,7 +3349,7 @@ func colocar(do_toque := false) -> void:
 		m.sons.tocar("dash", -12.0)
 		return
 	if alvo.tipo == "horta" and plano and plano.planeja(str(alvo.dados.acao)): # só marca; o Salvar faz tudo
-		if not do_toque and plano.marcado(alvo.dados):
+		if not _do_toque and plano.marcado(alvo.dados):
 			m.hud.aviso("Já está marcado · para desmarcar, toque no quadrado")
 			return
 		plano.alternar(alvo.dados)
