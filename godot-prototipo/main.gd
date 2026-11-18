@@ -48,6 +48,7 @@ var vilas_mundo # vilas_mundo.gd
 const MenuTopo = preload("res://menu_topo.gd")
 const Combate = preload("res://combate.gd")
 const Conversa = preload("res://conversa.gd")
+const MissaoFala = preload("res://missao_fala.gd") # a fala da missão numa janela só dela (André 2026-11-18)
 const Troca = preload("res://troca.gd")
 const Duelo = preload("res://duelo.gd") # duelo (André 2026-11-17, shared/duelo.js)
 const AlvoQuadro = preload("res://alvo_quadro.gd") # quadro do alvo (André 2026-11-17, como no Quimera)
@@ -159,6 +160,7 @@ var recargas := {} # nome -> segundos que faltam
 var P # progresso.gd: nível, atributos, skills e os 6 botões
 var menu # menu.gd: menu do personagem (toque na barra de vida)
 var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até ele)
+var missao_fala # missao_fala.gd: o que o NPC conta da missão, fora da janela dele
 var troca # troca.gd: troca entre jogadores com cadeado (tocar noutro jogador, só online)
 var duelo # duelo.gd: duelo entre jogadores e com a Cecília/Dario (botão no cartão da troca)
 var alvo_atual = null # quem a marca no chão aponta (monstro, chefe ou o outro do duelo)
@@ -435,6 +437,8 @@ func _ready() -> void:
 	_passo("menu")
 	conversa = Conversa.new(self)
 	add_child(conversa)
+	missao_fala = MissaoFala.new(self)
+	add_child(missao_fala)
 	_passo("conversa")
 	rota = Rota.new(self)
 	add_child(rota)

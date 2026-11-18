@@ -3818,9 +3818,10 @@ const lobo = (n) => ({ ev: 'matar', campos: ['caca3'], tipos: ['lobo'], n, txt: 
 export const HISTORIA = [
   // ---------- Capítulo 1 · A manhã de névoa (Nv 1) ----------
   { id: 'a1', cap: 1, nv: 1, npc: 'lider', nome: 'Acordar', libera: [],
-    pedido: 'Te achei aqui ao amanhecer, dormindo do lado do poço. Lembra do seu nome? ...Pelo menos isso. E essa marca de estrela na sua mão eu nunca vi. Vá falar com o Mestre Ivo, perto da praça: ele vai ver se você sabe se defender.',
+    pedido: 'Te achei ao amanhecer, dormindo do lado do poço, com essa marca de estrela na mão. Ninguém aqui sabe de onde você veio. Vá ao Mestre Ivo, perto da praça: ele vai ver se você sabe se defender.',
+    lembra: 'Gente que chega do nada, com marca de estrela, deixa a vila com medo. Mostre ao Ivo e ao Bento quem você é.',
     etapas: [
-      { ev: 'falar', npc: 'reset', txt: 'Fale com o Mestre Ivo', fala: 'Então você é o forasteiro do poço. Mostre o que essas mãos sabem: dez golpes no espantalho e, depois, uma habilidade.' },
+      { ev: 'falar', npc: 'reset', txt: 'Fale com o Mestre Ivo', fala: 'Então é você que dormia no poço. Mostre o que essas mãos sabem: dez golpes no espantalho e, depois, uma habilidade.' },
       { ev: 'treino', n: 10, txt: 'Dê 10 golpes no espantalho de treino', alvo: 'treino' },
       { ev: 'treino', skill: true, txt: 'Use uma habilidade no espantalho', alvo: 'treino', diz: 'Mestre Ivo: Hm. O seu corpo lembra do que a cabeça esqueceu. Interessante...' },
       { ev: 'falar', npc: 'andarilho', txt: 'Fale com o Bento, o andarilho', fala: 'O Aldo me contou de você. Quer ver o tamanho do problema? Suba na rocha grande, aqui do lado, e olhe em volta. Escalando, que é mais bonito.' },
@@ -3828,7 +3829,8 @@ export const HISTORIA = [
     ],
     pronto: 'Viu a Névoa, né? Faz três luas que ela chegou, e ninguém que entrou nela voltou lembrando de nada. Fique com a gente. Mas antes, você vai precisar de ferramentas.' },
   { id: 'a2', cap: 1, nv: 1, npc: 'lider', nome: 'Ferramentas de pedra', libera: [],
-    pedido: 'Aqui ninguém vive sem machado e picareta. Pegue galhos e pedrinhas soltos pelo chão, em volta da vila, e faça os seus. Depois me traga lenha e pedra para a cerca.',
+    pedido: 'Desde que a Névoa chegou, a cerca da vila range a noite inteira, e eu já não tenho braço para tudo. Faça um machado e uma picareta com galhos e pedrinhas do chão. Depois me traga 5 lenhas e 3 pedras, por favor.',
+    lembra: 'A cerca não aguenta outra noite daquelas. Preciso da lenha e da pedra.',
     etapas: [
       { ev: 'item', de: 'solto', n: 4, txt: 'Pegue galhos ou pedrinhas soltos no chão', alvo: 'solto' },
       { ev: 'criar', k: 'machado', ja: 'tem', txt: 'Crie o machado (Mochila > Criar > Ferramentas)' },
@@ -3839,7 +3841,8 @@ export const HISTORIA = [
     ],
     pronto: 'Madeira boa, vai virar cerca. ...Escuta. Ontem à noite os Puglins saíram da Névoa e chegaram até o campo do leste. Isso nunca aconteceu.' },
   { id: 'a3', cap: 1, nv: 1, npc: 'lider', nome: 'O que veio com a Névoa', libera: ['1b'],
-    pedido: 'Os Puglins da clareira do leste estão com os olhos acesos de roxo. Derrube seis. E se aparecer um grandão... cuidado.',
+    pedido: 'Os Puglins da clareira do leste estão com os olhos acesos de roxo, e já chegaram às nossas plantações. Derrube seis antes que entrem na vila. E dizem que anda um grandão com eles...',
+    lembra: 'Ouvi os Puglins de novo, perto das plantações. Aqueles olhos roxos não saem da minha cabeça.',
     etapas: [
       { ev: 'matar', campos: ['caca1'], tipos: ['puglin'], n: 6, txt: 'Derrube Puglins na Clareira dos Puglins' },
       { ev: 'matar', hc: 'gorduncho', txt: 'Derrote Gorduncho, o Puglin Rei', diz: 'Gorduncho caiu e deixou para trás uma pedra rúnica que brilha.' },
@@ -3850,7 +3853,8 @@ export const HISTORIA = [
     presente: { pocao: 3, pocao_mana: 2 } },
   // ---------- Capítulo 2 · A bigorna rachada (Nv 3) ----------
   { id: 'a4', cap: 2, nv: 3, npc: 'ferreiro', nome: 'Cobre para a bigorna', libera: ['forja'], liberaNaEtapa: 1,
-    pedido: 'Você aí, da estrela! A minha bigorna rachou sozinha esta noite. Sozinha! Preciso de cobre para remendar: seis minérios, do veio a leste da praça. Faça a picareta, se ainda não tem.',
+    pedido: 'Poxa, que bom que você passou! A minha bigorna rachou sozinha esta noite, e sem ela a vila fica sem ferramenta. Preciso de 6 minérios de cobre, do veio a leste da praça, para fundir e remendar.',
+    lembra: 'Sem bigorna eu não faço nem um prego. E essa rachadura... ela brilha à noite.',
     etapas: [
       { ev: 'item', k: 'minerio_cobre', de: 'coleta', n: 6, txt: 'Minere minério de cobre', alvo: 'veio:cobre' },
       { ev: 'criar', k: 'barra_cobre', n: 2, txt: 'Funda 2 barras de cobre no forninho da ferraria do Tomás', alvo: 'estacao:pub_fornalha' },
@@ -3859,7 +3863,8 @@ export const HISTORIA = [
     pronto: 'Remendada! E olha o que tinha dentro da rachadura: uma lasca de cristal azul. Isso não é daqui. Veio do sul, de muito longe... A bigorna e o forninho aqui da ferraria são seus também, e a bancada da Rosa.' },
   { id: 'a5', cap: 2, nv: 3, npc: 'comerciante', nome: 'A banca da Rosa', libera: [],
     // André 2026-11-11: "quando você fala com a Rosa na missão ela te dá o material, aí você crafta na mesa"
-    pedido: 'O Tomás disse que você tem mão boa. Quero ver na agulha! Toma: 2 couros e 1 tecido. Costure você mesmo um short na bancada aqui do meu lado.',
+    pedido: 'O Tomás disse que você tem mão boa. A minha carroça de mercadoria anda atrasada e a banca está quase vazia. Tome 2 couros e 1 tecido: costure um short na bancada aqui do lado, e vamos fazer freguesia.',
+    lembra: 'Banca vazia não paga as contas. Enquanto a carroça não chega, cada venda conta.',
     recebe: { couro: 2, tecido: 1 },
     etapas: [
       { ev: 'criar', k: 'short', txt: 'Costure um short na bancada ao lado da Rosa (Alfaiate)', alvo: 'estacao:pub_bancada' },
@@ -3868,7 +3873,8 @@ export const HISTORIA = [
     ],
     pronto: 'Freguesia boa! Quem sabe vender anda com ouro no bolso. ...Minha carroça de mercadoria já devia ter chegado, sabe? Três semanas de atraso.' },
   { id: 'a6', cap: 2, nv: 3, npc: 'ferreiro', nome: 'Sua própria luta', libera: [],
-    pedido: 'Lutar todo mundo luta. Lutar do SEU jeito é outra coisa. Monte a sua barra de habilidades aqui comigo, e depois gaste os seus pontos de atributo. O Mestre Ivo tira as dúvidas.',
+    pedido: 'Aquela lasca de cristal que saiu da bigorna não me deixa dormir. Se vem coisa ruim por aí, quero você lutando do seu jeito. Monte a sua barra de habilidades e gaste os seus pontos de atributo.',
+    lembra: 'Tenho uma espada quase pronta para você. Só falta você achar o seu jeito de lutar.',
     etapas: [
       // André 2026-11-14: quem já tem as skills na barra não precisa tirar uma e pôr de novo. ver: abrir a aba
       // Habilidades já conta (o app manda "barra_vista"); trocar uma skill também conta, como antes
@@ -3879,14 +3885,16 @@ export const HISTORIA = [
     presente: { espada: { r: 1 } } },
   // ---------- Capítulo 3 · Presa-de-Prata (Nv 5) ----------
   { id: 'a7', cap: 3, nv: 5, npc: 'andarilho', nome: 'Uivos na clareira', libera: [],
-    pedido: 'Ouviu os lobos ontem? Tem alguma coisa deixando eles bravos. Derrube seis na Clareira dos Lobos e me traga 4 couros: tenho uma ideia.',
+    pedido: 'Ouviu os lobos ontem? Uivaram a noite inteira, de um jeito que eu nunca ouvi. Tem alguma coisa deixando eles bravos. Derrube seis na Clareira dos Lobos e me traga 4 couros: tive uma ideia.',
+    lembra: 'Se os lobos continuarem assim, ninguém mais anda na estrada. Preciso daqueles couros.',
     etapas: [
       lobo(6),
       { ev: 'ter', itens: { couro: 4 }, txt: 'Junte 4 couros', alvo: { couro: 'caca:caca3' } },
     ],
     pronto: 'Bom couro. Se a gente fizer uma coleira de verdade, talvez dê para amansar um deles. Um lobo na estrada vale mais que dez cavalos.' },
   { id: 'a8', cap: 3, nv: 5, npc: 'andarilho', nome: 'A coleira', libera: [],
-    pedido: 'Para a coleira eu preciso de ferro: minere 3 minérios de ferro e funda uma barra no forninho da ferraria do Tomás. Traga os couros junto.',
+    pedido: 'A ideia é uma coleira: com ela, talvez dê para amansar um lobo. Mas couro sozinho não segura bicho bravo. Funda uma barra de ferro no forninho do Tomás, com 3 minérios, e traga junto com os couros.',
+    lembra: 'Sem ferro a coleira arrebenta no primeiro puxão. Estou contando com você.',
     etapas: [
       { ev: 'item', k: 'minerio_ferro', de: 'coleta', n: 3, txt: 'Minere minério de ferro', alvo: 'veio:ferro' },
       { ev: 'criar', k: 'barra_ferro', ja: 'tem', txt: 'Funda 1 barra de ferro no forninho da ferraria', alvo: 'estacao:pub_fornalha' },
@@ -3895,6 +3903,7 @@ export const HISTORIA = [
     pronto: 'Coleira pronta. Agora vem a parte difícil: o alfa da matilha. Ele só sai à noite.' },
   { id: 'a9', cap: 3, nv: 5, npc: 'andarilho', nome: 'O alfa da noite', libera: ['lobo'], liberaNaEtapa: 2,
     pedido: 'O alfa só aparece quando escurece, na Clareira dos Lobos. Não é para matar: é para cansar. Quando ele deitar, a coleira entra.',
+    lembra: 'O alfa só aparece de noite. E tem alguma coisa estranha no pescoço dele, eu vi de longe.',
     etapas: [
       { ev: 'noite', txt: 'Espere a noite (das 19h às 5h)', alvo: 'caca:caca3' },
       { ev: 'matar', hc: 'presa', txt: 'Canse Presa-de-Prata, o lobo alfa', cena: 'presa', diz: 'Presa-de-Prata deita na grama, ofegante, e deixa você pôr a coleira.' },
@@ -3904,21 +3913,24 @@ export const HISTORIA = [
     pronto: 'Olha só, ele te escolheu! Presa-de-Prata, que nome bom. Mas veja isto: no pescoço dele tinha uma coleira de runas pretas, já quebrada. Alguém tentou prender esse lobo com magia da Névoa. Não foi bicho.' },
   // ---------- Capítulo 4 · Os que esquecem (Nv 8) ----------
   { id: 'a10', cap: 4, nv: 8, npc: 'curandeira', nome: 'O caminho do lago', libera: ['1c'],
-    pedido: 'Mais dois aldeões acordaram sem lembrar o próprio nome. O remédio vem do Lago Grande, mas os Imps fecham a estrada do sul. E a mãe deles está furiosa.',
+    pedido: 'Mais dois aldeões acordaram sem lembrar o próprio nome. O remédio vem do Lago Grande, mas os Imps fecharam a estrada do sul. Por favor, abra caminho: derrube oito Imps e a mãe deles, a Brasa.',
+    lembra: 'Os dois ainda não lembram o próprio nome. Cada dia sem o remédio é pior.',
     etapas: [
       { ev: 'matar', campos: ['caca2'], tipos: ['imp'], n: 8, txt: 'Derrube Imps na Clareira dos Imps' },
       { ev: 'matar', hc: 'brasa', txt: 'Derrote Brasa, a Mãe-Imp' },
     ],
     pronto: 'A névoa do sul baixou! O Bosque do Sul e o Lago Grande estão abertos. O Nico, o pescador, mora na beira do lago. Peixe de lá é parte do remédio.' },
   { id: 'a11', cap: 4, nv: 8, npc: 'm_peixe', nome: 'A primeira vara', libera: ['pesca'], liberaNaEtapa: 0,
-    pedido: 'Quer pescar? Primeiro a vara: 3 lenhas e 1 couro, dá para fazer na mochila mesmo. Depois procure a água borbulhando no lago e lance a linha.',
+    pedido: 'A Irmã Lúcia mandou você? Peixe do lago é parte do remédio dela, e eu sozinho não dou conta. Faça uma vara com 3 lenhas e 1 couro e pesque 4 lambaris na água borbulhando.',
+    lembra: 'Os aldeões esperam o caldo da Lúcia. Sem lambari não tem caldo.',
     etapas: [
       { ev: 'criar', k: 'vara', ja: 'tem', kit: true, txt: 'Crie a vara de pescar (Mochila > Criar > Ferramentas)' },
       { ev: 'pesca', k: 'lambari', n: 4, txt: 'Pesque lambaris num spot do Lago Grande', alvo: 'spot' },
     ],
     pronto: 'Tem jeito para a coisa! Guarde os lambaris: assados, a Irmã Lúcia faz o caldo do remédio.' },
   { id: 'a12', cap: 4, nv: 8, npc: 'lider', nome: 'Um chão seu', libera: [],
-    pedido: 'Você não pode morar no poço para sempre. Tem terra boa nas Terras da Estrada, do lado das casas da Cecília e do Dario. Compre um terreno, monte uma bancada e um fogão, e asse aqueles peixes para a Lúcia.',
+    pedido: 'Você não pode morar no poço para sempre, e a Lúcia precisa dos peixes assados para o caldo. Compre um terreno nas Terras da Estrada, do lado da Cecília e do Dario. Monte bancada e fogão, e asse dois peixes para ela.',
+    lembra: 'A Lúcia espera os peixes assados. E um teto seu faz bem, viu?',
     etapas: [
       { ev: 'terreno', ja: 'lote', kit: true, txt: 'Compre um terreno nas Terras da Estrada', alvo: 'lote' },
       { ev: 'construir', k: 'bancada', ja: 'peca', txt: 'Crie e coloque uma bancada no terreno (martelo)', alvo: 'lote' },
@@ -3930,7 +3942,8 @@ export const HISTORIA = [
     presente: { pocao_mana: 2, semente_cenoura: 4 } },
   // ---------- Capítulo 5 · A caravana perdida (Nv 12) ----------
   { id: 'a13', cap: 5, nv: 12, npc: 'comerciante', nome: 'Rastros no bosque', libera: [],
-    pedido: 'Encapuzados?! Levaram a minha carroça? Por favor, siga as marcas de roda pelo Bosque do Sul. Se achar qualquer coisa, me conta.',
+    pedido: 'Encapuzados levaram a minha carroça? Tudo que eu tinha estava nela! Por favor, siga as marcas de roda pelo Bosque do Sul e me conte o que achar.',
+    lembra: 'Não consigo pensar em outra coisa. Quem leva uma carroça inteira, e para quê?',
     etapas: [
       { ev: 'pistas', pontos: [[34, 79, 'a roda quebrada'], [41, 107, 'as caixas abertas'], [62, 112, 'as pegadas']], txt: 'Examine as pistas no Bosque do Sul',
         diz: 'As pegadas são de botas, muitas, e terminam na carroça tombada. Tem um lobo escuro em volta dela.' },
@@ -3938,7 +3951,8 @@ export const HISTORIA = [
     ],
     pronto: 'A carroça tombada... e um lobo guardando? Lobo não guarda nada. Alguém mandou. Pelo menos a lenha da carga deu para salvar: o Seu Joca sabe o que fazer com ela.' },
   { id: 'a14', cap: 5, nv: 12, npc: 'm_lenha', nome: 'Mercadoria salva', libera: [],
-    pedido: 'A Rosa me contou. Lenha que sobra vira pack! Faça o pack aqui comigo e leve nas costas até a Dona Sálvia, no bosque. Quanto mais longe, mais ela paga.',
+    pedido: 'A Rosa me contou da carroça. A lenha da carga ainda dá para salvar: faça um pack aqui comigo e leve nas costas até a Ms. Sálvia, no bosque. É o dinheiro que a Rosa vai ter este mês.',
+    lembra: 'A Rosa precisa desse dinheiro. Leve o pack com cuidado até a Sálvia.',
     etapas: [
       { ev: 'pack_fez', k: 'lenha', kit: true, txt: 'Faça um Pack de Lenha com o Seu Joca', alvo: 'npc:m_lenha' },
       { ev: 'pack', npc: 'm_horta', txt: 'Leve o pack nas costas até a Dona Sálvia', alvo: 'npc:m_horta' },
@@ -3947,7 +3961,8 @@ export const HISTORIA = [
     pronto: 'Você fez isso por mim? ...Fique com o ouro do pack, você mereceu. Quando eu tiver carroça de novo, a casa te paga.' },
   // Diárias (André 2026-11-16): a Rosa apresenta a aba Diárias; quem já passou daqui vê a aba do mesmo jeito (Nv 8)
   { id: 'd1', cap: 5, nv: 12, npc: 'comerciante', nome: 'Tarefas do dia', libera: [],
-    pedido: 'A vila precisa de mãos todo dia! Veja as Diárias no menu de Missões. Toma estas sementes: plantar árvore também conta.',
+    pedido: 'A vila está se reerguendo, e todo dia falta mão em algum canto. Veja as Diárias no menu de Missões e termine uma. Tome estas sementes: plantar árvore também conta.',
+    lembra: 'Tem tarefa nova no menu de Missões, aba Diárias. Ajuda que chega todo dia faz diferença.',
     recebe: { semente_betula: 4 },
     etapas: [
       { ev: 'diaria_vista', txt: 'Abra Missões > Diárias' },
@@ -3955,17 +3970,19 @@ export const HISTORIA = [
     ],
     pronto: 'Viu? Todo dia tem trabalho e prêmio. Volte amanhã: as Diárias se renovam à meia-noite.' },
   { id: 'a15', cap: 5, nv: 12, npc: 'ferreiro', nome: 'Melhor que novo', libera: [],
-    pedido: 'Peça velha não se joga fora: se destrói, e sai catalisador. Com catalisador a gente evolui uma peça para Rara. E reforço... reforço é a alma do ferro. Toma um Selo Raro para começar.',
+    pedido: 'Depois do que fizeram com a carroça, quero as suas peças à altura do que vem por aí. Peça velha não se joga fora: se destrói, e sai catalisador para evoluir outra. Tome um Selo Raro e me mostre um reforço.',
+    lembra: 'Os encapuzados não vão esperar você se equipar. Destrua, evolua e reforce.',
     recebe: { selo_raro: 1 },
     etapas: [
       { ev: 'destruir', kit: true, txt: 'Destrua uma peça velha (Mochila > peça > Destruir)' },
       { ev: 'evoluir', min: 1, kit: true, txt: 'Evolua uma peça para Rara na bigorna da ferraria (Criar > Evoluir)', alvo: 'estacao:pub_bigorna' },
       { ev: 'reforcar', n: 2, kit: true, gratis: true, txt: 'Reforce uma peça com sucesso (Mochila > peça > Reforçar)' },
     ],
-    pronto: 'Agora sim você está pronto para o que vem. Toma outro Selo Raro, de reserva.',
+    pronto: 'Agora sim, você aguenta o que vem por aí. Toma outro Selo Raro, de reserva.',
     presente: { selo_raro: 1 } },
   { id: 'a16', cap: 5, nv: 12, npc: 'm_peixe', nome: 'O barquinho do Nico', libera: ['1d'],
-    pedido: 'No meio do lago tem uma água que borbulha diferente, e ontem vi caixas boiando lá. Faça um barquinho perto de uma bancada e vá ver: a pé não chega.',
+    pedido: 'No meio do lago tem uma água que borbulha diferente, e ontem vi caixas boiando lá. Caixas da carroça da Rosa, eu juro! A pé não chega: faça um barquinho perto de uma bancada e vá ver.',
+    lembra: 'As caixas ainda estão boiando no meio do lago. Se afundarem, a gente nunca vai saber.',
     etapas: [
       { ev: 'criar', k: 'barquinho', ja: 'tem', txt: 'Crie o barquinho perto de uma bancada (30 lenhas e 4 couros)' },
       { ev: 'pos', pos: [-3, 198, 14], barco: true, txt: 'Reme de barquinho até o meio do Lago Grande', alvo: 'pos', marca: true },
@@ -3979,7 +3996,8 @@ export const HISTORIA = [
   // entregue a de antes não faz o capítulo de novo (shared/historia.js histValida).
   // ---------- Capítulo 6 · Debaixo da montanha (Nv 15) ----------
   { id: 'b1', cap: 6, nv: 15, npc: 'lider', nome: 'Uma casa que aguenta', libera: [],
-    pedido: 'A Névoa está mais grossa à noite. Quem dorme sem teto acorda sem lembrar de nada. Levante uma casa de verdade no seu terreno, com cama e baú. E durma nela.',
+    pedido: 'A Névoa engrossa à noite, e quem dorme sem teto acorda sem lembrar de nada. Não quero perder você assim. Levante uma casa de verdade no seu terreno, com cama e baú, e durma nela.',
+    lembra: 'Cada noite ao relento é um risco. Termine essa casa antes que a Névoa te ache.',
     etapas: [
       { ev: 'construir', k: 'fundacao', n: 4, ja: 'peca', txt: 'Coloque 4 fundações no seu terreno', alvo: 'lote' },
       { ev: 'construir', k: 'parede', n: 4, ja: 'peca', txt: 'Levante 4 paredes', alvo: 'lote' },
@@ -3992,7 +4010,8 @@ export const HISTORIA = [
     ],
     pronto: 'Agora sim, isso é uma casa! ...Escuta: o Gaspar mandou recado da montanha. A pedra do selo de lá está quente. A Dona Sálvia vai mandar comida para quem descer.' },
   { id: 'b2', cap: 6, nv: 15, npc: 'm_horta', nome: 'Provisões', libera: [],
-    pedido: 'O Gaspar pediu comida para quem vai descer na montanha, e lá embaixo não tem horta, querido. Faça a enxada e o regador, plante seis sementes e cuide até colher. Depois, sopa no fogão! Tome umas sementes para começar.',
+    pedido: 'O Gaspar pediu comida para quem vai descer na montanha, e lá embaixo não tem horta. Faça a enxada e o regador, plante, colha e cozinhe 3 sopas. Leve com uma barra de aço para ele. Tome umas sementes.',
+    lembra: 'Ninguém desce na montanha de barriga vazia. O Gaspar espera as sopas e o aço.',
     recebe: { semente_cenoura: 2, semente_batata: 2, semente_rabanete: 2 },
     etapas: [
       { ev: 'criar', k: 'enxada', ja: 'tem', txt: 'Crie a enxada (bancada, aba Fazenda)' },
@@ -4006,7 +4025,8 @@ export const HISTORIA = [
     ],
     pronto: 'Sopa da Sálvia e aço bom. Agora dá para pensar em descer. Fique, que eu explico o resto.' },
   { id: 'b3', cap: 6, nv: 18, npc: 'guardiao', nome: 'O passe', libera: [],
-    pedido: 'Eu sou o último guardião desta caverna. O selo lá no fundo está rachando, e eu velho não desço mais. Faça um passe comigo, com os fragmentos dos monstros. E não desça sozinho: chame alguém para o time. A Cecília, o Dario ou um amigo.',
+    pedido: 'Sou o último guardião desta caverna, e o selo lá no fundo está rachando. Eu, velho, não desço mais. Faça um passe comigo, com fragmentos dos monstros, e chame alguém para o time: lá embaixo ninguém vai sem companhia.',
+    lembra: 'O selo racha mais a cada dia. Preciso do passe pronto e de alguém do seu lado.',
     etapas: [
       { ev: 'passe', k: 'fazer', ja: 'passe', txt: 'Faça o Passe da Caverna com o Gaspar (fragmentos, couro e tecido)', alvo: 'npc:guardiao' },
       { ev: 'time', txt: 'Chame alguém para o time (Cecília, Dario ou um amigo)' },
@@ -4015,6 +4035,7 @@ export const HISTORIA = [
     pronto: 'Bom. Lá embaixo tem a Galeria dos Golens, o Poço dos Maws e o Trono do Warrok. O selo fica atrás do trono. Quando estiver pronto, fale comigo de novo.' },
   { id: 'h6', cap: 6, nv: 20, npc: 'guardiao', nome: 'O Trono vazio', libera: ['1e'], liberaNaEtapa: 0,
     pedido: 'Vá. Use o passe no selo da boca e desça. Se o Warrok ainda estiver no trono, derrube. Se não estiver... aí é pior.',
+    lembra: 'Lá embaixo o selo está rachando. Desça e me conte o que viu.',
     etapas: [
       { ev: 'passe', k: 'usar', txt: 'Use o passe no selo da boca da caverna', alvo: 'npc:guardiao' },
       { ev: 'matar', salas: ['sala1'], n: 4, txt: 'Atravesse a Galeria dos Golens', alvo: 'pos', pos: [171, -42.4] },
@@ -4029,7 +4050,8 @@ export const HISTORIA = [
     presente: { pocao: 4, selo_raro: 1 } },
   // ---------- Capítulo 7 · Rodas para o sudeste (Nv 20) ----------
   { id: 'b5', cap: 7, nv: 20, npc: 'm_metal', nome: 'O carrinho', libera: [],
-    pedido: 'Metal parado não dá dinheiro, e a pé ninguém leva peso até o lago. Monte um carrinho de carga, encha de combustível e leve dois packs meus para o Nico. Se aguentar, melhore o carrinho.',
+    pedido: 'Metal parado não dá dinheiro, e o Nico está sem ferro para os anzóis desde que a estrada fechou. Monte um carrinho de carga, abasteça e leve dois packs meus até ele. Depois, melhore o carrinho.',
+    lembra: 'O Nico está sem ferro lá no lago. Os meus packs precisam rodar.',
     etapas: [
       { ev: 'criar', k: 'carrinho', ja: 'tem', txt: 'Crie o carrinho de carga (bancada)' },
       { ev: 'criar', k: 'galao', n: 4, txt: 'Crie 4 galões de combustível (bancada)' },
@@ -4040,7 +4062,8 @@ export const HISTORIA = [
     ],
     pronto: 'Rodando e ganhando! ...Ah, o Aldo mandou chamar: os batedores dele sumiram no sudeste.' },
   { id: 'b6', cap: 7, nv: 25, npc: 'lider', nome: 'Os batedores', libera: [],
-    pedido: 'Mandei três batedores olhar o sudeste, depois da clareira dos Imps de lá. Nenhum voltou. Ache os três. Vivos, se os deuses quiserem.',
+    pedido: 'Mandei três batedores olhar o sudeste, depois da clareira dos Imps de lá. Já faz dois dias e nenhum voltou. Por favor, ache os três.',
+    lembra: 'Dois dias sem notícia dos batedores. Não consigo dormir.',
     etapas: [
       { ev: 'pistas', pontos: [[198, 124, 'o batedor ferido'], [214, 142, 'a lança quebrada'], [222, 122, 'o batedor escondido no mato']], txt: 'Procure os batedores no sudeste',
         diz: 'O batedor escondido sussurra: "Capuz cinza, espada... chamam ele de Velado. E os Imps obedecem."' },
@@ -4049,7 +4072,8 @@ export const HISTORIA = [
     ],
     pronto: 'Os três vivos, graças a você. Capuz, olhos cinzentos... são os mesmos que levaram a carroça da Rosa. Velados. E os batedores viram mais uma coisa: um brilho no Ninho dos Golens, ao sul.' },
   { id: 'h7', cap: 7, nv: 27, npc: 'lider', nome: 'Brasa-Antiga', libera: ['1f'], liberaNaEtapa: 0,
-    pedido: 'Um golem com brasa no peito, do tamanho de uma casa, no Ninho dos Golens. Dizem que é ele que segura a névoa do sul. Derrube Brasa-Antiga e as terras do sul se abrem. O Bráulio Curtidor mora lá, isolado há semanas: depois vá ver se ele está bem.',
+    pedido: 'Um golem com brasa no peito, do tamanho de uma casa, no Ninho dos Golens. Dizem que é ele que segura a névoa do sul. Derrube Brasa-Antiga e depois veja se o Bráulio, que mora por lá, está bem.',
+    lembra: 'Faz semanas que ninguém tem notícia do Bráulio. Enquanto a Brasa-Antiga estiver de pé, ninguém passa.',
     etapas: [
       { ev: 'matar', hc: 'brasa_antiga', txt: 'Derrote Brasa-Antiga na Clareira dos Golens',
         diz: 'Brasa-Antiga desmorona. No alto do morro, uma figura de capa cinza assiste. Quando você olha de novo, não tem ninguém.' },
@@ -4059,7 +4083,8 @@ export const HISTORIA = [
     presente: { galao: 6 } },
   // ---------- Capítulo 8 · A Lâmina Cinzenta (Nv 28) ----------
   { id: 'b7', cap: 8, nv: 28, npc: 'm_couro', nome: 'Couro em troca de rodas', libera: [],
-    pedido: 'Os Velados quebraram o meu carrinho e ninguém mais me traz lenha. Me traga dois packs de lenha, de carrinho, e eu te ensino a cuidar das rodas.',
+    pedido: 'Os Velados quebraram o meu carrinho, e sem lenha o curtume está parado. Me traga dois packs de lenha, de carrinho, que eu te ensino a cuidar das rodas.',
+    lembra: 'O curtume está frio há dias. Preciso daquela lenha.',
     etapas: [
       { ev: 'pack_fez', k: 'lenha', n: 2, txt: 'Faça 2 Packs de Lenha com o Seu Joca', alvo: 'npc:m_lenha' },
       { ev: 'pack', k: 'lenha', npc: 'm_couro', de: 'carrinho', n: 2, txt: 'Leve os 2 packs de carrinho até o Bráulio', alvo: 'npc:m_couro' },
@@ -4067,7 +4092,8 @@ export const HISTORIA = [
     ],
     pronto: 'Roda boa e lenha boa. Escuta: o de capa cinza voltou ontem, rondando o Ninho. Perguntou de você pelo nome. Tome cuidado.' },
   { id: 'b9', cap: 8, nv: 28, npc: 'ferreiro', nome: 'Prontos para a caçada', libera: [],
-    pedido: 'O Warrok desceu das Terras dos Golens. Ninguém enfrenta aquilo com peça Rara. Evolua uma peça para Épica e reforce até +3. Faça também um Colar de Estrela: dizem que a estrela protege quem tem a marca. Tome dois Selos Épicos.',
+    pedido: 'O Warrok desceu das Terras dos Golens, e com peça Rara ninguém volta de lá. Evolua uma peça para Épica, reforce até +3 e forje um Colar de Estrela. E leve três ensopados: caçada longa dá fome. Tome dois Selos Épicos.',
+    lembra: 'O Aldo está montando a caçada ao Warrok. Você não vai lá de peça fraca.',
     recebe: { selo_epico: 2 }, // auditoria 2026-11-13: no Nv28 não havia de onde tirar catalisador Épico (evoluir falha 15%: vão dois)
     etapas: [
       // auditoria 2026-11-13: +6 pedia 60 de Força ou Inteligência (o máximo no Nv28 é 57); +3 pede 30, que dá com metade
@@ -4077,9 +4103,10 @@ export const HISTORIA = [
       { ev: 'criar', k: 'colar', ja: 'tem', txt: 'Forje um Colar de Estrela na bigorna da ferraria', alvo: 'estacao:pub_bigorna' },
       { ev: 'ter', itens: { ensopado: 3 }, txt: 'Leve 3 Ensopados de carne na mochila (fogão)', alvo: 'lote' },
     ],
-    pronto: 'Agora sim você tem cara de caçador. O Aldo está montando a caçada ao Warrok. Vá com ele.' },
+    pronto: 'Agora sim, isso é equipamento de caçada. O Aldo está montando a caçada ao Warrok. Vá com ele.' },
   { id: 'h8', cap: 8, nv: 30, npc: 'lider', nome: 'Warrok, o Carcereiro', libera: ['B1'],
-    pedido: 'O Warrok segura a estrada do oeste como um carcereiro segura a chave. Monte um time, limpe os Golens e os Maws dele e derrube o bicho.',
+    pedido: 'O Warrok segura a estrada do oeste como um carcereiro segura a chave. Do outro lado tem cidades que a gente nem lembra mais. Monte um time, limpe os Golens e os Maws dele e derrube o bicho.',
+    lembra: 'Enquanto o Warrok estiver lá, a estrada do oeste fica presa. Monte o time.',
     etapas: [
       { ev: 'time', txt: 'Monte um time (Cecília, Dario ou um amigo)' },
       { ev: 'matar', campos: ['caca11', 'caca12'], tipos: ['golem', 'maw'], n: 6, txt: 'Derrube 6 Golens ou Maws nas clareiras do Warrok' },
@@ -4088,6 +4115,7 @@ export const HISTORIA = [
     pronto: 'O Carcereiro caiu! A estrada do oeste está livre até a Ponte do Rio Claro. ...O Mestre Ivo pediu para você passar lá. Disse que é urgente.' },
   { id: 'b11', cap: 8, nv: 30, npc: 'reset', nome: 'Você não lembra de mim', libera: [], titulo: 'Sentinela da Ordem',
     pedido: 'Um homem de capa cinza anda pelo Ninho dos Golens perguntando por alguém com uma marca de estrela. Se ele te achar antes de você achar ele... Vá. E volte.',
+    lembra: 'O homem de capa cinza ainda procura você. Melhor ir até ele do que esperar.',
     etapas: [
       { ev: 'matar', hc: 'kael', txt: 'Enfrente o homem de capa cinza na Clareira dos Golens', cena: 'kael' },
       { ev: 'pos', pos: [196, 202, 5], txt: 'Toque na Chave do Oeste, a pedra que brilha perto dos Maws', alvo: 'pos', marca: true, cena: 'memoria2',
@@ -4098,7 +4126,8 @@ export const HISTORIA = [
     presente: { peitoral: { r: 1, e: 5 } } },
   // ---------- Capítulo 9 · A trilha da serra (Nv 33 a 38; história v2, Entrega 4) ----------
   { id: 'c1', cap: 9, nv: 33, npc: 'andarilho', nome: 'A cidade da ponte', libera: [],
-    pedido: 'Agora que o Warrok caiu, a estrada do oeste está aberta até o Rio Claro, uma cidade de madeira do lado da ponte. Ninguém de lá vem aqui faz anos. Monte no Presa-de-Prata e vá ver. Tem um totem no meio da praça, dizem.',
+    pedido: 'Com o Warrok caído, a estrada do oeste abriu até o Rio Claro, uma cidade de madeira do lado da ponte. Ninguém de lá aparece faz anos, e eu quero saber por quê. Monte no Presa-de-Prata e vá ver o totem da praça.',
+    lembra: 'Rio Claro, depois da ponte. Quero notícia de lá, e daquele totem.',
     etapas: [
       { ev: 'montar', txt: 'Monte no Presa-de-Prata (botão do lobo)' },
       { ev: 'totem', k: 'rio_claro', ja: 'totem', txt: 'Siga a estrada do oeste e toque o totem da Vila do Rio Claro', alvo: 'totem:rio_claro',
@@ -4112,7 +4141,8 @@ export const HISTORIA = [
     ],
     pronto: 'Aqui eu acho tudo que preciso. E você também vai: o Otávio, da Casa do Comércio, quer te conhecer. Vá lá, do lado da minha porta.' },
   { id: 'c2', cap: 9, nv: 33, npc: 'v_otavio', nome: 'A Casa do Comércio', libera: [],
-    pedido: 'Bem-vindo à Casa do Comércio! Aqui o mundo inteiro vende e compra. Quem sabe negociar não precisa caçar tudo. Vou te mostrar como funciona, e de presente as suas três primeiras vendas não pagam taxa.',
+    pedido: 'Boas-vindas à Casa do Comércio! Desde a Névoa, é o leilão que mantém esta ponte viva. Venda algo seu e compre algo de outro: as suas três primeiras vendas não pagam taxa.',
+    lembra: 'O leilão é de todos, até de quem está do outro lado do mar. Faça o seu primeiro negócio.',
     etapas: [
       { ev: 'leilao', de: 'anunciar', txt: 'Ponha um item seu à venda no leilão (Otávio > Leilão > Vender)', alvo: 'npc:v_otavio' },
       { ev: 'leilao', de: 'comprar', txt: 'Compre um item no leilão (de outro jogador ou da casa)', alvo: 'npc:v_otavio' },
@@ -4120,7 +4150,8 @@ export const HISTORIA = [
     ],
     pronto: 'Negócio fechado! Volte sempre: o leilão é de todos, até de quem está do outro lado do mar.', presente: { pocao: 5 } },
   { id: 'c3', cap: 9, nv: 35, npc: 'm_abobora', nome: 'Doce para o norte', libera: [],
-    pedido: 'Meu doce de abóbora vende até no norte, mas a serra está fechada e eu não tenho rodas. Plante, asse e faça o pack comigo. Depois leve no carrinho até o Mestre Pedrão, na Clareira: viagem longa paga muito. Tome as sementes.',
+    pedido: 'Meu doce de abóbora vende até no norte, mas a serra está fechada e o Pedrão, lá na Clareira, paga bem. Plante, asse e faça o pack comigo. Depois leve de carrinho até ele. Tome as sementes.',
+    lembra: 'Sem doce viajando, a minha conta não fecha. O Pedrão espera os packs.',
     recebe: { semente_abobora: 2, semente_milho: 2, semente_rabanete: 6 },
     etapas: [
       { ev: 'plantar', k: 'abobora', n: 4, txt: 'Plante 4 sementes de abóbora', alvo: 'lote' },
@@ -4133,7 +4164,8 @@ export const HISTORIA = [
     ],
     pronto: 'O Pedrão pagou bem, né? Eu disse. Agora, se a serra abrisse...' },
   { id: 'c4', cap: 9, nv: 36, npc: 'v_heitor', nome: 'O rio que esqueceu', libera: [],
-    pedido: 'O Rio Claro amanheceu cinza hoje. Cinza! Os peixes sobem de barriga para cima. Pesque no rio e me diga o que tem lá embaixo.',
+    pedido: 'O Rio Claro amanheceu cinza hoje. Cinza! Os peixes sobem de barriga para cima, e a cidade vive deste rio. Pesque três tilápias e me diga o que tem lá embaixo.',
+    lembra: 'O rio continua cinza. Se os peixes morrerem, o Rio Claro morre junto.',
     etapas: [
       { ev: 'pesca', k: 'tilapia', n: 3, txt: 'Pesque 3 tilápias no rio', alvo: 'spot',
         diz: 'Na terceira tilápia, presa no anzol, sobe uma máscara cinza. Máscara de Velado.' },
@@ -4142,7 +4174,8 @@ export const HISTORIA = [
     ],
     pronto: 'Uma Velada tecendo névoa no nosso rio... Obrigado. O Seu Abel está pedindo ajuda com a serra. Fale com ele.' },
   { id: 'h9', cap: 9, nv: 38, npc: 'm_abobora', nome: 'A serra fechada', libera: ['B2'],
-    pedido: 'A trilha do norte está fechada desde que a Névoa chegou. Um golem de pedra viva dorme no meio dela. Limpe o campo e derrube o bicho que eu levo meus doces para o norte.',
+    pedido: 'A trilha do norte está fechada desde que a Névoa chegou, e os meus doces estragam no barracão. Um golem de pedra viva dorme no meio dela. Limpe o campo e derrube o bicho.',
+    lembra: 'Cada dia de trilha fechada é doce jogado fora. E aquele golem não dorme para sempre.',
     etapas: [
       { ev: 'matar', campos: ['c_v3'], n: 8, txt: 'Derrube 8 monstros no campo Nv 38' },
       { ev: 'matar', hc: 'pedra_viva', txt: 'Derrote Pedra-Viva, o Golem da Serra',
@@ -4152,7 +4185,8 @@ export const HISTORIA = [
     presente: { torta_abobora: 4, runa_rara: 1 } },
   // ---------- Capítulo 10 · O selo que caiu (Nv 40 a 42) ----------
   { id: 'c5', cap: 10, nv: 40, npc: 'v_ursula', nome: 'A canção da serra', libera: [],
-    pedido: 'Você ouviu o canto, não ouviu? Vem da gruta da serra. Quem entra ouvindo aquele canto sai sem lembrar o caminho. Antes, limpe os monstros do campo do norte. E não venha sozinho: o seu amigo Dario pediu para vir.',
+    pedido: 'Você ouviu o canto, não ouviu? Vem da gruta da serra, e quem entra ouvindo sai sem lembrar o caminho. Limpe antes os monstros do campo do norte, e leve o Dario: ele pediu para vir.',
+    lembra: 'O canto ficou mais alto ontem. O Dario está estranho desde que ouviu.',
     etapas: [
       { ev: 'totem', k: 'pouso_serra', ja: 'totem', txt: 'Toque o totem do Pouso da Serra', alvo: 'totem:pouso_serra' },
       { ev: 'time', txt: 'Chame o Dario (ou um jogador) para o time' },
@@ -4163,6 +4197,7 @@ export const HISTORIA = [
     pronto: 'Do irmão dele? Então o que canta na gruta é gente. Prepare o time: a entrada fica a oeste daqui.' },
   { id: 'c6', cap: 10, nv: 42, npc: 'v_ursula', nome: 'A gruta que canta', libera: [],
     pedido: 'A Gruta da Serra do Norte. Entre com o time e não pare de andar. Se ouvir o seu nome lá dentro, não responda.',
+    lembra: 'O Dario quer saber quem canta lá dentro. Eu também.',
     etapas: [
       { ev: 'time', txt: 'Monte o time (o Dario, a Cecília ou um amigo)' },
       { ev: 'matar', campos: ['cav_serra_norte'], n: 4, txt: 'Entre na Gruta da Serra do Norte e abra caminho' },
@@ -4173,6 +4208,7 @@ export const HISTORIA = [
     pronto: 'O Kael... o irmão do Dario. E quebrou o selo assim mesmo. Vá ao Rio Claro: a Mestra Iara viu tudo de longe e quer falar com você.' },
   { id: 'c7', cap: 10, nv: 42, npc: 'v_iara', nome: 'Lutar diferente', libera: [],
     pedido: 'Eu vi o duelo do alto da torre. O Kael leu cada golpe seu, como se já tivesse visto antes. Vamos mudar isso. Desta vez eu reseto a sua build de graça.',
+    lembra: 'Da próxima vez que vocês se cruzarem, o Kael não pode reconhecer o seu jeito de lutar.',
     etapas: [
       { ev: 'resetar', gratis: true, txt: 'Resete a build com a Mestra Iara (de graça desta vez)', alvo: 'npc:v_iara' },
       { ev: 'atributo', txt: 'Distribua os pontos de atributo de novo (menu do personagem)' },
@@ -4181,7 +4217,8 @@ export const HISTORIA = [
     ],
     pronto: 'Melhor. Bem melhor. Da próxima vez eu cobro. Ouro de verdade.' },
   { id: 'h10', cap: 10, nv: 42, npc: 'm_metal', nome: 'A ponte dos Juncos', libera: ['B3'],
-    pedido: 'Com o selo quebrado, os Velados descem para o Rio dos Juncos. Preciso reforçar a ponte antes deles: madeira grossa, ferro e aço. Traga que eu levanto.',
+    pedido: 'Com o selo quebrado, os Velados descem para o Rio dos Juncos, e a ponte de lá não aguenta um empurrão. Preciso reforçar antes deles: 40 lenhas, 6 barras de ferro e 2 de aço.',
+    lembra: 'Os Velados estão chegando ao rio. Se a ponte cair, o leste fica isolado.',
     etapas: [
       { ev: 'falar', npc: 'm_metal', entregar: { lenha: 40, barra_ferro: 6, barra_aco: 2 }, txt: 'Entregue 40 lenhas, 6 barras de ferro e 2 barras de aço ao Malaquias',
         fala: 'Isso aí. Com isso a ponte aguenta até um Warrok.' },
@@ -4190,13 +4227,15 @@ export const HISTORIA = [
     presente: { galao: 4, runa_rara: 1 } },
   { id: 'c8', cap: 10, nv: 43, npc: 'alquimista', nome: 'A tinta das runas', libera: [],
     pedido: 'A ponte nova precisa de runas, e runa precisa de tinta boa. Faça uma síntese de catalisador comigo e eu tiro a tinta do caldeirão. Se a Névoa come memória... talvez dê para devolver. Preciso de coisas raras.',
+    lembra: 'Sem tinta, as runas da ponte não seguram Velado nenhum.',
     etapas: [
       { ev: 'sintetizar', txt: 'Faça 1 síntese de catalisador com a Mirela', alvo: 'npc:alquimista' },
     ],
     pronto: 'Pronto, a tinta das runas da ponte. E a sobra é sua: guarde, que catalisador bom não dá em árvore.', presente: { runa_epica: 1 } },
   // ---------- Capítulo 11 · A carta para o Porto (Nv 45 a 49) ----------
   { id: 'c9', cap: 11, nv: 45, npc: 'v_tiao', nome: 'Três pedras', libera: [],
-    pedido: 'Bem-vindo ao Juncal, casa em cima d\'água! Aqui também tem pedra que brilha. Toque nela, e use para ir e voltar: três pedras acesas são um caminho. E já que está aqui, pesque umas traíras para a janta.',
+    pedido: 'Boas-vindas ao Juncal, casa em cima d\'água! A pedra que brilha aqui leva longe: toque nela, vá a outra e volte. E já que está aqui, pesque duas traíras, que a despensa está vazia.',
+    lembra: 'A janta não sai sem traíra! E aproveite a pedra para conhecer o caminho.',
     etapas: [
       { ev: 'totem', k: 'juncos', ja: 'totem', txt: 'Toque o totem do Juncal', alvo: 'totem:juncos' },
       { ev: 'viajar', n: 2, txt: 'Viaje de totem: vá a outro e volte ao Juncal', alvo: 'totem:juncos' },
@@ -4204,13 +4243,15 @@ export const HISTORIA = [
     ],
     pronto: 'Traíra frita e três pedras acesas! O Aldo mandou recado: precisa de alguém que leve uma carta para o Porto de Vael.' },
   { id: 'c10', cap: 11, nv: 47, npc: 'lider', nome: 'A carta pela estrada', libera: [],
-    pedido: 'Preciso que esta carta chegue ao Porto de Vael. Ninguém volta de lá faz anos. Pela estrada, não pela pedra: quero que vejam você chegar. E cuidado, os Velados vigiam o leste.',
+    pedido: 'Preciso que esta carta chegue ao Porto de Vael. Ninguém volta de lá faz anos, e eu preciso saber se ainda tem gente viva. Vá pela estrada, não pela pedra. E cuidado: os Velados vigiam o leste.',
+    lembra: 'A carta é a única chance de saber do Porto. Cuidado com a emboscada no leste.',
     etapas: [
       { ev: 'matar', campos: ['c_v9', 'c_v6'], n: 6, txt: 'Emboscada no caminho: derrube 6 monstros nos campos Nv 47 e 48' },
     ],
     pronto: 'Você passou pela emboscada. Agora a última parte: a estrada do sul, até o Porto. Fale comigo quando estiver pronto.' },
   { id: 'h11', cap: 11, nv: 48, npc: 'lider', nome: 'O Porto esquecido', libera: ['B4'], liberaNaEtapa: 1,
     pedido: 'Uma Velada guarda a estrada do sul: a Maíra, a Velada da Maré. Derrube ela e leve a minha carta à Capitã Odete, no Porto de Vael.',
+    lembra: 'A carta ainda está com você? O Porto precisa saber que não está esquecido.',
     etapas: [
       { ev: 'matar', hc: 'maira', txt: 'Derrote Maíra, a Velada da Maré, no campo Nv 48',
         diz: 'Maíra cai. A névoa da estrada do sul se abre até o mar.' },
@@ -4219,7 +4260,8 @@ export const HISTORIA = [
     ],
     pronto: 'A gente tinha esquecido o resto do mundo. Todo mundo aqui. Obrigada por vir pela estrada.', presente: { pocao: 6 } },
   { id: 'c11', cap: 11, nv: 49, npc: 'm_conserva', nome: 'Conservas para longe', libera: [], titulo: 'Voz das Estradas',
-    pedido: 'Carta da terra! E agora que a estrada abriu, a minha conserva pode viajar de novo. Plante batata e milho, faça os packs comigo e leve no carrinho até o Seu Abel, lá no oeste.',
+    pedido: 'Carta da terra! Agora que a estrada abriu, a minha conserva pode viajar de novo, e o Old Abel está sem comida no oeste. Plante batata e milho, faça 4 packs comigo e leve de carrinho até ele.',
+    lembra: 'O Abel conta com as conservas. Lá no oeste a despensa já acabou.',
     recebe: { semente_batata: 3, semente_milho: 3 },
     etapas: [
       { ev: 'plantar', k: 'batata', n: 7, txt: 'Plante 7 sementes de batata', alvo: 'lote' },
@@ -4231,7 +4273,8 @@ export const HISTORIA = [
     presente: { selo_epico: 1 } },
   // ---------- Capítulo 12 · A luz roxa (Nv 50 a 52) ----------
   { id: 'c12', cap: 12, nv: 50, npc: 'm_conserva', nome: 'A gruta dos Juncos', libera: [],
-    pedido: 'A luz roxa sai da Gruta dos Juncos toda noite. Vá lá à noite e veja o que é. Leve gente com você.',
+    pedido: 'Toda noite uma luz roxa sai da Gruta dos Juncos e vai para o mar. Vá lá à noite e veja o que é. Mas leve gente com você.',
+    lembra: 'A luz roxa saiu de novo ontem. Ninguém aqui dorme direito.',
     etapas: [
       { ev: 'noite', txt: 'Espere a noite (19h às 5h)' },
       { ev: 'matar', campos: ['cav_juncos'], n: 8, txt: 'Derrube 8 monstros do covil da Gruta dos Juncos' },
@@ -4241,6 +4284,7 @@ export const HISTORIA = [
     pronto: 'Um selo no fundo da gruta? Isso é coisa da Ordem. Corra ao Mestre Ivo.' },
   { id: 'h12', cap: 12, nv: 50, npc: 'reset', nome: 'Segurar o selo', libera: ['C'],
     pedido: 'O selo do mar. Desta vez você chega antes do Kael. Encoste a marca no selo e segure: ele vai se fechar, mas os Velados vão vir em ondas. Leve o time.',
+    lembra: 'Se o selo do mar cair, a Névoa toma a costa. Segure firme.',
     etapas: [
       { ev: 'pos', pos: [665.3, -264, 5], ate: 32, txt: 'Vá ao selo, no fundo da Gruta dos Juncos', alvo: 'pos' },
       { ev: 'matar', campos: ['cav_juncos'], n: 10, txt: 'Segure o selo: aguente as ondas de Velados' },
@@ -4249,7 +4293,8 @@ export const HISTORIA = [
     ],
     pronto: 'O selo do mar está de pé. O primeiro que a gente salva! A névoa do mar voltou para dentro dele: olhe o horizonte, a Ilha do Meio apareceu.' },
   { id: 'c13', cap: 12, nv: 52, npc: 'v_odete', nome: 'A travessia', libera: [],
-    pedido: 'A ilha apareceu! Faz anos que ninguém atravessa. Ponha o seu barquinho no Cais de Vael e reme até o Cais Norte da Ilha. A Maré vive lá: ela vai te receber.',
+    pedido: 'A ilha apareceu! Faz anos que ninguém atravessa, e eu preciso saber se ainda tem gente lá. Ponha o seu barquinho no Cais de Vael e reme até o Cais Norte da Ilha. A Maré vai te receber.',
+    lembra: 'A ilha está ali, depois de tantos anos. Reme até o Cais Norte.',
     etapas: [
       { ev: 'pos', pos: [101.3, 454, 12], barco: true, txt: 'Ponha o barquinho na água no Cais de Vael', alvo: 'pos' },
       { ev: 'pesca', k: 'sardinha', n: 2, txt: 'Pesque 2 sardinhas num spot do mar', alvo: 'spot' },
@@ -4260,7 +4305,8 @@ export const HISTORIA = [
     pronto: 'Era você. Era você nos braços dele. Fique na Vila da Maré e descanse: a Avó Coral quer falar com você.', presente: { runa_epica: 2 } },
   // ---------- Capítulo 13 · O cais de Aurora (Nv 54 a 64) ----------
   { id: 'c14', cap: 13, nv: 54, npc: 'v_coral', nome: 'Pérolas da Maré', libera: [],
-    pedido: 'A ilha vive da pérola. Mas pérola boa precisa de cristal da ilha e de peixe de água doce, e esse só tem no continente. Volte pelo totem, que eu espero.',
+    pedido: 'A ilha vive da pérola, mas pérola boa precisa de cristal daqui e de peixe de água doce, que só tem no continente. Sem pérola, a vila passa fome. Volte pelo totem, que eu espero.',
+    lembra: 'A vila espera essa pérola. Cristal daqui, traíra de lá.',
     etapas: [
       { ev: 'totem', k: 'ilha', ja: 'totem', txt: 'Toque o totem da Vila da Maré', alvo: 'totem:ilha' },
       { ev: 'item', k: 'cristal', n: 2, de: 'coleta', txt: 'Minere 2 cristais', alvo: 'veio:cristal' },
@@ -4270,6 +4316,7 @@ export const HISTORIA = [
     pronto: 'Pérola das boas. Essa vai longe... A Capitã Odete mandou dizer que o barquinho não basta para o que vem. Fale com ela.' },
   { id: 'c15', cap: 13, nv: 60, npc: 'v_odete', nome: 'O navio da Ordem', libera: [],
     pedido: 'Barquinho é para o lago. Para cruzar até Aurora você precisa de um navio de verdade, com porão. Custa caro, mas é seu para sempre. Construa, ponha na água e ancore na ilha.',
+    lembra: 'Aurora fica longe demais para barquinho. Um navio da Ordem, é disso que precisamos.',
     etapas: [
       { ev: 'criar', k: 'navio', ja: 'tem', txt: 'Crie o navio mercante na bancada (Nv 60)', alvo: 'lote' },
       { ev: 'pos', pos: [101.3, 454, 14], navio: true, txt: 'Ponha o navio na água no Cais de Vael', alvo: 'pos' },
@@ -4277,7 +4324,8 @@ export const HISTORIA = [
     ],
     pronto: 'Um navio da Ordem de novo no mar! Faz trezentos anos que este porto não vê isso.' },
   { id: 'c16', cap: 13, nv: 62, npc: 'm_perola', nome: 'Quem te carregou', libera: [],
-    pedido: 'O rapaz de capa cinza saiu da Gruta da Ilha naquela noite. Se ele voltou, está lá. Leve gente com você.',
+    pedido: 'O rapaz de capa cinza saiu da Gruta da Ilha naquela noite, com você nos braços. Se ele voltou, está lá. Leve gente com você.',
+    lembra: 'Você não quer saber por que ele te carregou? A resposta está na gruta.',
     etapas: [
       { ev: 'time', txt: 'Monte o time (o Dario, a Cecília ou um amigo)' },
       { ev: 'matar', campos: ['cav_ilha'], n: 4, txt: 'Entre na Gruta da Ilha e abra caminho' },
@@ -4289,7 +4337,8 @@ export const HISTORIA = [
     ],
     pronto: 'Volte para a Maré. O que a Ordem começou, você vai ter que terminar do outro lado do mar.' },
   { id: 'h13', cap: 13, nv: 64, npc: 'm_perola', nome: 'A outra margem', libera: ['D1'], liberaNaEtapa: 2, titulo: 'Vento do Mar',
-    pedido: 'Aurora fica do outro lado. A costa está fechada pela névoa e por um Maw do tamanho de um barco. Abra caminho e leve as minhas pérolas no porão do navio até o Velho Sálvio, no Cais de Aurora. O mar paga mais.',
+    pedido: 'Aurora fica do outro lado, e a costa está fechada pela névoa e por um Maw do tamanho de um barco. Abra caminho e leve as minhas pérolas no porão do navio até o Velho Sálvio, no Cais de Aurora.',
+    lembra: 'Aurora está logo ali. Só falta abrir o caminho e as pérolas chegarem.',
     etapas: [
       { ev: 'matar', campos: ['c_i3', 'c_i4'], n: 10, txt: 'Derrube 10 monstros nos campos Nv 60 e 64' },
       { ev: 'matar', hc: 'abissal', txt: 'Derrote Abissal, o Maw das Marés',
@@ -4299,11 +4348,12 @@ export const HISTORIA = [
       { ev: 'falar', npc: 'm_ervas', txt: 'Fale com o Velho Sálvio',
         fala: 'Gente do mar! ...E essa moça de olhos vermelhos com você? Olhos de Aurora. Faz trezentos anos que não vejo esses olhos.' },
     ],
-    pronto: 'Bem-vindo a Aurora. Só a praça ainda tem gente. Mas à noite as janelas das casas vazias acendem sozinhas. Você é o Vento do Mar que a gente esperava.',
+    pronto: 'Boas-vindas a Aurora. Só a praça ainda tem gente. Mas à noite as janelas das casas vazias acendem sozinhas. Você é o Vento do Mar que a gente esperava.',
     presente: { selo_lendario: 1 } },
   // ---------- Capítulo 14 · As janelas acesas (Nv 68 a 80; história v2, Entrega 5) ----------
   { id: 'e1', cap: 14, nv: 68, npc: 'm_ervas', nome: 'A cidade que esqueceu', libera: [],
     pedido: 'Aurora fica logo ali, na pedra branca. Só a praça ainda tem gente. Toque o totem e entre de noite: é quando as janelas acendem. Você vai ver coisas que ninguém mais vê.',
+    lembra: 'Volte à cidade de noite. As janelas acendem sozinhas, e alguém deixou recados nas ruas.',
     etapas: [
       { ev: 'totem', k: 'aurora', ja: 'totem', txt: 'Toque o totem de Aurora', alvo: 'totem:aurora' },
       { ev: 'noite', txt: 'Espere a noite em Aurora (19h às 5h)' },
@@ -4316,7 +4366,8 @@ export const HISTORIA = [
     ],
     pronto: 'A Guardiã já sabe de você. E a moça de olhos vermelhos que veio com você... ela anda pelos bairros como se conhecesse cada pedra.' },
   { id: 'e2', cap: 14, nv: 72, npc: 'v_elara', nome: 'A casa da avó', libera: [],
-    pedido: 'A sua amiga Cecília achou uma casa na rua do oeste daqui. Diz que era da avó dela. Uma parede caiu e a janela quebrou. Faça as peças na bancada e traga para mim, que eu levo o pessoal da praça para ajudar.',
+    pedido: 'A sua amiga Cecília achou uma casa na rua do oeste e jura que era da avó dela. Uma parede caiu e a janela quebrou. Faça 3 paredes e 1 janela na bancada e traga para mim.',
+    lembra: 'A Cecília não sai da porta daquela casa. Vamos consertar para ela.',
     etapas: [
       { ev: 'pos', pos: [156, 1084.5, 5], txt: 'Ache a casa da avó da Cecília, na rua do oeste de Aurora', alvo: 'pos', // Aurora viva: a casa de pedra branca dela
         diz: 'Cecília, parada na porta: "Eu conheço essa casa. Eu conheço até o cheiro dela."' },
@@ -4327,7 +4378,8 @@ export const HISTORIA = [
     ],
     pronto: 'O colar da avó dela. Guarde bem: quem usa a estrela de Aurora lembra mais do que devia.', presente: { colar: { r: 2 } } },
   { id: 'e3', cap: 14, nv: 76, npc: 'alquimista', nome: 'O Catalisador da Memória', libera: [],
-    pedido: 'Achei! Um jeito de devolver a memória a quem a Névoa comeu. Preciso de obsidiana do Ônix e de ervas do pântano do Sálvio, as duas de Aurora. Traga de navio até o Cais de Vael e de carrinho pela estrada do oeste. O Abel guarda para mim no Posto do Oeste.',
+    pedido: 'Achei um jeito de devolver a memória a quem a Névoa comeu! Preciso de obsidiana do Ônix e de ervas do pântano do Sálvio: traga de navio e carrinho até o Abel, no Posto do Oeste. Depois, 6 cristais e 2 barras de aço para mim.',
+    lembra: 'Se der certo, o Kael pode voltar a ser quem era. Sem esses ingredientes eu não faço nada.',
     etapas: [
       { ev: 'pack_fez', k: 'obsid', txt: 'Faça 1 Pack de Obsidiana com o Ônix', alvo: 'npc:m_obsid' },
       { ev: 'pack_fez', k: 'ervas', txt: 'Faça 1 Pack de Ervas do Pântano com o Velho Sálvio', alvo: 'npc:m_ervas' },
@@ -4338,7 +4390,8 @@ export const HISTORIA = [
     ],
     pronto: 'Quando o Kael estiver fraco, encoste isso nele. Se ainda sobrar alguém lá dentro, ele volta.', presente: { catalisador_memoria: 1 } },
   { id: 'h14', cap: 14, nv: 80, npc: 'v_elara', nome: 'Kael', libera: ['D2'], liberaNaEtapa: 4,
-    pedido: 'A Lâmina Cinzenta entrou na Gruta da Serra de Aurora. Dizem que está quebrando o último selo do oeste. Leve o Dario. E leve o que a Mirela fez.',
+    pedido: 'A Lâmina Cinzenta entrou na Gruta da Serra de Aurora para quebrar o último selo do oeste. Leve o Dario. E leve o que a Mirela fez.',
+    lembra: 'É agora ou nunca: o Kael está quebrando o selo. O Dario não pode perder o irmão de novo.',
     etapas: [
       { ev: 'ter', itens: { catalisador_memoria: 1 }, kit: true, txt: 'Leve o Catalisador da Memória na mochila' },
       { ev: 'time', txt: 'Chame o Dario (ou um jogador) para o time' },
@@ -4354,6 +4407,7 @@ export const HISTORIA = [
   // ---------- Capítulo 15 · O último selo (Nv 84 a 95) ----------
   { id: 'e4', cap: 15, nv: 84, npc: 'm_brasa', nome: 'Brasa viva', libera: [],
     pedido: 'Brasa viva é a pedra que não apaga. O Tomás, lá no continente, vai precisar dela para o que vem. Fale com o Brás, toque o totem e leve dois packs até o Mestre Pedrão, na Clareira.',
+    lembra: 'Brasa viva não espera esfriar. O Pedrão leva até o Tomás.',
     etapas: [
       { ev: 'falar', npc: 'v_bras', txt: 'Fale com o Brás, o vigia da Vila do Véu',
         fala: 'Alguém anda acendendo as pedras do leste. Toda noite uma acende sozinha, mais perto do Morro do Véu. Fique de olho.' },
@@ -4363,7 +4417,8 @@ export const HISTORIA = [
     ],
     pronto: 'O Pedrão mandou a brasa direto para a forja do Tomás. Ele disse que quer te ver. Com a sua melhor arma.' },
   { id: 'e5', cap: 15, nv: 88, npc: 'ferreiro', nome: 'A estrela na lâmina', libera: [], gravar: true,
-    pedido: 'Brasa de Aurora! Com ela eu gravo a sua estrela numa lâmina. Mas tem que ser uma lâmina à altura: Lendária ou melhor, equipada. E me traga aço e cristal.',
+    pedido: 'Brasa de Aurora! Com ela eu gravo a sua estrela numa lâmina. Mas tem que ser uma lâmina à altura: Lendária ou melhor, equipada. E me traga 10 barras de aço e 10 cristais.',
+    lembra: 'A forja está quente e a brasa esperando. Falta a lâmina e o material.',
     etapas: [
       { ev: 'arma', min: 3, ja: 'arma', txt: 'Equipe uma arma Lendária (ou melhor)' },
       { ev: 'falar', npc: 'ferreiro', entregar: { barra_aco: 10, cristal: 10 }, txt: 'Leve 10 barras de aço e 10 cristais ao Tomás',
@@ -4371,7 +4426,8 @@ export const HISTORIA = [
     ],
     pronto: 'A estrela está na lâmina, e ganhou um reforço de graça. Agora ela é sua de verdade: da Aurora.' },
   { id: 'e6', cap: 15, nv: 92, npc: 'v_kael', nome: 'O Véu', libera: [],
-    pedido: 'O Morro do Véu guarda o último selo. Ela vai estar lá. Um Warrok enorme, coberto de cristal, guarda a subida: o Arauto do Véu. Limpe o campo e suba.',
+    pedido: 'O Morro do Véu guarda o último selo, e ela vai estar lá. Um Warrok coberto de cristal guarda a subida: o Arauto do Véu. Limpe o campo e suba. Eu vou logo atrás.',
+    lembra: 'Se a Vesper chegar antes ao último selo, tudo que a gente fez foi à toa.',
     etapas: [
       { ev: 'matar', campos: ['c_a7'], n: 10, txt: 'Derrube 10 monstros no campo Nv 90' },
       { ev: 'matar', hc: 'arauto', txt: 'Derrote o Arauto do Véu' },
@@ -4384,7 +4440,8 @@ export const HISTORIA = [
     ],
     pronto: 'O Mestre Ivo foi levado para a Vila do Véu. Vá vê-lo. Ele quer falar com você antes de tudo.' },
   { id: 'h15', cap: 15, nv: 95, npc: 'reset', nome: 'A bênção da Ordem', libera: ['D3'], titulo: 'Luz de Aurora',
-    pedido: 'Estou bem. Mais ou menos. A Lúcia quer me fazer um elixir com peixe do mar fundo: garoupa e atum, dos spots raros. Use o radar. E enquanto isso, limpe o campo do Nv 95: o caminho do Pico tem que estar livre.',
+    pedido: 'Estou bem. Mais ou menos. A Lúcia quer me fazer um elixir com garoupa e atum, dos spots raros: use o radar. E limpe o campo do Nv 95, que o caminho do Pico tem que estar livre.',
+    lembra: 'Sem o elixir eu não aguento a subida. E o caminho do Pico precisa estar limpo.',
     etapas: [
       { ev: 'pesca', k: 'garoupa', txt: 'Pesque 1 Garoupa num spot raro (use o radar)', alvo: 'spot' },
       { ev: 'pesca', k: 'atum', txt: 'Pesque 1 Atum num spot raro', alvo: 'spot' },
@@ -4397,8 +4454,9 @@ export const HISTORIA = [
   // ---------- Final · O Coração de Cristal (Nv 98 a 100) ----------
   { id: 'f1', cap: 16, nv: 98, npc: 'lider', nome: 'Todos juntos', libera: [],
     pedido: 'Te achei dormindo do lado do poço. Lembra? Antes de subir aquele Pico, passe em quem te ajudou. Ninguém vai deixar você ir sem uma lembrança.',
+    lembra: 'Antes do Pico, passe em quem te ajudou. Ninguém vai deixar você ir sem uma lembrança.',
     etapas: [
-      { ev: 'falar', npc: 'ferreiro', txt: 'Despeça-se do Tomás', fala: 'A bigorna rachada, lembra? Agora vai, e volta inteiro. A forja fica acesa.' },
+      { ev: 'falar', npc: 'ferreiro', txt: 'Despeça-se do Tomás', fala: 'A bigorna rachada, lembra? Agora vai, e volta com saúde. A forja fica acesa.' },
       { ev: 'falar', npc: 'curandeira', txt: 'Despeça-se da Irmã Lúcia', fala: 'Leve as minhas poções. Todas. Não discuta.' },
       { ev: 'falar', npc: 'andarilho', txt: 'Despeça-se do Bento', fala: 'Do poço até o Pico. Quem diria. Cuida do Presa-de-Prata.' },
       { ev: 'falar', npc: 'comerciante', txt: 'Despeça-se da Rosa', fala: 'A carroça que você achou pagou a minha casa. Essa aqui é por conta da casa.' },
@@ -4412,6 +4470,7 @@ export const HISTORIA = [
     presente: { pocao: 10, pocao_mana: 10, selo_lendario: 1, runa_lendaria: 1 } },
   { id: 'f2', cap: 16, nv: 100, npc: 'v_rui', nome: 'A Gruta da Névoa', libera: [],
     pedido: 'A Gruta da Névoa leva à câmara do Coração. Quem a guarda é o Sentinela de Cristal, um golem do tamanho de uma torre. O Kael vai na frente. Fique perto dele.',
+    lembra: 'O Sentinela guarda a câmara do Coração. O Kael espera você na gruta.',
     etapas: [
       { ev: 'matar', campos: ['cav_nevoa'], n: 6, txt: 'Atravesse a Gruta da Névoa' },
       { ev: 'matar', hc: 'sentinela', txt: 'Derrote o Sentinela de Cristal',
@@ -4420,6 +4479,7 @@ export const HISTORIA = [
     pronto: 'O caminho está livre. Ela está lá dentro. Fale comigo quando estiver pronto: não tem volta.' },
   { id: 'f3', cap: 16, nv: 100, npc: 'v_rui', nome: 'Vesper', libera: ['fim'], grande: true, titulo: 'Estrela de Aethra',
     pedido: 'A Vesper espera no Coração. Ela vai usar fogo, gelo e raio. Depois a Névoa, para seus amigos esquecerem de você. No fim, vai se fundir ao Coração. Não solte a sua luz.',
+    lembra: 'Ela espera no Coração. Não solte a sua luz.',
     etapas: [
       { ev: 'matar', hc: 'vesper', txt: 'Vença a Vesper no Coração de Cristal' },
       { ev: 'pos', pos: [155.5, 1399.5, 5], ate: 18, txt: 'Encoste a marca no Coração de Cristal', alvo: 'pos', marca: true, cena: 'final',

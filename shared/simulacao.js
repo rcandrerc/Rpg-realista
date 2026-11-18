@@ -961,7 +961,7 @@ export class Simulacao {
         const falta = Object.entries(E.entregar).filter(([k, n]) => contar(p.mochila, k) < n);
         if (falta.length) {
           if (!pediu && npc.funcao && !['missao', 'dica'].includes(npc.funcao)) return false;
-          diga(`Ainda falta: ${falta.map(([k, n]) => `${ITENS[k].nome} ${contar(p.mochila, k)}/${n}`).join(', ')}.`, { missao: M.id }); return true;
+          diga(this.lembraHistoria(M, E, `Ainda falta: ${falta.map(([k, n]) => `${ITENS[k].nome} ${contar(p.mochila, k)}/${n}`).join(', ')}.`), { missao: M.id }); return true;
         }
         for (const [k, n] of Object.entries(E.entregar)) tirar(p.mochila, k, n);
       }
@@ -974,9 +974,15 @@ export class Simulacao {
     if (M.npc !== npc.id && !pediu) return false;
     if (!pediu && npc.funcao && !['missao', 'dica'].includes(npc.funcao)) return false;
     if (M.npc !== npc.id) return false;
-    diga(`Primeiro: ${this.textoEtapa(j)}.`, { missao: M.id });
+    diga(this.lembraHistoria(M, E, `Falta: ${this.textoEtapa(j)}.`), { missao: M.id });
     if (this.kitEtapa(j)) this.avisarProg(j); // falou de novo com o NPC: o que falta (o evoluir que falhou)
     return true;
+  }
+  // André 2026-11-18 ("quando você está conversando com o NPC só dá ordem"): voltar ao NPC no meio da missão traz o
+  // porquê dela (lembra da etapa ou da missão, em shared/dados.js HISTORIA) e, na linha de baixo, o que falta
+  lembraHistoria(M, E, falta) {
+    const l = E?.lembra || M?.lembra;
+    return l ? `${l}\n${falta}` : falta;
   }
   // Cena da história (CENAS em shared/dados.js, godot-prototipo/cinematica.gd): põe o herói no lugar dela, se tiver, e
   // manda o app tocar. Só para quem vê (o herói fica onde a cena deixou).

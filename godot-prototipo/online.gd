@@ -1381,6 +1381,11 @@ func evento(ev: Dictionary) -> void:
 			_balao(str(ev.get("id", "")), str(ev.get("texto", "")), int(ev.get("npc", 0)) == 1, str(ev.get("lingua", "")) != "")
 			return
 		"fala":
+			if str(ev.get("missao", "")) != "" and m.missao_fala: # fala da missão: janela só dela (André 2026-11-18)
+				if m.conversa and m.conversa.aberto():
+					m.conversa.fechar()
+				m.missao_fala.mostrar(str(ev.get("npc", "")), str(ev.texto), str(ev.missao))
+				return
 			var fala_txt := Idioma.frase(str(ev.texto)) # inglês: a fala do NPC chega em português (a da IA já vem no idioma)
 			if not (m.conversa and m.conversa.fala(str(ev.get("npc", "")), fala_txt, ev)): # janela do NPC aberta: a fala aparece nela
 				m.hud.aviso(fala_txt)
