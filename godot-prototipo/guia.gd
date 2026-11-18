@@ -86,7 +86,7 @@ func _process_parte(dt: float) -> void:
 	# Com a capa na tela (abrindo o jogo, entrando, voltando da queda) nada pisca.
 	var on = m.online
 	if on != null and on.capa != null and on.capa.visible:
-		if _tem():
+		if _tem() or _sujo:
 			_limpar()
 			desenho.queue_redraw()
 		trava.visible = false
@@ -95,12 +95,12 @@ func _process_parte(dt: float) -> void:
 	_t -= dt
 	if _t <= 0.0:
 		_t = PASSO
-		var tinha: bool = _tem()
 		_procurar()
 		_travar(PASSO)
-		if tinha and not _tem():
-			desenho.queue_redraw() # apaga o último brilho
-	if _tem():
+	# André 2026-11-18: a moldura ficava presa no meio da tela. Quando o botão que piscava era apagado
+	# (janela da missão fechou ao andar), _tem() já vinha falso antes da busca e ninguém pedia o redesenho:
+	# o último quadro do brilho ficava na tela para sempre. Agora redesenha enquanto há algo desenhado.
+	if _tem() or _sujo:
 		desenho.queue_redraw()
 
 func _tem() -> bool:
@@ -799,6 +799,7 @@ func _rolar_ate() -> void:
 
 # ---------- desenho ----------
 func _desenhar() -> void:
+	_sujo = false
 	var t := Time.get_ticks_msec() / 1000.0
 	var pulso := 0.5 + 0.5 * sin(t * TAU * 1.4) # pisca ~1,4 vez por segundo
 	var onda := fmod(t, 1.1) / 1.1 # anel que abre e some
@@ -808,6 +809,7 @@ func _desenhar() -> void:
 		desenho.draw_circle(c, r, Color(COR, 0.24 * pulso))
 		desenho.draw_arc(c, r + 3.0, 0.0, TAU, 48, Color(COR, 0.6 + 0.4 * pulso), 4.5, true)
 		desenho.draw_arc(c, r + 5.0 + 18.0 * onda, 0.0, TAU, 48, Color(COR, 0.8 * (1.0 - onda)), 3.0, true)
+		_sujo = true
 		return
 	var ret := _ret_alvo()
 	var raio := 14.0
@@ -822,8 +824,10 @@ func _desenhar() -> void:
 	_sb2.border_color = Color(COR, 0.8 * (1.0 - onda))
 	_sb2.set_corner_radius_all(int(raio + 6.0))
 	desenho.draw_style_box(_sb2, ret.grow(6.0 + 16.0 * onda))
+	_sujo = true
 
 # as duas molduras do brilho (feitas uma vez; só a cor e o canto mudam)
+var _sujo := false # o último desenho deixou brilho na tela (precisa apagar)
 var _sb: StyleBoxFlat
 var _sb2: StyleBoxFlat
 static func _moldura(meio: bool, borda: int) -> StyleBoxFlat:

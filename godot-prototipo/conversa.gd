@@ -548,21 +548,16 @@ func escolher(a: String) -> void:
 		"habilidades":
 			fechar()
 			m.menu.abrir("habilidades")
-		"consertar": # tudo o que desgastou, no corpo e na mochila, de uma vez (online o servidor confere e cobra)
+		"consertar": # André 2026-11-18: abre a janela do conserto por cima do equipamento: Consertar tudo ou só a peça
+			# que quiser (cada uma inteira ou nada; online o servidor confere e cobra). Antes consertava tudo direto daqui.
 			var custo: int = m.P.custo_conserto_tudo()
 			if custo <= 0:
 				fala_ui.text = Idioma.frase("Seu equipamento está inteiro. Volte quando ele apanhar lá fora.")
-			elif int(m.P.prog.ouro) < custo:
-				fala_ui.text = Idioma.frase("Esse conserto sai por %d de ouro. Você tem %d." % [custo, int(m.P.prog.ouro)])
-			elif m.on():
-				m.rede("item", {"acao": "consertar"})
-				fala_ui.text = Idioma.frase("Pronto, ficou como novo. São %d de ouro." % custo)
-				m.sons.tocar("forja", -4.0)
 			else:
-				var r: String = m.P.consertar_tudo()
-				fala_ui.text = Idioma.frase("Pronto, ficou como novo. São %d de ouro." % custo)
-				m.hud.aviso(r)
-				m.sons.tocar("forja", -4.0)
+				fechar()
+				m.menu.abrir("mochila")
+				m.menu.abrir_conserto()
+				return
 			_atualizar_consertar()
 		"pack": # FASE 1: as opções do mercador (fazer o pack, entregar o das costas, do carrinho ou do porão)
 			var r: Array = m.transporte.opcoes_mercador(n)

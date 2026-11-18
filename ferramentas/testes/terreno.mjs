@@ -34,5 +34,17 @@ const o2 = a.prog.ouro; s.venderLote('A');
 ok(!s.loteDe(a) && soltou === LA.def.id && a.prog.ouro === o2 + 128 && a.prog.mochila.filter((x) => x?.k === 'obra_bancada').reduce((n, x) => n + x.n, 0) === 2, 'vendeu por metade e as peças voltaram ' + avisos());
 const salvo = s.lotesParaSalvar(); ok(salvo.some((l) => l.id === LA.def.id && l.dono === null), 'grava sem dono');
 a.z = 100; s.comprarLote('A', { x0: -10, z0: 100, x1: -4, z1: 106 }); ok(s.loteDe(a), 'compra em outro lugar ' + avisos());
+// André 2026-11-18: a dívida sai da venda; se passar do valor, o resto sai do ouro; sem ouro, não vende (vender e
+// comprar de novo não zera mais a conta)
+{
+  const LB = s.loteDe(b); b.x = -24; b.z = 67;
+  LB.taxa = Date.now() - 15 * 86400000; // 2 semanas de 1.195 = 2.390, a venda de 8x8 vale 128
+  b.prog.ouro = 1000; s.eventos = [];
+  s.venderLote('B');
+  ok(s.loteDe(b) && b.prog.ouro === 1000 && avisos().some((t) => /passa do valor da venda: faltam 1262/.test(t)), 'dívida maior que a venda e sem ouro: não vende');
+  b.prog.ouro = 3000; s.eventos = [];
+  s.venderLote('B');
+  ok(!s.loteDe(b) && b.prog.ouro === 3000 - (2390 - 128) && avisos().some((t) => /pagou 2262 de ouro/.test(t)), 'dívida maior que a venda: o resto sai do ouro');
+}
 s.esquecerLotesDe('c2', null); ok(!s.loteDe(b), 'esquece terreno vendido em outra sala');
 console.log('limites:', LOTE.ladoMin, LOTE.venda, LOTE.taxaBloco, LOTE.fresta);

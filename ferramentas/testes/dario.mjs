@@ -55,7 +55,7 @@ ok(!s.amiga && !dario.amiga && !s.jogadores.has(DARIO.id), 'os dois saem com o d
   const { penalidadeMorte, durab } = await import('../../shared/progresso.js');
   const p = { ouro: 1000, xp: 400, nivel: 7, equip: { corpo: { k: 'peitoral', r: 1 } }, mochila: [] };
   const pen = penalidadeMorte(p);
-  ok(pen.xp === 20 && p.xp === 380 && p.nivel === 7 && p.ouro === 900, `morrer: -5% do XP do nível (${pen.xp}), -10% do ouro, nível igual`);
+  ok(pen.xp === 20 && p.xp === 380 && p.nivel === 7 && p.ouro === 1000, `morrer: -5% do XP do nível (${pen.xp}), ouro igual (André 2026-11-18), nível igual`);
   const p0 = { ouro: 0, xp: 0, nivel: 3, equip: {}, mochila: [] }; penalidadeMorte(p0);
   ok(p0.xp === 0 && p0.nivel === 3, 'sem XP no nível: não cai de nível');
   const s4 = new Simulacao(MAPA_CLAREIRA);
