@@ -85,6 +85,11 @@ jobs:
           gh release download atualizacao -D client/dist/atualizacao --clobber || echo "Ainda sem release atualizacao"
           gh release download conteudo -D client/dist/atualizacao --clobber || echo "Ainda sem release conteudo (APK casca)"
           ls -la client/dist/atualizacao
+      - name: Cardápio e servidor também no balde da Oracle (o jogo não depende do Pages; ver espelhar-balde.sh)
+        env:
+          ORACLE_PAR: ${{ secrets.ORACLE_PAR }}
+          ORACLE_URL: ${{ vars.ORACLE_URL }}
+        run: bash ferramentas/atualizacao/espelhar-balde.sh client/dist
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
