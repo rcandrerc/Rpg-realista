@@ -136,6 +136,7 @@ func _ready() -> void:
 	fala_ui = Menu.rotulo("", 15, Menu.TEXTO)
 	fala_ui.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	fala_ui.custom_minimum_size = Vector2(250, 0)
+	fala_ui.visible = false # André 2026-11-18: a fala sai da janela de opções e aparece em cima dela (missao_fala.gd fala_npc)
 	txt.add_child(fala_ui)
 	itens_ui = HBoxContainer.new()
 	itens_ui.add_theme_constant_override("separation", 8)
@@ -283,6 +284,7 @@ func _process(dt: float) -> void:
 func _process_parte(dt: float) -> void:
 	if m.heroi == null:
 		return
+	_fala_fora()
 	if indo != null:
 		var d := _dist(indo.npc)
 		if m.hud.mover.length() > 0.15 or m.tempo > indo.ate or not m.acao.is_empty() or m.h.morto > 0.0 or m.menu.aberto():
@@ -473,10 +475,27 @@ func _reabrir() -> void:
 		if t != "":
 			fala_ui.text = Idioma.frase(t)
 
+# a fala do NPC (fala_ui, escondido) aparece fora da janela de opções, em cima dela (missao_fala.gd fala_npc)
+var _fala_vista := ""
+func _fala_fora() -> void:
+	if raiz == null or not raiz.visible or npc == null or m.missao_fala == null:
+		return
+	if fala_ui.text == _fala_vista:
+		return
+	if m.missao_fala.aberto() and not m.missao_fala._da_janela:
+		return # a fala da missão está aberta: ela tem a vez
+	if caixa_ui.size.y < 40.0:
+		return # a janela ainda não tem tamanho (o primeiro quadro depois de abrir)
+	_fala_vista = fala_ui.text
+	m.missao_fala.fala_npc(npc, _fala_vista, caixa_ui.size.y)
+
 func fechar() -> void:
 	if raiz == null or not raiz.visible:
 		return
 	raiz.visible = false
+	_fala_vista = ""
+	if m.missao_fala:
+		m.missao_fala.fechar_npc()
 	if npc != null and _retrato_vp.has(npc.id): # a cena do retrato some; fica a foto
 		var vp: SubViewport = _retrato_vp[npc.id]
 		_retrato_vp.erase(npc.id)

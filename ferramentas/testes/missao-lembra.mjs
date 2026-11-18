@@ -41,3 +41,7 @@ ok(f.some((t) => t.startsWith(M.lembra + '\n') && /Ainda falta: .*1\/2/.test(t))
   ok(/MissaoFala\.new\(self\)/.test(gd('main.gd')) && /func mostrar\(npc_id: String, texto: String, missao: String\)/.test(gd('missao_fala.gd')), 'a janela da missão existe no jogo');
   ok(/missao_fala\.aberto\(\)/.test(gd('conversa.gd')), 'a janela do NPC só reabre depois do Ok da fala da missão');
 }
+{
+  const gd = (f) => readFileSync(new URL('../../godot-prototipo/' + f, import.meta.url), 'utf8');
+  ok(/fala_ui\.visible = false/.test(gd('conversa.gd')) && /missao_fala\.fala_npc\(npc,/.test(gd('conversa.gd')), 'a fala comum do NPC também sai da janela de opções (aparece em cima dela)');
+}
