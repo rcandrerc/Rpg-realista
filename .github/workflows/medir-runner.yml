@@ -1,29 +1,33 @@
-# TEMPORÁRIO (thread de acelerar builds): olha a máquina do runner. Sai antes do PR.
+# TEMPORÁRIO (thread de acelerar builds): mede o site (pages.yml sem publicar) no runner. Sai antes do PR.
 name: Medir runner
 on:
   push:
     branches: [claude/project-thread-tf785f]
     paths: ['.github/workflows/medir-runner.yml']
 jobs:
-  olhar:
+  site:
     runs-on: aethra-build
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
-      - name: Máquina
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: bash ferramentas/servidor/empacotar.sh
+      - name: Atualização
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set +e
-          uname -a; nproc; free -m; uptime; df -h / /tmp $HOME
-          cat /proc/cpuinfo | grep -m3 -iE "model|implementer|part"
-          echo "--- .env"; cat ~/actions-runner/.env 2>/dev/null || ls ~ ; echo "home=$HOME"; ls -la $HOME
-          echo "GODOT_BIN=$GODOT_BIN"; "$GODOT_BIN" --version 2>&1 | head -2
-          ls ~/.local/share/godot/export_templates 2>&1
-          echo "--- top"; top -bn1 | head -25
-          echo "--- cgroup"; cat /proc/self/cgroup; systemctl show -p CPUWeight,Nice,MemoryMax,MemoryHigh "$(systemctl list-units --no-legend 'actions.runner*' | awk '{print $1}' | head -1)" 2>&1
-          systemctl show -p CPUWeight,MemoryMax pc-nuvem.slice 2>&1
-          echo "--- du"; du -sh $HOME/* $HOME/.cache/* $HOME/.npm $HOME/.gradle 2>/dev/null | sort -h | tail -25
-          ls $HOME/actions-runner/_work 2>/dev/null; du -sh $HOME/actions-runner/_work/* 2>/dev/null
-          ls /tmp | head -30
-      - name: Rede (download do GitHub)
-        run: |
-          time curl -fsSL -o /dev/null https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.arm64.zip
-          time curl -fsSL -o /dev/null https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_export_templates.tpz
+          mkdir -p client/dist/atualizacao
+          gh release download atualizacao -D client/dist/atualizacao --clobber || true
+          gh release download conteudo -D client/dist/atualizacao --clobber || true
+          du -sh client/dist client/dist/* | sort -h | tail
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: client/dist
+          name: medir-site
+      - name: Memória no fim
+        run: free -m; uptime
