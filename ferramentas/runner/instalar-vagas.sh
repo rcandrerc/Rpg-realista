@@ -35,7 +35,7 @@ id "$USUARIO" >/dev/null 2>&1 || { echo "ERRO: usuário $USUARIO não existe (o 
 echo "== 1/3 Pacotes que os testes e robôs pedem (sem sudo no runner) =="
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y xvfb mesa-vulkan-drivers jq curl unzip
+apt-get install -y xvfb mesa-vulkan-drivers jq curl unzip zip  # zip: versão de Windows (pc.yml)
 
 case "$(uname -m)" in aarch64|arm64) RARCH=arm64;; *) RARCH=x64;; esac
 [ -n "$RUNNER_VERSION" ] || RUNNER_VERSION=$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | jq -r .tag_name | sed 's/^v//')
