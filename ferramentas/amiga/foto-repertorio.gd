@@ -24,6 +24,8 @@ func _initialize() -> void:
 	m = load("res://main.tscn").instantiate()
 	root.add_child(m)
 	await esperar(90)
+	load("res://idioma.gd").trocar("pt")
+	await esperar(5)
 	if m.online and m.online.has_method("esconder_login"):
 		m.online.esconder_login()
 	if m.get("dia") != null:
