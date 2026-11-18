@@ -28,8 +28,9 @@ export const LAGOS = [
 export const BEIRA = { terra_max: 3.0, clara: [1.2, 2.4] }; // terra de cada lago em L.beira [mín, máx]; grama clara 1,2 a 2,4 m
 // mergulho (André 2026-11-06): no lago fundo dá para afundar até esse tanto abaixo da linha em que boia (sem passar do leito)
 export const MERGULHO_MAX = 2;
-export const AGUA = { nivel: -0.05, peito: 1.2, lento: 0.62, raso: 0.82, nado: 1.7 }; // nível da água; mais fundo que isso o herói boia; velocidade na água funda / rasa
+export const AGUA = { nivel: -0.05, peito: 1.2, lento: 0.62, raso: 0.82, nado: 1.4, nadoFundo: 1.15 }; // nível da água; mais fundo que isso o herói boia; velocidade na água funda / rasa
 // nado: boiando (pés fora do fundo) o herói nada, no máximo a esse tanto de m/s (André 2026-11-06: animação de nadar)
+// André 2026-11-18 ("dar uma nerfada nos dois nados"): nado na superfície 1,7 -> 1,4 m/s; submerso (mergulho) 1,15 m/s
 
 // raio da margem do lago na direção do ponto (elipse girada com ondas): 1 = na margem
 export function margemLago(L, x, z) {
@@ -180,6 +181,14 @@ export function usarMundo(G) { MUNDO_G = G; }
 export const gradeDoMundo = () => MUNDO_G;
 export const MAR = { id: 'mar', nome: 'Mar', mar: true, fundo: 7 };
 const mundoEm = (x, z) => (MUNDO_G ? alturaMundo(MUNDO_G, x, z) : 0);
+// nado no mar (André 2026-11-18: "igualzinho nos lagos"): o mar dentro da grade do mundo, longe da borda dela (fora da
+// grade o mar não acaba nunca). Mesma conta no Godot (terreno.gd mar_nadavel).
+export const MAR_BORDA = 24;
+export function marNadavel(x, z) {
+  const G = MUNDO_G; if (!G) return false;
+  const fx = (x - G.x0) / G.passo, fz = (z - G.z0) / G.passo, b = MAR_BORDA / G.passo;
+  return fx >= b && fz >= b && fx <= G.nx - 1 - b && fz <= G.nz - 1 - b && mundoEm(x, z) < 0;
+}
 
 export function alturaMontanha(x, z) {
   const w = MUNDO_G ? Math.max(0, mundoEm(x, z)) : 0;

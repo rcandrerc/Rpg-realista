@@ -34,6 +34,7 @@ var manobra = null # andando pelo caminho do quadril de uma animação (freada, 
 var altura_quadril := 0.9 # metros (main.gd mede no herói): o caminho do quadril vem em alturas de quadril
 var _correu := 0.0 # segundos correndo rápido (freada de verdade só depois de embalar)
 var vel_max := 99.0 # sem fôlego (estamina zerada): só trota (trabalho.gd)
+var nado_k := 1.0 # sem fôlego nadando: o nado fica mais lento (trabalho.gd, ESTAMINA.nadoCansado)
 # 3 velocidades (André 2026-11-03): o joystick só anda (1) e trota (2); a corrida de 5,4 m/s, a que gasta estamina,
 # só com o botão de disparada ligado (hud.gd "disparada", main.gd ligar_disparada). Sem fôlego ela desliga sozinha.
 var disparada := false
@@ -186,6 +187,10 @@ func colidir() -> void:
 			_fora_nevoa = Vector2(x, z)
 	# FASE 3: de barco no mar não tem borda (o servidor confere: posicaoCliente aceita o barco na água)
 	if str(veiculo.get("k", "")) in ["barquinho", "navio"] and not T.no_lago(x, z).is_empty():
+		_pos_ok = Vector2(x, z)
+		return
+	# a nado no mar (André 2026-11-18: "igualzinho nos lagos"); de carrinho não (o servidor confere: marNadavel)
+	if veiculo.is_empty() and T.mar_nadavel(x, z):
 		_pos_ok = Vector2(x, z)
 		return
 	if dentro_do_mapa(x, z, 2.2):
@@ -376,6 +381,10 @@ func _chao(px: float, pz: float, py: float) -> float:
 # nadando (André 2026-11-06): os pés saíram do fundo e o herói boia com a água no peito
 func nadando() -> bool:
 	return montado.is_empty() and esc == null and chao and T.agua_no_corpo(x, z, y) >= float(T.agua.peito) - 0.12
+
+# submerso (mergulho abaixo da linha em que boia): mesmo limite do servidor (posicaoCliente: AGUA.peito + 0,3)
+func submerso() -> bool:
+	return mergulho > 0.3
 
 func mover(dx: float, dz: float) -> void:
 	var x0 := x
@@ -569,8 +578,9 @@ func _passo(dt: float, mx: float, mz: float, correr: bool, livre: bool, vel_k :=
 		var alvo := Vector2.ZERO
 		if livre and mag > 0.15:
 			alvo = Vector2(mx, mz).normalized() * min(vel_joystick(mag, disparada) * vel_k, vel_max) * na_agua()
-			if nadando(): # braçada: mais devagar que andar no fundo, mesmo na disparada
-				alvo = alvo.limit_length(float(T.agua.get("nado", 1.7)) * mag)
+			if nadando(): # braçada: mais devagar que andar no fundo, mesmo na disparada; submerso mais devagar ainda (André 2026-11-18)
+				var vn: float = float(T.agua.get("nadoFundo", 1.15)) if submerso() else float(T.agua.get("nado", 1.4))
+				alvo = alvo.limit_length(vn * nado_k * mag)
 			if not montado.is_empty(): # montado: o lobo anda, trota e galopa (sem estamina)
 				alvo = Vector2(mx, mz).normalized() * vel_montado(mag)
 		var s0 := Vector2(vx, vz).length()

@@ -1538,7 +1538,11 @@ for (const S of CAVERNA_DUNGEON.salas) S.pontos = S.monstros.map(([tipo, s, lado
 // "Em combate" = bateu ou apanhou há menos de ESTAMINA.combate segundos (5 s, igual ao combatT do Quimera).
 export const REGEN = { vida: 1, vidaNivel: 0.05, vidaVit: 0.25, vidaCombate: 0, mana: 1.1, manaNivel: 0.07, manaInt: 0.05, manaMente: 0.3, manaCombate: 0.35 };
 export const ESTAMINA = { base: 50, porNivel: 2, porDes: 5, correr: 10, trote: 0.7, combateK: 1.5, volta: 0.17, voltaCombate: 0.55, espera: 0.9,
-  esperaCombate: 8, dash: 8, rolar: 8, mortal: 6, seguidaK: 0.5, seguidaMax: 2.4, seguidaJanela: 1.3, folego: 0.2, combate: 5 };
+  esperaCombate: 8, dash: 8, rolar: 8, mortal: 6, seguidaK: 0.5, seguidaMax: 2.4, seguidaJanela: 1.3, folego: 0.2, combate: 5,
+  nado: 2.5, nadoFundo: 3.5, voltaAgua: 0.35, nadoCansado: 0.55 };
+// Nado (André 2026-11-18: "adicionar um gasto de estamina"): nadando (andando na água funda) gasta nado/s na superfície e
+// nadoFundo/s submerso; boiando parado não gasta, mas na água funda a estamina volta só a voltaAgua do normal. Sem fôlego
+// na água o nado cai para nadoCansado da velocidade (não afoga).
 // Vigor: energia para trabalhar (coletar e criar). Vai de 0 a max e enche sozinho em "enche" segundos (6 h), mesmo com o jogo fechado.
 export const VIGOR = { max: 100, enche: 6 * 3600 };
 // Dia e noite (igual ao Quimera, André 2026-11-07): 1 hora do jogo = horaSeg s (o dia inteiro em 12 min). Escurece das
