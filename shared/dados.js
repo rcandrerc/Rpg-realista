@@ -184,7 +184,8 @@ export const MOVIMENTO = { pulo: 6.2, gravidade: 17, dashVel: 11, dashTempo: 0.2
 // correcao: por quantos s o servidor ignora as posições que o celular mandou antes de receber o "corrigir" (sem cascata).
 // queda (André 2026-11-12: "se a internet cair por alguns segundos, quando ele voltar... vai voltar"): entrou de novo depois
 // de cair, a primeira posição do celular pode estar até queda s de corrida (ou de lobo) longe de onde o servidor o viu por último.
-export const ORCAMENTO = { burst: 10, altura: 9, silencio: 5, correcao: 5, queda: 60 };
+// queda: até 15 s (Segurança 2026-11-19: era 60; com a velocidade do lobo virava ~700 m de teleporte)
+export const ORCAMENTO = { burst: 10, altura: 9, silencio: 5, correcao: 5, queda: 15 };
 // Montarias (teste): o herói sobe e anda mais rápido. Habilidade, dash, rolar ou escalar fazem descer.
 // modelo: GLB com as animações parado, andar, correr (feito por IA: ferramentas/monstros-ia). escala: tamanho no jogo.
 export const MONTARIAS = {
@@ -1405,7 +1406,11 @@ export const CHAT = { max: 120, entre: 1.2, historico: 40, historicoPm: 300, can
 // Faixa na tela (André 2026-11-12: "um aviso na tela, em cima, meio grande... servidor está reiniciando em 10, 9, 8"; "primeiro
 // o servidor reiniciará em um minuto, e depois uma contagem de 10 segundos"): vale para o reinício programado e para o servidor
 // novo que chega com o merge. aviso = segundos antes do reinício em que sai "reinicia em 1 minuto"; contagem = a contagem grande.
-export const REINICIO = { horas: 5, avisos: [5, 1], aviso: 60, contagem: 10 };
+// Remoção aprovada (Presidente do estúdio, 2026-11-19, plano de lançamento v3; o André passou a ele as autorizações
+// até o lançamento): sai o "a cada 5 horas" (horas: 5). Agora o reinício é FIXO às 05h e às 14h de Brasília, dentro das
+// janelas em que o servidor novo instala (server/atualizar.js): a cada 5 h um deles cairia às 20h, no horário nobre e na
+// hora do lançamento. O pacote do servidor que estiver esperando instala junto com esse reinício (não reinicia duas vezes).
+export const REINICIO = { horarios: [5, 14], avisos: [5, 1], aviso: 60, contagem: 10 };
 export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate: 10, bonus: 0.1, envio: 0.5 }; // pessoas, s, s, metros, s, fração, s
 // André 2026-11-11 ("ninguém ficar protegendo, puxando ninguém"): no time, quem está muito ABAIXO do mais alto que ganhou
 // o mesmo monstro ganha menos XP (jogador ou NPC). Até nerfLivre níveis de diferença: normal; depois -nerfPorNivel por nível
@@ -3458,7 +3463,8 @@ export const GUERRA = { tregua: 30, totem: 25, campoAte: 30, campoFolga: 6, vila
   ouvir: 26, falaEntre: 6, avistar: 120, desisteVida: 0.25, foge: 20, aviso: 20, lembrar: 30,
   // chat (André 2026-11-18): responder no Local (s de espera), conversa entre dois da mesma raça (a cada s, a até m, com
   // alguém de verdade perto), feito grande no Geral (no máximo um a cada s)
-  resposta: [1.5, 3], dupla: [180, 360], duplaPerto: 10, feito: 600 };
+  resposta: [1.5, 3], dupla: [180, 360], duplaPerto: 10, feito: 600,
+  semPontoQueda: 15 }; // voltou da queda longe de onde caiu: por s não fere a outra raça (Presidente 2026-11-19)
 // Os três da Geada (fase 1, aprovados pelo André 2026-11-18; fotos em /mnt/project-files/racas-rivais/). Iguais aos
 // aventureiros por dentro (caçam, vendem, consertam, sobem de nível), moram no Juncal (casa da Geada) e caçam nos campos
 // do leste. guerra: coragem (ataca mesmo em desvantagem), honra (poupa quem é muito mais fraco), paciencia (espera a hora
@@ -5062,16 +5068,22 @@ export const DIARIAS = { nivel: 8, fuso: -3, ouro: 30, ouroNv: 3, xp: 0.08, bonu
 // diante, chance de catalisador (cat; no SS também mitico). Subir: pg cheio + nível do próximo rank + vencer a Prova
 // (um elite forte do próximo rank). Elite e Prova: um monstro de um campo da sua faixa vira elite quando você chega
 // perto (como os chefes da história). tipos: n = quanto pede em cada rank (0 = não sai nesse rank).
-export const GUILDA = { nivel: 30, porDia: 5, ativos: 3, perto: 5.5, faixa: 6,
+// vantagens fixas por rank (Presidente 2026-11-19, aprovado no lugar do André): valem sempre, sem equipar título, e somam
+// subindo (v de cada rank vale dali para cima). extra: contratos a mais por dia (pagam ouro e pontos, sem XP: não
+// aceleram a subida de nível); conserto: desconto no Tomás; ativos: contratos de uma vez; voltar: "Voltar à Guilda"
+// grátis (recarga em s); troca: trocar contratos livres por dia; pack: ouro a mais na entrega de pack; marca: "SS" no
+// nome para todos. vantagensDesde: dia (Brasília) em que o servidor liga (null = desligadas; adiar não apaga nada).
+export const GUILDA = { nivel: 30, porDia: 5, ativos: 3, perto: 5.5, faixa: 6, vantagensDesde: '2026-11-19',
+  voltar: { canal: 5, chegada: [-3.9, 0] }, // canalização (s) e onde aparece: [dx, dz] a partir do mural, de frente para o balcão
   ranks: [
     { r: 'F', nv: 30, pg: 60, ouro: 6, xp: 0.10, pg1: 10 },
-    { r: 'E', nv: 36, pg: 70, ouro: 8, xp: 0.12, pg1: 12 },
-    { r: 'D', nv: 42, pg: 84, ouro: 10, xp: 0.15, pg1: 14 },
-    { r: 'C', nv: 50, pg: 96, ouro: 14, xp: 0.18, pg1: 16, cat: 0.10 },
-    { r: 'B', nv: 60, pg: 108, ouro: 18, xp: 0.22, pg1: 18, cat: 0.15 },
-    { r: 'A', nv: 72, pg: 120, ouro: 22, xp: 0.25, pg1: 20, cat: 0.20 },
-    { r: 'S', nv: 85, pg: 150, ouro: 26, xp: 0.30, pg1: 25, cat: 0.25 },
-    { r: 'SS', nv: 100, pg: 0, ouro: 30, xp: 0.35, pg1: 30, cat: 0.30, mitico: 0.02 },
+    { r: 'E', nv: 36, pg: 70, ouro: 8, xp: 0.12, pg1: 12, v: { extra: 1 } },
+    { r: 'D', nv: 42, pg: 84, ouro: 10, xp: 0.15, pg1: 14, v: { conserto: 0.10 } },
+    { r: 'C', nv: 50, pg: 96, ouro: 14, xp: 0.18, pg1: 16, cat: 0.10, v: { ativos: 4 } },
+    { r: 'B', nv: 60, pg: 108, ouro: 18, xp: 0.22, pg1: 18, cat: 0.15, v: { voltar: 3600 } },
+    { r: 'A', nv: 72, pg: 120, ouro: 22, xp: 0.25, pg1: 20, cat: 0.20, v: { troca: 1 } },
+    { r: 'S', nv: 85, pg: 150, ouro: 26, xp: 0.30, pg1: 25, cat: 0.25, v: { pack: 0.05 } },
+    { r: 'SS', nv: 100, pg: 0, ouro: 30, xp: 0.35, pg1: 30, cat: 0.30, mitico: 0.02, v: { marca: 1 } },
   ],
   tipos: {
     caca: { ev: 'matar', txt: 'Derrube {n} monstros Nv {a}+', n: [15, 20, 25, 30, 30, 35, 40, 50] },

@@ -60,13 +60,17 @@ ok(DESCULPAS_SAIR.f.normal.length >= 50 && DESCULPAS_SAIR.m.normal.length >= 50 
 ok(new Set(DESCULPAS_SAIR.f.normal).size === DESCULPAS_SAIR.f.normal.length && new Set(DESCULPAS_SAIR.m.normal).size === DESCULPAS_SAIR.m.normal.length, 'nenhuma desculpa repetida');
 const cec = s.amigosIa.find((x) => x.AMIGA.id === 'cecilia'), geada = s.amigosIa.filter((x) => x.AMIGA.rival && x.amiga);
 const temDario = () => [...s.jogadores.values()].some((o) => o.conta === dario.AMIGA.conta);
-chats.length = 0; s.iaAcabouAte = Date.now() + 3600e3; esp(80);
+chats.length = 0; s.iaAcabouAte = Date.now() + 3600e3;
+// a saída é sorteada (3-28 s) e espera o fim da briga (até +40 s): espera os dois saírem, sem depender da sorte
+for (let i = 0; i < 120 && (dario.amiga || cec.amiga); i++) esp(1);
 ok(!dario.amiga && !cec.amiga && !temDario(), 'acabou Gemini e Groq: Cecília e Dario saem do jogo');
 const tchau = chats.filter((m) => m.c === dario.AMIGA.conta).at(-1)?.texto;
 ok([...DESCULPAS_SAIR.m.normal, ...DESCULPAS_SAIR.m.cheio].includes(tchau), `Dario se despede com uma desculpa: "${tchau}"`);
 ok(!j.time || !j.time.membros.some((k) => k === d.id), 'e sai do time');
 ok(geada.every((x) => x.amiga), 'a Geada não tem IA e continua no mundo');
 s.amigosIa.find((x) => x.AMIGA.id === 'dario').amigaEntrar('irmao', true); ok(!dario.amiga, 'quem entra enquanto a IA está fora não traz eles de volta');
-s.iaAcabouAte = 0; esp(12);
+s.iaAcabouAte = 0;
+// volta na conferência seguinte: até 30 s depois de sair (amigaFora.chk), e a saída pode atrasar até 40 s se ele estava lutando
+for (let i = 0; i < 45 && !(dario.amiga && cec.amiga); i++) esp(1);
 ok(dario.amiga && cec.amiga && temDario(), 'a IA voltou: os dois logam de novo');
 ok(dario.amigaDono === 'andre', 'e voltam a acompanhar quem estava com eles');

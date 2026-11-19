@@ -1793,12 +1793,14 @@ func montar_guilda() -> void:
 		conteudo.add_child(bpv)
 		if not perto:
 			conteudo.add_child(rotulo("A Prova se pega no mural.", 12, APAGADO))
+	montar_vantagens_guilda(G, prox)
 	var falta := maxf(0.0, float(G.get("fim", 0)) - float(Time.get_ticks_msec() - m.P.guilda_t))
 	conteudo.add_child(rotulo("Cada um: %d ouro · %d XP · %d pontos" % [int(G.get("ouro", 0)), int(G.get("xp", 0)), int(G.get("pgGanha", 0))], 13, OURO))
 	if G.get("cat", false) == true:
 		conteudo.add_child(rotulo("Chance de runa ou selo", 12, OURO))
 	conteudo.add_child(rotulo(("Pegue até %d no mural." % int(G.get("ativos", 3))) if perto else "Pegue contratos no mural do Rio Claro.", 13, VERDE_DIARIA if perto else APAGADO))
 	conteudo.add_child(rotulo("Novos em %d h %d min" % [int(falta / 3600000.0), int(fmod(falta, 3600000.0) / 60000.0)], 12, APAGADO))
+	var troca: int = int(G.v.get("troca", -1)) if G.get("v") is Dictionary else -1
 	for c in G.l:
 		var e := str(c.get("e", "livre"))
 		var feito := e == "feito"
@@ -1815,6 +1817,8 @@ func montar_guilda() -> void:
 		if feito or e == "recebido":
 			nome.text = "✓ " + nome.text
 		v.add_child(nome)
+		if c.get("x", 0):
+			v.add_child(rotulo("Extra do rank · sem XP", 12, APAGADO))
 		if e == "ativo" or feito:
 			var linha := HBoxContainer.new()
 			linha.add_theme_constant_override("separation", 8)
@@ -1838,8 +1842,59 @@ func montar_guilda() -> void:
 				bt.disabled = not perto
 		bt.custom_minimum_size = Vector2(110, 44)
 		bt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		if e == "livre" and troca > 0: # vantagem A: troca um contrato livre por outro
+			var btr := botao("Trocar", func(): m.rede("guilda", {"acao": "trocar", "id": id}), 15)
+			btr.custom_minimum_size = Vector2(96, 44)
+			btr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			h.add_child(btr)
 		h.add_child(bt)
 		conteudo.add_child(pc)
+
+# o que cada vantagem fixa do rank faz, em poucas palavras (GUILDA.ranks[].v em shared/dados.js)
+static func textos_vantagens(v: Dictionary) -> Array:
+	var l := []
+	if int(v.get("extra", 0)) > 0:
+		l.append("+%d contrato por dia (sem XP)" % int(v.extra))
+	if float(v.get("conserto", 0.0)) > 0.0:
+		l.append("Conserto %d%% mais barato" % int(round(float(v.conserto) * 100.0)))
+	if int(v.get("ativos", 0)) > 3:
+		l.append("%d contratos de uma vez" % int(v.ativos))
+	if v.has("voltar") and float(v.voltar) >= 0.0:
+		l.append("Voltar à Guilda grátis, 1 vez por hora")
+	if v.has("troca") and float(v.troca) >= 0.0:
+		l.append("Trocar 1 contrato por dia")
+	if float(v.get("pack", 0.0)) > 0.0:
+		l.append("+%d%% de ouro na entrega de pack" % int(round(float(v.pack) * 100.0)))
+	if int(v.get("marca", 0)) > 0:
+		l.append("Marca SS no nome")
+	return l
+
+# vantagens fixas do rank (Presidente 2026-11-19): valem sempre, sem equipar título; e as do próximo rank
+func montar_vantagens_guilda(G: Dictionary, prox) -> void:
+	var v = G.get("v")
+	if not (v is Dictionary):
+		return
+	var l := textos_vantagens(v)
+	if not l.is_empty():
+		var lv := rotulo("", 13, VERDE_DIARIA)
+		lv.text = Idioma.frase("Vantagens:") + " " + " · ".join(l.map(func(x): return Idioma.frase(x)))
+		lv.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		conteudo.add_child(lv)
+	if prox is Dictionary and prox.get("v") is Dictionary:
+		var lp := textos_vantagens(prox.v)
+		if not lp.is_empty():
+			var lx := rotulo("", 12, APAGADO)
+			lx.text = Idioma.frase("No Rank %s:" % str(prox.rank)) + " " + " · ".join(lp.map(func(x): return Idioma.frase(x)))
+			lx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			conteudo.add_child(lx)
+	if float(v.get("voltar", -1)) >= 0.0:
+		var falta_v := maxf(0.0, float(v.voltar) - float(Time.get_ticks_msec() - m.P.guilda_t))
+		var perto: bool = G.get("perto", false) == true
+		var txt := "Voltar à Guilda" if falta_v <= 0.0 else "Voltar à Guilda · %d min" % int(ceil(falta_v / 60000.0))
+		var bv := botao(txt, func(): fechar(); m.volta.pedir_guilda(), 15, falta_v <= 0.0 and not perto)
+		bv.disabled = falta_v > 0.0 or perto
+		bv.custom_minimum_size = Vector2(0, 44)
+		conteudo.add_child(bv)
 
 func ir_diaria(ev: Dictionary) -> void:
 	var a = ev.get("alvo")

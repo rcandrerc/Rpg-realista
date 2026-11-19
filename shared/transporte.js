@@ -223,7 +223,7 @@ export const Transporte = {
       const pk = lista ? lista[i] : p.pack; if (!pk) return;
       if (Math.hypot(n.x - pk.ox, n.z - pk.oz) < PR.perto) return aviso('Esse pack foi feito aqui. Leve pra outro mercador: quanto mais longe, mais paga!');
       { const dono = this.packDaMissao(j, pk.k, n.id); if (dono) return aviso(`Esse pack é da missão: leve até ${this.nomeNpc ? this.nomeNpc(dono) : dono}`); }
-      const k = mercadoK(p, n.id, pk.k, agora), preco = Math.max(1, Math.round(precoPack(pk, n, p.prof.mer) * k));
+      const k = mercadoK(p, n.id, pk.k, agora), preco = Math.max(1, Math.round(precoPack(pk, n, p.prof.mer) * k * (1 + (this.vantagensDe?.(j).pack || 0)))); // vantagem S da Guilda: +5%
       if (lista) lista.splice(i, 1); else p.pack = null;
       mercadoConta(p, n.id, pk.k, agora);
       p.ouro = (p.ouro || 0) + preco; this.caixa?.(j, 'pack', preco);

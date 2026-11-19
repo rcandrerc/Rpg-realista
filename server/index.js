@@ -7,12 +7,12 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
-import { Contas, verificadorGoogle, roboCel } from './contas.js';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
+import { Contas, verificadorGoogle, roboCel, roboCarga, ROBO } from './contas.js';
 import { Visao } from './visao.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { iaEsgotada, iaVoltaEm, podeIaJogador, puxarAssunto, pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
-import { ligarAtualizacaoTrancada } from './atualizar.js';
+import { ligarAtualizacaoTrancada, proximoReinicio } from './atualizar.js';
 import { reserva, vigiarReserva } from './caddy-reserva.js'; // caminho reserva pelo IP (André 2026-11-16, sslip.io bloqueado no celular)
 
 const { Server, Room, ServerError } = colyseus;
@@ -43,6 +43,10 @@ function temChavePerigosa(m, d = 0) {
 // queda (André 2026-11-12): conta -> hora (ms) da última posição que o servidor recebeu dela antes de cair. Entrando de novo,
 // o caminho andado sem internet vale (Simulacao.folgaDaQueda), em vez de puxar o herói de volta
 const saidas = new Map();
+// quem caiu (conta -> { mont, semGuerra }): a folga da queda vale na velocidade que ele tinha (a montaria), e o "sem ponto
+// de guerra" que faltava passa para a sessão nova (abrir outra aba não zera; Segurança 2026-11-19)
+const montSaida = new Map();
+const infoSaida = (sim, j) => ({ mont: j.montado || null, semGuerra: Math.max(0, (j.semGuerraAte ?? 0) - sim.tempo) });
 const ultimaNoticia = (sim, j) => Date.now() - Math.max(0, sim.tempo - (j.vivoT ?? sim.tempo)) * 1000;
 // chat (André 2026-11-06): as últimas mensagens de cada canal ficam na memória para quem acabou de entrar (não vão para o disco)
 const historicoChat = { geral: [], amigos: [], pm: [], time: [] }; // pm: mensagens privadas entre amigos (de todos juntos)
@@ -438,7 +442,7 @@ class SalaClareira extends Room {
       // a mesma conta abriu o jogo em outro aparelho ou aba: o antigo sai
       for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) {
         const vj = this.sim.jogadores.get(outro.sessionId);
-        if (vj) { this.sim.saiuComVeiculo(vj); this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj)); velhos.push(vj.id); fantasmas.push(vj.id); } // o mais novo vale (com o lugar onde ele estava)
+        if (vj) { this.sim.saiuComVeiculo(vj); this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj)); montSaida.set(conta.id, infoSaida(this.sim, vj)); velhos.push(vj.id); fantasmas.push(vj.id); } // o mais novo vale (com o lugar onde ele estava)
         // revisão de segurança 2026-11-19: o herói antigo sai do mundo já (fantasmas, logo abaixo) e as mensagens do aparelho
         // antigo são ignoradas (ouvir). Antes ele seguia jogando até o socket fechar (até ~30 s) com uma cópia da mochila: duplicava
         (outro.userData ||= {}).substituido = true; outro.leave(4001);
@@ -454,7 +458,7 @@ class SalaClareira extends Room {
       for (const s of salas) if (s !== this) {
         const vivosLa = new Set(s.clients.map((o) => o.sessionId));
         for (const vj of [...s.sim.jogadores.values()]) if (!vj.bot && vj.conta === 'c' + conta.id && !vivosLa.has(vj.id)) {
-          s.sim.saiuComVeiculo(vj); s.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(s.sim, vj));
+          s.sim.saiuComVeiculo(vj); s.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(s.sim, vj)); montSaida.set(conta.id, infoSaida(s.sim, vj));
           const espera = s.esperas?.get(vj.id); if (espera) { s.esperas.delete(vj.id); espera.reject(new Error('substituido')); }
           s.tirarDoMundo(vj.id);
         }
@@ -464,7 +468,7 @@ class SalaClareira extends Room {
       // 15 s atrás, e o antigo ficava 20 s no mundo como fantasma)
       const vivos = new Set(this.clients.map((o) => o.sessionId));
       for (const vj of [...this.sim.jogadores.values()]) if (!vj.bot && vj.conta === 'c' + conta.id && vj.id !== client.sessionId && !vivos.has(vj.id)) {
-        this.sim.saiuComVeiculo(vj); this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj));
+        this.sim.saiuComVeiculo(vj); this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj)); montSaida.set(conta.id, infoSaida(this.sim, vj));
         velhos.push(vj.id); fantasmas.push(vj.id); // sai do mundo logo abaixo, depois de passar o time e os amigos para o novo
         // o aparelho antigo não pode mais voltar como esse herói (André 2026-11-13): sem isso ele religava num herói que
         // já saiu do mundo; agora a volta falha, ele tenta entrar de novo (volta: true) e o onAuth recusa
@@ -476,7 +480,7 @@ class SalaClareira extends Room {
     const podeCriar = conta ? !conta.visual : opcoes?.criando === true;
     this.sim.adicionarJogador(client.sessionId, nome, conta?.visual || opcoes?.visual, { podeCriar, aparencia: conta?.aparencia || opcoes?.aparencia, progresso: conta?.progresso, testador: !!conta?.testador, conta: conta?.id ?? null, robo: !!conta?.robo });
     // voltou de uma queda (a conta saiu há pouco): o caminho que andou sem internet vale
-    if (conta && saidas.has(conta.id)) { const seg = (Date.now() - saidas.get(conta.id)) / 1000; saidas.delete(conta.id); if (seg < 120) this.sim.folgaDaQueda(client.sessionId, seg); }
+    if (conta && saidas.has(conta.id)) { const seg = (Date.now() - saidas.get(conta.id)) / 1000; saidas.delete(conta.id); const info = montSaida.get(conta.id); montSaida.delete(conta.id); this.sim.folgaDaQueda(client.sessionId, seg < 120 ? seg : 0, info?.mont, info?.semGuerra); }
     if (conta) { const l = contas.loteDoDono('c' + conta.id); this.sim.esquecerLotesDe('c' + conta.id, l?.id); if (l) this.sim.carregarLotes([l]); } // o lote dele como está no banco
     this.sim.enviarLotes(client.sessionId); // Vila dos Lotes: todos os lotes e qual é o dele
     if (conta) (this.contaDe ||= new Map()).set(client.sessionId, conta);
@@ -546,7 +550,7 @@ class SalaClareira extends Room {
       try { await espera; this.esperas.delete(client.sessionId); this.voltouNaMesmaSessao(client); return; } catch { this.esperas.delete(client.sessionId); /* não voltou a tempo, ou foi trocado */ }
     }
     { const jj = this.sim.jogadores.get(client.sessionId); if (jj) this.sim.saiuComVeiculo(jj); } // dirigindo: o veículo fica onde ele parou
-    { const jj = this.sim.jogadores.get(client.sessionId); if (jj && client.auth?.id != null && !client.userData?.substituido) saidas.set(client.auth.id, ultimaNoticia(this.sim, jj)); } // queda: a hora da última notícia
+    { const jj = this.sim.jogadores.get(client.sessionId); if (jj && client.auth?.id != null && !client.userData?.substituido) { saidas.set(client.auth.id, ultimaNoticia(this.sim, jj)); montSaida.set(client.auth.id, infoSaida(this.sim, jj)); } } // queda: a hora da última notícia
     this.salvarProgressos(); // grava antes de tirar o herói do mundo
     for (const ctx of this.sim.amigosIa) ctx.amigaSair(client.sessionId); // NPCs: quem saiu deixa de ser acompanhado; o último da sala leva todos junto
     this.salvarProgressos();
@@ -697,39 +701,62 @@ function guardarLinha(r) {
     fs.writeFile(LENTIDAO_ARQ, lentidoes.map((x) => JSON.stringify(x)).join('\n') + '\n', () => {});
   } else fs.appendFile(LENTIDAO_ARQ, JSON.stringify(r) + '\n', () => {});
 }
-// ?inst=código (ou ?ap=modelo) mostra só as de um celular (até as últimas LENTIDAO_MAX); sem filtro, as últimas 100
-const doCelular = (lista, q, n) => {
-  const f = lista.filter((x) => (!q.inst || x.inst === q.inst) && (!q.ap || x.ap === q.ap));
-  return f.slice(q.inst || q.ap ? -lista.length : -n);
+// ?inst=código (ou ?ap=modelo) mostra só as de um celular (até as últimas LENTIDAO_MAX); sem filtro, as últimas 100.
+// Segurança 2026-11-19 (Presidente): aberta, só os números gerais (sem o código do aparelho nem a posição x/z, e sem o
+// filtro por código); o detalhe só com o crachá OIDC da ronda e dos robôs (diagVale), como em /npcs/conversas.json
+// sem crachá também sai o que junto vira impressão digital de um celular raro (placa, motor, cor da pele medida) e a hora
+// exata (vai arredondada para a hora cheia); revisão independente 2026-11-19
+const SEM_CRACHA = new Set(['inst', 'x', 'z', 'placa', 'drv', 'pele']);
+const geral = (x) => { const r = Object.fromEntries(Object.entries(x).filter(([k]) => !SEM_CRACHA.has(k))); if (Number.isFinite(r.servidor)) r.servidor = Math.floor(r.servidor / 3600e3) * 3600e3; return r; };
+async function diagVale(req) {
+  if (!sessaoDe(req) && !req.query.teste) return false;
+  try { return await roboConfere({ cracha: sessaoDe(req), teste: req.query.teste }, [CONVERSAS_WORKFLOW, ROBO_WORKFLOW, ROBO_CELULAR, ROBO_REAL]); } catch { return false; }
+}
+const doCelular = (lista, q, n, cracha) => {
+  const inst = cracha && typeof q.inst === 'string' ? q.inst : '', ap = cracha && typeof q.ap === 'string' ? q.ap : ''; // filtros só com crachá
+  const f = lista.filter((x) => (!inst || x.inst === inst) && (!ap || x.ap === ap)).slice(inst || ap ? -lista.length : -n);
+  return cracha ? f : f.map(geral);
 };
-app.get('/lentidao', (req, res) => res.json(doCelular(lentidoes, req.query, 100)));
-app.get('/lentidao/resumo', (req, res) => res.json(doCelular(resumos, req.query, 200)));
-// quais celulares mandaram: modelo, código, quantas linhas e a última versão
-app.get('/lentidao/celulares', (_req, res) => {
-  const m = {};
+app.get('/lentidao', async (req, res) => res.json(doCelular(lentidoes, req.query, 100, await diagVale(req))));
+app.get('/lentidao/resumo', async (req, res) => res.json(doCelular(resumos, req.query, 200, await diagVale(req))));
+// quais celulares mandaram: modelo, código, quantas linhas e a última versão (sem crachá: por modelo, sem o código)
+app.get('/lentidao/celulares', async (req, res) => {
+  const cracha = await diagVale(req), m = {};
   for (const x of [...lentidoes, ...resumos]) {
     if (!x.inst) continue;
-    const c = (m[x.inst] ||= { inst: x.inst, ap: x.ap, linhas: 0, versao: x.versao, ultima: 0 });
+    const k = cracha ? x.inst : x.ap || '?';
+    const c = (m[k] ||= cracha ? { inst: x.inst, ap: x.ap, linhas: 0, versao: x.versao, ultima: 0 } : { ap: x.ap, linhas: 0, versao: x.versao, ultima: 0 });
     c.linhas++;
     if (x.placa) c.placa = x.placa;
     if (x.drv) c.drv = x.drv;
     if (x.servidor > c.ultima) { c.ultima = x.servidor; c.versao = x.versao; }
   }
-  res.json(Object.values(m).sort((a, b) => b.ultima - a.ultima));
+  res.json(Object.values(m).sort((a, b) => b.ultima - a.ultima).map((c) => (cracha ? c : { ap: c.ap, linhas: c.linhas, versao: c.versao })));
 });
 
 // carga (André 2026-11-11, ping alto): quanto o servidor gasta por passo (de 50 ms), quanto tempo está ligado e quantos jogam
 // relogio (2026-11-13, "slow motion" no lobo): segundos do jogo no servidor por segundo de verdade desde a última leitura.
 // Abaixo de 1, o servidor anda devagar (passos atrasando) e a folga de velocidade do herói enche mais devagar que ele corre.
+// Segurança 2026-11-19 (Presidente): ler /saude não zera mais nada (antes qualquer um apagava o pico lendo a página). Os
+// números valem para a janela de SAUDE_JANELA ms: a cada janela o servidor guarda a que acabou e começa outra; a página
+// mostra a última janela fechada junto com a atual (pico = o maior; contagens = a soma).
+const SAUDE_JANELA = 60e3;
 const relogioSrv = { sim: null, t: 0 };
-app.get('/saude', (_req, res) => {
-  let jogadores = 0, correcoes = 0; for (const s of salas) { jogadores += s.clients.length; correcoes += s.sim.correcoes || 0; s.sim.correcoes = 0; }
+let saudeAnterior = { pico: 0, silencioMs: 0, engasgos: 0, correcoes: 0, relogio: null };
+setInterval(() => {
+  let correcoes = 0; for (const s of salas) { correcoes += s.sim.correcoes || 0; s.sim.correcoes = 0; }
   const s0 = [...salas][0], agoraR = Date.now(); let relogio = null;
   if (s0) { if (relogioSrv.sim != null && agoraR > relogioSrv.t) relogio = +((s0.sim.tempo - relogioSrv.sim) / ((agoraR - relogioSrv.t) / 1000)).toFixed(3); relogioSrv.sim = s0.sim.tempo; relogioSrv.t = agoraR; }
-  // desde a última leitura: correcoes = "corrigir" mandados (rollback), silencioMaxMs = maior tempo sem posição de um
-  // celular, engasgos = silêncios de mais de 1 s
-  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +carga.pico.toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes, silencioMaxMs: carga.silencioMs, engasgos: carga.engasgos, relogio, reserva: reserva.estado });
+  else relogioSrv.sim = null;
+  saudeAnterior = { pico: carga.pico, silencioMs: carga.silencioMs, engasgos: carga.engasgos, correcoes, relogio };
   carga.pico = 0; carga.silencioMs = 0; carga.engasgos = 0;
+}, SAUDE_JANELA).unref();
+app.get('/saude', (_req, res) => {
+  let jogadores = 0, agora = 0; for (const s of salas) { jogadores += s.clients.length; agora += s.sim.correcoes || 0; }
+  const A = saudeAnterior;
+  // correcoes = "corrigir" mandados (rollback), silencioMaxMs = maior tempo sem posição de um celular, engasgos = silêncios
+  // de mais de 1 s; todos da última janela fechada mais a atual (1 a 2 min)
+  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +Math.max(carga.pico, A.pico).toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes: A.correcoes + agora, silencioMaxMs: Math.max(carga.silencioMs, A.silencioMs), engasgos: A.engasgos + carga.engasgos, relogio: A.relogio, janelaS: SAUDE_JANELA / 1000, reserva: reserva.estado });
 });
 // Reinício com aviso na tela (André 2026-11-12): faixa "o servidor reinicia em 1 minuto" e depois a contagem grande de
 // REINICIO.contagem s (godot-prototipo/reinicio.gd). O servidor manda {t:'reinicio', s} a cada 10 s (quem entra no meio também vê)
@@ -766,13 +793,17 @@ function reiniciarComAviso(motivo, segundos = REINICIO.aviso) {
 // Na Oracle: chave pública em /chave-do-servidor e atualização pelo pacote trancado (server/atualizar.js)
 const naOracle = ligarAtualizacaoTrancada(app, path.dirname(fileURLToPath(import.meta.url)), () => reiniciarComAviso('servidor novo'));
 
-// Reinício programado (REINICIO em shared/dados.js): só na máquina instalada. Avisa no chat geral, depois a faixa na tela
-// com a contagem, grava todo mundo e sai; o systemd (Restart=always) liga de novo. Com a sala vazia, reinicia sem aviso.
+// Reinício programado (REINICIO em shared/dados.js): só na máquina instalada, FIXO às 05h e 14h de Brasília. Avisa no
+// chat geral, depois a faixa na tela com a contagem, grava todo mundo e sai; o systemd (Restart=always) liga de novo. Com a
+// sala vazia, reinicia sem aviso. Antes, pergunta ao atualizador se há servidor novo esperando a janela: se houver, ele
+// instala e esse já é o reinício (um só). REINICIO_TESTE=N (minutos): reinicia N minutos depois de ligar (teste local).
 if (naOracle || process.env.REINICIO_TESTE) {
-  const total = (Number(process.env.REINICIO_TESTE) || REINICIO.horas * 60) * 60; // segundos ligado até reiniciar
+  const teste = Number(process.env.REINICIO_TESTE) || 0;
+  const alvo = teste ? Date.now() + teste * 60e3 : proximoReinicio(Date.now(), REINICIO.horarios);
+  console.log(`Próximo reinício programado: ${new Date(alvo).toISOString()}`);
   const avisados = new Set();
-  setInterval(() => {
-    const falta = total - process.uptime(), alguem = alguemOnline();
+  setInterval(async () => {
+    const falta = (alvo - Date.now()) / 1000, alguem = alguemOnline();
     for (const min of REINICIO.avisos) if (alguem && falta <= min * 60 && falta > 0 && !avisados.has(min)) {
       avisados.add(min);
       const sala = [...salas][0];
@@ -780,7 +811,8 @@ if (naOracle || process.env.REINICIO_TESTE) {
     }
     if (falta <= REINICIO.aviso && !avisados.has('fim')) {
       avisados.add('fim');
-      reiniciarComAviso('programado', Math.max(0, Math.round(falta)));
+      try { await naOracle?.conferir?.({ adiantar: (Math.max(0, falta) + 5) * 1000 }); } catch { /* sem pacote: só reinicia */ }
+      reiniciarComAviso('programado', Math.max(0, Math.round((alvo - Date.now()) / 1000)));
     }
   }, 5000);
 }
@@ -854,14 +886,24 @@ async function roboConfere(body, workflows = [ROBO_WORKFLOW]) {
   // o nome no GitHub é 'Rpg-realista' (maiúscula): a conferência não liga para maiúscula
   return String(payload.repository).toLowerCase() === ROBO_REPO && workflows.includes(String(payload.job_workflow_ref).toLowerCase());
 }
-let roboT = 0;
+// Segurança 2026-11-19 (Presidente): a trava de 5 s é por conta de robô (antes era uma só para todos: os 50 robôs do teste
+// de carga não entravam).
+// carga (QA, teste dos 50 robôs): o robo.yml pede { carga: 1..ROBO_CARGA } e cada robô tem conta própria ('robo:carga7')
+// Sem trava na porta (revisão independente 2026-11-19: uma trava global deixava qualquer um barrar o robô mandando lixo,
+// e atrás do proxy todos têm o mesmo endereço): conferir o crachá custa ~50 µs e as chaves do GitHub ficam guardadas
+// (busca nova no máximo a cada 30 s). Crachá certo nunca espera por culpa de outro.
+const ROBO_CARGA = 50;
+const roboT = new Map(); // conta do robô -> hora do último login (antes um número só, para todos)
 app.post('/conta/robo', async (req, res) => {
-  if (Date.now() - roboT < 5000) return res.status(429).json({ erro: 'devagar' });
-  roboT = Date.now();
+  const agora = Date.now();
   try {
-    if (await roboConfere(req.body)) return res.json(contas.entrarRobo());
-    if (await roboConfere(req.body, [ROBO_REAL])) return res.json(contas.entrarRobo(roboCel(Math.min(5, Math.max(1, req.body?.n | 0)))));
-    return res.status(401).json({ erro: 'não é o robô' });
+    let R = null;
+    if (await roboConfere(req.body)) { const k = req.body?.carga | 0; R = k >= 1 && k <= ROBO_CARGA ? roboCarga(k) : ROBO; }
+    else if (await roboConfere(req.body, [ROBO_REAL])) R = roboCel(Math.min(5, Math.max(1, req.body?.n | 0)));
+    if (!R) return res.status(401).json({ erro: 'não é o robô' });
+    if (agora - (roboT.get(R.google) || 0) < 5000) return res.status(429).json({ erro: 'devagar' });
+    roboT.set(R.google, agora);
+    return res.json(contas.entrarRobo(R));
   } catch (e) { console.warn('robô recusado:', e.message); res.status(401).json({ erro: 'crachá do robô inválido' }); }
 });
 // relatórios: o robô manda o turno de tempos em tempos (o mesmo turno é trocado pelo mais novo); ficam os últimos ROBO_MAX
@@ -917,20 +959,25 @@ ${Object.entries(F).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([fx, f]
 // NPCs com IA (André 2026-11-16: "relatórios de Dário e de Cecília" na ronda diária): o que cada um fez hoje, só números
 // do jogo (nível, ouro, missão, minutos de caça e de missão). Nada de conversa, memória ou de quem é amigo deles.
 // evolucao (André 2026-11-17): cada nível, missão entregue, queda, etapa travada, reforço e evolução, com a hora.
-app.get('/npcs.json', (_req, res) => {
+// Segurança 2026-11-19 (Presidente): a posição (x, z), morto, preso, a missão e o diário de evolução (que tem a etapa e a
+// hora da morte) só com o crachá da ronda (diagVale): com a guerra, saber onde a Geada está vira vantagem. Sem crachá,
+// só os números do dia.
+app.get('/npcs.json', async (req, res) => {
+  const cracha = await diagVale(req);
   const dia = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), vivos = new Map();
   for (const s of salas) for (const ctx of s.sim.amigosIa) if (ctx.amiga) vivos.set(ctx.AMIGA.id, { a: ctx.amiga, ctx });
   const l = [];
-  for (const D of AMIGOS_VIRTUAIS) {
+  // a Geada (Kira, Rufo e Lis) também (plano de lançamento, 2026-11-19: "evoluem como a Cecília e entram no relatório das 10h")
+  for (const D of [...AMIGOS_VIRTUAIS, ...RIVAIS]) {
     const v = vivos.get(D.id);
     let d = v?.a;
     if (!d && contas) try { d = D.terreno ? contas.loteDoDono(D.conta)?.dados?.amiga : contas.lerMundo('npc:' + D.id); } catch { d = null; }
     if (!d) { l.push({ nome: D.nome, id: D.id, salvo: false }); continue; }
     const p = d.prog || {}, h = p.hist || {};
-    l.push({ nome: D.nome, id: D.id, noMundo: !!v, nivel: p.nivel | 0, ouro: p.ouro | 0, missao: h.p ?? null, etapa: h.e ?? null,
+    l.push({ nome: D.nome, id: D.id, ...(D.raca ? { raca: D.raca } : {}), noMundo: !!v, nivel: p.nivel | 0, ouro: p.ouro | 0, ...(cracha ? { missao: h.p ?? null, etapa: h.e ?? null } : {}),
       cacaMinHoje: d.grind?.dia === dia ? Math.round((d.grind.seg || 0) / 60) : 0, missaoMinHoje: d.missaoDia?.dia === dia ? Math.round((d.missaoDia.seg || 0) / 60) : 0,
       salvoHa: d.t ? Math.round((Date.now() - d.t) / 60000) : null,
-      evolucao: Array.isArray(d.evolucao) ? d.evolucao.slice(-40) : [], ...(v ? { x: Math.round(v.a.x), z: Math.round(v.a.z), morto: !!v.a.morto, preso: !!v.a.ia?.viagem?.bloqueio } : {}) });
+      ...(cracha ? { evolucao: Array.isArray(d.evolucao) ? d.evolucao.slice(-40) : [] } : {}), ...(v && cracha ? { x: Math.round(v.a.x), z: Math.round(v.a.z), morto: !!v.a.morto, preso: !!v.a.ia?.viagem?.bloqueio } : {}) });
   }
   res.json({ dia, npcs: l });
 });

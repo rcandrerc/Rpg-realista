@@ -102,6 +102,13 @@ export function podeInstalar(agora = Date.now(), urgente = false, furar = false)
   return (semana ? JANELAS.slice(0, 1) : JANELAS).some(([de, ate]) => hora >= de && hora < ate);
 }
 
+const BRASILIA_MS = -3 * 3600e3;
+// Próximo reinício fixo (REINICIO.horarios em shared/dados.js, horas de Brasília) depois de agora.
+export function proximoReinicio(agora = Date.now(), horarios = [5, 14]) {
+  const dia = Math.floor((agora + BRASILIA_MS) / 86400e3) * 86400e3 - BRASILIA_MS; // 00h de hoje em Brasília
+  const vezes = [0, 1].flatMap((d) => horarios.map((h) => dia + d * 86400e3 + h * 3600e3)).sort((a, b) => a - b);
+  return vezes.find((t) => t > agora + 60e3); // o reinício que acabou de acontecer não conta de novo
+}
 // Abre o pacote trancado. Formato: { versao, chave (AES embrulhada em RSA-OAEP), iv, tag, dados } em base64.
 export function abrirPacote(pacote, chavePrivada) {
   const aes = crypto.privateDecrypt({ key: chavePrivada, oaepHash: 'sha256', padding: crypto.constants.RSA_PKCS1_OAEP_PADDING }, Buffer.from(pacote.chave, 'base64'));
@@ -128,7 +135,8 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
 
   let ocupado = false;
   let esperando = '';
-  const conferir = async () => {
+  // adiantar (ms): o reinício fixo pergunta um pouco antes da janela abrir (04:59 para o das 05h) e instala junto
+  const conferir = async ({ adiantar = 0 } = {}) => {
     if (ocupado) return;
     ocupado = true;
     try {
@@ -143,7 +151,7 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
       if (chaves.length && !assinaturaValida(pacote, chaves)) throw new Error(`pacote ${nova} sem assinatura válida (assinado_por=${pacote.assinado_por || 'ninguém'}): não instalo`);
       const emitido = chaves.length ? emitidoAceito(pacote, pasta) : null;
       if (chaves.length && !emitido) throw new Error(`pacote ${nova} mais velho que o último instalado (ou sem data): não instalo`);
-      if (!podeInstalar(Date.now(), pacote.urgente === true, pacote.furar_bloqueio === true)) {
+      if (!podeInstalar(Date.now() + adiantar, pacote.urgente === true, pacote.furar_bloqueio === true)) {
         if (esperando !== nova) console.log(`Servidor novo ${nova} pronto; instala na próxima janela (05h–07h ou 14h–15h de Brasília).`);
         esperando = nova;
         return;

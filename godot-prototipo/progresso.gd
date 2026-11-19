@@ -507,7 +507,13 @@ func custo_conserto_tudo() -> int:
 		t += custo_conserto(prog.equip.get(l))
 	for it in prog.mochila:
 		t += custo_conserto(it)
-	return t
+	return com_desconto(t)
+
+# vantagem D da Guilda (shared/progresso.js comDesconto): o total do conserto fica mais barato
+func com_desconto(t: int) -> int:
+	var v = guilda.get("v")
+	var d: float = float(v.get("conserto", 0.0)) if v is Dictionary else 0.0
+	return max(1, int(ceil(t * (1.0 - d)))) if t > 0 and d > 0.0 else t
 
 # sem internet: o Tomás conserta aqui mesmo. Devolve o aviso
 func consertar_tudo() -> String:
@@ -553,7 +559,7 @@ func custo_conserto_lista(lista: Array) -> int:
 	var t := 0
 	for o in lista:
 		t += custo_conserto(peca_em(o))
-	return t
+	return com_desconto(t)
 
 # sem internet: as peças marcadas, todas inteiras ou nenhuma (igual a shared/progresso.js consertarPecas)
 func consertar_pecas(lista: Array) -> String:

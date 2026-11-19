@@ -815,6 +815,8 @@ func outro(j: Dictionary) -> void:
 		o.nome = str(j.nome) # troca.gd mostra o nome de quem tocou
 	# André 2026-11-10: os outros jogadores veem o nome e o nível em cima da cabeça (só mexe no texto quando muda)
 	var placa: String = "%s · Nv %d" % [str(j.get("nome", "")), int(j.get("nivel", 1))] if j.has("nivel") else str(j.get("nome", ""))
+	if j.has("gss"): # vantagem SS da Guilda (Presidente 2026-11-19): a marca no nome, para todos verem
+		placa = "[SS] " + placa
 	if placa != o.placa_txt and o.placa != null:
 		o.placa_txt = placa
 		o.placa.text = placa
@@ -1182,7 +1184,7 @@ func evento(ev: Dictionary) -> void:
 				if fase == "cancela":
 					m.volta.cancelar("") # o aviso do porquê vem do servidor
 				elif fase == "chegou":
-					m.volta.chegar(Vector3(float(ev.x), float(ev.y), float(ev.z)), str(ev.get("totem", ""))) # totem: chegou num totem de teleporte
+					m.volta.chegar(Vector3(float(ev.x), float(ev.y), float(ev.z)), str(ev.get("totem", "")), ev.get("guilda", false) == true) # totem: chegou num totem de teleporte
 				return # "comeca": aqui no celular já começou na hora do toque
 			var no = corpos.get(id)
 			if no == null:
