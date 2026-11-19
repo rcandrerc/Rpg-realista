@@ -3090,6 +3090,8 @@
 "Pronto! Agora você pode conversar com {1}": "Done! You can now chat with {1}",
 "O nome {1} já é de outro jogador. Escolha outro.": "The name {1} is already taken. Pick another.",
 "{1} é nome de personagem do jogo. Escolha outro.": "{1} is the name of a game character. Pick another.",
+"Conexão caiu: 15 s sem ferir a Geada.": "Connection dropped: 15 s without hurting the Frost.",
+"Conexão caiu: 15 s sem ferir a Chama.": "Connection dropped: 15 s without hurting the Flame.",
 "{1} é nome de personagem do jogo. Que tal {2} ou {3}?": "{1} is the name of a game character. How about {2} or {3}?",
 "{1} é nome de personagem do jogo. Que tal {2}?": "{1} is the name of a game character. How about {2}?",
 "Use só letras comuns no nome.": "Use only common letters in the name.",

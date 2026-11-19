@@ -88,3 +88,13 @@ for (const seg of [1, 2, 3, 4]) {
   const t = novo(); t.s.folgaDaQueda('A', 0, null, 999);
   ok(t.j.semGuerraAte <= t.s.tempo + GUERRA.semPontoQueda + 0.01, `nunca mais que ${GUERRA.semPontoQueda} s`);
 }
+// aviso na tela quando a marca liga (Presidente 2026-11-19), só para quem já passou da Trégua
+{
+  const { s, j } = novo(); j.prog.nivel = GUERRA.tregua + 5;
+  s.folgaDaQueda('A', 12); s.eventos = [];
+  s.posicaoCliente('A', { x: 0, y: s.terreno.altura(0, HEROI.correr * 12, 10), z: HEROI.correr * 12, ry: 0, e: 1, c: 0 });
+  ok(s.eventos.some((e) => e.t === 'aviso' && e.para === 'A' && e.texto === 'Conexão caiu: 15 s sem ferir a Geada.'), 'Nv acima da Trégua: aviso "Conexão caiu: 15 s sem ferir a Geada."');
+  const t = novo(); t.j.prog.nivel = 5; t.s.folgaDaQueda('A', 12); t.s.eventos = [];
+  t.s.posicaoCliente('A', { x: 0, y: t.s.terreno.altura(0, HEROI.correr * 12, 10), z: HEROI.correr * 12, ry: 0, e: 1, c: 0 });
+  ok(!t.s.eventos.some((e) => e.t === 'aviso' && /Conexão caiu/.test(e.texto)), 'Nv 5 (na Trégua): sem aviso');
+}

@@ -1406,7 +1406,11 @@ export const CHAT = { max: 120, entre: 1.2, historico: 40, historicoPm: 300, can
 // Faixa na tela (André 2026-11-12: "um aviso na tela, em cima, meio grande... servidor está reiniciando em 10, 9, 8"; "primeiro
 // o servidor reiniciará em um minuto, e depois uma contagem de 10 segundos"): vale para o reinício programado e para o servidor
 // novo que chega com o merge. aviso = segundos antes do reinício em que sai "reinicia em 1 minuto"; contagem = a contagem grande.
-export const REINICIO = { horas: 5, avisos: [5, 1], aviso: 60, contagem: 10 };
+// Remoção aprovada (Presidente do estúdio, 2026-11-19, plano de lançamento v3; o André passou a ele as autorizações
+// até o lançamento): sai o "a cada 5 horas" (horas: 5). Agora o reinício é FIXO às 05h e às 14h de Brasília, dentro das
+// janelas em que o servidor novo instala (server/atualizar.js): a cada 5 h um deles cairia às 20h, no horário nobre e na
+// hora do lançamento. O pacote do servidor que estiver esperando instala junto com esse reinício (não reinicia duas vezes).
+export const REINICIO = { horarios: [5, 14], avisos: [5, 1], aviso: 60, contagem: 10 };
 export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate: 10, bonus: 0.1, envio: 0.5 }; // pessoas, s, s, metros, s, fração, s
 // André 2026-11-11 ("ninguém ficar protegendo, puxando ninguém"): no time, quem está muito ABAIXO do mais alto que ganhou
 // o mesmo monstro ganha menos XP (jogador ou NPC). Até nerfLivre níveis de diferença: normal; depois -nerfPorNivel por nível
