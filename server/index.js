@@ -12,7 +12,7 @@ import { Contas, verificadorGoogle, roboCel } from './contas.js';
 import { Visao } from './visao.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { iaEsgotada, iaVoltaEm, podeIaJogador, puxarAssunto, pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
-import { ligarAtualizacaoTrancada } from './atualizar.js';
+import { ligarAtualizacaoTrancada, proximoReinicio } from './atualizar.js';
 import { reserva, vigiarReserva } from './caddy-reserva.js'; // caminho reserva pelo IP (André 2026-11-16, sslip.io bloqueado no celular)
 
 const { Server, Room, ServerError } = colyseus;
@@ -769,13 +769,17 @@ function reiniciarComAviso(motivo, segundos = REINICIO.aviso) {
 // Na Oracle: chave pública em /chave-do-servidor e atualização pelo pacote trancado (server/atualizar.js)
 const naOracle = ligarAtualizacaoTrancada(app, path.dirname(fileURLToPath(import.meta.url)), () => reiniciarComAviso('servidor novo'));
 
-// Reinício programado (REINICIO em shared/dados.js): só na máquina instalada. Avisa no chat geral, depois a faixa na tela
-// com a contagem, grava todo mundo e sai; o systemd (Restart=always) liga de novo. Com a sala vazia, reinicia sem aviso.
+// Reinício programado (REINICIO em shared/dados.js): só na máquina instalada, FIXO às 05h e 14h de Brasília. Avisa no
+// chat geral, depois a faixa na tela com a contagem, grava todo mundo e sai; o systemd (Restart=always) liga de novo. Com a
+// sala vazia, reinicia sem aviso. Antes, pergunta ao atualizador se há servidor novo esperando a janela: se houver, ele
+// instala e esse já é o reinício (um só). REINICIO_TESTE=N (minutos): reinicia N minutos depois de ligar (teste local).
 if (naOracle || process.env.REINICIO_TESTE) {
-  const total = (Number(process.env.REINICIO_TESTE) || REINICIO.horas * 60) * 60; // segundos ligado até reiniciar
+  const teste = Number(process.env.REINICIO_TESTE) || 0;
+  const alvo = teste ? Date.now() + teste * 60e3 : proximoReinicio(Date.now(), REINICIO.horarios);
+  console.log(`Próximo reinício programado: ${new Date(alvo).toISOString()}`);
   const avisados = new Set();
-  setInterval(() => {
-    const falta = total - process.uptime(), alguem = alguemOnline();
+  setInterval(async () => {
+    const falta = (alvo - Date.now()) / 1000, alguem = alguemOnline();
     for (const min of REINICIO.avisos) if (alguem && falta <= min * 60 && falta > 0 && !avisados.has(min)) {
       avisados.add(min);
       const sala = [...salas][0];
@@ -783,7 +787,8 @@ if (naOracle || process.env.REINICIO_TESTE) {
     }
     if (falta <= REINICIO.aviso && !avisados.has('fim')) {
       avisados.add('fim');
-      reiniciarComAviso('programado', Math.max(0, Math.round(falta)));
+      try { await naOracle?.conferir?.({ adiantar: (Math.max(0, falta) + 5) * 1000 }); } catch { /* sem pacote: só reinicia */ }
+      reiniciarComAviso('programado', Math.max(0, Math.round((alvo - Date.now()) / 1000)));
     }
   }, 5000);
 }

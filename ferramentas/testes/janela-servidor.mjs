@@ -1,6 +1,7 @@
 // Janela de instalação do servidor (plano de lançamento v3): 05h–07h e 14h–15h de Brasília; 1ª semana do lançamento só
 // 05h–07h; 19/12 18h a 20/12 02h nada instala. Testa podeInstalar (server/atualizar.js).
-import { podeInstalar } from '../../server/atualizar.js';
+import { podeInstalar, proximoReinicio } from '../../server/atualizar.js';
+import { REINICIO } from '../../shared/dados.js';
 
 let falhas = 0;
 const ok = (cond, nome) => { console.log(`${cond ? 'ok' : 'FALHOU'} ${nome}`); if (!cond) falhas++; };
@@ -22,6 +23,13 @@ ok(!podeInstalar(t('2026-12-20T01:59:00-03:00'), true), '20/12 01h59: nem urgent
 ok(podeInstalar(t('2026-12-20T02:00:00-03:00'), true), '20/12 02h00: urgente volta');
 ok(podeInstalar(t('2026-12-19T14:30:00-03:00')), '19/12 14h30 (antes do bloqueio) instala');
 ok(podeInstalar(t('2026-12-19T19:00:00-03:00'), false, true), '[furar bloqueio] instala no lançamento');
+const iso = (ms) => new Date(ms).toISOString();
+ok(JSON.stringify(REINICIO.horarios) === '[5,14]', 'reinício fixo às 05h e 14h (shared/dados.js)');
+ok(iso(proximoReinicio(t('2026-11-25T09:10:00-03:00'), REINICIO.horarios)) === iso(t('2026-11-25T14:00:00-03:00')), 'às 09h10 o próximo é 14h');
+ok(iso(proximoReinicio(t('2026-11-25T20:00:00-03:00'), REINICIO.horarios)) === iso(t('2026-11-26T05:00:00-03:00')), 'às 20h o próximo é 05h do dia seguinte');
+ok(iso(proximoReinicio(t('2026-11-25T05:00:20-03:00'), REINICIO.horarios)) === iso(t('2026-11-25T14:00:00-03:00')), 'acabou de reiniciar às 05h: o próximo é 14h');
+ok(iso(proximoReinicio(t('2026-11-26T01:30:00-03:00'), REINICIO.horarios)) === iso(t('2026-11-26T05:00:00-03:00')), 'à 01h30 (UTC já é outro dia) o próximo é 05h');
+ok(podeInstalar(t('2026-11-25T04:59:00-03:00') + 65e3), 'reinício fixo às 04:59 pergunta adiantado e instala junto');
 process.env.JANELA_LIVRE = '1';
 ok(podeInstalar(t('2026-11-25T09:10:00-03:00')), 'JANELA_LIVRE=1 (teste local) instala sempre');
 if (falhas) { console.log(`${falhas} falha(s)`); process.exit(1); }
