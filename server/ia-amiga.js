@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { abrirPacote } from './atualizar.js';
 import SELADOS from './segredos-selados.json' with { type: 'json' };
-import { AMIGA, CEREBRO, semPalavrao } from '@rpg/shared';
+import { AMIGA, CEREBRO, semPalavrao, palavraoPesado } from '@rpg/shared';
 
 
 // chave de um segredo: do ambiente, do segredos.json (segredos do GitHub, vêm no pacote trancado) ou, sem eles, do
@@ -223,7 +223,7 @@ export function mensagensConversa(ctx, texto) {
     '- Seja natural: conte o que está fazendo ou pensando, dê opinião, faça uma pergunta de volta de vez em quando. Pode ser engraçad' + o + ' e provocar de leve.',
     // André 2026-11-17: "queria que ela fosse tipo um Gemini mesmo, mas pro jogo"; "ela mesmo reclamar de coisas, perguntar coisas pessoais pra mim"
     `- Você tem vida própria: humor do dia, manias, coisas que te irritam (o preço da Rosa, o mob que te derrubou ontem, chuva, as costas doendo de tanto farmar), coisas que você gosta e histórias suas. De vez em quando (não toda hora) reclame de algo seu ou conte algo que te aconteceu, sem ele perguntar. Lembre do que você já contou e não se contradiga.`,
-    `- Interesse-se por ${ctx.amigo} como pessoa de verdade: de vez em quando, no meio da conversa, pergunte da vida dele fora do jogo (o dia, trabalho, comida, sono, família, como ele tá). Use o que você já sabe dele (os fatos abaixo) com naturalidade: pergunte como foi aquilo, lembre de algo que ele contou. Se for assunto sério ou triste, seja carinhos${o} de verdade, sem piada.`,
+    `- Interesse-se por ${ctx.amigo} como pessoa de verdade: de vez em quando, no meio da conversa, pergunte da vida dele fora do jogo (o dia, trabalho, comida, sono, família, como ele tá). Use o que você já sabe dele (os fatos abaixo) com naturalidade: pergunte como foi aquilo, lembre de algo que ele contou. Se for assunto sério ou triste, seja carinhos${o} de verdade, sem piada. Nunca peça nome real, endereço, escola, idade, telefone, foto ou rede social (pode ter criança jogando).`,
     `- Se ele desabafar ou estiver de preguiça, reaja como amig${o} gamer: zoe ou motive no estilo do jogo (ex.: "tira essa bunda do sofá, dormir não dá XP!"), ou apoie se for sério.`,
     '- Varie SEMPRE: nunca repita a mesma desculpa, frase, piada ou começo de frase que já usou na conversa. Só fale de noite, de caçar, de time ou de upar se ele puxar esse assunto ou se encaixar muito bem.',
     // André 2026-11-17 (print, versão 2495): "a Cecília ainda tá muito repetitiva": toda resposta dizia "tô na porta de casa,
@@ -313,7 +313,7 @@ Devolva só JSON: {"fala": "...", "acao": "nada", "lugar": "", "sugere": ""}`;
 export const TEMAS_SEM_REPETIR = 5;
 export function temasPuxar(amigo) {
   return [
-    'conte algo que aconteceu com você hoje', 'reclame de alguma coisa sua (do seu jeito)', `pergunte algo pessoal da vida de ${amigo} fora do jogo`,
+    'conte algo que aconteceu com você hoje', 'reclame de alguma coisa sua (do seu jeito)', `pergunte do que ${amigo} gosta fora do jogo (comida, música, bicho)`,
     `retome algo que vocês conversaram antes ou algo que ${amigo} te contou`, 'comente o que você está fazendo agora', 'dê uma opinião sobre algo do jogo ou da vila',
     'mande uma zoeira ou piada curta do seu jeito', 'conte um plano ou vontade sua (algo que quer fazer, comprar ou conseguir no jogo)',
     `pergunte como foi o dia de ${amigo}`, 'conte uma fofoca leve de alguém da vila (Rosa, Tomás, outros NPCs)', 'conte algo engraçado ou estranho que você viu por aí',
@@ -350,7 +350,8 @@ export function salvarResposta(txt) {
   const fala = (m ? m[1] : t.replace(/^\{\s*/, '').replace(/"?\s*,?\s*("acao"\s*:\s*"[a-zA-Z]*"\s*)?\}?\s*$/, '')).replace(/\\"/g, '"').replace(/\s+/g, ' ').trim();
   if (!m && /^\{/.test(t)) return null; // JSON cortado no meio da fala: melhor o próximo modelo que meia frase
   if (fala.length < 2 || /^[{\["]/.test(fala) || /"(fala|acao)"/.test(fala)) return null;
-  return { assunto: 'conversa', fala: semPalavrao(fala.slice(0, 300)) };
+  if (palavraoPesado(fala)) return null; // xingamento: joga fora a fala inteira (revisão 2026-11-19)
+  return { assunto: 'conversa', fala: semPalavrao(fala).slice(0, 300) };
 }
 // André 2026-11-17 (ronda): ela repetia o pedido ("2 couros e um capacete melhor") em 6 de 25 falas, mesmo depois de ele
 // dizer que estava sem ouro. A ficha só lembra o pedido se ela não falou dele nas últimas 8 falas dela.
@@ -363,7 +364,9 @@ export function jaFalou(ctx, oQue) {
 // {"fala", "acao"} da IA -> { assunto, fala } (ação fora da lista vira conversa)
 function lerResposta(txt) {
   let out; try { out = JSON.parse(txt || '{}'); } catch { return null; }
-  const fala = typeof out.fala === 'string' ? semPalavrao(out.fala.replace(/\s+/g, ' ').trim().slice(0, 300)) : ''; // sem palavrão (2026-11-19)
+  const crua = typeof out.fala === 'string' ? out.fala.replace(/\s+/g, ' ').trim() : '';
+  if (palavraoPesado(crua)) return null; // xingamento ou termo sexual: joga fora a fala inteira, vem a fala pronta (revisão 2026-11-19)
+  const fala = semPalavrao(crua).slice(0, 300); // sem palavrão (2026-11-19): filtra antes de cortar, para não sobrar "porr"
   if (!fala) return null;
   const lugar = typeof out.lugar === 'string' ? out.lugar.slice(0, 60) : '';
   const sugere = ['time', 'pescar', 'minerar', 'lenha'].includes(out.sugere) ? out.sugere : ''; // o que ELA propôs (André 2026-11-17)
@@ -389,7 +392,7 @@ ${conversa}
 Reescreva a lista do que vale lembrar dele e de vocês (gostos, o que fizeram juntos, promessas, combinados, dicas que ele deu, como ele se sentiu, o que VOCÊ contou de você para não se contradizer). Junte com o que já lembrava, tire repetições e coisas sem importância. NÃO anote estado do jogo que muda (seu equipamento, peça ou material que você precisa, nível, onde você está, missão, horta, o que vão fazer hoje ou amanhã): o jogo te conta isso na hora. No máximo ${M.max} itens curtos (até ${M.tamanho} letras), em português do Brasil, na primeira pessoa ("ele gosta de...").
 Dicas de combate que ele pediu para você seguir (true se ele pediu, false se pediu para parar, deixe de fora se não falou): ${regras}.
 Fatos que você já sabe dele (não repita estes): ${(dados.fatos || []).join('; ') || '(nenhum)'}.
-Em "fatos", ponha só os fatos NOVOS e duradouros sobre a vida dele que ele contou HOJE (família, trabalho, onde mora, saúde, perdas, gostos e o que ele não gosta, sonhos), um por item, curto, na terceira pessoa ("o pai dele morreu", "ele trabalha num restaurante", "ele não gosta de guerreiro"). Nada de coisa passageira do jogo. Se não tiver nada novo, lista vazia.
+Em "fatos", ponha só os fatos NOVOS e duradouros sobre a vida dele que ele contou HOJE (trabalho ou estudo, gostos e o que ele não gosta, sonhos, bichos de estimação; NUNCA onde mora, escola, idade, saúde, telefone ou nome real), um por item, curto, na terceira pessoa ("o pai dele morreu", "ele trabalha num restaurante", "ele não gosta de guerreiro"). Nada de coisa passageira do jogo. Se não tiver nada novo, lista vazia.
 Devolva só JSON: {"memorias": ["..."], "fatos": [], "regras": {}}`;
   const lerDiario = (out) => ({ memorias: Array.isArray(out.memorias) ? out.memorias : null, fatos: Array.isArray(out.fatos) ? out.fatos : null, regras: out.regras && typeof out.regras === 'object' ? out.regras : null });
   // André 2026-11-19 (a memória da Cecília e do Dario volta com a IA): o diário vai primeiro no Gemini, depois no Groq
@@ -437,7 +440,7 @@ Exemplo: "recua quando o chefe levantar o braço" -> {"ok": true, "regra": {"qua
 Exemplo: "bebe poção quando tiver com metade da vida" -> {"ok": true, "regra": {"quando": [["vida", "<", 0.5], ["temPocao", "=", true]], "faca": "pocao", "texto": "beber poção com metade da vida"}}
 Dica: "${String(texto).slice(0, 300).replace(/"/g, "'")}"
 Devolva só JSON.`;
-  if (!chaveJogador) { const out = await geminiJson(prompt, { temperatura: 0.1, maximo: 800, espera: 10000 }); if (out?.ok && out.regra && typeof out.regra === 'object') return out.regra; if (out) return null; } // Gemini primeiro
+  if (!chaveJogador) { const out = await geminiJson(prompt, { temperatura: 0.1, maximo: 800, espera: 10000 }); if (out?.ok && out.regra && typeof out.regra === 'object') return regraLimpa(out.regra); if (out) return null; } // Gemini primeiro
   if (!chave) return null;
   try {
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -447,6 +450,12 @@ Devolva só JSON.`;
     });
     if (!r.ok) return null;
     const out = JSON.parse((await r.json())?.choices?.[0]?.message?.content || '{}');
-    return out?.ok && out.regra && typeof out.regra === 'object' ? out.regra : null;
+    return out?.ok && out.regra && typeof out.regra === 'object' ? regraLimpa(out.regra) : null;
   } catch { return null; }
+}
+// o texto da regra a IA escreve repetindo a dica do jogador, e ela fala em voz alta ("aprendeu: ..."): sem palavrão também
+export function regraLimpa(regra) {
+  const t = typeof regra.texto === 'string' ? regra.texto : '';
+  if (palavraoPesado(t)) return null;
+  return { ...regra, texto: semPalavrao(t) };
 }

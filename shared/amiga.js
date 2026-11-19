@@ -2126,7 +2126,7 @@ export const Amiga = {
       d.falas = 0;
       d.novas = 0; d.pensando = true;
       const dados = { amigo: this.AMIGA.id, nomeAmigo: this.AMIGA.nome, genero: this.AMIGA.genero || 'f', conta, nome: d.nome, memoria: [...(a.memorias?.[conta] || [])], fatos: [...(a.fatos?.[conta] || [])], regras: { ...(a.regras?.[conta] || {}) }, conversa: [...((a.ia.conversas || {})[conta] || [])] };
-      if (!this.aoDiarioAmiga || !IA_CONVERSA.ligada || (d.id != null && this.jogadores.has(d.id) && !this.iaAmiga(d.id))) { d.pensando = false; continue; } // sem chave: sem IA, sem diário. IA desligada (André 2026-11-18): nunca chama a IA, nem depois que a pessoa sai (revisão 2026-11-19)
+      if (!this.aoDiarioAmiga || !IA_CONVERSA.ligada || !IA_CONVERSA.quem.includes(this.AMIGA.id) || (d.id != null && this.jogadores.has(d.id) && !this.iaAmiga(d.id))) { d.pensando = false; continue; } // sem chave: sem IA, sem diário. IA desligada (André 2026-11-18): nunca chama a IA, nem depois que a pessoa sai; só a Cecília e o Dário usam IA (revisões 2026-11-19)
       this.aoDiarioAmiga(dados).then((r) => { d.pensando = false; if (r) this.anotarAmiga(conta, r); }, () => { d.pensando = false; });
     }
   },

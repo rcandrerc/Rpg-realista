@@ -5191,23 +5191,40 @@ export function nomeReservado(nome) {
 }
 
 // ---------- IA sem palavrão (Segurança 2026-11-19, plano de lançamento: "a filha do André joga") ----------
-// O que a Cecília e o Dário falam pela IA passa por aqui antes de chegar no chat: palavrão vira uma palavra leve (porra ->
-// poxa, caralho -> caramba, merda -> droga, foda -> tenso) ou ***. Confere palavra por palavra, sem acento, com letra
-// repetida ("porraaa") e número no lugar de letra ("p0rra"). "Putz", "puts", "veado" e "rola" passam.
+// O que a Cecília e o Dário falam pela IA passa por aqui antes de chegar no chat: palavrão leve vira uma palavra leve
+// (porra -> poxa, caralho -> caramba, merda -> droga, "isso é foda" -> tenso); xingamento, termo sexual ou palavrão em
+// inglês vira *** e palavraoPesado() avisa, para o servidor jogar fora a fala inteira da IA (melhor a fala pronta que
+// "seu filho da ***"). Confere palavra por palavra, sem acento, com letra repetida ("porraaa"), número no lugar de letra
+// ("p0rra") e letra solta ("p o r r a", "p.o.r.r.a"). Passam: putz, veado, rola, pica-pau, porão, viaduto, vadiar, Putin.
 export const PALAVROES = [
-  [/^p+o+r+a+d+a+s?$/, 'monte'], [/^p+o+r+a+/, 'poxa'], [/^c+a+r+a+l+h+/, 'caramba'], [/^(k+r+l+|c+r+l+|c+a+r+a+i+|c+a+r+a+l+e+o+)$/, 'caramba'],
-  [/^m+e+r+d+/, 'droga'], [/^b+o+s+t+a+s?$/, 'droga'], [/^f+o+d+[aeiou]/, 'tenso'],
-  [/^p+u+t+[aoi]/, null], [/^(p+q+p+|f+d+p+|v+s+f+|v+t+n+c+|t+n+c+|c+u+|c+u+z+a+o+|c+u+z+i+n+h+o+)$/, null],
-  [/^(b+u+c+e+t+|b+o+c+e+t+|x+o+x+o+t+|p+i+r+o+c+|c+a+c+e+t+e+|a+r+r+o+m+b+a+d+|v+i+a+d+|v+a+d+i+|r+e+t+a+r+d+a+d+|c+o+r+n+o+s?$|c+o+r+n+a+$)/, null],
+  [/^p+o+r{2,}a+d+a+s?$/, 'monte'], [/^p+o+(r{2,}|h+)a+/, 'poxa'], [/^[ck]+a+r+a+l+h+/, 'caramba'],
+  [/^(k+r+l+h?|c+r+l+h?|[ck]+a+r+a+i+|[ck]+a+r+a+i+o+|k+r+a+i+|c+a+r+a+l+e+o+)$/, 'caramba'],
+  [/^(m+e+r+d+|m+r+d+$)/, 'droga'], [/^b+o+s+t+a+s?$/, 'droga'], [/^f+o+d+(a+|ona|ao|oes|as|inha)$/, 'tenso'],
+  [/^f+[ou]+d(e+r+|e+u+|i+d+[oa]s?|e+n+d+o+|a+s+e+|a+s+s+e+|e+|o+)$/, null], // foder, fudeu, fudido (foda-se já virou dane-se)
+  [/^p+u+t+(a+|o+|as|os|aria|eiro|eira|inha|inho|ona|ao|ada)$/, null],
+  [/^(p+q+p+|f+d+p+s?|v+s+f+d?|v+t+n+c+|t+n+c+|t+m+n+c+|p+n+c+|k+c+t+|b+c+t+|c+u+|c+u+z+a+o+|c+u+z+i+n+h+o+)$/, null],
+  [/^(b+u+c+e+t+|b+o+c+e+t+|x+o+x+o+t+|x+e+r+e+c+|x+o+t+a+s?$|s+i+r+i+r+i+c+|p+u+n+h+e+t+|b+o+q+u+e+t+|p+i+r+o+c+|c+a+c+e+t+e+|r+e+t+a+r+d+a+d+|e+s+c+r+o+t+|b+r+o+x+|q+u+e+n+g+|r+a+p+a+r+i+g+|v+a+g+a+b+u+n+d+|d+e+s+g+r+a+c+a+d+|o+t+a+r+i+[oa]|p+o+r+n+[oô]|x+v+i+d+e+o+|n+u+d+e+s+$|b+o+i+o+l+|b+a+i+t+o+l+|t+r+a+v+e+c+|b+i+x+a+s?$|c+o+r+n+o+s?$|c+o+r+n+a+$)/, null],
+  [/^(v+i+a+d+(o+|a+|os|as|inho|inha|ao|oes)$|v+a+d+i+a+s?$)/, null],
+  // inglês (o jogo também fala inglês, e o chat brasileiro mistura)
+  [/^(f+u+c+k+|f+u+k+|f+c+k+|s+h+i+t+|w+t+f+$|b+i+t+c+h+|m+o+t+h+e+r+f+|a+s+s+h+o+l+e+|c+u+n+t+|b+a+s+t+a+r+d+|s+l+u+t+|w+h+o+r+e+|p+u+s+s+y+|n+i+g+g+)/, null],
+];
+// frase inteira antes da palavra: "foda-se" vira "dane-se" e não "tenso-se"
+const PALAVRAO_FRASE = [
+  [/\bf+o+d+a+[\s-]*s+e+\b|\bf+o+d+a+s+s?e+\b/giu, 'dane-se'], [/\bp+u+t+a+\s+(m+e+r+d+a+|q+u+e+\s+p+a+r+i+u+)\b/giu, 'caramba'],
+  [/\bv+a+i+\s+s+e+\s+f+[ou]+d+\p{L}*/giu, 'vai passear'], [/\bv+a+i+\s+t+o+m+a+r+\s+n+o+\s+c+u+\b/giu, 'vai passear'],
 ];
 const PALAVRAO_NUM = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', '@': 'a', $: 's' };
+const chavePalavrao = (w) => w.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[0-9@$]/g, (c) => PALAVRAO_NUM[c] || c);
+function qualPalavrao(w) { const k = chavePalavrao(w); for (const [re, leve] of PALAVROES) if (re.test(k)) return { leve }; return null; }
+const comoEra = (w, leve) => w === w.toUpperCase() && w.length > 1 ? leve.toUpperCase() : /^\p{Lu}/u.test(w) ? leve[0].toUpperCase() + leve.slice(1) : leve;
 export function semPalavrao(texto) {
-  return String(texto ?? '').replace(/[\p{L}\p{N}@$]+/gu, (w) => {
-    const k = w.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[0-9@$]/g, (c) => PALAVRAO_NUM[c] || c);
-    for (const [re, leve] of PALAVROES) if (re.test(k)) {
-      if (!leve) return '***';
-      return w === w.toUpperCase() && w.length > 1 ? leve.toUpperCase() : /^\p{Lu}/u.test(w) ? leve[0].toUpperCase() + leve.slice(1) : leve;
-    }
-    return w;
+  let t = String(texto ?? '');
+  for (const [re, leve] of PALAVRAO_FRASE) t = t.replace(re, (w) => comoEra(w, leve));
+  // letra solta: "p o r r a", "p.o.r.r.a" (3 ou mais letras sozinhas) juntas e conferidas como uma palavra
+  t = t.replace(/(?<![\p{L}\p{N}@$])[\p{L}\p{N}@$](?:[\s.\-_*,]+[\p{L}\p{N}@$](?![\p{L}\p{N}@$])){2,}/gu, (m) => {
+    const p = qualPalavrao(m.replace(/[\s.\-_*,]+/g, '')); return p ? (p.leve || '***') : m;
   });
+  return t.replace(/[\p{L}\p{N}@$]+/gu, (w) => { const p = qualPalavrao(w); return !p ? w : p.leve ? comoEra(w, p.leve) : '***'; });
 }
+// true se a fala tem xingamento/termo sexual (o que vira ***): o servidor joga a fala da IA fora
+export function palavraoPesado(texto) { return /\*\*\*/.test(semPalavrao(texto)) && !/\*\*\*/.test(String(texto ?? '')); }
