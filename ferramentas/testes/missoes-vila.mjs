@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, MISSOES_VILA, VILAS_MISSAO, MISSOES_VILA_LIGA, TITULOS, ITENS, CHEFES_HISTORIA, HISTORIA_PREMIO, progressoValido, bonusTitulo, xpProximo } from '../../shared/index.js';
 import { etapasDe, histNova, zonaFechadaEm, QUEM_LIBERA } from '../../shared/historia.js';
-import { vilaValida, MISSOES_DA_VILA, missoesVilaParaApp } from '../../shared/missoes-vila.js';
+import { vilaValida, MISSOES_DA_VILA, missoesVilaParaApp, falaFimVila } from '../../shared/missoes-vila.js';
 import { guardar, contar } from '../../shared/progresso.js';
 import { noLago, marNadavel } from '../../shared/relevo.js';
 import * as G from '../../shared/guerra.js';
@@ -31,6 +31,7 @@ for (const M of MISSOES_VILA) {
   ok(M.pedido.length <= 240 && M.lembra.length <= 120 && M.lembra.length > 10, `${M.id}: texto curto (pedido ${M.pedido.length}, lembra ${M.lembra.length})`);
   ok(L.at(-1).ev === 'falar', `${M.id}: termina falando com alguém`);
   for (const t of [M.nome, M.pedido, M.lembra, M.pronto]) ok(typeof EN[t] === 'string' && EN[t].length > 2, `${M.id}: inglês de "${t.slice(0, 40)}"`);
+  ok(typeof EN[falaFimVila(M)] === 'string', `${M.id}: inglês da fala de quando entrega (a da última etapa e o pronto juntos)`);
   for (const [k] of Object.entries(M.presente || {})) ok(!!ITENS[k], `${M.id}: presente ${k} existe`);
   for (const E of L) {
     ok(typeof EN[E.txt] === 'string', `${M.id}: inglês da etapa "${E.txt}"`);
@@ -65,7 +66,7 @@ for (const [id, V] of Object.entries(VILAS_MISSAO)) if (MISSOES_DA_VILA[id]) {
       const a = T.altura(x, z, 200), decl = Math.max(...[[2, 0], [-2, 0], [0, 2], [0, -2]].map(([dx, dz]) => Math.abs(T.altura(x + dx, z + dz, 200) - a)));
       ok(!zonaFechadaEm(p, x, z) && !noLago(x, z) && !marNadavel(x, z) && decl < 1.6 && anda(x, z), `${M.id}: "${nome}" em (${x}, ${z}) aberto, seco, plano (${decl.toFixed(2)}) e dá para chegar andando`);
     }
-    for (const id of [M.npc, ...etapasDe(M).filter((E) => E.ev === 'falar').map((E) => E.npc)]) { const n = npcDe(id); ok(!zonaFechadaEm(p, n.x, n.z), `${M.id}: ${id} fica na região aberta`); }
+    for (const id of new Set([M.npc, ...etapasDe(M).filter((E) => E.ev === 'falar').map((E) => E.npc)])) { const n = npcDe(id); ok(!zonaFechadaEm(p, n.x, n.z), `${M.id}: ${id} fica na região aberta`); }
   }
 }
 
@@ -112,7 +113,7 @@ for (const [x, z] of etapasDe(rc1)[1].pontos) { ir(x, z); s.passoVila(1); }
 ok(p.vila.e === 2, 'as 3 pistas da Geada');
 const ouro0 = p.ouro, xp0 = p.xp, nv0 = p.nivel, pocao0 = contar(p.mochila, 'pocao');
 f = falar('v_heitor');
-const fim = etapasDe(rc1)[2].fala + '\n' + rc1.pronto;
+const fim = etapasDe(rc1)[2].fala + ' ' + rc1.pronto;
 ok(f.some((e) => e.texto === fim && e.missao === 'vila:rc1'), 'entregou: a fala do Heitor e o "pronto" numa janela só');
 ok(p.vila.f.includes('rc1') && !p.vila.at, 'rc1 feita');
 ok(p.ouro === ouro0 + HISTORIA_PREMIO.ouroEtapa * 30 && contar(p.mochila, 'pocao') === pocao0 + 5 && (p.xp > xp0 || p.nivel > nv0), `prêmio: ${HISTORIA_PREMIO.ouroEtapa * 30} de ouro, 5 poções e XP`);

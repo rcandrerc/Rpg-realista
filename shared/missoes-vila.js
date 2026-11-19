@@ -50,6 +50,8 @@ export const missoesVilaParaApp = () => ({
 });
 
 const fimDaMissao = (v) => { delete v.at; delete v.e; delete v.n; delete v.m; };
+// a fala de quando entrega: a da última etapa (se tiver) e o "pronto" da missão (o inglês tem a frase inteira)
+export const falaFimVila = (M, Efim = etapasDe(M).at(-1)) => [Efim?.fala, M.pronto].filter(Boolean).join(' ');
 
 export const MissoesVila = {
   // conta de teste do André e robô de testes: veem as missões de vila antes do lançamento (e as que esperam evento)
@@ -171,7 +173,8 @@ export const MissoesVila = {
     return feito;
   },
   // missão de vila entregue: ouro e XP como uma missão comum da história (HISTORIA_PREMIO), o presente, a fala do fim
-  // (a da última etapa e o "pronto" juntos, numa janela só) e, com as 3 da vila, o título "Amigo do/da ..."
+  // (a da última etapa e o "pronto" juntos, numa fala só: na janela da missão a linha depois do \n é a do "falta") e,
+  // com as 3 da vila, o título "Amigo do/da ..."
   concluirVila(j, M, diga, Efim = null) {
     const p = j.prog, v = p.vila;
     if (!v.f.includes(M.id)) v.f.push(M.id);
@@ -180,7 +183,7 @@ export const MissoesVila = {
     p.ouro = (p.ouro || 0) + ouro; this.caixa?.(j, 'missao', ouro);
     this.evento({ t: 'aviso', para: j.id, texto: `Missão de vila cumprida: ${M.nome} (+${ouro} de ouro)` });
     if (M.presente) this.darItens(j, M.presente);
-    const fim = [Efim?.fala, M.pronto].filter(Boolean).join('\n');
+    const fim = falaFimVila(M, Efim);
     if (diga && fim) diga(fim, { missao: 'vila:' + M.id });
     else if (M.pronto) this.evento({ t: 'aviso', para: j.id, texto: `${this.nomeNpc(M.npc)}: ${M.pronto}` });
     this.evento({ t: 'vila_feita', para: j.id, id: M.id, vila: M.vila });
