@@ -70,6 +70,7 @@ ok(!j.time || !j.time.membros.some((k) => k === d.id), 'e sai do time');
 ok(geada.every((x) => x.amiga), 'a Geada não tem IA e continua no mundo');
 s.amigosIa.find((x) => x.AMIGA.id === 'dario').amigaEntrar('irmao', true); ok(!dario.amiga, 'quem entra enquanto a IA está fora não traz eles de volta');
 s.iaAcabouAte = 0;
-for (let i = 0; i < 45 && !(dario.amiga && cec.amiga); i++) esp(1); // volta na próxima conferência (até 30 s depois de sair)
+// volta na conferência seguinte: até 30 s depois de sair (amigaFora.chk), e a saída pode atrasar até 40 s se ele estava lutando
+for (let i = 0; i < 45 && !(dario.amiga && cec.amiga); i++) esp(1);
 ok(dario.amiga && cec.amiga && temDario(), 'a IA voltou: os dois logam de novo');
 ok(dario.amigaDono === 'andre', 'e voltam a acompanhar quem estava com eles');
