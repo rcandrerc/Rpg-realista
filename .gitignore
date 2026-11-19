@@ -5,3 +5,6 @@ client/dist/
 server/dados/
 client/public/tmp-mixamo/
 __pycache__/
+# chaves e segredos do servidor nunca entram no git (a selada é server/segredos-selados.json)
+*.pem
+segredos.json

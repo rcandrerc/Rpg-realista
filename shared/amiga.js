@@ -1928,7 +1928,7 @@ export const Amiga = {
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j) return [];
     const D = DIALOGO, noTime = !!(a.time && a.time === j.time), av = a.ia.av, g = this.AMIGA.genero || 'f';
     const ok = { noTime, foraTime: !noTime, atividade: !!a.ia.atividade, pedido: !!a.pedido, semPedido: !a.pedido, caçando: !noTime && !!(av && ['ir', 'cacar', 'escolher'].includes(av.fase)) };
-    return (D.menus[menu] || D.menus.inicio).filter((k) => { const o = D.opcoes[k]; return o && (!o.quando || ok[o.quando]) && !(k === 'seguir' && !this.AMIGA.seguivel); }).map((k) => ({ id: k, t: vozAmiga(D.opcoes[k].t, g) }));
+    return (Object.hasOwn(D.menus, menu) ? D.menus[menu] : D.menus.inicio).filter((k) => { const o = D.opcoes[k]; return o && (!o.quando || ok[o.quando]) && !(k === 'seguir' && !this.AMIGA.seguivel); }).map((k) => ({ id: k, t: vozAmiga(D.opcoes[k].t, g) }));
   },
   // abriu a janela (acao 'menu') ou tocou numa opção (acao 'op', m.op, m.menu = o menu que estava na tela). De perto, ou de
   // qualquer lugar se estiver no time dele (tocando no nome no painel do time). A fala dele vai na janela com as próximas opções.
@@ -1942,7 +1942,7 @@ export const Amiga = {
     };
     if (perto) a.ia.conversaAte = this.tempo + this.AMIGA.conversa; // de perto: para e conversa
     if (m.acao === 'menu') return manda(perto ? sorteia(this.AMIGA.falas.oi) : sorteia(D.falas.longe), 'inicio');
-    const k = typeof m.op === 'string' ? m.op : '', o = D.opcoes[k], menu = D.menus[m.menu] ? m.menu : 'inicio';
+    const k = typeof m.op === 'string' && Object.hasOwn(D.opcoes, m.op) ? m.op : '', o = k ? D.opcoes[k] : null, menu = Object.hasOwn(D.menus, m.menu) ? m.menu : 'inicio';
     if (!o || o.app) return;
     if (!this.opcoesAmiga(id, menu).some((x) => x.id === k)) return manda('', menu); // a opção já não vale (saiu do time...): opções novas
     if (o.calado) return manda('', o.menu || menu); // navegar (Voltar, Ordens): sem fala
@@ -2011,7 +2011,7 @@ export const Amiga = {
   // ---------- comando rápido do time (André 2026-11-19, COMANDOS_TIME em dados.js) ----------
   // deId mandou c ('espera' | 'segue' | 'ataca' | 'recua'). Quem está no mesmo time manda; ela obedece e responde no time.
   comandoAmiga(deId, c) {
-    const a = this.amiga, de = this.jogadores.get(deId), C = COMANDOS_TIME; if (!a || !de || !C.pedido[c]) return false;
+    const a = this.amiga, de = this.jogadores.get(deId), C = COMANDOS_TIME; if (!a || !de || !Object.hasOwn(C.pedido, c)) return false;
     if (!a.time || a.time !== de.time) { this.dizerAmiga(sorteia(C.falas.fora), false, deId); return false; }
     let fala = C.falas[c];
     if (c === 'segue') { a.ia.ordem = null; a.ia.atividade = null; if (a.coleta) this.pararColeta(a, null); if (a.pesca) this.pararPesca(a, null); }

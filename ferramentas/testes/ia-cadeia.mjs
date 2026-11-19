@@ -57,8 +57,12 @@ const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLen
 fs.writeFileSync(path.join(pasta, 'pub.pem'), publicKey.export({ type: 'spki', format: 'pem' }));
 fs.writeFileSync(path.join(pasta, 'k.txt'), 'linha de cima\nChave: AQ.segredo-de-teste-1234567890abcdef\n');
 const arq = new URL('../../server/segredos-selados.json', import.meta.url), antes = fs.readFileSync(arq, 'utf8');
+const arqImp = new URL('../servidor/impressao-chave.txt', import.meta.url), impAntes = fs.readFileSync(arqImp, 'utf8');
+const selar = (env = {}) => execFileSync('node', [new URL('../servidor/selar-segredo.mjs', import.meta.url).pathname, 'TESTE_CHAVE', path.join(pasta, 'k.txt'), path.join(pasta, 'pub.pem')], { env: { ...process.env, ...env }, stdio: 'pipe' }).toString();
 try {
-  const saida = execFileSync('node', [new URL('../servidor/selar-segredo.mjs', import.meta.url).pathname, 'TESTE_CHAVE', path.join(pasta, 'k.txt'), path.join(pasta, 'pub.pem')]).toString();
+  let recusou = false; try { selar(); } catch { recusou = true; }
+  ok(recusou && fs.readFileSync(arq, 'utf8') === antes, 'chave pública diferente da esperada (impressao-chave.txt): não sela nada');
+  const saida = selar({ NOVA_CHAVE: '1' });
   ok(!saida.includes('segredo-de-teste'), 'o selador nunca mostra a chave');
   const sel = JSON.parse(fs.readFileSync(arq, 'utf8'));
   ok(sel.TESTE_CHAVE && !JSON.stringify(sel).includes('segredo-de-teste') && sel.GEMINI_CHAVE, 'grava selada, sem o valor aberto, e mantém as outras');
@@ -66,4 +70,10 @@ try {
   ok(abrirPacote(sel.TESTE_CHAVE, privateKey).arquivos.TESTE_CHAVE === 'AQ.segredo-de-teste-1234567890abcdef', 'a máquina abre com a chave privada');
   let outra = false; try { abrirPacote(sel.TESTE_CHAVE, crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey); } catch { outra = true; }
   ok(outra, 'outra chave privada não abre');
-} finally { fs.writeFileSync(arq, antes); fs.rmSync(pasta, { recursive: true, force: true }); }
+} finally { fs.writeFileSync(arq, antes); fs.writeFileSync(arqImp, impAntes); fs.rmSync(pasta, { recursive: true, force: true }); }
+// um jogador sozinho não gasta a IA de todo mundo (revisão de segurança 2026-11-19)
+{
+  let n = 0; while (IA.podeIaJogador('c1') && n < 50) n++;
+  ok(n === 8, `no máximo 8 pedidos por minuto por jogador (${n})`);
+  ok(IA.podeIaJogador('c2'), 'o limite de um não trava o outro');
+}

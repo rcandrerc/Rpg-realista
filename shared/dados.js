@@ -2883,6 +2883,7 @@ export const AMIGA = {
   chat: {
     digitando: [1.2, 3], // segundos até a resposta (parece gente digitando)
     pedidoCurto: 7, // palavras: até aqui "vamos"/"missão" é pedido de time mesmo com a IA achando que é conversa; mais longo, vale a IA (André 2026-11-12)
+    iaPorJogador: 300, iaPorMinuto: 8, // por conta (revisão de segurança 2026-11-19): um jogador sozinho não gasta a IA de todo mundo; passou, só ele recebe as falas prontas
     iaPorDia: 800, // respostas por dia nas chaves do servidor (só as que a IA deu): Gemini (500) + Groq (3 modelos, cada um com seu limite) (André 2026-11-19)
     // André 2026-11-17 ("armazenar mais do que poucas linhas"; "ela mesmo reclamar... perguntar coisas pessoais"; "não quero
     // que ela fique me pentelhando"): a conversa guardada (e salva no banco) por pessoa; quanto ela pensa; e ela puxa

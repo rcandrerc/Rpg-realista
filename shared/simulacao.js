@@ -2343,7 +2343,7 @@ export class Simulacao {
   comandoTime(id, m) {
     const j = this.jogadores.get(id), C = COMANDOS_TIME, c = typeof m?.c === 'string' ? m.c : '';
     const o = typeof m?.para === 'string' ? this.jogadores.get(m.para) : null;
-    if (!j || j.bot || !o || o === j || !C.pedido[c] || !j.time || o.time !== j.time) return;
+    if (!j || j.bot || !o || o === j || !Object.hasOwn(C.pedido, c) || !j.time || o.time !== j.time) return;
     if (this.tempo - (j.comandoT ?? -1e9) < C.entre) return; j.comandoT = this.tempo;
     const texto = C.pedido[c].replace('{nome}', String(o.nome).split(/[ ,]/)[0]);
     const msg = { canal: 'time', c: j.conta, nome: j.nome, texto, hora: Date.now(), membros: this.contasDoTime(j.time) };

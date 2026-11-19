@@ -11,7 +11,7 @@ import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, 
 import { Contas, verificadorGoogle, roboCel } from './contas.js';
 import { Visao } from './visao.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { iaEsgotada, iaVoltaEm, puxarAssunto, pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
+import { iaEsgotada, iaVoltaEm, podeIaJogador, puxarAssunto, pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
 import { ligarAtualizacaoTrancada } from './atualizar.js';
 import { reserva, vigiarReserva } from './caddy-reserva.js'; // caminho reserva pelo IP (André 2026-11-16, sslip.io bloqueado no celular)
 
@@ -73,6 +73,7 @@ class SalaClareira extends Room {
     if (!amg.iaAmiga(id)) return amg.respostaAmiga(id, { assunto: amg.assuntoAmiga(msg.texto) });
     // a IA dele acabou hoje (André 2026-11-17): ela está "ocupada" e nem gasta pedido
     if (amg.semIaAmiga(amg.amiga, this.sim.jogadores.get(id))) return amg.cansouIaAmiga(id, amg.assuntoAmiga(msg.texto));
+    if (!chaveDe && !podeIaJogador(conta ? 'c' + conta.id : 's' + id)) return amg.respostaAmiga(id, { assunto: amg.assuntoAmiga(msg.texto) }); // passou da cota dele: só ele recebe falas prontas
     // a chave Groq de quem escreveu paga a resposta (André 2026-11-10); as contas de teste usam a do servidor
     const conversar = () => pensarAmiga(ctx, msg.texto, chaveDe).then((r) => {
       if (amg.amiga) amg.amiga.ia.fonte = { ia: r?.ia || 'regras', t: amg.tempo }; // o registro do dia anota quem respondeu (André 2026-11-19)

@@ -55,3 +55,6 @@ Quando não dá para criar o segredo no GitHub, a chave vai selada no repositór
 baixa a chave pública da máquina (`/chave-do-servidor`), tranca a chave com ela e grava em `server/segredos-selados.json`.
 Só a máquina da Oracle (que guarda `chave-privada.pem`) abre. Segredo do GitHub com o mesmo nome continua valendo e vem antes.
 Se a máquina for reinstalada (chave nova), sele de novo.
+O selador confere a chave pública com `ferramentas/servidor/impressao-chave.txt` e não sela se for outra. Máquina reinstalada: confira a impressão na própria máquina e rode com `NOVA_CHAVE=1`.
+Mudança em `server/segredos-selados.json` ou `impressao-chave.txt` é mudança de segurança: revisão independente antes do merge.
+Se a `chave-privada.pem` vazar, tudo o que já foi selado fica legível para sempre no histórico do git: revogue a chave no Google AI Studio (selar de novo não resolve).

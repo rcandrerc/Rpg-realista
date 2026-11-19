@@ -21,7 +21,8 @@ function selado(k) {
     const p = SELADOS[k];
     if (p) {
       const pem = [process.cwd(), path.dirname(fileURLToPath(import.meta.url))].map((d) => path.join(d, 'chave-privada.pem')).find((f) => fs.existsSync(f));
-      if (pem) v = String(abrirPacote(p, crypto.createPrivateKey(fs.readFileSync(pem))).arquivos?.[k] || '');
+      if (!pem) return ''; // instalação nova: a chave da máquina ainda vai ser criada (tenta de novo depois)
+      v = String(abrirPacote(p, crypto.createPrivateKey(fs.readFileSync(pem))).arquivos?.[k] || '');
     }
   } catch { v = ''; } // outra máquina (chave diferente) ou arquivo estragado: sem a chave
   abertos.set(k, v);
@@ -75,6 +76,18 @@ export function iaVoltaEm() {
   if (usadas >= AMIGA.chat.iaPorDia) return proximoZeroIa();
   if ((g && !acabou(g)) || (q && !acabou(q))) return 0;
   return Math.min(...[g, q].filter(Boolean).map((k) => esgotadas.get(k)));
+}
+// quanto cada conta já gastou da IA do servidor (revisão de segurança 2026-11-19: sem isso, um jogador mandando mensagem
+// sem parar acabava o limite do dia e a Cecília e o Dario deslogavam para todos). true = ainda pode (e conta este pedido)
+const usoJogador = new Map();
+export function podeIaJogador(k) {
+  const agora = Date.now(), hoje = diaIa(agora), C = AMIGA.chat;
+  let u = usoJogador.get(k); if (!u || u.dia !== hoje) { u = { dia: hoje, n: 0, min: [] }; usoJogador.set(k, u); }
+  u.min = u.min.filter((t) => agora - t < 60000);
+  if (u.n >= (C.iaPorJogador || 300) || u.min.length >= (C.iaPorMinuto || 8)) return false;
+  u.n++; u.min.push(agora);
+  if (usoJogador.size > 5000) for (const [kk, x] of usoJogador) if (x.dia !== hoje) usoJogador.delete(kk);
+  return true;
 }
 // tudo que pode responder acabou? (quem tem chave própria só olha a dele)
 export function iaEsgotada(chave) { return chave ? acabou(chave) : iaVoltaEm() > 0; }

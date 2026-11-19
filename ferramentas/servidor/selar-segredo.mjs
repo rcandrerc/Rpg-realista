@@ -15,6 +15,13 @@ if (valor.length < 20) { console.error('Não achei a chave no arquivo.'); proces
 const url = process.env.SERVIDOR_URL || 'https://163-176-80-126.sslip.io';
 const publicaPem = pem ? fs.readFileSync(pem, 'utf8') : await (await fetch(`${url}/chave-do-servidor`)).text();
 const publica = crypto.createPublicKey(publicaPem);
+// a chave pública baixada é mesmo a da máquina? (revisão de segurança 2026-11-19: DNS/certificado trocado = chave do atacante)
+// A impressão esperada fica em impressao-chave.txt; máquina reinstalada: confira na máquina e rode com NOVA_CHAVE=1.
+const impressao = crypto.createHash('sha256').update(publica.export({ type: 'spki', format: 'der' })).digest('hex');
+const arqImp = new URL('./impressao-chave.txt', import.meta.url);
+const esperada = fs.existsSync(arqImp) ? fs.readFileSync(arqImp, 'utf8').trim() : '';
+if (esperada && esperada !== impressao && process.env.NOVA_CHAVE !== '1') { console.error(`A chave pública não é a esperada (${impressao.slice(0, 12)} em vez de ${esperada.slice(0, 12)}). Nada foi selado.`); process.exit(1); }
+if (!esperada || process.env.NOVA_CHAVE === '1') fs.writeFileSync(arqImp, impressao + '\n');
 const aes = crypto.randomBytes(32), iv = crypto.randomBytes(12);
 const cifra = crypto.createCipheriv('aes-256-gcm', aes, iv);
 cifra.setAAD(Buffer.from(nome));
@@ -24,4 +31,4 @@ const destino = new URL('../../server/segredos-selados.json', import.meta.url);
 let todos = {}; try { todos = JSON.parse(fs.readFileSync(destino, 'utf8')); } catch { /* primeiro */ }
 todos[nome] = { versao: nome, chave: chave.toString('base64'), iv: iv.toString('base64'), tag: cifra.getAuthTag().toString('base64'), dados: dados.toString('base64') };
 fs.writeFileSync(destino, JSON.stringify(todos, null, 2) + '\n');
-console.log(`${nome} selado em server/segredos-selados.json (impressão da chave pública ${crypto.createHash('sha256').update(publica.export({ type: 'spki', format: 'der' })).digest('hex').slice(0, 12)})`);
+console.log(`${nome} selado em server/segredos-selados.json (impressão da chave pública ${impressao.slice(0, 12)})`);
