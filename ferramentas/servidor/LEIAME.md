@@ -2,7 +2,10 @@
 
 O GitHub Pages publica, junto com o jogo, o pacote do servidor em
 `https://rcandrerc.github.io/Rpg-realista/servidor/` (feito por `empacotar.sh`).
-A máquina da Oracle confere esse endereço a cada 5 minutos e, se a versão mudou, baixa e reinicia sozinha.
+O servidor da Oracle confere esse endereço (e o balde) a cada 5 minutos e, se a versão mudou, abre o pacote trancado e
+assinado e reinicia sozinho (`server/atualizar.js`). O antigo timer `rpg-atualizar`, que baixava o servidor aberto como
+root, saiu (remoção aprovada pelo Presidente em 2026-11-19); numa máquina antiga, desligue com
+`sudo systemctl disable --now rpg-atualizar.timer`.
 Ou seja: depois de instalada, todo merge na `main` chega no servidor em poucos minutos, sem mexer na máquina.
 
 ## Código do servidor trancado (André 2026-11-03)
