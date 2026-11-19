@@ -38,7 +38,7 @@ async function commitNoAr() {
 function arquivosEntre(base, cabeca) {
   try {
     const saida = execFileSync('gh', ['api', `repos/${process.env.GITHUB_REPOSITORY}/compare/${base}...${cabeca}`,
-      '--jq', '[.files | length, (.files[].filename)] | @json'], { encoding: 'utf8' });
+      '--jq', '[(.files | length), (.files[].filename)] | @json'], { encoding: 'utf8' });
     const [n, ...nomes] = JSON.parse(saida);
     return n >= 300 ? null : nomes; // a comparação corta em 300 arquivos: aí não dá para saber
   } catch (e) { console.log(`::warning::não comparei ${base}...${cabeca}: ${e.message}`); return null; }
