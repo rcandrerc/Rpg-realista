@@ -1,4 +1,5 @@
-# Conversas da Cecília e do Dário para a ronda diária (André 2026-11-17). O servidor só entrega para este workflow
+# Conversas da Cecília e do Dário para a ronda diária (André 2026-11-17). Desde 2026-11-19 também o diagnóstico com
+# crachá (diag: /lentidao por celular, com código, e /npcs.json com a posição), dentro do mesmo arquivo cifrado. O servidor só entrega para este workflow
 # (crachá OIDC do GitHub, sem senha). As conversas são de jogadores: o arquivo sai CIFRADO com a chave pública que quem
 # rodou passou em "chave" (só quem tem a chave privada abre). Sem chave, nada é guardado.
 name: Conversas da Cecília
@@ -33,6 +34,20 @@ jobs:
           echo "::add-mask::$tk"
           curl -sf --retry 3 -H "Authorization: Bearer $tk" https://163-176-80-126.sslip.io/npcs/conversas.json -o c.json
           echo "conversas: $(jq '[.npcs[] | (.conversas // {} | length)] ' -c c.json) pessoas por NPC"
+          # Segurança 2026-11-19: o detalhe do /lentidao (código do aparelho, posição) e a posição dos NPCs no /npcs.json
+          # só saem com o crachá. A ronda das 9h lê aqui, no mesmo arquivo cifrado (diag.json junto das conversas).
+          S=https://163-176-80-126.sslip.io
+          curl -sf --retry 3 -H "Authorization: Bearer $tk" "$S/lentidao/celulares" -o cel.json
+          curl -sf --retry 3 -H "Authorization: Bearer $tk" "$S/npcs.json" -o npcs.json
+          echo '{}' > por.json
+          for inst in $(jq -r '.[].inst' cel.json | grep -E '^[0-9a-f]{8}$' | head -20); do
+            curl -sf --retry 2 -H "Authorization: Bearer $tk" "$S/lentidao?inst=$inst" -o l.json || echo '[]' > l.json
+            curl -sf --retry 2 -H "Authorization: Bearer $tk" "$S/lentidao/resumo?inst=$inst" -o r.json || echo '[]' > r.json
+            jq --arg i "$inst" --slurpfile l l.json --slurpfile r r.json '.[$i] = { lentidao: $l[0], resumo: $r[0] }' por.json > p2.json && mv p2.json por.json
+          done
+          jq -n --slurpfile c cel.json --slurpfile n npcs.json --slurpfile p por.json '{ celulares: $c[0], npcs: $n[0], porCelular: $p[0] }' > diag.json
+          jq -s '.[0] + { diag: .[1] }' c.json diag.json > c2.json && mv c2.json c.json
+          shred -u cel.json npcs.json por.json diag.json l.json r.json 2>/dev/null || true
           openssl rand -out k.bin 32
           openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:k.bin -in c.json -out saida/conversas.bin
           openssl pkeyutl -encrypt -pubin -inkey pub.pem -pkeyopt rsa_padding_mode:oaep -in k.bin -out saida/chave.bin

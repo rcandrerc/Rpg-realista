@@ -8,7 +8,7 @@ import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
 import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
-import { Contas, verificadorGoogle, roboCel } from './contas.js';
+import { Contas, verificadorGoogle, roboCel, roboCarga, ROBO } from './contas.js';
 import { Visao } from './visao.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { iaEsgotada, iaVoltaEm, podeIaJogador, puxarAssunto, pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
@@ -700,19 +700,29 @@ function guardarLinha(r) {
     fs.writeFile(LENTIDAO_ARQ, lentidoes.map((x) => JSON.stringify(x)).join('\n') + '\n', () => {});
   } else fs.appendFile(LENTIDAO_ARQ, JSON.stringify(r) + '\n', () => {});
 }
-// ?inst=código (ou ?ap=modelo) mostra só as de um celular (até as últimas LENTIDAO_MAX); sem filtro, as últimas 100
-const doCelular = (lista, q, n) => {
-  const f = lista.filter((x) => (!q.inst || x.inst === q.inst) && (!q.ap || x.ap === q.ap));
-  return f.slice(q.inst || q.ap ? -lista.length : -n);
+// ?inst=código (ou ?ap=modelo) mostra só as de um celular (até as últimas LENTIDAO_MAX); sem filtro, as últimas 100.
+// Segurança 2026-11-19 (Presidente): aberta, só os números gerais (sem o código do aparelho nem a posição x/z, e sem o
+// filtro por código); o detalhe só com o crachá OIDC da ronda e dos robôs (diagVale), como em /npcs/conversas.json
+const SEM_CRACHA = new Set(['inst', 'x', 'z']);
+const geral = (x) => Object.fromEntries(Object.entries(x).filter(([k]) => !SEM_CRACHA.has(k)));
+async function diagVale(req) {
+  if (!sessaoDe(req) && !req.query.teste) return false;
+  try { return await roboConfere({ cracha: sessaoDe(req), teste: req.query.teste }, [CONVERSAS_WORKFLOW, ROBO_WORKFLOW, ROBO_CELULAR, ROBO_REAL]); } catch { return false; }
+}
+const doCelular = (lista, q, n, cracha) => {
+  const inst = cracha && typeof q.inst === 'string' ? q.inst : '', ap = typeof q.ap === 'string' ? q.ap : '';
+  const f = lista.filter((x) => (!inst || x.inst === inst) && (!ap || x.ap === ap)).slice(inst || ap ? -lista.length : -n);
+  return cracha ? f : f.map(geral);
 };
-app.get('/lentidao', (req, res) => res.json(doCelular(lentidoes, req.query, 100)));
-app.get('/lentidao/resumo', (req, res) => res.json(doCelular(resumos, req.query, 200)));
-// quais celulares mandaram: modelo, código, quantas linhas e a última versão
-app.get('/lentidao/celulares', (_req, res) => {
-  const m = {};
+app.get('/lentidao', async (req, res) => res.json(doCelular(lentidoes, req.query, 100, await diagVale(req))));
+app.get('/lentidao/resumo', async (req, res) => res.json(doCelular(resumos, req.query, 200, await diagVale(req))));
+// quais celulares mandaram: modelo, código, quantas linhas e a última versão (sem crachá: por modelo, sem o código)
+app.get('/lentidao/celulares', async (req, res) => {
+  const cracha = await diagVale(req), m = {};
   for (const x of [...lentidoes, ...resumos]) {
     if (!x.inst) continue;
-    const c = (m[x.inst] ||= { inst: x.inst, ap: x.ap, linhas: 0, versao: x.versao, ultima: 0 });
+    const k = cracha ? x.inst : x.ap || '?';
+    const c = (m[k] ||= cracha ? { inst: x.inst, ap: x.ap, linhas: 0, versao: x.versao, ultima: 0 } : { ap: x.ap, linhas: 0, versao: x.versao, ultima: 0 });
     c.linhas++;
     if (x.placa) c.placa = x.placa;
     if (x.drv) c.drv = x.drv;
@@ -724,15 +734,26 @@ app.get('/lentidao/celulares', (_req, res) => {
 // carga (André 2026-11-11, ping alto): quanto o servidor gasta por passo (de 50 ms), quanto tempo está ligado e quantos jogam
 // relogio (2026-11-13, "slow motion" no lobo): segundos do jogo no servidor por segundo de verdade desde a última leitura.
 // Abaixo de 1, o servidor anda devagar (passos atrasando) e a folga de velocidade do herói enche mais devagar que ele corre.
+// Segurança 2026-11-19 (Presidente): ler /saude não zera mais nada (antes qualquer um apagava o pico lendo a página). Os
+// números valem para a janela de SAUDE_JANELA ms: a cada janela o servidor guarda a que acabou e começa outra; a página
+// mostra a última janela fechada junto com a atual (pico = o maior; contagens = a soma).
+const SAUDE_JANELA = 60e3;
 const relogioSrv = { sim: null, t: 0 };
-app.get('/saude', (_req, res) => {
-  let jogadores = 0, correcoes = 0; for (const s of salas) { jogadores += s.clients.length; correcoes += s.sim.correcoes || 0; s.sim.correcoes = 0; }
+let saudeAnterior = { pico: 0, silencioMs: 0, engasgos: 0, correcoes: 0, relogio: null };
+setInterval(() => {
+  let correcoes = 0; for (const s of salas) { correcoes += s.sim.correcoes || 0; s.sim.correcoes = 0; }
   const s0 = [...salas][0], agoraR = Date.now(); let relogio = null;
   if (s0) { if (relogioSrv.sim != null && agoraR > relogioSrv.t) relogio = +((s0.sim.tempo - relogioSrv.sim) / ((agoraR - relogioSrv.t) / 1000)).toFixed(3); relogioSrv.sim = s0.sim.tempo; relogioSrv.t = agoraR; }
-  // desde a última leitura: correcoes = "corrigir" mandados (rollback), silencioMaxMs = maior tempo sem posição de um
-  // celular, engasgos = silêncios de mais de 1 s
-  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +carga.pico.toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes, silencioMaxMs: carga.silencioMs, engasgos: carga.engasgos, relogio, reserva: reserva.estado });
+  else relogioSrv.sim = null;
+  saudeAnterior = { pico: carga.pico, silencioMs: carga.silencioMs, engasgos: carga.engasgos, correcoes, relogio };
   carga.pico = 0; carga.silencioMs = 0; carga.engasgos = 0;
+}, SAUDE_JANELA).unref();
+app.get('/saude', (_req, res) => {
+  let jogadores = 0, agora = 0; for (const s of salas) { jogadores += s.clients.length; agora += s.sim.correcoes || 0; }
+  const A = saudeAnterior;
+  // correcoes = "corrigir" mandados (rollback), silencioMaxMs = maior tempo sem posição de um celular, engasgos = silêncios
+  // de mais de 1 s; todos da última janela fechada mais a atual (1 a 2 min)
+  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +Math.max(carga.pico, A.pico).toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes: A.correcoes + agora, silencioMaxMs: Math.max(carga.silencioMs, A.silencioMs), engasgos: A.engasgos + carga.engasgos, relogio: A.relogio, janelaS: SAUDE_JANELA / 1000, reserva: reserva.estado });
 });
 // Reinício com aviso na tela (André 2026-11-12): faixa "o servidor reinicia em 1 minuto" e depois a contagem grande de
 // REINICIO.contagem s (godot-prototipo/reinicio.gd). O servidor manda {t:'reinicio', s} a cada 10 s (quem entra no meio também vê)
@@ -857,14 +878,22 @@ async function roboConfere(body, workflows = [ROBO_WORKFLOW]) {
   // o nome no GitHub é 'Rpg-realista' (maiúscula): a conferência não liga para maiúscula
   return String(payload.repository).toLowerCase() === ROBO_REPO && workflows.includes(String(payload.job_workflow_ref).toLowerCase());
 }
-let roboT = 0;
+// Segurança 2026-11-19 (Presidente): a trava de 5 s é por conta de robô (antes era uma só para todos: os 50 robôs do teste
+// de carga não entravam). Na porta, uma trava larga contra enxurrada: ROBO_PORTA pedidos por 10 s, antes de conferir o crachá.
+// carga (QA, teste dos 50 robôs): o robo.yml pede { carga: 1..ROBO_CARGA } e cada robô tem conta própria ('robo:carga7')
+const ROBO_CARGA = 50, ROBO_PORTA = 80, roboT = new Map(); let roboPorta = { t: 0, n: 0 };
 app.post('/conta/robo', async (req, res) => {
-  if (Date.now() - roboT < 5000) return res.status(429).json({ erro: 'devagar' });
-  roboT = Date.now();
+  const agora = Date.now();
+  if (agora - roboPorta.t > 10000) roboPorta = { t: agora, n: 0 };
+  if (++roboPorta.n > ROBO_PORTA) return res.status(429).json({ erro: 'devagar' });
   try {
-    if (await roboConfere(req.body)) return res.json(contas.entrarRobo());
-    if (await roboConfere(req.body, [ROBO_REAL])) return res.json(contas.entrarRobo(roboCel(Math.min(5, Math.max(1, req.body?.n | 0)))));
-    return res.status(401).json({ erro: 'não é o robô' });
+    let R = null;
+    if (await roboConfere(req.body)) { const k = req.body?.carga | 0; R = k >= 1 && k <= ROBO_CARGA ? roboCarga(k) : ROBO; }
+    else if (await roboConfere(req.body, [ROBO_REAL])) R = roboCel(Math.min(5, Math.max(1, req.body?.n | 0)));
+    if (!R) return res.status(401).json({ erro: 'não é o robô' });
+    if (agora - (roboT.get(R.google) || 0) < 5000) return res.status(429).json({ erro: 'devagar' });
+    roboT.set(R.google, agora);
+    return res.json(contas.entrarRobo(R));
   } catch (e) { console.warn('robô recusado:', e.message); res.status(401).json({ erro: 'crachá do robô inválido' }); }
 });
 // relatórios: o robô manda o turno de tempos em tempos (o mesmo turno é trocado pelo mais novo); ficam os últimos ROBO_MAX
@@ -920,7 +949,10 @@ ${Object.entries(F).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([fx, f]
 // NPCs com IA (André 2026-11-16: "relatórios de Dário e de Cecília" na ronda diária): o que cada um fez hoje, só números
 // do jogo (nível, ouro, missão, minutos de caça e de missão). Nada de conversa, memória ou de quem é amigo deles.
 // evolucao (André 2026-11-17): cada nível, missão entregue, queda, etapa travada, reforço e evolução, com a hora.
-app.get('/npcs.json', (_req, res) => {
+// Segurança 2026-11-19 (Presidente): a posição (x, z), morto e preso só com o crachá da ronda (diagVale): com a guerra,
+// saber onde a Geada está vira vantagem. Sem crachá, só os números do dia.
+app.get('/npcs.json', async (req, res) => {
+  const cracha = await diagVale(req);
   const dia = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), vivos = new Map();
   for (const s of salas) for (const ctx of s.sim.amigosIa) if (ctx.amiga) vivos.set(ctx.AMIGA.id, { a: ctx.amiga, ctx });
   const l = [];
@@ -934,7 +966,7 @@ app.get('/npcs.json', (_req, res) => {
     l.push({ nome: D.nome, id: D.id, ...(D.raca ? { raca: D.raca } : {}), noMundo: !!v, nivel: p.nivel | 0, ouro: p.ouro | 0, missao: h.p ?? null, etapa: h.e ?? null,
       cacaMinHoje: d.grind?.dia === dia ? Math.round((d.grind.seg || 0) / 60) : 0, missaoMinHoje: d.missaoDia?.dia === dia ? Math.round((d.missaoDia.seg || 0) / 60) : 0,
       salvoHa: d.t ? Math.round((Date.now() - d.t) / 60000) : null,
-      evolucao: Array.isArray(d.evolucao) ? d.evolucao.slice(-40) : [], ...(v ? { x: Math.round(v.a.x), z: Math.round(v.a.z), morto: !!v.a.morto, preso: !!v.a.ia?.viagem?.bloqueio } : {}) });
+      evolucao: Array.isArray(d.evolucao) ? d.evolucao.slice(-40) : [], ...(v && cracha ? { x: Math.round(v.a.x), z: Math.round(v.a.z), morto: !!v.a.morto, preso: !!v.a.ia?.viagem?.bloqueio } : {}) });
   }
   res.json({ dia, npcs: l });
 });

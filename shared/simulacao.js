@@ -768,6 +768,9 @@ export class Simulacao {
         // passou da folga normal: usou o caminho andado sem internet. Por GUERRA.semPontoQueda s não fere nem mira a outra
         // raça (teleporte não vale ponto na guerra; Presidente 2026-11-19). Pode ser atacado: cair de propósito não é escudo
         j.extraQ.m -= gasto - Math.max(0, j.orc); j.orc = 0;
+        // aviso curto na tela (Presidente 2026-11-19: "sem isso o amigo acha que o golpe quebrou"), só para quem já luta na guerra
+        if (!(j.semGuerraAte > this.tempo) && (j.prog?.nivel | 0) > GUERRA.tregua && !j.bot)
+          this.evento({ t: 'aviso', para: j.id, texto: this.racaDe(j) === 'geada' ? 'Conexão caiu: 15 s sem ferir a Chama.' : 'Conexão caiu: 15 s sem ferir a Geada.' });
         j.semGuerraAte = Math.max(j.semGuerraAte || 0, this.tempo + GUERRA.semPontoQueda);
       } else j.orc = tele && d > 1 ? Math.max(0, j.orc - gasto) : j.orc - gasto; }
     // correndo (pela velocidade de verdade, sem dash, montaria ou parede): gasta estamina
