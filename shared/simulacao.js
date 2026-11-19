@@ -733,7 +733,9 @@ export class Simulacao {
       // mais rápido do jogo; o tempo já vem com teto em folgaDaQueda (ORCAMENTO.queda). Antes dava ~700 m de teleporte.
       // A folga da queda fica num saco separado (extraQ): só é gasta no que passar da folga normal, some 15 s depois do
       // primeiro pacote e, se for usada, o caminho que ninguém viu tira o ponto de guerra (revisão independente 2026-11-19)
-      if (j.queda && j.queda.ate > this.tempo) j.extraQ = { m: Math.max(vmax, j.queda.mont ? MONTARIAS[j.queda.mont].correr * 1.3 * lentoH : 0) * j.queda.seg, ate: this.tempo + 15 };
+      // o começo vale como um silêncio comum (até ORCAMENTO.silencio s de corrida, sem marca): quem só piscou não perde a guerra
+      if (j.queda && j.queda.ate > this.tempo) j.orc += vmax * Math.min(j.queda.seg, ORCAMENTO.silencio);
+      if (j.queda && j.queda.ate > this.tempo) j.extraQ = { m: Math.max(0, Math.max(vmax, j.queda.mont ? MONTARIAS[j.queda.mont].correr * 1.3 * lentoH : 0) * j.queda.seg - vmax * Math.min(j.queda.seg, ORCAMENTO.silencio)), ate: this.tempo + 15 };
       j.queda = null;
     }
     // a folga enche na velocidade máxima. Depois de um silêncio (internet engasgada), as posições guardadas chegam juntas:

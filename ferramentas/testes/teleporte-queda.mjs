@@ -30,10 +30,10 @@ ok(volta(120, HEROI.correr * 1.3 * 40).n === 1, `queda de 2 min: não aparece ${
 ok(volta(120, lobo * 1.3 * 60, 'lobo').n === 1, `nem de lobo: ${(lobo * 1.3 * 60).toFixed(0)} m é recusado`);
 ok(volta(120, 700, 'lobo').n === 1, 'os ~700 m da revisão: recusado');
 
-// guerra: voltou da queda longe de onde caiu = 15 s sem ferir a outra raça
+// guerra: voltou da queda mais longe do que um silêncio comum cobre = 15 s sem ferir a outra raça
 {
-  const { s, j } = volta(8, HEROI.correr * 8);
-  ok(j.semGuerraAte > s.tempo + GUERRA.semPontoQueda - 1, 'voltou 30+ m longe: marcado sem ponto de guerra');
+  const { s, j } = volta(12, HEROI.correr * 12);
+  ok(j.semGuerraAte > s.tempo + GUERRA.semPontoQueda - 1, `voltou ${(HEROI.correr * 12).toFixed(0)} m longe (mais que um silêncio comum de ${ORCAMENTO.silencio} s): marcado sem ponto de guerra`);
   const o = s.adicionarJogador('B', 'Bia', undefined, { conta: 2 }); o.criando = false;
   Object.assign(o, { x: j.x + 2, z: j.z, y: j.y }); o.prog.raca = 'geada';
   j.guerra = o.guerra = true; // os dois na zona de guerra (a regra da zona tem o teste dela em guerra.mjs)
@@ -72,13 +72,13 @@ ok(volta(120, 700, 'lobo').n === 1, 'os ~700 m da revisão: recusado');
   s.posicaoCliente('A', { x: 0, y: s.terreno.altura(0, 60, 10), z: 60, ry: 0, e: 1, c: 0 });
   ok(s.passo(TICK).some((e) => e.t === 'corrigir' && e.para === 'A'), 'caiu, voltou perto, esperou 15 s e pulou 60 m: recusado');
 }
-// 3) internet piscou 1 s e ele seguiu correndo normal: a guerra não trava
-{
+// 3) internet caiu 1 a 4 s e ele seguiu correndo normal (o primeiro pacote já vem longe): a guerra não trava
+for (const seg of [1, 2, 3, 4]) {
   const { s, j } = novo();
-  s.folgaDaQueda('A', 1);
-  let z = 0, n = 0;
+  s.folgaDaQueda('A', seg);
+  let z = HEROI.correr * seg, n = 0;
   for (let t = 0; t < 3; t += TICK) { z += HEROI.correr * TICK; s.posicaoCliente('A', { x: 0, y: s.terreno.altura(0, z, j.y + 1), z, ry: 0, e: 1, c: 0 }); n += s.passo(TICK).filter((e) => e.t === 'corrigir' && e.para === 'A').length; }
-  ok(n === 0 && !(j.semGuerraAte > s.tempo), `piscou 1 s e correu ${z.toFixed(0)} m normal: sem correção e guerra normal`);
+  ok(n === 0 && !(j.semGuerraAte > s.tempo), `caiu ${seg} s correndo e seguiu: ${z.toFixed(0)} m, sem correção e guerra normal`);
 }
 // 2) abrir outra aba depois de marcado não zera o "sem ponto de guerra" (o servidor passa o que faltava)
 {
