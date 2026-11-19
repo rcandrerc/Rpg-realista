@@ -22,7 +22,8 @@ function criarChave() {
   const { privateKey } = crypto.generateKeyPairSync('ed25519');
   fs.mkdirSync(path.dirname(arqChave), { recursive: true, mode: 0o700 });
   const tmp = `${arqChave}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
+  fs.rmSync(tmp, { force: true });
+  fs.writeFileSync(tmp, privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600, flag: 'wx' });
   try {
     fs.linkSync(tmp, arqChave);
     console.log(`::warning::Chave de assinatura do pacote criada em ${arqChave}. Ponha a pública em CHAVES_ASSINATURA.`);
@@ -33,6 +34,22 @@ function criarChave() {
   }
 }
 
+// Troca de chave de propósito (pages.yml > "Criar de propósito uma chave nova", rodado na Oracle): a nova entra no
+// lugar da velha de uma vez (rename troca o arquivo inteiro), e a velha some. Só antes do passo 2 (lista vazia): depois
+// dele, trocar a chave faria o servidor no ar recusar tudo, então a troca é recusada e nada publica (LEIAME).
+if (fs.existsSync(arqChave) && naOracle && process.env.CRIAR_CHAVE_ASSINATURA === '1') {
+  if (exigida) falhar('Troca de chave recusada: o servidor já exige assinatura (CHAVES_ASSINATURA preenchida). A chave atual ficou como estava.');
+  const { privateKey } = crypto.generateKeyPairSync('ed25519');
+  const tmp = `${arqChave}.${process.pid}.tmp`;
+  fs.rmSync(tmp, { force: true });
+  try {
+    fs.writeFileSync(tmp, privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600, flag: 'wx' });
+    fs.renameSync(tmp, arqChave);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+  console.log(`::warning::Chave de assinatura do pacote TROCADA em ${arqChave} (a velha foi apagada). Ponha a pública nova em CHAVES_ASSINATURA.`);
+}
 if (!fs.existsSync(arqChave)) {
   // Máquina do GitHub (atalho de emergência, LEIAME): o site sai e o servidor fica na versão que tem.
   if (!naOracle && process.env.CRIAR_CHAVE_ASSINATURA !== '1') {
@@ -52,7 +69,7 @@ try { privada = crypto.createPrivateKey(fs.readFileSync(arqChave)); } catch (e) 
 }
 const publica = crypto.createPublicKey(privada).export({ type: 'spki', format: 'der' }).toString('base64');
 // Chave diferente da que o servidor aceita (outra máquina, chave trocada): mesma coisa, nada publica.
-if (exigida && !CHAVES_ASSINATURA.includes(publica)) falhar(`A chave desta máquina (${idChave(publica)}) não está em CHAVES_ASSINATURA.`);
+if (exigida && !CHAVES_ASSINATURA.includes(publica)) falhar(`A chave desta máquina (${idChave(publica)}, pública ${publica}) não está em CHAVES_ASSINATURA.`);
 const pacote = JSON.parse(fs.readFileSync(arqPacote, 'utf8'));
 delete pacote.assinatura;
 delete pacote.assinado_por;

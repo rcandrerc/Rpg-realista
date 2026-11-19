@@ -110,20 +110,23 @@ if [ -n "${ORACLE_PAR:-}" ] && [ -n "${ORACLE_URL:-}" ]; then
     n="$(basename "$f")"
     [ "$n" = conteudo.json ] && continue
     subir_gz "$f" "$n" && continue
-    curl -fsS -X PUT --data-binary @"$f" "${ORACLE_PAR%/}/$n" > /dev/null
+    curl -fsS -X PUT -H "opc-meta-cru: sim" --data-binary @"$f" "${ORACLE_PAR%/}/$n" > /dev/null
   done
   rm -f "$TMP/gz"
   if [ "$rebase" = 0 ]; then # garante que o completo e os deltas antigos também estão lá (primeira vez com Oracle)
     # Completo que subiu cru antes do gzip (2026-11-19, Presidente: "refaça o pacote completo já compactado"; o 2720
     # tinha 415 MB, em gzip ~190 MB): sobe de novo compactado, uma vez só (depois o balde já responde com gzip).
-    # Mesmo conteúdo e mesmo sha256, então o conteudo.json não muda e o app não baixa nada a mais.
-    for arq in $(jq -r '.completo.partes[].arq, .deltas[].arq' "$TMP/antigo/conteudo.json"); do
+    # Mesmo conteúdo e mesmo sha256, então o conteudo.json não muda e o app não baixa nada a mais. Vale também para os
+    # deltas da ponte (quem ainda tem o completo velho baixa por eles; 2746 e 2755 tinham 73 e 81 MB crus). O que não
+    # compacta fica cru com a marca opc-meta-cru, para não ser baixado e testado de novo a cada build.
+    for arq in $(jq -r '.completo.partes[].arq, .deltas[].arq, (.ponte.deltas[]?.arq)' "$TMP/antigo/conteudo.json" | sort -u); do
       cab=$(curl -fsS -o /dev/null -D - -I "${ORACLE_URL%/}/$arq" 2>/dev/null) || cab=""
-      if [ -z "$cab" ]; then
-        subir_gz "$TMP/antigo/$arq" "$arq" || curl -fsS -X PUT --data-binary @"$TMP/antigo/$arq" "${ORACLE_PAR%/}/$arq" > /dev/null
-      elif ! echo "$cab" | grep -qi '^content-encoding: *gzip'; then
-        subir_gz "$TMP/antigo/$arq" "$arq" || true # não compacta: fica como está
+      if [ -n "$cab" ] && echo "$cab" | grep -qi '^content-encoding: *gzip\|^opc-meta-cru:'; then
+        continue
       fi
+      [ -f "$TMP/antigo/$arq" ] || gh release download conteudo -p "$arq" -D "$TMP/antigo" --clobber || continue
+      subir_gz "$TMP/antigo/$arq" "$arq" ||
+        curl -fsS -X PUT -H "opc-meta-cru: sim" --data-binary @"$TMP/antigo/$arq" "${ORACLE_PAR%/}/$arq" > /dev/null
     done
   fi
   jq --arg u "${ORACLE_URL%/}/" '.url_base = $u' "$TMP/novo/conteudo.json" > "$TMP/novo/c.json" && mv "$TMP/novo/c.json" "$TMP/novo/conteudo.json"
