@@ -22,7 +22,7 @@ import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
 import { Guilda } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11-18)
 import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
 import { Guerra } from './guerra.js'; // Chama x Geada (André 2026-11-18)
-import { RIVAIS, RACA_PADRAO, GUERRA, RACAS } from './dados.js';
+import { RIVAIS, RACA_PADRAO, GUERRA, RACAS, COMANDOS_TIME } from './dados.js';
 
 const TAU = Math.PI * 2;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -442,6 +442,7 @@ export class Simulacao {
     j.amigos = new Map(); // conta do amigo -> nome (o servidor carrega da conta: definirAmigos)
     j.pedidosRec = new Map(); j.pedidosEnv = new Map(); // pedidos a distância (busca por nome): recebidos e enviados, conta -> nome
     j.time = null;
+    j.entrouT = this.tempo; // quando entrou na sala (o NPC amigo diz "olha quem apareceu", shared/amiga.js reagirAmiga)
     this.jogadores.set(id, j);
     this.avisarProg(j);
     return j;
@@ -2195,7 +2196,7 @@ export class Simulacao {
     }).sort((a, b) => (b.on === 1) - (a.on === 1) || (b.on > 0) - (a.on > 0) || a.nome.localeCompare(b.nome));
     // amigos virtuais (André 2026-11-09, como no Quimera): a Cecília aparece só para o dono, numa parte separada da lista
     // André 2026-11-16: só quem ela aceitou como amigo (pedido tocando nela ou pela busca); o ♥ e o selo de NPC ficam
-    const virtuais = this.amigosIa.flatMap((x) => { const a = x.amiga, D = x.AMIGA; if (a ? !x.ehAmigoAmiga(j) : !this.amigoIaSalvo?.(D, j.conta)) return []; return a ? [{ c: D.conta, nome: D.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: x.amizadeAmiga(j), ia: !IA_CONVERSA.ligada || x.iaAmiga(j.id) }] : this.iaPorChave ? [{ c: D.conta, nome: D.nome, id: null, on: 0, amizade: 0, ia: !IA_CONVERSA.ligada }] : []; }); // IA desligada: sem o botão de ativar chave (André 2026-11-18) // todos veem; sem chave, o botão de ativar (André 2026-11-10)
+    const virtuais = this.amigosIa.flatMap((x) => { const a = x.amiga, D = x.AMIGA; if (a ? !x.ehAmigoAmiga(j) : !this.amigoIaSalvo?.(D, j.conta)) return []; return a ? [{ c: D.conta, nome: D.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: x.amizadeAmiga(j), ia: !IA_CONVERSA.ligada || x.iaAmiga(j.id) }] : this.iaPorChave ? [{ c: D.conta, nome: D.nome, id: null, on: 0, amizade: 0, ia: true }] : []; }); // IA desligada: sem o botão de ativar chave (André 2026-11-18) // todos veem; sem chave, o botão de ativar (André 2026-11-10)
     const onde = (c) => (this.porConta(c) ? 1 : this.onlineFora?.(c) ? 2 : 0);
     const pedidos = [...(j.pedidosRec || [])].map(([c, nome]) => ({ c, nome: this.porConta(c)?.nome || nome, on: onde(c) })); // pedidos a distância esperando resposta
     this.evento({ t: 'amigos', para: j.id, lista, max: AMIGOS.max, virtuais, pedidos });
@@ -2335,6 +2336,20 @@ export class Simulacao {
     o.pedidoAmigo = { de: j.id, ate: this.tempo + AMIGOS.pedido };
     this.evento({ t: 'amigo', para: o.id, fase: 'pedido', de: j.id, nome: j.nome, dur: AMIGOS.pedido });
     aviso(`Pedido de amizade enviado para ${o.nome}`);
+  }
+  // comando rápido do time (André 2026-11-19, COMANDOS_TIME): tocou no nome de alguém do time e num dos 4 botões. O pedido
+  // aparece no chat do time como fala de quem mandou; jogador de verdade recebe também o aviso na tela; NPC obedece.
+  comandoTime(id, m) {
+    const j = this.jogadores.get(id), C = COMANDOS_TIME, c = typeof m?.c === 'string' ? m.c : '';
+    const o = typeof m?.para === 'string' ? this.jogadores.get(m.para) : null;
+    if (!j || j.bot || !o || o === j || !C.pedido[c] || !j.time || o.time !== j.time) return;
+    if (this.tempo - (j.comandoT ?? -1e9) < C.entre) return; j.comandoT = this.tempo;
+    const texto = C.pedido[c].replace('{nome}', String(o.nome).split(/[ ,]/)[0]);
+    const msg = { canal: 'time', c: j.conta, nome: j.nome, texto, hora: Date.now(), membros: this.contasDoTime(j.time) };
+    if (this.aoChatAmiga) this.aoChatAmiga(msg); else this.receberChat(msg);
+    const npc = this.amigoIaDe(o);
+    if (npc) { npc.ouvirAmiga?.(id, texto); npc.comandoAmiga(id, c); return; }
+    if (!o.bot) this.evento({ t: 'comando', para: o.id, de: j.id, nome: j.nome, c, texto: (C.lista.find((x) => x.id === c) || {}).t || c });
   }
   time(id, m) {
     const j = this.jogadores.get(id); if (!j || !m) return;
@@ -3847,6 +3862,7 @@ export class Simulacao {
     if (alvo.tipo === 'jogador' && alvo.veiculo === 'carrinho') n = this.golpeNoCarrinho(alvo, n); // Quimera: o carrinho apanha por você
     alvo.vida = Math.max(0, alvo.vida - n);
     if (alvo.bot && de && de.tipo !== 'jogador') alvo.golpeDe = golpeDe(de); // NPC: quem bateu por último (aprender com a morte)
+    if (de?.tipo === 'jogador' && !de.bot && alvo.tipo !== 'jogador') de.bateuEm = { id: alvo.id, t: this.tempo }; // o alvo dele: "foca no meu alvo" do NPC do time (shared/amiga.js alvoAmiga)
     if (alvo.hc && CHEFES_HISTORIA[alvo.hc]?.foge && alvo.vida <= alvo.vidaMax * CHEFES_HISTORIA[alvo.hc].foge) { // duelo que para no meio
       if (de?.tipo === 'jogador') (alvo.atacantes ||= new Set()).add(de.id);
       return this.fugirChefe(alvo);

@@ -48,3 +48,10 @@ Esse endereço vai em `SERVIDOR_PARA_PAGES` (`client/src/rede.js`).
    - `http://localhost:5173` e `http://localhost` (para testes)
 6. Não precisa de URI de redirecionamento. Clique em **Criar** e copie o **ID do cliente** (termina em `.apps.googleusercontent.com`).
 7. Esse ID vai em `GOOGLE_CLIENT_ID` (`shared/conta.js`). Ele é público; o segredo do cliente não é usado.
+
+## Chave selada (André 2026-11-19)
+
+Quando não dá para criar o segredo no GitHub, a chave vai selada no repositório: `node ferramentas/servidor/selar-segredo.mjs GEMINI_CHAVE arquivo.txt`
+baixa a chave pública da máquina (`/chave-do-servidor`), tranca a chave com ela e grava em `server/segredos-selados.json`.
+Só a máquina da Oracle (que guarda `chave-privada.pem`) abre. Segredo do GitHub com o mesmo nome continua valendo e vem antes.
+Se a máquina for reinstalada (chave nova), sele de novo.

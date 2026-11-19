@@ -3,7 +3,7 @@
 // pentelhando"; "quando a IA esgotar... ela dizer que vai descansar... só diz que tá meio ocupada". Sem rede: fetch de mentira.
 // Uso: node ferramentas/testes/cecilia-natural.mjs
 import { Simulacao, MAPA_CLAREIRA, AMIGA, DARIO, IA_CONVERSA } from '../../shared/index.js';
-IA_CONVERSA.ligada = true; // testa o sistema de IA guardado (desligado no jogo desde 2026-11-18)
+IA_CONVERSA.ligada = true; // ligada no jogo de novo desde 2026-11-19
 import { register } from 'node:module';
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(s, c, n) { return s === '@rpg/shared' ? { url: ${JSON.stringify(new URL('../../shared/index.js', import.meta.url).href)}, shortCircuit: true } : n(s, c); }`));
 const { pensarAmiga, puxarAssunto, iaEsgotada, mensagensConversa } = await import('../../server/ia-amiga.js');

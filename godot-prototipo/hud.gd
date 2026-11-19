@@ -227,6 +227,11 @@ func recarga(acao: String, falta: float, total: float) -> void:
 			b.cd = falta
 			b.cd_max = max(total, 0.01)
 
+# comando rápido do time que um colega mandou (André 2026-11-19): em destaque no meio da tela, para ver no meio da briga
+func comando(de: String, t: String) -> void:
+	destaque_txt = "%s: %s" % [de.split(",")[0], Idioma.frase(t)]
+	_destaque_t = 2.6
+
 func aviso(t: String) -> void:
 	if festa and festa.do_aviso(t): # nível, missão, liberado, skill: vira faixa de comemoração (festa.gd)
 		return
