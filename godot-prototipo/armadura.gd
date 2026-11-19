@@ -507,6 +507,26 @@ static func _material_biquini(raiz: Node3D, fem: bool) -> Material:
 # André 2026-11-07 ("parece uma camisa rosa"): a pele pintada na blusa juntava braço e peito. O corpo do VRoid tem a
 # pele do tronco por baixo da roupa, mas a textura fica transparente onde a roupa cobria (a Ruiva some do pescoço ao
 # quadril). Aqui a textura do corpo ganha um fundo da cor da pele: o transparente vira pele (uma vez por textura).
+# arquivo da pele cheia pronta no build: res://modelos/ruiva_10.png -> res://modelos/ruiva_10_pele.png
+static func pele_cheia_arquivo(tex: Texture2D) -> String:
+	var p := tex.resource_path if tex else ""
+	return p.get_basename() + "_pele.png" if p.begins_with("res://modelos/") and not p.contains("::") else ""
+
+# a textura do corpo com o fundo da cor da pele (o transparente vira pele), com mipmap. Usada aqui (sem o arquivo pronto)
+# e pelo build (ferramentas/texturas/pele-cheia.gd), para sair igual nos dois.
+static func pele_cheia_imagem(tex: Texture2D) -> Image:
+	var img: Image = preload("res://imagem_cpu.gd").ler(tex) # pelo arquivo, não pela placa (rosa no Mali-G72)
+	if img == null:
+		return null
+	img.clear_mipmaps()
+	img.convert(Image.FORMAT_RGBA8)
+	var fundo := Image.create(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8)
+	var c: Color = preload("res://aparencia.gd").media(tex, true)
+	fundo.fill(Color(c.r, c.g, c.b, 1.0))
+	fundo.blend_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), Vector2i.ZERO)
+	fundo.generate_mipmaps()
+	return fundo
+
 static func _pele_cheia(raiz: Node3D) -> void:
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
 		if not (mi.mesh is ArrayMesh) or mi.mesh.get_surface_count() == 0 or not "Body_00" in mi.mesh.surface_get_name(0):
@@ -517,16 +537,18 @@ static func _pele_cheia(raiz: Node3D) -> void:
 		m.set_meta("pele_cheia", true)
 		var chave := "pele_cheia:%d" % m.albedo_texture.get_instance_id()
 		if not _malhas.has(chave):
-			var img: Image = preload("res://imagem_cpu.gd").ler(m.albedo_texture) # pelo arquivo, não pela placa (rosa no Mali-G72)
-			if img == null:
+			# pronta no build (ferramentas/texturas/pele-cheia.gd, 2026-11-19): o arquivo <textura>_pele.png já vem com o
+			# fundo de pele e comprimido para a placa (~5,6 MB em vez de ~22 MB), e o celular não monta nada aqui
+			var pronta := pele_cheia_arquivo(m.albedo_texture)
+			if pronta != "" and ResourceLoader.exists(pronta):
+				var tp = load(pronta)
+				if tp is Texture2D:
+					_malhas[chave] = tp
+		if not _malhas.has(chave):
+			var fundo := pele_cheia_imagem(m.albedo_texture)
+			if fundo == null:
 				continue
-			img.clear_mipmaps()
-			img.convert(Image.FORMAT_RGBA8)
-			var fundo := Image.create(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8)
 			var c: Color = preload("res://aparencia.gd").media(m.albedo_texture, true)
-			fundo.fill(Color(c.r, c.g, c.b, 1.0))
-			fundo.blend_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), Vector2i.ZERO)
-			fundo.generate_mipmaps()
 			var it := ImageTexture.create_from_image(fundo)
 			# quem ler esta textura depois (média da pele) remonta pelo arquivo, sem a placa e sem guardar 16 MB a mais
 			it.set_meta("imagem_cpu_fundo", [m.albedo_texture, Color(c.r, c.g, c.b, 1.0)])
