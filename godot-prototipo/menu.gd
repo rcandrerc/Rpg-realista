@@ -2087,8 +2087,8 @@ func _card_vila(M: Dictionary, e: String, a) -> Control:
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_theme_constant_override("separation", 3)
 	h.add_child(v)
-	var nome := rotulo("%s%s   ·   Nv %d" % ["✓ " if feita else ("▸ " if fazendo else ""), str(M.get("nome", "")), int(M.get("nv", 0))], 15,
-		VERDE_DIARIA if feita else (AMBAR if fazendo else (TEXTO if e == "p" else APAGADO)))
+	var nome := rotulo("%s   ·   Nv %d" % [str(M.get("nome", "")), int(M.get("nv", 0))], 15, VERDE_DIARIA if feita else (AMBAR if fazendo else (TEXTO if e == "p" else APAGADO)))
+	nome.text = ("✓ " if feita else ("▸ " if fazendo else "")) + nome.text # a marca fora da tradução (o inglês acha o nome sozinho)
 	nome.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(nome)
 	var quem: String = m.missao_ativa._nome_npc(str(M.get("npc", ""))) if m.missao_ativa else str(M.get("npc", ""))
@@ -2108,7 +2108,8 @@ func _card_vila(M: Dictionary, e: String, a) -> Control:
 		var etapas: Array = M.get("etapas", [])
 		for k in etapas.size():
 			var txt: String = str(a.get("txt", etapas[k])) if k == k_vez else str(etapas[k])
-			var et := rotulo("%s %s" % ["✓" if k < k_vez else ("▸" if k == k_vez else "·"), txt], 12, VERDE_DIARIA if k < k_vez else (Color(1, 0.95, 0.85) if k == k_vez else APAGADO))
+			var et := rotulo(txt, 12, VERDE_DIARIA if k < k_vez else (Color(1, 0.95, 0.85) if k == k_vez else APAGADO))
+			et.text = ("✓ " if k < k_vez else ("▸ " if k == k_vez else "· ")) + et.text
 			et.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			v.add_child(et)
 		if etapas.size() > 1:

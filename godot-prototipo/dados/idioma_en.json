@@ -4279,5 +4279,10 @@
 "Voltar à Guilda: pronto em {1} min": "Return to Guild: ready in {1} min",
 "Você já está na Guilda": "You are already at the Guild",
 "Você se mexeu: volta à Guilda cancelada": "You moved: return to Guild cancelled",
-"volta à Guilda": "return to Guild"
+"volta à Guilda": "return to Guild",
+"+2% na venda": "+2% sell price",
+"+8% na venda": "+8% sell price",
+"+2% XP dos monstros": "+2% monster XP",
+"+3% ouro dos monstros": "+3% monster gold",
+"+3% crítico": "+3% critical"
 }

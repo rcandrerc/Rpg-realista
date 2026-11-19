@@ -42,6 +42,7 @@ func _initialize() -> void:
 		m.online.esconder_login()
 	if m.get("dia") != null:
 		m.dia.ajustar(10.0)
+	Idioma.trocar("pt") # o Xvfb sem LANG abre em inglês; as fotos em inglês vêm no fim
 	# conta no Nv 34, no meio da história (a missão da vez aparece no cartão lilás)
 	var ms: Array = m.nevoa.H.get("missoes", [])
 	var p := 0
@@ -56,8 +57,10 @@ func _initialize() -> void:
 		"txt": "Veja os sinais da Geada na beira do rio (1/3)", "e": 1, "total": 3, "dono": "v_heitor", "npc": "",
 		"alvo": {"x": -286.0, "z": 26.0, "nome": "uma flecha de ponta azul", "npc": ""}, "marca": true}}
 	m.P.mudou = true
-	por(-293.0, 37.5, -286.0, 26.0, 5.0, 0.28)
+	por(-280.0, 36.0, -286.0, 26.0, 5.5, 0.12)
 	await esperar(240)
+	var mv = m.missao_vila
+	print("MARCA ", mv._marca != null and mv._marca.visible, " ", mv._marca.global_position if mv._marca != null else Vector3.ZERO)
 	await foto("1-cartoes-e-pista")
 	# conversa com o Capitão Heitor sem missão de vila aceita: ele tem a dele para dar ("Vila: O Pacto da Ponte")
 	m.P.vila_info = {"s": "poopoozzznnn", "a": null, "dar": {"v_heitor": "O Pacto da Ponte"}}
@@ -91,24 +94,30 @@ func _initialize() -> void:
 	# títulos: o grupo Vilas (aparece com as missões de vila ligadas)
 	m.menu.abrir("titulos")
 	await esperar(20)
-	m.menu.rolagem.scroll_vertical = 100000
+	for c in m.menu.conteudo.get_children():
+		if c is Label and c.text.begins_with(Idioma.frase("Vilas").to_upper()):
+			m.menu.rolagem.scroll_vertical = int(c.position.y) - 10
 	await esperar(10)
 	await foto("6-titulos-grupo-vilas")
 	m.menu.fechar()
 	# festa de missão de vila cumprida (o aviso do servidor vira a faixa)
 	m.hud.aviso("Missão de vila cumprida: O Pacto da Ponte (+300 de ouro)")
-	await esperar(40)
+	await create_timer(0.9).timeout
 	await foto("7-festa-vila-cumprida")
-	await esperar(150)
+	await create_timer(4.0).timeout
 	# inglês: a aba Vilas e o cartão
 	Idioma.trocar("en")
 	await esperar(10)
 	m.menu.abrir("vilas")
-	await esperar(30)
+	await esperar(10)
+	m.menu.rolagem.scroll_vertical = 0
+	await esperar(20)
 	await foto("8-aba-vilas-ingles")
 	m.menu.fechar()
 	m.missao_vila._visto = null
-	await esperar(30)
+	por(-280.0, 36.0, -286.0, 26.0, 5.5, 0.12)
+	await esperar(60)
 	await foto("9-cartoes-ingles")
+	Idioma.trocar("pt")
 	m.online.ligado = false
 	quit()
