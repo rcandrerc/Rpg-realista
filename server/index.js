@@ -987,13 +987,15 @@ app.get('/npcs.json', async (req, res) => {
 // baixa vê o banco aberto. Sem a variável ROBO_TESTE de atalho: aqui só vale o crachá de verdade. A cópia sai sem as
 // chaves de IA e sem sessões, assinada com a chave Ed25519 do servidor, e é feita num processo filho (revisão da frente 3).
 limparSobrasCopia();
-const COPIA_WORKFLOW = `${ROBO_REPO}/.github/workflows/contas-copia.yml@refs/heads/main`;
+const COPIA_CAMINHO = '/.github/workflows/contas-copia.yml@refs/heads/main';
 let copiaT = 0;
 app.get('/contas/copia-cifrada', async (req, res) => {
   let vale = false;
   try {
     const { payload } = await jwtVerify(sessaoDe(req), chavesGithub, { issuer: 'https://token.actions.githubusercontent.com', audience: 'age-of-embers-robo' });
-    vale = String(payload.repository).toLowerCase() === ROBO_REPO && payload.ref === 'refs/heads/main' && String(payload.job_workflow_ref).toLowerCase() === COPIA_WORKFLOW;
+    const ref = String(payload.job_workflow_ref), i = ref.indexOf('/.github/');
+    // o dono/nome do repositório não liga para maiúscula (o GitHub manda 'Rpg-realista'); o caminho do workflow, sim
+    vale = String(payload.repository).toLowerCase() === ROBO_REPO && payload.ref === 'refs/heads/main' && i > 0 && ref.slice(0, i).toLowerCase() === ROBO_REPO && ref.slice(i) === COPIA_CAMINHO;
   } catch { vale = false; }
   if (!vale) return res.status(401).json({ erro: 'só o workflow da cópia' });
   if (!contas) return res.status(503).json({ erro: 'sem contas' });
@@ -1003,13 +1005,15 @@ app.get('/contas/copia-cifrada', async (req, res) => {
   try {
     const { arquivo, apagar } = await gerarCopia({ banco: path.join(contas.pasta, 'contas.db'), pastaDados: contas.pasta });
     res.set('Content-Type', 'application/x-tar').set('Cache-Control', 'no-store');
-    res.sendFile(arquivo, (e) => { apagar(); if (e) console.error('Falha ao mandar a cópia cifrada:', e.message); });
+    res.sendFile(arquivo, (e) => { apagar(); if (e) { copiaT = 0; console.error('Falha ao mandar a cópia cifrada:', e.message); } });
   } catch (e) { copiaT = 0; console.error('Falha na cópia cifrada:', e.message); res.status(500).json({ erro: 'falhou' }); } // falhou: pode tentar de novo
 });
 // A pública Ed25519 que assina as cópias (o voltar-contas.sh confere com ela; fixe-a em ferramentas/servidor/).
 app.get('/contas/copia-assinatura.pub.pem', (_req, res) => {
   if (!contas) return res.status(503).json({ erro: 'sem contas' });
-  res.type('text/plain').send(chaveAssinaturaCopia(contas.pasta).pub);
+  const k = chaveAssinaturaCopia(contas.pasta, false); // só mostra; quem cria é a 1ª cópia
+  if (!k) return res.status(404).json({ erro: 'ainda sem cópia' });
+  res.type('text/plain').send(k.pub);
 });
 
 // Conversas da Cecília e do Dário para a ronda diária (André 2026-11-17: "a mesma coisa que você faz com os erros do jogo,

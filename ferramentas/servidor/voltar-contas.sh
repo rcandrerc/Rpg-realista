@@ -8,8 +8,9 @@
 #   sudo bash voltar-contas.sh marco-2026-11-19-antes-do-presidente
 #   sudo bash voltar-contas.sh /caminho/qualquer.db           volta para um arquivo .db
 #   sudo bash voltar-contas.sh copia.tar --chave priv.pem     volta para a cópia cifrada de fora da máquina
-#        (só se a assinatura Ed25519 do servidor conferir: com ferramentas/servidor/copia-assinatura*.pub.pem, com a
-#        $PASTA/copia-assinatura.pub.pem do próprio servidor ou com --pub <arquivo>; senão recusa)
+#        Só abre se a assinatura Ed25519 do servidor conferir com a pública FIXADA no repositório
+#        (ferramentas/servidor/copia-assinatura*.pub.pem, ao lado deste script). Outra chave só com --pub <arquivo>:
+#        o script mostra a impressão digital e pede para digitar SIM (confira a impressão por outro caminho antes).
 #   ... --sim                                                 só confere a cópia e mostra o que faria (não para nada)
 #
 # O que faz: confere a cópia (integridade do SQLite e quantas contas), para o servidor, guarda o banco de agora em
@@ -79,16 +80,31 @@ else ARQ="$ORIGEM"; fi
 # pbkdf2) e contas.sha256 (do .db aberto). Mesmo formato das conversas da ronda.
 if [[ "$ARQ" == *.tar ]]; then
   [ -n "$CHAVE" ] && [ -f "$CHAVE" ] || erro "cópia cifrada precisa de --chave <chave privada .pem>"
-  tar -xf "$ARQ" -C "$TMP" chave.bin contas.bin contas.sha256 assinatura.bin || erro "o .tar não tem chave.bin, contas.bin, contas.sha256 e assinatura.bin"
+  # só arquivos comuns, com os nomes certos (extrai como root: nada de link, pasta ou dono de fora)
+  lista=$(tar -tvf "$ARQ") || erro "o .tar não abre"
+  [ "$(printf '%s\n' "$lista" | awk '{print substr($1,1,1)}' | sort -u | tr -d '\n')" = "-" ] || erro "o .tar tem algo que não é arquivo comum: recusado"
+  [ "$(tar -tf "$ARQ" | sort | tr '\n' ' ')" = "assinatura.bin chave.bin contas.bin contas.sha256 quando.txt " ] || erro "o .tar não tem exatamente assinatura.bin, chave.bin, contas.bin, contas.sha256 e quando.txt"
+  tar -xf "$ARQ" -C "$TMP" --no-same-owner --no-same-permissions || erro "não consegui abrir o .tar"
   # a cópia veio mesmo do servidor? (revisão da frente 3: sem isso, um banco forjado no balde voltaria como root)
-  printf '%s\n%s\n%s\n' "$(sha256sum "$TMP/chave.bin" | cut -d' ' -f1)" "$(sha256sum "$TMP/contas.bin" | cut -d' ' -f1)" "$(tr -d ' \n' < "$TMP/contas.sha256")" > "$TMP/msg"
+  { printf '%s\n%s\n' "$(sha256sum "$TMP/chave.bin" | cut -d' ' -f1)" "$(sha256sum "$TMP/contas.bin" | cut -d' ' -f1)"; cat "$TMP/contas.sha256" "$TMP/quando.txt"; } > "$TMP/msg"
   confere=""
-  for p in $PUB "$(dirname "$0")"/copia-assinatura*.pub.pem "$PASTA/copia-assinatura.pub.pem"; do
+  confiaveis=("$(cd "$(dirname "$0")" && pwd)"/copia-assinatura*.pub.pem)
+  if [ -n "$PUB" ]; then
+    [ -f "$PUB" ] || erro "não achei $PUB"
+    impressao=$(openssl pkey -pubin -in "$PUB" -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1) || erro "$PUB não é uma chave pública"
+    echo "Chave de fora da lista fixada: $PUB"
+    echo "  impressão digital (sha256 do DER): $impressao"
+    echo "  Confira essa impressão por outro caminho (repositório, Drive) antes. Digite SIM para confiar nela:"
+    read -r resposta || resposta=""
+    [ "$resposta" = "SIM" ] || erro "chave não confirmada: nada foi mexido"
+    confiaveis=("$PUB")
+  fi
+  for p in "${confiaveis[@]}"; do
     [ -f "$p" ] || continue
     if openssl pkeyutl -verify -pubin -inkey "$p" -rawin -in "$TMP/msg" -sigfile "$TMP/assinatura.bin" > /dev/null 2>&1; then confere="$p"; break; fi
   done
-  [ -n "$confere" ] || erro "a assinatura não confere com nenhuma chave do servidor: cópia recusada (passe a pública certa com --pub)"
-  echo "Assinatura do servidor confere ($confere)"
+  [ -n "$confere" ] || erro "a assinatura não confere com a chave fixada do servidor: cópia recusada"
+  echo "Assinatura do servidor confere ($confere). Cópia feita em $(tr -d '\n' < "$TMP/quando.txt") (confira se é a que você quer)"
   openssl pkeyutl -decrypt -inkey "$CHAVE" -pkeyopt rsa_padding_mode:oaep -in "$TMP/chave.bin" -out "$TMP/k.bin" || erro "essa chave não abre esta cópia"
   openssl enc -d -aes-256-cbc -pbkdf2 -pass "file:$TMP/k.bin" -in "$TMP/contas.bin" -out "$TMP/contas.db"
   [ "$(sha256sum "$TMP/contas.db" | cut -d' ' -f1)" = "$(tr -d ' \n' < "$TMP/contas.sha256")" ] || erro "a cópia aberta não bate com o resumo sha256"
@@ -115,6 +131,7 @@ fi
 cp "$ARQ" "$PASTA/contas.db.novo" && mv "$PASTA/contas.db.novo" "$PASTA/contas.db"
 [ -n "$DONO" ] && chown "$DONO:$DONO" "$PASTA/contas.db" "$COPIAS" 2>/dev/null || true
 echo "Banco de antes guardado em $guardado (para desfazer: voltar-contas.sh $guardado)"
+[[ "$ORIGEM" == *.tar ]] && echo "Atenção: a cópia de fora da máquina vem sem sessões e sem as chaves de IA: todos entram de novo com o Google e põem a chave de IA de novo."
 
 if [ -n "$SERVICO" ]; then
   systemctl start "$SERVICO"

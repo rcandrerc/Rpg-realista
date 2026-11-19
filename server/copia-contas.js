@@ -8,8 +8,9 @@
 //   do balde não entregam chave de ninguém (secure_delete + VACUUM: nem nas páginas livres). Quem voltar de uma cópia
 //   entra de novo com o Google e põe a chave de IA de novo.
 // - a cópia vai ASSINADA (Ed25519) com a chave do próprio servidor (dados/copia-assinatura.pem, criada na 1ª cópia;
-//   a pública sai em /contas/copia-assinatura.pub.pem). O voltar-contas.sh (root) só abre o que confere com uma pública
-//   fixada (ferramentas/servidor/copia-assinatura*.pub.pem) ou a do próprio servidor: banco forjado no balde não volta.
+//   a pública sai em /contas/copia-assinatura.pub.pem). O voltar-contas.sh (root) só confia na pública FIXADA no
+//   repositório (ferramentas/servidor/copia-assinatura*.pub.pem); outra só com --pub e confirmação da impressão digital.
+//   A hora da cópia vai assinada (cópia velha no lugar da nova aparece na volta).
 // - tudo roda num PROCESSO FILHO (VACUUM, cifra, assinatura): as salas não travam e a memória do jogo não sobe.
 //
 // Formato (o mesmo que o voltar-contas.sh abre com openssl): um .tar com
@@ -17,7 +18,8 @@
 //   contas.bin      o banco cifrado como "openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:k.bin" (Salted__ + sal,
 //                   PBKDF2-SHA256 com 10000 voltas dá chave e IV)
 //   contas.sha256   o sha256 do banco aberto, para conferir depois de abrir
-//   assinatura.bin  Ed25519 sobre o texto "<sha256 de chave.bin>\n<sha256 de contas.bin>\n<conteúdo de contas.sha256>"
+//   quando.txt      a hora da cópia (ISO, UTC)
+//   assinatura.bin  Ed25519 sobre o texto "<sha256 de chave.bin>\n<sha256 de contas.bin>\n<conteúdo de contas.sha256><conteúdo de quando.txt>"
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -69,7 +71,7 @@ function tar(arquivos) {
   return Buffer.concat(blocos);
 }
 try {
-  const src = new DatabaseSync(banco); src.prepare('VACUUM INTO ?').run(tmp); src.close();
+  const src = new DatabaseSync(banco, { readOnly: true }); src.prepare('VACUUM INTO ?').run(tmp); src.close();
   const c = new DatabaseSync(tmp);
   c.exec('PRAGMA secure_delete = ON');
   const cols = c.prepare("SELECT name FROM pragma_table_info('contas')").all().map((x) => x.name);
@@ -85,16 +87,18 @@ try {
   const cifrado = Buffer.concat([Buffer.from('Salted__'), sal, ci.update(aberto), ci.final()]);
   aberto.fill(0);
   const resumo = Buffer.from(shaAberto + '\n');
-  const msg = Buffer.from(sha(chave) + '\n' + sha(cifrado) + '\n' + shaAberto + '\n');
+  const quando = Buffer.from(new Date().toISOString() + '\n'); // vai assinado: cópia velha posta no lugar da nova aparece
+  const msg = Buffer.from(sha(chave) + '\n' + sha(cifrado) + '\n' + shaAberto + '\n' + quando.toString());
   const assinatura = crypto.sign(null, msg, fs.readFileSync(assinaArq, 'utf8'));
-  fs.writeFileSync(path.join(saida, 'copia.tar'), tar([['chave.bin', chave], ['contas.bin', cifrado], ['contas.sha256', resumo], ['assinatura.bin', assinatura]]), { mode: 0o600 });
+  fs.writeFileSync(path.join(saida, 'copia.tar'), tar([['chave.bin', chave], ['contas.bin', cifrado], ['contas.sha256', resumo], ['quando.txt', quando], ['assinatura.bin', assinatura]]), { mode: 0o600 });
 } catch (e) { fs.rmSync(tmp, { force: true }); console.error(e.message); process.exit(1); }
 `;
 
 // Chave Ed25519 do servidor para assinar as cópias: criada uma vez na pasta de dados (0600). Devolve a pública (PEM).
-export function chaveAssinaturaCopia(pastaDados) {
+export function chaveAssinaturaCopia(pastaDados, criar = true) {
   const priv = path.join(pastaDados, 'copia-assinatura.pem'), pub = path.join(pastaDados, 'copia-assinatura.pub.pem');
   if (!fs.existsSync(priv)) {
+    if (!criar) return null;
     const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519');
     fs.writeFileSync(priv, privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
     fs.writeFileSync(pub, publicKey.export({ type: 'spki', format: 'pem' }));
