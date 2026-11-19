@@ -993,4 +993,34 @@ process.on('uncaughtException', (e) => {
 const servidor = http.createServer(app);
 const gameServer = new Server({ transport: new WebSocketTransport({ server: servidor, pingInterval: 5000, pingMaxRetries: 4 }) });
 gameServer.define('clareira', SalaClareira);
-gameServer.listen(PORTA).then(() => { console.log(`Servidor do RPG no ar: http://localhost:${PORTA}`); vigiarReserva(); });
+// ---------- porta de entrada das salas (revisão de segurança 2026-11-19) ----------
+// O Colyseus só confere o login quando o socket liga (onAuth da sala). Antes disso qualquer um, sem conta, abria sala vazia
+// (POST /matchmake/create, ~27 ms de CPU e 45 s viva cada uma: dava para travar o jogo de todos), guardava lugar nas salas
+// de verdade e via a lista delas. Agora: só joinOrCreate (o que o app e o site usam) e reconnect (volta da queda);
+// joinOrCreate só com sessão válida e no máximo MATCH.porConta pedidos por conta a cada MATCH.janela ms; sem lista de salas.
+const MATCH = { porConta: 20, janela: 60000, corpoMax: 8192 }; // 20 por minuto: sobra para o app tentar de novo na internet ruim
+const pedidosSala = new Map(); // conta -> horas (ms) dos últimos joinOrCreate
+const ctrl = colyseus.matchMaker.controller;
+ctrl.exposedMethods = ['joinOrCreate', 'reconnect'];
+ctrl.getAvailableRooms = async () => [];
+const chamarOriginal = ctrl.invokeMethod.bind(ctrl);
+ctrl.invokeMethod = async (metodo, sala, opcoes = {}, auth) => {
+  if (contas && metodo === 'joinOrCreate') {
+    const conta = contas.porSessao(opcoes?.sessao);
+    if (!conta) throw new ServerError(401, 'login');
+    const agora = Date.now(), l = (pedidosSala.get(conta.id) || []).filter((t) => agora - t < MATCH.janela);
+    if (l.length >= MATCH.porConta) throw new ServerError(429, 'muitas tentativas, espere um pouco');
+    l.push(agora); pedidosSala.set(conta.id, l);
+    if (pedidosSala.size > 5000) for (const [k, v] of pedidosSala) if (!v.some((t) => agora - t < MATCH.janela)) pedidosSala.delete(k);
+  }
+  return chamarOriginal(metodo, sala, opcoes, auth);
+};
+gameServer.listen(PORTA).then(() => {
+  // corpo do pedido de sala: o Colyseus junta tudo sem limite (dava para mandar GB e acabar a memória)
+  servidor.prependListener('request', (req) => {
+    if (!String(req.url).includes('/matchmake')) return; // o mesmo teste que o Colyseus usa para pegar o pedido
+    if (Number(req.headers['content-length'] || 0) > MATCH.corpoMax) { req.destroy(); return; }
+    let n = 0; req.on('data', (c) => { n += c.length; if (n > MATCH.corpoMax) req.destroy(); });
+  });
+  console.log(`Servidor do RPG no ar: http://localhost:${PORTA}`); vigiarReserva();
+});

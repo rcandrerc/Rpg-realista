@@ -5,9 +5,14 @@ import { Simulacao } from '@rpg/shared';
 // Servidor usado quando o jogo é aberto pelo GitHub Pages (que não roda servidor). Vazio = modo solo.
 const SERVIDOR_PARA_PAGES = 'wss://163-176-80-126.sslip.io'; // Oracle Cloud (São Paulo)
 
+const SERVIDORES_OK = [/^wss:\/\/163-176-80-126\.sslip\.io(:\d+)?\/?$/, /^wss:\/\/163\.176\.80\.126(:\d+)?\/?$/, /^wss?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?\/?$/];
+export const servidorPermitido = (s) => SERVIDORES_OK.some((r) => r.test(String(s)));
+
 export function enderecoServidor() {
+  // ?servidor= só aceita o nosso servidor e o computador de casa (revisão de segurança 2026-11-19): antes qualquer
+  // endereço valia, e um link com ?servidor=wss://outro mandava a sessão e o login do Google para o servidor de outra pessoa
   const forcado = new URLSearchParams(location.search).get('servidor');
-  if (forcado) return forcado;
+  if (forcado && servidorPermitido(forcado)) return forcado;
   if (location.hostname.endsWith('github.io')) return SERVIDOR_PARA_PAGES || null;
   const ws = location.protocol === 'https:' ? 'wss' : 'ws';
   // no "npm run dev" a página vem do Vite (porta 5173) e o servidor fica na 2567
