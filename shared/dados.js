@@ -5189,3 +5189,25 @@ export function nomeReservado(nome) {
   }
   return null;
 }
+
+// ---------- IA sem palavrão (Segurança 2026-11-19, plano de lançamento: "a filha do André joga") ----------
+// O que a Cecília e o Dário falam pela IA passa por aqui antes de chegar no chat: palavrão vira uma palavra leve (porra ->
+// poxa, caralho -> caramba, merda -> droga, foda -> tenso) ou ***. Confere palavra por palavra, sem acento, com letra
+// repetida ("porraaa") e número no lugar de letra ("p0rra"). "Putz", "puts", "veado" e "rola" passam.
+export const PALAVROES = [
+  [/^p+o+r+a+d+a+s?$/, 'monte'], [/^p+o+r+a+/, 'poxa'], [/^c+a+r+a+l+h+/, 'caramba'], [/^(k+r+l+|c+r+l+|c+a+r+a+i+|c+a+r+a+l+e+o+)$/, 'caramba'],
+  [/^m+e+r+d+/, 'droga'], [/^b+o+s+t+a+s?$/, 'droga'], [/^f+o+d+[aeiou]/, 'tenso'],
+  [/^p+u+t+[aoi]/, null], [/^(p+q+p+|f+d+p+|v+s+f+|v+t+n+c+|t+n+c+|c+u+|c+u+z+a+o+|c+u+z+i+n+h+o+)$/, null],
+  [/^(b+u+c+e+t+|b+o+c+e+t+|x+o+x+o+t+|p+i+r+o+c+|c+a+c+e+t+e+|a+r+r+o+m+b+a+d+|v+i+a+d+|v+a+d+i+|r+e+t+a+r+d+a+d+|c+o+r+n+o+s?$|c+o+r+n+a+$)/, null],
+];
+const PALAVRAO_NUM = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', '@': 'a', $: 's' };
+export function semPalavrao(texto) {
+  return String(texto ?? '').replace(/[\p{L}\p{N}@$]+/gu, (w) => {
+    const k = w.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[0-9@$]/g, (c) => PALAVRAO_NUM[c] || c);
+    for (const [re, leve] of PALAVROES) if (re.test(k)) {
+      if (!leve) return '***';
+      return w === w.toUpperCase() && w.length > 1 ? leve.toUpperCase() : /^\p{Lu}/u.test(w) ? leve[0].toUpperCase() + leve.slice(1) : leve;
+    }
+    return w;
+  });
+}

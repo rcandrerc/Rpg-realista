@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { abrirPacote } from './atualizar.js';
 import SELADOS from './segredos-selados.json' with { type: 'json' };
-import { AMIGA, CEREBRO } from '@rpg/shared';
+import { AMIGA, CEREBRO, semPalavrao } from '@rpg/shared';
 
 
 // chave de um segredo: do ambiente, do segredos.json (segredos do GitHub, vêm no pacote trancado) ou, sem eles, do
@@ -231,7 +231,7 @@ export function mensagensConversa(ctx, texto) {
     '- NÃO conte onde você está nem o que está fazendo a cada mensagem: só se ele perguntar ou se mudou algo. Disse uma vez, chega.',
     `- Não termine toda mensagem com pergunta: no máximo uma pergunta a cada duas ou três mensagens, e nunca a mesma pergunta de antes (ex.: se já perguntou do grind, não pergunte de novo).`,
     `- Não ofereça ajuda, boost ou "se precisar, dá um alô": só se ${ctx.amigo} pedir ou estiver claramente travado.`,
-    `- Reaja primeiro ao jeito dele: palavrão, zoeira, "kkk", surpresa ou reclamação pedem resposta no mesmo clima (ri junto, zoa de volta). Se ele perguntar como você sabe de algo, responda de um jeito humano (viu ele por aí, a vila comenta, ele mesmo falou); nunca "anotei" nem "tava no meu radar".`,
+    `- Reaja primeiro ao jeito dele: zoeira, "kkk", surpresa ou reclamação pedem resposta no mesmo clima (ri junto, zoa de volta). Você NUNCA fala palavrão, nem se ele falar (tem criança jogando): no lugar, "poxa", "caramba", "droga", "caraca". Se ele perguntar como você sabe de algo, responda de um jeito humano (viu ele por aí, a vila comenta, ele mesmo falou); nunca "anotei" nem "tava no meu radar".`,
     '- Respostas curtas de verdade quando a mensagem dele for curta: uma frase basta muitas vezes.',
     // André 2026-11-13: "linguagem muito fofinha... queria que parecesse mais um jogador mesmo" (de RPG online, não morador de fantasia)
     `- Fale como jogador${homem ? '' : 'a'} de MMORPG no chat (gamer brasileiro), não como personagem de conto de fadas: gírias de jogo com naturalidade, tipo upar, farmar, grindar, dropar, mob, boss, DG (dungeon), pt (time), tankar, kitar, aggro, respawn, build, loot, cd (recarga), buff, nerf, hit, crit, "bora", "partiu", "tmj", "vlw", "kkkk". Ex.: "bora farmar uns mobs?", "tô precisando upar", "partiu DG?", "esse boss dropa bem".`,
@@ -350,7 +350,7 @@ export function salvarResposta(txt) {
   const fala = (m ? m[1] : t.replace(/^\{\s*/, '').replace(/"?\s*,?\s*("acao"\s*:\s*"[a-zA-Z]*"\s*)?\}?\s*$/, '')).replace(/\\"/g, '"').replace(/\s+/g, ' ').trim();
   if (!m && /^\{/.test(t)) return null; // JSON cortado no meio da fala: melhor o próximo modelo que meia frase
   if (fala.length < 2 || /^[{\["]/.test(fala) || /"(fala|acao)"/.test(fala)) return null;
-  return { assunto: 'conversa', fala: fala.slice(0, 300) };
+  return { assunto: 'conversa', fala: semPalavrao(fala.slice(0, 300)) };
 }
 // André 2026-11-17 (ronda): ela repetia o pedido ("2 couros e um capacete melhor") em 6 de 25 falas, mesmo depois de ele
 // dizer que estava sem ouro. A ficha só lembra o pedido se ela não falou dele nas últimas 8 falas dela.
@@ -363,7 +363,7 @@ export function jaFalou(ctx, oQue) {
 // {"fala", "acao"} da IA -> { assunto, fala } (ação fora da lista vira conversa)
 function lerResposta(txt) {
   let out; try { out = JSON.parse(txt || '{}'); } catch { return null; }
-  const fala = typeof out.fala === 'string' ? out.fala.replace(/\s+/g, ' ').trim().slice(0, 300) : '';
+  const fala = typeof out.fala === 'string' ? semPalavrao(out.fala.replace(/\s+/g, ' ').trim().slice(0, 300)) : ''; // sem palavrão (2026-11-19)
   if (!fala) return null;
   const lugar = typeof out.lugar === 'string' ? out.lugar.slice(0, 60) : '';
   const sugere = ['time', 'pescar', 'minerar', 'lenha'].includes(out.sugere) ? out.sugere : ''; // o que ELA propôs (André 2026-11-17)
