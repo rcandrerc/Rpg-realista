@@ -606,7 +606,7 @@ export class Simulacao {
     const sub = c.tipo === 'jogador' ? this.naCaverna(c) : !!c.sub;
     const l = (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando && !(o.bot && !o.time) && (o.tipo === 'jogador' ? this.naCaverna(o) : !!o.sub) === sub);
     if (c.tipo === 'jogador' && c.duelo?.luta) { const o = this.oponenteDuelo(c); if (o && !o.morto) l.push(o); } // duelo (shared/duelo.js): o outro vira alvo
-    if (c.tipo === 'jogador' && c.guerra) for (const o of this.jogadores.values()) if (this.emGuerra(c, o) && this.naCaverna(o) === sub && !l.includes(o)) l.push(o); // Chama x Geada (shared/guerra.js): a outra raça fora da zona segura
+    if (c.tipo === 'jogador' && c.guerra && !(c.semGuerraAte > this.tempo)) for (const o of this.jogadores.values()) if (this.emGuerra(c, o) && this.naCaverna(o) === sub && !l.includes(o)) l.push(o); // Chama x Geada (shared/guerra.js): a outra raça fora da zona segura
     return l;
   }
   maisPerto(c, max = 22) {
@@ -729,7 +729,9 @@ export class Simulacao {
     if (j.orcT == null) {
       j.orc = ORCAMENTO.burst; j.orcT = this.tempo;
       // voltou de uma queda (folgaDaQueda): o celular seguiu andando sem internet; vale o caminho que deu para fazer
-      if (j.queda && j.queda.ate > this.tempo) j.orc += Math.max(vmax, ...Object.values(MONTARIAS).map((m) => m.correr * 1.3)) * j.queda.seg;
+      // Segurança 2026-11-19 (Presidente): só na velocidade que ele tinha (a pé, de lobo, de barco), nunca na do bicho
+      // mais rápido do jogo; o tempo já vem com teto em folgaDaQueda (ORCAMENTO.queda). Antes dava ~700 m de teleporte.
+      if (j.queda && j.queda.ate > this.tempo) { j.orc += Math.max(vmax, j.queda.mont ? MONTARIAS[j.queda.mont].correr * 1.3 * lentoH : 0) * j.queda.seg; j.saltoQueda = { x: j.x, z: j.z, ate: this.tempo + 15 }; }
       j.queda = null;
     }
     // a folga enche na velocidade máxima. Depois de um silêncio (internet engasgada), as posições guardadas chegam juntas:
@@ -756,6 +758,12 @@ export class Simulacao {
       return false;
     }
     if (tele && d > 1) { j.tele = null; j.orc = Math.max(0, j.orc - Math.max(0, d - tele)); } else j.orc -= d;
+    // voltou da queda longe de onde caiu (mais que um passo normal): por GUERRA.semPontoQueda s não fere nem derruba a outra
+    // raça (o caminho sem internet ninguém viu; teleporte não vale ponto na guerra; Presidente 2026-11-19)
+    if (j.saltoQueda) {
+      if (j.saltoQueda.ate <= this.tempo) j.saltoQueda = null;
+      else if (Math.hypot(p.x - j.saltoQueda.x, p.z - j.saltoQueda.z) > ORCAMENTO.burst) { j.semGuerraAte = this.tempo + GUERRA.semPontoQueda; j.saltoQueda = null; }
+    }
     // correndo (pela velocidade de verdade, sem dash, montaria ou parede): gasta estamina
     const dtc = j.cliente ? Math.min(0.5, this.tempo - j.cliente.t) : 0;
     // A velocidade sai da média de ~0,3 s: pacotes que chegam juntos (rede oscilando) pareciam corrida e o trote gastava estamina.
@@ -797,9 +805,10 @@ export class Simulacao {
   }
   // Entrou de novo depois de cair (server/index.js: a mesma conta, segundos depois): a primeira posição que o celular mandar
   // pode estar até seg s de corrida longe de onde o servidor o viu por último (o jogo seguiu sem internet). Vale por 15 s.
-  folgaDaQueda(id, seg) {
+  // mont: a montaria que ele tinha quando caiu (sessão nova nasce a pé; server/index.js montSaida)
+  folgaDaQueda(id, seg, mont = null) {
     const j = this.jogadores.get(id); if (!j || !(seg > 0)) return;
-    j.queda = { seg: Math.min(seg, ORCAMENTO.queda), ate: this.tempo + 15 };
+    j.queda = { seg: Math.min(seg, ORCAMENTO.queda), ate: this.tempo + 15, mont: Object.hasOwn(MONTARIAS, mont || '') ? mont : null };
     j.orcT = null;
   }
   // "corrigir" numerado (c): o celular aplica só o mais novo e manda o número de volta em cada posição
@@ -3839,6 +3848,7 @@ export class Simulacao {
     if (alvo.morto || alvo.arrancada || alvo.criando || alvo.voando) return; // voando: boss no ar (skill 'voo' ou 'sumir')
     if (alvo.tipo === 'jogador' && alvo.cenaAte > this.tempo) return; // vendo uma cena da história (cena())
     const guerra = alvo.tipo === 'jogador' && de?.tipo === 'jogador' && this.emGuerra(alvo, de); // Chama x Geada (shared/guerra.js): de verdade, sem o "ninguém morre" do duelo
+    if (guerra && de.semGuerraAte > this.tempo) return; // voltou da queda longe de onde caiu: o teleporte não vale ponto (Presidente 2026-11-19)
     const duelo = alvo.tipo === 'jogador' && de?.tipo === 'jogador' && !guerra; // jogador em jogador: só no duelo (shared/duelo.js) ou na guerra
     if (duelo && !this.duelando(alvo, de)) return;
     if (guerra) { alvo.pvpDe = de.id; alvo.pvpT = this.tempo; de.pvpAlvo = alvo.id; de.pvpT = this.tempo; }
