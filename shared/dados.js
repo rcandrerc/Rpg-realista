@@ -2988,8 +2988,8 @@ function mesclarAmigo(base, muda) {
 }
 export const DARIO = mesclarAmigo(AMIGA, {
   id: 'dario', nome: 'Dario', conta: 'a:dario', papel: 'o guerreiro', genero: 'm',
-  puxaAssunto: false, // André 2026-11-17: quem puxa assunto pela IA é só a Cecília (o Dario responde)
-  naoInsiste: false, seguivel: false, convida: false, // André 2026-11-17: "o Dario deixa como está"
+  // André 2026-11-19 ("eu tinha modificado um pouco a Cecília e deixado o Dário para trás"): agora igual a ela em
+  // inteligência e decisões (puxa assunto, não insiste, botão Seguir, manda o convite); só o jeito de falar é dele
   persona: 'um guerreiro de anime num RPG medieval de fantasia: calmo, confiante, leal, de humor seco e provocador com os amigos, competitivo nas caçadas e orgulhoso da espada',
   visual: 'cabelo_m',
   // visual B (cabelo preto rebelde, olhos dourados, capa roxo-escura); só aparência, as peças de verdade começam Comuns

@@ -65,13 +65,13 @@ const novo = () => {
   s.time('andre', { acao: 'aceitar', com: a.id });
   ok(!a.time, 'convite vencido não entra');
 }
-// 5) Dario fica como estava: não manda convite (ele dá o time pelo botão)
+// 5) Dario igual à Cecília (André 2026-11-19): ele também manda o convite
 {
   const { s, j } = novo();
   const d = s.amigoIaDe(DARIO.id);
   for (const x of s.amigosIa) if (x !== d) x.amiga && (x.amiga.time = null);
   d.amigaEntrar?.('andre', true);
-  ok(DARIO.convida === false && !d.convidarTimeAmiga(d.amiga, j, null), 'Dario não manda convite');
+  ok(DARIO.convida === true, 'Dario também manda convite (igual à Cecília)');
 }
 // 6) André 2026-11-17: "e se o lugar não tiver sido destravado por mim ele teria como avisar? pois já aconteceu comigo"
 {
