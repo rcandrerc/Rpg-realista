@@ -8,6 +8,8 @@
 #   sudo bash voltar-contas.sh marco-2026-11-19-antes-do-presidente
 #   sudo bash voltar-contas.sh /caminho/qualquer.db           volta para um arquivo .db
 #   sudo bash voltar-contas.sh copia.tar --chave priv.pem     volta para a cópia cifrada de fora da máquina
+#        (só se a assinatura Ed25519 do servidor conferir: com ferramentas/servidor/copia-assinatura*.pub.pem, com a
+#        $PASTA/copia-assinatura.pub.pem do próprio servidor ou com --pub <arquivo>; senão recusa)
 #   ... --sim                                                 só confere a cópia e mostra o que faria (não para nada)
 #
 # O que faz: confere a cópia (integridade do SQLite e quantas contas), para o servidor, guarda o banco de agora em
@@ -50,12 +52,13 @@ listar() {
   echo "Banco de agora: $(conferir "$PASTA/contas.db" 2>&1 || true)"
 }
 
-ORIGEM="" CHAVE="" SIM=0
+ORIGEM="" CHAVE="" PUB="" SIM=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --listar) listar; exit 0 ;;
     --sim) SIM=1 ;;
     --chave) CHAVE="${2:-}"; shift ;;
+    --pub) PUB="${2:-}"; shift ;;
     -h|--help) sed -n 2,20p "$0"; exit 0 ;;
     *) [ -z "$ORIGEM" ] || erro "só uma cópia por vez ($ORIGEM e $1)"; ORIGEM="$1" ;;
   esac
@@ -76,7 +79,16 @@ else ARQ="$ORIGEM"; fi
 # pbkdf2) e contas.sha256 (do .db aberto). Mesmo formato das conversas da ronda.
 if [[ "$ARQ" == *.tar ]]; then
   [ -n "$CHAVE" ] && [ -f "$CHAVE" ] || erro "cópia cifrada precisa de --chave <chave privada .pem>"
-  tar -xf "$ARQ" -C "$TMP" chave.bin contas.bin contas.sha256 || erro "o .tar não tem chave.bin, contas.bin e contas.sha256"
+  tar -xf "$ARQ" -C "$TMP" chave.bin contas.bin contas.sha256 assinatura.bin || erro "o .tar não tem chave.bin, contas.bin, contas.sha256 e assinatura.bin"
+  # a cópia veio mesmo do servidor? (revisão da frente 3: sem isso, um banco forjado no balde voltaria como root)
+  printf '%s\n%s\n%s\n' "$(sha256sum "$TMP/chave.bin" | cut -d' ' -f1)" "$(sha256sum "$TMP/contas.bin" | cut -d' ' -f1)" "$(tr -d ' \n' < "$TMP/contas.sha256")" > "$TMP/msg"
+  confere=""
+  for p in $PUB "$(dirname "$0")"/copia-assinatura*.pub.pem "$PASTA/copia-assinatura.pub.pem"; do
+    [ -f "$p" ] || continue
+    if openssl pkeyutl -verify -pubin -inkey "$p" -rawin -in "$TMP/msg" -sigfile "$TMP/assinatura.bin" > /dev/null 2>&1; then confere="$p"; break; fi
+  done
+  [ -n "$confere" ] || erro "a assinatura não confere com nenhuma chave do servidor: cópia recusada (passe a pública certa com --pub)"
+  echo "Assinatura do servidor confere ($confere)"
   openssl pkeyutl -decrypt -inkey "$CHAVE" -pkeyopt rsa_padding_mode:oaep -in "$TMP/chave.bin" -out "$TMP/k.bin" || erro "essa chave não abre esta cópia"
   openssl enc -d -aes-256-cbc -pbkdf2 -pass "file:$TMP/k.bin" -in "$TMP/contas.bin" -out "$TMP/contas.db"
   [ "$(sha256sum "$TMP/contas.db" | cut -d' ' -f1)" = "$(tr -d ' \n' < "$TMP/contas.sha256")" ] || erro "a cópia aberta não bate com o resumo sha256"
