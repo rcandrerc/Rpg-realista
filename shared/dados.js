@@ -4808,3 +4808,29 @@ for (const [k, T] of Object.entries(ARVORES_PLANTIO)) {
     desc: `${T.desc} Plante numa área de plantio ou no seu terreno. Fica adulta em ${T.h} h.` };
   LOJA.push({ k: 'semente_' + k, preco: Math.round(T.semente * ECONOMIA.semente) }); // André 2026-11-17: x2,5
 }
+
+// ---------- Nome de NPC não pode ser nome de jogador (André 2026-11-19: "Se tiver o nome dos NPCs, não pode. Nem parecido") ----------
+// Bloqueia o nome do jogador que tiver o nome de um NPC como palavra ("Otávio", "Otávio-x", "x Otavio", "0tavi0", com letra
+// cirílica parecida) ou grudado em outra coisa ("xOtavio") quando o nome do NPC tem 5 letras ou mais. Nomes curtos (Lia, Rosa,
+// Teo) só como palavra inteira, senão "Juliana" e "Mateus" cairiam. Título do NPC (Mestre, Dona, Irmã...) não conta.
+export const NOMES_RESERVADOS = { extra: ['Vesper', 'Aethra', 'Servidor', 'Sistema', 'Admin', 'Moderador', 'Suporte'], titulos: ['mestre', 'mestra', 'dona', 'seu', 'irma', 'irmao', 'velho', 'avo', 'capitao', 'capita', 'guardia', 'sentinela', 'pescador'], grudadoMin: 5 };
+const PARECIDAS = { а: 'a', е: 'e', о: 'o', р: 'p', с: 'c', у: 'y', х: 'x', і: 'i', ј: 'j', к: 'k', т: 't', в: 'b', н: 'h', м: 'm', α: 'a', ο: 'o', ε: 'e', ι: 'i', κ: 'k', ν: 'v', ρ: 'p', τ: 't', υ: 'u', χ: 'x', 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', 8: 'b' };
+const limparNome = (s) => [...String(s).toLowerCase()].map((c) => PARECIDAS[c] ?? c).join('').normalize('NFD').replace(/[̀-ͯ]/g, '');
+let reservados = null;
+function listaReservados() {
+  if (reservados) return reservados;
+  const nomes = [...(MAPA_CLAREIRA.npcs || []).map((n) => String(n.nome || '').split(',')[0]), ...AMIGOS_VIRTUAIS.map((d) => d.nome), ...RIVAIS.map((d) => d.nome), ...NOMES_RESERVADOS.extra];
+  const l = new Map(); // nome limpo -> nome do NPC
+  for (const n of nomes) {
+    if (!n || /mural/i.test(n)) continue;
+    const p = limparNome(n).split(/[^a-z]+/).filter(Boolean), i = p.findIndex((w) => !NOMES_RESERVADOS.titulos.includes(w));
+    if (i >= 0 && p[i].length >= 2) l.set(p[i], n.trim()); // o nome dele (Otávio, Ivo, Bruno)
+  }
+  return (reservados = l);
+}
+// Devolve o nome do NPC que o nome do jogador usa, ou null
+export function nomeReservado(nome) {
+  const palavras = limparNome(nome).split(/[^a-z]+/).filter(Boolean);
+  for (const [k, npc] of listaReservados()) if (palavras.some((w) => w === k || (k.length >= NOMES_RESERVADOS.grudadoMin && w.includes(k)))) return npc; // grudado só dentro da mesma palavra ("Robô de teste" não vira "Odete")
+  return null;
+}

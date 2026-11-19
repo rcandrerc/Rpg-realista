@@ -3089,6 +3089,7 @@
 "Essa chave não funcionou. Copie de novo em console.groq.com/keys (começa com gsk_)": "That key didn't work. Copy it again from console.groq.com/keys (starts with gsk_)",
 "Pronto! Agora você pode conversar com {1}": "Done! You can now chat with {1}",
 "O nome {1} já é de outro jogador. Escolha outro.": "The name {1} is already taken. Pick another.",
+"{1} é nome de personagem do jogo. Escolha outro.": "{1} is the name of a game character. Pick another.",
 "Trocar o nome só com conta, jogando online": "Name changes need an account and online play",
 "{1} perdeu a conexão: a troca foi desfeita": "{1} lost connection: trade canceled",
 "O servidor vai reiniciar em {1} minuto{2} para ficar mais leve. Seu progresso fica salvo; é só entrar de novo.": "The server will restart in {1} minute{2} to run smoother. Your progress is saved; just log back in.",
