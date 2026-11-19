@@ -14,7 +14,7 @@
 //   A amizade é de cada um (j.amizades[conta]); j.amizade é a de quem ela acompanha agora.
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { DIARIAS, DUELO, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME } from './dados.js';
+import { DIARIAS, DUELO, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, semPalavrao, palavraoPesado } from './dados.js';
 import { CEREBRO, NPC_VIDA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
@@ -1405,13 +1405,13 @@ export const Amiga = {
     const { lista, trocou } = juntarDica(a.dicas || [], r, CEREBRO.dicas.max);
     a.dicas = lista; a.ia.regrasOrd = null; // o cérebro pega a lista nova na próxima decisão
     this.guardarAmiga();
-    this.dizerAmiga((trocou ? CEREBRO.falas.trocou : CEREBRO.falas.aprendeu).replace('{regra}', r.texto), false, id);
+    this.dizerAmiga((trocou ? CEREBRO.falas.trocou : CEREBRO.falas.aprendeu).replace('{regra}', semPalavrao(r.texto)), false, id);
     return true;
   },
   comandoDicaAmiga(id, tipo, texto) {
     const a = this.amiga; if (!a) return;
     const l = a.dicas || [];
-    if (tipo === 'listar') return this.dizerAmiga(l.length ? CEREBRO.falas.lista.replace('{lista}', l.map((d, i) => `${i + 1}) ${d.texto}`).join('; ')) : CEREBRO.falas.nenhuma, false, id);
+    if (tipo === 'listar') return this.dizerAmiga(l.length ? CEREBRO.falas.lista.replace('{lista}', l.map((d, i) => `${i + 1}) ${palavraoPesado(d.texto) ? '...' : semPalavrao(d.texto)}`).join('; ')) : CEREBRO.falas.nenhuma, false, id);
     if (!l.length) return this.dizerAmiga(CEREBRO.falas.nenhuma, false, id);
     const t = normAmiga(texto), num = t.match(/\b(\d{1,2})\b/);
     if (/todas|tudo/.test(t)) a.dicas = [];

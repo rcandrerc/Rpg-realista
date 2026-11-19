@@ -260,7 +260,7 @@ export function mensagensConversa(ctx, texto) {
     `Você tem ${ctx.ouro ?? 0} de ouro${ctx.mochila ? `; na mochila: ${ctx.mochila}` : ''}.${ctx.pedido ? (jaFalou(ctx, ctx.pedido) ? ` Você já pediu ${ctx.pedido}: não repita.` : ` Está precisando de ${ctx.pedido}.`) : ' Você NÃO está precisando de material nenhum agora: esqueça pedido antigo da conversa (couro, capacete etc.).'}`, // André 2026-11-18: repetia "2 couros e um capacete" da conversa velha
     ctx.caiuHa != null ? (ctx.morta ? 'Você CAIU agora (morreu) e está renascendo em casa.' : `Você caiu (morreu) há ${ctx.caiuHa} min e já renasceu.`) : '',
     ctx.barco ? `Barquinho: ${ctx.barco}. Se ${ctx.amigo} falar de barquinho, você sabe fazer: diga que vai juntar o material e fazer (não diga que não consegue).` : '',
-    ctx.fatos?.length ? `Fatos que você SABE sobre ${ctx.amigo} (ele te contou; nunca esqueça nem contradiga; use com tato e só de vez em quando, sem perguntar da mesma coisa duas vezes na conversa): ${ctx.fatos.join('; ')}.` : '',
+    fatosSeguros(ctx.fatos).length ? `Fatos que você SABE sobre ${ctx.amigo} (ele te contou; nunca esqueça nem contradiga; use com tato e só de vez em quando, sem perguntar da mesma coisa duas vezes na conversa): ${fatosSeguros(ctx.fatos).join('; ')}.` : '',
     ctx.memoria?.length ? `O que você lembra de ${ctx.amigo} e de vocês de outros dias (use com naturalidade quando fizer sentido): ${ctx.memoria.join('; ')}.` : '',
     `Sua vida: ${ctx.vida ?? 100}%. Poções de vida na mochila: ${ctx.pocoes ?? 0}. Você luta de ${ctx.arma || 'espada'}.`,
     // André 2026-11-18 ("travada com informações antigas"): a conversa e a memória velhas perdiam para a ficha
@@ -347,9 +347,10 @@ export function salvarResposta(txt) {
   const t = String(txt || '').trim(); if (!t) return null;
   const v = lerResposta(t); if (v) return v;
   const m = t.match(/"fala"\s*:\s*"((?:[^"\\]|\\.)*)"/); // JSON quebrado mas com a fala inteira
-  const fala = (m ? m[1] : t.replace(/^\{\s*/, '').replace(/"?\s*,?\s*("acao"\s*:\s*"[a-zA-Z]*"\s*)?\}?\s*$/, '')).replace(/\\"/g, '"').replace(/\s+/g, ' ').trim();
+  let fala = (m ? m[1] : t.replace(/^\{\s*/, '').replace(/"?\s*,?\s*("acao"\s*:\s*"[a-zA-Z]*"\s*)?\}?\s*$/, '')).replace(/\\"/g, '"').replace(/\s+/g, ' ').trim();
   if (!m && /^\{/.test(t)) return null; // JSON cortado no meio da fala: melhor o próximo modelo que meia frase
   if (fala.length < 2 || /^[{\["]/.test(fala) || /"(fala|acao)"/.test(fala)) return null;
+  fala = fala.replace(/[{}]/g, '');
   if (palavraoPesado(fala)) return null; // xingamento: joga fora a fala inteira (revisão 2026-11-19)
   return { assunto: 'conversa', fala: semPalavrao(fala).slice(0, 300) };
 }
@@ -364,7 +365,7 @@ export function jaFalou(ctx, oQue) {
 // {"fala", "acao"} da IA -> { assunto, fala } (ação fora da lista vira conversa)
 function lerResposta(txt) {
   let out; try { out = JSON.parse(txt || '{}'); } catch { return null; }
-  const crua = typeof out.fala === 'string' ? out.fala.replace(/\s+/g, ' ').trim() : '';
+  const crua = typeof out.fala === 'string' ? out.fala.replace(/[{}]/g, '').replace(/\s+/g, ' ').trim() : ''; // sem { }: o {a|o} do gênero montaria palavra depois do filtro
   if (palavraoPesado(crua)) return null; // xingamento ou termo sexual: joga fora a fala inteira, vem a fala pronta (revisão 2026-11-19)
   const fala = semPalavrao(crua).slice(0, 300); // sem palavrão (2026-11-19): filtra antes de cortar, para não sobrar "porr"
   if (!fala) return null;
@@ -391,10 +392,10 @@ A conversa de hoje:
 ${conversa}
 Reescreva a lista do que vale lembrar dele e de vocês (gostos, o que fizeram juntos, promessas, combinados, dicas que ele deu, como ele se sentiu, o que VOCÊ contou de você para não se contradizer). Junte com o que já lembrava, tire repetições e coisas sem importância. NÃO anote estado do jogo que muda (seu equipamento, peça ou material que você precisa, nível, onde você está, missão, horta, o que vão fazer hoje ou amanhã): o jogo te conta isso na hora. No máximo ${M.max} itens curtos (até ${M.tamanho} letras), em português do Brasil, na primeira pessoa ("ele gosta de...").
 Dicas de combate que ele pediu para você seguir (true se ele pediu, false se pediu para parar, deixe de fora se não falou): ${regras}.
-Fatos que você já sabe dele (não repita estes): ${(dados.fatos || []).join('; ') || '(nenhum)'}.
-Em "fatos", ponha só os fatos NOVOS e duradouros sobre a vida dele que ele contou HOJE (trabalho ou estudo, gostos e o que ele não gosta, sonhos, bichos de estimação; NUNCA onde mora, escola, idade, saúde, telefone ou nome real), um por item, curto, na terceira pessoa ("o pai dele morreu", "ele trabalha num restaurante", "ele não gosta de guerreiro"). Nada de coisa passageira do jogo. Se não tiver nada novo, lista vazia.
+Fatos que você já sabe dele (não repita estes): ${fatosSeguros(dados.fatos).join('; ') || '(nenhum)'}.
+Em "fatos", ponha só os fatos NOVOS e duradouros sobre a vida dele que ele contou HOJE (trabalho ou estudo, gostos e o que ele não gosta, sonhos, bichos de estimação; NUNCA onde mora, escola, idade, saúde, telefone ou nome real), um por item, curto, na terceira pessoa ("ele tem um cachorro", "ele trabalha num restaurante", "ele não gosta de guerreiro"). Nada de coisa passageira do jogo. Se não tiver nada novo, lista vazia.
 Devolva só JSON: {"memorias": ["..."], "fatos": [], "regras": {}}`;
-  const lerDiario = (out) => ({ memorias: Array.isArray(out.memorias) ? out.memorias : null, fatos: Array.isArray(out.fatos) ? out.fatos : null, regras: out.regras && typeof out.regras === 'object' ? out.regras : null });
+  const lerDiario = (out) => ({ memorias: Array.isArray(out.memorias) ? out.memorias : null, fatos: Array.isArray(out.fatos) ? fatosSeguros(out.fatos) : null, regras: out.regras && typeof out.regras === 'object' ? out.regras : null });
   // André 2026-11-19 (a memória da Cecília e do Dario volta com a IA): o diário vai primeiro no Gemini, depois no Groq
   if (!chaveJogador) { const out = await geminiJson(prompt); if (out && typeof out === 'object') return lerDiario(out); }
   if (!chave) return null;
@@ -454,6 +455,9 @@ Devolva só JSON.`;
   } catch { return null; }
 }
 // o texto da regra a IA escreve repetindo a dica do jogador, e ela fala em voz alta ("aprendeu: ..."): sem palavrão também
+// fato antigo (o diário pedia "onde mora, saúde" antes de 2026-11-19) ou que escapou da regra: não volta para a IA
+const FATO_SENSIVEL = /\b(mora|morar|endere[cç]o|rua|bairro|cidade|escola|col[eé]gio|s[eé]rie|idade|\d+\s*anos|anivers[aá]rio|sa[uú]de|doen[cç]a|doente|hospital|rem[eé]dio|telefone|celular|whats|zap|instagram|insta|nome real|chama de verdade|cpf|senha)\b/i;
+export function fatosSeguros(fatos) { return (Array.isArray(fatos) ? fatos : []).filter((f) => typeof f === 'string' && !FATO_SENSIVEL.test(f)); }
 export function regraLimpa(regra) {
   const t = typeof regra.texto === 'string' ? regra.texto : '';
   if (palavraoPesado(t)) return null;
