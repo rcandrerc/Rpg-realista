@@ -32,7 +32,7 @@ function segredo(k) {
   try { const v = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'segredos.json'), 'utf8'))[k]; if (v) return v; } catch { /* sem arquivo */ }
   return selado(k);
 }
-const chaveGemini = () => segredo('GEMINI_CHAVE');
+function chaveGemini() { return segredo('GEMINI_CHAVE'); }
 
 // André 2026-11-16 ("dá mais comandos para eles"): além de time/vir/sim/não, ela pode sair para caçar sozinha (num campo
 // que ela escolhe), voltar para a vila, combinar pescar/minerar/lenha, parar a coleta, topar troca e mostrar o equipamento
