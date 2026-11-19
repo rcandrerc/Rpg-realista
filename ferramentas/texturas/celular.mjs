@@ -7,8 +7,14 @@
 // Ficam como estão (sem perda), de propósito:
 //  - as que o jogo lê pelo processador (imagem_cpu.gd, pele rosa do Mali-G72): máscaras (mascara_vila,
 //    mundo_mascara, longe), magia_atlas, T_WoodTrim do transporte.gd;
-//  - corpos e roupas dos personagens VRoid (modelos/<corpo>_N): PR 2, com cuidado da pele;
 //  - interface (icones, ui, icone_app), minimapa, céu, água, capim do mato.
+//
+// Parte 2 (André 2026-11-19: "principalmente a de personagem, que é o que pesa mais"): os corpos VRoid (Ruiva, cabelo_m e
+// os corpos dos NPCs, da Cecília, do Dário e da Geada: modelos/<corpo>_N tirados do .glb) também vão comprimidos: pele,
+// rosto, olhos, roupa e cabelo. Cada corpo ocupava ~110 MB na placa. A pele, o cabelo e a roupa são lidos pelo
+// processador (média da cor para tingir, pele por baixo da blusa, rosto dos NPCs): imagem_cpu.gd agora lê o .ctex
+// comprimido e descomprime no processador, sem pedir para a placa (a pele rosa do Mali-G72 vinha da leitura da placa).
+// Mipmap continua como o Godot importou (as do .glb já têm).
 //
 // Roda no apk.yml antes e depois do "godot --import" (o cache do CI traz os .import antigos; textura nova só ganha
 // .import na primeira importação), e de novo o --import se mudou algo. Também serve para medir na mão.
@@ -29,7 +35,10 @@ const SOLTOS = new Set([
 ]);
 // modelos/<nome>_N.(png|jpg) tirados do .glb: a vila e os monstros (corpos VRoid ficam para o PR 2)
 const MODELOS = ['vila', 'arma_cajado', 'dragao', 'imp', 'lobo', 'maw', 'puglin', 'pumpkinhulk', 'tita', 'warrok'];
-// lidas pelo processador (imagem_cpu.gd): precisam continuar sem perda
+// corpos VRoid: todo .glb de modelos/ com material do VRoid (Body_00_SKIN, Hair, CLOTH...); pega corpo novo sozinho
+const VROID = /_(SKIN|CLOTH|HAIR|FACE|EYE)\b/;
+const corposVroid = new Set();
+// lidas pelo processador (imagem_cpu.gd) e que precisam continuar sem perda (o transporte recorta a madeira)
 const PELO_PROCESSADOR = new Set(['construcao3d/T_WoodTrim_BaseColor.png', 'construcao3d/T_WoodTrim_Normal.png']);
 
 // "_Normal" sozinho (T_Brick_Normal, _nor_gl_1k); "NormalTree" é o tipo da árvore, não mapa de normais
@@ -48,6 +57,7 @@ function juntarNormais(dir, glb) {
   const j = lerGlb(path.join(raiz, dir, glb));
   if (!j) return;
   const base = glb.replace(/\.glb$/i, '');
+  if (dir === 'modelos/' && (j.materials || []).some((m) => VROID.test(m.name || ''))) corposVroid.add(base);
   for (const m of j.materials || []) {
     const t = m.normalTexture && j.textures?.[m.normalTexture.index];
     const im = t && j.images?.[t.source];
@@ -68,7 +78,7 @@ for (const dir of [...PASTAS, 'modelos/']) {
 export function regra(rel) {
   if (PELO_PROCESSADOR.has(rel)) return null;
   const doMundo = SOLTOS.has(rel) || PASTAS.some((p) => rel.startsWith(p))
-    || MODELOS.some((n) => new RegExp(`^modelos/${n}_\\d+\\.(png|jpe?g|webp)$`, 'i').test(rel));
+    || [...MODELOS, ...corposVroid].some((n) => new RegExp(`^modelos/${n}_\\d+\\.(png|jpe?g|webp)$`, 'i').test(rel));
   if (!doMundo) return null;
   // folhas recortadas pelo alfa (árvores, arbustos, samambaia, hera): comprimidas, mas SEM mipmap, como eram. Com
   // mipmap o recorte de longe vira borrão (o capim do mato virou folha larga na foto de teste).
@@ -92,7 +102,7 @@ function porParam(txt, chave, valor) {
   return txt.replace(/^\[params\]\s*$/m, `[params]\n\n${chave}=${valor}`);
 }
 
-let mudaram = 0, total = 0, normais = 0, folhas = 0;
+let mudaram = 0, total = 0, normais = 0, folhas = 0, corpos = 0;
 for (const arq of imports(raiz)) {
   const txt = fs.readFileSync(arq, 'utf8');
   if (!/^importer="texture"$/m.test(txt) || !/^\[params\]/m.test(txt)) continue;
@@ -102,6 +112,7 @@ for (const arq of imports(raiz)) {
   total++;
   if (r.normal) normais++;
   if (r.semMip) folhas++;
+  if ([...corposVroid].some((n) => new RegExp(`^modelos/${n}_\\d+\\.`).test(rel))) corpos++;
   let novo = txt;
   novo = porParam(novo, 'compress/mode', 2); // VRAM comprimida (ETC2/ASTC no celular, S3TC no PC)
   // mipmap: fica como o Godot importou (as tiradas do .glb já vêm com mipmap; as outras sem). Com mipmap novo, paredes e
@@ -115,4 +126,4 @@ for (const arq of imports(raiz)) {
     if (process.env.TEXTURAS_LISTA) console.log('  ' + rel + (r.normal ? ' (normal)' : ''));
   }
 }
-console.log(`texturas do celular: ${mudaram} mudaram (${total} do mundo, ${normais} mapas de normais, ${folhas} folhas sem mipmap)`);
+console.log(`texturas do celular: ${mudaram} mudaram (${total} comprimidas, ${normais} mapas de normais, ${folhas} folhas sem mipmap, ${corpos} dos ${corposVroid.size} corpos VRoid)`);
