@@ -35,7 +35,7 @@ No plano grátis o servidor dorme depois de 15 minutos parado; a primeira visita
 
 ### Conta (login só com Google)
 
-As contas ficam no próprio servidor, num arquivo SQLite em `dados/contas.db` (na Oracle: `/opt/rpg/dados`), sem Firebase. O servidor faz uma cópia por dia em `dados/copias/` e guarda as últimas 14. Precisa do Node 22 (usa o `node:sqlite`).
+As contas ficam no próprio servidor, num arquivo SQLite em `dados/contas.db` (na Oracle: `/opt/rpg/dados`), sem Firebase. O servidor faz uma cópia por dia em `dados/copias/` e guarda as últimas 30 (mais a cópia-marco de 19/11/2026, que nunca é apagada). Precisa do Node 22 (usa o `node:sqlite`).
 
 O login só liga quando `GOOGLE_CLIENT_ID` (`shared/conta.js`) tem o ID do cliente OAuth. Vazio, o jogo funciona como antes, sem conta. O passo a passo para criar o ID no Google Cloud está em `ferramentas/servidor/LEIAME.md`.
 
