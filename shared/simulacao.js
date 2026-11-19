@@ -516,6 +516,7 @@ export class Simulacao {
   }
   cancelarVila(j, motivo = 'Volta para a vila cancelada') {
     if (!j?.vila) return;
+    if (motivo && j.vila.guilda) motivo = motivo.replace('Volta para a vila cancelada', 'Voltar à Guilda cancelado').replace('volta para a vila', 'volta à Guilda'); // Voltar à Guilda
     if (motivo && j.vila.totem) motivo = motivo.replace('Volta para a vila', 'Viagem').replace('volta para a vila', 'viagem'); // totem de teleporte
     j.vila = null;
     this.evento({ t: 'vila', id: j.id, fase: 'cancela' });
@@ -1923,7 +1924,8 @@ export class Simulacao {
       // Tomás conserta tudo o que desgastou (corpo e mochila) de uma vez, ou só as peças marcadas na tela do equipamento
       // (m.lista = [{ lugar } | { i }]; André 2026-11-18: cada peça inteira ou nada). MORTE em shared/dados.js
       if (!this.pertoDeQuemConserta(j)) return aviso('Conserte com o Tomás, o ferreiro');
-      const r = Array.isArray(m.lista) ? consertarPecas(p, m.lista) : consertarTudo(p);
+      const dc = this.vantagensDe(j).conserto; // vantagem D da Guilda: conserto mais barato
+      const r = Array.isArray(m.lista) ? consertarPecas(p, m.lista, dc) : consertarTudo(p, dc);
       if (!r) return aviso('Nada para consertar: está tudo inteiro');
       if (r.falta) return aviso(`O conserto custa ${r.custo} de ouro (faltam ${r.falta})`);
       this.caixa(j, 'conserto', -r.custo); this.aplicarStatus(j);
@@ -4712,6 +4714,7 @@ export class Simulacao {
         ...(j.roupaFixa ? { roupa: roupa(j.roupaFixa) } : {}), // a Cecília: aparência fixa do look B (as peças de verdade são outras)
         semCapacete: !!j.prog.semCapacete,
         tit: j.prog.tit?.uso || null, // título em uso (aparece em cima da cabeça para todos)
+        ...(j.prog.guilda?.r >= 7 && this.vantagensDe(j).marca ? { gss: 1 } : {}), // vantagem SS da Guilda: "SS" no nome para todos
         pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])), ...(j.bot ? { bot: 1 } : {}),
