@@ -5082,7 +5082,7 @@ for (const [k, T] of Object.entries(ARVORES_PLANTIO)) {
 //   - tem letra que não é dos alfabetos comuns (latino, grego, cirílico, chinês, japonês, coreano) ou mistura a nossa com
 //     outro alfabeto: o truque de copiar o nome com letras parecidas (Lisu, Cherokee...). Esse caso volta 'parecido'.
 // Título do NPC (Mestre, Dona, Irmã...) não conta. Chefe entra pelo nome inteiro (Maíra, Gorduncho, Presa-de-Prata).
-export const NOMES_RESERVADOS = { extra: ['Vesper', 'Aethra', 'Servidor', 'Sistema', 'Admin', 'Moderador', 'Suporte'], titulos: ['mestre', 'mestra', 'dona', 'seu', 'irma', 'irmao', 'velho', 'avo', 'capitao', 'capita', 'guardia', 'sentinela', 'pescador'], grudadoMin: 6 };
+export const NOMES_RESERVADOS = { extra: ['Vesper', 'Aethra', 'Servidor', 'Sistema', 'Admin', 'Moderador', 'Suporte'], titulos: ['mestre', 'mestra', 'dona', 'seu', 'irma', 'irmao', 'velho', 'avo', 'capitao', 'capita', 'guardia', 'sentinela', 'pescador'], grudadoMin: 6, semSugestao: ['Kael'] }; // semSugestao: personagem da história sem BrunoSilva no aviso
 const PARECIDAS = {
   а: 'a', в: 'b', е: 'e', ѕ: 's', і: 'i', ј: 'j', к: 'k', ҡ: 'k', м: 'm', н: 'h', һ: 'h', о: 'o', р: 'p', с: 'c', т: 't', у: 'y', х: 'x', ԁ: 'd', ѵ: 'v', ԛ: 'q', ԝ: 'w', г: 'r', п: 'n', и: 'u', ь: 'b', з: '3', д: 'a', л: 'n',
   α: 'a', β: 'b', ε: 'e', η: 'n', ι: 'i', κ: 'k', ν: 'v', ο: 'o', ρ: 'p', τ: 't', υ: 'u', χ: 'x', γ: 'y', ω: 'w', μ: 'u', ς: 's', σ: 'o',
@@ -5142,6 +5142,27 @@ function listaReservados() {
   return (reservados = l);
 }
 // Devolve o nome do NPC que o nome do jogador usa, 'parecido' no truque de letras de outro alfabeto, ou null
+// Bruno é de NPC: sugere Brunão ou BrunoSilva para o amigo não travar na primeira tela (Presidente 2026-11-19)
+export function sugerirNome(nome) {
+  const s = nomeValido(nome); if (!s || s.includes(' ')) return [];
+  // nome comprido (Otávio, Cecília) pega até grudado: variação dele seria "parecido", então nada de sugestão
+  const opcoes = [];
+  if (s.length < NOMES_RESERVADOS.grudadoMin && /[^aeiouáéíóú]o$/i.test(s)) opcoes.push(s.slice(0, -1) + 'ão'); // Bruno -> Brunão
+  if (s.length < NOMES_RESERVADOS.grudadoMin) opcoes.push(s + 'Silva', s + 'Luz');
+  return opcoes.filter((n) => nomeValido(n) === n && !nomeReservado(n)).slice(0, 2);
+}
+
+// texto do aviso quando o nome cai na regra (mesmo texto na criação e na troca de nome)
+export function avisoNomeReservado(nome, r) {
+  if (r === 'parecido') return 'Use só letras comuns no nome.';
+  // Cecília, Dário, a Geada e o vilão são os nomes que mais enganam: para eles nada de BrunoSilva, só "escolha outro"
+  const destaque = [...AMIGOS_VIRTUAIS, ...RIVAIS].some((d) => d.nome === r) || NOMES_RESERVADOS.extra.includes(r) || NOMES_RESERVADOS.semSugestao.includes(r);
+  const [a, b] = destaque ? [] : sugerirNome(nome);
+  if (a && b) return `${nome} é nome de personagem do jogo. Que tal ${a} ou ${b}?`;
+  if (a) return `${nome} é nome de personagem do jogo. Que tal ${a}?`;
+  return `${nome} é nome de personagem do jogo. Escolha outro.`;
+}
+
 export function nomeReservado(nome) {
   const { palavras, truque } = esqueleto(String(nome).slice(0, 64)); // nome de jogador tem até 16: corta lixo grande
   // letra que o esqueleto não conhece junto de letra nossa (ɾ, ꞃ, ɨ...): truque de letra parecida
