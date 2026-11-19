@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos } from './progresso.js';
-import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura, TITULOS, nomeReservado } from './dados.js';
+import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
 import { Transporte, carrinhoNovo, topoCarrinho } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
@@ -671,7 +671,7 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j?.criando || !j.podeCriar) return null;
     const nome = nomeValido(p?.nome); if (!nome) return null;
     // nome de NPC não pode (André 2026-11-19): o criador abre de novo com o aviso, como no nome já usado
-    { const r = !j.bot && nomeReservado(nome); if (r) { this.evento({ t: 'nomeUsado', para: id, nome, texto: r === 'parecido' ? 'Use só letras comuns no nome.' : `${nome} é nome de personagem do jogo. Escolha outro.` }); return null; } }
+    { const r = !j.bot && nomeReservado(nome); if (r) { this.evento({ t: 'nomeUsado', para: id, nome, texto: avisoNomeReservado(nome, r) }); return null; } }
     if (visualValido(p.visual)) j.visual = p.visual;
     j.aparencia = aparenciaValida(p.aparencia);
     j.nome = nome; j.podeCriar = false; j.criando = false;
@@ -686,7 +686,7 @@ export class Simulacao {
     const nome = nomeValido(n);
     if (!nome) return aviso(`Nome inválido: de ${NOME.min} a ${NOME.max} letras ou números`);
     if (nome === j.nome) return aviso('Esse já é o seu nome');
-    { const r = nomeReservado(nome); if (r) return aviso(r === 'parecido' ? 'Use só letras comuns no nome.' : `${nome} é nome de personagem do jogo. Escolha outro.`); } // André 2026-11-19
+    { const r = nomeReservado(nome); if (r) return aviso(avisoNomeReservado(nome, r)); } // André 2026-11-19
     if (j.prog.ouro < NOME.troca) return aviso(`Falta ouro: trocar o nome custa ${NOME.troca.toLocaleString('pt-BR')}`);
     if (!livre(nome)) return aviso(`O nome ${nome} já é de outro jogador`);
     j.prog.ouro -= NOME.troca; this.caixa(j, 'nome', -NOME.troca);
