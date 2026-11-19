@@ -79,6 +79,8 @@ export function regra(rel) {
   if (PELO_PROCESSADOR.has(rel)) return null;
   const doMundo = SOLTOS.has(rel) || PASTAS.some((p) => rel.startsWith(p))
     || [...MODELOS, ...corposVroid].some((n) => new RegExp(`^modelos/${n}_\\d+\\.(png|jpe?g|webp)$`, 'i').test(rel));
+  // pele cheia pronta no build (ferramentas/texturas/pele-cheia.gd): comprimida e COM mipmap, como a montada no jogo
+  if ([...corposVroid].some((n) => new RegExp(`^modelos/${n}_\\d+_pele\\.png$`).test(rel))) return { normal: false, semMip: false, mip: true };
   if (!doMundo) return null;
   // folhas recortadas pelo alfa (árvores, arbustos, samambaia, hera): comprimidas, mas SEM mipmap, como eram. Com
   // mipmap o recorte de longe vira borrão (o capim do mato virou folha larga na foto de teste).
@@ -112,12 +114,13 @@ for (const arq of imports(raiz)) {
   total++;
   if (r.normal) normais++;
   if (r.semMip) folhas++;
-  if ([...corposVroid].some((n) => new RegExp(`^modelos/${n}_\\d+\\.`).test(rel))) corpos++;
+  if ([...corposVroid].some((n) => new RegExp(`^modelos/${n}_\\d+[._]`).test(rel))) corpos++;
   let novo = txt;
   novo = porParam(novo, 'compress/mode', 2); // VRAM comprimida (ETC2/ASTC no celular, S3TC no PC)
   // mipmap: fica como o Godot importou (as tiradas do .glb já vêm com mipmap; as outras sem). Com mipmap novo, paredes e
   // chão vistos de lado ficavam mais borrados nas fotos de teste (18/11). TEXTURAS_MIPMAP=1 liga para testar.
   if (process.env.TEXTURAS_MIPMAP === '1') novo = porParam(novo, 'mipmaps/generate', r.semMip ? 'false' : 'true');
+  else if (r.mip) novo = porParam(novo, 'mipmaps/generate', 'true');
   novo = porParam(novo, 'detect_3d/compress_to', 0);
   novo = porParam(novo, 'compress/normal_map', r.normal ? 1 : 0); // normais em RG: o Godot refaz o Z (melhor que ETC2 RGB)
   if (novo !== txt) {

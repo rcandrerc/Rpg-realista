@@ -307,6 +307,13 @@ jobs:
           node ../ferramentas/texturas/celular.mjs .
           $GODOT_BIN --headless --import || true
           if node ../ferramentas/texturas/celular.mjs . | grep -qv ': 0 mudaram'; then $GODOT_BIN --headless --import || true; fi
+          # pele cheia pronta (ferramentas/texturas/pele-cheia.gd): depois das texturas dos corpos já comprimidas, para sair
+          # igual de um build para o outro; arquivo novo ou mudado importa, comprime e importa de novo
+          if $GODOT_BIN --headless -s ../ferramentas/texturas/pele-cheia.gd | tee /dev/stderr | grep -q 'pele cheia: res://'; then
+            $GODOT_BIN --headless --import || true
+            node ../ferramentas/texturas/celular.mjs .
+            $GODOT_BIN --headless --import || true
+          fi
       - name: Pacote do jogo desta versão (mesmo conteúdo do APK)
         working-directory: godot-prototipo
         run: |
