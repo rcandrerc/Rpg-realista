@@ -343,8 +343,29 @@ jobs:
   # só começa depois deste: os APKs (gradle e aapt2 emulado) disputavam a CPU e o envio do site levou 2 min em vez de
   # 40 s. O publicar.sh e o publicar-conteudo.sh não chamam o pages.yml nesse modo (SITE_AQUI=1). Se o site não sair
   # por aqui, o job site-reserva chama o pages.yml como antes.
-  site:
+  # Cliente espera a janela (Presidente 2026-11-19): shared/ mudou desde o que está no ar = só publica no disparo
+  # agendado (04:40 e 13:40 de Brasília). Ver ferramentas/atualizacao/janela-publicar.mjs.
+  janela:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (github.event.repository.private || inputs.maquina == 'oracle')
+    runs-on: ${{ vars.RUNNER_ATUALIZACAO || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    outputs:
+      publicar: ${{ steps.decide.outputs.publicar }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENTO: ${{ github.event_name }}
+          FORCAR: '0'
+          ORACLE_URL: ${{ vars.ORACLE_URL }}
+        run: node ferramentas/atualizacao/janela-publicar.mjs
+
+  site:
+    needs: janela
+    if: needs.janela.outputs.publicar == 'true'
     # vaga da atualização (são 2: esta espera o pacote na outra); sem ela, a dos testes (ficava atrás de testes de PR)
     runs-on: ${{ vars.RUNNER_ATUALIZACAO || vars.RUNNER_TESTES || vars.RUNNER_BUILD }}
     timeout-minutes: 40
@@ -416,10 +437,10 @@ jobs:
   # Par do job "fila" do pages.yml: no repositório privado o push que muda o jogo não publica o site na hora (espera
   # o pacote). Se o pacote não saiu (falhou, foi cancelado ou pulado), publica o site e o servidor do mesmo jeito.
   site-reserva:
-    needs: [modelos-chave, pacote, site]
+    needs: [modelos-chave, pacote, janela, site]
     # Oracle: se o site não saiu pelo job site (pacote ou site falhou, foi cancelado ou pulado), chama o pages.yml
     # pacote cancelado = entrou um merge mais novo na fila, e a execução dele publica o site
-    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (github.event.repository.private || inputs.maquina == 'oracle') && needs.site.result != 'success' && needs.pacote.result != 'cancelled'
+    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (github.event.repository.private || inputs.maquina == 'oracle') && needs.site.result != 'success' && needs.pacote.result != 'cancelled' && needs.janela.outputs.publicar == 'true'
     runs-on: ${{ github.event.repository.private && (vars.RUNNER_ATUALIZACAO || vars.RUNNER_BUILD) || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
