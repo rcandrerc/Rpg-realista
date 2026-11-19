@@ -4284,5 +4284,7 @@
 "+8% na venda": "+8% sell price",
 "+2% XP dos monstros": "+2% monster XP",
 "+3% ouro dos monstros": "+3% monster gold",
-"+3% crítico": "+3% critical"
+"+3% crítico": "+3% critical",
+"Mochila cheia: abra espaço para o presente.": "Inventory full: make room for the gift.",
+"Teste: zerar só antes do lançamento": "Test: reset only before launch"
 }

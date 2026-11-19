@@ -210,6 +210,35 @@ ok(bonusTitulo(p).venda === 0.02 && !bonusTitulo(p).dano, 'em uso: +2% na venda 
   ok(s3.vilaInfo(t)?.s[2] === 'p' && s3.vilaInfo(r)?.s[2] === 'p' && s3.vilaInfo(n) === null, 'antes do lançamento: teste e robô veem (até a rc3); conta normal não');
   s3.missaoVila('N', { acao: 'zerar' }); ok(n.prog.vila.f.length === 2, 'conta normal não zera');
   s3.missaoVila('T', { acao: 'zerar' }); ok(t.prog.vila.f.length === 0, 'conta de teste zera as missões de vila');
+  // revisão da frente 3: depois do lançamento, refazer as 12 pagaria ouro, XP e presente de novo
+  s3.relogioMs = () => LIGA; t.prog.vila = { f: ['rc1'] };
+  s3.missaoVila('T', { acao: 'zerar' }); ok(t.prog.vila.f.length === 1, 'depois do lançamento a conta de teste não zera mais');
+}
+
+// revisão da frente 3 (19/11): o presente não se perde com a mochila cheia (a missão de vila não repete)
+{
+  const s5 = new Simulacao(MAPA_CLAREIRA); s5.relogioMs = () => LIGA;
+  const k = s5.adicionarJogador('M', 'Mel', undefined, { conta: 9 }); k.criando = false; k.ciente = true;
+  Object.assign(k.prog, { nivel: 60, hist: { ...histNova(), p: HISTORIA.length }, vila: { f: [], at: 'rc1', e: 2, n: 0, m: 0 } });
+  const mo = k.prog.mochila; for (let i = 0; i < mo.length; i++) mo[i] = { k: 'lenha', n: ITENS.lenha.pilha };
+  const h = npcDe('v_heitor'); Object.assign(k, { x: h.x + 1.2, z: h.z, y: s5.terreno.altura(h.x + 1.2, h.z, 50) });
+  const ouro0 = k.prog.ouro;
+  s5.eventos.length = 0; s5.falar('M', { npc: 'v_heitor', vila: true });
+  const fs = s5.eventos.filter((e) => e.t === 'fala' && e.para === 'M');
+  ok(k.prog.vila.at === 'rc1' && !k.prog.vila.f.length && k.prog.ouro === ouro0 && fs.some((e) => e.texto.endsWith('\nMochila cheia: abra espaço para o presente.')),
+    'mochila cheia: o Heitor espera, a rc1 continua e nada é pago antes da hora');
+  mo[0] = null; s5.falar('M', { npc: 'v_heitor', vila: true });
+  ok(k.prog.vila.f.includes('rc1') && contar(mo, 'pocao') === 5, 'abriu um lugar: entregou e as 5 poções entraram');
+  ok(typeof EN['Mochila cheia: abra espaço para o presente.'] === 'string' && typeof EN['Teste: zerar só antes do lançamento'] === 'string', 'inglês dos avisos novos');
+}
+
+// revisão da frente 3: sem o Zeca no mapa, a venda da ju3 não conta em loja nenhuma
+{
+  const s6 = new Simulacao({ ...MAPA_CLAREIRA, npcs: MAPA_CLAREIRA.npcs.filter((n) => n.id !== 'v_zeca') }); s6.relogioMs = () => LIGA;
+  const k = s6.adicionarJogador('Z', 'Zuza', undefined, { conta: 10 }); k.criando = false;
+  Object.assign(k.prog, { nivel: 60, hist: { ...histNova(), p: HISTORIA.length }, vila: { f: ['ju1', 'ju2'], at: 'ju3', e: 2, n: 0, m: 0 } });
+  s6.historia(k, 'vender', { k: 'tilapia' });
+  ok(k.prog.vila.e === 2, 'sem o Zeca, peixe vendido em outra loja não conta');
 }
 
 // Kira, Rufo e Lis (Geada): fazem as da faixa deles sozinhos, menos as do Rio Claro; Chama (Cecília, Dario) não

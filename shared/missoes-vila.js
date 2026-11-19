@@ -12,7 +12,7 @@
 // ({ acao: 'ver' | 'ir' | 'desistir' }) e 'falar' com { npc, vila: true } (o botão "Vila: ..." na janela do NPC).
 import { MISSOES_VILA, VILAS_MISSAO, MISSOES_VILA_LIGA, HISTORIA_PREMIO, CONTA_TESTE, ITENS, TOTENS, COLETA, CHEFES_HISTORIA, TITULOS, LOJA_DISTANCIA } from './dados.js';
 import { etapasDe, casaEtapa, totalEtapa, liberado, zonaFechadaEm } from './historia.js';
-import { xpProximo, contar, tirar, horaDoJogo, ehNoite, guardarQueCabe } from './progresso.js';
+import { xpProximo, contar, tirar, horaDoJogo, ehNoite, guardar, guardarQueCabe } from './progresso.js';
 import * as G from './guerra.js'; // bandeirasLigadas (frente 4): enquanto não existe, a 3ª do Rio Claro fica desligada
 
 const r2 = (n) => Math.round(n * 100) / 100;
@@ -76,6 +76,12 @@ export const MissoesVila = {
     if (!this.missaoVilaLigada(j, M)) return 'e';
     return 'p';
   },
+  // o presente de M cabe na mochila, depois de sair o que a entrega tira? (numa cópia: tudo ou nada, como darItens monta)
+  presenteVilaCabe(p, M, tira = null) {
+    const mo = (p.mochila || []).map((o) => (o ? { ...o } : null));
+    for (const [k, n] of Object.entries(tira || {})) tirar(mo, k, n);
+    return Object.entries(M.presente || {}).every(([k, q]) => guardar(mo, typeof q === 'object' ? { k, r: q.r ?? 0, ...(q.e ? { e: q.e } : {}) } : { k, n: q }));
+  },
   missaoVilaDe(j) { const at = j?.prog?.vila?.at; return at ? MISSAO_VILA.get(at) || null : null; },
   etapaVila(j) { const M = this.missaoVilaDe(j); return M ? etapasDe(M)[j.prog.vila.e | 0] || null : null; },
   // Tocou em "Vila: ..." na janela do NPC (falar com m.vila): pegar a missão dele, cumprir a etapa de falar (com a fala
@@ -86,13 +92,16 @@ export const MissoesVila = {
     if (M) {
       const L = etapasDe(M), E = L[v.e | 0], ex = { missao: 'vila:' + M.id };
       if (E?.ev === 'falar' && E.npc === npc.id) {
+        const ultima = (v.e | 0) >= L.length - 1;
         if (E.entregar) {
           const falta = Object.entries(E.entregar).filter(([k, n]) => contar(p.mochila, k) < n);
           if (falta.length) { diga(this.lembraHistoria(M, E, `Ainda falta: ${falta.map(([k, n]) => `${ITENS[k].nome} ${contar(p.mochila, k)}/${n}`).join(', ')}.`), ex); return true; }
-          for (const [k, n] of Object.entries(E.entregar)) tirar(p.mochila, k, n);
-          j.progSujo = true;
         }
-        if ((v.e | 0) >= L.length - 1) { this.concluirVila(j, M, diga, E); return true; }
+        // nada some (revisão de segurança da frente 3, 19/11): a missão de vila não repete, então o presente precisa caber
+        // na mochila antes da entrega; sem lugar, o NPC espera e nada sai da mochila
+        if (ultima && M.presente && !this.presenteVilaCabe(p, M, E.entregar)) { diga(this.lembraHistoria(M, E, 'Mochila cheia: abra espaço para o presente.'), ex); return true; }
+        if (E.entregar) { for (const [k, n] of Object.entries(E.entregar)) tirar(p.mochila, k, n); j.progSujo = true; }
+        if (ultima) { this.concluirVila(j, M, diga, E); return true; }
         if (E.fala) diga(E.fala, ex);
         this.proximaEtapaVila(j);
         return true;
@@ -120,10 +129,11 @@ export const MissoesVila = {
     // vender vários de uma vez: vale se um dos itens vendidos é o pedido
     if (!add && E.ev === 'vender' && ev === 'vender' && E.k && Array.isArray(d.ks) && d.ks.some((k) => [].concat(E.k).includes(k))) add = 1;
     if (!add) return;
-    // "Venda um peixe para o Zeca": a venda conta só perto de quem a etapa pede (alvo 'npc:...')
+    // "Venda um peixe para o Zeca": a venda conta só perto de quem a etapa pede (alvo 'npc:...'); sem esse NPC no mapa,
+    // não conta em loja nenhuma (revisão da frente 3)
     if (E.ev === 'vender' && typeof E.alvo === 'string' && E.alvo.startsWith('npc:')) {
       const n = (this.mapa.npcs || []).find((o) => o.id === E.alvo.slice(4));
-      if (n && Math.hypot(n.x - j.x, n.z - j.z) > LOJA_DISTANCIA + 1.5) return;
+      if (!n || Math.hypot(n.x - j.x, n.z - j.z) > LOJA_DISTANCIA + 1.5) return;
     }
     const t = totalEtapa(E);
     v.n = Math.min(t, (v.n | 0) + add); j.progSujo = true;
@@ -276,6 +286,8 @@ export const MissoesVila = {
       return this.avisarProg(j);
     }
     if (!this.vilaAntes(j)) return;
+    // zerar só antes do lançamento (revisão da frente 3): depois dele, refazer as 12 pagaria ouro, XP e presente de novo
+    if (m.acao === 'zerar' && this.agoraMs() >= LIGA_MS) return aviso('Teste: zerar só antes do lançamento');
     if (m.acao === 'zerar') { p.vila = { f: [] }; j.progSujo = true; aviso('Teste: missões de vila zeradas'); return this.avisarProg(j); }
     if (m.acao === 'pular' && j.robo && v.at) { v.f.push(v.at); fimDaMissao(v); j.progSujo = true; return this.avisarProg(j); }
   },
