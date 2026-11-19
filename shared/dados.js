@@ -4810,27 +4810,65 @@ for (const [k, T] of Object.entries(ARVORES_PLANTIO)) {
 }
 
 // ---------- Nome de NPC não pode ser nome de jogador (André 2026-11-19: "Se tiver o nome dos NPCs, não pode. Nem parecido") ----------
-// Bloqueia o nome do jogador que tiver o nome de um NPC como palavra ("Otávio", "Otávio-x", "x Otavio", "0tavi0", com letra
-// cirílica parecida) ou grudado em outra coisa ("xOtavio") quando o nome do NPC tem 5 letras ou mais. Nomes curtos (Lia, Rosa,
-// Teo) só como palavra inteira, senão "Juliana" e "Mateus" cairiam. Título do NPC (Mestre, Dona, Irmã...) não conta.
-export const NOMES_RESERVADOS = { extra: ['Vesper', 'Aethra', 'Servidor', 'Sistema', 'Admin', 'Moderador', 'Suporte'], titulos: ['mestre', 'mestra', 'dona', 'seu', 'irma', 'irmao', 'velho', 'avo', 'capitao', 'capita', 'guardia', 'sentinela', 'pescador'], grudadoMin: 5 };
-const PARECIDAS = { а: 'a', е: 'e', о: 'o', р: 'p', с: 'c', у: 'y', х: 'x', і: 'i', ј: 'j', к: 'k', т: 't', в: 'b', н: 'h', м: 'm', α: 'a', ο: 'o', ε: 'e', ι: 'i', κ: 'k', ν: 'v', ρ: 'p', τ: 't', υ: 'u', χ: 'x', 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', 8: 'b' };
-const limparNome = (s) => [...String(s).toLowerCase()].map((c) => PARECIDAS[c] ?? c).join('').normalize('NFD').replace(/[̀-ͯ]/g, '');
+// O nome do jogador vira um "esqueleto" (sem acento, minúsculo, letra parecida de outro alfabeto ou largura vira a nossa,
+// número dentro de palavra vira letra, i/l/1 iguais, letra repetida conta uma vez) e é recusado se:
+//   - uma palavra dele é o nome de um NPC ("Otávio", "Otavio x", "0tavi0", "Ottávio", "lvo"), ou o nome todo sem espaços é ("O t a v i o");
+//   - uma palavra contém o nome de um NPC de 6 letras ou mais ("xOtavio"); nomes curtos só inteiros, senão Luciano (Lúcia),
+//     Juliana (Lia) e Mateus (Teo) cairiam;
+//   - mistura letra nossa com letra de outro alfabeto que o esqueleto não conhece (truque de letra parecida).
+// Título do NPC (Mestre, Dona, Irmã...) não conta. Chefe com nome de uma palavra só (Maíra, Gorduncho, Presa-de-Prata) entra inteiro.
+export const NOMES_RESERVADOS = { extra: ['Vesper', 'Aethra', 'Servidor', 'Sistema', 'Admin', 'Moderador', 'Suporte'], titulos: ['mestre', 'mestra', 'dona', 'seu', 'irma', 'irmao', 'velho', 'avo', 'capitao', 'capita', 'guardia', 'sentinela', 'pescador'], grudadoMin: 6 };
+const PARECIDAS = {
+  а: 'a', в: 'b', е: 'e', ё: 'e', ѕ: 's', і: 'i', ї: 'i', ј: 'j', к: 'k', ќ: 'k', ҡ: 'k', м: 'm', н: 'h', һ: 'h', о: 'o', ӧ: 'o', р: 'p', с: 'c', т: 't', у: 'y', х: 'x', ԁ: 'd', ӏ: 'l', ѵ: 'v', ԛ: 'q', ԝ: 'w', г: 'r', п: 'n', и: 'u', ь: 'b', з: '3', д: 'a', л: 'n',
+  α: 'a', β: 'b', ε: 'e', η: 'n', ι: 'i', κ: 'k', ν: 'v', ο: 'o', ρ: 'p', τ: 't', υ: 'u', χ: 'x', γ: 'y', ω: 'w', μ: 'u', ς: 's', σ: 'o',
+  օ: 'o', ս: 'u', ց: 'g', հ: 'h', ո: 'n', ı: 'i', ł: 'l', ø: 'o', ð: 'd', đ: 'd', ħ: 'h', ŧ: 't', ß: 'b', æ: 'ae', œ: 'oe', þ: 'th', ŋ: 'n', ɡ: 'g', ɑ: 'a', ɪ: 'i', ʟ: 'l', ᴀ: 'a', ʙ: 'b', ᴄ: 'c', ᴅ: 'd', ᴇ: 'e', ꜰ: 'f', ɢ: 'g', ʜ: 'h', ᴊ: 'j', ᴋ: 'k', ᴍ: 'm', ɴ: 'n', ᴏ: 'o', ᴘ: 'p', ʀ: 'r', ꜱ: 's', ᴛ: 't', ᴜ: 'u', ᴠ: 'v', ᴡ: 'w', ʏ: 'y', ᴢ: 'z',
+};
+// maiúsculas de outro alfabeto que parecem as nossas (antes de virar minúscula: Η grega é H, mas η é n)
+const MAIUSCULAS = { Α: 'a', Β: 'b', Ε: 'e', Ζ: 'z', Η: 'h', Ι: 'i', Κ: 'k', Μ: 'm', Ν: 'n', Ο: 'o', Ρ: 'p', Τ: 't', Υ: 'y', Χ: 'x', А: 'a', В: 'b', Е: 'e', К: 'k', М: 'm', Н: 'h', О: 'o', Р: 'p', С: 'c', Т: 't', Х: 'x', ẞ: 'b' };
+const NUMEROS = { 0: 'o', 1: 'i', 2: 'z', 3: 'e', 4: 'a', 5: 's', 6: 'g', 7: 't', 8: 'b', 9: 'g' };
+// palavras do esqueleto (só a-z) e se sobrou letra estranha
+function esqueleto(nome) {
+  const base = [...String(nome).normalize('NFKC')].map((c) => MAIUSCULAS[c] ?? c).join('').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+  const palavras = [];
+  let estranha = false;
+  for (const bruta of base.split(/[^\p{L}\p{N}]+/u)) {
+    if (!bruta || !/\p{L}/u.test(bruta)) continue; // só número ("Ana 814"): não vira letra
+    let w = '';
+    for (const c of bruta) {
+      const m = PARECIDAS[c] ?? NUMEROS[c] ?? c;
+      if (/^[a-z]+$/.test(m)) w += m;
+      else if (/^\p{L}$/u.test(m)) { estranha = true; w += '?'; }
+    }
+    w = w.replace(/[l]/g, 'i').replace(/(.)\1+/g, '$1'); // l e i (e 1) iguais; letra repetida conta uma vez
+    palavras.push(w);
+  }
+  return { palavras, estranha: estranha && palavras.some((w) => /[a-z]/.test(w)) };
+}
 let reservados = null;
 function listaReservados() {
   if (reservados) return reservados;
-  const nomes = [...(MAPA_CLAREIRA.npcs || []).map((n) => String(n.nome || '').split(',')[0]), ...AMIGOS_VIRTUAIS.map((d) => d.nome), ...RIVAIS.map((d) => d.nome), ...NOMES_RESERVADOS.extra];
-  const l = new Map(); // nome limpo -> nome do NPC
-  for (const n of nomes) {
+  const l = new Map(); // esqueleto -> nome do NPC
+  const por = (k, nome) => { if (k && k.length >= 2 && !l.has(k)) l.set(k, nome); };
+  // gente (NPCs da vila, aventureiros, rivais): o primeiro nome que não é título
+  for (const n of [...(MAPA_CLAREIRA.npcs || []).map((x) => String(x.nome || '').split(',')[0]), ...AMIGOS_VIRTUAIS.map((d) => d.nome), ...RIVAIS.map((d) => d.nome), ...NOMES_RESERVADOS.extra]) {
     if (!n || /mural/i.test(n)) continue;
-    const p = limparNome(n).split(/[^a-z]+/).filter(Boolean), i = p.findIndex((w) => !NOMES_RESERVADOS.titulos.includes(w));
-    if (i >= 0 && p[i].length >= 2) l.set(p[i], n.trim()); // o nome dele (Otávio, Ivo, Bruno)
+    const p = esqueleto(n).palavras.filter((w) => !NOMES_RESERVADOS.titulos.includes(w));
+    por(p[0], n.trim());
+  }
+  // chefes e bosses de mundo com nome de uma palavra (com hífen vale junto: Presa-de-Prata)
+  for (const c of [...Object.values(CHEFES_HISTORIA), ...Object.values(BOSSES_MUNDO)]) {
+    const n = String(c?.nome || '').split(',')[0].trim();
+    if (n && !/\s/.test(n)) por(esqueleto(n).palavras.join(''), n);
   }
   return (reservados = l);
 }
-// Devolve o nome do NPC que o nome do jogador usa, ou null
+// Devolve o nome do NPC que o nome do jogador usa (ou 'parecido' no truque de letra de outro alfabeto), ou null
 export function nomeReservado(nome) {
-  const palavras = limparNome(nome).split(/[^a-z]+/).filter(Boolean);
-  for (const [k, npc] of listaReservados()) if (palavras.some((w) => w === k || (k.length >= NOMES_RESERVADOS.grudadoMin && w.includes(k)))) return npc; // grudado só dentro da mesma palavra ("Robô de teste" não vira "Odete")
+  const { palavras, estranha } = esqueleto(nome);
+  if (estranha) return 'parecido';
+  const junto = palavras.join('');
+  for (const [k, npc] of listaReservados()) {
+    if (junto === k || palavras.some((w) => w === k || (k.length >= NOMES_RESERVADOS.grudadoMin && w.includes(k)))) return npc;
+  }
   return null;
 }
