@@ -132,8 +132,8 @@ avisa quando o Pages fica parado ou quando o servidor fica atrás do último pac
 
 **Depois do passo 2** (CHAVES_ASSINATURA preenchida): na Oracle, se a chave sumiu ou não é a da lista, o job cai e
 nada publica (uma chave nova sozinha faria o jogo atualizar e o servidor recusar). Para criar outra de propósito: rode
-o pages.yml à mão marcando "Criar de propósito uma chave nova", ponha a pública nova na lista (ou em chaves-assinatura.txt na
-máquina do jogo) e só então publique. Antes do passo 2, marcar a caixa com a chave ainda lá TROCA a chave: a nova entra no lugar e a
+o pages.yml à mão marcando "Criar de propósito uma chave nova", ponha a pública nova PRIMEIRO em chaves-assinatura.txt na
+máquina do jogo (o servidor no ar só lê a lista dele), depois na lista do código, e só então publique. Antes do passo 2, marcar a caixa com a chave ainda lá TROCA a chave: a nova entra no lugar e a
 velha é apagada. Depois do passo 2 a troca é recusada (o job cai e a chave fica como estava), porque o servidor no ar
 recusaria tudo que a nova assinasse. Para trocar depois do passo 2: primeiro a pública nova entra em chaves-assinatura.txt
 na máquina do jogo, depois na lista do código, e só então a chave da Oracle é trocada à mão.
