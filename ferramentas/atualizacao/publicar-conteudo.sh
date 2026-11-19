@@ -94,24 +94,36 @@ if [ -n "${ORACLE_PAR:-}" ] && [ -n "${ORACLE_URL:-}" ]; then
   # elas compactam bem (203 MB -> ~49 MB). Sobe em gzip com "Content-Encoding: gzip": o HTTPRequest do app (accept_gzip,
   # ligado por padrão em todo Godot 4) abre sozinho e grava o arquivo igual ao de antes (mesmo sha256 do conteudo.json).
   # Depois de subir, confere baixando como o app; se não bater (ou quase não compactou), sobe o arquivo cru como antes.
+  # sobe $1 com o nome $2 compactado; se não conferir, sobe cru por cima; devolve 1 (sem subir nada) se quase não compacta
+  subir_gz() {
+    gzip -6 -n -c "$1" > "$TMP/gz"
+    [ "$(tam "$TMP/gz")" -lt $(( $(tam "$1") * 9 / 10 )) ] || return 1
+    curl -fsS -X PUT -H "Content-Encoding: gzip" -H "Content-Type: application/octet-stream" --data-binary @"$TMP/gz" "${ORACLE_PAR%/}/$2" > /dev/null
+    if [ "$(curl -fsS --compressed "${ORACLE_URL%/}/$2" | sha256sum | cut -d' ' -f1)" = "$(sha "$1")" ]; then
+      echo "balde: $2 compactado ($(( $(tam "$1") / 1048576 )) -> $(( $(tam "$TMP/gz") / 1048576 )) MB)"
+      return 0
+    fi
+    echo "::warning::balde: $2 compactado não conferiu; sobe cru"
+    curl -fsS -X PUT --data-binary @"$1" "${ORACLE_PAR%/}/$2" > /dev/null
+  }
   for f in "$TMP/novo/"*; do
     n="$(basename "$f")"
     [ "$n" = conteudo.json ] && continue
-    gzip -6 -n -c "$f" > "$TMP/gz"
-    if [ "$(tam "$TMP/gz")" -lt $(( $(tam "$f") * 9 / 10 )) ]; then
-      curl -fsS -X PUT -H "Content-Encoding: gzip" -H "Content-Type: application/octet-stream" --data-binary @"$TMP/gz" "${ORACLE_PAR%/}/$n" > /dev/null
-      if [ "$(curl -fsS --compressed "${ORACLE_URL%/}/$n" | sha256sum | cut -d' ' -f1)" = "$(sha "$f")" ]; then
-        echo "balde: $n compactado ($(( $(tam "$f") / 1048576 )) -> $(( $(tam "$TMP/gz") / 1048576 )) MB)"
-        continue
-      fi
-      echo "::warning::balde: $n compactado não conferiu; sobe cru"
-    fi
+    subir_gz "$f" "$n" && continue
     curl -fsS -X PUT --data-binary @"$f" "${ORACLE_PAR%/}/$n" > /dev/null
   done
   rm -f "$TMP/gz"
   if [ "$rebase" = 0 ]; then # garante que o completo e os deltas antigos também estão lá (primeira vez com Oracle)
+    # Completo que subiu cru antes do gzip (2026-11-19, Presidente: "refaça o pacote completo já compactado"; o 2720
+    # tinha 415 MB, em gzip ~190 MB): sobe de novo compactado, uma vez só (depois o balde já responde com gzip).
+    # Mesmo conteúdo e mesmo sha256, então o conteudo.json não muda e o app não baixa nada a mais.
     for arq in $(jq -r '.completo.partes[].arq, .deltas[].arq' "$TMP/antigo/conteudo.json"); do
-      curl -fsS -o /dev/null -I "${ORACLE_URL%/}/$arq" || curl -fsS -X PUT --data-binary @"$TMP/antigo/$arq" "${ORACLE_PAR%/}/$arq" > /dev/null
+      cab=$(curl -fsS -o /dev/null -D - -I "${ORACLE_URL%/}/$arq" 2>/dev/null) || cab=""
+      if [ -z "$cab" ]; then
+        subir_gz "$TMP/antigo/$arq" "$arq" || curl -fsS -X PUT --data-binary @"$TMP/antigo/$arq" "${ORACLE_PAR%/}/$arq" > /dev/null
+      elif ! echo "$cab" | grep -qi '^content-encoding: *gzip'; then
+        subir_gz "$TMP/antigo/$arq" "$arq" || true # não compacta: fica como está
+      fi
     done
   fi
   jq --arg u "${ORACLE_URL%/}/" '.url_base = $u' "$TMP/novo/conteudo.json" > "$TMP/novo/c.json" && mv "$TMP/novo/c.json" "$TMP/novo/conteudo.json"
