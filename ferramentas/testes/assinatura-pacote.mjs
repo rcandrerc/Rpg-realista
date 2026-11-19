@@ -55,6 +55,13 @@ const pubFinal = crypto.createPublicKey(crypto.createPrivateKey(fs.readFileSync(
 const lerJ = (a) => JSON.parse(fs.readFileSync(path.join(tmp, a), 'utf8'));
 ok(assinaturaValida(lerJ('a.json'), [pubFinal]) && assinaturaValida(lerJ('b.json'), [pubFinal]), 'criação ao mesmo tempo fica com uma chave só');
 ok(!fs.readdirSync(tmp).some((f) => f.endsWith('.tmp')), 'nenhum arquivo temporário de chave sobra');
+// troca de chave de propósito (botão do pages.yml): a nova substitui a velha, e o pacote sai assinado pela nova
+const trocar = (ambiente) => execFileSync('node', [path.join(raiz, 'ferramentas/servidor/assinar.mjs'), path.join(tmp, 'p.json')],
+  { env: { ...process.env, ASSINATURA_PACOTE: path.join(tmp, 'chave.pem'), RUNNER_ENVIRONMENT: ambiente, CRIAR_CHAVE_ASSINATURA: '1' } }).toString();
+const pubNova = trocar('self-hosted').match(/Pública: (\S+)/)[1];
+ok(pubNova !== pubFinal && assinaturaValida(ler(), [pubNova]) && !assinaturaValida(ler(), [pubFinal]), 'troca de chave: pacote sai com a chave nova, a velha não vale');
+ok((fs.statSync(path.join(tmp, 'chave.pem')).mode & 0o777) === 0o600 && !fs.readdirSync(tmp).some((f) => f.endsWith('.tmp')), 'troca de chave: 600 e sem temporário');
+ok(trocar('github-hosted').includes(`Pública: ${pubNova}`), 'máquina do GitHub não troca a chave');
 fs.rmSync(tmp, { recursive: true, force: true });
 if (falhas) { console.log(`${falhas} falha(s)`); process.exit(1); }
 console.log('assinatura do pacote: tudo certo');
