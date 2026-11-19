@@ -308,9 +308,11 @@ export function pecasGastas(p) {
   return r;
 }
 // consertar tudo: paga e volta a durabilidade cheia. Devolve { custo, n } ou { falta } (ouro que falta) ou null (nada gasto)
-export function consertarTudo(p) {
+// desconto: 0..1 no total (vantagem D da Guilda, shared/guilda.js vantagensGuilda)
+export const comDesconto = (custo, desconto = 0) => (custo > 0 && desconto > 0 ? Math.max(1, Math.ceil(custo * (1 - desconto))) : custo);
+export function consertarTudo(p, desconto = 0) {
   const lista = pecasGastas(p); if (!lista.length) return null;
-  const custo = lista.reduce((s, x) => s + x.custo, 0);
+  const custo = comDesconto(lista.reduce((s, x) => s + x.custo, 0), desconto);
   if ((p.ouro || 0) < custo) return { falta: custo - (p.ouro || 0), custo };
   p.ouro -= custo;
   for (const x of lista) delete (x.onde === 'equip' ? p.equip[x.l] : p.mochila[x.i]).d;
@@ -319,7 +321,7 @@ export function consertarTudo(p) {
 // consertar as peças marcadas (André 2026-11-18: "reparo por peça mas não parcial: ou repara a peça toda ou não
 // consegue"; na tela do equipamento a pessoa marca as peças ou toca em Consertar tudo). lista = [{ lugar } (no corpo) ou
 // { i } (mochila)]: todas inteiras ou nenhuma. Devolve { custo, n } ou { falta, custo } ou null (nenhuma gasta)
-export function consertarPecas(p, lista) {
+export function consertarPecas(p, lista, desconto = 0) {
   const pecas = new Set();
   for (const o of Array.isArray(lista) ? lista.slice(0, 60) : []) {
     const it = typeof o?.lugar === 'string' ? (LUGARES.includes(o.lugar) ? p.equip?.[o.lugar] : null)
@@ -327,7 +329,7 @@ export function consertarPecas(p, lista) {
     if (custoConserto(it)) pecas.add(it);
   }
   if (!pecas.size) return null;
-  const custo = [...pecas].reduce((s, it) => s + custoConserto(it), 0);
+  const custo = comDesconto([...pecas].reduce((s, it) => s + custoConserto(it), 0), desconto);
   if ((p.ouro || 0) < custo) return { falta: custo - (p.ouro || 0), custo };
   p.ouro -= custo;
   for (const it of pecas) delete it.d;

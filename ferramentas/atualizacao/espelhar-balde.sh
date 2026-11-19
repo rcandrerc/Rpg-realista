@@ -30,3 +30,8 @@ for j in "$DIST"/atualizacao/conteudo*.json; do
   [ "$(jq -r '.url_base // ""' "$j")" = "${ORACLE_URL%/}/" ] || continue
   sobe "$j" "$(basename "$j")"
 done
+# por último: qual commit está no ar (ferramentas/atualizacao/janela-publicar.mjs compara com ele o que mudou em shared/)
+if [ -n "${GITHUB_SHA:-}" ]; then
+  printf '%s\n' "${GITHUB_SHA:0:40}" > "$DIST/publicado.txt"
+  sobe "$DIST/publicado.txt" publicado.txt
+fi

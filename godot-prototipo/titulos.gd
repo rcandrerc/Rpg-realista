@@ -131,6 +131,9 @@ func _heroi() -> void:
 		_id_heroi = "-"
 	var prog: Dictionary = m.P.prog
 	var texto := "%s · Nv %d" % [str(m.hud.nome), int(prog.get("nivel", 1))]
+	var gu: Dictionary = m.P.guilda
+	if gu.get("v") is Dictionary and int(gu.v.get("marca", 0)) > 0: # vantagem SS da Guilda: a marca no nome
+		texto = "[SS] " + texto
 	if texto != _texto:
 		_texto = texto
 		_placa.text = Idioma.frase(texto)
