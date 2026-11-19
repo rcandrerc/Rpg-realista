@@ -7,8 +7,17 @@ on:
     branches: [main]
     # mudança só no app Godot: o apk.yml gera o pacote e chama este workflow sozinho no fim; texto não muda o site
     paths-ignore: ['godot-prototipo/**', '**/*.md']
+  # Cliente espera a janela: publica o que mexeu em shared/ às 04:40 e 13:40 de Brasília (07:40 e 16:40 UTC), uns 20 min
+  # antes do reinício fixo das 05h e 14h (o pacote do servidor instala junto). Ver janela-publicar.mjs.
+  schedule:
+    - cron: '40 7 * * *'
+    - cron: '40 16 * * *'
   workflow_dispatch:
     inputs:
+      publicar_agora:
+        description: 'Publicar agora mesmo com shared/ mudado (fora da janela: cliente e servidor podem ficar com regras diferentes até o servidor instalar)'
+        type: boolean
+        default: false
       abrir_servidor:
         description: 'Publicar o servidor aberto uma vez (só para máquina nova da Oracle, que ainda não tem chave)'
         type: boolean
@@ -60,9 +69,30 @@ jobs:
             echo "pular=true" >> "$GITHUB_OUTPUT"
           fi
 
-  publicar:
+  # Cliente espera a janela (Presidente 2026-11-19): shared/ mudou desde o que está no ar = só publica no disparo
+  # agendado (04:40 e 13:40 de Brasília). Ver ferramentas/atualizacao/janela-publicar.mjs.
+  janela:
     needs: fila
     if: always() && needs.fila.outputs.pular != 'true'
+    runs-on: ${{ vars.RUNNER_ATUALIZACAO || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    outputs:
+      publicar: ${{ steps.decide.outputs.publicar }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENTO: ${{ github.event_name }}
+          FORCAR: ${{ inputs.publicar_agora && '1' || '0' }}
+          ORACLE_URL: ${{ vars.ORACLE_URL }}
+        run: node ferramentas/atualizacao/janela-publicar.mjs
+
+  publicar:
+    needs: [fila, janela]
+    if: always() && needs.fila.outputs.pular != 'true' && needs.janela.outputs.publicar == 'true'
     # Com a variável RUNNER_BUILD definida e o repositório PRIVADO, roda no runner próprio da Oracle (não gasta cota
     # do GitHub). Repositório público ou sem a variável: roda no GitHub (ubuntu-latest). Ver ferramentas/runner/LEIAME.md.
     # Com a vaga da atualização (RUNNER_ATUALIZACAO) roda sempre na Oracle, público ou privado: só lá existe a chave

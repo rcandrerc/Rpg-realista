@@ -5,7 +5,8 @@
 // contarGuilda). Subir de rank: pontos de guilda (pg) cheios + nível do próximo rank + vencer a Prova (um monstro do
 // campo da sua faixa vira um elite forte quando você chega perto, como os chefes da história).
 // Estado na conta: prog.guilda = { r: rank (0 = F), pg, d: 'AAAA-MM-DD', of: [{ id, k, n, a }] (ofertas do dia),
-// at: { id: quanto } (pegos), f: [ids recebidos], pv: 1 (Prova aceita) }.
+// at: { id: quanto } (pegos), f: [ids recebidos], pv: 1 (Prova aceita), tr: trocas usadas hoje, vt: ms (Voltar à
+// Guilda pronto de novo) }. Vantagens fixas por rank (GUILDA.ranks[].v, Presidente 2026-11-19): vantagensGuilda.
 import { GUILDA, CATALISADOR, ITENS } from './dados.js';
 import { xpProximo, NIVEL_MAX, guardar } from './progresso.js';
 import { diaDiarias, fimDoDia } from './diarias.js';
@@ -20,6 +21,28 @@ function sorteio(semente) {
   return () => { h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16; return (h >>> 0) / 4294967296; };
 }
 const nDe = (k, r) => GUILDA.tipos[k]?.n[r] | 0;
+// teto de contratos por dia e de uma vez com todas as vantagens (para conferir a conta)
+const MAX_DIA = GUILDA.porDia + Math.max(0, ...RANKS.map((R) => R.v?.extra || 0));
+const MAX_ATIVOS = Math.max(GUILDA.ativos, ...RANKS.map((R) => R.v?.ativos || 0));
+// as vantagens do rank r (somam do F até ele). hoje: 'AAAA-MM-DD' (Brasília); antes de GUILDA.vantagensDesde não vale nada
+export function vantagensGuilda(r, hoje) {
+  const v = { extra: 0, conserto: 0, ativos: GUILDA.ativos, voltar: 0, troca: 0, pack: 0, marca: 0 };
+  if (!GUILDA.vantagensDesde || !hoje || hoje < GUILDA.vantagensDesde) return v;
+  for (let i = 0; i <= Math.min(r | 0, ULTIMO); i++) Object.assign(v, RANKS[i].v || {});
+  return v;
+}
+// um contrato a mais para o mural (extras e trocas): sorteado pela semente, nunca a Prova
+function contratoSorteado(rnd, r, nv, id, x) {
+  const ks = Object.keys(GUILDA.tipos).filter((k) => nDe(k, r) > 0);
+  const k = ks[Math.floor(rnd() * ks.length)] || 'caca';
+  return { id, k, n: nDe(k, r), ...(k === 'caca' ? { a: Math.max(1, nv - GUILDA.faixa) } : {}), ...(x ? { x: 1 } : {}) };
+}
+// os contratos extras do dia (ids c5, c6...): pagam ouro e pontos, sem XP (x: 1)
+export function extrasGuilda(semente, r, nv, de, ate) {
+  const rnd = sorteio(`${semente}:x`), l = [];
+  for (let i = 0; i < ate; i++) { const O = contratoSorteado(rnd, r, nv, `c${GUILDA.porDia + i}`, true); if (i >= de) l.push(O); }
+  return l;
+}
 // as ofertas do dia para o rank r, herói no nível nv: a = nível mínimo do monstro na caça (a sua faixa)
 export function ofertasGuilda(semente, r, nv) {
   const rnd = sorteio(semente), pode = (k) => nDe(k, r) > 0;
@@ -41,14 +64,16 @@ export function guildaValida(v) {
   const pg = Number.isInteger(v.pg) ? Math.max(0, Math.min(RANKS[r].pg || 1e9, v.pg)) : 0;
   const g = { r, pg };
   if (typeof v.d === 'string' && /^\d{4}-\d\d-\d\d$/.test(v.d) && Array.isArray(v.of)) {
-    const of = v.of.filter((O) => O && typeof O.id === 'string' && GUILDA.tipos[O.k] && Number.isInteger(O.n) && O.n > 0).slice(0, GUILDA.porDia)
-      .map((O) => ({ id: O.id, k: O.k, n: O.n, ...(Number.isInteger(O.a) ? { a: O.a } : {}) }));
+    const of = v.of.filter((O) => O && typeof O.id === 'string' && GUILDA.tipos[O.k] && Number.isInteger(O.n) && O.n > 0).slice(0, MAX_DIA)
+      .map((O) => ({ id: O.id, k: O.k, n: O.n, ...(Number.isInteger(O.a) ? { a: O.a } : {}), ...(O.x === 1 ? { x: 1 } : {}) }));
     const ids = new Set(of.map((O) => O.id)), at = {};
-    for (const [id, q] of Object.entries(v.at || {})) if (ids.has(id) && Number.isInteger(q) && q >= 0 && Object.keys(at).length < GUILDA.ativos) at[id] = Math.min(q, of.find((O) => O.id === id).n);
+    for (const [id, q] of Object.entries(v.at || {})) if (ids.has(id) && Number.isInteger(q) && q >= 0 && Object.keys(at).length < MAX_ATIVOS) at[id] = Math.min(q, of.find((O) => O.id === id).n);
     const f = Array.isArray(v.f) ? [...new Set(v.f.filter((id) => ids.has(id) && !(id in at)))] : [];
     Object.assign(g, { d: v.d, of, at, f });
+    if (Number.isInteger(v.tr) && v.tr > 0) g.tr = Math.min(9, v.tr);
   }
   if (v.pv === 1) g.pv = 1;
+  if (Number.isFinite(v.vt) && v.vt > 0) g.vt = Math.round(v.vt);
   return g;
 }
 
@@ -60,10 +85,14 @@ export const Guilda = {
     const g = (p.guilda ||= { r: 0, pg: 0 });
     if (g.d !== hoje || !Array.isArray(g.of)) {
       Object.assign(g, { d: hoje, of: ofertasGuilda(`${j.conta ?? j.id}:${hoje}:${g.r}`, g.r, p.nivel), at: {}, f: [] });
-      j.progSujo = true;
+      delete g.tr; j.progSujo = true;
     }
+    // contratos extras do rank (vantagem E): entram no mural na hora em que o rank chega, sem mexer nos de hoje
+    const tem = g.of.filter((O) => O.x === 1).length, quer = vantagensGuilda(g.r, hoje).extra;
+    if (tem < quer) { g.of.push(...extrasGuilda(`${j.conta ?? j.id}:${hoje}`, g.r, p.nivel, tem, quer)); j.progSujo = true; }
     return g;
   },
+  vantagensDe(j) { const g = j?.prog?.guilda; return vantagensGuilda(g && this.temGuilda(j) ? g.r : -1, diaDiarias(this.agoraMs())); },
   pertoDaGuilda(j) { return (this.mapa.npcs || []).some((n) => (n.funcao === 'guilda' || n.funcao === 'mural') && Math.hypot(n.x - j.x, n.z - j.z) < GUILDA.perto); },
   // pode fazer a Prova: pontos cheios e nível do próximo rank
   podeProva(j) { const g = j.prog.guilda; return !!g && g.r < ULTIMO && g.pg >= RANKS[g.r].pg && j.prog.nivel >= RANKS[g.r + 1].nv; },
@@ -96,10 +125,10 @@ export const Guilda = {
   // o resumo que o app desenha (vai junto do progresso)
   guildaInfo(j) {
     if (!this.temGuilda(j)) return null;
-    const g = this.guildaDe(j), R = RANKS[g.r], P = RANKS[g.r + 1], pr = premioGuilda(g.r, j.prog.nivel), agora = this.agoraMs();
-    return { rank: R.r, r: g.r, pg: g.pg, pgMax: R.pg || 0, prox: P ? { rank: P.r, nv: P.nv } : null, prova: this.podeProva(j), pv: g.pv === 1,
-      perto: this.pertoDaGuilda(j), ativos: GUILDA.ativos, fim: fimDoDia(agora) - agora, ouro: pr.ouro, xp: pr.xp, pgGanha: pr.pg, cat: !!R.cat,
-      l: g.of.map((O) => ({ id: O.id, txt: textoContrato(O), n: g.at[O.id] ?? 0, t: O.n, e: g.f.includes(O.id) ? 'recebido' : O.id in g.at ? (g.at[O.id] >= O.n ? 'feito' : 'ativo') : 'livre' })) };
+    const g = this.guildaDe(j), R = RANKS[g.r], P = RANKS[g.r + 1], pr = premioGuilda(g.r, j.prog.nivel), agora = this.agoraMs(), V = this.vantagensDe(j);
+    return { rank: R.r, r: g.r, pg: g.pg, pgMax: R.pg || 0, prox: P ? { rank: P.r, nv: P.nv, ...(P.v ? { v: P.v } : {}) } : null, prova: this.podeProva(j), pv: g.pv === 1,
+      perto: this.pertoDaGuilda(j), ativos: V.ativos, v: { extra: V.extra, conserto: V.conserto, ativos: V.ativos, voltar: V.voltar ? Math.max(0, (g.vt || 0) - Date.now()) : -1, troca: V.troca ? Math.max(0, V.troca - (g.tr | 0)) : -1, pack: V.pack, marca: V.marca }, fim: fimDoDia(agora) - agora, ouro: pr.ouro, xp: pr.xp, pgGanha: pr.pg, cat: !!R.cat,
+      l: g.of.map((O) => ({ id: O.id, txt: textoContrato(O), ...(O.x ? { x: 1 } : {}), n: g.at[O.id] ?? 0, t: O.n, e: g.f.includes(O.id) ? 'recebido' : O.id in g.at ? (g.at[O.id] >= O.n ? 'feito' : 'ativo') : 'livre' })) };
   },
   // mensagem do app: { acao: 'aceitar' | 'desistir' | 'receber' | 'ir', id } | { acao: 'prova' } | { acao: 'ver' }
   guilda(id, m) {
@@ -108,6 +137,7 @@ export const Guilda = {
     if (!this.temGuilda(j)) return aviso(`A Guilda abre no Nv ${GUILDA.nivel}, no Rio Claro`);
     const g = this.guildaDe(j);
     if (m.acao === 'ver') return this.avisarProg(j);
+    if (m.acao === 'voltar') return this.voltarGuilda(j);
     if (m.acao === 'prova') {
       if (g.pv === 1) return aviso('Prova já aceita: vença o elite vermelho num campo da sua faixa');
       if (!this.podeProva(j)) return aviso(g.r >= ULTIMO ? 'Você já é Rank SS' : `Para a Prova: ${RANKS[g.r].pg} pontos e Nv ${RANKS[g.r + 1].nv}`);
@@ -120,7 +150,8 @@ export const Guilda = {
     if (m.acao === 'aceitar') {
       if (O.id in g.at || g.f.includes(O.id)) return;
       if (!this.pertoDaGuilda(j)) return aviso('Pegue contratos no mural da Guilda (Rio Claro)');
-      if (Object.keys(g.at).filter((k) => !g.f.includes(k)).length >= GUILDA.ativos) return aviso(`No máximo ${GUILDA.ativos} contratos de uma vez`);
+      const ativos = this.vantagensDe(j).ativos;
+      if (Object.keys(g.at).filter((k) => !g.f.includes(k)).length >= ativos) return aviso(`No máximo ${ativos} contratos de uma vez`);
       g.at[O.id] = 0; j.progSujo = true;
       aviso(`Contrato aceito: ${textoContrato(O)}`);
       return this.avisarProg(j);
@@ -128,6 +159,17 @@ export const Guilda = {
     if (m.acao === 'desistir') {
       if (!(O.id in g.at) || g.at[O.id] >= O.n) return;
       delete g.at[O.id]; j.progSujo = true; // volta para o mural (pode pegar de novo, do zero)
+      return this.avisarProg(j);
+    }
+    if (m.acao === 'trocar') { // vantagem A: troca um contrato livre por outro sorteado (o mesmo id, no mesmo lugar)
+      const V = this.vantagensDe(j);
+      if (!V.troca) return aviso('Trocar contrato: Rank A da Guilda');
+      if ((g.tr | 0) >= V.troca) return aviso('Troca de hoje já usada');
+      if (O.id in g.at || g.f.includes(O.id)) return aviso('Só dá para trocar contrato livre');
+      g.tr = (g.tr | 0) + 1;
+      const novo = contratoSorteado(sorteio(`${j.conta ?? j.id}:${g.d}:t${g.tr}:${O.id}`), g.r, j.prog.nivel, O.id, O.x === 1);
+      g.of[g.of.indexOf(O)] = novo; j.progSujo = true;
+      aviso(`Contrato trocado: ${textoContrato(novo)}`);
       return this.avisarProg(j);
     }
     if (m.acao === 'ir') {
@@ -140,6 +182,7 @@ export const Guilda = {
     if (!(O.id in g.at)) return;
     if (g.at[O.id] < O.n) return aviso(`Falta: ${textoContrato(O)} (${g.at[O.id]}/${O.n})`);
     const p = j.prog, R = RANKS[g.r], pr = premioGuilda(g.r, p.nivel);
+    if (O.x) pr.xp = 0; // contrato extra (vantagem E): sem XP, não acelera a subida de nível
     delete g.at[O.id]; g.f.push(O.id); j.progSujo = true;
     p.ouro += pr.ouro; this.caixa?.(j, 'guilda', pr.ouro);
     if (pr.xp) this.ganharXP(j, pr.xp);
@@ -153,6 +196,38 @@ export const Guilda = {
     aviso(`Contrato recebido: ${txt}`);
     if (this.podeProva(j) && g.pv !== 1) aviso(`Pontos cheios! Faça a Prova do rank ${RANKS[g.r + 1].r} no mural`);
     this.avisarProg(j);
+  },
+  // Voltar à Guilda (vantagem B): a mesma canalização da casinha e dos totens (andar ou dano cancela), grátis, com recarga
+  muralGuilda() { return (this.mapa.npcs || []).find((n) => n.funcao === 'mural'); },
+  voltarGuilda(j) {
+    const aviso = (texto) => this.evento({ t: 'aviso', para: j.id, texto });
+    if (j.morto || j.criando) return;
+    if (j.vila) return this.cancelarVila(j, null); // pediu de novo: desiste
+    const V = this.vantagensDe(j), g = j.prog.guilda, M = this.muralGuilda();
+    if (!V.voltar || !M) return aviso('Voltar à Guilda: Rank B da Guilda');
+    const falta = (g.vt || 0) - Date.now();
+    if (falta > 0) return aviso(`Voltar à Guilda: pronto em ${Math.ceil(falta / 60000)} min`);
+    if (this.pertoDaGuilda(j)) return aviso('Você já está na Guilda');
+    if (this.motivoCarga(j)) return aviso(this.motivoCarga(j)); // pack e carrinho não teleportam (Quimera)
+    if (j.esc || !j.chao) return;
+    if (j.coleta) this.pararColeta(j);
+    if (j.canal) this.cancelarCanal(j);
+    j.montado = null;
+    const v = j.vila = { x: j.x, z: j.z, guilda: true };
+    this.evento({ t: 'vila', id: j.id, fase: 'comeca', dur: GUILDA.voltar.canal, guilda: true });
+    this.depois(GUILDA.voltar.canal, () => { if (j.vila === v && !j.morto && this.jogadores.get(j.id) === j) this.chegarNaGuilda(j); });
+  },
+  chegarNaGuilda(j) {
+    j.vila = null;
+    const M = this.muralGuilda(), g = j.prog.guilda; if (!M) return;
+    const [dx, dz] = GUILDA.voltar.chegada, x0 = j.x, z0 = j.z;
+    const x = M.x + dx + (Math.random() - 0.5), z = M.z + dz + (Math.random() - 0.5), y = this.terreno.altura(x, z, (M.y || 0) + 1);
+    Object.assign(j, { x, y, z, vy: 0, chao: true, dash: null, arrancada: null, esc: null, trava: 0, acao: null });
+    j.cliente = null; j.orcT = null;
+    g.vt = Date.now() + this.vantagensDe(j).voltar * 1000;
+    delete j.prog.pos; j.progSujo = true;
+    this.avisarProg(j);
+    this.evento({ t: 'vila', id: j.id, fase: 'chegou', guilda: true, x0: r2(x0), z0: r2(z0), x: r2(x), y: r2(y), z: r2(z) });
   },
   // para onde o "Ir" de um contrato leva: { x, z, nome } ou null
   alvoGuilda(j, O) {

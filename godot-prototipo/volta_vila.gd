@@ -103,13 +103,46 @@ func pedir_totem(t: Dictionary) -> void:
 	m.heroi_anim.play("cura", 0.35, 0.5)
 	m.fx.volta_vila(m.heroi, float(m.totem.T.canal))
 
+# Voltar à Guilda (vantagem B da Guilda, Presidente 2026-11-19): a mesma canalização, grátis, com recarga de 1 h.
+# Só online: o servidor confere (Guilda.voltarGuilda) e manda o evento "vila" com guilda.
+func pedir_guilda() -> void:
+	if m.h.morto > 0.0 or m.criador.aberto() or not m.on():
+		return
+	if ativo():
+		cancelar("Voltar à Guilda cancelado")
+		m.rede("guilda", {"acao": "voltar"})
+		return
+	if m.mov.esc != null or not m.mov.chao:
+		m.hud.aviso("Fique no chão para viajar")
+		return
+	if m.acao.get("canal", false):
+		m.cancelar_canal("")
+	m.acao = {}
+	m.h.segurando = false
+	m.fila = null
+	if m.trabalho.coletando != null:
+		m.trabalho.parar(true)
+	var dur := 5.0
+	var gd = m.P.dados.get("guilda")
+	if gd is Dictionary and gd.get("voltar") is Dictionary:
+		dur = float(gd.voltar.get("canal", 5.0))
+	m.rede("guilda", {"acao": "voltar"})
+	canal = {"t": 0.0, "dur": dur, "guilda": true}
+	_congelou = false
+	m.heroi_anim.play("cura", 0.35, 0.5)
+	m.fx.volta_vila(m.heroi, dur)
+
 # texto da barra do meio da tela
 func texto() -> String:
+	if ativo() and canal.has("guilda"):
+		return "Indo para a Guilda"
 	return "Viajando para %s" % canal.totem.nome if ativo() and canal.has("totem") else "Voltando para a vila"
 
 func cancelar(motivo := "Volta para a vila cancelada") -> void:
 	if not ativo():
 		return
+	if canal.has("guilda"):
+		motivo = motivo.replace("Volta para a vila cancelada", "Voltar à Guilda cancelado").replace("volta para a vila", "volta à Guilda")
 	if canal.has("totem"): # totem: "viagem", não "volta para a vila"
 		motivo = motivo.replace("Volta para a vila", "Viagem").replace("volta para a vila", "viagem")
 	canal = {}
@@ -120,7 +153,7 @@ func cancelar(motivo := "Volta para a vila cancelada") -> void:
 		m.heroi_anim.play("parada" if m.h.modo == "Magia" else "espada_parada", 0.3)
 
 # chegou na praça (sozinho: aqui mesmo; online: o servidor manda onde, no evento "vila"). totem: chegou num totem
-func chegar(para: Vector3, totem_id := "") -> void:
+func chegar(para: Vector3, totem_id := "", guilda := false) -> void:
 	var de: Vector3 = m.heroi.position
 	if totem_id == "" and canal.has("totem") and not m.on():
 		totem_id = str(canal.totem.id)
@@ -140,6 +173,10 @@ func chegar(para: Vector3, totem_id := "") -> void:
 			m.P.mudou = true
 			m.hud.aviso("Você chegou em %s (-%d de ouro)" % [t.nome, c])
 		m.sons.tocar("moedas", -8.0)
+		guardar(true)
+		return
+	if guilda: # Voltar à Guilda: na frente do mural (a recarga vem no progresso do servidor)
+		m.hud.aviso("Você chegou na Guilda")
 		guardar(true)
 		return
 	if not m.on(): # sozinho a recarga também conta (online vem no progresso do servidor)

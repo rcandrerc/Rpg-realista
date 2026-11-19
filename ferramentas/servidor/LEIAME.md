@@ -71,6 +71,15 @@ Conserto urgente: ponha `[servidor urgente]` no título do PR; o pacote sai marc
 menos no bloqueio do lançamento. Para furar o bloqueio (conserto que impede os amigos de entrar ou jogar), só com o OK do
 Presidente escrito no PR: `[furar bloqueio]` no título. Servidor de teste (reserva, robôs): `JANELA_LIVRE=1` no ambiente instala sempre.
 
+## Cliente espera a janela (Presidente 2026-11-19, opção B)
+
+Se algo em `shared/` mudou desde o commit que está no ar (`publicado.txt` no balde), o site inteiro (cliente e servidor,
+Pages e balde) não publica no merge: o disparo agendado do pages.yml publica às 04:40 e 13:40 de Brasília, uns 20 min
+antes do reinício fixo das 05h e 14h, e o servidor instala junto. Merge sem `shared/` publica na hora (se não houver
+`shared/` esperando). Na 1ª semana do lançamento só o das 04:40; no bloqueio do lançamento, nada (salvo
+`[furar bloqueio]`). Emergência: rode o pages.yml à mão com "Publicar agora mesmo". Ver
+`ferramentas/atualizacao/janela-publicar.mjs`.
+
 ## Voltar as contas para uma cópia
 
 `voltar-contas.sh` roda na máquina do servidor, como root. Ele confere a cópia, para o servidor, guarda o banco de agora
