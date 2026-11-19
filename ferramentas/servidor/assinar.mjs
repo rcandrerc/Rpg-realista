@@ -40,12 +40,13 @@ function criarChave() {
 // Troca de chave de propósito (pages.yml > "Criar de propósito uma chave nova", rodado na Oracle): a nova entra no
 // lugar da velha de uma vez (rename troca o arquivo inteiro), e a velha some. Só antes do passo 2 (lista vazia): depois
 // dele, trocar a chave faria o servidor no ar recusar tudo, então a troca é recusada e nada publica (LEIAME).
-// "Re-run" de uma execução que já trocou (GITHUB_RUN_ATTEMPT > 1) usa o código e as opções daquela vez, inclusive a lista
-// vazia: trocaria de novo e apagaria a chave que já foi para a lista. Então nova tentativa nunca troca, só assina com a
-// chave que está lá (revisão independente). Para trocar de verdade: Run workflow de novo, nunca Re-run.
+// "Re-run" de uma execução com a caixa da troca (GITHUB_RUN_ATTEMPT > 1) usa o código e as opções daquela vez, inclusive
+// a lista vazia: trocaria de novo e apagaria a chave que já foi para a lista; e, se a 1ª tentativa morreu antes de
+// trocar, assinaria com a chave velha e mostraria a pública dela. Então nova tentativa com a caixa não troca nem assina:
+// o job cai e nada publica (revisão independente). Para trocar ou publicar: Run workflow de novo, nunca Re-run.
 const novaTentativa = Number(process.env.GITHUB_RUN_ATTEMPT || 1) > 1;
-if (fs.existsSync(arqChave) && naOracle && process.env.CRIAR_CHAVE_ASSINATURA === '1' && novaTentativa) {
-  console.log('::warning::Nova tentativa (Re-run) de uma execução com troca de chave: NÃO troco de novo; assino com a chave que está lá.');
+if (naOracle && process.env.CRIAR_CHAVE_ASSINATURA === '1' && novaTentativa) {
+  falhar('Nova tentativa (Re-run) de uma execução com a troca de chave: não troco nem assino. Rode o pages.yml de novo (Run workflow), com a caixa só se ainda precisar trocar.');
 } else if (fs.existsSync(arqChave) && naOracle && process.env.CRIAR_CHAVE_ASSINATURA === '1') {
   if (exigida) falhar('Troca de chave recusada: o servidor já exige assinatura (CHAVES_ASSINATURA preenchida). A chave atual ficou como estava.');
   const { privateKey } = crypto.generateKeyPairSync('ed25519');

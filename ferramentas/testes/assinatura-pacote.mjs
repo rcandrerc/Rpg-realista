@@ -72,9 +72,12 @@ const exigindo = (lista, criar = '', tentativa = '1') => {
   return { codigo: r.status, saida: r.stdout + r.stderr };
 };
 const pemAntes = fs.readFileSync(path.join(tmp, 'chave.pem'), 'utf8');
+const assinadoAntes = fs.readFileSync(path.join(tmp, 'p.json'), 'utf8');
 const reRun = exigindo([], '1', '2');
-ok(reRun.codigo === 0 && reRun.saida.includes('NÃO troco de novo') && fs.readFileSync(path.join(tmp, 'chave.pem'), 'utf8') === pemAntes && assinaturaValida(ler(), [pubNova]),
-  'Re-run de execução com troca: não troca de novo, assina com a chave que está lá');
+ok(reRun.codigo === 1 && reRun.saida.includes('não troco nem assino') && fs.readFileSync(path.join(tmp, 'chave.pem'), 'utf8') === pemAntes
+  && fs.readFileSync(path.join(tmp, 'p.json'), 'utf8') === assinadoAntes, 'Re-run de execução com troca: não troca nem assina, o job cai');
+const semCaixa = exigindo([], '', '2');
+ok(semCaixa.codigo === 0 && assinaturaValida(ler(), [pubNova]), 'Re-run sem a caixa: assina normal com a chave que está lá');
 const recusada = exigindo([pubNova], '1');
 ok(recusada.codigo === 1 && recusada.saida.includes('Troca de chave recusada') && fs.readFileSync(path.join(tmp, 'chave.pem'), 'utf8') === pemAntes, 'passo 2: troca recusada e a chave fica como estava');
 const fora = exigindo([outra]);

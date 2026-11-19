@@ -147,8 +147,9 @@ uma chave da lista e mais novo que ele. Sem o passo 0, o primeiro servidor que e
 mais velho da mesma chave (sem a lista) e voltaria a não exigir (revisão independente).
 
 **Nunca "Re-run" numa execução que trocou a chave:** a nova tentativa usa o código e as opções daquela vez (lista
-vazia) e trocaria de novo, apagando a chave que já está na lista. Desde 19/11 o assinar.mjs não troca em nova
-tentativa (GITHUB_RUN_ATTEMPT > 1); para trocar de verdade, Run workflow de novo.
+vazia) e trocaria de novo, apagando a chave que já está na lista. Desde 19/11 o assinar.mjs derruba o job numa nova
+tentativa com a caixa marcada (GITHUB_RUN_ATTEMPT > 1): não troca nem assina. Para trocar ou publicar, Run workflow
+de novo.
 
 **Chave reserva (decisão do Presidente, 19/11):** a lista leva também uma pública RESERVA Ed25519, gerada fora da
 Oracle. A privada fica só no fontes (`chaves/servidor/assinatura-reserva.pem`) e no Drive do André, nunca na Oracle,
