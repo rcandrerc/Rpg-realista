@@ -67,6 +67,6 @@ ok([...DESCULPAS_SAIR.m.normal, ...DESCULPAS_SAIR.m.cheio].includes(tchau), `Dar
 ok(!j.time || !j.time.membros.some((k) => k === d.id), 'e sai do time');
 ok(geada.every((x) => x.amiga), 'a Geada não tem IA e continua no mundo');
 s.amigosIa.find((x) => x.AMIGA.id === 'dario').amigaEntrar('irmao', true); ok(!dario.amiga, 'quem entra enquanto a IA está fora não traz eles de volta');
-s.iaAcabouAte = 0; esp(12);
+s.iaAcabouAte = 0; esp(45); // volta na conferência seguinte: até 30 s depois de sair (amigaFora.chk), e a saída pode atrasar até 40 s se ele estava lutando
 ok(dario.amiga && cec.amiga && temDario(), 'a IA voltou: os dois logam de novo');
 ok(dario.amigaDono === 'andre', 'e voltam a acompanhar quem estava com eles');
