@@ -3234,7 +3234,7 @@ export const DESCULPAS_SAIR = {
     "Fiquei de ajudar a reconstruir a ponte do rio. Até amanhã.",
     "O ferreiro me deve uma lâmina e hoje é o dia. Vou cobrar. Até.",
     "Já deu por hoje. Bom trabalho, parceiro.",
-    "Minha mãe fez sopa e mandou eu não demorar. Ordem é ordem. Até.",
+    "Minha esposa fez sopa e mandou eu não demorar. Ordem é ordem. Até.",
     "Tenho que ir ao templo. Promessa antiga. Até mais.",
     "Vou dar uma olhada nos portões da vila. Ouvi barulho estranho ontem. Até.",
     "Preciso dormir. Amanhã tenho treino com os guardas novos.",
