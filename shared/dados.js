@@ -4891,16 +4891,22 @@ export const DIARIAS = { nivel: 8, fuso: -3, ouro: 30, ouroNv: 3, xp: 0.08, bonu
 // diante, chance de catalisador (cat; no SS também mitico). Subir: pg cheio + nível do próximo rank + vencer a Prova
 // (um elite forte do próximo rank). Elite e Prova: um monstro de um campo da sua faixa vira elite quando você chega
 // perto (como os chefes da história). tipos: n = quanto pede em cada rank (0 = não sai nesse rank).
-export const GUILDA = { nivel: 30, porDia: 5, ativos: 3, perto: 5.5, faixa: 6,
+// vantagens fixas por rank (Presidente 2026-11-19, aprovado no lugar do André): valem sempre, sem equipar título, e somam
+// subindo (v de cada rank vale dali para cima). extra: contratos a mais por dia (pagam ouro e pontos, sem XP: não
+// aceleram a subida de nível); conserto: desconto no Tomás; ativos: contratos de uma vez; voltar: "Voltar à Guilda"
+// grátis (recarga em s); troca: trocar contratos livres por dia; pack: ouro a mais na entrega de pack; marca: "SS" no
+// nome para todos. vantagensDesde: dia (Brasília) em que o servidor liga (null = desligadas; adiar não apaga nada).
+export const GUILDA = { nivel: 30, porDia: 5, ativos: 3, perto: 5.5, faixa: 6, vantagensDesde: '2026-11-19',
+  voltar: { canal: 5, chegada: [-3.9, 0] }, // canalização (s) e onde aparece: [dx, dz] a partir do mural, de frente para o balcão
   ranks: [
     { r: 'F', nv: 30, pg: 60, ouro: 6, xp: 0.10, pg1: 10 },
-    { r: 'E', nv: 36, pg: 70, ouro: 8, xp: 0.12, pg1: 12 },
-    { r: 'D', nv: 42, pg: 84, ouro: 10, xp: 0.15, pg1: 14 },
-    { r: 'C', nv: 50, pg: 96, ouro: 14, xp: 0.18, pg1: 16, cat: 0.10 },
-    { r: 'B', nv: 60, pg: 108, ouro: 18, xp: 0.22, pg1: 18, cat: 0.15 },
-    { r: 'A', nv: 72, pg: 120, ouro: 22, xp: 0.25, pg1: 20, cat: 0.20 },
-    { r: 'S', nv: 85, pg: 150, ouro: 26, xp: 0.30, pg1: 25, cat: 0.25 },
-    { r: 'SS', nv: 100, pg: 0, ouro: 30, xp: 0.35, pg1: 30, cat: 0.30, mitico: 0.02 },
+    { r: 'E', nv: 36, pg: 70, ouro: 8, xp: 0.12, pg1: 12, v: { extra: 1 } },
+    { r: 'D', nv: 42, pg: 84, ouro: 10, xp: 0.15, pg1: 14, v: { conserto: 0.10 } },
+    { r: 'C', nv: 50, pg: 96, ouro: 14, xp: 0.18, pg1: 16, cat: 0.10, v: { ativos: 4 } },
+    { r: 'B', nv: 60, pg: 108, ouro: 18, xp: 0.22, pg1: 18, cat: 0.15, v: { voltar: 3600 } },
+    { r: 'A', nv: 72, pg: 120, ouro: 22, xp: 0.25, pg1: 20, cat: 0.20, v: { troca: 1 } },
+    { r: 'S', nv: 85, pg: 150, ouro: 26, xp: 0.30, pg1: 25, cat: 0.25, v: { pack: 0.05 } },
+    { r: 'SS', nv: 100, pg: 0, ouro: 30, xp: 0.35, pg1: 30, cat: 0.30, mitico: 0.02, v: { marca: 1 } },
   ],
   tipos: {
     caca: { ev: 'matar', txt: 'Derrube {n} monstros Nv {a}+', n: [15, 20, 25, 30, 30, 35, 40, 50] },
