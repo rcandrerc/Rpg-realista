@@ -43,6 +43,7 @@ const TEXTO := Color(0.96, 0.93, 0.86)
 var url_manifesto := MANIFESTO
 var base := "" # versão base do APK (gravada pelo CI no project.godot na hora de exportar)
 var http: HTTPRequest
+var _tam_atual := 0 # tamanho do arquivo aberto que está baixando agora (a barra; o balde manda compactado)
 var manifesto := {}
 var barra: ProgressBar
 var aviso: Label
@@ -132,7 +133,13 @@ func _ready() -> void:
 func _process(_d: float) -> void:
 	if casca:
 		if baixando and http and total_bytes > 0:
-			var agora := feito_bytes + http.get_downloaded_bytes()
+			# o balde manda os pedaços compactados (gzip, publicar-conteudo.sh 2026-11-19): o HTTPRequest conta os bytes que
+			# chegam pela rede e grava o arquivo já aberto; a barra conta na medida do arquivo aberto
+			var dl := http.get_downloaded_bytes()
+			var corpo := http.get_body_size()
+			if _tam_atual > 0 and corpo > 0:
+				dl = int(float(dl) * _tam_atual / corpo)
+			var agora := feito_bytes + dl
 			barra.value = 100.0 * agora / total_bytes
 			detalhe.text = "%s / %s  (%d%%)%s" % [_mb(agora), _mb(total_bytes), int(barra.value), _velocidade(agora)]
 		return
@@ -343,7 +350,7 @@ func _casca_iniciar() -> void:
 		for d in ponte_falta:
 			if saindo:
 				return
-			if not await _casca_baixar(_casca_url_base() + str(d.arq), _casca_delta(d), str(d.sha256)):
+			if not await _casca_baixar(_casca_url_base() + str(d.arq), _casca_delta(d), str(d.sha256), int(d.tamanho)):
 				_casca_falhou()
 				return
 			feito_bytes += int(d.tamanho)
@@ -360,7 +367,7 @@ func _casca_iniciar() -> void:
 	for d in faltam:
 		if saindo:
 			return
-		if not await _casca_baixar(_casca_url_base() + str(d.arq), _casca_delta(d), str(d.sha256)):
+		if not await _casca_baixar(_casca_url_base() + str(d.arq), _casca_delta(d), str(d.sha256), int(d.tamanho)):
 			_casca_falhou()
 			return
 		feito_bytes += int(d.tamanho)
@@ -400,7 +407,7 @@ func _casca_baixar_completo(comp: Dictionary, est: ConfigFile) -> bool:
 		if saindo:
 			return false
 		var p: Dictionary = comp.partes[i]
-		if not await _casca_baixar(_casca_url_base() + str(p.arq), PARTE_TMP, str(p.sha256)):
+		if not await _casca_baixar(_casca_url_base() + str(p.arq), PARTE_TMP, str(p.sha256), int(p.tamanho)):
 			return false
 		var saida := FileAccess.open(COMPLETO_TMP, FileAccess.READ_WRITE if FileAccess.file_exists(COMPLETO_TMP) else FileAccess.WRITE)
 		var entrada := FileAccess.open(PARTE_TMP, FileAccess.READ)
@@ -454,10 +461,12 @@ func _casca_ponte(m: Dictionary, est: ConfigFile) -> Array:
 	return [pds, falta, soma]
 
 # baixa um arquivo para destino e confere o sha256
-func _casca_baixar(url: String, destino: String, sha: String) -> bool:
+func _casca_baixar(url: String, destino: String, sha: String, tamanho := 0) -> bool:
 	if FileAccess.file_exists(destino):
 		DirAccess.remove_absolute(destino)
+	_tam_atual = tamanho
 	var r = await _casca_pedir(url, destino, 0.0)
+	_tam_atual = 0
 	if r == null:
 		return false
 	if sha != "" and FileAccess.get_sha256(destino) != sha:

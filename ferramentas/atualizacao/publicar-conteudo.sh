@@ -90,10 +90,25 @@ ARQ_PAR="$(dirname "$0")/oracle-par-envio.txt"
 [ -z "${ORACLE_PAR:-}" ] && [ -f "$ARQ_PAR" ] && ORACLE_PAR="$(head -n1 "$ARQ_PAR")"
 ORACLE_URL="${ORACLE_URL:-https://objectstorage.sa-saopaulo-1.oraclecloud.com/n/gri0v6lf72rz/b/Aethra-jofo/o/}"
 if [ -n "${ORACLE_PAR:-}" ] && [ -n "${ORACLE_URL:-}" ]; then
+  # Compactado (2026-11-19): as texturas dos personagens comprimidas para a placa (ETC2) deixaram o pacote ~2x maior, mas
+  # elas compactam bem (203 MB -> ~49 MB). Sobe em gzip com "Content-Encoding: gzip": o HTTPRequest do app (accept_gzip,
+  # ligado por padrão em todo Godot 4) abre sozinho e grava o arquivo igual ao de antes (mesmo sha256 do conteudo.json).
+  # Depois de subir, confere baixando como o app; se não bater (ou quase não compactou), sobe o arquivo cru como antes.
   for f in "$TMP/novo/"*; do
-    [ "$(basename "$f")" = conteudo.json ] && continue
-    curl -fsS -X PUT --data-binary @"$f" "${ORACLE_PAR%/}/$(basename "$f")" > /dev/null
+    n="$(basename "$f")"
+    [ "$n" = conteudo.json ] && continue
+    gzip -6 -n -c "$f" > "$TMP/gz"
+    if [ "$(tam "$TMP/gz")" -lt $(( $(tam "$f") * 9 / 10 )) ]; then
+      curl -fsS -X PUT -H "Content-Encoding: gzip" -H "Content-Type: application/octet-stream" --data-binary @"$TMP/gz" "${ORACLE_PAR%/}/$n" > /dev/null
+      if [ "$(curl -fsS --compressed "${ORACLE_URL%/}/$n" | sha256sum | cut -d' ' -f1)" = "$(sha "$f")" ]; then
+        echo "balde: $n compactado ($(( $(tam "$f") / 1048576 )) -> $(( $(tam "$TMP/gz") / 1048576 )) MB)"
+        continue
+      fi
+      echo "::warning::balde: $n compactado não conferiu; sobe cru"
+    fi
+    curl -fsS -X PUT --data-binary @"$f" "${ORACLE_PAR%/}/$n" > /dev/null
   done
+  rm -f "$TMP/gz"
   if [ "$rebase" = 0 ]; then # garante que o completo e os deltas antigos também estão lá (primeira vez com Oracle)
     for arq in $(jq -r '.completo.partes[].arq, .deltas[].arq' "$TMP/antigo/conteudo.json"); do
       curl -fsS -o /dev/null -I "${ORACLE_URL%/}/$arq" || curl -fsS -X PUT --data-binary @"$TMP/antigo/$arq" "${ORACLE_PAR%/}/$arq" > /dev/null

@@ -100,3 +100,12 @@ vazia e reimportava todos. O pacote saía com ~165 MB diferentes, o delta estour
 completo (~210 MB) de novo. Agora o `apk.yml` volta a pasta de modelos do último build, compara byte a byte e só
 reimporta o modelo que mudou de verdade: o delta fica com o tamanho da mudança. O pacote e o `conteudo.json` também
 são publicados antes de gerar os APKs, então a atualização chega alguns minutos antes (mesmo gasto de Actions).
+
+## Balde compactado (2026-11-19)
+
+`publicar-conteudo.sh` sobe para a Oracle as partes do completo e os deltas em gzip, com `Content-Encoding: gzip`
+(as texturas ETC2 dos personagens compactam ~4x). O HTTPRequest do app abre sozinho e grava o arquivo igual ao de
+antes (o sha256 do `conteudo.json` é o do arquivo aberto). Depois de subir, o script baixa como o app e confere o
+sha256; se não bater, ou se o arquivo quase não compacta, sobe cru como antes. O release do GitHub e o Pages ficam
+crus. Barra de progresso: APK casca a partir desta versão mede na medida do arquivo aberto (`_tam_atual`); o casca
+antigo mostra a barra parando antes do fim e pulando para o próximo arquivo (só a barra; o download é o mesmo).
