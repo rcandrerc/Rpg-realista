@@ -3878,7 +3878,7 @@ export class Simulacao {
       firme = alvo.firmeAte > this.tempo;
     }
     if (alvo.vida <= 0) {
-      this.morrer(alvo);
+      this.morrer(alvo, de);
       if (alvo.tipo !== 'jogador' && de && !ehChefe) { // o golpe final joga o corpo para trás
         const d = Math.hypot(alvo.x - de.x, alvo.z - de.z) || 1, t = 0.35, m = COMBATE_INIMIGO.voaMorte;
         alvo.dash = { vx: (alvo.x - de.x) / d * m / t, vz: (alvo.z - de.z) / d * m / t, t };
@@ -3906,7 +3906,7 @@ export class Simulacao {
     }
     if (!(alvo.parado > this.tempo)) this.tocar(alvo, A.hit, 1.4);
   }
-  morrer(c) {
+  morrer(c, de = null) { // de: quem deu o golpe final (null: queda, afogado...)
     if (c.coleta) this.pararColeta(c, null);
     c.morto = true; c.dash = null; c.arrancada = null; c.esc = null;
     this.tocar(c, A.death, 1);
@@ -3920,7 +3920,7 @@ export class Simulacao {
       // Chama x Geada (André 2026-11-18): morte de guerra (golpe da outra raça nos últimos GUERRA.marca s) só desgasta
       const matou = c.pvpDe && this.tempo - (c.pvpT ?? -1e9) <= GUERRA.marca ? this.jogadores.get(c.pvpDe) : null;
       const pen = penalidadeMorte(c.prog, { semXp: !!matou });
-      if (matou) this.morteGuerra(c, matou);
+      if (matou && de === matou) this.morteGuerra(c, matou); // anúncio e memória do NPC só quando foi ele que derrubou (revisão 2026-11-19); o XP segue a regra dos 15 s
       c.pvpDe = null; c.progSujo = true; if (pen?.ouro) this.caixa(c, 'morte', -pen.ouro);
       this.aplicarStatus(c); this.avisarProg(c);
       this.depois(HEROI.renascer, () => {
@@ -4629,7 +4629,7 @@ export class Simulacao {
     j.vida = Math.max(0, j.vida - d.n); j.combateAte = this.tempo + ESTAMINA.combate;
     if (j.bot && d.de && d.de.tipo !== 'jogador') j.golpeDe = golpeDe(d.de);
     this.evento({ t: 'dano', alvo: j.id, n: d.n, dot: d.k });
-    if (j.vida <= 0) this.morrer(j);
+    if (j.vida <= 0) this.morrer(j, d.de);
   }
   invocarDoBoss(b) {
     const ci = b.sp.caca, c = this.cacas[ci];

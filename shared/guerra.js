@@ -40,10 +40,11 @@ export const Guerra = {
     if (this.tempo < (this.guerraT || 0)) return;
     this.guerraT = this.tempo + W.recheca;
     for (const j of this.jogadores.values()) {
-      const antes = !!j.guerra; j.guerra = this.podeGuerra(j);
-      if (j.bot || j.guerra === antes || j.morto || (j.prog?.nivel | 0) <= W.tregua) continue;
+      j.guerra = this.podeGuerra(j);
+      // compara com o último aviso mandado (revisão 2026-11-19): a mudança que caiu dentro dos GUERRA.aviso s sai depois, não some
+      if (j.bot || j.guerra === !!j.guerraAvisado || j.morto || (j.prog?.nivel | 0) <= W.tregua) continue;
       if (this.tempo < (j.guerraAvisoT ?? -1e9) + W.aviso) continue;
-      j.guerraAvisoT = this.tempo;
+      j.guerraAvisoT = this.tempo; j.guerraAvisado = j.guerra;
       this.evento({ t: 'aviso', para: j.id, texto: j.guerra ? 'Zona de guerra: a outra raça pode atacar' : 'Zona segura' });
     }
     // os NPCs com falas de guerra comentam quem da outra raça apareceu perto (também no time do André)

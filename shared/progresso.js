@@ -205,9 +205,14 @@ export function itemValido(it) {
 // pilha com cadeado só junta com pilha com cadeado (o que chega solto não entra no cadeado e o trancado não perde o cadeado)
 const mesmo = (a, b) => a && b && a.k === b.k && a.h === b.h && a.nv === b.nv && !a.cad === !b.cad;
 // Põe na mochila (junta na pilha igual ou no primeiro lugar vazio). Devolve false se não coube.
+// Tudo ou nada (revisão 2026-11-19): se a pilha não cabe inteira, a mochila fica como estava. Antes juntava um pedaço e
+// devolvia false, e quem chamou ficava com o item inteiro (duplicava no Otávio, na síntese e na horta).
 export function guardar(mochila, item) {
   const it = itemValido(item); if (!it) return false;
   if (it.n) {
+    let livre = 0;
+    for (const o of mochila) if (o && mesmo(o, it)) livre += Math.max(0, ITENS[it.k].pilha - o.n);
+    if (livre < it.n && mochila.indexOf(null) < 0) return false;
     for (const o of mochila) if (o && mesmo(o, it) && o.n < ITENS[it.k].pilha) {
       const cabe = Math.min(it.n, ITENS[it.k].pilha - o.n); o.n += cabe; it.n -= cabe;
       if (it.n <= 0) return true;
