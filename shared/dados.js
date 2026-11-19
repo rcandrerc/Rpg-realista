@@ -5141,10 +5141,10 @@ function listaReservados() {
   }
   return (reservados = l);
 }
-// Devolve o nome do NPC que o nome do jogador usa, 'parecido' no truque de letras de outro alfabeto, ou null
 // Bruno é de NPC: sugere Brunão ou BrunoSilva para o amigo não travar na primeira tela (Presidente 2026-11-19)
 export function sugerirNome(nome) {
-  const s = nomeValido(nome); if (!s || s.includes(' ')) return [];
+  const v = nomeValido(nome); if (!v || !/^[A-Za-zÀ-ÖØ-öø-ÿ]+$/.test(v)) return []; // espaço, número ou letra estranha: sem sugestão
+  const s = v[0].toUpperCase() + v.slice(1).toLowerCase(); // bruno ou BRUNO -> Bruno
   // nome comprido (Otávio, Cecília) pega até grudado: variação dele seria "parecido", então nada de sugestão
   const opcoes = [];
   if (s.length < NOMES_RESERVADOS.grudadoMin && /[^aeiouáéíóú]o$/i.test(s)) opcoes.push(s.slice(0, -1) + 'ão'); // Bruno -> Brunão
@@ -5155,14 +5155,16 @@ export function sugerirNome(nome) {
 // texto do aviso quando o nome cai na regra (mesmo texto na criação e na troca de nome)
 export function avisoNomeReservado(nome, r) {
   if (r === 'parecido') return 'Use só letras comuns no nome.';
-  // Cecília, Dário, a Geada e o vilão são os nomes que mais enganam: para eles nada de BrunoSilva, só "escolha outro"
-  const destaque = [...AMIGOS_VIRTUAIS, ...RIVAIS].some((d) => d.nome === r) || NOMES_RESERVADOS.extra.includes(r) || NOMES_RESERVADOS.semSugestao.includes(r);
+  // Cecília, Dário, Kira, Rufo, Lis, Kael, o vilão e os chefes são os nomes que mais enganam: para eles nada de BrunoSilva, só "escolha outro"
+  const destaque = [...AMIGOS_VIRTUAIS, ...RIVAIS].some((d) => d.nome === r) || NOMES_RESERVADOS.extra.includes(r) || NOMES_RESERVADOS.semSugestao.includes(r)
+    || [...Object.values(CHEFES_HISTORIA), ...Object.values(BOSSES_MUNDO)].some((c) => String(c?.nome || '').split(',')[0].trim() === r);
   const [a, b] = destaque ? [] : sugerirNome(nome);
   if (a && b) return `${nome} é nome de personagem do jogo. Que tal ${a} ou ${b}?`;
   if (a) return `${nome} é nome de personagem do jogo. Que tal ${a}?`;
   return `${nome} é nome de personagem do jogo. Escolha outro.`;
 }
 
+// Devolve o nome do NPC que o nome do jogador usa, 'parecido' no truque de letras de outro alfabeto, ou null
 export function nomeReservado(nome) {
   const { palavras, truque } = esqueleto(String(nome).slice(0, 64)); // nome de jogador tem até 16: corta lixo grande
   // letra que o esqueleto não conhece junto de letra nossa (ɾ, ꞃ, ɨ...): truque de letra parecida
