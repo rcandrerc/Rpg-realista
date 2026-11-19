@@ -122,7 +122,7 @@ jobs:
         with:
           name: robo-celular-${{ github.run_id }}
           path: /tmp/cel
-          retention-days: 14
+          retention-days: 2 # plano v3: cota de artefatos com o repositório fechado; a ronda das 9h só olha as últimas 24 h
       - name: Falhar se algum script não compila
         if: always()
         run: |
