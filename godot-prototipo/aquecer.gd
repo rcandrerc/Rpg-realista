@@ -235,6 +235,11 @@ func _mostrar_tudo() -> void:
 			n.no.queue_free()
 	print_verbose("aquecer: %d tipos de NPC em %d ms" % [vistos.size(), (Time.get_ticks_usec() - t0) / 1000])
 
+# 4 GB de memória ou menos (o Android mostra ~3,6 GB num celular de 4 GB; um de 6 GB mostra ~5,5 GB)
+static func memoria_pouca() -> bool:
+	var total := int(OS.get_memory_info().get("physical", -1))
+	return total > 0 and total < 4800 * 1048576
+
 func _preparar_corpos() -> void:
 	var cri = m.P.dados.get("criador") if m.P and m.P.dados is Dictionary else null
 	if not (cri is Dictionary):
@@ -247,6 +252,14 @@ func _preparar_corpos() -> void:
 	for c in pent:
 		if not str(c) in corpos:
 			corpos.append(str(c))
+	# Celular de 4 GB (2026-11-19, Galaxy S9 no Test Lab: o Android matou o jogo 4 s depois do Entrar, já sem memória
+	# desde o menu): um boneco de cada corpo, com 10 roupas e todos os penteados, ao mesmo tempo, não cabe. Lá só o corpo
+	# do próprio herói é preparado; os outros montam quando aparecem (um tranco de ~1 s na primeira vez de cada corpo,
+	# melhor que o jogo fechar). Os bosses humanos também ficam para quando aparecerem.
+	var pouca := memoria_pouca()
+	if pouca:
+		corpos = [m.visual] if str(m.visual) in corpos else []
+		print("[entrada] celular com pouca memória (%d MB): prepara só o corpo do herói" % (int(OS.get_memory_info().get("physical", 0)) / 1048576))
 	for c in corpos:
 		for d in pent.get(c, []):
 			Penteado.pedir(str(d)) # carrega no fundo enquanto as armaduras montam
@@ -260,7 +273,7 @@ func _preparar_corpos() -> void:
 	# aparecia (rx:inimigos 970 a 1510 ms): a primeira roupa num corpo novo monta as peças (no PC 534 ms; depois 7 ms).
 	# Atrás da capa, cada corpo de chefe humano da história veste a roupa dele uma vez.
 	var chefes = m.P.dados.get("historia", {}).get("chefes", {}) if m.P and m.P.dados is Dictionary else {}
-	if chefes is Dictionary:
+	if chefes is Dictionary and not pouca:
 		for hc in chefes:
 			var H = chefes[hc].get("humano") if chefes[hc] is Dictionary else null
 			if not (H is Dictionary) or not ResourceLoader.exists("res://modelos/%s.glb" % str(H.get("modelo", ""))):
