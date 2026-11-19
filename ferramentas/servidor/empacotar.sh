@@ -34,6 +34,8 @@ if [ "${ABRIR_SERVIDOR:-0}" = 1 ] || [ "$codigo" = 404 ]; then
 elif [ "$codigo" = 200 ] && grep -q 'BEGIN PUBLIC KEY' "$chave"; then
   trap 'rm -f "$saida/servidor.mjs" "$saida/package.json" "$saida/versao.txt"' ERR # falhou: código aberto nunca fica no dist
   node ferramentas/servidor/trancar.mjs "$chave" "$(cat "$saida/versao.txt")" "$saida/servidor.mjs" "$saida/package.json" "$saida/pacote.json"
+  # [servidor urgente] no título do PR (vai na mensagem do merge): o servidor instala fora da janela de horário
+  if git log -1 --format=%B 2>/dev/null | grep -qF '[servidor urgente]'; then export URGENTE=1; echo "Pacote URGENTE: instala fora da janela."; fi
   node ferramentas/servidor/assinar.mjs "$saida/pacote.json" # só a máquina de builds da Oracle tem a chave (ver assinar.mjs)
   cp "$saida/versao.txt" "$saida/pacote-versao.txt"
   rm -f "$saida/servidor.mjs" "$saida/package.json" "$saida/versao.txt"

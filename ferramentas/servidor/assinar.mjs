@@ -59,6 +59,8 @@ delete pacote.assinado_por;
 // Ordem dos pacotes (revisão de segurança): o servidor recusa pacote emitido antes do último que instalou, então
 // um pacote antigo (ainda que assinado) não volta a ser instalado.
 pacote.emitido_em = Date.now();
+// Conserto urgente (PR com [servidor urgente] no título, ver empacotar.sh): instala fora da janela de horário.
+if (process.env.URGENTE === '1') pacote.urgente = true; else delete pacote.urgente;
 pacote.assinado_por = idChave(publica);
 pacote.assinatura = crypto.sign(null, textoAssinado(pacote), privada).toString('base64');
 fs.writeFileSync(arqPacote, JSON.stringify(pacote));

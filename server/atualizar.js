@@ -82,6 +82,24 @@ export function emitidoAceito(pacote, pasta) {
   return emitido > ultimo ? emitido : null;
 }
 
+// Janela de instalação (plano de lançamento v3): o servidor novo só entra em hora marcada, horário de Brasília
+// (UTC-3, sem horário de verão): 05h–07h e 14h–15h. Na 1ª semana depois do lançamento (19/12 20h a 26/12 20h), só
+// 05h–07h. De 19/12 18h a 20/12 02h nada instala, nem urgente. Pacote "urgente" (PR com [servidor urgente] no título;
+// o campo vai assinado) instala na hora fora desse bloqueio. Fora da janela o servidor só espera: confere de novo a
+// cada 5 min e instala quando a janela abrir (o pacote mais novo daquele momento).
+export const JANELAS = [[5, 7], [14, 15]];
+const BRASILIA = -3 * 3600e3;
+const LANCAMENTO_SEMANA = [Date.parse('2026-12-19T20:00:00-03:00'), Date.parse('2026-12-26T20:00:00-03:00')];
+const BLOQUEIO = [Date.parse('2026-12-19T18:00:00-03:00'), Date.parse('2026-12-20T02:00:00-03:00')];
+export function podeInstalar(agora = Date.now(), urgente = false) {
+  if (process.env.JANELA_LIVRE === '1') return true; // teste local
+  if (agora >= BLOQUEIO[0] && agora < BLOQUEIO[1]) return false;
+  if (urgente) return true;
+  const hora = new Date(agora + BRASILIA).getUTCHours();
+  const semana = agora >= LANCAMENTO_SEMANA[0] && agora < LANCAMENTO_SEMANA[1];
+  return (semana ? JANELAS.slice(0, 1) : JANELAS).some(([de, ate]) => hora >= de && hora < ate);
+}
+
 // Abre o pacote trancado. Formato: { versao, chave (AES embrulhada em RSA-OAEP), iv, tag, dados } em base64.
 export function abrirPacote(pacote, chavePrivada) {
   const aes = crypto.privateDecrypt({ key: chavePrivada, oaepHash: 'sha256', padding: crypto.constants.RSA_PKCS1_OAEP_PADDING }, Buffer.from(pacote.chave, 'base64'));
@@ -107,6 +125,7 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
   app.get('/chave-do-servidor', (_req, res) => res.type('text/plain').send(publica));
 
   let ocupado = false;
+  let esperando = '';
   const conferir = async () => {
     if (ocupado) return;
     ocupado = true;
@@ -122,6 +141,11 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
       if (chaves.length && !assinaturaValida(pacote, chaves)) throw new Error(`pacote ${nova} sem assinatura válida (assinado_por=${pacote.assinado_por || 'ninguém'}): não instalo`);
       const emitido = chaves.length ? emitidoAceito(pacote, pasta) : null;
       if (chaves.length && !emitido) throw new Error(`pacote ${nova} mais velho que o último instalado (ou sem data): não instalo`);
+      if (!podeInstalar(Date.now(), pacote.urgente === true)) {
+        if (esperando !== nova) console.log(`Servidor novo ${nova} pronto; instala na próxima janela (05h–07h ou 14h–15h de Brasília).`);
+        esperando = nova;
+        return;
+      }
       const { arquivos } = abrirPacote(pacote, chavePrivada);
       if (!arquivos?.['servidor.mjs'] || !arquivos?.['package.json']) throw new Error('pacote sem servidor.mjs/package.json');
       const pacoteAntigo = fs.existsSync(path.join(pasta, 'package.json')) ? fs.readFileSync(path.join(pasta, 'package.json'), 'utf8') : '';
