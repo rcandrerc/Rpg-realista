@@ -31,6 +31,46 @@ export async function versaoMaisNova(origens, buscar = fetch) {
   return melhor;
 }
 
+// Pacote assinado (plano de lançamento v3, portão 10/12: "pacote do servidor assinado"). O trancado acima só garante
+// que ninguém LÊ o código; qualquer um com a chave pública (/chave-do-servidor) conseguiria MONTAR um pacote. Agora o
+// CI assina cada pacote com uma chave Ed25519 que só existe na máquina de builds da Oracle
+// (ferramentas/servidor/assinar.mjs) e o servidor só instala o que veio assinado por uma chave da lista abaixo.
+// Lista vazia = ainda em transição (aceita sem assinatura). Chave nova (máquina de builds perdida): acrescente a
+// pública aqui ou, sem atualização possível, numa linha de chaves-assinatura.txt ao lado do servidor.mjs.
+export const CHAVES_ASSINATURA = [];
+
+// Texto assinado: todos os campos do pacote menos a própria assinatura, em ordem fixa (campo novo já entra).
+export function textoAssinado(pacote) {
+  const campos = Object.keys(pacote).filter((k) => k !== 'assinatura' && k !== 'assinado_por').sort();
+  return Buffer.from(JSON.stringify(campos.map((k) => [k, pacote[k]])));
+}
+
+export function idChave(publicaBase64) {
+  return crypto.createHash('sha256').update(publicaBase64).digest('hex').slice(0, 16);
+}
+
+// true se alguma chave confiável assina este pacote. chaves = chaves públicas Ed25519 (SPKI DER em base64).
+export function assinaturaValida(pacote, chaves) {
+  if (!pacote || typeof pacote.assinatura !== 'string') return false;
+  const texto = textoAssinado(pacote);
+  const assinatura = Buffer.from(pacote.assinatura, 'base64');
+  for (const b64 of chaves) {
+    try {
+      const chave = crypto.createPublicKey({ key: Buffer.from(b64, 'base64'), format: 'der', type: 'spki' });
+      if (crypto.verify(null, texto, chave, assinatura)) return true;
+    } catch { /* chave mal escrita na lista: tenta a próxima */ }
+  }
+  return false;
+}
+
+// Chaves aceitas nesta máquina: as do código + as de chaves-assinatura.txt (uma por linha; # comenta).
+export function chavesAceitas(pasta) {
+  const extra = path.join(pasta, 'chaves-assinatura.txt');
+  const doArquivo = fs.existsSync(extra)
+    ? fs.readFileSync(extra, 'utf8').split('\n').map((l) => l.replace(/#.*/, '').trim()).filter(Boolean) : [];
+  return [...new Set([...CHAVES_ASSINATURA, ...doArquivo])];
+}
+
 // Abre o pacote trancado. Formato: { versao, chave (AES embrulhada em RSA-OAEP), iv, tag, dados } em base64.
 export function abrirPacote(pacote, chavePrivada) {
   const aes = crypto.privateDecrypt({ key: chavePrivada, oaepHash: 'sha256', padding: crypto.constants.RSA_PKCS1_OAEP_PADDING }, Buffer.from(pacote.chave, 'base64'));
@@ -67,6 +107,8 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
       if (!nova || nova === atual) return;
       const pacote = await (await fetch(`${achou.origem}/pacote.json`, { cache: 'no-store' })).json();
       if (String(pacote.versao) !== nova) return; // o site ainda está trocando os arquivos
+      const chaves = chavesAceitas(pasta);
+      if (chaves.length && !assinaturaValida(pacote, chaves)) throw new Error(`pacote ${nova} sem assinatura válida (assinado_por=${pacote.assinado_por || 'ninguém'}): não instalo`);
       const { arquivos } = abrirPacote(pacote, chavePrivada);
       if (!arquivos?.['servidor.mjs'] || !arquivos?.['package.json']) throw new Error('pacote sem servidor.mjs/package.json');
       const pacoteAntigo = fs.existsSync(path.join(pasta, 'package.json')) ? fs.readFileSync(path.join(pasta, 'package.json'), 'utf8') : '';

@@ -108,3 +108,15 @@ Medindo o #649 vimos dois gargalos do repositório privado:
 
 Instalar (uma vez, no Cloud Shell, como as outras vagas; o repositório privado não deixa baixar pelo raw):
 `TOKEN=<código> VAGAS='atualizacao atualizacao2' INSTALADOR_B64=<instalar-vagas.sh em base64> bash <(echo <cloudshell-vagas.sh em base64> | base64 -d)`
+
+## Chave que assina o pacote do servidor (plano de lançamento, portão 10/12)
+
+O pacote do servidor (client/dist/servidor/pacote.json) sai assinado com uma chave Ed25519 que só existe na máquina
+de builds: `~runner/.aethra/assinatura-pacote.pem` (permissão 600). O primeiro job de publicação na Oracle cria a
+chave sozinho e mostra a pública no log ("Pública: ..."). Ela vai em `CHAVES_ASSINATURA` (server/atualizar.js); a
+partir daí o servidor só instala pacote assinado por ela. Por isso o job `publicar` do pages.yml roda sempre na vaga
+da atualização (numa máquina do GitHub o pacote sairia sem assinatura e o servidor não instalaria).
+
+Se a máquina de builds morrer: a chave nova sai sozinha no primeiro build; ponha a pública numa linha de
+`chaves-assinatura.txt` ao lado do servidor.mjs na máquina do jogo (ou use a cópia reserva da chave, que vai na
+cópia cifrada fora da máquina).
