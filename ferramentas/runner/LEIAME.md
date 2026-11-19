@@ -138,10 +138,17 @@ velha é apagada. Depois do passo 2 a troca é recusada (o job cai e a chave fic
 recusaria tudo que a nova assinasse. Para trocar depois do passo 2: primeiro a pública nova entra em chaves-assinatura.txt
 na máquina do jogo, depois na lista do código, e só então a chave da Oracle é trocada à mão.
 
-**Como o passo 2 entra:** (1) rodar o pages.yml marcando a caixa, que troca a chave de 19/11 (f1ef4ea7, criada antes
-da aprovação de forks) por uma nova e mostra a pública no log; (2) PR pondo essa pública em CHAVES_ASSINATURA
-(server/atualizar.js). O servidor instala esse pacote ainda sem exigir (lista vazia no código dele) e, dali em diante,
-só instala pacote assinado pela nova.
+**Como o passo 2 entra:** (0) antes, o servidor no ar precisa ser um que grava a data de TODO pacote que instala
+(emitido.txt), mesmo sem exigir; o `/saude` com o campo `servidor` mostra que é. (1) Rodar o pages.yml marcando a
+caixa, que troca a chave de 19/11 (f1ef4ea7, criada antes da aprovação de forks) por uma nova e mostra a pública no
+log. (2) PR pondo essa pública e a reserva em CHAVES_ASSINATURA (server/atualizar.js). O servidor instala esse pacote
+ainda sem exigir (lista vazia no código dele), grava a data dele e, dali em diante, só instala pacote assinado por
+uma chave da lista e mais novo que ele. Sem o passo 0, o primeiro servidor que exige aceitaria de volta um pacote
+mais velho da mesma chave (sem a lista) e voltaria a não exigir (revisão independente).
+
+**Nunca "Re-run" numa execução que trocou a chave:** a nova tentativa usa o código e as opções daquela vez (lista
+vazia) e trocaria de novo, apagando a chave que já está na lista. Desde 19/11 o assinar.mjs não troca em nova
+tentativa (GITHUB_RUN_ATTEMPT > 1); para trocar de verdade, Run workflow de novo.
 
 **Chave reserva (decisão do Presidente, 19/11):** a lista leva também uma pública RESERVA Ed25519, gerada fora da
 Oracle. A privada fica só no fontes (`chaves/servidor/assinatura-reserva.pem`) e no Drive do André, nunca na Oracle,

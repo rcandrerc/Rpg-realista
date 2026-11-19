@@ -140,12 +140,22 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
   app.get('/chave-do-servidor', (_req, res) => res.type('text/plain').send(publica));
   // O /saude (server/index.js) mostra isto: a versão que roda, a chave que assinou o pacote instalado (conferida aqui)
   // e se esta máquina já exige assinatura. Nada secreto (o pacote.json do site já mostra versão e chave); serve para
-  // conferir de fora, sem entrar na máquina do jogo. Fixo até o próximo reinício (instalar sempre reinicia).
+  // conferir de fora, sem entrar na máquina do jogo. Lido de novo a cada 30 s (chaves-assinatura.txt pode mudar sem
+  // reiniciar); a chave só aparece se assinado.txt é da versão que roda (outro instalador pode ter trocado a versão).
   const lerTexto = (arq) => { try { return fs.readFileSync(path.join(pasta, arq), 'utf8').trim(); } catch { return ''; } };
-  const info = {
-    versao: lerTexto('versao.txt').slice(0, 12),
-    assinadoPor: lerTexto('assinado.txt') || null,
-    assinaturaExigida: chavesAceitas(pasta).length > 0,
+  let infoGuardada = null;
+  let infoQuando = 0;
+  const info = () => {
+    if (infoGuardada && Date.now() - infoQuando < 30e3) return infoGuardada;
+    const versao = lerTexto('versao.txt');
+    const [versaoAssinada, chave] = lerTexto('assinado.txt').split(' ');
+    infoGuardada = {
+      versao: versao.slice(0, 12),
+      assinadoPor: versao && versaoAssinada === versao && chave ? chave : null,
+      assinaturaExigida: chavesAceitas(pasta).length > 0,
+    };
+    infoQuando = Date.now();
+    return infoGuardada;
   };
 
   let ocupado = false;
@@ -161,14 +171,19 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
       const nova = achou.versao;
       const atual = fs.readFileSync(path.join(pasta, 'versao.txt'), 'utf8').trim();
       if (!nova || nova === atual) return;
+      // versão vem do site: só letras, números, ponto, traço (sem quebra de linha que forjaria linhas no log)
+      if (!/^[\w.-]{1,64}$/.test(nova)) throw new Error(`versão estranha no site (${JSON.stringify(nova.slice(0, 80))}): não instalo`);
       const pacote = await (await fetch(`${achou.origem}/pacote.json`, { cache: 'no-store' })).json();
       if (String(pacote.versao) !== nova) return; // o site ainda está trocando os arquivos
       const chaves = chavesAceitas(pasta);
       const assinou = chaves.length ? chaveQueAssina(pacote, chaves) : null;
-      if (chaves.length && !assinou) throw new Error(`pacote ${nova} sem assinatura válida (assinado_por=${pacote.assinado_por || 'ninguém'}): não instalo`);
+      if (chaves.length && !assinou) throw new Error(`pacote ${nova} sem assinatura válida (assinado_por=${JSON.stringify(String(pacote.assinado_por ?? 'ninguém').slice(0, 40))}): não instalo`);
       if (assinou && conferida !== nova) console.log(`Assinatura conferida: pacote ${nova} (chave ${idChave(assinou)}).`);
       conferida = nova;
-      const emitido = chaves.length ? emitidoAceito(pacote, pasta) : null;
+      // Data do pacote: o piso vale sempre que há data, mesmo antes de exigir assinatura (revisão independente do passo
+      // 2): assim o primeiro servidor que passa a exigir já nasce com o piso do pacote que o instalou, e um pacote mais
+      // velho (assinado pela mesma chave, mas sem a lista) não volta. Sem exigir, instala igual e só não baixa o piso.
+      const emitido = emitidoAceito(pacote, pasta);
       if (chaves.length && !emitido) throw new Error(`pacote ${nova} mais velho que o último instalado (ou sem data): não instalo`);
       if (!podeInstalar(Date.now() + adiantar, pacote.urgente === true, pacote.furar_bloqueio === true)) {
         if (esperando !== nova) console.log(`Servidor novo ${nova} pronto; instala na próxima janela (05h–07h ou 14h–15h de Brasília).`);
@@ -187,7 +202,7 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
       fs.renameSync(path.join(pasta, 'servidor.mjs.novo'), path.join(pasta, 'servidor.mjs'));
       fs.writeFileSync(path.join(pasta, 'versao.txt'), nova + '\n');
       if (emitido) fs.writeFileSync(path.join(pasta, 'emitido.txt'), emitido + '\n');
-      if (assinou) fs.writeFileSync(path.join(pasta, 'assinado.txt'), idChave(assinou) + '\n');
+      if (assinou) fs.writeFileSync(path.join(pasta, 'assinado.txt'), `${nova} ${idChave(assinou)}\n`);
       else fs.rmSync(path.join(pasta, 'assinado.txt'), { force: true }); // instalou sem conferir: não mostra chave velha
       console.log(`Servidor novo ${nova} instalado; reiniciando.`);
       if (antesDeSair) await antesDeSair();

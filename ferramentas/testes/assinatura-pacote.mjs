@@ -13,7 +13,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'assinatura-'));
 let falhas = 0;
 const ok = (cond, nome) => { console.log(`${cond ? 'ok' : 'FALHOU'} ${nome}`); if (!cond) falhas++; };
 const assinar = (ambiente) => execFileSync('node', [path.join(raiz, 'ferramentas/servidor/assinar.mjs'), path.join(tmp, 'p.json')],
-  { env: { ...process.env, ASSINATURA_PACOTE: path.join(tmp, 'chave.pem'), RUNNER_ENVIRONMENT: ambiente, CRIAR_CHAVE_ASSINATURA: '', CHAVES_ASSINATURA_TESTE: '[]' } }).toString();
+  { env: { ...process.env, ASSINATURA_PACOTE: path.join(tmp, 'chave.pem'), RUNNER_ENVIRONMENT: ambiente, CRIAR_CHAVE_ASSINATURA: '', CHAVES_ASSINATURA_TESTE: '[]', GITHUB_RUN_ATTEMPT: '1' } }).toString();
 const ler = () => JSON.parse(fs.readFileSync(path.join(tmp, 'p.json'), 'utf8'));
 
 fs.writeFileSync(path.join(tmp, 'p.json'), JSON.stringify({ versao: 'abc', chave: 'k', iv: 'i', tag: 't', dados: 'd' }));
@@ -51,7 +51,7 @@ ok(emitidoAceito({}, srv) === null, 'pacote sem data não passa');
 fs.rmSync(path.join(tmp, 'chave.pem'));
 const { spawn } = await import('node:child_process');
 fs.writeFileSync(path.join(tmp, 'a.json'), '{"versao":"a"}'); fs.writeFileSync(path.join(tmp, 'b.json'), '{"versao":"b"}');
-const roda = (arq) => new Promise((fim) => { let out = ''; const c = spawn('node', [path.join(raiz, 'ferramentas/servidor/assinar.mjs'), path.join(tmp, arq)], { env: { ...process.env, ASSINATURA_PACOTE: path.join(tmp, 'chave.pem'), RUNNER_ENVIRONMENT: 'self-hosted', CRIAR_CHAVE_ASSINATURA: '', CHAVES_ASSINATURA_TESTE: '[]' } }); c.stdout.on('data', (d) => { out += d; }); c.on('close', () => fim(out)); });
+const roda = (arq) => new Promise((fim) => { let out = ''; const c = spawn('node', [path.join(raiz, 'ferramentas/servidor/assinar.mjs'), path.join(tmp, arq)], { env: { ...process.env, ASSINATURA_PACOTE: path.join(tmp, 'chave.pem'), RUNNER_ENVIRONMENT: 'self-hosted', CRIAR_CHAVE_ASSINATURA: '', CHAVES_ASSINATURA_TESTE: '[]', GITHUB_RUN_ATTEMPT: '1' } }); c.stdout.on('data', (d) => { out += d; }); c.on('close', () => fim(out)); });
 await Promise.all([roda('a.json'), roda('b.json')]);
 const pubFinal = crypto.createPublicKey(crypto.createPrivateKey(fs.readFileSync(path.join(tmp, 'chave.pem')))).export({ type: 'spki', format: 'der' }).toString('base64');
 const lerJ = (a) => JSON.parse(fs.readFileSync(path.join(tmp, a), 'utf8'));
@@ -59,19 +59,22 @@ ok(assinaturaValida(lerJ('a.json'), [pubFinal]) && assinaturaValida(lerJ('b.json
 ok(!fs.readdirSync(tmp).some((f) => f.endsWith('.tmp')), 'nenhum arquivo temporário de chave sobra');
 // troca de chave de propósito (botão do pages.yml): a nova substitui a velha, e o pacote sai assinado pela nova
 const trocar = (ambiente) => execFileSync('node', [path.join(raiz, 'ferramentas/servidor/assinar.mjs'), path.join(tmp, 'p.json')],
-  { env: { ...process.env, ASSINATURA_PACOTE: path.join(tmp, 'chave.pem'), RUNNER_ENVIRONMENT: ambiente, CRIAR_CHAVE_ASSINATURA: '1', CHAVES_ASSINATURA_TESTE: '[]' } }).toString();
+  { env: { ...process.env, ASSINATURA_PACOTE: path.join(tmp, 'chave.pem'), RUNNER_ENVIRONMENT: ambiente, CRIAR_CHAVE_ASSINATURA: '1', CHAVES_ASSINATURA_TESTE: '[]', GITHUB_RUN_ATTEMPT: '1' } }).toString();
 const pubNova = trocar('self-hosted').match(/Pública: (\S+)/)[1];
 ok(pubNova !== pubFinal && assinaturaValida(ler(), [pubNova]) && !assinaturaValida(ler(), [pubFinal]), 'troca de chave: pacote sai com a chave nova, a velha não vale');
 ok((fs.statSync(path.join(tmp, 'chave.pem')).mode & 0o777) === 0o600 && !fs.readdirSync(tmp).some((f) => f.endsWith('.tmp')), 'troca de chave: 600 e sem temporário');
 ok(trocar('github-hosted').includes(`Pública: ${pubNova}`), 'máquina do GitHub não troca a chave');
 // passo 2 (lista preenchida): a troca é recusada e a chave fica; chave fora da lista ou sumida derruba o job (nada publica)
 const { spawnSync } = await import('node:child_process');
-const exigindo = (lista, criar = '') => {
+const exigindo = (lista, criar = '', tentativa = '1') => {
   const r = spawnSync('node', [path.join(raiz, 'ferramentas/servidor/assinar.mjs'), path.join(tmp, 'p.json')],
-    { env: { ...process.env, ASSINATURA_PACOTE: path.join(tmp, 'chave.pem'), RUNNER_ENVIRONMENT: 'self-hosted', CRIAR_CHAVE_ASSINATURA: criar, CHAVES_ASSINATURA_TESTE: JSON.stringify(lista) }, encoding: 'utf8' });
+    { env: { ...process.env, ASSINATURA_PACOTE: path.join(tmp, 'chave.pem'), RUNNER_ENVIRONMENT: 'self-hosted', CRIAR_CHAVE_ASSINATURA: criar, CHAVES_ASSINATURA_TESTE: JSON.stringify(lista), GITHUB_RUN_ATTEMPT: tentativa }, encoding: 'utf8' });
   return { codigo: r.status, saida: r.stdout + r.stderr };
 };
 const pemAntes = fs.readFileSync(path.join(tmp, 'chave.pem'), 'utf8');
+const reRun = exigindo([], '1', '2');
+ok(reRun.codigo === 0 && reRun.saida.includes('NÃO troco de novo') && fs.readFileSync(path.join(tmp, 'chave.pem'), 'utf8') === pemAntes && assinaturaValida(ler(), [pubNova]),
+  'Re-run de execução com troca: não troca de novo, assina com a chave que está lá');
 const recusada = exigindo([pubNova], '1');
 ok(recusada.codigo === 1 && recusada.saida.includes('Troca de chave recusada') && fs.readFileSync(path.join(tmp, 'chave.pem'), 'utf8') === pemAntes, 'passo 2: troca recusada e a chave fica como estava');
 const fora = exigindo([outra]);

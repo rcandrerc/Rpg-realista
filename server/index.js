@@ -755,7 +755,7 @@ app.get('/saude', (_req, res) => {
   const A = saudeAnterior;
   // correcoes = "corrigir" mandados (rollback), silencioMaxMs = maior tempo sem posição de um celular, engasgos = silêncios
   // de mais de 1 s; todos da última janela fechada mais a atual (1 a 2 min)
-  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +Math.max(carga.pico, A.pico).toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes: A.correcoes + agora, silencioMaxMs: Math.max(carga.silencioMs, A.silencioMs), engasgos: A.engasgos + carga.engasgos, relogio: A.relogio, janelaS: SAUDE_JANELA / 1000, reserva: reserva.estado, servidor: naOracle?.info ?? null });
+  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +Math.max(carga.pico, A.pico).toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes: A.correcoes + agora, silencioMaxMs: Math.max(carga.silencioMs, A.silencioMs), engasgos: A.engasgos + carga.engasgos, relogio: A.relogio, janelaS: SAUDE_JANELA / 1000, reserva: reserva.estado, servidor: naOracle?.info?.() ?? null });
 });
 // Reinício com aviso na tela (André 2026-11-12): faixa "o servidor reinicia em 1 minuto" e depois a contagem grande de
 // REINICIO.contagem s (godot-prototipo/reinicio.gd). O servidor manda {t:'reinicio', s} a cada 10 s (quem entra no meio também vê)
