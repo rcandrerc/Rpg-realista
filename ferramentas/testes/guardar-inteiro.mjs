@@ -24,3 +24,10 @@ m = cheia(); const caixa = [{ k, n: 50 }];
 let n = 0; while (caixa.length && guardar(m, caixa[0])) { caixa.shift(); n++; }
 const total = m.filter((o) => o?.k === k).reduce((a, o) => a + o.n, 0) + caixa.reduce((a, o) => a + o.n, 0);
 ok(total === P - 9 + 50, `retirar do Otávio não duplica (total ${total})`);
+
+// presente, drop e coleta (o que se perde se não couber): guardarQueCabe põe o que couber nas pilhas iguais
+const { guardarQueCabe } = await import('../../shared/progresso.js');
+m = cheia(); it = { k, n: 50 };
+ok(guardarQueCabe(m, it) === 9 && m[0].n === P && it.n === 50, 'guardarQueCabe: sem lugar vazio, entram os 9 que cabem (e o item recebido não muda)');
+m = cheia(); m[5] = null;
+ok(guardarQueCabe(m, { k, n: 50 }) === 50, 'guardarQueCabe: com lugar vazio, entra tudo');
