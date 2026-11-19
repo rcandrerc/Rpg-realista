@@ -70,3 +70,16 @@ instala o pacote mais novo quando a janela abrir (`podeInstalar` em `server/atua
 Conserto urgente: ponha `[servidor urgente]` no título do PR; o pacote sai marcado (campo assinado) e instala na hora,
 menos no bloqueio do lançamento. Para furar o bloqueio (conserto que impede os amigos de entrar ou jogar), só com o OK do
 Presidente escrito no PR: `[furar bloqueio]` no título. Servidor de teste (reserva, robôs): `JANELA_LIVRE=1` no ambiente instala sempre.
+
+## Voltar as contas para uma cópia
+
+`voltar-contas.sh` roda na máquina do servidor, como root. Ele confere a cópia, para o servidor, guarda o banco de agora
+em `copias/antes-da-volta-<hora>.db` (dá para desfazer), põe a cópia no lugar, liga o servidor e espera o `/saude`.
+
+    sudo bash voltar-contas.sh --listar
+    sudo bash voltar-contas.sh 2026-11-25 --sim        # só confere
+    sudo bash voltar-contas.sh 2026-11-25
+    sudo bash voltar-contas.sh marco-2026-11-19-antes-do-presidente
+    sudo bash voltar-contas.sh copia.tar --chave copia-contas.pem   # cópia cifrada de fora da máquina
+
+Cópia de antes de um `RECOMECO.data` volta a zerar as contas de teste quando o servidor sobe (o recomeço roda de novo).
