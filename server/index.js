@@ -10,6 +10,7 @@ import wsTransport from '@colyseus/ws-transport';
 import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
 import { Contas, verificadorGoogle, roboCel, roboCarga, ROBO } from './contas.js';
 import { Visao } from './visao.js';
+import { gerarCopia, limparSobrasCopia, chaveAssinaturaCopia, CHAVE_COPIA } from './copia-contas.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { iaEsgotada, iaVoltaEm, podeIaJogador, puxarAssunto, pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
 import { ligarAtualizacaoTrancada, proximoReinicio } from './atualizar.js';
@@ -980,6 +981,41 @@ app.get('/npcs.json', async (req, res) => {
   }
   res.json({ dia, npcs: l });
 });
+// Cópia cifrada das contas para fora da máquina (plano v3, frente 2; desenho aprovado pelo Presidente 19/11). Só o
+// workflow contas-copia.yml da main deste repositório (crachá OIDC do GitHub: repositório, ramo main e nome do workflow
+// conferidos) e no máximo uma vez por hora. O servidor cifra com a chave PÚBLICA (server/copia-contas.js): nem quem
+// baixa vê o banco aberto. Sem a variável ROBO_TESTE de atalho: aqui só vale o crachá de verdade. A cópia sai sem as
+// chaves de IA e sem sessões, assinada com a chave Ed25519 do servidor, e é feita num processo filho (revisão da frente 3).
+limparSobrasCopia();
+const COPIA_CAMINHO = '/.github/workflows/contas-copia.yml@refs/heads/main';
+let copiaT = 0;
+app.get('/contas/copia-cifrada', async (req, res) => {
+  let vale = false;
+  try {
+    const { payload } = await jwtVerify(sessaoDe(req), chavesGithub, { issuer: 'https://token.actions.githubusercontent.com', audience: 'age-of-embers-robo' });
+    const ref = String(payload.job_workflow_ref), i = ref.indexOf('/.github/');
+    // o dono/nome do repositório não liga para maiúscula (o GitHub manda 'Rpg-realista'); o caminho do workflow, sim
+    vale = String(payload.repository).toLowerCase() === ROBO_REPO && payload.ref === 'refs/heads/main' && i > 0 && ref.slice(0, i).toLowerCase() === ROBO_REPO && ref.slice(i) === COPIA_CAMINHO;
+  } catch { vale = false; }
+  if (!vale) return res.status(401).json({ erro: 'só o workflow da cópia' });
+  if (!contas) return res.status(503).json({ erro: 'sem contas' });
+  if (!CHAVE_COPIA.trim()) return res.status(503).json({ erro: 'sem chave da cópia' });
+  if (Date.now() - copiaT < 3600e3) return res.status(429).json({ erro: 'uma por hora' });
+  copiaT = Date.now();
+  try {
+    const { arquivo, apagar } = await gerarCopia({ banco: path.join(contas.pasta, 'contas.db'), pastaDados: contas.pasta });
+    res.set('Content-Type', 'application/x-tar').set('Cache-Control', 'no-store');
+    res.sendFile(arquivo, (e) => { apagar(); if (e) { copiaT = 0; console.error('Falha ao mandar a cópia cifrada:', e.message); } });
+  } catch (e) { copiaT = 0; console.error('Falha na cópia cifrada:', e.message); res.status(500).json({ erro: 'falhou' }); } // falhou: pode tentar de novo
+});
+// A pública Ed25519 que assina as cópias (o voltar-contas.sh confere com ela; fixe-a em ferramentas/servidor/).
+app.get('/contas/copia-assinatura.pub.pem', (_req, res) => {
+  if (!contas) return res.status(503).json({ erro: 'sem contas' });
+  const k = chaveAssinaturaCopia(contas.pasta, false); // só mostra; quem cria é a 1ª cópia
+  if (!k) return res.status(404).json({ erro: 'ainda sem cópia' });
+  res.type('text/plain').send(k.pub);
+});
+
 // Conversas da Cecília e do Dário para a ronda diária (André 2026-11-17: "a mesma coisa que você faz com os erros do jogo,
 // fazer com o chat dela"). São conversas de jogadores: só o workflow cecilia-conversas.yml (crachá OIDC do GitHub, na main)
 // lê, e ele cifra tudo com a chave pública de quem pediu antes de guardar. Nada de chave de IA de ninguém.
