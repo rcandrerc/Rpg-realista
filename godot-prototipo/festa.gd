@@ -85,6 +85,19 @@ func do_aviso(t: String) -> bool:
 			nome = nome.substr(0, i)
 		missao(nome, sub)
 		return true
+	if t.begins_with("Missão de vila cumprida: "): # missões de vila (lote 1 das vilas): a mesma festa, em âmbar e um pouco menor
+		var nome_v := t.substr(25)
+		var sub_v := ""
+		var iv := nome_v.rfind(" (+")
+		if iv > 0:
+			sub_v = nome_v.substr(iv + 2).trim_suffix(")")
+			nome_v = nome_v.substr(0, iv)
+		_faixa({"tipo": "grande", "cab": "MISSÃO DE VILA CONCLUÍDA", "titulo": nome_v, "sub": sub_v, "cor": SISTEMA, "tit": Color("ffd9a0"), "dur": 3.0,
+			"som": "festa_missao", "coluna": "ffbf66", "faiscas": 22, "soco": 1.5})
+		return true
+	if t.begins_with("Missão de vila: "):
+		_faixa({"tipo": "pequena", "cab": "NOVA MISSÃO DE VILA", "titulo": t.substr(16), "cor": SISTEMA, "dur": 2.4, "som": "festa_libera"})
+		return true
 	if t.begins_with("Título novo: "): # títulos com bônus (André 2026-11-12): "Título novo: Rei da Matilha (+5% crítico)"
 		var nt := t.substr(13)
 		var sub_t := "Use na aba Títulos do personagem"

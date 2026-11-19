@@ -43,7 +43,7 @@ export function vilaValida(v) {
   return f.length || r.at || r.s ? r : null;
 }
 
-// o que vai para o app (mundo.json, chave "vilas"): as vilas com missão e as missões com as etapas (aba Vilas)
+// o que vai para o app (habilidades.json, chave "vilas"): as vilas com missão e as missões com as etapas (aba Vilas)
 export const missoesVilaParaApp = () => ({
   vilas: Object.keys(MISSOES_DA_VILA).map((id) => { const V = VILAS_MISSAO[id]; return { id, nome: V.nome, zona: V.zona, titulo: V.titulo }; }),
   missoes: MISSOES_VILA.map((M) => ({ id: M.id, vila: M.vila, nv: M.nv, npc: M.npc, nome: M.nome, total: etapasDe(M).length, etapas: etapasDe(M).map((E) => E.txt) })),

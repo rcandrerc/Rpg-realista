@@ -144,11 +144,20 @@ func _coluna(mostrar: bool) -> void:
 			cartao.position = p
 		if mostrar:
 			fim = p.y + cartao.size.y * _s + 2.0
+	# missão de vila (missao_vila.gd, lote 1 das vilas): cartão âmbar logo embaixo deste; com este fora da coluna (o
+	# jogador mudou de lugar), vai junto dele e a coluna segue sem os dois
+	if m.missao_vila:
+		if _livre and mostrar:
+			m.missao_vila.na_coluna(cartao.position.x, cartao.position.y + cartao.size.y * _s + 2.0, _s)
+		else:
+			fim = m.missao_vila.na_coluna(x, fim, _s)
 	if m.transporte:
 		m.transporte.na_coluna(Vector2(x - 2.0, fim + 4.0))
 
-# hud.gd: toque aqui não vira joystick nem câmera
+# hud.gd: toque aqui (ou no cartão da missão de vila, missao_vila.gd) não vira joystick nem câmera
 func cobre(p: Vector2) -> bool:
+	if m.missao_vila and m.missao_vila.cobre(p):
+		return true
 	return cartao != null and cartao.visible and cartao.get_global_rect().grow(6).has_point(p)
 
 # ---------- o que mostrar ----------

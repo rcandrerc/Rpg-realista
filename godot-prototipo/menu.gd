@@ -47,7 +47,7 @@ const MEDALHAO := 52.0
 # André 2026-11-12: aba Títulos (títulos com bônus; um em uso por vez)
 const ABAS_PERSONAGEM := ["status", "habilidades", "profissoes", "titulos", "aparencia"]
 # André 2026-11-11: Missões saiu do menu do personagem e ganhou ícone no menu do topo (abre só ela)
-const ABAS_MISSOES := ["missoes", "diarias", "guilda"] # História e Diárias (André 2026-11-16); Guilda (2026-11-18)
+const ABAS_MISSOES := ["missoes", "diarias", "guilda", "vilas"] # História e Diárias (André 2026-11-16); Guilda (2026-11-18); Vilas (lote 1, Presidente 19/11)
 const ABAS_BOLSA := ["mochila", "criar", "loja"]
 # submenus da aba Criar
 # "aqui" (André 2026-11-05: "unificar os menus"): o botão de ação da mesa abre esta mesma aba Criar no submenu do que
@@ -819,7 +819,7 @@ func montar_direita() -> Control:
 	col.add_theme_constant_override("separation", 8)
 	var abas := HBoxContainer.new()
 	abas.add_theme_constant_override("separation", 6)
-	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["titulos", "Títulos"], ["missoes", "História"], ["diarias", "Diárias"], ["guilda", "Guilda"], ["aparencia", "Aparência"],
+	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["titulos", "Títulos"], ["missoes", "História"], ["diarias", "Diárias"], ["guilda", "Guilda"], ["vilas", "Vilas"], ["aparencia", "Aparência"],
 			["mochila", "Mochila"], ["criar", "Criar"], ["loja", "Loja"]]:
 		var b := botao(a[1], func(): trocar_aba(a[0]), 16)
 		b.custom_minimum_size = Vector2(126, 40)
@@ -923,6 +923,8 @@ func abrir(qual := "", sub := "") -> void:
 			_viu_diarias.call_deferred()
 		if qual == "guilda" and m.on(): # o "perto do mural" e os contratos do dia vêm do servidor na hora
 			m.rede("guilda", {"acao": "ver"})
+		if qual == "vilas" and m.on(): # missões de vila: o resumo (vila_info) vem do servidor na hora
+			m.rede("missao_vila", {"acao": "ver"})
 	elif aba in ABAS_BOLSA or aba in ABAS_MISSOES: # barra de vida: só o menu do personagem
 		aba = "status"
 	sel_mochila = -1
@@ -1038,12 +1040,15 @@ func atualizar() -> void:
 	mostrar_painel(null)
 	if aba == "loja" and not m.perto_da_loja():
 		aba = "mochila"
+	if aba == "vilas" and m.P.vila_info.is_empty(): # missões de vila desligadas (antes do lançamento): volta à História
+		aba = "missoes"
 	var grupo: Array = ABAS_BOLSA if aba in ABAS_BOLSA else (ABAS_MISSOES if aba in ABAS_MISSOES else ABAS_PERSONAGEM)
 	for k in botoes_aba:
 		_estilo_se_mudou(botoes_aba[k], k == aba)
 		botoes_aba[k].visible = k in grupo
 		botoes_aba[k].custom_minimum_size.x = 104 if grupo == ABAS_BOLSA else 126
 	botoes_aba.loja.visible = aba in ABAS_BOLSA and m.perto_da_loja()
+	botoes_aba.vilas.visible = aba in ABAS_MISSOES and not m.P.vila_info.is_empty()
 	_bolinha_diarias()
 	linha_criar.visible = false # a fileira de submenus deu lugar às estações e aos grupos sanfona (André 2026-11-09)
 	var est_aqui := estacoes_perto()
@@ -1078,6 +1083,8 @@ func atualizar() -> void:
 		montar_diarias()
 	elif aba == "guilda":
 		montar_guilda()
+	elif aba == "vilas":
+		montar_vilas()
 	elif aba == "titulos":
 		montar_titulos()
 	elif aba == "profissoes":
@@ -1551,11 +1558,13 @@ func montar_profissoes() -> void:
 # Todos os títulos, os ganhos primeiro em cada grupo. Cada um: nome na cor do brilho, como ganhou e o bônus
 # ("Venceu o Uivo-Rei · +5% crítico"). Tocar em Usar põe o título em cima da cabeça e liga o bônus (o servidor confere);
 # Tirar deixa sem título. Os que faltam ficam apagados, com o feito que falta.
-const GRUPOS_TITULO := [["caca", "Caça"], ["boss", "Bosses de mundo"], ["historia", "História"], ["prof", "Profissões"]]
+const GRUPOS_TITULO := [["caca", "Caça"], ["boss", "Bosses de mundo"], ["historia", "História"], ["vila", "Vilas"], ["prof", "Profissões"]]
 func grupo_titulo(T: Dictionary) -> String:
 	var c: Dictionary = T.get("cond", {})
 	if c.has("boss"):
 		return "boss"
+	if c.has("vila"): # "Amigo do/da ...": as 3 missões de uma vila (missoes-vila.js)
+		return "vila"
 	if c.has("prof"):
 		return "prof"
 	if c.has("abates"):
@@ -1580,8 +1589,9 @@ func montar_titulos() -> void:
 	for id in todos:
 		if id in tem:
 			n += 1
+	var vilas_ligadas: bool = not P.vila_info.is_empty() # antes do lançamento os títulos das vilas não aparecem (só o já ganho)
 	for g in GRUPOS_TITULO:
-		var ids: Array = todos.keys().filter(func(id): return grupo_titulo(todos[id]) == g[0])
+		var ids: Array = todos.keys().filter(func(id): return grupo_titulo(todos[id]) == g[0] and (g[0] != "vila" or vilas_ligadas or id in tem))
 		if ids.is_empty():
 			continue
 		ids.sort_custom(func(a, b):
@@ -1962,6 +1972,113 @@ func _card_missao(M: Dictionary, i: int, feitas: int, h: Dictionary) -> Control:
 func _ir_missao() -> void:
 	fechar()
 	m.missao_ativa.ir()
+
+# Missões de vila (lote 1 das vilas, plano v3 do Presidente, 19/11/2026; regras em shared/missoes-vila.js): as 3 de cada
+# vila, na ordem; uma missão de vila por vez (a da vez fica no cartão âmbar da tela, missao_vila.gd). Feitas as 3 de uma
+# vila: o título "Amigo do/da ..." (+2% na venda). O estado de cada uma vem do servidor (vila_info.s, uma letra por
+# missão, na ordem de habilidades.json "vilas": f feita, a fazendo, p pode pegar, o depois da anterior, z região
+# fechada, n falta nível, e espera as Bandeiras).
+const AMBAR := Color(0.96, 0.7, 0.32)
+func montar_vilas() -> void:
+	var VI: Dictionary = m.P.vila_info
+	var D = m.P.dados.get("vilas")
+	if VI.is_empty() or not (D is Dictionary):
+		conteudo.add_child(rotulo("Sem missões de vila por enquanto.", 14, APAGADO))
+		return
+	if m.P.teste_missoes: # só a conta de teste: refazer as missões de vila do começo (o servidor confere)
+		var tm := HBoxContainer.new()
+		tm.add_theme_constant_override("separation", 8)
+		tm.add_child(rotulo("Teste:", 14, APAGADO))
+		tm.add_child(botao("Zerar missões de vila", func(): m.rede("missao_vila", {"acao": "zerar"}), 14))
+		conteudo.add_child(tm)
+	var d := rotulo("Uma missão de vila por vez. Feitas as 3 de uma vila: título Amigo, +2% na venda.", 12, APAGADO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	conteudo.add_child(d)
+	var s := str(VI.get("s", ""))
+	var a = VI.get("a")
+	var ms: Array = D.get("missoes", [])
+	var tits: Dictionary = Titulos.dados_de(m.P)
+	for V in D.get("vilas", []):
+		var idx: Array = []
+		for i in ms.size():
+			if str(ms[i].get("vila", "")) == str(V.get("id", "")):
+				idx.append(i)
+		if idx.is_empty():
+			continue
+		var feitas := 0
+		for i in idx:
+			if i < s.length() and s[i] == "f":
+				feitas += 1
+		separador(str(V.get("nome", "")))
+		var topo := HBoxContainer.new()
+		topo.add_theme_constant_override("separation", 10)
+		topo.add_child(rotulo("%d de %d feitas" % [feitas, idx.size()], 13, VERDE_DIARIA if feitas >= idx.size() else APAGADO))
+		var T: Dictionary = tits.get(str(V.get("titulo", "")), {})
+		if not T.is_empty():
+			topo.add_child(rotulo("Título: %s" % str(T.get("nome", "")), 13, OURO_CLARO if feitas >= idx.size() else APAGADO))
+		conteudo.add_child(topo)
+		for i in idx:
+			conteudo.add_child(_card_vila(ms[i], s[i] if i < s.length() else "", a))
+
+func _card_vila(M: Dictionary, e: String, a) -> Control:
+	var fazendo: bool = e == "a" and a is Dictionary
+	var feita: bool = e == "f"
+	var pc := PanelContainer.new()
+	pc.add_theme_stylebox_override("panel", caixa(FUNDO2, AMBAR if fazendo else Color(0.3, 0.26, 0.2), 2 if fazendo else 1, RAIO_JANELA))
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	pc.add_child(h)
+	var v := VBoxContainer.new()
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_theme_constant_override("separation", 3)
+	h.add_child(v)
+	var nome := rotulo("%s%s   ·   Nv %d" % ["✓ " if feita else ("▸ " if fazendo else ""), str(M.get("nome", "")), int(M.get("nv", 0))], 15,
+		VERDE_DIARIA if feita else (AMBAR if fazendo else (TEXTO if e == "p" else APAGADO)))
+	nome.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(nome)
+	var quem: String = m.missao_ativa._nome_npc(str(M.get("npc", ""))) if m.missao_ativa else str(M.get("npc", ""))
+	var outra: bool = a is Dictionary and not fazendo # já tem outra missão de vila: esta espera
+	var linha := ""
+	match e:
+		"f": linha = "Feita"
+		"p": linha = ("Fale com %s depois" if outra else "Fale com %s") % quem
+		"o": linha = "Depois da anterior"
+		"z": linha = "Região fechada"
+		"n": linha = "Libera no Nv %d" % int(M.get("nv", 0))
+		"e": linha = "Espera as Bandeiras"
+	if linha != "":
+		v.add_child(rotulo(linha, 12, TEXTO if e == "p" else APAGADO))
+	if fazendo: # as etapas: feitas, a da vez (com o texto do servidor, que traz o andamento) e as próximas
+		var k_vez := int(a.get("e", 0))
+		var etapas: Array = M.get("etapas", [])
+		for k in etapas.size():
+			var txt: String = str(a.get("txt", etapas[k])) if k == k_vez else str(etapas[k])
+			var et := rotulo("%s %s" % ["✓" if k < k_vez else ("▸" if k == k_vez else "·"), txt], 12, VERDE_DIARIA if k < k_vez else (Color(1, 0.95, 0.85) if k == k_vez else APAGADO))
+			et.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			v.add_child(et)
+		if etapas.size() > 1:
+			v.add_child(barra_prog(float(k_vez) / float(etapas.size()), AMBAR))
+	var botoes := VBoxContainer.new()
+	botoes.add_theme_constant_override("separation", 6)
+	botoes.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	if fazendo and m.missao_vila:
+		var ir := botao("Ir", func(): fechar(); m.missao_vila.ir(), 15, true)
+		ir.custom_minimum_size = Vector2(110, 44)
+		botoes.add_child(ir)
+		var sair := botao("Deixar", func(): confirmar("Deixar a missão de vila?", "Pegando de novo, volta da etapa onde parou.", "Deixar",
+			func(): m.rede("missao_vila", {"acao": "desistir"}), true), 14)
+		sair.custom_minimum_size = Vector2(110, 38)
+		botoes.add_child(sair)
+	elif e == "p" and not outra and m.missao_vila: # leva até quem dá a missão (a conversa abre ao chegar)
+		var n: Dictionary = m.missao_ativa._npc(str(M.get("npc", ""))) if m.missao_ativa else {}
+		if not n.is_empty():
+			var alvo := {"x": float(n.x), "z": float(n.z), "nome": quem, "npc": str(M.get("npc", ""))}
+			var ir_npc := botao("Ir", func(): m.missao_vila.ir_para(alvo), 15)
+			ir_npc.custom_minimum_size = Vector2(110, 44)
+			botoes.add_child(ir_npc)
+	if botoes.get_child_count() > 0:
+		h.add_child(botoes)
+	return pc
 
 func linha_prof_card(k: String) -> Control:
 	var P = m.P

@@ -308,6 +308,8 @@ func _process_parte(dt: float) -> void:
 	_reabrir()
 	if npc != null and not is_same(m.P.hist_info, _hi_visto): # chegou progresso novo com a janela aberta
 		_botao_missao()
+	if npc != null and not is_same(m.P.vila_info, _vi_visto): # o mesmo para o botão da missão de vila
+		_botao_vila()
 	if npc != null and npc.get("longe", false): # conversa de longe pelo painel do time: fecha se ele sair do time
 		if m.h.morto > 0.0 or not (m.amigos and m.amigos.no_meu_time(str(npc.id))):
 			fechar()
@@ -405,6 +407,8 @@ func _abrir(n: Dictionary, toque: bool) -> void:
 	# história v2 (André 2026-11-11): o NPC com quem a missão principal quer falar agora ganha o botão da missão, primeiro
 	_btn_missao = null
 	_botao_missao()
+	_btn_vila = null # missão de vila (lote 1): "Vila: ...", logo depois do da história
+	_botao_vila()
 	for a in (n.get("acoes", []) if not n.get("amiga", false) else []):
 		if not ACOES.has(a):
 			continue
@@ -461,6 +465,58 @@ func _botao_missao() -> void:
 		_btn_missao.set_meta("pt", t) # o guia das missões acha o botão pelo texto em português
 		_btn_missao.text = Idioma.frase(str(_btn_missao.get_meta("pt")))
 
+# Missões de vila (lote 1 das vilas, Presidente 19/11/2026; shared/missoes-vila.js): o NPC que tem uma para dar agora, o
+# da etapa de falar da missão de vila aceita e quem a deu (lembra o que falta) ganham o botão "Vila: ...", logo depois do
+# da história. Tocar fecha a janela; a resposta vem na janela da missão (missao_fala.gd), como na história. O botão
+# acompanha o servidor com a janela aberta (progresso.gd vila_info).
+const COR_VILA := Color(0.96, 0.7, 0.32) # âmbar das vilas (missao_vila.gd)
+var _btn_vila: Button = null
+var _vi_visto = null # o vila_info que o botão já mostra
+# texto do botão de vila deste NPC ("" = nenhum); lembrar = false: só pegar ou a etapa de falar com ele (reabrir)
+func _vila_de(n, lembrar := true) -> String:
+	if not (n is Dictionary) or n.get("amiga", false) or str(n.get("funcao", "")) == "totem" or not m.on():
+		return ""
+	var vi: Dictionary = m.P.vila_info
+	var id := str(n.get("id", ""))
+	var a = vi.get("a")
+	if a is Dictionary:
+		var com_ele: bool = id == str(a.get("npc", "")) or (lembrar and id == str(a.get("dono", "")))
+		return "Vila: %s" % str(a.get("nome", "")) if id != "" and com_ele else ""
+	var dar = vi.get("dar")
+	return "Vila: %s" % str(dar[id]) if dar is Dictionary and dar.has(id) else ""
+
+func _botao_vila() -> void:
+	_vi_visto = m.P.vila_info
+	var t := _vila_de(npc)
+	if _btn_vila != null and (not is_instance_valid(_btn_vila) or _btn_vila.is_queued_for_deletion() or _btn_vila.get_parent() != opcoes):
+		_btn_vila = null
+	if t == "":
+		if _btn_vila != null:
+			opcoes.remove_child(_btn_vila)
+			_btn_vila.queue_free()
+			_btn_vila = null
+		return
+	if _btn_vila == null:
+		_btn_vila = _opcao(t, "topo_vila", func(): escolher("vila"))
+		for k in ["icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color"]:
+			_btn_vila.add_theme_color_override(k, COR_VILA)
+		opcoes.add_child(_btn_vila)
+	elif str(_btn_vila.get_meta("pt", "")) != t:
+		_btn_vila.set_meta("pt", t) # o guia das missões acha o botão pelo texto em português
+		_btn_vila.text = Idioma.frase(t)
+	var depois_da_historia: bool = _btn_missao != null and is_instance_valid(_btn_missao) and _btn_missao.get_parent() == opcoes
+	opcoes.move_child(_btn_vila, 1 if depois_da_historia else 0)
+
+# tocou em "Vila: ...": a janela fecha, a resposta vem na janela da missão e o cartão âmbar pisca (missao_vila.gd). Se a
+# resposta deixa outra conversa de vila com o mesmo NPC (entregou e ele já tem a próxima), a janela volta sozinha.
+func _vila_iniciada() -> void:
+	if npc != null:
+		_depois = {"n": npc, "vi": JSON.stringify(m.P.vila_info), "ate": m.tempo + REABRE}
+		_depois_fala.clear()
+	fechar()
+	if m.missao_vila != null:
+		m.missao_vila.destacar()
+
 # Depois do toque em "Missão" a janela fecha (André 2026-11-12). Se a resposta do servidor deixa a próxima conversa com
 # o mesmo NPC (entregou e ele já tem a próxima missão; aceitou e a etapa é entregar a ele), a janela volta sozinha com o
 # botão, em vez de pedir Ir e Missão de novo. Só se o progresso mudou (o "Ainda falta" fica só no aviso).
@@ -481,12 +537,13 @@ func _reabrir() -> void:
 		_depois.ate = m.tempo + REABRE
 		return
 	var hi: Dictionary = m.P.hist_info
-	if JSON.stringify(hi) == str(_depois.hi):
+	var vila: bool = _depois.has("vi") # veio do botão "Vila: ..." (missão de vila): espera o vila_info mudar
+	if JSON.stringify(m.P.vila_info if vila else hi) == str(_depois.get("vi" if vila else "hi", "")):
 		return # a resposta ainda não chegou
 	_depois = {}
 	var t := str(_depois_fala.get(str(n.id), ""))
 	_depois_fala.clear()
-	if str(hi.get("npc", "")) == str(n.id) and _dist(n) <= 4.0:
+	if (str(hi.get("npc", "")) == str(n.id) or (vila and _vila_de(n, false) != "")) and _dist(n) <= 4.0:
 		abrir(n, false)
 		if t != "":
 			fala_ui.text = Idioma.frase(t)
@@ -607,6 +664,8 @@ func escolher(a: String) -> void:
 				c.queue_free()
 			_btn_missao = null
 			_botao_missao()
+			_btn_vila = null
+			_botao_vila()
 			_botoes_pack(n)
 			opcoes.add_child(_opcao("Conversar", "falar", func(): escolher("conversar")))
 			opcoes.add_child(_opcao("Até logo", "sair", fechar))
@@ -644,6 +703,10 @@ func escolher(a: String) -> void:
 			m.rede("falar", {"npc": n.id, "missao": true})
 			m.sons.tocar("q_anel_1", -14.0)
 			_missao_iniciada()
+		"vila": # missão de vila: pegar, cumprir a etapa de falar, entregar ou lembrar o que falta (o servidor responde em fala())
+			m.rede("falar", {"npc": n.id, "vila": true})
+			m.sons.tocar("q_anel_1", -14.0)
+			_vila_iniciada()
 		"missao", "cura":
 			if m.on():
 				m.rede("falar", {"npc": n.id}) # a resposta chega em fala()

@@ -1911,7 +1911,25 @@
     "fora": "b8321e",
     "dentro": "5a140c",
     "friso": "f0a030"
-   }
+   },
+   "lingua": [
+    "ka",
+    "ra",
+    "sha",
+    "zul",
+    "ash",
+    "ir",
+    "tah",
+    "mar",
+    "khe",
+    "an",
+    "dur",
+    "sol",
+    "ru",
+    "hai",
+    "or",
+    "ves"
+   ]
   },
   "geada": {
    "nome": "Geada",
@@ -1926,7 +1944,25 @@
     "x": 546,
     "z": 43,
     "r": 12
-   }
+   },
+   "lingua": [
+    "skä",
+    "vyr",
+    "nö",
+    "fjel",
+    "kar",
+    "eld",
+    "rün",
+    "hel",
+    "vi",
+    "sar",
+    "ith",
+    "kja",
+    "ul",
+    "ys",
+    "dra",
+    "ost"
+   ]
   }
  },
  "estamina": {
@@ -25146,8 +25182,207 @@
       "fala": "A Vesper se funde ao Coração, cresce e chama os Maws e Golens da gruta!"
      }
     ]
+   },
+   "imp_ladrao": {
+    "nome": "Imp Ladrão",
+    "tipo": "imp",
+    "campo": "c_v7",
+    "vida": 4,
+    "dano": 1.3,
+    "escala": 1.35,
+    "cor": 14197562
    }
   }
+ },
+ "vilas": {
+  "vilas": [
+   {
+    "id": "rio_claro",
+    "nome": "Vila do Rio Claro",
+    "zona": "B1",
+    "titulo": "amigo_rio_claro"
+   },
+   {
+    "id": "pouso_serra",
+    "nome": "Pouso da Serra",
+    "zona": "B2",
+    "titulo": "amigo_pouso_serra"
+   },
+   {
+    "id": "juncal",
+    "nome": "Juncal",
+    "zona": "B3",
+    "titulo": "amigo_juncal"
+   },
+   {
+    "id": "porto",
+    "nome": "Porto de Vael",
+    "zona": "B4",
+    "titulo": "amigo_porto"
+   }
+  ],
+  "missoes": [
+   {
+    "id": "rc1",
+    "vila": "rio_claro",
+    "nv": 30,
+    "npc": "v_heitor",
+    "nome": "O Pacto da Ponte",
+    "total": 3,
+    "etapas": [
+     "Leia a placa do Pacto na Ponte do Rio Claro",
+     "Veja os sinais da Geada na beira do rio",
+     "Conte ao Capitão Heitor o que viu"
+    ]
+   },
+   {
+    "id": "rc2",
+    "vila": "rio_claro",
+    "nv": 32,
+    "npc": "v_marisa",
+    "nome": "A rede cortada",
+    "total": 3,
+    "etapas": [
+     "Ache a rede da Marisa do outro lado da ponte",
+     "Pesque 3 peixes para a banca",
+     "Volte à Marisa"
+    ]
+   },
+   {
+    "id": "rc3",
+    "vila": "rio_claro",
+    "nv": 34,
+    "npc": "v_benedito",
+    "nome": "A bandeira da Chama",
+    "total": 5,
+    "etapas": [
+     "Junte 4 tecidos, 4 couros e 1 barra de ferro",
+     "Leve a barra de ferro ao Galdino, para a haste",
+     "Entregue o tecido e o couro ao Benedito",
+     "Finque a bandeira ao lado do totem",
+     "Volte e fale com Benedito"
+    ]
+   },
+   {
+    "id": "ps1",
+    "vila": "pouso_serra",
+    "nv": 38,
+    "npc": "v_bruno",
+    "nome": "O martelo do pai",
+    "total": 2,
+    "etapas": [
+     "Ache o imp ladrão no campo a leste",
+     "Devolva o martelo ao Bruno"
+    ]
+   },
+   {
+    "id": "ps2",
+    "vila": "pouso_serra",
+    "nv": 40,
+    "npc": "v_cida",
+    "nome": "O filho da Cida",
+    "total": 3,
+    "etapas": [
+     "Siga as pegadas do Tonho na serra",
+     "Ache o Tonho",
+     "Avise a Cida que o Tonho está bem"
+    ]
+   },
+   {
+    "id": "ps3",
+    "vila": "pouso_serra",
+    "nv": 42,
+    "npc": "v_ursula",
+    "nome": "Casacos para o inverno",
+    "total": 5,
+    "etapas": [
+     "Junte 6 couros",
+     "Entregue os couros à Úrsula",
+     "Espere a noite (das 19h às 5h)",
+     "Vá à fogueira da praça",
+     "Volte e fale com Úrsula"
+    ]
+   },
+   {
+    "id": "ju1",
+    "vila": "juncal",
+    "nv": 42,
+    "npc": "v_tiao",
+    "nome": "Vizinhos de gelo",
+    "total": 2,
+    "etapas": [
+     "Leve o peixe à casa da Geada",
+     "Volte ao Tião"
+    ]
+   },
+   {
+    "id": "ju2",
+    "vila": "juncal",
+    "nv": 44,
+    "npc": "v_lia",
+    "nome": "Duas espadas de treino",
+    "total": 4,
+    "etapas": [
+     "Junte 2 barras de ferro e 4 lenhas",
+     "Entregue o material à Lia",
+     "Leve as espadas aos dois, na beira do rio",
+     "Volte e fale com Lia"
+    ]
+   },
+   {
+    "id": "ju3",
+    "vila": "juncal",
+    "nv": 46,
+    "npc": "v_zeca",
+    "nome": "Peixe da noite",
+    "total": 4,
+    "etapas": [
+     "Espere a noite (das 19h às 5h)",
+     "Pesque 5 peixes",
+     "Venda um peixe para o Zeca",
+     "Volte e fale com Zeca"
+    ]
+   },
+   {
+    "id": "pv1",
+    "vila": "porto",
+    "nv": 48,
+    "npc": "v_ruy",
+    "nome": "Pregos de casco",
+    "total": 4,
+    "etapas": [
+     "Junte 3 barras de ferro",
+     "Entregue as barras ao Ruy",
+     "Leve os pregos ao barco da Graça, no cais",
+     "Avise a Graça"
+    ]
+   },
+   {
+    "id": "pv2",
+    "vila": "porto",
+    "nv": 49,
+    "npc": "v_graca",
+    "nome": "O baú sem dono",
+    "total": 1,
+    "etapas": [
+     "Leve o baú ao Tião, no Juncal"
+    ]
+   },
+   {
+    "id": "pv3",
+    "vila": "porto",
+    "nv": 50,
+    "npc": "v_odete",
+    "nome": "Fogueira para a Ilha",
+    "total": 4,
+    "etapas": [
+     "Junte 10 lenhas",
+     "Espere a noite (das 19h às 5h)",
+     "Acenda a fogueira no alto do morro do porto",
+     "Volte à Capitã Odete"
+    ]
+   }
+  ]
  },
  "titulos": {
   "cacador_novato": {
@@ -25639,6 +25874,54 @@
    "cond": {
     "prof": "mer",
     "nv": 20
+   }
+  },
+  "amigo_rio_claro": {
+   "nome": "Amigo do Rio Claro",
+   "r": 1,
+   "como": "Fez as 3 missões do Rio Claro",
+   "txt": "+2% na venda",
+   "b": {
+    "venda": 0.02
+   },
+   "cond": {
+    "vila": "rio_claro"
+   }
+  },
+  "amigo_pouso_serra": {
+   "nome": "Amigo do Pouso da Serra",
+   "r": 1,
+   "como": "Fez as 3 missões do Pouso da Serra",
+   "txt": "+2% na venda",
+   "b": {
+    "venda": 0.02
+   },
+   "cond": {
+    "vila": "pouso_serra"
+   }
+  },
+  "amigo_juncal": {
+   "nome": "Amigo do Juncal",
+   "r": 1,
+   "como": "Fez as 3 missões do Juncal",
+   "txt": "+2% na venda",
+   "b": {
+    "venda": 0.02
+   },
+   "cond": {
+    "vila": "juncal"
+   }
+  },
+  "amigo_porto": {
+   "nome": "Amigo do Porto de Vael",
+   "r": 1,
+   "como": "Fez as 3 missões do Porto de Vael",
+   "txt": "+2% na venda",
+   "b": {
+    "venda": 0.02
+   },
+   "cond": {
+    "vila": "porto"
    }
   }
  }
