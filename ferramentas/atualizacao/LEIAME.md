@@ -109,3 +109,7 @@ antes (o sha256 do `conteudo.json` é o do arquivo aberto). Depois de subir, o s
 sha256; se não bater, ou se o arquivo quase não compacta, sobe cru como antes. O release do GitHub e o Pages ficam
 crus. Barra de progresso: APK casca a partir desta versão mede na medida do arquivo aberto (`_tam_atual`); o casca
 antigo mostra a barra parando antes do fim e pulando para o próximo arquivo (só a barra; o download é o mesmo).
+
+O completo e os deltas que já estavam no balde crus (o completo 2720 subiu antes do gzip: 415 MB) são recompactados
+no próximo build sem trocar de completo: o script olha o cabeçalho de cada um e, sem `content-encoding: gzip`, sobe de
+novo compactado (mesmo sha256, o `conteudo.json` não muda). O 2720 cai para ~190 MB de download.
