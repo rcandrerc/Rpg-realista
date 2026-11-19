@@ -79,3 +79,16 @@ antes do reinício fixo das 05h e 14h, e o servidor instala junto. Merge sem `sh
 `shared/` esperando). Na 1ª semana do lançamento só o das 04:40; no bloqueio do lançamento, nada (salvo
 `[furar bloqueio]`). Emergência: rode o pages.yml à mão com "Publicar agora mesmo". Ver
 `ferramentas/atualizacao/janela-publicar.mjs`.
+
+## Voltar as contas para uma cópia
+
+`voltar-contas.sh` roda na máquina do servidor, como root. Ele confere a cópia, para o servidor, guarda o banco de agora
+em `copias/antes-da-volta-<hora>.db` (dá para desfazer), põe a cópia no lugar, liga o servidor e espera o `/saude`.
+
+    sudo bash voltar-contas.sh --listar
+    sudo bash voltar-contas.sh 2026-11-25 --sim        # só confere
+    sudo bash voltar-contas.sh 2026-11-25
+    sudo bash voltar-contas.sh marco-2026-11-19-antes-do-presidente
+    sudo bash voltar-contas.sh copia.tar --chave copia-contas.pem   # cópia cifrada de fora da máquina
+
+Cópia de antes de um `RECOMECO.data` volta a zerar as contas de teste quando o servidor sobe (o recomeço roda de novo).
