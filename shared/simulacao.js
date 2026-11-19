@@ -670,7 +670,7 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j?.criando || !j.podeCriar) return null;
     const nome = nomeValido(p?.nome); if (!nome) return null;
     // nome de NPC não pode (André 2026-11-19): o criador abre de novo com o aviso, como no nome já usado
-    if (!j.bot && nomeReservado(nome)) { this.evento({ t: 'nomeUsado', para: id, nome, texto: `${nome} é nome de personagem do jogo. Escolha outro.` }); return null; }
+    { const r = !j.bot && nomeReservado(nome); if (r) { this.evento({ t: 'nomeUsado', para: id, nome, texto: r === 'parecido' ? 'Use só letras comuns no nome.' : `${nome} é nome de personagem do jogo. Escolha outro.` }); return null; } }
     if (visualValido(p.visual)) j.visual = p.visual;
     j.aparencia = aparenciaValida(p.aparencia);
     j.nome = nome; j.podeCriar = false; j.criando = false;
@@ -685,7 +685,7 @@ export class Simulacao {
     const nome = nomeValido(n);
     if (!nome) return aviso(`Nome inválido: de ${NOME.min} a ${NOME.max} letras ou números`);
     if (nome === j.nome) return aviso('Esse já é o seu nome');
-    if (nomeReservado(nome)) return aviso(`${nome} é nome de personagem do jogo. Escolha outro.`); // André 2026-11-19
+    { const r = nomeReservado(nome); if (r) return aviso(r === 'parecido' ? 'Use só letras comuns no nome.' : `${nome} é nome de personagem do jogo. Escolha outro.`); } // André 2026-11-19
     if (j.prog.ouro < NOME.troca) return aviso(`Falta ouro: trocar o nome custa ${NOME.troca.toLocaleString('pt-BR')}`);
     if (!livre(nome)) return aviso(`O nome ${nome} já é de outro jogador`);
     j.prog.ouro -= NOME.troca; this.caixa(j, 'nome', -NOME.troca);

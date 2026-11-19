@@ -3,9 +3,10 @@
 import { Simulacao, MAPA_CLAREIRA, nomeReservado, NOME } from '../../shared/index.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 for (const n of ['Otávio', 'otavio', 'Otávio-x', 'x Otávio', 'xOtavio', '0tavi0', 'Оtávio', 'Ivo', 'Mestre Ivo', 'Cecília', 'Dario', 'Kira', 'Vesper', 'Bruno Silva',
-  'Ｏｔａｖｉｏ', '𝐎𝐭𝐚𝐯𝐢𝐨', 'ᴏᴛᴀᴠɪᴏ', 'lvo', 'Ceci1ia', 'Otaviό', 'Dariӧ', 'Ηelena', 'Dimaѕ', 'Hugօ', 'Otavıo', 'Brunø', 'ẞruno', 'Ottávio', 'O t a v i o', 'Maíra', 'Gorduncho', 'Presa de Prata'])
+  'Ｏｔａｖｉｏ', '𝐎𝐭𝐚𝐯𝐢𝐨', 'ᴏᴛᴀᴠɪᴏ', 'lvo', 'Ceci1ia', 'Otaviό', 'Dariӧ', 'Ηelena', 'Dimaѕ', 'Hugօ', 'Otavıo', 'Brunø', 'ẞruno', 'Ottávio', 'O t a v i o', 'Maíra', 'Gorduncho', 'Presa de Prata',
+  'ꓓꓮꓣꓲꓳ', 'ᏦᎪᎬᏞ', 'ⲞⲦⲀⲨⲒⲞ', 'ᗪᗩᖇᛁᗝ', 'Dario2', 'Lia1', 'Cecílias', 'Ulissesx', 'Dragão de Cinzas', 'ㅤㅤㅤ', 'LIA', 'lia'])
   ok(nomeReservado(n), `"${n}" é nome de NPC (${nomeReservado(n)})`);
-for (const n of ['André', 'Juliana', 'Mateus', 'Akira', 'Rosario', 'Amelia', 'Melissa', 'Robô de teste', 'Andarilho 3', 'Ruiva', 'Luciano', 'Luciana', 'Coraline', 'Darion', 'Ana 814', 'Leo 730', 'João', 'Maria Eduarda', 'さくら', 'Иван'])
+for (const n of ['André', 'Juliana', 'Mateus', 'Akira', 'Rosario', 'Amelia', 'Melissa', 'Robô de teste', 'Andarilho 3', 'Ruiva', 'Luciano', 'Luciana', 'Coraline', 'Darion', 'Ana 814', 'Leo 730', 'João', 'Maria Eduarda', 'さくら', 'Иван', 'Lara', 'Ana Lara', 'Mei', 'Lila', 'Yuki Tanaka'])
   ok(!nomeReservado(n), `"${n}" pode`);
 
 const s = new Simulacao(MAPA_CLAREIRA);
