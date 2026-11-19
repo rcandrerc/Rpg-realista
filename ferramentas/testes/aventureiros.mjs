@@ -68,7 +68,7 @@ const s3 = new Simulacao(MAPA_CLAREIRA); s3.iaPorChave = true;
 s3.adicionarJogador('sem', 'Sem', 'ruiva', {}); s3.adicionarJogador('com', 'Com', 'ruiva', {});
 for (const x of s3.amigosIa) { x.amigaEntrar('sem', false); x.amigaEntrar('com', true); }
 const bia = s3.amigosIa.find((x) => x.AMIGA.id === 'bia');
-ok(bia.iaAmiga('com') && !bia.iaAmiga('sem') && bia.podeAmiga('sem') && bia.amigaDono === 'com', 'quem tem chave tem IA; quem não tem conversa com respostas prontas (André 2026-11-14)');
+ok(!bia.iaAmiga('com') && !bia.iaAmiga('sem') && bia.podeAmiga('sem') && bia.amigaDono === 'com', 'aventureiro sem IA (André 2026-11-19: IA só na Cecília e no Dario); conversa com respostas prontas e acompanha quem entrou com conversa');
 bia.amigaSair('com'); s3.removerJogador('com');
 ok(bia.amiga && bia.amigaDono == null, 'quem tinha a chave saiu: ela continua vivendo no mundo');
 // no celular: no máximo VISAO.maxBots corpos de NPC (os mais perto), o resto fica só no mapa

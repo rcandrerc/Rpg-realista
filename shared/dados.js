@@ -2883,7 +2883,8 @@ export const AMIGA = {
   chat: {
     digitando: [1.2, 3], // segundos até a resposta (parece gente digitando)
     pedidoCurto: 7, // palavras: até aqui "vamos"/"missão" é pedido de time mesmo com a IA achando que é conversa; mais longo, vale a IA (André 2026-11-12)
-    iaPorDia: 300, // respostas por dia na chave do servidor (só as que a IA deu); 3 modelos do Groq, cada um com seu limite (André 2026-11-12)
+    iaPorJogador: 300, iaPorMinuto: 8, // por conta (revisão de segurança 2026-11-19): um jogador sozinho não gasta a IA de todo mundo; passou, só ele recebe as falas prontas
+    iaPorDia: 800, // respostas por dia nas chaves do servidor (só as que a IA deu): Gemini (500) + Groq (3 modelos, cada um com seu limite) (André 2026-11-19)
     // André 2026-11-17 ("armazenar mais do que poucas linhas"; "ela mesmo reclamar... perguntar coisas pessoais"; "não quero
     // que ela fique me pentelhando"): a conversa guardada (e salva no banco) por pessoa; quanto ela pensa; e ela puxa
     // assunto pela IA de vez em quando: quieto s sem ninguém falar, entre [min, max] s entre uma e outra, evento [min, max] s
@@ -3115,10 +3116,156 @@ export const AVENTUREIROS = AV.map(([id, nome, g, penteado, cabelo, olhos, pele,
 }));
 // os amigos virtuais do jogo, na ordem (a Cecília é a própria Simulacao; os outros vêm em shared/amiga.js contextoDeAmigo)
 export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
+// Desculpas para sair quando a IA do dia acaba (André 2026-11-19: "50 desculpas para sair... engraçado e natural"; "algumas
+// sérias... a Cecília, a mais brincalhona... o Dário mais sério"). cheio: de saco cheio (amizade baixa ou ela vem de recusa).
+export const DESCULPAS_SAIR = {
+  f: { normal: [
+    "Ai, minha vó tá me chamando pra ir no curandeiro com ela. Fui! Até mais!",
+    "Esqueci o pão no forno! Se queimar de novo, a vila inteira vai rir de mim. Tchau!",
+    "Prometi ajudar a Rosa a contar as poções. Volto depois, tá?",
+    "Minhas galinhas fugiram de novo! Preciso correr atrás delas. Até!",
+    "Vou tirar um cochilo rapidinho... tipo umas oito horas. Até amanhã!",
+    "A horta tá pedindo água e eu tô ouvindo ela reclamar daqui. Fui!",
+    "Hoje é dia de lavar a capa. Ela tá com cheiro de lobo molhado. Até mais!",
+    "Combinei de trançar o cabelo da minha prima. Se eu atrasar ela me mata. Tchau!",
+    "Tenho aula de dança na taverna. Não ri! Até depois!",
+    "Meu estômago tá roncando mais alto que golem. Vou comer. Até!",
+    "O ferreiro disse que minha espada fica pronta agora. Vou buscar! Até mais!",
+    "Preciso costurar o buraco da minha bota antes que entre mais pedra. Fui!",
+    "Tem festa na vila vizinha e eu prometi que ia. Me deseja sorte na dança!",
+    "Minha mãe mandou eu arrumar o quarto. Sim, até guerreira arruma quarto. Tchau!",
+    "Vou ver o pôr do sol do alto da colina. É sagrado pra mim. Até amanhã!",
+    "Ai, deu a hora de dar comida pro gato da vizinha. Ele morde se eu atrasar! Fui!",
+    "Prometi pro bardo que ia ouvir a música nova dele. Coitado, ninguém vai. Até!",
+    "Vou colher as cenouras antes que os coelhos colham por mim. Tchau!",
+    "Tô com sono, meus olhos tão fechando sozinhos. Boa noite, aventureiro!",
+    "Tenho que devolver o livro da biblioteca do templo. Tá atrasado faz um mês... Fui!",
+    "A Rosa me chamou pra provar uma poção nova. Se eu ficar verde, a culpa é dela! Até!",
+    "Esqueci que hoje era meu dia de vigiar o poço da vila. Até mais!",
+    "Vou lavar o lobo. Ele odeia banho, deseja-me sorte. Tchau!",
+    "Minha tia chegou de viagem e trouxe doce. Prioridades, né? Até!",
+    "Preciso afiar a espada. Tá cortando menos que colher. Volto depois!",
+    "Vou ajudar as crianças da vila a fazer uma pipa. Prometi! Até mais!",
+    "Hoje tem ensaio do coral do templo. Eu desafino, mas vou. Tchau!",
+    "Tô toda suja de lama. Banho urgente! Até amanhã!",
+    "Vou visitar meu pai no moinho. Faz tempo que não apareço lá. Até mais!",
+    "Ah, esqueci a roupa no varal e tá vindo chuva! Fui correndo!",
+    "Preciso pensar na vida olhando pro lago. Coisa séria. Até!",
+    "Uma amiga vai casar e eu sou a madrinha! Preciso escolher o vestido. Tchau!",
+    "Vou dormir cedo hoje que amanhã eu acordo com o galo. Boa noite!",
+    "O mercador prometeu fita nova pro meu cabelo. Se eu demorar, ele vende! Até!",
+    "Minha vizinha vai ter neném e pediu ajuda. Fui! Torce por ela!",
+    "Vou estudar uns feitiços de cura. Um dia eu te salvo com eles! Até!",
+    "Tô com a cabeça doendo de tanto monstro. Vou deitar um pouco. Até mais!",
+    "Prometi limpar a casa da minha avó. Ela tem trinta vasos! Tchau!",
+    "Vou pescar com meu irmão mais novo. Ele nunca pegou nada, hoje vai! Até!",
+    "O sino do templo tocou. Hora da janta lá em casa! Até amanhã!",
+    "Esqueci de alimentar minhas abelhas. Elas ficam bravas! Fui!",
+    "Vou ajudar a consertar o telhado da taverna. Até depois!",
+    "Tenho encontro marcado com... um pastel de carne. Não posso faltar! Tchau!",
+    "Preciso escrever uma carta pra minha amiga da outra vila. Até mais!",
+    "Hoje é aniversário da minha mãe! Vou fazer um bolo. Me deseja sorte!",
+    "Vou levar flores pro túmulo do meu avô. Volto amanhã.",
+    "Minhas pernas pediram arrego. Vou descansar. Até, parceiro!",
+    "O guarda da vila pediu pra eu cobrir o turno dele. Até mais!",
+    "Vou treinar sozinha no boneco da vila. Quero te surpreender! Tchau!",
+    "Ai, já é tarde! Se eu chegar depois do sino, minha mãe fecha a porta. Fui!",
+  ],
+  cheio: [
+    "Vou ali ver a grama crescer. É mais emocionante. Tchau.",
+    "Preciso enxugar o gelo da cozinha. Urgente. Até.",
+    "Vou contar as pedras do rio. Uma por uma. Fui.",
+    "Tenho que ensinar o lobo a miar. Vai demorar. Tchau.",
+    "Vou pentear as ovelhas da vila. Todas. Até nunca... brincadeira. Até.",
+    "Lembrei que preciso pintar a lua. Fui.",
+    "Vou ali discutir com uma galinha. Ela tá ganhando. Tchau.",
+    "Preciso organizar minhas meias por cor. Prioridade total. Até.",
+    "Vou ensinar peixe a nadar. Sumi.",
+    "Tô indo vigiar a parede da minha casa. Vai que ela foge. Tchau.",
+    "Vou procurar agulha no palheiro. Por diversão. Até.",
+    "Preciso dar bom dia pras nuvens. Uma por uma. Fui.",
+    "Vou fazer um curso de como ficar parada. Tchau.",
+    "Minha samambaia tá carente. Vou conversar com ela. Até.",
+    "Vou ali assistir a tinta secar. Dizem que o final é ótimo. Tchau.",
+  ] },
+  m: { normal: [
+    "Cara, preciso sair. Tô com um problema em casa pra resolver. Depois a gente se fala.",
+    "O capitão da guarda me chamou. Turno da noite. Até amanhã.",
+    "Tenho que levar minha mãe no curandeiro. Volto quando der.",
+    "Prometi ajudar o ferreiro na forja hoje. Até mais.",
+    "Preciso consertar a cerca antes que os lobos entrem no pasto. Fui.",
+    "Chega por hoje. Amanhã eu acordo cedo pra trabalhar no moinho. Valeu.",
+    "Meu irmão se meteu em encrenca na taverna. Vou lá tirar ele. Até.",
+    "Tenho que buscar minha esposa na casa da irmã dela. Até amanhã.",
+    "A espada precisa de manutenção. Lâmina boa não se cuida sozinha. Até.",
+    "Vou descansar. Guerreiro cansado é guerreiro morto. Até mais.",
+    "O telhado lá de casa tá pingando. Preciso resolver antes da chuva. Valeu.",
+    "Fiquei de cobrir o turno de vigia de um amigo. Até depois.",
+    "Meu pai precisa de ajuda com a colheita. Família primeiro. Até.",
+    "Tenho reunião com o conselho da vila. Coisa chata, mas preciso ir.",
+    "Preciso levar o lobo no tratador. Ele tá mancando. Até mais.",
+    "Bateu o cansaço. Vou dormir e amanhã eu volto mais forte.",
+    "Recebi um recado urgente da família. Tenho que ir. Até.",
+    "Prometi treinar o filho do vizinho na espada. Ele tá esperando. Até mais.",
+    "Tenho que entregar umas peças de couro pro mercador antes de fechar.",
+    "Vou visitar um velho companheiro de batalha. Ele não anda bem. Até amanhã.",
+    "A lenha acabou lá em casa e a noite vai ser fria. Vou cortar. Até.",
+    "Hoje é dia de pagar o imposto da vila. Melhor não atrasar. Até mais.",
+    "Minha avó caiu no quintal. Nada grave, mas vou ver ela. Até.",
+    "Preciso pensar umas coisas sozinho. Amanhã a gente caça de novo.",
+    "O sino tocou. Lá em casa a janta não espera ninguém. Até.",
+    "Vou ajudar a guarda a procurar uma criança perdida na floresta. Até depois.",
+    "Tô com o ombro doendo do último golem. Vou cuidar disso. Valeu.",
+    "Tenho que acordar antes do sol pra escoltar uma caravana. Boa noite.",
+    "Combinei de jantar com a família da minha noiva. Não posso faltar.",
+    "A cabra fugiu de novo. Não ri. Vou atrás dela. Até.",
+    "Preciso arrumar a armadura. Tá com mais buraco que queijo. Até mais.",
+    "Fiquei de ajudar a reconstruir a ponte do rio. Até amanhã.",
+    "O ferreiro me deve uma lâmina e hoje é o dia. Vou cobrar. Até.",
+    "Já deu por hoje. Bom trabalho, parceiro.",
+    "Minha mãe fez sopa e mandou eu não demorar. Ordem é ordem. Até.",
+    "Tenho que ir ao templo. Promessa antiga. Até mais.",
+    "Vou dar uma olhada nos portões da vila. Ouvi barulho estranho ontem. Até.",
+    "Preciso dormir. Amanhã tenho treino com os guardas novos.",
+    "Vou levar comida pro meu tio que tá doente. Até depois.",
+    "Tenho uma dívida pra acertar com um mercador. Coisa de homem honrado. Até.",
+    "O vento tá virando. Vou recolher os animais antes da tempestade.",
+    "Vou consertar o carrinho. Roda quebrada não leva carga. Até.",
+    "Preciso afiar as ferramentas da fazenda. Amanhã é dia de colheita.",
+    "Chamaram todo mundo pra uma reunião na praça. Tenho que ir. Até.",
+    "Vou ver meu sobrinho que nasceu ontem. Até amanhã.",
+    "Tô sem poção e sem paciência. Vou repor as duas. Até.",
+    "Meu turno na mina começa agora. Até mais.",
+    "Vou escrever pra minha irmã. Ela mora longe e não tem notícia minha faz tempo.",
+    "Fiquei de ajudar a enterrar um velho amigo da vila. Hoje não dá mais.",
+    "Hora de ir. Cuida bem da espada até amanhã.",
+  ],
+  cheio: [
+    "Vou ali ver a grama crescer. Pelo menos ela tem objetivo. Até.",
+    "Preciso enxugar o gelo da cozinha. Coisa séria. Tchau.",
+    "Vou contar formiga. Mais divertido. Fui.",
+    "Tenho que vigiar uma pedra. Vai que ela foge. Até.",
+    "Vou ensinar meu lobo a ler. Ele aprende mais rápido que certas pessoas. Tchau.",
+    "Lembrei que preciso dobrar o vento. Até.",
+    "Vou ali bater papo com uma árvore. Ela escuta melhor. Fui.",
+    "Preciso polir a lua. Tá meio fosca. Tchau.",
+    "Vou fazer fila no ferreiro. Sozinho. De propósito. Até.",
+    "Tenho encontro marcado com o meu travesseiro. Ele não reclama. Tchau.",
+    "Vou ver se a água do rio ainda é molhada. Fui.",
+    "Preciso dar nome pra todas as galinhas da vila. São quarenta. Até.",
+    "Vou assistir a tinta secar. Dizem que tem reviravolta. Tchau.",
+    "Fui catar pulga em lobo. Até.",
+    "Vou ali conversar com o espantalho. Ele concorda comigo. Tchau.",
+  ] },
+};
+AMIGA.desculpas = DESCULPAS_SAIR.f;
+DARIO.desculpas = DESCULPAS_SAIR.m;
 // IA nas conversas dos NPCs (André 2026-11-18: "desliga a IA ... fica lá no fundo registrado ... se liberar a conta free
 // para geral, a gente usa"; "todo mundo igual"). Desligada: todos respondem pelo repertório pronto (regras + falas), sem
 // botão de ativar chave. O sistema de IA continua no código (server/ia-amiga.js): ligada: true volta tudo como era.
-export const IA_CONVERSA = { ligada: false };
+// André 2026-11-19 ("pode deixar aberta a chave pra todos"): ligada de novo, aberta a todo jogador, só na Cecília e no Dario
+// (a Geada não tem IA: fala pelas regras e na língua dela). Gemini primeiro, depois Groq; acabou o do dia, as regras e os botões.
+export const IA_CONVERSA = { ligada: true, quem: ['cecilia', 'dario'] };
 // ---------- repertório único de conversa (André 2026-11-18: "a única coisa que tem que diferenciar é masculino de
 // feminino ... conversar com a Cecília, sempre ela respondendo em feminino; com o Dário, sempre masculino") ----------
 // Um repertório só para todos os NPCs. {feminino|masculino} escolhe pelo gênero de quem fala (shared/amiga.js vozAmiga).
@@ -3157,6 +3304,111 @@ for (const D of AMIGOS_VIRTUAIS) {
   for (const [k, l] of Object.entries(REPERTORIO.assuntos)) D.chat.assuntos[k] = [...new Set([...(D.chat.assuntos[k] || []), ...l])];
   for (const [k, l] of Object.entries(REPERTORIO.falas)) D.chat.falas[k] = l;
 }
+
+// ---------- Conversa por opções (André 2026-11-19: "sem IA... trabalhar com botões") ----------
+// A janela de conversa com a Cecília, o Dario e os aventureiros mostra botões em vez de digitar. Abre de perto (botão de
+// ação) ou, no time, tocando no nome dele no painel do time (de qualquer lugar). O servidor monta as opções que fazem
+// sentido agora (shared/amiga.js opcoesAmiga) e responde com o repertório de sempre, no gênero de cada um ({f|m}).
+// Cada opção: t = o que o jogador fala (vira mensagem dele no registro do dia), a = o assunto do repertório, acao = a
+// ação da conversa de perto (conversaAmiga), ordem = ordem no time, menu = abre outro menu, app = o app faz sozinho.
+// quando: noTime | foraTime | atividade | pedido | caçando (só aparece assim).
+export const DIALOGO = {
+  menus: {
+    inicio: ['comoVai', 'fazendo', 'piada', 'desabafo', 'elogio', 'obrigado', 'comandos', 'timeMenu', 'equip', 'tchau'],
+    comandos: ['time', 'vir', 'seguir', 'cacar', 'pescar', 'minerar', 'lenha', 'parar', 'voltar', 'ajuda', 'dar', 'troca', 'ondeUpar', 'missao', 'inicio'],
+    timeMenu: ['foco', 'atras', 'recua', 'vir', 'seguir', 'pescar', 'parar', 'livre', 'sairTime', 'inicio'],
+  },
+  opcoes: {
+    comoVai: { t: 'E aí, tudo bem?', a: 'comoVai' },
+    fazendo: { t: 'O que tá fazendo?', a: 'fazendo' },
+    piada: { t: 'Conta uma piada', a: 'piada' },
+    desabafo: { t: 'Dia puxado hoje...', a: 'desabafo' },
+    elogio: { t: 'Você é demais!', a: 'elogio' },
+    obrigado: { t: 'Valeu pela ajuda!', a: 'obrigado' },
+    comandos: { t: 'Bora fazer algo?', menu: 'comandos', quando: 'foraTime' },
+    timeMenu: { t: 'Ordens pro time', menu: 'timeMenu', quando: 'noTime', calado: true },
+    equip: { t: 'Ver equipamento', app: 'equip', calado: true },
+    tchau: { t: 'Tchau!', acao: 'tchau', fecha: true },
+    time: { t: 'Entra no meu time?', acao: 'time', quando: 'foraTime' },
+    vir: { t: 'Vem cá!', a: 'vir' },
+    seguir: { t: 'Me leva pra caçar', app: 'seguir' },
+    cacar: { t: 'Vai caçar sozinh{a|o}', a: 'cacar', quando: 'foraTime' },
+    pescar: { t: 'Bora pescar?', a: 'pescar' },
+    minerar: { t: 'Bora minerar?', a: 'minerar' },
+    lenha: { t: 'Bora cortar lenha?', a: 'lenha' },
+    parar: { t: 'Para o que tá fazendo', a: 'pararAtividade', quando: 'atividade' },
+    voltar: { t: 'Volta pra vila', a: 'voltar', quando: 'caçando' },
+    ajuda: { t: 'Precisa de algo?', acao: 'ajuda', quando: 'semPedido' },
+    dar: { t: 'Toma o que você pediu', acao: 'dar', quando: 'pedido' },
+    troca: { t: 'Bora trocar itens?', acao: 'troca' },
+    ondeUpar: { t: 'Onde eu upo?', a: 'ondeUpar' },
+    missao: { t: 'Qual minha missão?', a: 'missao' },
+    foco: { t: 'Foca no meu alvo!', ordem: 'foco' },
+    atras: { t: 'Fica atrás, só ataca comigo', ordem: 'atras' },
+    recua: { t: 'Recua! Vem pra perto', ordem: 'recua' },
+    livre: { t: 'Luta do seu jeito', ordem: 'livre' },
+    sairTime: { t: 'Pode sair do time', acao: 'sair' },
+    inicio: { t: '◂ Voltar', menu: 'inicio', calado: true },
+  },
+  // o que ele(a) responde ao abrir um menu e às ordens do time ({f|m}: feminino|masculino de quem fala)
+  falas: {
+    comandos: ['Bora! O que você quer fazer?', 'Partiu! Escolhe aí.', 'Tô {pronta|pronto}. Manda.', 'Fala, o que a gente faz?'],
+    foco: ['Deixa comigo, vou no seu alvo!', 'Fechado, foco no mesmo bicho.', 'Tô vendo ele. Vou junto!'],
+    atras: ['Beleza, fico atrás. Ataca que eu entro.', 'Fico na sua cola. Você puxa, eu bato.', 'Ok, só entro quando você entrar.'],
+    recua: ['Recuando! Tô indo pra perto de você.', 'Tá, saindo da briga!', 'Voltando! Cuidado aí.'],
+    livre: ['Do meu jeito? Adoro, kkk.', 'Pode deixar, eu me viro.', 'Solta a coleira, kkk. Bora!'],
+    longe: ['Tô longe, mas tô ouvindo! Fala.', 'Oi! Tô do outro lado do mapa, mas manda.'],
+  },
+  ordemDura: 90, // s que a ordem do time vale (foco, atrás, recua); "livre" desfaz
+};
+
+// ---------- Fala sozinho (André 2026-11-19: "um lance quase que de NPC natural") ----------
+// Sem IA, quem puxa assunto são estas falas prontas, reagindo ao que acontece de verdade (shared/amiga.js reagirAmiga).
+// No time, a fala vai para o chat do time; fora dele, só os grandes momentos vão para o privado (subiu, caiu, voltou).
+// cada: s mínimos entre duas falas do mesmo tipo; entre: s mínimos entre duas falas quaisquer; {nome} = o jogador,
+// {nv} = nível, {lugar} = campo. Sem repetir as últimas (ULTIMA em amiga.js).
+// Comandos rápidos do time (André 2026-11-19: "no combate vai ser praticamente impossível chegar perto ... eu clico ali no
+// time rapidinho e aperto o botão"): tocar no nome de quem está no time abre estes 4 botões. Valem igual para jogador e
+// NPC: o jogador recebe o aviso na tela e no chat do time; a Cecília e o Dario obedecem pelo código. Só 4 para começar
+// ("Espera aqui" e "Me segue" o André pediu; os outros dois a gente filtra jogando).
+export const COMANDOS_TIME = {
+  lista: [
+    { id: 'espera', t: 'Espera aqui', icone: 'barreira' },
+    { id: 'segue', t: 'Me segue', icone: 'disparada' },
+    { id: 'ataca', t: 'Ataca meu alvo', icone: 'it_espada' },
+    { id: 'recua', t: 'Recua', icone: 'desfazer' },
+  ],
+  dura: { espera: 300, ataca: 60, recua: 20 }, // s que a ordem vale no NPC ("Me segue" desfaz as outras)
+  entre: 1.5, // s entre dois comandos de quem manda
+  alvo: 10, // s: "Ataca meu alvo" vale para o monstro que ele bateu até aqui
+  pedido: { espera: '{nome}, espera aqui!', segue: '{nome}, me segue!', ataca: '{nome}, ataca meu alvo!', recua: '{nome}, recua!' }, // a fala de quem mandou, no chat do time
+  falas: {
+    espera: ['Tá, fico aqui.', 'Beleza, espero aqui.', 'Daqui eu não saio.', 'Fico de olho por aqui.'],
+    segue: ['Tô indo!', 'Atrás de você!', 'Bora, tô colad{a|o}.', 'Já vou!'],
+    ataca: ['Esse aí? Deixa comigo!', 'Pra cima dele!', 'Foco nele!', 'Vou nele!'],
+    recua: ['Recuando!', 'Tá, saindo da briga!', 'Pulei fora!', 'Voltei pra trás!'],
+    semAlvo: ['Qual? Bate num primeiro que eu vou junto.', 'Não vi seu alvo. Bate nele que eu vou.'],
+    fora: ['Ué, eu nem tô no seu time!'],
+  },
+};
+export const REACOES = {
+  entre: 40,
+  cada: { subiu: 5, caiu: 30, voltou: 3600, euSubi: 5, vidaBaixa: 60, curou: 90, geada: 180, noite: 1800, dia: 1800, chefe: 120, quieto: 600, venceu: 120 },
+  falas: {
+    subiu: ['Nível {nv}! Boa, {nome}! Tá ficando brabo, hein.', 'Upou! Nível {nv}, que orgulho, kkk.', 'Eita, {nv} já? Daqui a pouco você me carrega.', 'Parabéns pelo {nv}! Bora comemorar matando mais mob.'],
+    caiu: ['{nome}! Levanta, levanta! Que mob safado.', 'Aff, caiu? Relaxa, acontece com todo mundo.', 'Ih, foi feio. Volta que eu te cubro.', 'Não acredito, kkk. Bora de novo, agora com calma.'],
+    voltou: ['Olha quem apareceu! Saudade, {nome}.', 'Eee, {nome} on! Bora jogar?', 'Até que enfim! Tava {entediada|parado} aqui.', 'Voltou! Me conta, o que vamos fazer hoje?'],
+    euSubi: ['Subi pro {nv}! Já tô sentindo a diferença.', 'Nível {nv}, finalmente! Valeu pela ajuda.', 'Upei! {nv}! Kkk, agora ninguém me segura.'],
+    vidaBaixa: ['{nome}, sua vida tá baixa! Toma poção!', 'Cuidado, você tá quase caindo!', 'Recua um pouco, deixa comigo!'],
+    curou: ['Ufa, essa foi por pouco.', 'Tô de volta! Me curei.', 'Poção na veia, kkk. Bora!'],
+    geada: ['Geada por perto, {nome}. Olho aberto.', 'Tô vendo gente da Geada ali. Não vacila.', 'Cheiro de gelo... a Geada tá rondando.'],
+    noite: ['Escureceu. De noite os mobs ficam mais chatos, hein.', 'Já é noite? Passou rápido hoje.', 'Noite chegando. Bora pra perto da fogueira depois.'],
+    dia: ['Amanheceu! Bora aproveitar o dia.', 'Bom dia! Dormiu bem ou virou a noite farmando?'],
+    chefe: ['Chefe! Fica junto que esse aí bate forte.', 'Esse é grandão. Bora com calma.', 'Opa, boss! Não sai de perto.'],
+    quieto: ['Tá quieto, hein. Tudo certo aí?', 'Esse campo tá rendendo, ou bora trocar?', 'Kkk, a gente tá parecendo máquina de farmar.', 'Lembra de reparar o equipamento depois.'],
+    venceu: ['Kkk, passamos o rodo!', 'Mais um pro saco! Boa, time.', 'Essa foi limpa. Gostei!'],
+  },
+};
 
 // Quantos aventureiros andam no mundo agora (André 2026-11-11: o ping foi a 29 mil com os 20; "diminui pra 4 e vai
 // aumentando aos poucos"). A lista inteira continua acima; para aumentar é só pôr mais ids aqui (null = todos os 20).

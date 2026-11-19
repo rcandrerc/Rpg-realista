@@ -115,7 +115,7 @@ ok(ITENS.lenha, 'itens');
   ok(s3.assuntoAmiga('Vem cá!') === 'vir' && s3.assuntoAmiga('bora pro meu time?') === 'time' && s3.assuntoAmiga('Pode sair do time') === 'sairTime' && s3.assuntoAmiga('oi, tudo bem?') === 'comoVai' && s3.assuntoAmiga('xyz qwe') === 'naoEntendi', 'entende o assunto pelas palavras');
   ok(chat('Oi Cecília!'), 'amigo dela manda mensagem privada (sem estar na lista de amigos de gente)');
   esperar(6);
-  ok(falas.length === 1 && falas[0].c === AMIGA.conta && falas[0].alvo === d.conta && falas[0].canal === 'pm', `ela responde no privado: "${falas[0]?.texto}"`);
+ok(falas.length === 1 && falas[0].c === AMIGA.conta && falas[0].alvo === d.conta && falas[0].canal === 'pm', `ela responde no privado: "${falas[0]?.texto}"`);
   // vem cá de longe: ela vai até ele
   Object.assign(d, { x: -1, z: 30, y: s3.terreno.altura(-1, 30) }); Object.assign(c, { x: -6, z: -10, y: s3.terreno.altura(-6, -10) });
   const rnd2 = Math.random; Math.random = () => 0.01; s3.tempo += 2; chat('Vem aqui comigo?'); Math.random = rnd2;
@@ -262,12 +262,12 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   s7.iaPorChave = true; s7.amigaEntrar('andre'); s7.amigaEntrar('irmao');
   const c = s7.amiga, esp = (t) => { for (let i = 0; i < t * 20; i++) s7.passo(0.05); };
   const fila = () => c.ia.chatFila || [];
-  ok(s7.amigaDono === 'andre' && s7.iaAmiga('irmao') && s7.iaAmiga('andre') && !s7.iaAmiga('sem'), 'os dois com chave têm IA; ela acompanha quem chegou primeiro');
+  ok(s7.amigaDono === 'andre' && s7.iaAmiga('irmao') && s7.iaAmiga('andre') && s7.iaAmiga('sem'), 'todos têm IA (André 2026-11-19: aberta a todos); ela acompanha quem chegou primeiro');
   c.amigosDe = { [d.conta]: 1, [ir.conta]: 1, [s7.jogadores.get('sem').conta]: 1 }; // os três já adicionaram ela (André 2026-11-16)
   s7.eventos = []; s7.chat('sem', { canal: 'pm', para: AMIGA.conta, texto: 'oi' });
   ok(s7.podeAmiga('sem') && !s7.eventos.some((e) => e.t === 'aviso' && e.para === 'sem'), 'sem chave: conversa também (sem IA, respostas prontas)');
   s7.eventos = []; s7.enviarAmigos(s7.jogadores.get('sem'));
-  ok(s7.eventos.some((e) => e.t === 'amigos' && e.virtuais[0]?.ia === false), 'sem chave: a lista mostra ela com o botão de ativar');
+  ok(s7.eventos.some((e) => e.t === 'amigos' && e.virtuais[0]?.ia === true), 'sem chave: a lista mostra ela sem o botão de ativar (IA aberta a todos)');
   c.amizade = 3;
   const rr = Math.random; Math.random = () => 0.01; s7.respostaAmiga('andre', { assunto: 'time' }); Math.random = rr;
   s7.time('andre', { acao: 'convidar', com: c.id });
@@ -438,7 +438,7 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   ok(c.time && c.time === sem.time, 'sem chave de IA, na missão: ela entra no time');
   s5.checarEtapa(sem);
   ok((sem.prog.hist.e || 0) > e, 'a etapa do time passou');
-  ok(s5.podeAmiga('semchave') && !s5.iaAmiga('semchave') && s5.iaAmiga('andre'), 'sem chave: interage com ela, mas resposta de IA só para quem tem chave');
+  ok(s5.podeAmiga('semchave') && s5.iaAmiga('semchave') && s5.iaAmiga('andre'), 'sem chave: interage com ela e tem a IA do servidor (André 2026-11-19)');
   Math.random = rnd;
 }
 

@@ -1,21 +1,39 @@
 // IA grátis da Cecília (André 2026-11-09: conversar com ela "no chat como uma pessoa normal").
-// Só liga quando o servidor tem a chave GROQ_CHAVE (Groq, grátis, preferida) ou GEMINI_CHAVE (Google AI Studio); sem chave, sem
+// Liga quando o servidor tem a chave GEMINI_CHAVE (Google AI Studio, grátis, a primeira desde 2026-11-19) ou GROQ_CHAVE (Groq, a reserva); sem chave, sem
 // internet, passou do limite do dia ou a IA demorou, devolve null e quem responde são as regras (shared/amiga.js).
 // A IA só escreve a fala e escolhe UMA ação da lista; o jogo confere tudo (ela pode recusar o time mesmo assim).
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { abrirPacote } from './atualizar.js';
+import SELADOS from './segredos-selados.json' with { type: 'json' };
 import { AMIGA, CEREBRO } from '@rpg/shared';
 
 
-// chave de um segredo: do ambiente ou do segredos.json (GROQ_CHAVE ou GEMINI_CHAVE, segredos do GitHub)
+// chave de um segredo: do ambiente, do segredos.json (segredos do GitHub, vêm no pacote trancado) ou, sem eles, do
+// segredos-selados.json (André 2026-11-19: chave do Gemini selada com a chave pública da máquina; só ela abre)
+const abertos = new Map();
+function selado(k) {
+  if (abertos.has(k)) return abertos.get(k);
+  let v = '';
+  try {
+    const p = SELADOS[k];
+    if (p) {
+      const pem = [process.cwd(), path.dirname(fileURLToPath(import.meta.url))].map((d) => path.join(d, 'chave-privada.pem')).find((f) => fs.existsSync(f));
+      if (!pem) return ''; // instalação nova: a chave da máquina ainda vai ser criada (tenta de novo depois)
+      v = String(abrirPacote(p, crypto.createPrivateKey(fs.readFileSync(pem))).arquivos?.[k] || '');
+    }
+  } catch { v = ''; } // outra máquina (chave diferente) ou arquivo estragado: sem a chave
+  abertos.set(k, v);
+  return v;
+}
 function segredo(k) {
   if (process.env[k]) return process.env[k];
-  try { return JSON.parse(fs.readFileSync(path.join(process.cwd(), 'segredos.json'), 'utf8'))[k] || ''; } catch { return ''; }
+  try { const v = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'segredos.json'), 'utf8'))[k]; if (v) return v; } catch { /* sem arquivo */ }
+  return selado(k);
 }
-function chaveGemini() {
-  if (process.env.GEMINI_CHAVE) return process.env.GEMINI_CHAVE;
-  try { return JSON.parse(fs.readFileSync(path.join(process.cwd(), 'segredos.json'), 'utf8')).GEMINI_CHAVE || ''; } catch { return ''; }
-}
+function chaveGemini() { return segredo('GEMINI_CHAVE'); }
 
 // André 2026-11-16 ("dá mais comandos para eles"): além de time/vir/sim/não, ela pode sair para caçar sozinha (num campo
 // que ela escolhe), voltar para a vila, combinar pescar/minerar/lenha, parar a coleta, topar troca e mostrar o equipamento
@@ -36,29 +54,109 @@ export async function testarChaveGroq(chave) {
   } catch { return false; }
 }
 
-// chaveJogador: a chave Groq de quem está conversando (André 2026-11-10: "a chave é por jogador"). Sem ela, as chaves do servidor
-// (contas de teste do André), com o limite do dia.
-const esgotadas = new Map(); // chave Groq -> quando o limite do dia acabou em todos os modelos
-export function iaEsgotada(chave) { const k = chave || segredo('GROQ_CHAVE'), t = esgotadas.get(k); return !!t && Date.now() - t < 120000; }
+// chaveJogador: a chave Groq que o jogador colou no jogo (André 2026-11-10); paga primeiro e não conta no limite do servidor.
+// André 2026-11-19 ("pode deixar aberta a chave pra todos... tanto o Grok e o Gemini, para aumentar o limite"): as chaves do
+// servidor valem para todo jogador, na ordem Gemini (grátis, 500 por dia no 3.5 Flash Lite) -> Groq -> falas prontas e botões.
+const esgotadas = new Map(); // chave -> até quando o limite do dia dela acabou (ms)
+// o limite grátis do Google zera à meia-noite do Pacífico (ai.google.dev/gemini-api/docs/rate-limits); o dia do contador
+// das respostas segue a mesma hora, para todos voltarem juntos
+const FUSO_IA = 'America/Los_Angeles';
+export function diaIa(agora = Date.now()) { return new Intl.DateTimeFormat('en-CA', { timeZone: FUSO_IA }).format(new Date(agora)); }
+export function proximoZeroIa(agora = Date.now()) {
+  const p = new Intl.DateTimeFormat('en-US', { timeZone: FUSO_IA, hourCycle: 'h23', hour: 'numeric', minute: 'numeric', second: 'numeric' }).formatToParts(new Date(agora));
+  const v = (t) => Number(p.find((x) => x.type === t)?.value || 0);
+  return agora - ((v('hour') % 24) * 3600 + v('minute') * 60 + v('second')) * 1000 + 86400000 + 60000; // +1 min de folga
+}
+const acabou = (k) => !!k && (esgotadas.get(k) || 0) > Date.now();
+// até quando as chaves do servidor acabaram hoje (0 = ainda tem IA). André 2026-11-19: acabou o Gemini e o Groq, a Cecília
+// e o Dario se despedem e deslogam como jogador (shared/amiga.js passoLogAmiga); voltam quando o limite volta.
+export function iaVoltaEm() {
+  const g = chaveGemini(), q = segredo('GROQ_CHAVE'); if (!g && !q) return 0; // sem chave nenhuma (teste): falas prontas
+  if (diaIa() !== dia) { dia = diaIa(); usadas = 0; }
+  if (usadas >= AMIGA.chat.iaPorDia) return proximoZeroIa();
+  if ((g && !acabou(g)) || (q && !acabou(q))) return 0;
+  return Math.min(...[g, q].filter(Boolean).map((k) => esgotadas.get(k)));
+}
+// quanto cada conta já gastou da IA do servidor (revisão de segurança 2026-11-19: sem isso, um jogador mandando mensagem
+// sem parar acabava o limite do dia e a Cecília e o Dario deslogavam para todos). true = ainda pode (e conta este pedido)
+const usoJogador = new Map();
+export function podeIaJogador(k) {
+  const agora = Date.now(), hoje = diaIa(agora), C = AMIGA.chat;
+  let u = usoJogador.get(k); if (!u || u.dia !== hoje) { u = { dia: hoje, n: 0, min: [] }; usoJogador.set(k, u); }
+  u.min = u.min.filter((t) => agora - t < 60000);
+  if (u.n >= (C.iaPorJogador || 300) || u.min.length >= (C.iaPorMinuto || 8)) return false;
+  u.n++; u.min.push(agora);
+  if (usoJogador.size > 5000) for (const [kk, x] of usoJogador) if (x.dia !== hoje) usoJogador.delete(kk);
+  return true;
+}
+// tudo que pode responder acabou? (quem tem chave própria só olha a dele)
+export function iaEsgotada(chave) { return chave ? acabou(chave) : iaVoltaEm() > 0; }
+// modelo do Gemini (André 2026-11-19): 3.5 Flash Lite, o de maior limite grátis (15 por minuto, 500 por dia)
+const modeloGemini = () => process.env.GEMINI_MODELO || 'gemini-3.5-flash-lite';
+// a conversa no formato do Gemini: as regras em systemInstruction, ele = user, ela = model (antes ia tudo num texto só)
+export function corpoGemini(mensagens, modelo, maximo = 1200) {
+  const sistema = mensagens.filter((m) => m.role === 'system').map((m) => m.content).join('\n');
+  const contents = mensagens.filter((m) => m.role !== 'system').map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: String(m.content) }] }));
+  // o 3.x pensa por nível (thinkingBudget dá erro 400); o 2.5 por orçamento
+  const pensar = /gemini-[3-9]/.test(modelo) ? { thinkingLevel: process.env.GEMINI_PENSAR || 'low' } : { thinkingBudget: 0 };
+  return { ...(sistema ? { systemInstruction: { parts: [{ text: sistema }] } } : {}), contents, generationConfig: { responseMimeType: 'application/json', temperature: 0.9, maxOutputTokens: maximo, thinkingConfig: pensar } };
+}
+// um pedido de JSON avulso ao Gemini do servidor (diário e dica): devolve o objeto ou null (sem chave, limite, erro)
+export async function geminiJson(prompt, { temperatura = 0.3, maximo = 2500, espera = 15000 } = {}) {
+  const chave = chaveGemini(); if (!chave || acabou(chave)) return null;
+  const modelo = modeloGemini(), corpo = corpoGemini([{ role: 'user', content: prompt }], modelo, maximo);
+  corpo.generationConfig.temperature = temperatura;
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': chave }, body: JSON.stringify(corpo), signal: AbortSignal.timeout(espera),
+    });
+    if (r.status === 429) { let c = ''; try { c = JSON.stringify(await r.json()); } catch { /* sem corpo */ } if (/PerDay|per day|daily/i.test(c)) esgotadas.set(chave, proximoZeroIa()); return null; }
+    if (!r.ok) return null;
+    const partes = (await r.json())?.candidates?.[0]?.content?.parts || [];
+    const t = partes.filter((x) => !x.thought).map((x) => x.text || '').join('').trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
+    return JSON.parse(t || 'null');
+  } catch { return null; }
+}
 export async function pensarAmiga(ctx, texto, chaveJogador = '') {
   if (!ctx) return null;
-  const chave = chaveJogador ? '' : chaveGemini(); if (!chave && !chaveJogador && !segredo('GROQ_CHAVE')) return null;
+  const chave = chaveJogador ? '' : chaveGemini(), groq = chaveJogador || segredo('GROQ_CHAVE');
+  if (!chave && !groq) return null;
   if (!chaveJogador) {
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = diaIa();
     if (hoje !== dia) { dia = hoje; usadas = 0; }
     if (usadas >= AMIGA.chat.iaPorDia) return null; // conta só as respostas que a IA deu (contarIa)
   }
-  const modelo = process.env.GEMINI_MODELO || 'gemini-2.5-flash';
   const mensagens = mensagensConversa(ctx, texto);
-  const prompt = mensagens.map((m) => m.content).join('\n'); // o Gemini (reserva) recebe tudo junto
-  // Groq (André 2026-11-09: "é mais rápido"): grátis sem cartão, responde em menos de 1 s. Tem preferência; sem ele, Gemini.
+  if (chave && !acabou(chave)) { const v = await gemini(); if (v) return v; }
+  return groq ? viaGroq() : null;
+  // Gemini primeiro (André 2026-11-19): limite maior e responde em menos de 1 s
+  async function gemini() {
+    const modelo = modeloGemini();
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': chave },
+        body: JSON.stringify(corpoGemini(mensagens, modelo)),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (r.status === 429) { // limite do minuto (15) ou do dia (500): o do dia marca a chave e passa o resto do dia para o Groq
+        let corpo = ''; try { corpo = JSON.stringify(await r.json()); } catch { /* sem corpo */ }
+        if (/PerDay|per day|daily/i.test(corpo)) esgotadas.set(chave, proximoZeroIa());
+        return null;
+      }
+      if (!r.ok) return null;
+      const partes = (await r.json())?.candidates?.[0]?.content?.parts || [];
+      const v = lerResposta(partes.filter((p) => !p.thought).map((p) => p.text || '').join('')) || salvarResposta(partes.map((p) => p.text || '').join(''));
+      if (v) { contarIa(chaveJogador); v.ia = modelo; } // a ronda das 9h vê qual IA respondeu
+      return v;
+    } catch { return null; }
+  }
+  // Groq (André 2026-11-09: "é mais rápido"): grátis sem cartão. Agora é a reserva do Gemini.
   // André 2026-11-12 ("a IA tá muito burra"): o modelo menor (gpt-oss-20b, entrega 5) respondia mal e, com Cecília e Dario
   // respondendo juntos no chat de time, o limite POR MINUTO do Groq (429) estourava e quem respondia eram as falas prontas.
   // Agora: o grande primeiro (o de antes, que era esperto); 429 é por modelo, então passa para o próximo da lista em vez de
   // desistir; se o Groq pedir para esperar pouco (retry-after), espera e tenta de novo. Tudo dentro de 10 s.
-  const groq = chaveJogador || segredo('GROQ_CHAVE');
-  const diaAcabou = new Set();
-  if (groq) {
+  async function viaGroq() {
+    const diaAcabou = new Set();
     const fim = Date.now() + 10000;
     for (const modelo of modelosConversa()) {
       for (let tentativa = 0; tentativa < 2; tentativa++) {
@@ -73,13 +171,13 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
         } catch { break; } // tempo acabou ou rede: tenta o próximo modelo se ainda der
         if (r.ok) {
           let v = null; try { v = lerResposta((await r.json())?.choices?.[0]?.message?.content); } catch { /* quebrada */ }
-          if (v) { contarIa(chaveJogador); return v; }
+          if (v) { contarIa(chaveJogador); v.ia = 'groq:' + modelo; return v; }
           break; // resposta quebrada: o próximo modelo
         }
-        if (r.status === 401) return gemini(); // chave errada: nenhum modelo do Groq vai
+        if (r.status === 401) return null; // chave errada: nenhum modelo do Groq vai
         if (r.status === 400) { // o modelo escreveu a fala sem o JSON (json_validate_failed): aproveita o texto, não a fala pronta
           let v = null; try { v = salvarResposta((await r.json())?.error?.failed_generation); } catch { /* sem texto */ }
-          if (v) { contarIa(chaveJogador); return v; }
+          if (v) { contarIa(chaveJogador); v.ia = 'groq:' + modelo; return v; }
         }
         if (r.status === 429) { // limite do minuto (ou do dia) deste modelo
           let corpo = ''; try { corpo = JSON.stringify(await r.clone().json()); } catch { /* sem corpo */ }
@@ -90,24 +188,10 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
         break; // 404/400 (modelo saiu), 429 longo, 5xx: o próximo modelo
       }
     }
-  }
-  // todos os modelos do Groq sem o limite do dia (André 2026-11-17: "até quando a IA esgotar... ela dizer que não tá mais a
-  // fim, que vai descansar"): marca a chave; o servidor pergunta com iaEsgotada e ela fala do jeito dela
-  if (groq && diaAcabou.size >= modelosConversa().length) esgotadas.set(groq, Date.now());
-  return gemini();
-  async function gemini() {
-    if (!chave) return null;
-    try {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
-        method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': chave },
-        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.9, maxOutputTokens: 200, thinkingConfig: { thinkingBudget: 0 } } }),
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!r.ok) return null;
-      const v = lerResposta((await r.json())?.candidates?.[0]?.content?.parts?.[0]?.text);
-      if (v) contarIa(chaveJogador);
-      return v;
-    } catch { return null; }
+    // todos os modelos do Groq sem o limite do dia (André 2026-11-17: "até quando a IA esgotar... ela dizer que não tá mais a
+    // fim, que vai descansar"): marca a chave; o servidor pergunta com iaEsgotada e ela fala do jeito dela
+    if (diaAcabou.size >= modelosConversa().length) esgotadas.set(groq, chaveJogador ? Date.now() + 120000 : proximoZeroIa());
+    return null;
   }
 }
 // André 2026-11-13 ("acabou de me negar e duas falas depois me chama pra caçar"): a decisão de caçar/entrar no time já está
@@ -254,7 +338,7 @@ export function modelosConversa() {
 // as respostas da chave do servidor (contas de teste) contam para o limite do dia; a chave do jogador não conta aqui
 function contarIa(chaveJogador) {
   if (chaveJogador) return;
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = diaIa();
   if (hoje !== dia) { dia = hoje; usadas = 0; }
   usadas++;
 }
@@ -293,7 +377,7 @@ function lerResposta(txt) {
 const MODELOS_DIARIO = ['openai/gpt-oss-20b', 'qwen/qwen3.8-27b']; // o Llama 3.1 8B saiu do Groq (404, 2026-11-13)
 export async function escreverDiario(dados, chaveJogador = '') {
   const chave = chaveJogador || segredo('GROQ_CHAVE');
-  if (!chave || !dados?.conversa?.length) return null;
+  if ((!chave && !chaveGemini()) || !dados?.conversa?.length) return null;
   const M = AMIGA.memoria, regras = Object.entries(M.regras).map(([k, r]) => `"${k}" = ${r.texto}`).join('; ');
   const eu = dados.nomeAmigo || AMIGA.nome; // Cecília ou Dario (André 2026-11-11)
   const conversa = dados.conversa.map((m) => `${m.de === 'ele' ? dados.nome : eu}: ${m.texto}`).join('\n');
@@ -307,6 +391,10 @@ Dicas de combate que ele pediu para você seguir (true se ele pediu, false se pe
 Fatos que você já sabe dele (não repita estes): ${(dados.fatos || []).join('; ') || '(nenhum)'}.
 Em "fatos", ponha só os fatos NOVOS e duradouros sobre a vida dele que ele contou HOJE (família, trabalho, onde mora, saúde, perdas, gostos e o que ele não gosta, sonhos), um por item, curto, na terceira pessoa ("o pai dele morreu", "ele trabalha num restaurante", "ele não gosta de guerreiro"). Nada de coisa passageira do jogo. Se não tiver nada novo, lista vazia.
 Devolva só JSON: {"memorias": ["..."], "fatos": [], "regras": {}}`;
+  const lerDiario = (out) => ({ memorias: Array.isArray(out.memorias) ? out.memorias : null, fatos: Array.isArray(out.fatos) ? out.fatos : null, regras: out.regras && typeof out.regras === 'object' ? out.regras : null });
+  // André 2026-11-19 (a memória da Cecília e do Dario volta com a IA): o diário vai primeiro no Gemini, depois no Groq
+  if (!chaveJogador) { const out = await geminiJson(prompt); if (out && typeof out === 'object') return lerDiario(out); }
+  if (!chave) return null;
   for (const modelo of [...MODELOS_DIARIO, process.env.GROQ_MODELO || 'openai/gpt-oss-120b']) {
     try {
       const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -316,8 +404,7 @@ Devolva só JSON: {"memorias": ["..."], "fatos": [], "regras": {}}`;
       });
       if (r.status === 404 || r.status === 400) continue; // modelo saiu do Groq: tenta o próximo
       if (!r.ok) return null; // limite do dia ou chave ruim: fica para a próxima conversa
-      const out = JSON.parse((await r.json())?.choices?.[0]?.message?.content || '{}');
-      return { memorias: Array.isArray(out.memorias) ? out.memorias : null, fatos: Array.isArray(out.fatos) ? out.fatos : null, regras: out.regras && typeof out.regras === 'object' ? out.regras : null };
+      return lerDiario(JSON.parse((await r.json())?.choices?.[0]?.message?.content || '{}'));
     } catch { return null; }
   }
   return null;
@@ -328,9 +415,9 @@ Devolva só JSON: {"memorias": ["..."], "fatos": [], "regras": {}}`;
 // ({ quando, faca, por, texto }) ou null; quem confere e guarda é o jogo (shared/cerebro.js validarRegra).
 export async function dicaParaRegra(texto, nomeNpc, chaveJogador = '') {
   const chave = chaveJogador || segredo('GROQ_CHAVE');
-  if (!chave || !texto) return null;
+  if ((!chave && !chaveGemini()) || !texto) return null;
   if (!chaveJogador) { // chave do servidor: o mesmo limite do dia das respostas
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = diaIa();
     if (hoje !== dia) { dia = hoje; usadas = 0; }
     if (usadas >= AMIGA.chat.iaPorDia) return null;
     usadas++;
@@ -350,6 +437,8 @@ Exemplo: "recua quando o chefe levantar o braço" -> {"ok": true, "regra": {"qua
 Exemplo: "bebe poção quando tiver com metade da vida" -> {"ok": true, "regra": {"quando": [["vida", "<", 0.5], ["temPocao", "=", true]], "faca": "pocao", "texto": "beber poção com metade da vida"}}
 Dica: "${String(texto).slice(0, 300).replace(/"/g, "'")}"
 Devolva só JSON.`;
+  if (!chaveJogador) { const out = await geminiJson(prompt, { temperatura: 0.1, maximo: 800, espera: 10000 }); if (out?.ok && out.regra && typeof out.regra === 'object') return out.regra; if (out) return null; } // Gemini primeiro
+  if (!chave) return null;
   try {
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${chave}` },
