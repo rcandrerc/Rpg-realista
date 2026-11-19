@@ -11,6 +11,9 @@ import { PERSONAGENS, visualValido, buildValida, aparenciaValida, progressoValid
 const DIA = 24 * 3600 * 1000;
 const VALIDADE_SESSAO = 60 * DIA;
 const COPIAS_GUARDADAS = 14;
+// Marcos (André 2026-11-19, "férias" de 30 dias com o Presidente decidindo): cópia que NUNCA é apagada pelo rodízio,
+// para dar para voltar ao estado de antes se algo ficar absurdo. Nome sem o prefixo 'contas-' (o rodízio não pega).
+const MARCOS = ['2026-11-19-antes-do-presidente'];
 
 const chavesGoogle = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 const resumo = (token) => crypto.createHash('sha256').update(token).digest('hex');
@@ -319,6 +322,10 @@ export class Contas {
       this.q.limpar.run(Date.now());
       const pasta = path.join(this.pasta, 'copias');
       fs.mkdirSync(pasta, { recursive: true });
+      for (const m of MARCOS) {
+        const marco = path.join(pasta, `marco-${m}.db`);
+        if (!fs.existsSync(marco)) this.db.prepare('VACUUM INTO ?').run(marco);
+      }
       const arq = path.join(pasta, `contas-${hoje()}.db`);
       if (fs.existsSync(arq)) return;
       this.db.prepare('VACUUM INTO ?').run(arq);
