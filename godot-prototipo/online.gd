@@ -1754,8 +1754,12 @@ func _passo(dt: float) -> void:
 		_criar_t += dt
 		_soltar_capa()
 	elif _cobrindo and not (m.aquecer and m.aquecer.cobre): # preparando os efeitos atrás da capa não conta como espera
-		_cobrir_t -= dt
+		# no máximo 0,25 s por quadro (2026-11-19, Galaxy S9 no Test Lab voltou para "O servidor não respondeu" no meio da
+		# entrada): no celular fraco a montagem dá quadros de vários segundos, e eles comiam os 12 s de espera do servidor
+		_cobrir_t -= minf(dt, 0.25)
 		if _cobrir_t <= 0.0: # o servidor não respondeu
+			if m.lentidao: # o que já tinha chegado quando desistiu (registro da entrada)
+				m.lentidao.anotar("capa_sem_resposta", "ws=%s ligado=%s" % [rede.conectado, ligado])
 			if rede.sessao != "": # com conta: volta para a tela inicial (André 2026-11-07)
 				_voltar_a_tela_inicial()
 			else: # sem conta: libera o jogo sozinho
