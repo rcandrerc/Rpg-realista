@@ -120,3 +120,13 @@ da atualização (numa máquina do GitHub o pacote sairia sem assinatura e o ser
 Se a máquina de builds morrer: a chave nova sai sozinha no primeiro build; ponha a pública numa linha de
 `chaves-assinatura.txt` ao lado do servidor.mjs na máquina do jogo (ou use a cópia reserva da chave, que vai na
 cópia cifrada fora da máquina).
+
+**Se a vaga da atualização cair** (nada publica: o job `publicar` espera a Oracle): esvazie a variável
+`RUNNER_ATUALIZACAO` em Settings > Secrets and variables > Actions > Variables (repositório público). O `publicar` volta
+para a máquina do GitHub. Só que lá não existe a chave, então o pacote do servidor sai sem assinatura e, depois do
+passo 2, o servidor não instala: o jogo (cliente) segue atualizando e o servidor fica na versão que tem até a vaga
+voltar. Use só em emergência e devolva a variável (`aethra-atualizacao`) assim que a Oracle voltar. O robô diário
+avisa quando o Pages fica parado ou quando o servidor fica atrás do último pacote.
+
+**Falha na assinatura com a chave existindo** (arquivo estragado ou sem permissão): o job cai de propósito e nada
+publica. Cliente e servidor ficam juntos na versão anterior e o job vermelho aparece na ronda das 9h.

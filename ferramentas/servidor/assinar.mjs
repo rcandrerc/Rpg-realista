@@ -24,7 +24,14 @@ if (!fs.existsSync(arqChave)) {
   fs.writeFileSync(arqChave, privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
   console.log(`::warning::Chave de assinatura do pacote criada em ${arqChave}. Ponha a pública em CHAVES_ASSINATURA.`);
 }
-const privada = crypto.createPrivateKey(fs.readFileSync(arqChave));
+// Falha com a chave existindo (arquivo estragado, sem permissão): derruba o job de propósito (set -e no empacotar.sh).
+// Assim nada publica: cliente e servidor ficam juntos na versão anterior e o job vermelho avisa a ronda das 9h.
+// Publicar o site com pacote sem assinatura deixaria o jogo novo com o servidor velho.
+let privada;
+try { privada = crypto.createPrivateKey(fs.readFileSync(arqChave)); } catch (e) {
+  console.log(`::error::Chave de assinatura ilegível (${arqChave}): ${e.message}. Nada publicado; veja ferramentas/runner/LEIAME.md.`);
+  process.exit(1);
+}
 const publica = crypto.createPublicKey(privada).export({ type: 'spki', format: 'der' }).toString('base64');
 const pacote = JSON.parse(fs.readFileSync(arqPacote, 'utf8'));
 delete pacote.assinatura;
