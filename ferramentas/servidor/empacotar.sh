@@ -32,7 +32,9 @@ codigo=$(curl -sS -m 20 -o "$chave" -w '%{http_code}' "$SERVIDOR_URL/chave-do-se
 if [ "${ABRIR_SERVIDOR:-0}" = 1 ] || [ "$codigo" = 404 ]; then
   echo "Servidor sem chave ainda (HTTP $codigo): pacote aberto desta vez, para a máquina pegar a versão nova."
 elif [ "$codigo" = 200 ] && grep -q 'BEGIN PUBLIC KEY' "$chave"; then
+  trap 'rm -f "$saida/servidor.mjs" "$saida/package.json" "$saida/versao.txt"' ERR # falhou: código aberto nunca fica no dist
   node ferramentas/servidor/trancar.mjs "$chave" "$(cat "$saida/versao.txt")" "$saida/servidor.mjs" "$saida/package.json" "$saida/pacote.json"
+  node ferramentas/servidor/assinar.mjs "$saida/pacote.json" # só a máquina de builds da Oracle tem a chave (ver assinar.mjs)
   cp "$saida/versao.txt" "$saida/pacote-versao.txt"
   rm -f "$saida/servidor.mjs" "$saida/package.json" "$saida/versao.txt"
   echo "Pacote trancado; código do servidor fora do site."

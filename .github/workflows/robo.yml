@@ -47,5 +47,5 @@ jobs:
         with:
           name: robo-relatorio-${{ github.run_id }}
           path: robo-relatorio.json
-          retention-days: 14
+          retention-days: 2 # plano v3: cota de artefatos com o repositório fechado; a ronda das 9h só olha as últimas 24 h
           if-no-files-found: ignore

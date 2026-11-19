@@ -13,6 +13,10 @@ on:
         description: 'Publicar o servidor aberto uma vez (só para máquina nova da Oracle, que ainda não tem chave)'
         type: boolean
         default: false
+      criar_chave_assinatura:
+        description: 'Criar de propósito uma chave nova de assinatura do pacote (só se a da Oracle se perdeu; ver ferramentas/runner/LEIAME.md)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -60,7 +64,10 @@ jobs:
     if: always() && needs.fila.outputs.pular != 'true'
     # Com a variável RUNNER_BUILD definida e o repositório PRIVADO, roda no runner próprio da Oracle (não gasta cota
     # do GitHub). Repositório público ou sem a variável: roda no GitHub (ubuntu-latest). Ver ferramentas/runner/LEIAME.md.
-    runs-on: ${{ github.event.repository.private && vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    # Com a vaga da atualização (RUNNER_ATUALIZACAO) roda sempre na Oracle, público ou privado: só lá existe a chave
+    # que assina o pacote do servidor (ferramentas/servidor/assinar.mjs). É um job leve (npm build).
+    runs-on: ${{ vars.RUNNER_ATUALIZACAO || (github.event.repository.private && vars.RUNNER_BUILD) || 'ubuntu-latest' }}
+    timeout-minutes: 30
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -75,6 +82,7 @@ jobs:
       - run: bash ferramentas/servidor/empacotar.sh # o servidor sai junto; a máquina da Oracle se atualiza a partir daqui
         env:
           ABRIR_SERVIDOR: ${{ inputs.abrir_servidor && '1' || '0' }}
+          CRIAR_CHAVE_ASSINATURA: ${{ inputs.criar_chave_assinatura && '1' || '0' }}
           GEMINI_CHAVE: ${{ secrets.GEMINI_CHAVE }} # IA da Cecília: os segredos vão só dentro do pacote trancado (nunca no site aberto)
           GROQ_CHAVE: ${{ secrets.GROQ_CHAVE }} # IA da Cecília (Groq, preferida quando existe)
       - name: Atualização do app Godot em /atualizacao (gerada pelo apk.yml no release "atualizacao")
