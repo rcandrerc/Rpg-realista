@@ -61,3 +61,30 @@ ok(volta(120, 700, 'lobo').n === 1, 'os ~700 m da revisão: recusado');
   t.s.posicaoCliente('A', { x: 0, y: t.s.terreno.altura(0, lobo * 8, 10), z: lobo * 8, ry: 0, e: 1, c: 0 });
   ok(t.s.passo(TICK).some((e) => e.t === 'corrigir' && e.para === 'A'), 'montaria que não existe não vale');
 }
+// revisão independente 2026-11-19
+// 1) a folga da queda some 15 s depois: esperar e pular depois não passa (nem sem a marca de guerra)
+{
+  const { s, j } = novo();
+  s.folgaDaQueda('A', 15, 'lobo');
+  s.posicaoCliente('A', { x: 0, y: j.y, z: 0.5, ry: 0, e: 1, c: 0 });
+  for (let t = 0; t < 15.2; t += TICK) { s.posicaoCliente('A', { x: 0, y: j.y, z: 0.5, ry: 0, e: 1, c: 0 }); s.passo(TICK); }
+  s.eventos = [];
+  s.posicaoCliente('A', { x: 0, y: s.terreno.altura(0, 60, 10), z: 60, ry: 0, e: 1, c: 0 });
+  ok(s.passo(TICK).some((e) => e.t === 'corrigir' && e.para === 'A'), 'caiu, voltou perto, esperou 15 s e pulou 60 m: recusado');
+}
+// 3) internet piscou 1 s e ele seguiu correndo normal: a guerra não trava
+{
+  const { s, j } = novo();
+  s.folgaDaQueda('A', 1);
+  let z = 0, n = 0;
+  for (let t = 0; t < 3; t += TICK) { z += HEROI.correr * TICK; s.posicaoCliente('A', { x: 0, y: s.terreno.altura(0, z, j.y + 1), z, ry: 0, e: 1, c: 0 }); n += s.passo(TICK).filter((e) => e.t === 'corrigir' && e.para === 'A').length; }
+  ok(n === 0 && !(j.semGuerraAte > s.tempo), `piscou 1 s e correu ${z.toFixed(0)} m normal: sem correção e guerra normal`);
+}
+// 2) abrir outra aba depois de marcado não zera o "sem ponto de guerra" (o servidor passa o que faltava)
+{
+  const { s, j } = novo();
+  s.folgaDaQueda('A', 0, null, 10);
+  ok(j.semGuerraAte > s.tempo + 9 && j.semGuerraAte <= s.tempo + 10.01, 'sessão nova herda o que faltava (10 s)');
+  const t = novo(); t.s.folgaDaQueda('A', 0, null, 999);
+  ok(t.j.semGuerraAte <= t.s.tempo + GUERRA.semPontoQueda + 0.01, `nunca mais que ${GUERRA.semPontoQueda} s`);
+}
