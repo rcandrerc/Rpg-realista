@@ -5132,7 +5132,7 @@ function listaReservados() {
 }
 // Devolve o nome do NPC que o nome do jogador usa, 'parecido' no truque de letras de outro alfabeto, ou null
 export function nomeReservado(nome) {
-  const { palavras, truque } = esqueleto(nome);
+  const { palavras, truque } = esqueleto(String(nome).slice(0, 64)); // nome de jogador tem até 16: corta lixo grande
   // letra que o esqueleto não conhece junto de letra nossa (ɾ, ꞃ, ɨ...): truque de letra parecida
   if (truque || palavras.some((v) => v.latina && v[0].includes('?'))) return 'parecido';
   const junto = palavras.map((v) => v[0]).join(''), sem = (x) => x.replace(/\|/g, 'i').replace(/(.)\1+/g, '$1');
