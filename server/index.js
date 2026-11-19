@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
 import { Contas, verificadorGoogle, roboCel } from './contas.js';
 import { Visao } from './visao.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
@@ -924,13 +924,14 @@ app.get('/npcs.json', (_req, res) => {
   const dia = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), vivos = new Map();
   for (const s of salas) for (const ctx of s.sim.amigosIa) if (ctx.amiga) vivos.set(ctx.AMIGA.id, { a: ctx.amiga, ctx });
   const l = [];
-  for (const D of AMIGOS_VIRTUAIS) {
+  // a Geada (Kira, Rufo e Lis) também (plano de lançamento, 2026-11-19: "evoluem como a Cecília e entram no relatório das 10h")
+  for (const D of [...AMIGOS_VIRTUAIS, ...RIVAIS]) {
     const v = vivos.get(D.id);
     let d = v?.a;
     if (!d && contas) try { d = D.terreno ? contas.loteDoDono(D.conta)?.dados?.amiga : contas.lerMundo('npc:' + D.id); } catch { d = null; }
     if (!d) { l.push({ nome: D.nome, id: D.id, salvo: false }); continue; }
     const p = d.prog || {}, h = p.hist || {};
-    l.push({ nome: D.nome, id: D.id, noMundo: !!v, nivel: p.nivel | 0, ouro: p.ouro | 0, missao: h.p ?? null, etapa: h.e ?? null,
+    l.push({ nome: D.nome, id: D.id, ...(D.raca ? { raca: D.raca } : {}), noMundo: !!v, nivel: p.nivel | 0, ouro: p.ouro | 0, missao: h.p ?? null, etapa: h.e ?? null,
       cacaMinHoje: d.grind?.dia === dia ? Math.round((d.grind.seg || 0) / 60) : 0, missaoMinHoje: d.missaoDia?.dia === dia ? Math.round((d.missaoDia.seg || 0) / 60) : 0,
       salvoHa: d.t ? Math.round((Date.now() - d.t) / 60000) : null,
       evolucao: Array.isArray(d.evolucao) ? d.evolucao.slice(-40) : [], ...(v ? { x: Math.round(v.a.x), z: Math.round(v.a.z), morto: !!v.a.morto, preso: !!v.a.ia?.viagem?.bloqueio } : {}) });
