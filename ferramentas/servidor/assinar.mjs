@@ -13,7 +13,10 @@ import { textoAssinado, idChave, CHAVES_ASSINATURA } from '../../server/atualiza
 const arqPacote = process.argv[2];
 const arqChave = process.env.ASSINATURA_PACOTE || path.join(os.homedir(), '.aethra', 'assinatura-pacote.pem');
 const naOracle = process.env.RUNNER_ENVIRONMENT === 'self-hosted';
-const exigida = CHAVES_ASSINATURA.length > 0; // passo 2 em diante: o servidor só instala pacote assinado
+// Lista que o servidor aceita (server/atualizar.js). Os testes (ferramentas/testes/) trocam por CHAVES_ASSINATURA_TESTE
+// (JSON) para treinar os dois casos; o CI de verdade nunca define. Só mexe nesta conferência prévia, nunca no servidor.
+const lista = process.env.CHAVES_ASSINATURA_TESTE ? JSON.parse(process.env.CHAVES_ASSINATURA_TESTE) : CHAVES_ASSINATURA;
+const exigida = lista.length > 0; // passo 2 em diante: o servidor só instala pacote assinado
 const falhar = (msg) => { console.log(`::error::${msg} Nada publicado; veja ferramentas/runner/LEIAME.md.`); process.exit(1); };
 
 // Cria a chave sem corrida: grava num arquivo temporário e liga no nome final só se ninguém criou antes (link falha
@@ -69,7 +72,7 @@ try { privada = crypto.createPrivateKey(fs.readFileSync(arqChave)); } catch (e) 
 }
 const publica = crypto.createPublicKey(privada).export({ type: 'spki', format: 'der' }).toString('base64');
 // Chave diferente da que o servidor aceita (outra máquina, chave trocada): mesma coisa, nada publica.
-if (exigida && !CHAVES_ASSINATURA.includes(publica)) falhar(`A chave desta máquina (${idChave(publica)}, pública ${publica}) não está em CHAVES_ASSINATURA.`);
+if (exigida && !lista.includes(publica)) falhar(`A chave desta máquina (${idChave(publica)}, pública ${publica}) não está em CHAVES_ASSINATURA.`);
 const pacote = JSON.parse(fs.readFileSync(arqPacote, 'utf8'));
 delete pacote.assinatura;
 delete pacote.assinado_por;

@@ -49,19 +49,25 @@ export function idChave(publicaBase64) {
   return crypto.createHash('sha256').update(publicaBase64).digest('hex').slice(0, 16);
 }
 
-// true se alguma chave confiável assina este pacote. chaves = chaves públicas Ed25519 (SPKI DER em base64).
-export function assinaturaValida(pacote, chaves) {
-  if (!pacote || typeof pacote.assinatura !== 'string') return false;
+// Qual chave confiável assina este pacote (a pública em base64), ou null. chaves = chaves públicas Ed25519 (SPKI DER
+// em base64). O assinado_por do pacote não entra na assinatura, então quem assinou de verdade sai daqui.
+export function chaveQueAssina(pacote, chaves) {
+  if (!pacote || typeof pacote.assinatura !== 'string') return null;
   const texto = textoAssinado(pacote);
   const assinatura = Buffer.from(pacote.assinatura, 'base64');
   for (const b64 of chaves) {
     try {
       const chave = crypto.createPublicKey({ key: Buffer.from(b64, 'base64'), format: 'der', type: 'spki' });
       if (chave.asymmetricKeyType !== 'ed25519') continue; // só Ed25519 (verify(null) aceitaria RSA)
-      if (crypto.verify(null, texto, chave, assinatura)) return true;
+      if (crypto.verify(null, texto, chave, assinatura)) return b64;
     } catch { /* chave mal escrita na lista: tenta a próxima */ }
   }
-  return false;
+  return null;
+}
+
+// true se alguma chave confiável assina este pacote.
+export function assinaturaValida(pacote, chaves) {
+  return chaveQueAssina(pacote, chaves) !== null;
 }
 
 // Chaves aceitas nesta máquina: as do código + as de chaves-assinatura.txt (uma por linha; # comenta).
@@ -132,9 +138,19 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
   const chavePrivada = crypto.createPrivateKey(fs.readFileSync(arqPrivada));
   const publica = crypto.createPublicKey(chavePrivada).export({ type: 'spki', format: 'pem' });
   app.get('/chave-do-servidor', (_req, res) => res.type('text/plain').send(publica));
+  // O /saude (server/index.js) mostra isto: a versão que roda, a chave que assinou o pacote instalado (conferida aqui)
+  // e se esta máquina já exige assinatura. Nada secreto (o pacote.json do site já mostra versão e chave); serve para
+  // conferir de fora, sem entrar na máquina do jogo. Fixo até o próximo reinício (instalar sempre reinicia).
+  const lerTexto = (arq) => { try { return fs.readFileSync(path.join(pasta, arq), 'utf8').trim(); } catch { return ''; } };
+  const info = {
+    versao: lerTexto('versao.txt').slice(0, 12),
+    assinadoPor: lerTexto('assinado.txt') || null,
+    assinaturaExigida: chavesAceitas(pasta).length > 0,
+  };
 
   let ocupado = false;
   let esperando = '';
+  let conferida = '';
   // adiantar (ms): o reinício fixo pergunta um pouco antes da janela abrir (04:59 para o das 05h) e instala junto
   const conferir = async ({ adiantar = 0 } = {}) => {
     if (ocupado) return;
@@ -148,7 +164,10 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
       const pacote = await (await fetch(`${achou.origem}/pacote.json`, { cache: 'no-store' })).json();
       if (String(pacote.versao) !== nova) return; // o site ainda está trocando os arquivos
       const chaves = chavesAceitas(pasta);
-      if (chaves.length && !assinaturaValida(pacote, chaves)) throw new Error(`pacote ${nova} sem assinatura válida (assinado_por=${pacote.assinado_por || 'ninguém'}): não instalo`);
+      const assinou = chaves.length ? chaveQueAssina(pacote, chaves) : null;
+      if (chaves.length && !assinou) throw new Error(`pacote ${nova} sem assinatura válida (assinado_por=${pacote.assinado_por || 'ninguém'}): não instalo`);
+      if (assinou && conferida !== nova) console.log(`Assinatura conferida: pacote ${nova} (chave ${idChave(assinou)}).`);
+      conferida = nova;
       const emitido = chaves.length ? emitidoAceito(pacote, pasta) : null;
       if (chaves.length && !emitido) throw new Error(`pacote ${nova} mais velho que o último instalado (ou sem data): não instalo`);
       if (!podeInstalar(Date.now() + adiantar, pacote.urgente === true, pacote.furar_bloqueio === true)) {
@@ -168,6 +187,8 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
       fs.renameSync(path.join(pasta, 'servidor.mjs.novo'), path.join(pasta, 'servidor.mjs'));
       fs.writeFileSync(path.join(pasta, 'versao.txt'), nova + '\n');
       if (emitido) fs.writeFileSync(path.join(pasta, 'emitido.txt'), emitido + '\n');
+      if (assinou) fs.writeFileSync(path.join(pasta, 'assinado.txt'), idChave(assinou) + '\n');
+      else fs.rmSync(path.join(pasta, 'assinado.txt'), { force: true }); // instalou sem conferir: não mostra chave velha
       console.log(`Servidor novo ${nova} instalado; reiniciando.`);
       if (antesDeSair) await antesDeSair();
       process.exit(0); // o systemd (Restart=always) liga de novo com o arquivo novo
@@ -181,5 +202,5 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
   setInterval(conferir, 5 * 60 * 1000);
   // Devolve o conferir (verdadeiro como antes): o reinício fixo (server/index.js) chama antes de reiniciar, para o
   // pacote que esperava a janela instalar junto e o servidor não reiniciar duas vezes.
-  return { conferir };
+  return { conferir, info };
 }

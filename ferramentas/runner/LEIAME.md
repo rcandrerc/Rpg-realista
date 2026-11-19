@@ -145,11 +145,14 @@ só instala pacote assinado pela nova.
 
 **Chave reserva (decisão do Presidente, 19/11):** a lista leva também uma pública RESERVA Ed25519, gerada fora da
 Oracle. A privada fica só no fontes (`chaves/servidor/assinatura-reserva.pem`) e no Drive do André, nunca na Oracle,
-no repositório ou no chat. Ela serve só se a máquina de builds for perdida, e só com o OK do Presidente. Como usar:
-publicar pelo atalho do GitHub (o pacote sai sem assinatura), baixar `servidor/pacote.json` do site, assinar numa
-máquina de confiança com `ASSINATURA_PACOTE=<caminho da reserva> RUNNER_ENVIRONMENT=self-hosted node
-ferramentas/servidor/assinar.mjs pacote.json` e subir o pacote.json assinado no mesmo lugar (balde e Pages). Depois,
-apagar a cópia local da reserva. O servidor também recusa pacote emitido antes do último que instalou
+no repositório ou no chat. Ela serve só se a máquina de builds for perdida, e só com o OK do Presidente: assina UM
+pacote que põe a chave da máquina de builds nova na lista, e daí em diante tudo volta ao normal. Assinar é só
+`ASSINATURA_PACOTE=<caminho da reserva> RUNNER_ENVIRONMENT=self-hosted node ferramentas/servidor/assinar.mjs pacote.json`
+numa máquina de confiança, apagando a cópia local da reserva depois. Falta o caminho para PUBLICAR esse pacote: o link
+de escrita do balde só existe como segredo do GitHub (ORACLE_PAR), então não dá para subir à mão. Ele vai entrar num
+PR próprio (pacote assinado como arquivo de release + uma opção no pages.yml que o publica no balde e no Pages) e é
+ensaiado antes de 10/12. Enquanto isso, a saída é o André pôr a pública nova em chaves-assinatura.txt na máquina do
+jogo (uma linha, como root). O servidor também recusa pacote emitido antes do último que instalou
 (`emitido_em`, guardado em emitido.txt), então um pacote antigo reenviado não volta.
 
 Isolamento da chave: todas as vagas rodam com o mesmo usuário `runner`. Por isso só código de colaboradores pode
