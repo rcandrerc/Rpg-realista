@@ -26,6 +26,8 @@ export const ROBO = { google: 'robo:testes', nome: 'Robô de teste', visual: 'ca
 // as contas do robô nos celulares de verdade (Firebase Test Lab, robo-celular-real.yml): uma por celular (eles jogam ao
 // mesmo tempo) e separadas do robô 1, para um não derrubar o outro
 export const roboCel = (n) => ({ google: `robo:celular${n}`, nome: `Robô celular ${n}`, visual: 'cabelo_m' });
+// teste de carga com 50 robôs (QA, 2026-11-19): uma conta por robô, todas 'robo:' (o servidor trata como robô)
+export const roboCarga = (n) => ({ google: `robo:carga${n}`, nome: `Robô carga ${n}`, visual: 'cabelo_m' });
 const testador = (email) => !!email && TESTADORES.has(crypto.createHash('sha256').update(String(email).trim().toLowerCase()).digest('hex'));
 
 // Confere o ID token do Google: assinatura, emissor, validade e se foi feito para o nosso Client ID
