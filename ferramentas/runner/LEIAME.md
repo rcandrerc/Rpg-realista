@@ -125,8 +125,20 @@ cópia cifrada fora da máquina).
 `RUNNER_ATUALIZACAO` em Settings > Secrets and variables > Actions > Variables (repositório público). O `publicar` volta
 para a máquina do GitHub. Só que lá não existe a chave, então o pacote do servidor sai sem assinatura e, depois do
 passo 2, o servidor não instala: o jogo (cliente) segue atualizando e o servidor fica na versão que tem até a vaga
-voltar. Use só em emergência e devolva a variável (`aethra-atualizacao`) assim que a Oracle voltar. O robô diário
+voltar. Esvaziar a variável não move a execução que já está na fila esperando a Oracle: cancele essa execução
+(Actions > a execução presa > Cancel workflow) e rode de novo o pages.yml (Actions > Publicar no GitHub Pages > Run
+workflow). Use só em emergência e devolva a variável (`aethra-atualizacao`) assim que a Oracle voltar. O robô diário
 avisa quando o Pages fica parado ou quando o servidor fica atrás do último pacote.
+
+**Depois do passo 2** (CHAVES_ASSINATURA preenchida): na Oracle, se a chave sumiu ou não é a da lista, o job cai e
+nada publica (uma chave nova sozinha faria o jogo atualizar e o servidor recusar). Para criar outra de propósito: rode
+o pages.yml à mão marcando "Criar de propósito uma chave nova", ponha a pública nova na lista (ou em chaves-assinatura.txt na
+máquina do jogo) e só então publique. O servidor também recusa pacote emitido antes do último que instalou
+(`emitido_em`, guardado em emitido.txt), então um pacote antigo reenviado não volta.
+
+Isolamento da chave: todas as vagas rodam com o mesmo usuário `runner`. Por isso só código de colaboradores pode
+rodar nelas: PR de fork precisa de aprovação para todo mundo de fora (Settings > Actions > "Require approval for all
+external contributors"), e o passo 2 só entra depois disso.
 
 **Falha na assinatura com a chave existindo** (arquivo estragado ou sem permissão): o job cai de propósito e nada
 publica. Cliente e servidor ficam juntos na versão anterior e o job vermelho aparece na ronda das 9h.
