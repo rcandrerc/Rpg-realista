@@ -10,7 +10,7 @@ import { PERSONAGENS, visualValido, buildValida, aparenciaValida, progressoValid
 
 const DIA = 24 * 3600 * 1000;
 const VALIDADE_SESSAO = 60 * DIA;
-const COPIAS_GUARDADAS = 14;
+const COPIAS_GUARDADAS = 30; // André 2026-11-19: dá para voltar as contas a qualquer dia dos últimos 30 (férias com o Presidente)
 // Marcos (André 2026-11-19, "férias" de 30 dias com o Presidente decidindo): cópia que NUNCA é apagada pelo rodízio,
 // para dar para voltar ao estado de antes se algo ficar absurdo. Nome sem o prefixo 'contas-' (o rodízio não pega).
 const MARCOS = ['2026-11-19-antes-do-presidente'];
@@ -316,7 +316,7 @@ export class Contas {
   soltarLote(id) { this.q.gravarLote.run(id, null, '', '{}', Date.now()); }
   salvarLote({ id, dono, nome, dados }) { this.q.gravarLote.run(id, dono, nome || '', JSON.stringify(dados || {}), Date.now()); }
 
-  // Cópia de segurança uma vez por dia em dados/copias (guarda as últimas 14)
+  // Cópia de segurança uma vez por dia em dados/copias (guarda as últimas 30)
   copiar() {
     try {
       this.q.limpar.run(Date.now());
