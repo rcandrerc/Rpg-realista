@@ -79,6 +79,7 @@ var n250 := 0
 var n1000 := 0
 var amostra_t := 0.0
 var mem_max := 0.0
+var mem_t := 0.0
 var nos_max := 0
 var fps_min := 999.0
 # modo missões
@@ -119,6 +120,10 @@ func _process(dt: float) -> void:
 	var on = m.online
 	if on == null:
 		return
+	mem_t -= dt
+	if mem_t <= 0.0 and (entrou_t < 0.0 or t - entrou_t < AQUECE + 10.0): # memória a cada 2 s até um pouco depois de entrar
+		mem_t = 2.0
+		print("CELULAR memória t=%.1f s: %s" % [t, m.memoria_txt()])
 	if entrou_t < 0.0:
 		var est := "%s | %s | botão=%s" % [on.carregando.text if on.carregando and on.carregando.visible else "", on.aviso_login.text if on.aviso_login else "", on.b_continuar.is_visible_in_tree() if on.b_continuar else "-"]
 		if est != ultimo_estado:
