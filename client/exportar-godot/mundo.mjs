@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, LOJA_MAX, TROCA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD, MISSOES, TIPOS_INIMIGO, TREINO, NIVEL_INIMIGO, statusInimigo, VILA_LOTES, VILAS_TERRENO, LOTE, CONSTRUCOES, PLANTAS, VOLTA_VILA, TOTENS, HORTA, REGEN, FERRAMENTAS_FAZENDA, CASA, BAU, ORGANIZAR, FORNALHA, FOGAO, CRIAR_OBRA, MORTE, REFORCO, CATALISADOR, PESCA, PACKS, PACK_REGRAS, VEICULOS, AMIGOS, TIME, DIA, CAMA, POCAO_RECARGA, ARVORES_PLANTIO, PLANTIO } from '@rpg/shared';
 import { GRADES } from '../../shared/rochas.js';
 import { historiaParaApp } from '../../shared/historia.js';
+import { missoesVilaParaApp } from '../../shared/missoes-vila.js'; // missões das vilas (plano v3 do Presidente, 19/11/2026)
 import { LAGOS, AGUA, BEIRA, GRADE_MONTANHA, INGREME, beiraDosLagos, gradeDoMundo } from '../../shared/relevo.js';
 import { CAVERNA, TUNEL } from '../../shared/caverna.js';
 import { TUNEIS_MUNDO, VILAS_MUNDO, cargoNpc, iconeNpc, TITULOS, tituloAtivo, RACAS } from '../../shared/dados.js';
@@ -180,6 +181,7 @@ const habs = {
   pesca: PESCA, // pescaria igual à do Quimera (André 2026-11-08): águas, peixes, tempos da boia e da briga
   packs: PACKS, packRegras: PACK_REGRAS, veiculos: VEICULOS, // FASE 1: packs e transportes do Quimera (transporte.gd)
   historia: historiaParaApp(), // progressão (André 2026-11-10): zonas da névoa, missões principais e níveis (nevoa.gd)
+  vilas: missoesVilaParaApp(), // missões das vilas: as vilas com missão e as etapas (menu.gd aba Vilas)
   // títulos com bônus (André 2026-11-12): a aba Títulos do menu e o título em cima da cabeça (titulos.gd)
   titulos: Object.fromEntries(Object.entries(TITULOS).filter(([id]) => tituloAtivo(id)).map(([id, t]) => [id, { nome: t.nome, r: t.r, como: t.como, txt: t.txt, b: t.b, cond: t.cond }])),
 };

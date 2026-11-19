@@ -111,7 +111,8 @@ func _ready() -> void:
 func aberto() -> bool:
 	return raiz != null and raiz.visible
 
-# npc_id: quem fala; texto: a fala (a linha depois do primeiro \n é o que falta); missao: id da missão (HISTORIA)
+# npc_id: quem fala; texto: a fala (a linha depois do primeiro \n é o que falta); missao: id da missão (HISTORIA) ou
+# "vila:<id>" (missão de vila, MISSOES_VILA)
 func mostrar(npc_id: String, texto: String, missao: String) -> void:
 	_npc = null
 	_por_baixo(true)
@@ -123,10 +124,18 @@ func mostrar(npc_id: String, texto: String, missao: String) -> void:
 	falta_ui.text = ("▸ " + Idioma.frase(partes[1])) if partes.size() > 1 else ""
 	nome_ui.text = Idioma.frase(str(_npc.get("nome", "")).get_slice(",", 0)) if _npc != null else ""
 	var nome_m := ""
-	for M in m.nevoa.H.get("missoes", []) if m.nevoa and m.nevoa.get("H") is Dictionary else []:
-		if str(M.get("id", "")) == missao:
-			nome_m = str(M.get("nome", ""))
-	missao_ui.text = Idioma.frase("Missão: %s" % nome_m) if nome_m != "" else Idioma.frase("Missão")
+	missao_ui.add_theme_color_override("font_color", Color(0.96, 0.7, 0.32) if missao.begins_with("vila:") else Menu.LILAS) # âmbar das vilas, lilás da história
+	if missao.begins_with("vila:"): # missão de vila (missao_vila.gd): "vila:<id>", o nome vem da aba Vilas (habilidades.json "vilas")
+		var V = m.P.dados.get("vilas") if m.P.dados is Dictionary else null
+		for M in V.get("missoes", []) if V is Dictionary else []:
+			if "vila:" + str(M.get("id", "")) == missao:
+				nome_m = str(M.get("nome", ""))
+		missao_ui.text = Idioma.frase("Vila: %s" % nome_m) if nome_m != "" else Idioma.frase("Missão de vila")
+	else:
+		for M in m.nevoa.H.get("missoes", []) if m.nevoa and m.nevoa.get("H") is Dictionary else []:
+			if str(M.get("id", "")) == missao:
+				nome_m = str(M.get("nome", ""))
+		missao_ui.text = Idioma.frase("Missão: %s" % nome_m) if nome_m != "" else Idioma.frase("Missão")
 	retrato_ui.texture = m.conversa.retrato_de(_npc) if _npc != null else null
 	raiz.visible = true
 

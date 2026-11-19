@@ -2438,7 +2438,8 @@ export const VILAS_MUNDO = [
         tinta: { cabelo: 0x8a8a8a, roupa: 0xe8e4d8, calca: 0x6a6a7a }, veste: { tunica: 0xe8e4d8, saia: 0xe8e4d8, ate: 'canela', faixa: 0x9ad0f0 }, funcao: 'dica', acoes: [], falas: [
           'O Templo guardava a luz da estrela. Você devolveu o resto.',
           'Reze se quiser. Ou só sente um pouco. A luz não cobra nada.'] },
-      { id: 'v_lia', nome: 'Lia, a dona da Pousada da Lanterna', visual: 'vivi', onde: 'cidade:pousada', depois: 'f3', escala: 1.0, roupa: 'peitoral0,botas0',
+      // id era 'v_lia', igual ao da ferreira do Juncal: o falar() achava sempre a do Juncal (Presidente 19/11: troca só o código desta)
+      { id: 'v_lia_pousada', nome: 'Lia, a dona da Pousada da Lanterna', visual: 'vivi', onde: 'cidade:pousada', depois: 'f3', escala: 1.0, roupa: 'peitoral0,botas0',
         tinta: { cabelo: 0xc87a3a, roupa: 0x5a7a4a, calca: 0x3a3028 }, veste: { tunica: 0x5a7a4a, saia: 0x3a4a30, ate: 'canela', avental: 0xf0e8d8 }, funcao: 'dica', acoes: [], falas: [
           'Pousada cheia! Gente que nem sabia que era de Aurora voltando para casa.',
           'A lanterna da porta acendeu sozinha. Por isso o nome.'] },
@@ -4761,6 +4762,172 @@ export const HISTORIA = [
 ];
 // Prêmio de cada missão: a que abre região ou recurso (libera) vale xp do XP do nível nv e ouro x nv; as outras, xpEtapa e ouroEtapa
 export const HISTORIA_PREMIO = { xp: 0.3, ouro: 25, xpEtapa: 0.12, ouroEtapa: 10 };
+
+// ---------- Missões das vilas (plano v3 do Presidente, André de férias desde 19/11; doc "Ato VII e missões das vilas",
+// https://claude.ai/artifact/J8aa3z72EpUTDyy2gSjTRJ, aprovado em 19/11/2026) ----------
+// Três missões em cada vila, além da história: uma de vila por vez; nas 3 da vila, em ordem. Aparece com o nível (nv) e
+// quando a história já abriu a região da vila (zona). Etapas iguais às da história (shared/historia.js casaEtapa) e o
+// mesmo funil (Simulacao.historia); o motor fica em shared/missoes-vila.js. Prêmio: o da missão de etapa da história
+// (HISTORIA_PREMIO.xpEtapa e ouroEtapa) e o presente. As 3 da vila dão o título "Amigo do/da ..." (+2% na venda).
+// NASCE DESLIGADO: liga em MISSOES_VILA_LIGA.desde (a conta de teste do André e o robô veem antes). liga: 'bandeiras' =
+// só junto com as Bandeiras da guerra (bandeirasLigadas em shared/guerra.js, frente da guerra): se elas forem para
+// janeiro, a missão vai junto. Kira, Rufo e Lis (a Geada) fazem as da faixa deles, menos as do Rio Claro (Presidente 19/11).
+export const MISSOES_VILA_LIGA = { desde: '2026-12-19T20:00:00-03:00' }; // lançamento
+export const VILAS_MISSAO = {
+  rio_claro: { zona: 'B1', de: 'do Rio Claro', titulo: 'amigo_rio_claro', tituloNome: 'Amigo do Rio Claro' },
+  pouso_serra: { zona: 'B2', de: 'do Pouso da Serra', titulo: 'amigo_pouso_serra', tituloNome: 'Amigo do Pouso da Serra' },
+  juncal: { zona: 'B3', de: 'do Juncal', titulo: 'amigo_juncal', tituloNome: 'Amigo do Juncal' },
+  porto: { zona: 'B4', de: 'do Porto de Vael', titulo: 'amigo_porto', tituloNome: 'Amigo do Porto de Vael' },
+  vila_mare: { zona: 'C', de: 'da Vila da Maré', titulo: 'amigo_mare', tituloNome: 'Amigo da Maré' },
+  aurora: { zona: 'D1', de: 'de Aurora', titulo: 'amigo_aurora', tituloNome: 'Amigo de Aurora' },
+  vila_veu: { zona: 'D2', de: 'da Vila do Véu', titulo: 'amigo_veu', tituloNome: 'Amigo do Véu' },
+  ultimo_pouso: { zona: 'D3', de: 'do Último Pouso', titulo: 'amigo_ultimo_pouso', tituloNome: 'Amigo do Último Pouso' },
+};
+for (const [id, V] of Object.entries(VILAS_MISSAO)) V.nome = VILAS_MUNDO.find((o) => o.id === id)?.nome || id;
+// o imp que levou o martelo do Bruno (Pouso da Serra): um imp do campo a leste vira ele (Simulacao.chamarChefe)
+CHEFES_HISTORIA.imp_ladrao = { nome: 'Imp Ladrão', tipo: 'imp', campo: 'c_v7', vida: 4, dano: 1.3, escala: 1.35, cor: 0xd8a33a };
+const PEIXES_VENDA = Object.keys(ITENS).filter((k) => ITENS[k].peixe); // "venda um peixe": qualquer um
+// Lote 1 (Nv 30 a 50): Rio Claro conta a guerra antes das Bandeiras; Pouso da Serra, Juncal e Porto de Vael.
+// Pontos conferidos no mapa (terra firme, fora da água, região da vila aberta): ferramentas/testes/missoes-vila.mjs.
+export const MISSOES_VILA = [
+  // ----- Vila do Rio Claro (B1) -----
+  { id: 'rc1', vila: 'rio_claro', nv: 30, npc: 'v_heitor', nome: 'O Pacto da Ponte',
+    pedido: 'Você ficou forte o bastante para a Geada te notar. A Trégua acabou para você. Antes da primeira briga, conheça as regras: estão na placa da Ponte do Rio Claro, a oeste daqui.',
+    lembra: 'As regras do Pacto estão na placa da Ponte do Rio Claro. Leia antes da primeira briga.',
+    etapas: [
+      { ev: 'pos', pos: [-289, 32.6, 5], txt: 'Leia a placa do Pacto na Ponte do Rio Claro', alvo: 'pos', marca: true,
+        diz: 'PACTO DA PONTE. Na vila, ninguém luta. Perto do totem, ninguém luta. Nos campos dos novatos, ninguém luta. Quem cair levanta e volta para casa.' },
+      { ev: 'pistas', pontos: [[-300.4, 39.5, 'gelo no corrimão'], [-286, 26, 'uma flecha de ponta azul'], [-281, 34, 'pegadas de bota rumo ao leste']], txt: 'Veja os sinais da Geada na beira do rio' },
+      { ev: 'falar', npc: 'v_heitor', txt: 'Conte ao Capitão Heitor o que viu',
+        fala: 'Eu estava lá quando assinaram. O Dario assinou pela Chama. A Kira, pela Geada, em nome de um tal de Kael, que nunca aparece.' },
+    ],
+    pronto: 'Agora você sabe as regras, e a Geada também. Ferido, corra para o totem: lá ninguém encosta em você.',
+    presente: { pocao: 5 } },
+  { id: 'rc2', vila: 'rio_claro', nv: 32, npc: 'v_marisa', nome: 'A rede cortada',
+    pedido: 'Pesco no Rio Claro desde menina. Semana passada, do outro lado da ponte, um da Geada cortou a minha rede e riu. Desde então tenho medo de voltar lá. Pesca por mim hoje? E vê se acha a minha rede.',
+    lembra: 'Minha rede ficou do outro lado da Ponte do Rio Claro. E a banca precisa de peixe.',
+    etapas: [
+      { ev: 'pistas', pontos: [[-336, 64, 'a rede cortada'], [-342, 72, 'um anzol de osso da Geada']], txt: 'Ache a rede da Marisa do outro lado da ponte' },
+      { ev: 'pesca', n: 3, txt: 'Pesque 3 peixes para a banca', alvo: 'spot' },
+      { ev: 'falar', npc: 'v_marisa', txt: 'Volte à Marisa', fala: 'Minha rede! Cortada, mas dá para remendar. E peixe fresco para a banca.' },
+    ],
+    pronto: 'Amanhã eu volto ao rio. Se a Geada aparecer, eu grito o seu nome. Juro pela minha avó.',
+    presente: { peixe_assado: 3 } },
+  { id: 'rc3', vila: 'rio_claro', nv: 34, npc: 'v_benedito', nome: 'A bandeira da Chama', liga: 'bandeiras', // com as Bandeiras (sábado 21h, 3 bandeiras: frente da guerra 19/11)
+    pedido: 'Sábado à noite tem Bandeiras: a Chama e a Geada brigam por três bandeiras nos campos. A nossa ficou em farrapos. Me traga tecido e couro, e o Galdino faz a haste. Quero a Chama bonita lá.',
+    lembra: 'Sem tecido e couro não tem bandeira nova. E a haste é com o Galdino.',
+    etapas: [
+      { ev: 'ter', itens: { tecido: 4, couro: 4, barra_ferro: 1 }, txt: 'Junte 4 tecidos, 4 couros e 1 barra de ferro',
+        alvo: { tecido: 'caca:caca10', couro: 'caca:c_v2', barra_ferro: 'estacao:pub_fornalha_rio_claro' } },
+      { ev: 'falar', npc: 'v_galdino', entregar: { barra_ferro: 1 }, txt: 'Leve a barra de ferro ao Galdino, para a haste',
+        fala: 'Haste de ferro para a bandeira? Faço com gosto. A Chama pode perder no sábado, mas a haste não entorta.' },
+      { ev: 'falar', npc: 'v_benedito', entregar: { tecido: 4, couro: 4 }, txt: 'Entregue o tecido e o couro ao Benedito', fala: 'Laranja como brasa. Ficou linda.' },
+      { ev: 'pos', pos: [-234, 85, 6], txt: 'Finque a bandeira ao lado do totem', alvo: 'pos',
+        diz: 'A bandeira da Chama sobe ao lado do totem. Do outro lado do rio, alguém da Geada assobia.' },
+    ],
+    pronto: 'Agora a Chama tem bandeira. No sábado, segure as três se puder. E volte inteiro.',
+    presente: { runa_rara: 1 } },
+  // ----- Pouso da Serra (B2) -----
+  { id: 'ps1', vila: 'pouso_serra', nv: 38, npc: 'v_bruno', nome: 'O martelo do pai',
+    pedido: 'Me chamam de Bruno Martelo por causa do martelo do meu pai. Ontem um imp entrou na forja e levou ele para o campo a leste do Pouso. Sem aquele martelo, eu sou só Bruno.',
+    lembra: 'O imp ladrão está no campo a leste do Pouso. Traga o martelo do meu pai.',
+    etapas: [
+      { ev: 'matar', hc: 'imp_ladrao', txt: 'Ache o imp ladrão no campo a leste', diz: 'O imp guincha e solta um martelo velho, de cabo gasto.' },
+      { ev: 'falar', npc: 'v_bruno', txt: 'Devolva o martelo ao Bruno', fala: 'É ele. O cabo ainda tem a marca da mão do meu pai.' },
+    ],
+    pronto: 'Hoje eu volto a ser o Bruno Martelo. A forja é sua quando quiser.',
+    presente: { barra_aco: 2 } },
+  { id: 'ps2', vila: 'pouso_serra', nv: 40, npc: 'v_cida', nome: 'O filho da Cida',
+    pedido: 'Meu filho, o Tonho, subiu a serra para caçar com a turma da Úrsula e não voltou. A Úrsula diz que ele é teimoso. Eu digo que ele tem quinze anos. Ache o meu menino, por favor.',
+    lembra: 'O Tonho subiu a serra e não voltou. Siga as pegadas dele.',
+    etapas: [
+      { ev: 'pistas', pontos: [[-12, -300, 'pegadas de bota'], [-28, -330, 'uma lança quebrada'], [-40, -352, 'uma fogueira apagada']], txt: 'Siga as pegadas do Tonho na serra' },
+      { ev: 'pos', pos: [-52, -372, 5], txt: 'Ache o Tonho', alvo: 'pos', marca: true,
+        diz: 'O Tonho está numa fenda da rocha, com o pé torcido: "Não conta pra minha mãe que eu chorei."' },
+      { ev: 'falar', npc: 'v_cida', txt: 'Avise a Cida que o Tonho está bem', fala: 'Quinze anos e já acha que é caçador. Obrigada. A Úrsula vai buscar ele com a mula.' },
+    ],
+    pronto: 'Leve este pão quente. Na serra, quem ajuda come primeiro.',
+    presente: { pao_milho: 3 } },
+  { id: 'ps3', vila: 'pouso_serra', nv: 42, npc: 'v_ursula', nome: 'Casacos para o inverno',
+    pedido: 'O inverno chega à serra antes do resto de Vael, e as crianças do Pouso precisam de casaco. Traga couro de lobo, que eu costuro. A Geada não sente frio. A gente sente.',
+    lembra: 'Seis couros de lobo e as crianças do Pouso passam o inverno quentinhas.',
+    etapas: [
+      { ev: 'ter', itens: { couro: 6 }, txt: 'Junte 6 couros', alvo: { couro: 'caca:c_v1' } },
+      { ev: 'falar', npc: 'v_ursula', entregar: { couro: 6 }, txt: 'Entregue os couros à Úrsula', fala: 'Seis casacos. Sete, se eu apertar. Hoje à noite eles estreiam.' },
+      { ev: 'noite', txt: 'Espere a noite (das 19h às 5h)' },
+      { ev: 'pos', pos: [4, -264.5, 4], txt: 'Vá à fogueira da praça', alvo: 'pos',
+        diz: 'As crianças vestem os casacos em volta da fogueira. A menor dorme ali mesmo, enrolada até o nariz.' },
+    ],
+    pronto: 'Nenhuma criança do Pouso passa frio este ano. A serra te deve uma.',
+    presente: { ensopado: 3 } },
+  // ----- Juncal (B3) -----
+  { id: 'ju1', vila: 'juncal', nv: 42, npc: 'v_tiao', nome: 'Vizinhos de gelo',
+    pedido: 'A Geada mora aqui no Juncal desde que o Kael trouxe eles da neve. Aqui dentro ninguém briga. Leve este peixe até a casa da Geada, na beira do rio, e veja com seus olhos.',
+    lembra: 'Leve o peixe até a casa da Geada, na beira do rio. Aqui dentro ninguém briga.',
+    etapas: [
+      { ev: 'pos', pos: [550, 38, 4], txt: 'Leve o peixe à casa da Geada', alvo: 'pos', marca: true,
+        diz: 'Uma menina de capa azul abre a porta, pega o peixe e diz: "Obrigada, Chama." E fecha a porta devagar.' },
+      { ev: 'falar', npc: 'v_tiao', txt: 'Volte ao Tião', fala: 'Viu? Lá fora são inimigos. Aqui dentro são vizinhos. O Juncal é de quem pesca.' },
+    ],
+    pronto: 'Quem respeita o Juncal sempre acha peixe e lugar na fogueira.',
+    presente: { peixe_assado: 3 } },
+  { id: 'ju2', vila: 'juncal', nv: 44, npc: 'v_lia', nome: 'Duas espadas de treino',
+    pedido: 'Um menino da Chama e uma menina da Geada brincam juntos na beira do rio, escondidos. Querem espadas de treino iguais. Me traga ferro e lenha que eu faço as duas.',
+    lembra: 'Duas barras de ferro e quatro lenhas, e os dois ganham espadas iguais.',
+    etapas: [
+      { ev: 'ter', itens: { barra_ferro: 2, lenha: 4 }, txt: 'Junte 2 barras de ferro e 4 lenhas', alvo: { barra_ferro: 'estacao:pub_fornalha_juncal', lenha: 'veio:arvore' } },
+      { ev: 'falar', npc: 'v_lia', entregar: { barra_ferro: 2, lenha: 4 }, txt: 'Entregue o material à Lia',
+        fala: 'Minha mãe era da Geada e meu pai, da Chama. Ferro meu não escolhe lado. Duas iguaizinhas.' },
+      { ev: 'pos', pos: [565, 52, 5], txt: 'Leve as espadas aos dois, na beira do rio', alvo: 'pos', marca: true,
+        diz: 'Os dois pegam as espadas e saem correndo. "Agora eu sou a Chama!" "Então eu sou a Geada!"' },
+    ],
+    pronto: 'Quem sabe esses dois acabam com essa briga um dia. Por enquanto, brincam.',
+    presente: { selo_raro: 1 } },
+  { id: 'ju3', vila: 'juncal', nv: 46, npc: 'v_zeca', nome: 'Peixe da noite',
+    pedido: 'De dia todo mundo pesca. De noite, só eu e a Geada: eles aprenderam a pescar no gelo e sabem das coisas. Pesque de noite e me venda o que pegar. Quero ver se a Chama aprende.',
+    lembra: 'Espere a noite, pesque e venda o peixe. A Geada vai rir se você voltar sem nada.',
+    etapas: [
+      { ev: 'noite', txt: 'Espere a noite (das 19h às 5h)' },
+      { ev: 'pesca', n: 5, txt: 'Pesque 5 peixes', alvo: 'spot' },
+      { ev: 'vender', k: PEIXES_VENDA, txt: 'Venda um peixe para o Zeca', alvo: 'npc:v_zeca' },
+    ],
+    pronto: 'Nada mal para a Chama. A Geada pesca mais, mas não conta para eles que eu disse isso.',
+    presente: { pocao_mana: 5 } },
+  // ----- Porto de Vael (B4) -----
+  { id: 'pv1', vila: 'porto', nv: 48, npc: 'v_ruy', nome: 'Pregos de casco',
+    pedido: 'O barco da Graça chegou furado e está afundando no cais. Sem prego de casco não tem conserto. Me traga 3 barras de ferro, rápido, antes de a maré subir.',
+    lembra: 'Três barras de ferro e eu faço os pregos. O barco da Graça não espera.',
+    etapas: [
+      { ev: 'ter', itens: { barra_ferro: 3 }, txt: 'Junte 3 barras de ferro', alvo: { barra_ferro: 'estacao:pub_fornalha_porto' } },
+      { ev: 'falar', npc: 'v_ruy', entregar: { barra_ferro: 3 }, txt: 'Entregue as barras ao Ruy', fala: 'Pregos de casco, ainda quentes. Corre para o cais!' },
+      { ev: 'pos', pos: [92, 368, 6], txt: 'Leve os pregos ao barco da Graça, no cais', alvo: 'pos',
+        diz: 'Você segura a tábua, o Ruy martela os pregos. O barco para de afundar. Por pouco.' },
+      { ev: 'falar', npc: 'v_graca', txt: 'Avise a Graça', fala: 'Meu barco! E a carga inteira, seca.' },
+    ],
+    pronto: 'Corda e poção nunca sobram num porto. Hoje sobraram para você.',
+    presente: { pocao: 5 } },
+  { id: 'pv2', vila: 'porto', nv: 49, npc: 'v_graca', nome: 'O baú sem dono',
+    pedido: 'Tudo que chega pelo mar passa pela minha banca. Hoje chegou um baú sem dono, com um floco de neve pintado na tampa. É da Geada. Leve até o Juncal e entregue ao Tião.',
+    lembra: 'O baú da Geada vai para o Tião, no Juncal. Do jeito que chegou.',
+    etapas: [
+      { ev: 'falar', npc: 'v_tiao', txt: 'Leve o baú ao Tião, no Juncal',
+        fala: 'Floco de neve na tampa? É da Lis. Ela anota tudo, até o que perde. Vou dizer que foi a Chama que trouxe.' },
+    ],
+    pronto: 'A Lis vai ficar te devendo. E a Lis odeia ficar devendo.',
+    presente: { runa_rara: 1 } },
+  { id: 'pv3', vila: 'porto', nv: 50, npc: 'v_odete', nome: 'Fogueira para a Ilha',
+    pedido: 'Antes da névoa, dava para ver a Ilha do Meio daqui. A Avó Coral e eu acendíamos fogueiras para conversar de longe. Leve lenha ao morro do porto e acenda uma, de noite.',
+    lembra: 'Dez lenhas, a noite e o morro do porto. Quero saber se a Coral ainda responde.',
+    etapas: [
+      { ev: 'ter', itens: { lenha: 10 }, txt: 'Junte 10 lenhas', alvo: { lenha: 'veio:arvore' } },
+      { ev: 'noite', txt: 'Espere a noite (das 19h às 5h)' },
+      { ev: 'pos', pos: [40, 350, 6], gasta: { lenha: 10 }, txt: 'Acenda a fogueira no alto do morro do porto', alvo: 'pos', marca: true,
+        diz: 'A fogueira pega. Lá longe, na Ilha do Meio, outra fogueira acende em resposta.' },
+      { ev: 'falar', npc: 'v_odete', txt: 'Volte à Capitã Odete', fala: 'Ela respondeu! A teimosa da Coral ainda está lá.' },
+    ],
+    pronto: 'Quando for à Ilha, diga à Coral que a Odete mandou um abraço.',
+    presente: { selo_raro: 1 } },
+];
 // Desbloqueio por nível do herói (além do nível de cada profissão, que continua igual). As skills já abrem por nível
 // (HABS[k].libera em shared/progresso.js, regra do Quimera) e não mudam aqui.
 // receita: RECEITAS (aba Criar); obra: CONSTRUCOES e FERRAMENTAS_FAZENDA (o navio já pede Nv 60 no FERRAMENTAS_FAZENDA);
@@ -4831,6 +4998,10 @@ for (const [k, n10, n20, bk, v] of [
   TITULOS[k + '10'] = { nome: n10, r: 1, como: `${PROFISSOES[k].nome} Nv 10`, cond: { prof: k, nv: 10 }, b: { [bk]: v } };
   TITULOS[k + '20'] = { nome: n20, r: 3, como: `${PROFISSOES[k].nome} Nv 20`, cond: { prof: k, nv: 20 }, b: { [bk]: v * 2 } };
 }
+// missões das vilas (shared/missoes-vila.js): as 3 de uma vila dão "Amigo do/da ..." (Presidente 19/11: +2% na venda, nada
+// de combate). Só das vilas que já têm missão; a aba Títulos só mostra estes quando as missões de vila estão ligadas.
+for (const [id, V] of Object.entries(VILAS_MISSAO)) if (MISSOES_VILA.some((M) => M.vila === id))
+  TITULOS[V.titulo] = { nome: V.tituloNome, r: 1, como: `Fez as 3 missões ${V.de}`, cond: { vila: id }, b: { venda: 0.02 } };
 for (const t of Object.values(TITULOS)) t.txt = textoBonusTitulo(t); // "+5% crítico" (a aba mostra "Venceu o Uivo-Rei · +5% crítico")
 // título que ainda não dá para ganhar (boss esperando o modelo) não aparece na aba
 export const tituloAtivo = (id) => { const c = TITULOS[id]?.cond; return !!c && !(c.boss && BOSSES_MUNDO[c.boss]?.ativo === false); };

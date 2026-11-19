@@ -20,6 +20,7 @@ var diarias_t := 0 # Time.get_ticks_msec() de quando chegou (o relógio "Novas e
 var guilda: Dictionary = {} # Guilda dos Aventureiros (André 2026-11-18): o resumo do servidor (shared/guilda.js guildaInfo)
 var guilda_t := 0
 var hist_info: Dictionary = {} # história v2 (André 2026-11-11): a etapa da vez que o servidor manda (texto, NPC, alvo do Ir)
+var vila_info: Dictionary = {} # missões de vila (lote 1, Presidente 19/11): o resumo do servidor (shared/missoes-vila.js vilaInfo); vazio = desligadas
 var relogio := 0.0 # ms: relógio do servidor - relógio do celular (o vigor enche pelo relógio do servidor)
 
 # ícone (icones/*.svg) e cores dos efeitos (efeitos.gd FXCOR) de cada skill
@@ -120,6 +121,8 @@ func do_servidor(ev: Dictionary) -> void:
 	if ev.has("gu"):
 		guilda = ev.gu if ev.gu is Dictionary else {}
 		guilda_t = Time.get_ticks_msec()
+	if ev.has("vi"):
+		vila_info = ev.vi if ev.vi is Dictionary else {}
 	carrinho_no_mundo()
 	teste = bool(ev.get("teste", false))
 	teste_missoes = bool(ev.get("testeMissoes", false))

@@ -5,6 +5,7 @@ import { packValido, carrinhoValido, navioValido } from './transporte.js';
 import { histNova, histValida } from './historia.js';
 import { diariasValidas } from './diarias.js'; // missões diárias (André 2026-11-16)
 import { guildaValida } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11-18)
+import { vilaValida, vilaCompleta } from './missoes-vila.js'; // missões das vilas (plano v3 do Presidente, 19/11/2026)
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
@@ -103,7 +104,8 @@ export function titulosNovos(p) {
     if (tem.has(id)) continue;
     const c = t.cond;
     if ((c.abates && (p.abates | 0) >= c.abates) || (c.prof && profNivel(p.prof?.[c.prof]) >= c.nv)
-      || (c.hist && h > HISTORIA.findIndex((M) => M.id === c.hist) && HISTORIA.some((M) => M.id === c.hist))) r.push(id);
+      || (c.hist && h > HISTORIA.findIndex((M) => M.id === c.hist) && HISTORIA.some((M) => M.id === c.hist))
+      || (c.vila && vilaCompleta(p, c.vila))) r.push(id); // "Amigo do/da ...": as 3 missões da vila (shared/missoes-vila.js)
   }
   return r;
 }
@@ -603,6 +605,7 @@ export function progressoValido(p) {
   n.hist = histValida(p.hist, n.nivel);
   { const d = diariasValidas(p.diarias); if (d) n.diarias = d; } // missões diárias de hoje (shared/diarias.js)
   { const g = guildaValida(p.guilda); if (g) n.guilda = g; } // Guilda: rank, pontos e contratos de hoje (shared/guilda.js)
+  { const v = vilaValida(p.vila); if (v) n.vila = v; } // missões das vilas: as feitas e a da vez (shared/missoes-vila.js)
   // títulos (André 2026-11-12): os ganhos e o em uso; e quantos monstros já derrubou (títulos de caça)
   n.tit = titValido(p.tit);
   n.abates = int(p.abates, 0, 1e9, 0);

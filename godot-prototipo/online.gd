@@ -1286,6 +1286,19 @@ func evento(ev: Dictionary) -> void:
 			if m.sons:
 				m.sons.tocar("q_anel_1", -16.0)
 			return
+		"etapa_vila": # missão de vila (missao_vila.gd): próxima etapa, o mesmo aviso e o mesmo som da história
+			m.hud.aviso("Próximo passo: %s" % str(ev.get("txt", "")))
+			if m.sons:
+				m.sons.tocar("q_anel_1", -16.0)
+			if m.missao_vila:
+				m.missao_vila.destacar()
+			return
+		"vila_ir": # o "Ir" da missão de vila que o servidor procurou na hora (spot de pesca aceso, recurso mais perto)
+			if m.missao_vila:
+				m.missao_vila.do_servidor_ir(ev)
+			return
+		"vila_feita": # missão de vila entregue: a festa vem do aviso "Missão de vila cumprida" (festa.gd) e o resto no progresso
+			return
 		"aviso":
 			m.hud.aviso(str(ev.texto))
 			if m.criador and m.criador.aberto():

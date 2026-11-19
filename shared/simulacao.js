@@ -20,6 +20,7 @@ import { Kit, pedidosDaEtapa, soNoMar, gMissao } from './kit.js'; // missão nun
 import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (André 2026-11-16)
 import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
 import { Guilda } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11-18)
+import { MissoesVila } from './missoes-vila.js'; // missões das vilas (plano v3 do Presidente, 19/11/2026)
 import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
 import { Guerra } from './guerra.js'; // Chama x Geada (André 2026-11-18)
 import { RIVAIS, RACA_PADRAO, GUERRA, RACAS, COMANDOS_TIME } from './dados.js';
@@ -906,7 +907,7 @@ export class Simulacao {
   // Manda para o próprio jogador o progresso e os números do herói (o menu do personagem mostra)
   avisarProg(j) {
     const st = Object.fromEntries(Object.entries(j.st).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4]));
-    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), di: j.bot ? null : this.diariasInfo(j), gu: j.bot ? null : this.guildaInfo(j), ...(j.testador && CONTA_TESTE.nivel ? { teste: true } : {}), ...(j.testador && CONTA_TESTE.missoes ? { testeMissoes: true } : {}) }); // hi: a etapa da história (app)
+    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), di: j.bot ? null : this.diariasInfo(j), gu: j.bot ? null : this.guildaInfo(j), vi: j.bot ? null : this.vilaInfo(j), ...(j.testador && CONTA_TESTE.nivel ? { teste: true } : {}), ...(j.testador && CONTA_TESTE.missoes ? { testeMissoes: true } : {}) }); // hi: a etapa da história (app)
     j.progSujo = true;
   }
   // O servidor grava na conta quem mudou (index.js chama de tempos em tempos e quando o jogador sai)
@@ -936,6 +937,7 @@ export class Simulacao {
       this.avisarLibera(j, nivelAntes);
       // rumores (André 2026-11-11, história v2): recado curto de um personagem ao subir, depois do capítulo dele
       for (const C of CAPITULOS) if (C.rumores && capFeito(C.n, p.hist?.p || 0)) for (const R of C.rumores) if (R.nv > nivelAntes && R.nv <= p.nivel) this.evento({ t: 'rumor', para: j.id, quem: R.quem, texto: R.texto });
+      if (j.bot) this.vilaNpc(j); // Kira, Rufo e Lis: as missões de vila da faixa nova (shared/missoes-vila.js)
     }
     this.avisarProg(j);
   }
@@ -1031,7 +1033,7 @@ export class Simulacao {
   }
   // Algo aconteceu com j (ev e dados d): conta na etapa da vez se casar (shared/historia.js casaEtapa)
   historia(j, ev, d = {}) {
-    if (ev !== 'diaria' && ev !== 'diaria_vista') { this.contarDiaria(j, ev, d); this.contarGuilda(j, ev, d); } // diárias e contratos da Guilda contam pelo mesmo funil
+    if (ev !== 'diaria' && ev !== 'diaria_vista') { this.contarDiaria(j, ev, d); this.contarGuilda(j, ev, d); this.contarVila(j, ev, d); } // diárias, contratos da Guilda e missões das vilas contam pelo mesmo funil
     const p = j?.prog, h = p?.hist; if (!h?.ac || j.bot) return;
     const M = HISTORIA[h.p], E = M && etapasDe(M)[h.e]; if (!E) return;
     // colheu antes da etapa "Colha" (a horta da missão fica pronta ao plantar, e dá para colher já na etapa de regar):
@@ -1866,15 +1868,16 @@ export class Simulacao {
       if (!lugares.length) return aviso('Nada para vender (os itens com cadeado ficam de fora)');
       const merc = mercador(p.prof.mer).venda + (bonusTitulo(p).venda || 0);
       let ouro = 0, n = 0;
+      const ks = new Set(); // o que foi vendido (missão de vila "Venda um peixe para o Zeca" conta com vários de uma vez)
       for (const x of lugares) {
         const v = p.mochila[x], q = ehEquip(v.k) ? 1 : Math.max(1, v.n || 1);
-        ouro += precoVenda(v, merc) * q; n += q;
+        ouro += precoVenda(v, merc) * q; n += q; ks.add(v.k);
         p.mochila[x] = null;
       }
       p.ouro += ouro; this.caixa(j, 'venda', ouro); // vários de uma vez: tudo junto (o "venda" de um só separa peça e Tomo)
       this.pontosMercador(j, ouro);
       aviso(`Vendeu ${n} ${n === 1 ? 'item' : 'itens'} por ${ouro} de ouro`);
-      this.historia(j, 'vender', {});
+      this.historia(j, 'vender', { ks: [...ks] });
     } else if (m.acao === 'apagar' && it) {
       if (it.cad) return aviso('Item trancado. Abra o cadeado para jogar fora');
       if (this.carrinhoFora(j, it)) return aviso('O carrinho está no mundo. Toque nele na mochila pra guardar antes');
@@ -3690,6 +3693,8 @@ export class Simulacao {
     const diga = (texto, extra = {}) => this.evento({ t: 'fala', para: j.id, npc: npc.id, texto, ...extra });
     const proxima = () => npc.falas[(j.falas[npc.id] = (j.falas[npc.id] ?? -1) + 1) % npc.falas.length];
     if (m?.conversa) return diga(proxima());
+    // missões das vilas (shared/missoes-vila.js): o botão "Vila: ..." da janela manda vila: true
+    if (m?.vila === true) { if (!this.falaVila(j, npc, diga)) this.evento({ t: 'aviso', para: j.id, texto: `Nada de missão de vila com ${npc.nome.split(',')[0]} agora` }); return; }
     if (this.falaHistoria(j, npc, diga, m?.missao === true)) return; // missão principal primeiro (André 2026-11-10; m.missao: tocou em "Missão")
     if (npc.funcao === 'cura') {
       if (j.vida >= j.vidaMax && j.mana >= j.manaMax) return diga('Você está inteiro. Volte quando precisar.');
@@ -4278,6 +4283,7 @@ export class Simulacao {
     this.passoBosses(dt); // bosses de mundo (André 2026-11-11)
     this.passoHistoria(dt); // história com etapas (André 2026-11-11)
     this.passoGuilda(dt); // elite e Prova da Guilda aparecem para quem chega no campo da faixa
+    this.passoVila(dt); // missões das vilas: etapas de lugar, noite e mochila; o imp ladrão; a Geada faz as da faixa
     this.passoCaverna(dt);
     this.passoProjeteis(dt);
     this.passoCampos(dt);
@@ -4741,6 +4747,7 @@ Object.assign(Simulacao.prototype, Kit);
 Object.assign(Simulacao.prototype, Plantio); // árvores plantadas (André 2026-11-16)
 Object.assign(Simulacao.prototype, Diarias); // missões diárias (André 2026-11-16)
 Object.assign(Simulacao.prototype, Guilda); // Guilda dos Aventureiros: contratos e ranks F a SS (André 2026-11-18)
+Object.assign(Simulacao.prototype, MissoesVila); // missões das vilas: 3 por vila, uma por vez além da história (shared/missoes-vila.js)
 Object.assign(Simulacao.prototype, Economia); // livro-caixa da economia (André 2026-11-16)
 Object.assign(Simulacao.prototype, Duelo); // duelo (André 2026-11-17)
 Object.assign(Simulacao.prototype, Guerra); // Chama x Geada (André 2026-11-18, shared/guerra.js)
