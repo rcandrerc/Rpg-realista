@@ -1911,7 +1911,25 @@
     "fora": "b8321e",
     "dentro": "5a140c",
     "friso": "f0a030"
-   }
+   },
+   "lingua": [
+    "ka",
+    "ra",
+    "sha",
+    "zul",
+    "ash",
+    "ir",
+    "tah",
+    "mar",
+    "khe",
+    "an",
+    "dur",
+    "sol",
+    "ru",
+    "hai",
+    "or",
+    "ves"
+   ]
   },
   "geada": {
    "nome": "Geada",
@@ -1926,7 +1944,25 @@
     "x": 546,
     "z": 43,
     "r": 12
-   }
+   },
+   "lingua": [
+    "skä",
+    "vyr",
+    "nö",
+    "fjel",
+    "kar",
+    "eld",
+    "rün",
+    "hel",
+    "vi",
+    "sar",
+    "ith",
+    "kja",
+    "ul",
+    "ys",
+    "dra",
+    "ost"
+   ]
   }
  },
  "estamina": {
