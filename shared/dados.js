@@ -4851,6 +4851,7 @@ function esqueleto(nome) {
     if (!bruta || !/\p{L}/u.test(bruta)) continue; // só número ("Ana 814"): não vira letra
     const v = [palavraEsq(bruta)], sem = bruta.replace(/^\p{N}+|\p{N}+$/gu, '');
     if (sem && sem !== bruta) v.push(palavraEsq(sem)); // "Dario2"
+    v.latina = /\p{Script=Latin}/u.test(bruta); // palavra com letra nossa (Ελένη, toda em grego, não)
     palavras.push(v);
   }
   return { palavras, truque };
@@ -4880,11 +4881,13 @@ function listaReservados() {
 // Devolve o nome do NPC que o nome do jogador usa, 'parecido' no truque de letras de outro alfabeto, ou null
 export function nomeReservado(nome) {
   const { palavras, truque } = esqueleto(nome);
-  if (truque) return 'parecido';
-  const junto = palavras.map((v) => v[0]).join('');
+  // letra que o esqueleto não conhece junto de letra nossa (ɾ, ꞃ, ɨ...): truque de letra parecida
+  if (truque || palavras.some((v) => v.latina && v[0].includes('?'))) return 'parecido';
+  const junto = palavras.map((v) => v[0]).join(''), sem = (x) => x.replace(/\|/g, 'i').replace(/(.)\1+/g, '$1');
   for (const [k, { npc, n }] of listaReservados()) {
     if (junto === k) return npc;
-    for (const v of palavras) for (const w of v) if (w === k || (n >= NOMES_RESERVADOS.grudadoMin && w.includes(k))) return npc;
+    const longo = n >= NOMES_RESERVADOS.grudadoMin, ks = longo && sem(k); // nome comprido: i e l também valem iguais (Heiena, Cecllia)
+    for (const v of palavras) for (const w of v) if (w === k || (longo && (w.includes(k) || sem(w).includes(ks)))) return npc;
   }
   return null;
 }
