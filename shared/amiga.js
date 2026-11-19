@@ -2044,7 +2044,7 @@ export const Amiga = {
   // Reage ao que acontece de verdade com as falas prontas (REACOES em dados.js). No time vai para o chat do time; fora
   // dele só os grandes momentos (subiu, caiu, voltou) vão para o privado. Dois NPCs não reagem ao mesmo fato juntos.
   reagirAmiga(a, dono) {
-    const R = REACOES, ia = a.ia, t = this.tempo; if (!R || !dono || dono.bot || dono.criando || !this.ehAmigoAmiga(dono)) return;
+    const R = REACOES, ia = a.ia, t = this.tempo; if (!R || !dono || dono.bot || dono.criando || ia.saindoIa != null || !this.ehAmigoAmiga(dono)) return; // já se despediu: não fala mais nada
     const r = (ia.reage ||= { t: -1e9, ult: {}, id: null, nv: null, meu: null, morto: false, vidaOk: true, vidaMinha: true, noite: null, chk: 0 });
     const noTime = !!(a.time && a.time === dono.time), nv = dono.prog.nivel | 0, meu = a.prog.nivel | 0;
     let ev = null;
