@@ -139,7 +139,15 @@ apagada. Depois do passo 2 esse job cai de propósito, e a mensagem de erro most
 **Como o passo 2 entra:** (1) rodar o pages.yml marcando a caixa, que troca a chave de 19/11 (f1ef4ea7, criada antes
 da aprovação de forks) por uma nova e mostra a pública no log; (2) PR pondo essa pública em CHAVES_ASSINATURA
 (server/atualizar.js). O servidor instala esse pacote ainda sem exigir (lista vazia no código dele) e, dali em diante,
-só instala pacote assinado pela nova. O servidor também recusa pacote emitido antes do último que instalou
+só instala pacote assinado pela nova.
+
+**Chave reserva (decisão do Presidente, 19/11):** a lista leva também uma pública RESERVA Ed25519, gerada fora da
+Oracle. A privada fica só no fontes (`chaves/servidor/assinatura-reserva.pem`) e no Drive do André, nunca na Oracle,
+no repositório ou no chat. Ela serve só se a máquina de builds for perdida, e só com o OK do Presidente. Como usar:
+publicar pelo atalho do GitHub (o pacote sai sem assinatura), baixar `servidor/pacote.json` do site, assinar numa
+máquina de confiança com `ASSINATURA_PACOTE=<caminho da reserva> RUNNER_ENVIRONMENT=self-hosted node
+ferramentas/servidor/assinar.mjs pacote.json` e subir o pacote.json assinado no mesmo lugar (balde e Pages). Depois,
+apagar a cópia local da reserva. O servidor também recusa pacote emitido antes do último que instalou
 (`emitido_em`, guardado em emitido.txt), então um pacote antigo reenviado não volta.
 
 Isolamento da chave: todas as vagas rodam com o mesmo usuário `runner`. Por isso só código de colaboradores pode
