@@ -113,3 +113,13 @@ antigo mostra a barra parando antes do fim e pulando para o próximo arquivo (s�
 O completo e os deltas que já estavam no balde crus (o completo 2720 subiu antes do gzip: 415 MB) são recompactados
 no próximo build sem trocar de completo: o script olha o cabeçalho de cada um e, sem `content-encoding: gzip`, sobe de
 novo compactado (mesmo sha256, o `conteudo.json` não muda). O 2720 cai para ~190 MB de download.
+
+## Robô diário da publicação (2026-11-19, portão de 10/12)
+
+`.github/workflows/conferir-publicacao.yml` roda às 08:20 de Brasília (depois do reinício das 05h, antes da ronda das
+9h) e `conferir-publicacao.mjs` confere de fora, só lendo: o `conteudo-4.7.json` é o mesmo no Pages e no balde; cada
+pedaço que ele lista existe no balde (com o tamanho certo quando não vem em gzip); o pacote do servidor é o mesmo nos
+dois; nenhum merge da main passou do prazo de publicar (2 h sem `shared/`, ou o disparo das 04:40/13:40 com folga de
+1h30 quando mexeu em `shared/`, contando a partir do `publicado.txt` do balde); e o servidor do jogo roda a versão do
+último pacote (pelo `/saude`), ou o pacote ainda está no prazo da janela de instalação. Algo errado: confere de novo
+em 10 min e, se continuar, o job fica vermelho com a lista. Para rodar à mão: Actions > Conferir publicação > Run workflow.
