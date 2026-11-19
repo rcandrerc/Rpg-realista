@@ -20,7 +20,7 @@ a.amigosDe = { [j.conta]: 1 };
 // ---------- variedade ----------
 {
   const ctx = cec.contextoAmiga('andre'), vistos = [];
-  ok(Array.isArray(ctx.temas) && dar.contextoAmiga('andre').temas === null, 'só a Cecília guarda os temas que puxou');
+  ok(Array.isArray(ctx.temas) && Array.isArray(dar.contextoAmiga('andre').temas), 'os dois guardam os temas que puxaram');
   ok(temasPuxar('André').length >= 12, `${temasPuxar('André').length} jeitos de puxar assunto`);
   for (let i = 0; i < 30; i++) { puxarAssunto(ctx, null); vistos.push(ctx.temas.at(-1)); }
   let repetiu = false;
@@ -63,9 +63,9 @@ a.amigosDe = { [j.conta]: 1 };
   cec.puxouAmiga(a, j); ok(cec.esperandoAmiga(a, j), 'puxou de novo e espera');
   a.ia.espera[j.conta].id = 'sessao-velha';
   ok(!cec.esperandoAmiga(a, j), 'ele relogou (outra sessão): ela pode chamar de novo');
-  // o Dario continua insistindo como antes
+  // o Dario também não insiste (André 2026-11-19: igual à Cecília)
   dar.puxouAmiga(dar.amiga, j);
-  ok(!dar.esperandoAmiga(dar.amiga, j), 'o Dario não mudou');
+  ok(dar.esperandoAmiga(dar.amiga, j), 'o Dario também espera a resposta antes de chamar de novo');
 }
 
 // ---------- Seguir ----------
@@ -109,11 +109,10 @@ a.amigosDe = { [j.conta]: 1 };
   s.sairDoTime(a, 'saiu'); a.ia.noTime = false; a.ia.chatFila = []; j.x = a.x + 2; j.z = a.z;
   cec.conversaAmiga('andre', { acao: 'seguir' });
   ok(a.ia.seguido && !a.ia.seguido.c && a.ia.chatFila.length === 1, `fora do time: topa e segue a rotina dela ("${a.ia.chatFila.at(-1)?.texto}")`);
-  // o Dario não tem o botão
-  const dEv = []; dar.amiga.x = j.x + 1; dar.amiga.z = j.z; evs.length = 0;
+  // o Dario também tem o botão (André 2026-11-19: igual à Cecília)
+  dar.amiga.x = j.x + 1; dar.amiga.z = j.z; dar.amiga.ia.chatFila = [];
   dar.conversaAmiga('andre', { acao: 'seguir' });
-  ok(!evs.some((x) => x.t === 'seguir') && !dar.amiga.ia.seguido, 'o Dario não segue (fica como estava)');
-  ok(!DARIO.seguivel && AMIGA.seguivel, 'só a Cecília é "seguível"');
+  ok(DARIO.seguivel && AMIGA.seguivel && !!dar.amiga.ia.seguido, 'o Dario também é "seguível"');
 }
 
 // ---------- app ----------

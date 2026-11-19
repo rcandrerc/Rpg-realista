@@ -856,18 +856,19 @@ export const Amiga = {
   // O herói anda sozinho atrás dela no app (godot-prototipo/seguir.gd). Aqui ela só decide para onde vai: no time, escolhe
   // um campo de caça e vai na frente (passoTimeAmiga), esperando quando ele fica para trás; fora do time segue a rotina
   // dela (o campo, a coleta ou a casa) e só diz para onde está indo. liga = false: ele parou de seguir.
-  seguirAmiga(id, liga) {
+  seguirAmiga(id, liga, op = {}) { // op.c: o campo já escolhido; op.longe: pediu pelo chat ("te sigo"), vale de longe
     const j = this.jogadores.get(id), a = this.amiga; if (!j || !a) return;
     const ia = a.ia, LA = this.AMIGA.lidera;
     if (!liga) { if (ia.seguido?.id === id) { ia.seguido = null; ia.viagemSeguida = null; } return; }
     if (!this.AMIGA.seguivel || !LA) return;
     if (a.morto || j.morto) return;
-    if (Math.hypot(a.x - j.x, a.z - j.z) > LA.perto) return this.evento({ t: 'aviso', para: id, texto: `Chegue mais perto de ${this.AMIGA.nome}` });
+    if (!op.longe && Math.hypot(a.x - j.x, a.z - j.z) > LA.perto) return this.evento({ t: 'aviso', para: id, texto: `Chegue mais perto de ${this.AMIGA.nome}` });
     if (!this.trocarDonoAmiga(id)) return this.evento({ t: 'aviso', para: id, texto: this.comOutroAmiga() });
     const F = this.AMIGA.falasLeva, noTime = !!(a.time && a.time === j.time), av = ia.av;
     let c = null, fala;
     if (noTime) {
-      c = ia.seguido?.id === id && ia.seguido.c ? ia.seguido.c : ia.atividade ? null : this.campoAmiga(a);
+      c = op.c || (ia.seguido?.id === id && ia.seguido.c ? ia.seguido.c : ia.atividade ? null : this.campoAmiga(a));
+      if (c && this.fechadoParaAmiga(j, c)) c = this.campoJuntoAmiga(a, j); // ela não leva ele para onde a névoa barra
       // ronda 2026-11-18: tocando Seguir três vezes, ela disse "Vem comigo, sei onde tem bicho bom" duas vezes: outra frase
       const ult = this.ultimaFalaAmiga(j), opc = F.campo.filter((f) => f.replace('{lugar}', nomeLugarAmiga(c?.nome || '')) !== ult);
       fala = c ? sorteia(opc.length ? opc : F.campo).replace('{lugar}', nomeLugarAmiga(c.nome)) : sorteia(F.junto);
@@ -1549,6 +1550,8 @@ export const Amiga = {
     for (const k of ['pescar', 'minerar', 'lenha']) if (tem(k)) { if (!negado(k)) return k; negou = true; } // "vamos pescar" é pescar, não caçar
     if (tem('equip')) return 'equip'; // "o que você tá usando?" (André 2026-11-10)
     for (const k of ['ondeUpar', 'nivel', 'missao']) if (A[k] && tem(k)) return k; // perguntas com resposta de verdade (André 2026-11-16), antes de "upar/missão" = time
+    // André 2026-11-19 ("vamos, eu te sigo... aí ele escolhe o que quer fazer"): ela escolhe e vai na frente, sem "pra onde?"
+    if (A.liderar && tem('liderar') && !negado('liderar')) return 'liderar';
     for (const k of ['sairTime', 'vir', 'time']) if (tem(k)) { if (!negado(k)) return k; negou = true; }
     if (negou) return 'naoAcao'; // "não vamos caçar", "nem vem": não faz nada
     if (ia?.chamado && ia.chamado.ate > this.tempo) { if (tem('nao')) return 'nao'; if (tem('sim')) return 'sim'; } // resposta ao chamado dela
@@ -1570,6 +1573,7 @@ export const Amiga = {
   apelidoAmiga(texto) { return /\b(cham\w*|cahm\w*|caham\w*)\s+(de|d)\s+\S/.test(normAmiga(texto)); },
   regraValeSobreIaAmiga(id, assunto, texto, assuntoIa) {
     if (this.acaoSemEfeitoAmiga(id, assunto)) return false;
+    if (assunto === 'liderar') return true; // "eu te sigo": ela escolhe e vai, nunca "pra onde?" (André 2026-11-19)
     // André 2026-11-16: "vai lá caçar sozinha" tem "caçar" (regra = time), mas a IA entendeu que é para ir sem ele
     if (['cacar', 'voltar'].includes(assuntoIa) && ['time', 'vir', 'sairTime'].includes(assunto)) return false;
     if (assuntoIa === 'conversa' && ['time', 'vir', 'sairTime', 'pescar', 'minerar', 'lenha'].includes(assunto)) {
@@ -1799,7 +1803,7 @@ export const Amiga = {
     if (r.assunto !== 'time' && this.apeloAmiga(a, j)) r = { ...r, assunto: 'time', fala: '' }; // pediu com jeito depois do não: ela reconsidera
     // livre: passa a acompanhar quem falou; com outro amigo: conversa, mas ação só depois (André 2026-11-10)
     const mesmoTime = !!(a.time && a.time === j.time) && ['time', 'vir'].includes(r.assunto); // no time de todos: "bora pro time" e "vem cá" valem
-    if (!this.trocarDonoAmiga(id) && !mesmoTime && ['time', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'vir', 'sim', 'nao', 'troca', 'presente', 'pedirItem', 'cacar', 'voltar'].includes(r.assunto)) return this.dizerAmiga(this.comOutroAmiga(), false, id);
+    if (!this.trocarDonoAmiga(id) && !mesmoTime && ['time', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'vir', 'sim', 'nao', 'troca', 'presente', 'pedirItem', 'cacar', 'voltar', 'liderar'].includes(r.assunto)) return this.dizerAmiga(this.comOutroAmiga(), false, id);
     const F = this.AMIGA.chat.falas, FA = this.AMIGA.falas, ia = a.ia, noTime = !!(a.time && a.time === j.time);
     const perto = Math.hypot(a.x - j.x, a.z - j.z) < 6;
     // André 2026-11-17: "vamos fazer alguma coisa, escolhe aí", ela escolhe, e ele "bora pra isso aí mesmo": o que ela
@@ -1809,6 +1813,13 @@ export const Amiga = {
     }
     const chamado = ia.chamado && ia.chamado.ate > this.tempo ? ia.chamado : null;
     let fala = '';
+    // "eu te sigo" / "vai na frente": ela já tinha chamado para pescar/minerar/lenha, é topar isso; no time, ela escolhe o
+    // campo e vai na frente (como o botão Seguir); fora do time, escolhe o campo, manda o convite e leva ele (André 2026-11-19)
+    if (r.assunto === 'liderar') {
+      if (this.AMIGA.atividades[chamado?.quer]) return this.respostaAmiga(id, { ...r, assunto: chamado.quer });
+      if (noTime && !a.morto && !j.morto && this.AMIGA.seguivel && this.AMIGA.lidera) { ia.chamado = null; return this.seguirAmiga(id, true, { c: chamado?.c, longe: true }); }
+      r = { ...r, assunto: 'time', lidera: true, fala: '' }; // a fala sai daqui, com o lugar que ela escolheu (a da IA podia perguntar "pra onde?")
+    }
     switch (r.assunto) {
       case 'time': {
         if (noTime) { fala = sorteia(FA.jaNoTime); break; }
@@ -1816,7 +1827,7 @@ export const Amiga = {
         // ela que chamou, já topou ou ele pediu para ir junto na caçada que ela já está fazendo (André 2026-11-17: "posso ir
         // com você? Ela: claro, vem"): aceita sem sorteio
         const cacando = this.AMIGA.convida && ia.av && ['ir', 'cacar'].includes(ia.av.fase) && !ia.av.coleta;
-        const pediu = chamado?.quer === 'time' || this.combinouAmiga(a) || cacando;
+        const pediu = chamado?.quer === 'time' || this.combinouAmiga(a) || cacando || (r.lidera && !!chamado); // "te sigo" depois do chamado dela é topar
         // André 2026-11-17: "se eu pedisse tipo 'por favor, preciso da sua ajuda, é importante' ela reconsiderasse; mas se eu
         // só pedir de novo ela responde igual". Uma vez por recusa: sorteia de novo com bem mais chance (AMIGA.time.apelo)
         if (!pediu && (ia.recusaAte || 0) > this.tempo && this.apeloAmiga(a, j)) {
@@ -1833,10 +1844,13 @@ export const Amiga = {
         if (!pediu && !v.aceita) { this.recusarTimeAmiga(a, j, v.motivo); fala = FA.recusa[v.motivo] || FA.recusa.vontade; break; }
         // André 2026-11-13 ("como se fosse um jogador real"): pelo chat ela só topa; ele dá o time no botão (conviteTimeAmiga)
         if (this.timeCheioAmiga(j)) { fala = FA.recusa.cheio; break; }
-        const campo = chamado?.c || (r.lugar && this.campoPorNomeAmiga(a, r.lugar)) || null;
+        let campo = chamado?.c || (r.lugar && this.campoPorNomeAmiga(a, r.lugar)) || null;
+        if (r.lidera && !campo) campo = this.campoAmiga(a) || this.campoJuntoAmiga(a, j); // "te sigo": ela escolhe para onde
+        if (r.lidera && campo && this.fechadoParaAmiga(j, campo)) campo = this.campoJuntoAmiga(a, j);
         ia.chamado = null; ia.vir = null; ia.plano = null;
         this.combinarAmiga(a);
-        fala = this.convidarTimeAmiga(a, j, campo) ? sorteia(FA.timeConvidou) : sorteia(FA.timeCombinado);
+        const mandou = this.convidarTimeAmiga(a, j, campo);
+        fala = mandou && r.lidera && campo && FA.liderar ? sorteia(FA.liderar).replace('{lugar}', nomeLugarAmiga(campo.nome)) : mandou ? sorteia(FA.timeConvidou) : sorteia(FA.timeCombinado);
         break;
       }
       case 'pescar': case 'minerar': case 'lenha': {

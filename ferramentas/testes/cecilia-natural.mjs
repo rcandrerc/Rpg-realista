@@ -35,7 +35,7 @@ ok(a.fatos[j.conta].length === 3 && a.fatos[j.conta].includes('ele não gosta de
 ok(a.memorias[j.conta].join() === 'outra coisa' && a.fatos[j.conta].includes('o pai dele morreu'), 'o diário reescreve as lembranças, mas os fatos ficam');
 const ctx = cec.contextoAmiga('andre');
 ok(ctx.fatos.length === 3 && ctx.esforco === 'high', 'a conversa leva os fatos e ela pensa mais (high)');
-ok(dar.contextoAmiga('andre').esforco === null, 'o Dario continua como estava');
+ok(dar.contextoAmiga('andre').esforco === AMIGA.chat.esforco, 'o Dario pensa tanto quanto ela (André 2026-11-19)');
 const sis = mensagensConversa(ctx, 'oi')[0].content;
 ok(/Fatos que você SABE/.test(sis) && /restaurante/.test(sis) && /vida dele fora do jogo/.test(sis) && /reclame de algo seu/.test(sis) && /nunca repita a mesma desculpa/.test(sis), 'o prompt pede vida própria, perguntas pessoais, variar e usa os fatos');
 pedidos.length = 0; await pensarAmiga(ctx, 'oi', 'chave');
@@ -56,7 +56,7 @@ cec.ouvirAmiga('andre', 'opa'); // ele respondeu (sem resposta ela não insiste:
 j.prog.nivel += 1; s.passo(0.05); s.tempo += AMIGA.chat.puxar.eventoMin + 100; s.passo(0.05);
 ok(puxou.length === 2 && /subir para o nível/.test(puxou[1].ev || ''), `subiu de nível: ela comenta (${puxou[1]?.ev})`);
 ok(/subir para o nível/.test(puxarAssunto(ctx, puxou[1]?.ev)) && /Não chame para caçar/.test(puxarAssunto(ctx, null)), 'o pedido de assunto é sem chamar para caçar');
-ok(!DARIO.puxaAssunto, 'o Dario não puxa assunto');
+ok(DARIO.puxaAssunto === true, 'o Dario também puxa assunto (André 2026-11-19)');
 // IA acabou no dia: avisa que vai descansar, depois "ocupada" e não entra no time
 modo = 'dia'; const r = await pensarAmiga(ctx, 'oi', 'chave-x');
 ok(r === null && iaEsgotada('chave-x'), 'limite do dia em todos os modelos: a chave fica marcada');
