@@ -6,13 +6,15 @@ extends RefCounted
 # pele) e o corpo com fundo de pele (armadura.gd _pele_cheia). Além disso cada leitura da placa para o jogo um quadro
 # inteiro (rpg-realista-leitura-placa).
 # Aqui a imagem vem direto do arquivo do jogo (.ctex do Godot, que guarda a imagem em PNG ou WebP sem perda): o
-# processador abre e pronto, igual em todo celular. Se o arquivo for de outro tipo (textura comprimida para a placa,
-# textura feita durante o jogo), volta para o get_image() de sempre.
+# processador abre e pronto, igual em todo celular. Textura comprimida para a placa (ETC2/ASTC no celular, S3TC no PC;
+# os corpos VRoid desde 2026-11-19, ferramentas/texturas/celular.mjs) também vem do arquivo: o processador descomprime
+# (Image.decompress, que o Godot traz no jogo exportado). Só textura feita durante o jogo volta para o get_image().
 #
 # Formato do .ctex (Godot 4, CompressedTexture2D): "GST2", versão, largura, altura, formato dos dados, limite de mipmap,
 # 3 reservados (32 bits cada). Depois a imagem: tipo (1 PNG, 2 WebP), largura e altura (16 bits cada), quantos
 # mipmaps, formato da Image e, para cada nível (o maior primeiro), o tamanho em bytes e o arquivo PNG/WebP daquele nível.
 
+const CRU := 0 # dados da Image direto (é como fica a textura comprimida para a placa)
 const PNG := 1
 const WEBP := 2
 
@@ -57,6 +59,13 @@ static func _ctex(caminho: String) -> String:
 		var cfg := ConfigFile.new()
 		if cfg.load(caminho + ".import") == OK:
 			var p := str(cfg.get_value("remap", "path", ""))
+			# comprimida para a placa: um .ctex por família (path.s3tc no PC, path.etc2 no celular); vale a mesma que o
+			# Godot carrega neste aparelho (a primeira que ele suporta)
+			if p == "" and cfg.has_section("remap"):
+				for k in cfg.get_section_keys("remap"):
+					if k.begins_with("path.") and OS.has_feature(k.substr(5)):
+						p = str(cfg.get_value("remap", k, ""))
+						break
 			if p.ends_with(".ctex"):
 				r = p
 	_caminhos[caminho] = r
@@ -74,12 +83,25 @@ static func _do_arquivo(caminho: String, menor_lado: int) -> Image:
 	for i in 8: # versão, largura, altura, formato dos dados, limite de mipmap, 3 reservados
 		f.get_32()
 	var tipo := f.get_32()
-	if tipo != PNG and tipo != WEBP:
-		return null # dados crus ou comprimidos para a placa: fica com o get_image()
+	if tipo != PNG and tipo != WEBP and tipo != CRU:
+		return null # outro tipo (Basis Universal): fica com o get_image()
 	var w := f.get_16()
 	var h := f.get_16()
 	var mips := f.get_32()
-	f.get_32() # formato da Image
+	var formato := f.get_32() # formato da Image
+	if tipo == CRU:
+		# o resto do arquivo é a imagem com os mipmaps, do jeito que vai para a placa; o processador descomprime. Volta só
+		# o nível maior (como a PNG/WebP de cima): quem usa tira a média ou monta a pele em cima dela.
+		if formato < 0 or formato >= Image.FORMAT_MAX:
+			return null
+		var dados := f.get_buffer(f.get_length() - f.get_position())
+		var cru := Image.create_from_data(w, h, mips > 0, formato, dados)
+		if cru == null or cru.is_empty():
+			return null
+		if cru.is_compressed() and cru.decompress() != OK:
+			return null
+		cru.clear_mipmaps()
+		return cru
 	# escolhe o nível: o menor que ainda tem pelo menos menor_lado
 	var nivel := 0
 	if menor_lado > 0:
