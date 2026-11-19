@@ -703,14 +703,16 @@ function guardarLinha(r) {
 // ?inst=código (ou ?ap=modelo) mostra só as de um celular (até as últimas LENTIDAO_MAX); sem filtro, as últimas 100.
 // Segurança 2026-11-19 (Presidente): aberta, só os números gerais (sem o código do aparelho nem a posição x/z, e sem o
 // filtro por código); o detalhe só com o crachá OIDC da ronda e dos robôs (diagVale), como em /npcs/conversas.json
-const SEM_CRACHA = new Set(['inst', 'x', 'z']);
-const geral = (x) => Object.fromEntries(Object.entries(x).filter(([k]) => !SEM_CRACHA.has(k)));
+// sem crachá também sai o que junto vira impressão digital de um celular raro (placa, motor, cor da pele medida) e a hora
+// exata (vai arredondada para a hora cheia); revisão independente 2026-11-19
+const SEM_CRACHA = new Set(['inst', 'x', 'z', 'placa', 'drv', 'pele']);
+const geral = (x) => { const r = Object.fromEntries(Object.entries(x).filter(([k]) => !SEM_CRACHA.has(k))); if (Number.isFinite(r.servidor)) r.servidor = Math.floor(r.servidor / 3600e3) * 3600e3; return r; };
 async function diagVale(req) {
   if (!sessaoDe(req) && !req.query.teste) return false;
   try { return await roboConfere({ cracha: sessaoDe(req), teste: req.query.teste }, [CONVERSAS_WORKFLOW, ROBO_WORKFLOW, ROBO_CELULAR, ROBO_REAL]); } catch { return false; }
 }
 const doCelular = (lista, q, n, cracha) => {
-  const inst = cracha && typeof q.inst === 'string' ? q.inst : '', ap = typeof q.ap === 'string' ? q.ap : '';
+  const inst = cracha && typeof q.inst === 'string' ? q.inst : '', ap = cracha && typeof q.ap === 'string' ? q.ap : ''; // filtros só com crachá
   const f = lista.filter((x) => (!inst || x.inst === inst) && (!ap || x.ap === ap)).slice(inst || ap ? -lista.length : -n);
   return cracha ? f : f.map(geral);
 };
@@ -728,7 +730,7 @@ app.get('/lentidao/celulares', async (req, res) => {
     if (x.drv) c.drv = x.drv;
     if (x.servidor > c.ultima) { c.ultima = x.servidor; c.versao = x.versao; }
   }
-  res.json(Object.values(m).sort((a, b) => b.ultima - a.ultima));
+  res.json(Object.values(m).sort((a, b) => b.ultima - a.ultima).map((c) => (cracha ? c : { ap: c.ap, linhas: c.linhas, versao: c.versao })));
 });
 
 // carga (André 2026-11-11, ping alto): quanto o servidor gasta por passo (de 50 ms), quanto tempo está ligado e quantos jogam
@@ -879,13 +881,15 @@ async function roboConfere(body, workflows = [ROBO_WORKFLOW]) {
   return String(payload.repository).toLowerCase() === ROBO_REPO && workflows.includes(String(payload.job_workflow_ref).toLowerCase());
 }
 // Segurança 2026-11-19 (Presidente): a trava de 5 s é por conta de robô (antes era uma só para todos: os 50 robôs do teste
-// de carga não entravam). Na porta, uma trava larga contra enxurrada: ROBO_PORTA pedidos por 10 s, antes de conferir o crachá.
+// de carga não entravam).
 // carga (QA, teste dos 50 robôs): o robo.yml pede { carga: 1..ROBO_CARGA } e cada robô tem conta própria ('robo:carga7')
-const ROBO_CARGA = 50, ROBO_PORTA = 80, roboT = new Map(); let roboPorta = { t: 0, n: 0 };
+// Sem trava na porta (revisão independente 2026-11-19: uma trava global deixava qualquer um barrar o robô mandando lixo,
+// e atrás do proxy todos têm o mesmo endereço): conferir o crachá custa ~50 µs e as chaves do GitHub ficam guardadas
+// (busca nova no máximo a cada 30 s). Crachá certo nunca espera por culpa de outro.
+const ROBO_CARGA = 50;
+const roboT = new Map(); // conta do robô -> hora do último login (antes um número só, para todos)
 app.post('/conta/robo', async (req, res) => {
   const agora = Date.now();
-  if (agora - roboPorta.t > 10000) roboPorta = { t: agora, n: 0 };
-  if (++roboPorta.n > ROBO_PORTA) return res.status(429).json({ erro: 'devagar' });
   try {
     let R = null;
     if (await roboConfere(req.body)) { const k = req.body?.carga | 0; R = k >= 1 && k <= ROBO_CARGA ? roboCarga(k) : ROBO; }
@@ -949,8 +953,9 @@ ${Object.entries(F).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([fx, f]
 // NPCs com IA (André 2026-11-16: "relatórios de Dário e de Cecília" na ronda diária): o que cada um fez hoje, só números
 // do jogo (nível, ouro, missão, minutos de caça e de missão). Nada de conversa, memória ou de quem é amigo deles.
 // evolucao (André 2026-11-17): cada nível, missão entregue, queda, etapa travada, reforço e evolução, com a hora.
-// Segurança 2026-11-19 (Presidente): a posição (x, z), morto e preso só com o crachá da ronda (diagVale): com a guerra,
-// saber onde a Geada está vira vantagem. Sem crachá, só os números do dia.
+// Segurança 2026-11-19 (Presidente): a posição (x, z), morto, preso, a missão e o diário de evolução (que tem a etapa e a
+// hora da morte) só com o crachá da ronda (diagVale): com a guerra, saber onde a Geada está vira vantagem. Sem crachá,
+// só os números do dia.
 app.get('/npcs.json', async (req, res) => {
   const cracha = await diagVale(req);
   const dia = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), vivos = new Map();
@@ -963,10 +968,10 @@ app.get('/npcs.json', async (req, res) => {
     if (!d && contas) try { d = D.terreno ? contas.loteDoDono(D.conta)?.dados?.amiga : contas.lerMundo('npc:' + D.id); } catch { d = null; }
     if (!d) { l.push({ nome: D.nome, id: D.id, salvo: false }); continue; }
     const p = d.prog || {}, h = p.hist || {};
-    l.push({ nome: D.nome, id: D.id, ...(D.raca ? { raca: D.raca } : {}), noMundo: !!v, nivel: p.nivel | 0, ouro: p.ouro | 0, missao: h.p ?? null, etapa: h.e ?? null,
+    l.push({ nome: D.nome, id: D.id, ...(D.raca ? { raca: D.raca } : {}), noMundo: !!v, nivel: p.nivel | 0, ouro: p.ouro | 0, ...(cracha ? { missao: h.p ?? null, etapa: h.e ?? null } : {}),
       cacaMinHoje: d.grind?.dia === dia ? Math.round((d.grind.seg || 0) / 60) : 0, missaoMinHoje: d.missaoDia?.dia === dia ? Math.round((d.missaoDia.seg || 0) / 60) : 0,
       salvoHa: d.t ? Math.round((Date.now() - d.t) / 60000) : null,
-      evolucao: Array.isArray(d.evolucao) ? d.evolucao.slice(-40) : [], ...(v && cracha ? { x: Math.round(v.a.x), z: Math.round(v.a.z), morto: !!v.a.morto, preso: !!v.a.ia?.viagem?.bloqueio } : {}) });
+      ...(cracha ? { evolucao: Array.isArray(d.evolucao) ? d.evolucao.slice(-40) : [] } : {}), ...(v && cracha ? { x: Math.round(v.a.x), z: Math.round(v.a.z), morto: !!v.a.morto, preso: !!v.a.ia?.viagem?.bloqueio } : {}) });
   }
   res.json({ dia, npcs: l });
 });

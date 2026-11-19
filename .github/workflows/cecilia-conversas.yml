@@ -28,6 +28,8 @@ jobs:
         run: |
           set -eu
           mkdir -p saida
+          # sai no meio (erro): nada fica aberto no disco (máquina própria)
+          trap 'shred -u c.json c2.json k.bin cel.json npcs.json por.json p2.json diag.json l.json r.json 2>/dev/null || true' EXIT
           echo "$CHAVE" | base64 -d > pub.pem
           openssl pkey -pubin -in pub.pem -noout
           tk=$(curl -sf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=age-of-embers-robo" | jq -r .value)
@@ -37,8 +39,8 @@ jobs:
           # Segurança 2026-11-19: o detalhe do /lentidao (código do aparelho, posição) e a posição dos NPCs no /npcs.json
           # só saem com o crachá. A ronda das 9h lê aqui, no mesmo arquivo cifrado (diag.json junto das conversas).
           S=https://163-176-80-126.sslip.io
-          curl -sf --retry 3 -H "Authorization: Bearer $tk" "$S/lentidao/celulares" -o cel.json
-          curl -sf --retry 3 -H "Authorization: Bearer $tk" "$S/npcs.json" -o npcs.json
+          curl -sf --retry 3 -H "Authorization: Bearer $tk" "$S/lentidao/celulares" -o cel.json || echo '[]' > cel.json
+          curl -sf --retry 3 -H "Authorization: Bearer $tk" "$S/npcs.json" -o npcs.json || echo '{}' > npcs.json
           echo '{}' > por.json
           for inst in $(jq -r '.[].inst' cel.json | grep -E '^[0-9a-f]{8}$' | head -20); do
             curl -sf --retry 2 -H "Authorization: Bearer $tk" "$S/lentidao?inst=$inst" -o l.json || echo '[]' > l.json

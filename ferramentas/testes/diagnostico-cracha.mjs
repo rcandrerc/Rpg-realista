@@ -17,7 +17,7 @@ const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'diag-cracha-'));
 const PORTA = 2900 + Math.floor(Math.random() * 200), TESTE = 'teste-' + Math.random().toString(36).slice(2);
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
-const linha = (inst, ap) => JSON.stringify({ servidor: Date.now(), fps: 28, x: 123, z: -45, inst, ap, versao: 'v1' });
+const linha = (inst, ap) => JSON.stringify({ servidor: Date.now(), fps: 28, x: 123, z: -45, inst, ap, versao: 'v1', placa: 'Mali-G72' });
 fs.writeFileSync(path.join(pasta, 'lentidao.jsonl'), [linha('a1b2c3d4', 'Poco X7'), linha('0f0f0f0f', 'Note 10')].join('\n') + '\n');
 fs.writeFileSync(path.join(pasta, 'lentidao-resumo.jsonl'), linha('a1b2c3d4', 'Poco X7') + '\n');
 
@@ -38,10 +38,11 @@ const get = async (p) => (await fetch(U + p)).json();
 const l0 = await get('/lentidao');
 ok(l0.length === 2 && l0.every((x) => !('inst' in x) && !('x' in x) && !('z' in x) && x.fps === 28 && x.ap), 'aberto: números gerais, sem código do aparelho nem posição');
 ok((await get('/lentidao?inst=a1b2c3d4')).length === 2, 'aberto: ?inst= não separa um aparelho');
-ok((await get('/lentidao?ap=Poco%20X7')).length === 1, 'aberto: por modelo ainda dá');
+ok((await get('/lentidao?ap=Poco%20X7')).length === 2, 'aberto: ?ap= também não separa (modelo raro vira impressão digital)');
+ok(l0.every((x) => !('placa' in x) && x.servidor % 3600e3 === 0), 'aberto: sem placa e com a hora arredondada');
 ok((await get('/lentidao/resumo')).every((x) => !('inst' in x) && !('x' in x)), 'resumo aberto também sem código e posição');
 const c0 = await get('/lentidao/celulares');
-ok(c0.length === 2 && c0.every((x) => !('inst' in x) && x.ap), 'celulares aberto: por modelo, sem o código');
+ok(c0.length === 2 && c0.every((x) => !('inst' in x) && !('ultima' in x) && x.ap), 'celulares aberto: por modelo, sem o código nem a última hora');
 // com o crachá (aqui o atalho de teste): tudo
 const l1 = await get(`/lentidao?inst=a1b2c3d4&teste=${TESTE}`);
 ok(l1.length === 1 && l1[0].inst === 'a1b2c3d4' && l1[0].x === 123, 'com crachá: ?inst= separa o aparelho, com posição');
@@ -51,7 +52,7 @@ ok((await fetch(U + '/lentidao', { headers: { Authorization: 'Bearer a.b.c' } })
 
 // /npcs.json: sem posição sem crachá
 const n0 = await get('/npcs.json');
-ok(Array.isArray(n0.npcs) && n0.npcs.every((x) => !('x' in x) && !('z' in x) && !('morto' in x)), '/npcs.json aberto: sem posição dos NPCs');
+ok(Array.isArray(n0.npcs) && n0.npcs.every((x) => !('x' in x) && !('z' in x) && !('morto' in x) && !('evolucao' in x) && !('missao' in x)), '/npcs.json aberto: sem posição, missão nem diário dos NPCs');
 
 // /saude: ler não zera
 const s1 = await get('/saude'), s2 = await get('/saude');
