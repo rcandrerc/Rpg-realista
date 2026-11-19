@@ -26,7 +26,7 @@ concurrency:
 jobs:
   copiar:
     runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Baixar a cópia cifrada
         run: |
@@ -38,6 +38,9 @@ jobs:
           [ "$(tar -tf copia.tar | sort | tr '\n' ' ')" = "assinatura.bin chave.bin contas.bin contas.sha256 quando.txt " ] || { echo "::error::cópia sem o formato esperado"; exit 1; }
           tar -xOf copia.tar contas.bin | head -c 8 | grep -q '^Salted__' || { echo "::error::contas.bin não está cifrado"; exit 1; }
           echo "cópia: $(stat -c %s copia.tar) bytes"
+          # impressão digital da chave que assina (para fixar ferramentas/servidor/copia-assinatura*.pub.pem conferindo por dois caminhos)
+          curl -sf https://163-176-80-126.sslip.io/contas/copia-assinatura.pub.pem -o assina.pub.pem && echo "assinatura do servidor: sha256 do DER $(openssl pkey -pubin -in assina.pub.pem -outform DER | sha256sum | cut -d' ' -f1)" || echo "::warning::não li a pública de assinatura"
+          rm -f assina.pub.pem
       - name: Guardar no disco da máquina de builds (30 dias)
         if: runner.environment == 'self-hosted'
         run: |

@@ -85,6 +85,8 @@ if [[ "$ARQ" == *.tar ]]; then
   [ "$(printf '%s\n' "$lista" | awk '{print substr($1,1,1)}' | sort -u | tr -d '\n')" = "-" ] || erro "o .tar tem algo que não é arquivo comum: recusado"
   [ "$(tar -tf "$ARQ" | sort | tr '\n' ' ')" = "assinatura.bin chave.bin contas.bin contas.sha256 quando.txt " ] || erro "o .tar não tem exatamente assinatura.bin, chave.bin, contas.bin, contas.sha256 e quando.txt"
   tar -xf "$ARQ" -C "$TMP" --no-same-owner --no-same-permissions || erro "não consegui abrir o .tar"
+  grep -qxE '[0-9a-f]{64}' "$TMP/contas.sha256" && [ "$(wc -l < "$TMP/contas.sha256")" = 1 ] || erro "contas.sha256 fora do formato"
+  grep -qxE '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z' "$TMP/quando.txt" && [ "$(wc -l < "$TMP/quando.txt")" = 1 ] || erro "quando.txt fora do formato"
   # a cópia veio mesmo do servidor? (revisão da frente 3: sem isso, um banco forjado no balde voltaria como root)
   { printf '%s\n%s\n' "$(sha256sum "$TMP/chave.bin" | cut -d' ' -f1)" "$(sha256sum "$TMP/contas.bin" | cut -d' ' -f1)"; cat "$TMP/contas.sha256" "$TMP/quando.txt"; } > "$TMP/msg"
   confere=""
