@@ -71,7 +71,7 @@ export const Guilda = {
   contarGuilda(j, ev, d = {}) {
     if (!this.temGuilda(j)) return;
     const g = this.guildaDe(j);
-    if (g.pv === 1 && ev === 'matar' && d.hc === `gp:${j.id}`) return this.subirRank(j);
+    if (g.pv === 1 && ev === 'matar' && d.hc === `gp:${/^c\d+$/.test(j.conta) ? j.conta : j.id}`) return this.subirRank(j); // pela conta (revisão 2026-11-19): a Prova vale depois de cair e voltar com outra sessão
     let mudou = false;
     for (const id of Object.keys(g.at)) {
       const O = g.of.find((o) => o.id === id), T = O && GUILDA.tipos[O.k];
@@ -188,7 +188,7 @@ export const Guilda = {
     }
   },
   chamarEliteGuilda(j, prova) {
-    const hc = `${prova ? 'gp' : 'ge'}:${j.id}`;
+    const hc = `${prova ? 'gp' : 'ge'}:${/^c\d+$/.test(j.conta) ? j.conta : j.id}`; // pela conta (c123): voltou com outra sessão, o mesmo elite continua sendo dele; sem contas, a sessão
     if (this.inimigos.some((e) => e.hc === hc && !e.morto)) return;
     const D = this.campoDaFaixa(j, null, 60); if (!D) return;
     const ci = this.cacas.findIndex((c) => c.def === D);

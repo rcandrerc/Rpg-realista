@@ -23,7 +23,7 @@ import { HISTORIA } from './dados.js';
 import { LOJA, precoLoja, PLANTIO, RECEITA_ESTACAO, CATALISADOR, LUGARES } from './dados.js';
 import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
 import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera, QUEM_LIBERA } from './historia.js';
-import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
+import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
 // sorteia sem repetir a última da mesma lista (André 2026-11-15: as respostas prontas pareciam de robô)
@@ -729,7 +729,7 @@ export const Amiga = {
       Object.assign(t, { c: s, g: 0, u: agora, w: agora });
     } else if (fasePlanta(t.g / PLANTAS[t.c].G) >= 4) {
       const P = PLANTAS[t.c], n = P.y[0] + Math.floor(Math.random() * (P.y[1] - P.y[0] + 1));
-      guardar(j.prog.mochila, { k: t.c, n });
+      guardarQueCabe(j.prog.mochila, { k: t.c, n }); // o que couber (antes da revisão de 2026-11-19 entrava meia pilha)
       Object.assign(t, { c: '', g: 0, u: agora, w: 0 });
       this.guardarAmiga();
     } else { t.w = agora; t.u = agora; }
@@ -834,7 +834,7 @@ export const Amiga = {
         const p = a.pedido; if (!p) return diga(sorteia(F.semPedido));
         if (contar(j.prog.mochila, p.k) < p.n) return diga(sorteia(F.falta).replace('{item}', nomeItem(p)));
         tirar(j.prog.mochila, p.k, p.n);
-        guardar(a.prog.mochila, { k: p.k, n: p.n });
+        guardarQueCabe(a.prog.mochila, { k: p.k, n: p.n });
         // paga com o que colheu (o que tiver mais) ou em ouro
         let paga = '';
         const colheita = this.AMIGA.plantas.map((k) => [k, contar(a.prog.mochila, k)]).sort((x, y) => y[1] - x[1])[0];
@@ -2112,7 +2112,7 @@ export const Amiga = {
       d.falas = 0;
       d.novas = 0; d.pensando = true;
       const dados = { amigo: this.AMIGA.id, nomeAmigo: this.AMIGA.nome, genero: this.AMIGA.genero || 'f', conta, nome: d.nome, memoria: [...(a.memorias?.[conta] || [])], fatos: [...(a.fatos?.[conta] || [])], regras: { ...(a.regras?.[conta] || {}) }, conversa: [...((a.ia.conversas || {})[conta] || [])] };
-      if (!this.aoDiarioAmiga || (d.id != null && this.jogadores.has(d.id) && !this.iaAmiga(d.id))) { d.pensando = false; continue; } // sem chave: sem IA, sem diário
+      if (!this.aoDiarioAmiga || !IA_CONVERSA.ligada || (d.id != null && this.jogadores.has(d.id) && !this.iaAmiga(d.id))) { d.pensando = false; continue; } // sem chave: sem IA, sem diário. IA desligada (André 2026-11-18): nunca chama a IA, nem depois que a pessoa sai (revisão 2026-11-19)
       this.aoDiarioAmiga(dados).then((r) => { d.pensando = false; if (r) this.anotarAmiga(conta, r); }, () => { d.pensando = false; });
     }
   },

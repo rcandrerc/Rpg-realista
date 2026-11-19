@@ -78,12 +78,12 @@ ok(p.guilda.pv === 1 && info().pv, 'Nv 36 e pontos cheios: Prova aceita');
 const D = s.campoDaFaixa(j, null, Infinity);
 ok(!!D, `há campo na faixa do Nv 36 (${D?.id} Nv ${D?.nivel})`);
 j.x = D.x + 3; j.z = D.z;
-for (let t = 0; t < 40 && !s.inimigos.some((e) => e.hc === 'gp:A'); t++) s.passo(0.1);
-const prova = s.inimigos.find((e) => e.hc === 'gp:A');
+for (let t = 0; t < 40 && !s.inimigos.some((e) => e.hc === 'gp:' + j.conta); t++) s.passo(0.1);
+const prova = s.inimigos.find((e) => e.hc === 'gp:' + j.conta);
 ok(!!prova && prova.nome === 'Prova do rank E' && prova.esc > 1, `apareceu: ${prova?.nome}`);
 // vencer a Prova sobe o rank
 s.eventos = [];
-s.historia(j, 'matar', { hc: 'gp:A', nivel: prova.nivel });
+s.historia(j, 'matar', { hc: 'gp:' + j.conta, nivel: prova.nivel });
 ok(p.guilda.r === 1 && p.guilda.pg === 0 && p.guilda.pv !== 1, 'venceu a Prova: Rank E, pontos zerados');
 ok(p.tit.tem.includes('guilda_E') && avisos().some((t) => t.includes('Rank E')), 'ganhou o título Aventureiro Rank E');
 

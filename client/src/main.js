@@ -21,6 +21,24 @@ import { Diagnostico } from './diagnostico.js';
 const mapa = MAPA_CLAREIRA;
 const $ = (id) => document.getElementById(id);
 const msg = (t) => { $('loadmsg').textContent = t; };
+// Ligar o app a esta conta: só com o "sim" de quem está aqui (revisão de segurança 2026-11-19). Link mandado por outra
+// pessoa (chat, Discord) não liga nada sozinho.
+function confirmarLigarApp(nome) {
+  return new Promise((pronto) => {
+    msg(`Ligar o jogo deste aparelho à conta ${nome}? Só aceite se você mesmo tocou em Entrar no jogo agora. Se alguém te mandou este link, toque em Não.`);
+    const caixa = document.createElement('div');
+    caixa.style.cssText = 'display:flex;gap:14px;justify-content:center;margin-top:18px;flex-wrap:wrap';
+    const botao = (texto, cor, sim) => {
+      const b = document.createElement('button');
+      b.textContent = texto;
+      b.style.cssText = `padding:14px 28px;border:0;border-radius:30px;background:${cor};color:#1a1208;font-weight:700;font-size:18px;font-family:inherit;cursor:pointer`;
+      b.onclick = () => { caixa.remove(); msg(sim ? 'Ligando o app…' : 'Cancelando…'); pronto(sim); };
+      return b;
+    };
+    caixa.append(botao('Sim, fui eu', '#ee9e40', true), botao('Não', '#c9c2b8', false));
+    $('loadmsg').after(caixa);
+  });
+}
 
 const canvas = $('c');
 const renderer = criarRenderizador(canvas);
@@ -339,7 +357,7 @@ function quadro() {
       // "Trocar de conta" no app: esquece a conta que este navegador lembrava, para escolher outra no Google
       if (new URLSearchParams(location.search).get('trocar')) await sairDaConta(servidor);
       msg('Entrando para ligar o app…');
-      const r = await ligarApp(servidor, codigoApp);
+      const r = await ligarApp(servidor, codigoApp, confirmarLigarApp);
       msg(r.texto);
       // versão PC (Windows): não existe o "abrir o app" do Android; o jogo já entra sozinho, é só voltar para ele
       if (r.ok && !/Android/i.test(navigator.userAgent)) {

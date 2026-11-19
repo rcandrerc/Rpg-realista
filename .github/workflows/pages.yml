@@ -1,5 +1,5 @@
 # Publica o jogo no GitHub Pages a cada push na main (e o pacote do servidor em /servidor, que a Oracle baixa sozinha).
-# Sem servidor o jogo roda no modo solo; para multiplayer, abra com ?servidor=wss://endereco-do-servidor
+# Sem servidor o jogo roda no modo solo. O site usa o servidor oficial (SERVIDOR_PARA_PAGES em client/src/rede.js); ?servidor= só aceita o oficial e o computador de casa (revisão de segurança 2026-11-19)
 name: Publicar no GitHub Pages
 
 on:
