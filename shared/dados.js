@@ -2773,6 +2773,8 @@ export const AMIGA = {
     // André 2026-11-13 ("como se fosse um jogador real"): no chat ela só topa; quem dá o time é ele, pelo botão
     timeCombinado: ['Bora! Manda o convite do time.', 'Topo! Me chama pro time que eu vou.', 'Fechou! Manda o time aí.'],
     timeConvidou: ['Claro, vem! Te mandei o convite da pt.', 'Bora! Mandei a pt, aceita aí.', 'Vem comigo! Já te chamei pra pt.'], // ela manda o convite (convida)
+    // André 2026-11-19 ("vamos, eu te sigo... aí ele escolhe"): ela escolhe o campo, manda o time e vai na frente
+    liderar: ['Fechou! Bora na {lugar}, te mandei a pt. Cola em mim!', 'Deixa comigo: {lugar}! Aceita a pt e vem atrás.', 'Já sei pra onde: {lugar}. Mandei a pt, bora!'],
     // aceitou com ele bem mais fraco (André 2026-11-16: "vou te ajudar porque você é meu amigo... mas não tão grosseira")
     nivelBaixo: ['Vou sim, você é meu amigo! Mas tá {n} níveis abaixo de mim, hein... bora upar você um pouco.', 'Bora! Só não some do meu lado, que com {n} níveis de diferença os mobs te pegam fácil kkk.', 'Tô dentro! Mas cê tá {n} níveis atrás, vou ter que segurar o aggro pra você.'],
     jaNoTime: ['Ué, eu já tô no seu time! Bora caçar!'],
@@ -2896,6 +2898,7 @@ export const AMIGA = {
     assuntos: {
       sairTime: ['sai do time', 'sair do time', 'pode ir pra casa', 'pode voltar pra casa', 'volta pra casa', 'te libero'],
       time: ['time', 'vamos', 'partiu', 'cacar', 'caca', 'upar', 'grind', 'lutar', 'aventura', 'me ajuda a matar', 'missao'],
+      liderar: ['te sigo', 'sigo voce', 'sigo vc', 'sigo tu', 'vai na frente', 'vai na frente que eu vou', 'me leva', 'me guia', 'vou atras de voce', 'vou atras de vc', 'eu vou atras', 'voce lidera', 'vc lidera', 'voce que manda', 'vc que manda'], // André 2026-11-19: ela escolhe e vai na frente
       vir: ['vem ca', 'vem aqui', 'vem pra ca', 'vem me ver', 'cola aqui', 'chega aqui', 'aparece', 'vem comigo', 'onde voce', 'cade voce', 'cade vc', 'onde vc', 'onde ce'],
       sim: ['sim', 'claro', 'pode ser', 'fechou', 'beleza', 'blz', 'ok', 'vou', 'to indo', 'ja vou', 'bora', 'simbora', 'demorou'],
       nao: ['nao', 'agora nao', 'depois', 'mais tarde', 'nem', 'to ocupado', 'nao da'],
@@ -2988,13 +2991,19 @@ function mesclarAmigo(base, muda) {
 }
 export const DARIO = mesclarAmigo(AMIGA, {
   id: 'dario', nome: 'Dario', conta: 'a:dario', papel: 'o guerreiro', genero: 'm',
-  puxaAssunto: false, // André 2026-11-17: quem puxa assunto pela IA é só a Cecília (o Dario responde)
-  naoInsiste: false, seguivel: false, convida: false, // André 2026-11-17: "o Dario deixa como está"
+  // André 2026-11-19 ("eu tinha modificado um pouco a Cecília e deixado o Dário para trás"): agora igual a ela em
+  // inteligência e decisões (puxa assunto, não insiste, botão Seguir, manda o convite); só o jeito de falar é dele
   persona: 'um guerreiro de anime num RPG medieval de fantasia: calmo, confiante, leal, de humor seco e provocador com os amigos, competitivo nas caçadas e orgulhoso da espada',
   visual: 'cabelo_m',
   // visual B (cabelo preto rebelde, olhos dourados, capa roxo-escura); só aparência, as peças de verdade começam Comuns
   aparencia: { cabelo: 0x1c1a1f, olhos: 0xe0b030, roupa: 0x24345c, calca: 0x222226, altura: 1.06, penteado: 'fumiriya' }, // cores da lista do criador (CRIADOR)
   equip: { corpo: { k: 'peitoral', r: 2 }, pernas: { k: 'calca', r: 2 }, pes: { k: 'botas', r: 2 }, capa: { k: 'capa', r: 2 }, espada: { k: 'espada', r: 1 } },
+  falasLeva: { // o mesmo botão Seguir da Cecília, com o jeito dele
+    campo: ['Fica atrás de mim. Vamos pra {lugar}.', '{lugar}. É pra lá. Acompanha o ritmo.', 'Sei onde tem bicho bom: {lugar}. Vem.'],
+    solo: ['Tô indo pra {lugar}. Vem atrás se quiser.', '{lugar}, é pra lá que eu vou. Cola.'],
+    casa: ['Vou passar em casa. Vem junto?', 'Tô indo pra casa. Me acompanha?'],
+    junto: ['Vem comigo, vou dar uma volta.', 'Segue aí, já te mostro.'],
+  },
   plantas: ['batata', 'cenoura', 'rabanete'],
   pedidos: [{ k: 'minerio_cobre', n: 4 }, { k: 'couro', n: 3 }, { k: 'lenha', n: 5 }, { k: 'pedra', n: 4 }, { k: 'semente_batata', n: 3 }],
   falas: {
@@ -3004,6 +3013,8 @@ export const DARIO = mesclarAmigo(AMIGA, {
     horta: ['A horta me acalma. Batata daqui dá força pra caçada.', 'Plantar dá menos trabalho que matar lobo. Quase.'],
     time: ['Fechado. Vai na frente que eu seguro o que vier.', 'Bora! Quem matar menos paga a janta.', 'Partiu. Espada afiada, cabeça fria.'],
     timeCombinado: ['Fechado. Manda o convite do time.', 'Bora. Me chama pro time.', 'Pode ser. Manda o time.'],
+    timeConvidou: ['Fechado. Te mandei o convite do time.', 'Bora. Mandei o time, aceita aí.', 'Vem comigo. Já te chamei pro time.'],
+    liderar: ['Deixa comigo. {lugar}, te mandei o time. Fica atrás de mim.', 'Já sei: {lugar}. Aceita o time e cola.', 'Bora pra {lugar}. Mandei o time, vem atrás.'],
     jaNoTime: ['Já tô no seu time, parceiro. Bora caçar!'],
     apeloSim: ['Tá, tá... se é importante assim, eu vou. Manda o convite.', 'Desse jeito não tem como negar. Bora, manda o time.'],
     apeloNao: ['Foi mal, parceiro... hoje não dá mesmo. Amanhã eu compenso.', 'Sei que é importante, mas agora não consigo. Desculpa.'],
@@ -3223,7 +3234,7 @@ export const DESCULPAS_SAIR = {
     "Fiquei de ajudar a reconstruir a ponte do rio. Até amanhã.",
     "O ferreiro me deve uma lâmina e hoje é o dia. Vou cobrar. Até.",
     "Já deu por hoje. Bom trabalho, parceiro.",
-    "Minha mãe fez sopa e mandou eu não demorar. Ordem é ordem. Até.",
+    "Minha esposa fez sopa e mandou eu não demorar. Ordem é ordem. Até.",
     "Tenho que ir ao templo. Promessa antiga. Até mais.",
     "Vou dar uma olhada nos portões da vila. Ouvi barulho estranho ontem. Até.",
     "Preciso dormir. Amanhã tenho treino com os guardas novos.",
