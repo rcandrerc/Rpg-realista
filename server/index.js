@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, CAIXA, lancarCaixa, resumoCaixa, fatosPorConta } from '@rpg/shared';
 import { Contas, verificadorGoogle, roboCel, roboCarga, ROBO } from './contas.js';
 import { Visao } from './visao.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
@@ -997,7 +997,7 @@ app.get('/npcs/conversas.json', async (req, res) => {
     if (!d) { l.push({ nome: D.nome, id: D.id, salvo: false }); continue; }
     const conversas = { ...(d.conversasSalvas || d.conversas || {}) };
     for (const [k, c] of Object.entries(d.ia?.conversas || {})) if (Array.isArray(c) && c.length) conversas[k] = c.map((m) => ({ de: m.de, texto: String(m.texto).slice(0, 300), ...(m.nome ? { nome: m.nome } : {}) }));
-    l.push({ nome: D.nome, id: D.id, noMundo: vivo, conversas, registro: d.registro || {}, fatos: d.fatos || {}, memorias: d.memorias || {} }); // registro: o dia inteiro (André 2026-11-18)
+    l.push({ nome: D.nome, id: D.id, noMundo: vivo, conversas, registro: d.registro || {}, fatos: fatosPorConta(d.fatos || {}), memorias: d.memorias || {} }); // registro: o dia inteiro (André 2026-11-18)
   }
   res.json({ t: Date.now(), npcs: l });
 });

@@ -14,7 +14,7 @@
 //   A amizade é de cada um (j.amizades[conta]); j.amizade é a de quem ela acompanha agora.
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { DIARIAS, DUELO, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, semPalavrao, palavraoPesado } from './dados.js';
+import { DIARIAS, DUELO, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, semPalavrao, palavraoPesado, fatosSeguros, fatosPorConta } from './dados.js';
 import { CEREBRO, NPC_VIDA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
@@ -188,7 +188,7 @@ export const Amiga = {
       // memória de cada pessoa (conta -> lista), dicas que viraram regra (conta -> { curaCedo: true }) e o que fazem juntos
       const porConta = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
       j.memorias = porConta(salvo.memorias); j.regras = porConta(salvo.regras); j.gostos = porConta(salvo.gostos);
-      j.fatos = porConta(salvo.fatos); j.semIa = porConta(salvo.semIa); j.conversasSalvas = porConta(salvo.conversas); // André 2026-11-17: fatos e a conversa recente
+      j.fatos = fatosPorConta(porConta(salvo.fatos)); j.semIa = porConta(salvo.semIa); j.conversasSalvas = porConta(salvo.conversas); // André 2026-11-17: fatos e a conversa recente; fatos sem onde mora, escola, idade, saúde (revisão 2026-11-19)
       j.registro = porConta(salvo.registro); // André 2026-11-18: a conversa do dia inteiro (hoje e ontem) para a ronda
       // dicas que viraram regra do cérebro (entrega 2, André 2026-11-11): valem para todo mundo; o banco é conferido de novo
       j.dicas = Array.isArray(salvo.dicas) ? salvo.dicas.map((d) => validarRegra(d, CEREBRO)).filter(Boolean).slice(-CEREBRO.dicas.max) : [];
@@ -2141,7 +2141,7 @@ export const Amiga = {
     if (Array.isArray(r.fatos)) {
       const F = this.AMIGA.fatos, l = ((a.fatos ||= {})[conta] ||= []), chave = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
       const tem = new Set(l.map(chave));
-      for (const t of r.fatos) { if (typeof t !== 'string') continue; const f = t.replace(/\s+/g, ' ').trim().slice(0, F.tamanho), k = chave(f); if (k.length < 4 || tem.has(k)) continue;
+      for (const t of r.fatos) { if (typeof t !== 'string') continue; const f = t.replace(/\s+/g, ' ').trim().slice(0, F.tamanho), k = chave(f); if (k.length < 4 || tem.has(k) || !fatosSeguros([f]).length) continue;
         // André 2026-11-17 (ronda): "ele está na missão desgrama" (gíria virou missão): fato de missão só com nome de missão de verdade
         if (/miss[aã]o|quest/i.test(f) && !HISTORIA.some((M) => k.includes(chave(M.nome)))) continue; tem.add(k); l.push(f); }
       if (l.length > F.max) l.splice(0, l.length - F.max);

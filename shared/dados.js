@@ -5195,56 +5195,72 @@ export function nomeReservado(nome) {
 // (porra -> poxa, caralho -> caramba, merda -> droga, "isso é foda" -> tenso); xingamento, termo sexual, palavrão em
 // inglês ou palavra já censurada ("p*rra", "***") conta como pesado e o servidor joga fora a fala inteira da IA (melhor a
 // fala pronta que "seu filho da ***"). Confere palavra por palavra, sem acento, com letra repetida ("porraaa"), número no
-// lugar de letra ("p0rra"), letra de outro alfabeto ou de largura cheia e letra solta ("p o r r a", "p/o/r/r/a").
-// Passam: putz, veado, rola, pica-pau, porão, viaduto, vadiar, Putin, porta arrombada, espada bastarda, corno de caça.
+// lugar de letra ("p0rra"), letra de outro alfabeto ou de largura cheia, letra solta ("p o r r a", "p/o/r/r/a") e palavra
+// partida ("por-ra"). Passam: putz, veado, rola, pica-pau, porão, viaduto, vadiar, Putin, porta arrombada, espada bastarda,
+// corno de caça, Fukuoka, shiitake, Matsushita, *ri* (ação de roleplay), pelada (futebol).
 export const PALAVROES = [
-  [/^p+o+r{2,}a+d+a+s?$/, 'monte'], [/^p+o+(r{2,}|h+)a+$|^p+o+r{2,}a+[^d]/, 'poxa'], [/^[ck]+a+r+a+l+h+/, 'caramba'],
-  [/^(k+r+l+h?|c+r+l+h?|c+a+r+a+i+|[ck]+a+r+a+i+o+|k+r+a+i+|c+a+r+a+l+e+o+)$/, 'caramba'],
+  [/^p+o+r{2,}a+d+a+s?$/, 'monte'], [/^p+o+(r{2,}|h+)(a+|a+s|i+n+h+a+s?|a+o+|o+n+a+)$/, 'poxa'], [/^[ck]+a+r+a+l+h+/, 'caramba'],
+  [/^(k+r+l+h?|c+r+l+h?|c+a+r+a+i+|[ck]+a+r+a+i+o+|k+r+a+i+|c+a+r+a+l+e+o+|c+a+c+e+t+e+s?)$/, 'caramba'],
   [/^(m+e+r+d+|m+r+d+$)/, 'droga'], [/^b+o+s+t+a+s?$/, 'droga'], [/^f+o+d+(a+|ona|ao|oes|as|inha)$/, 'tenso'],
   [/^(d+a+m+n+|d+a+m+m+i+t+)$/, 'darn'], [/^c+r+a+p+(p+y+)?$/, 'dang'],
-  [/^f+[ou]+d(e+r+|e+u+|i+d+[oa]s?|e+n+d+o+|a+s+e+|a+s+s+e+|e+|o+)$/, null], // foder, fudeu, fudido (foda-se já virou dane-se)
+  [/^f+[ou]+d(e+r+|e+u+|i+d+[oa]s?|e+n+d+o+|a+s+e+|a+s+s+e+|e+)$/, null], // foder, fudeu, fudido (foda-se já virou dane-se)
   [/^p+u+t+(a+|o+|as|os|aria|eiro|eira|inha|inho|ona|ao|ada)$/, null], [/^f+i+l+h+[oa]+d+a+p+u+t+/, null],
   [/^(p+q+p+|f+d+p+s?|v+s+f+d?|v+t+n+c+|t+n+c+|t+m+n+c+|p+n+c+|k+c+t+|b+c+t+|c+u+|c+u+z+a+o+|c+u+z+i+n+h+o+)$/, null],
-  [/^(b+u+c+e+t+|b+o+c+e+t+|x+o+x+o+t+|x+e+r+e+c+|x+o+t+a+s?$|s+i+r+i+r+i+c+|p+u+n+h+e+t+|b+o+q+u+e+t+|p+i+r+o+c+|c+a+c+e+t+e+s?$|r+e+t+a+r+d+a+d+|e+s+c+r+o+t+|b+r+o+x+a+s?$|q+u+e+n+g+|r+a+p+a+r+i+g+|v+a+g+a+b+u+n+d+a+|o+t+a+r+i+[oa]|p+o+r+n+[oô]+s?$|x+v+i+d+e+o+|n+u+d+e+s+$|b+o+i+o+l+|b+a+i+t+o+l+|t+r+a+v+e+c+|b+i+x+a+s?$)/, null],
+  [/^(b+u+c+e+t+|b+o+c+e+t+|x+o+x+o+t+|x+e+r+e+c+|x+o+t+a+s?$|s+i+r+i+r+i+c+|p+u+n+h+e+t+|b+o+q+u+e+t+|p+i+r+o+c+|r+e+t+a+r+d+a+d+|e+s+c+r+o+t+|b+r+o+x+a+s?$|q+u+e+n+g+|r+a+p+a+r+i+g+|v+a+g+a+b+u+n+d+a+|o+t+a+r+i+[oa]|x+v+i+d+e+o+|b+o+i+o+l+|b+a+i+t+o+l+|t+r+a+v+e+c+|b+i+x+a+s?$)/, null],
   [/^(v+i+a+d+(o+|a+|os|as|inho|inha|ao|oes)$|v+a+d+i+a+s?$|a+r+r+o+m+b+a+d+[oa]s?$)/, null],
   // sexo (pode ter criança jogando)
-  [/^(t+r+a+n+s+a+(r+|n+d+o+|m+o+s+|r+a+m+|o+u+|e+i+)?$|s+e+x+o+s?$|s+e+x+u+a+l+|t+e+s+a+o+|t+e+s+u+d+|g+o+z+(a+r+|e+i+|o+u+|a+n+d+o+|a+d+a+))/, null],
-  // inglês (o jogo também fala inglês, e o chat brasileiro mistura)
-  [/(f+u+c+k+|f+v+c+k+|p+h+u+c+k+|s+h+i+t+(?!a+k+e))|^(f+u+k+|f+c+k+|f+u+c+|w+t+f+|s+t+f+u+|b+i+t+c+h+e*s?|m+o+t+h+e+r+f+\w*|a+s+s+h+o+l+e+s?|c+u+n+t+s?|t+w+a+t+s?|w+a+n+k+e+r+s?|p+i+s+s+(e+d+)?|b+a+s+t+a+r+d+s?|s+l+u+t+s?|w+h+o+r+e+s?|p+u+s+s+y+|n+i+g+g+(a+|e+r+)s?|d+i+c+k+h+e+a+d+s?|c+o+c+k+s+u+c+k+\w*)$/, null],
+  [/^(t+r+a+n+s+a+(r+|n+d+o+|m+o+s+|r+a+m+|o+u+|e+i+)?$|s+e+x+o+s?$|s+e+x+u+a+l+|s+e+x+y+$|t+e+s+a+o+|t+e+s+u+d+|g+o+z+(a+r+|e+i+|o+u+|a+n+d+o+|a+d+a+)|p+e+n+i+s+|v+a+g+i+n+a+s?$|p+o+r+n+|o+n+l+y+f+a+n+s*|n+u+d+e+s?$|b+o+o+b+(s+|i+e+s+)?$|t+i+t+s+$|t+i+t+t+i+e+s+$|d+i+c+k+s?$|c+o+c+k+s?$|h+o+r+n+y+$|b+l+o+w+j+o+b+|c+u+m+$)/, null],
+  // inglês (o jogo também fala inglês, e o chat brasileiro mistura); "shit" seguido de vogal é nome (Matsushita, shiitake)
+  [/(f+u+c+k+|f+v+c+k+|p+h+u+c+k+|s+h+i+t+(?![aeiou]))|^(f+u+k+|f+c+k+|f+u+c+|w+t+f+|s+t+f+u+|b+i+t+c+h+e*s?|m+o+t+h+e+r+f+\w*|a+s+s+h+o+l+e+s?|c+u+n+t+s?|t+w+a+t+s?|w+a+n+k+e+r+s?|p+i+s+s+(e+d+)?|b+a+s+t+a+r+d+s?|s+l+u+t+s?|w+h+o+r+e+s?|p+u+s+s+y+|n+i+g+g+(a+|e+r+)s?|d+i+c+k+h+e+a+d+s?|c+o+c+k+s+u+c+k+\w*)$/, null],
 ];
+// borda de palavra que entende acento (o \b do JS acha que "não pica" é "o pica")
+const B0 = '(?<![\\p{L}\\p{M}\\p{N}])', B1 = '(?![\\p{L}\\p{M}\\p{N}])', SEP = '[\\s.\\-_*/|]+';
+const frase = (re) => new RegExp(re, 'giu');
 // frase inteira antes da palavra: "foda-se" vira "dane-se" e não "tenso-se"; leve = null: pesado
 const PALAVRAO_FRASE = [
-  [/\bf+o+d+a+[\s-]*s+e+\b|\bf+o+d+a+s+s?e+\b|\bs+e+\s+f+o+d+a+\b/giu, 'dane-se'], [/\bp+u+t+a+\s+(m+e+r+d+a+|q+u+e+\s+p+a+r+i+u+)\b/giu, 'caramba'],
-  [/\bv+a+i+\s+s+e+\s+f+[ou]+d+\p{L}*/giu, 'vai passear'], [/\bv+a+i+\s+t+o+m+a+r+\s+n+o+\s+c+[\s.*\-_]*u*\b/giu, 'vai passear'],
-  [/\bp+u+[\s.\-_*/|]+t+a+\b/giu, null], [/\b(chup\p{L}*\s+)?(meu|minha|seu|teu|o)\s+(pau|pinto|rola|pica|piroca)\b/giu, null],
+  [frase(`${B0}(f+o+d+a+[\\s-]*s+e+|f+o+d+a+s+s?e+|s+e+\\s+f+o+d+a+)${B1}`), 'dane-se'],
+  [frase(`${B0}p+u+t+a+\\s+(m+e+r+d+a+|q+u+e+\\s+p+a+r+i+u+)${B1}`), 'caramba'],
+  [frase(`${B0}v+a+i+\\s+s+e+\\s+f+[ou]+d+\\p{L}*`), 'vai passear'], [frase(`${B0}v+a+i+\\s+t+o+m+a+r+\\s+n+o+\\s+c+[\\s.*\\-_]*u*${B1}`), 'vai passear'],
+  [frase(`${B0}(p+u+${SEP}t+a+|f+u+${SEP}c+k+|s+h+${SEP}i+t+)${B1}`), null],
+  // "chupa meu pau"; "meu pau de pesca", "o pica-pau", "o pinto da galinha" e "a abelha não pica" passam
+  [frase(`${B0}(chup\\p{L}*\\s+((o|a|meu|minha|seu|teu)\\s+)?|(meu|minha|seu|teu)\\s+)(pau|pinto|rola|pica|piroca)${B1}(?![-\\u2010\\u2011])(?!\\s+(de|do|da|dos|das)${B1})`), null],
 ];
 // "porta arrombada", "baú arrombado": coisa arrombada não é xingamento
 const ARROMBA_COISA = /(porta|portao|janela|bau|cofre|casa|loja|tranca|fechadura|cadeado|caixa|armazem|celeiro)s?\s+(foi\s+|esta\s+|ta\s+)?$/;
 // letras de outro alfabeto iguais às nossas (cirílico e grego)
 const PALAVRAO_LETRA = { а: 'a', е: 'e', о: 'o', р: 'p', с: 'c', у: 'y', х: 'x', к: 'k', м: 'm', т: 't', н: 'h', в: 'b', і: 'i', ο: 'o', α: 'a', ρ: 'p', ε: 'e', ι: 'i', κ: 'k', τ: 't', υ: 'u', ν: 'v' };
-const PALAVRAO_NUM = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', '@': 'a', $: 's' };
-const chavePalavrao = (w) => w.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[0-9@$]/g, (c) => PALAVRAO_NUM[c] || c).replace(/[^\x00-\x7f]/g, (c) => PALAVRAO_LETRA[c] || c);
+const PALAVRAO_NUM = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', '@': 'a', $: 's', '+': 't' };
+// letra "enfeitada" vira letra comum (só essas: "1º", "…", "™" e emoji ficam como estão)
+const LETRA_LARGA = /[！-～Ⓐ-ⓩ\u{1D400}-\u{1D7FF}\u{1F130}-\u{1F149}]/gu, LETRA_QUADRADA = /[\u{1F150}-\u{1F169}\u{1F170}-\u{1F189}]/gu;
+const INVISIVEL = /(?<=[\p{L}\p{M}\p{N}@$])[­͏᠎​-‏⁠-⁤﻿]+(?=[\p{L}\p{N}@$])/gu; // só entre letras: o emoji com ‍ fica
+const chavePalavrao = (w) => w.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[0-9@$+]/g, (c) => PALAVRAO_NUM[c] || c).replace(/[^\x00-\x7f]/g, (c) => PALAVRAO_LETRA[c] || c);
 function qualPalavrao(w) { const k = chavePalavrao(w); for (const [re, leve] of PALAVROES) if (re.test(k)) return { leve }; return null; }
 const comoEra = (w, leve) => w === w.toUpperCase() && /\p{L}/u.test(w) && w.length > 1 ? leve.toUpperCase() : /^\p{Lu}/u.test(w) ? leve[0].toUpperCase() + leve.slice(1) : leve;
 // { texto, pesado }: pesado = tinha xingamento, termo sexual ou palavra já censurada (o servidor joga a fala fora)
 export function filtrarPalavrao(texto) {
   let pesado = false;
-  // largura cheia, letra matemática e caractere invisível no meio da palavra ("por​ra")
-  let t = String(texto ?? '').normalize('NFKC').replace(/\p{Cf}/gu, '');
-  if (/\p{L}\*|\*\p{L}|\*{2,}/u.test(t)) pesado = true; // "p*rra", "f**k", "***": a IA quis falar palavrão
+  const troca = (m, w) => { const p = qualPalavrao(w); if (!p) return m; if (!p.leve) { pesado = true; return '***'; } return comoEra(w, p.leve); };
+  let t = String(texto ?? '').normalize('NFC').replace(LETRA_LARGA, (c) => c.normalize('NFKC'))
+    .replace(LETRA_QUADRADA, (c) => { const n = c.codePointAt(0); return String.fromCharCode(65 + (n >= 0x1F170 ? n - 0x1F170 : n - 0x1F150)); }).replace(INVISIVEL, '');
+  // *ri*, **Boa!** (roleplay e negrito, que o chat não mostra): sai o asterisco
+  t = t.replace(/(?<![\p{L}\p{M}\p{N}*])\*{1,2}(?=[^*\s])([^*]{2,}?)(?<=[^*\s])\*{1,2}(?![\p{L}\p{M}\p{N}*])/gu, '$1');
+  if (/\p{L}\*|\*\p{L}|\*{2,}/u.test(t)) pesado = true; // sobrou "p*rra", "f**k", "***": a IA quis falar palavrão
   for (const [re, leve] of PALAVRAO_FRASE) t = t.replace(re, (w) => { if (!leve) { pesado = true; return '***'; } return comoEra(w, leve); });
   // letra solta: "p o r r a", "p.o.r.r.a", "p/o/r/r/a" (3 ou mais letras sozinhas) juntas e conferidas como uma palavra
-  t = t.replace(/(?<![\p{L}\p{N}@$])[\p{L}\p{N}@$](?:[\s.\-_*,/|]+[\p{L}\p{N}@$](?![\p{L}\p{N}@$])){2,}/gu, (m) => {
-    const junto = m.replace(/[\s.\-_*,/|]+/g, ''), p = qualPalavrao(junto); if (!p) return m;
-    if (!p.leve) { pesado = true; return '***'; } return comoEra(junto, p.leve);
-  });
-  t = t.replace(/[\p{L}\p{N}@$]+/gu, (w, i, todo) => {
-    const p = qualPalavrao(w); if (!p) return w;
+  t = t.replace(/(?<![\p{L}\p{M}\p{N}@$])[\p{L}\p{N}@$]\p{M}*(?:[\s.\-_*,/|]+[\p{L}\p{N}@$]\p{M}*(?![\p{L}\p{M}\p{N}@$])){2,}/gu, (m) => troca(m, m.replace(/[\s.\-_*,/|]+/g, '')));
+  // palavra partida sem espaço: "por-ra", "c.u", "f|uck"
+  t = t.replace(/(?<![\p{L}\p{M}\p{N}@$])[\p{L}\p{M}\p{N}@$]+(?:[.\-_*/|‐‑][\p{L}\p{M}\p{N}@$]+)+/gu, (m) => troca(m, m.replace(/[.\-_*/|‐‑]/g, '')));
+  t = t.replace(/[\p{L}\p{M}\p{N}@$]+(?:\+[\p{L}\p{M}\p{N}@$]+)*/gu, (w, i, todo) => { // "pu+a": + no lugar do t
     if (/^a+r+r+o+m+b+a+d/.test(chavePalavrao(w)) && ARROMBA_COISA.test(chavePalavrao(todo.slice(Math.max(0, i - 30), i)))) return w;
-    if (!p.leve) { pesado = true; return '***'; } return comoEra(w, p.leve);
+    return troca(w, w);
   });
   return { texto: t, pesado };
 }
 export function semPalavrao(texto) { return filtrarPalavrao(texto).texto; }
 // true se a fala tem xingamento, termo sexual ou palavra censurada: o servidor joga a fala da IA fora
 export function palavraoPesado(texto) { return filtrarPalavrao(texto).pesado; }
+// Fato sobre a vida do jogador que a IA não deve guardar nem receber de volta (pode ter criança jogando): onde mora, escola,
+// idade, saúde, contato, nome real. O diário pedia "onde mora, saúde" até 2026-11-19: os fatos antigos assim saem ao carregar.
+const FATO_SENSIVEL = /(?<![\p{L}\p{N}])(mora|morar|endere[cç]o|rua|bairro|cidade|escola|col[eé]gio|s[eé]rie|idade|\d+\s*anos|anivers[aá]rio|sa[uú]de|doen[cç]a|doente|hospital|rem[eé]dio|telefone|celular|whats|zap|instagram|insta|nome real|chama de verdade|cpf|senha)(?![\p{L}\p{N}])/iu;
+export function fatosSeguros(fatos) { return (Array.isArray(fatos) ? fatos : []).filter((f) => typeof f === 'string' && !FATO_SENSIVEL.test(f)); }
+export function fatosPorConta(o) { return Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).map(([k, l]) => [k, fatosSeguros(l)])); }

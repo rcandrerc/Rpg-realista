@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { abrirPacote } from './atualizar.js';
 import SELADOS from './segredos-selados.json' with { type: 'json' };
-import { AMIGA, CEREBRO, semPalavrao, palavraoPesado } from '@rpg/shared';
+import { AMIGA, CEREBRO, semPalavrao, palavraoPesado, fatosSeguros } from '@rpg/shared';
 
 
 // chave de um segredo: do ambiente, do segredos.json (segredos do GitHub, vêm no pacote trancado) ou, sem eles, do
@@ -93,13 +93,17 @@ export function podeIaJogador(k) {
 export function iaEsgotada(chave) { return chave ? acabou(chave) : iaVoltaEm() > 0; }
 // modelo do Gemini (André 2026-11-19): 3.5 Flash Lite, o de maior limite grátis (15 por minuto, 500 por dia)
 const modeloGemini = () => process.env.GEMINI_MODELO || 'gemini-3.5-flash-lite';
+// pode ter criança jogando (revisão 2026-11-19): o próprio Gemini barra conteúdo sexual (até o leve) e xingamento/ódio (do médio
+// para cima; o leve pegaria briga de jogo). Barrado = sem resposta: vem a fala pronta, sem tentar o Groq com o mesmo pedido.
+const SEGURANCA_GEMINI = [['SEXUALLY_EXPLICIT', 'BLOCK_LOW_AND_ABOVE'], ['HARASSMENT', 'BLOCK_MEDIUM_AND_ABOVE'], ['HATE_SPEECH', 'BLOCK_MEDIUM_AND_ABOVE']].map(([c, threshold]) => ({ category: 'HARM_CATEGORY_' + c, threshold }));
+export const barradaGemini = (j) => !!j?.promptFeedback?.blockReason || ['SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST', 'SPII'].includes(j?.candidates?.[0]?.finishReason);
 // a conversa no formato do Gemini: as regras em systemInstruction, ele = user, ela = model (antes ia tudo num texto só)
 export function corpoGemini(mensagens, modelo, maximo = 1200) {
   const sistema = mensagens.filter((m) => m.role === 'system').map((m) => m.content).join('\n');
   const contents = mensagens.filter((m) => m.role !== 'system').map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: String(m.content) }] }));
   // o 3.x pensa por nível (thinkingBudget dá erro 400); o 2.5 por orçamento
   const pensar = /gemini-[3-9]/.test(modelo) ? { thinkingLevel: process.env.GEMINI_PENSAR || 'low' } : { thinkingBudget: 0 };
-  return { ...(sistema ? { systemInstruction: { parts: [{ text: sistema }] } } : {}), contents, generationConfig: { responseMimeType: 'application/json', temperature: 0.9, maxOutputTokens: maximo, thinkingConfig: pensar } };
+  return { ...(sistema ? { systemInstruction: { parts: [{ text: sistema }] } } : {}), contents, safetySettings: SEGURANCA_GEMINI, generationConfig: { responseMimeType: 'application/json', temperature: 0.9, maxOutputTokens: maximo, thinkingConfig: pensar } };
 }
 // um pedido de JSON avulso ao Gemini do servidor (diário e dica): devolve o objeto ou null (sem chave, limite, erro)
 export async function geminiJson(prompt, { temperatura = 0.3, maximo = 2500, espera = 15000 } = {}) {
@@ -117,6 +121,8 @@ export async function geminiJson(prompt, { temperatura = 0.3, maximo = 2500, esp
     return JSON.parse(t || 'null');
   } catch { return null; }
 }
+const BARRADA = Symbol('barrada');
+let avisou400 = false;
 export async function pensarAmiga(ctx, texto, chaveJogador = '') {
   if (!ctx) return null;
   const chave = chaveJogador ? '' : chaveGemini(), groq = chaveJogador || segredo('GROQ_CHAVE');
@@ -127,7 +133,7 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
     if (usadas >= AMIGA.chat.iaPorDia) return null; // conta só as respostas que a IA deu (contarIa)
   }
   const mensagens = mensagensConversa(ctx, texto);
-  if (chave && !acabou(chave)) { const v = await gemini(); if (v) return v; }
+  if (chave && !acabou(chave)) { const v = await gemini(); if (v === BARRADA) return null; if (v) return v; }
   return groq ? viaGroq() : null;
   // Gemini primeiro (André 2026-11-19): limite maior e responde em menos de 1 s
   async function gemini() {
@@ -143,8 +149,10 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
         if (/PerDay|per day|daily/i.test(corpo)) esgotadas.set(chave, proximoZeroIa());
         return null;
       }
-      if (!r.ok) return null;
-      const partes = (await r.json())?.candidates?.[0]?.content?.parts || [];
+      if (!r.ok) { if (r.status === 400 && !avisou400) { avisou400 = true; console.warn('[ia] Gemini 400 (modelo ou safetySettings?):', (await r.text().catch(() => '')).slice(0, 300)); } return null; }
+      const j = await r.json();
+      if (barradaGemini(j)) return BARRADA; // o Gemini barrou o pedido ou a resposta: fala pronta (revisão 2026-11-19)
+      const partes = j?.candidates?.[0]?.content?.parts || [];
       const v = lerResposta(partes.filter((p) => !p.thought).map((p) => p.text || '').join('')) || salvarResposta(partes.map((p) => p.text || '').join(''));
       if (v) { contarIa(chaveJogador); v.ia = modelo; } // a ronda das 9h vê qual IA respondeu
       return v;
@@ -342,12 +350,13 @@ function contarIa(chaveJogador) {
   if (hoje !== dia) { dia = hoje; usadas = 0; }
   usadas++;
 }
+const deJson = (x) => { try { return JSON.parse(`"${x}"`); } catch { return x; } }; // \u00e3, \n: texto de verdade
 // o Groq recusou o JSON mas mandou o que o modelo escreveu: JSON quebrado ou só a fala ('Tô bem! E você?"}')
 export function salvarResposta(txt) {
   const t = String(txt || '').trim(); if (!t) return null;
   const v = lerResposta(t); if (v) return v;
   const m = t.match(/"fala"\s*:\s*"((?:[^"\\]|\\.)*)"/); // JSON quebrado mas com a fala inteira
-  let fala = (m ? m[1] : t.replace(/^\{\s*/, '').replace(/"?\s*,?\s*("acao"\s*:\s*"[a-zA-Z]*"\s*)?\}?\s*$/, '')).replace(/\\"/g, '"').replace(/\s+/g, ' ').trim();
+  let fala = (m ? deJson(m[1]) : t.replace(/^\{\s*/, '').replace(/"?\s*,?\s*("acao"\s*:\s*"[a-zA-Z]*"\s*)?\}?\s*$/, '')).replace(/\\"/g, '"').replace(/\s+/g, ' ').trim();
   if (!m && /^\{/.test(t)) return null; // JSON cortado no meio da fala: melhor o próximo modelo que meia frase
   if (fala.length < 2 || /^[{\["]/.test(fala) || /"(fala|acao)"/.test(fala)) return null;
   fala = fala.replace(/[{}]/g, '');
@@ -455,9 +464,6 @@ Devolva só JSON.`;
   } catch { return null; }
 }
 // o texto da regra a IA escreve repetindo a dica do jogador, e ela fala em voz alta ("aprendeu: ..."): sem palavrão também
-// fato antigo (o diário pedia "onde mora, saúde" antes de 2026-11-19) ou que escapou da regra: não volta para a IA
-const FATO_SENSIVEL = /\b(mora|morar|endere[cç]o|rua|bairro|cidade|escola|col[eé]gio|s[eé]rie|idade|\d+\s*anos|anivers[aá]rio|sa[uú]de|doen[cç]a|doente|hospital|rem[eé]dio|telefone|celular|whats|zap|instagram|insta|nome real|chama de verdade|cpf|senha)\b/i;
-export function fatosSeguros(fatos) { return (Array.isArray(fatos) ? fatos : []).filter((f) => typeof f === 'string' && !FATO_SENSIVEL.test(f)); }
 export function regraLimpa(regra) {
   const t = typeof regra.texto === 'string' ? regra.texto : '';
   if (palavraoPesado(t)) return null;
