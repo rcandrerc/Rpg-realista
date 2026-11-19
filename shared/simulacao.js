@@ -606,7 +606,7 @@ export class Simulacao {
     const sub = c.tipo === 'jogador' ? this.naCaverna(c) : !!c.sub;
     const l = (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando && !(o.bot && !o.time) && (o.tipo === 'jogador' ? this.naCaverna(o) : !!o.sub) === sub);
     if (c.tipo === 'jogador' && c.duelo?.luta) { const o = this.oponenteDuelo(c); if (o && !o.morto) l.push(o); } // duelo (shared/duelo.js): o outro vira alvo
-    if (c.tipo === 'jogador' && c.guerra) for (const o of this.jogadores.values()) if (this.emGuerra(c, o) && this.naCaverna(o) === sub && !l.includes(o)) l.push(o); // Chama x Geada (shared/guerra.js): a outra raça fora da zona segura
+    if (c.tipo === 'jogador' && c.guerra && !(c.semGuerraAte > this.tempo)) for (const o of this.jogadores.values()) if (this.emGuerra(c, o) && this.naCaverna(o) === sub && !l.includes(o)) l.push(o); // Chama x Geada (shared/guerra.js): a outra raça fora da zona segura
     return l;
   }
   maisPerto(c, max = 22) {
@@ -729,7 +729,13 @@ export class Simulacao {
     if (j.orcT == null) {
       j.orc = ORCAMENTO.burst; j.orcT = this.tempo;
       // voltou de uma queda (folgaDaQueda): o celular seguiu andando sem internet; vale o caminho que deu para fazer
-      if (j.queda && j.queda.ate > this.tempo) j.orc += Math.max(vmax, ...Object.values(MONTARIAS).map((m) => m.correr * 1.3)) * j.queda.seg;
+      // Segurança 2026-11-19 (Presidente): só na velocidade que ele tinha (a pé, de lobo, de barco), nunca na do bicho
+      // mais rápido do jogo; o tempo já vem com teto em folgaDaQueda (ORCAMENTO.queda). Antes dava ~700 m de teleporte.
+      // A folga da queda fica num saco separado (extraQ): só é gasta no que passar da folga normal, some 15 s depois do
+      // primeiro pacote e, se for usada, o caminho que ninguém viu tira o ponto de guerra (revisão independente 2026-11-19)
+      // o começo vale como um silêncio comum (até ORCAMENTO.silencio s de corrida, sem marca): quem só piscou não perde a guerra
+      if (j.queda && j.queda.ate > this.tempo) j.orc += vmax * Math.min(j.queda.seg, ORCAMENTO.silencio);
+      if (j.queda && j.queda.ate > this.tempo) j.extraQ = { m: Math.max(0, Math.max(vmax, j.queda.mont ? MONTARIAS[j.queda.mont].correr * 1.3 * lentoH : 0) * j.queda.seg - vmax * Math.min(j.queda.seg, ORCAMENTO.silencio)), ate: this.tempo + 15 };
       j.queda = null;
     }
     // a folga enche na velocidade máxima. Depois de um silêncio (internet engasgada), as posições guardadas chegam juntas:
@@ -747,7 +753,9 @@ export class Simulacao {
     if (noLago(p.x, p.z) && p.y < AGUA.nivel) baixo = Math.min(baixo, Math.max(relevo(p.x, p.z), chao - MERGULHO_MAX));
     const tele = j.tele && j.tele.ate > this.tempo ? j.tele.m : 0; // Salto Arcano: o herói some e aparece metros à frente
     const preso = (j.presoAte || 0) > this.tempo && j.presoEm && Math.hypot(p.x - j.presoEm.x, p.z - j.presoEm.z) > 0.6; // atordoado, congelado ou derrubado por boss: não sai do lugar
-    const ok = !preso && d <= j.orc + tele + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && (dentroDoMapa(this.mapa, p.x, p.z) || naCais(this.mapa, p.x, p.z) || ((j.veiculo === 'barquinho' || j.veiculo === 'navio') && !!noLago(p.x, p.z)) || (!j.veiculo && marNadavel(p.x, p.z))) // barco: o mar também (FASE 3); a nado também (André 2026-11-18)
+    if (j.extraQ && !(j.extraQ.ate > this.tempo && j.extraQ.m > 0)) j.extraQ = null; // a folga da queda acabou: some de vez
+    const extraQ = j.extraQ ? j.extraQ.m : 0;
+    const ok = !preso && d <= j.orc + tele + extraQ + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && (dentroDoMapa(this.mapa, p.x, p.z) || naCais(this.mapa, p.x, p.z) || ((j.veiculo === 'barquinho' || j.veiculo === 'navio') && !!noLago(p.x, p.z)) || (!j.veiculo && marNadavel(p.x, p.z))) // barco: o mar também (FASE 3); a nado também (André 2026-11-18)
       && (j.caverna || !this.alemDoSelo(p.x, p.z, p.y)) // caverna da montanha: do selo para dentro só com o passe usado
       && !this.naNevoa(j, p.x, p.z); // progressão (André 2026-11-10): zona ainda fechada pela névoa, fica na borda
     if (!ok || (j.veiculo && !this.andouVeiculo(j, p.x, p.z, d))) { // veículo: carrinho não entra na água, barco não sai dela
@@ -755,7 +763,13 @@ export class Simulacao {
       j.cliente = null;
       return false;
     }
-    if (tele && d > 1) { j.tele = null; j.orc = Math.max(0, j.orc - Math.max(0, d - tele)); } else j.orc -= d;
+    { const gasto = tele && d > 1 ? Math.max(0, d - tele) : d; if (tele && d > 1) j.tele = null;
+      if (gasto > j.orc && j.extraQ) {
+        // passou da folga normal: usou o caminho andado sem internet. Por GUERRA.semPontoQueda s não fere nem mira a outra
+        // raça (teleporte não vale ponto na guerra; Presidente 2026-11-19). Pode ser atacado: cair de propósito não é escudo
+        j.extraQ.m -= gasto - Math.max(0, j.orc); j.orc = 0;
+        j.semGuerraAte = Math.max(j.semGuerraAte || 0, this.tempo + GUERRA.semPontoQueda);
+      } else j.orc = tele && d > 1 ? Math.max(0, j.orc - gasto) : j.orc - gasto; }
     // correndo (pela velocidade de verdade, sem dash, montaria ou parede): gasta estamina
     const dtc = j.cliente ? Math.min(0.5, this.tempo - j.cliente.t) : 0;
     // A velocidade sai da média de ~0,3 s: pacotes que chegam juntos (rede oscilando) pareciam corrida e o trote gastava estamina.
@@ -797,9 +811,14 @@ export class Simulacao {
   }
   // Entrou de novo depois de cair (server/index.js: a mesma conta, segundos depois): a primeira posição que o celular mandar
   // pode estar até seg s de corrida longe de onde o servidor o viu por último (o jogo seguiu sem internet). Vale por 15 s.
-  folgaDaQueda(id, seg) {
-    const j = this.jogadores.get(id); if (!j || !(seg > 0)) return;
-    j.queda = { seg: Math.min(seg, ORCAMENTO.queda), ate: this.tempo + 15 };
+  // mont: a montaria que ele tinha quando caiu (sessão nova nasce a pé; server/index.js montSaida)
+  // semGuerraS: o que faltava do "sem ponto de guerra" na sessão que caiu (entrar de novo não zera; server/index.js)
+  folgaDaQueda(id, seg, mont = null, semGuerraS = 0) {
+    const j = this.jogadores.get(id); if (!j) return;
+    if (semGuerraS > 0) j.semGuerraAte = Math.max(j.semGuerraAte || 0, this.tempo + Math.min(semGuerraS, GUERRA.semPontoQueda));
+    if (!(seg > 0)) return;
+    j.queda = { seg: Math.min(seg, ORCAMENTO.queda), ate: this.tempo + 15, mont: Object.hasOwn(MONTARIAS, mont || '') ? mont : null };
+    j.extraQ = null;
     j.orcT = null;
   }
   // "corrigir" numerado (c): o celular aplica só o mais novo e manda o número de volta em cada posição
@@ -3839,6 +3858,7 @@ export class Simulacao {
     if (alvo.morto || alvo.arrancada || alvo.criando || alvo.voando) return; // voando: boss no ar (skill 'voo' ou 'sumir')
     if (alvo.tipo === 'jogador' && alvo.cenaAte > this.tempo) return; // vendo uma cena da história (cena())
     const guerra = alvo.tipo === 'jogador' && de?.tipo === 'jogador' && this.emGuerra(alvo, de); // Chama x Geada (shared/guerra.js): de verdade, sem o "ninguém morre" do duelo
+    if (guerra && de.semGuerraAte > this.tempo) return; // voltou da queda longe de onde caiu: o teleporte não vale ponto (Presidente 2026-11-19)
     const duelo = alvo.tipo === 'jogador' && de?.tipo === 'jogador' && !guerra; // jogador em jogador: só no duelo (shared/duelo.js) ou na guerra
     if (duelo && !this.duelando(alvo, de)) return;
     if (guerra) { alvo.pvpDe = de.id; alvo.pvpT = this.tempo; de.pvpAlvo = alvo.id; de.pvpT = this.tempo; }

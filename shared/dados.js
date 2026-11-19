@@ -184,7 +184,8 @@ export const MOVIMENTO = { pulo: 6.2, gravidade: 17, dashVel: 11, dashTempo: 0.2
 // correcao: por quantos s o servidor ignora as posições que o celular mandou antes de receber o "corrigir" (sem cascata).
 // queda (André 2026-11-12: "se a internet cair por alguns segundos, quando ele voltar... vai voltar"): entrou de novo depois
 // de cair, a primeira posição do celular pode estar até queda s de corrida (ou de lobo) longe de onde o servidor o viu por último.
-export const ORCAMENTO = { burst: 10, altura: 9, silencio: 5, correcao: 5, queda: 60 };
+// queda: até 15 s (Segurança 2026-11-19: era 60; com a velocidade do lobo virava ~700 m de teleporte)
+export const ORCAMENTO = { burst: 10, altura: 9, silencio: 5, correcao: 5, queda: 15 };
 // Montarias (teste): o herói sobe e anda mais rápido. Habilidade, dash, rolar ou escalar fazem descer.
 // modelo: GLB com as animações parado, andar, correr (feito por IA: ferramentas/monstros-ia). escala: tamanho no jogo.
 export const MONTARIAS = {
@@ -3457,7 +3458,8 @@ export const GUERRA = { tregua: 30, totem: 25, campoAte: 30, campoFolga: 6, vila
   ouvir: 26, falaEntre: 6, avistar: 120, desisteVida: 0.25, foge: 20, aviso: 20, lembrar: 30,
   // chat (André 2026-11-18): responder no Local (s de espera), conversa entre dois da mesma raça (a cada s, a até m, com
   // alguém de verdade perto), feito grande no Geral (no máximo um a cada s)
-  resposta: [1.5, 3], dupla: [180, 360], duplaPerto: 10, feito: 600 };
+  resposta: [1.5, 3], dupla: [180, 360], duplaPerto: 10, feito: 600,
+  semPontoQueda: 15 }; // voltou da queda longe de onde caiu: por s não fere a outra raça (Presidente 2026-11-19)
 // Os três da Geada (fase 1, aprovados pelo André 2026-11-18; fotos em /mnt/project-files/racas-rivais/). Iguais aos
 // aventureiros por dentro (caçam, vendem, consertam, sobem de nível), moram no Juncal (casa da Geada) e caçam nos campos
 // do leste. guerra: coragem (ataca mesmo em desvantagem), honra (poupa quem é muito mais fraco), paciencia (espera a hora
