@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
+import { copiaCifrada } from '../../server/copia-contas.js';
 const ok = (v, m) => { if (!v) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const SCRIPT = new URL('../servidor/voltar-contas.sh', import.meta.url).pathname;
 const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'voltar-')), copias = path.join(pasta, 'copias');
@@ -50,4 +51,16 @@ ok(roda(path.join(t, 'copia.tar'), '--chave', path.join(t, 'outra.pem')).status 
 r = roda(path.join(t, 'copia.tar'), '--chave', path.join(t, 'priv.pem'));
 ok(r.status === 0 && contas(path.join(pasta, 'contas.db')) === 3, 'volta da cópia cifrada com a chave certa');
 
+// a cópia que o SERVIDOR cifra (server/copia-contas.js, sem openssl) abre no script com a chave privada
+banco(path.join(t, 'servidor.db'), 11);
+const dbs = new DatabaseSync(path.join(t, 'servidor.db'));
+const tarS = copiaCifrada(dbs, fs.readFileSync(path.join(t, 'pub.pem'), 'utf8')); dbs.close();
+fs.writeFileSync(path.join(t, 'servidor.tar'), tarS);
+ok(!tarS.includes(Buffer.from('CREATE TABLE contas')), 'a cópia do servidor não leva nada do banco aberto');
+r = roda(path.join(t, 'servidor.tar'), '--chave', path.join(t, 'priv.pem'));
+ok(r.status === 0 && contas(path.join(pasta, 'contas.db')) === 11, 'volta da cópia que o servidor cifrou');
+let semChave = false; try { copiaCifrada(new DatabaseSync(':memory:'), ''); } catch { semChave = true; }
+ok(semChave, 'sem chave pública o servidor não faz cópia');
+const idx = fs.readFileSync(new URL('../../server/index.js', import.meta.url), 'utf8');
+ok(/contas-copia\.yml@refs\/heads\/main/.test(idx) && idx.includes("payload.ref === 'refs/heads/main'") && idx.includes('3600e3'), 'rota: só o workflow da main e uma vez por hora');
 fs.rmSync(pasta, { recursive: true, force: true }); fs.rmSync(t, { recursive: true, force: true });

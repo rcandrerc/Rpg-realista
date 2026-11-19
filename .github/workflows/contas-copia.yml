@@ -1,0 +1,57 @@
+# Cópia cifrada das contas para FORA da máquina do servidor (plano de lançamento v3, frente 2; desenho aprovado pelo
+# Presidente em 19/11). O servidor só entrega para este workflow na main (crachá OIDC do GitHub) e no máximo uma vez
+# por hora. A cópia já vem CIFRADA pelo servidor com a chave pública (server/copia-contas.js): aqui ninguém vê o banco.
+# Guarda em dois lugares:
+#   - disco da máquina de builds (~/copias-contas, últimos 30 dias), quando roda no runner próprio;
+#   - balde da Oracle, copias-contas/dia-1.tar a dia-7.tar (rodízio por dia da semana; o link de envio não apaga).
+# Para voltar: ferramentas/servidor/voltar-contas.sh copia.tar --chave copia-contas.pem (a privada fica fora da Oracle).
+# 14 a 21/12 (plano): passar para de hora em hora, trocando o cron por '7 * * * *'.
+name: Cópia das contas
+
+on:
+  schedule:
+    - cron: '37 8 * * *' # 05:37 de Brasília, depois do reinício fixo das 05h
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: contas-copia
+  cancel-in-progress: false
+
+jobs:
+  copiar:
+    runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    steps:
+      - name: Baixar a cópia cifrada
+        run: |
+          set -eu
+          tk=$(curl -sf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=age-of-embers-robo" | jq -r .value)
+          echo "::add-mask::$tk"
+          curl -sf --retry 3 --max-time 300 -H "Authorization: Bearer $tk" https://163-176-80-126.sslip.io/contas/copia-cifrada -o copia.tar
+          # confere o formato (os três arquivos) e que nada saiu aberto
+          [ "$(tar -tf copia.tar | sort | tr '\n' ' ')" = "chave.bin contas.bin contas.sha256 " ] || { echo "::error::cópia sem o formato esperado"; exit 1; }
+          tar -xOf copia.tar contas.bin | head -c 8 | grep -q '^Salted__' || { echo "::error::contas.bin não está cifrado"; exit 1; }
+          echo "cópia: $(stat -c %s copia.tar) bytes"
+      - name: Guardar no disco da máquina de builds (30 dias)
+        if: runner.environment == 'self-hosted'
+        run: |
+          set -eu
+          d="$HOME/copias-contas"; mkdir -p "$d"; chmod 700 "$d"
+          cp copia.tar "$d/contas-$(date -u +%Y-%m-%dT%H%M).tar"
+          ls -1 "$d"/contas-*.tar | sort | head -n -30 | xargs -r rm -f
+          echo "no disco: $(ls -1 "$d" | wc -l) cópias"
+      - name: Guardar no balde da Oracle (7 dias)
+        env:
+          ORACLE_PAR: ${{ secrets.ORACLE_PAR }}
+        run: |
+          set -eu
+          if [ -z "${ORACLE_PAR:-}" ]; then echo "::warning::Sem ORACLE_PAR: cópia só no disco da máquina de builds."; exit 0; fi
+          curl -fsS --retry 4 --retry-all-errors -X PUT --data-binary @copia.tar "${ORACLE_PAR%/}/copias-contas/dia-$(date -u +%u).tar" > /dev/null
+          echo "no balde: copias-contas/dia-$(date -u +%u).tar"
+      - name: Apagar a cópia do runner
+        if: always()
+        run: rm -f copia.tar
