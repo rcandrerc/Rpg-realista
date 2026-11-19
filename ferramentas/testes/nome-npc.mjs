@@ -21,3 +21,17 @@ j.prog.ouro = NOME.troca * 2; s.eventos = [];
 ok(s.trocarNome('A', 'Cecília') === null && j.prog.ouro === NOME.troca * 2, 'trocar para "Cecília": recusado e não cobra');
 ok(evs().some((e) => /personagem do jogo/.test(e.texto || '')), 'com o aviso');
 ok(s.trocarNome('A', 'Ana Luz') === 'Ana Luz', 'trocar para nome normal funciona');
+
+// Presidente 2026-11-19: o aviso sugere um nome que passa (Bruno -> Brunão ou BrunoSilva); nunca para Cecília, Dário, Kira, Rufo, Lis, Kael, vilão e chefes
+import { avisoNomeReservado, sugerirNome, nomeValido } from '../../shared/dados.js';
+for (const b of ['Bruno', 'bruno', 'BRUNO']) ok(/Que tal Brunão ou BrunoSilva\?/.test(avisoNomeReservado(b, nomeReservado(b))), `${b}: sugere Brunão ou BrunoSilva`);
+for (const n of ['Cecília', 'Dário', 'Kira', 'Lis', 'Rufo', 'Kael', 'Vesper', 'Otávio', 'Mestre Bruno', 'Maíra', 'Maira', '8runo', 'Ｂｒｕｎｏ'])
+  ok(!/Que tal/.test(avisoNomeReservado(n, nomeReservado(n))), `${n}: sem sugestão, só "escolha outro"`);
+let todas = 0;
+for (const npc of MAPA_CLAREIRA.npcs || []) for (const w of String(npc.nome || '').split(',')[0].split(/\s+/)) {
+  for (const sug of sugerirNome(w)) { todas++; if (nomeReservado(sug) || nomeValido(sug) !== sug) ok(false, `sugestão "${sug}" para ${w} não passa na regra`); }
+}
+ok(todas > 10, `todas as ${todas} sugestões para nomes de NPC passam na regra`);
+j.prog.ouro = NOME.troca * 2; s.eventos = [];
+s.trocarNome('A', 'Hugo');
+ok(evs().some((e) => /Que tal Hugão/.test(e.texto || '')), 'trocar para "Hugo": aviso sugere Hugão');

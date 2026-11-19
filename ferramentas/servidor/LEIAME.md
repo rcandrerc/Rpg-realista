@@ -2,7 +2,10 @@
 
 O GitHub Pages publica, junto com o jogo, o pacote do servidor em
 `https://rcandrerc.github.io/Rpg-realista/servidor/` (feito por `empacotar.sh`).
-A máquina da Oracle confere esse endereço a cada 5 minutos e, se a versão mudou, baixa e reinicia sozinha.
+O servidor da Oracle confere esse endereço (e o balde) a cada 5 minutos e, se a versão mudou, abre o pacote trancado e
+assinado e reinicia sozinho (`server/atualizar.js`). O antigo timer `rpg-atualizar`, que baixava o servidor aberto como
+root, saiu (remoção aprovada pelo Presidente em 2026-11-19); numa máquina antiga, desligue com
+`sudo systemctl disable --now rpg-atualizar.timer`.
 Ou seja: depois de instalada, todo merge na `main` chega no servidor em poucos minutos, sem mexer na máquina.
 
 ## Código do servidor trancado (André 2026-11-03)
@@ -58,3 +61,12 @@ Se a máquina for reinstalada (chave nova), sele de novo.
 O selador confere a chave pública com `ferramentas/servidor/impressao-chave.txt` e não sela se for outra. Máquina reinstalada: confira a impressão na própria máquina e rode com `NOVA_CHAVE=1`.
 Mudança em `server/segredos-selados.json` ou `impressao-chave.txt` é mudança de segurança: revisão independente antes do merge.
 Se a `chave-privada.pem` vazar, tudo o que já foi selado fica legível para sempre no histórico do git: revogue a chave no Google AI Studio (selar de novo não resolve).
+
+## Janela de instalação (plano de lançamento v3)
+
+O servidor novo só instala em hora marcada (Brasília): 05h–07h e 14h–15h. Na 1ª semana depois do lançamento
+(19/12 20h a 26/12 20h), só 05h–07h. De 19/12 18h a 20/12 02h nada instala. Fora da janela o servidor espera e
+instala o pacote mais novo quando a janela abrir (`podeInstalar` em `server/atualizar.js`).
+Conserto urgente: ponha `[servidor urgente]` no título do PR; o pacote sai marcado (campo assinado) e instala na hora,
+menos no bloqueio do lançamento. Para furar o bloqueio (conserto que impede os amigos de entrar ou jogar), só com o OK do
+Presidente escrito no PR: `[furar bloqueio]` no título. Servidor de teste (reserva, robôs): `JANELA_LIVRE=1` no ambiente instala sempre.

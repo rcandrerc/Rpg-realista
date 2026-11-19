@@ -22,6 +22,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write # apagar o artefato do site depois do deploy (cota)
 
 # Fila em vez de cancelar: o push e o apk.yml chamam este workflow para o mesmo commit quase juntos, e cancelar
 # um deles no meio do deploy cancelava também o deploy do outro (mesmo ID = commit) e o pacote novo não chegava
@@ -99,7 +100,8 @@ jobs:
           ORACLE_URL: ${{ vars.ORACLE_URL }}
         run: bash ferramentas/atualizacao/espelhar-balde.sh client/dist
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - id: subir
+        uses: actions/upload-pages-artifact@v3
         with:
           path: client/dist
       - id: deploy
@@ -110,3 +112,12 @@ jobs:
         # chegava). Com o número da execução junto, cada publicação vale.
         env:
           GITHUB_SHA: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      # Cota de artefatos (portão 10/12): o site inteiro vira um artefato de ~690 MB a cada publicação. Com o
+      # repositório fechado isso conta na cota; o Pages só precisa dele durante o deploy, então apaga logo depois.
+      - name: Apaga o artefato do site (já publicado)
+        if: always() && steps.subir.outputs.artifact_id != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ID: ${{ steps.subir.outputs.artifact_id }}
+        run: gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$ID" && echo "artefato $ID apagado"

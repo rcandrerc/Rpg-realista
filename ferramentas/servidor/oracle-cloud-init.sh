@@ -2,7 +2,9 @@
 # Instala o servidor do RPG numa máquina Ubuntu da Oracle Cloud.
 # Cole este arquivo inteiro em: Create instance → Advanced options → Management → "Paste cloud-init script".
 # Ele instala Node.js e Caddy (https automático), libera as portas 80 e 443, e deixa o servidor
-# rodando e se atualizando sozinho a cada 5 minutos a partir do GitHub Pages.
+# rodando. A primeira versão do servidor vem aberta do GitHub Pages uma vez só (rode antes o workflow "Publicar no
+# GitHub Pages" com abrir_servidor marcado); daí em diante o próprio servidor se atualiza pelo pacote trancado e
+# assinado (server/atualizar.js).
 set -eux
 export DEBIAN_FRONTEND=noninteractive
 PAGINA=https://rcandrerc.github.io/Rpg-realista/servidor
@@ -21,7 +23,7 @@ useradd --system --home /opt/rpg --shell /usr/sbin/nologin rpg || true
 mkdir -p /opt/rpg && chown rpg:rpg /opt/rpg
 cat > /usr/local/bin/rpg-atualizar <<SCRIPT
 #!/bin/bash
-# Baixa o servidor publicado no GitHub Pages quando a versão muda e reinicia o jogo.
+# Instalação inicial: baixa o servidor aberto do GitHub Pages UMA vez (máquina nova). Não roda mais sozinho.
 set -e
 nova=\$(curl -fsS $PAGINA/versao.txt) || exit 0
 [ "\$nova" = "\$(cat /opt/rpg/versao.txt 2>/dev/null)" ] && exit 0
@@ -50,26 +52,15 @@ RestartSec=3
 [Install]
 WantedBy=multi-user.target
 UNIT
-cat > /etc/systemd/system/rpg-atualizar.service <<UNIT
-[Unit]
-Description=Atualiza o servidor do RPG
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/rpg-atualizar
-UNIT
-cat > /etc/systemd/system/rpg-atualizar.timer <<UNIT
-[Unit]
-Description=Confere versão nova do servidor do RPG a cada 5 minutos
-[Timer]
-OnBootSec=1min
-OnUnitActiveSec=5min
-[Install]
-WantedBy=timers.target
-UNIT
+# Remoção aprovada (Presidente do estúdio, 2026-11-19, revisão de segurança do #673): não existe mais o timer
+# rpg-atualizar, que a cada 5 min instalava como root o servidor ABERTO do Pages, sem assinatura (passava por cima do
+# pacote assinado). A atualização é só a do próprio servidor (server/atualizar.js). Rodar este script numa máquina
+# antiga também desliga o timer.
+systemctl disable --now rpg-atualizar.timer 2>/dev/null || true
+rm -f /etc/systemd/system/rpg-atualizar.timer /etc/systemd/system/rpg-atualizar.service
 systemctl daemon-reload
-systemctl enable rpg rpg-atualizar.timer
-/usr/local/bin/rpg-atualizar
-systemctl start rpg-atualizar.timer
+systemctl enable rpg
+/usr/local/bin/rpg-atualizar # a primeira versão (aberta, publicada à mão com abrir_servidor)
 
 # https: endereço grátis IP.sslip.io com certificado automático (Let's Encrypt) pelo Caddy
 IP=$(curl -fsS https://ifconfig.me || curl -fsS https://api.ipify.org)
