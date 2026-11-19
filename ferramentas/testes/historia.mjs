@@ -44,7 +44,7 @@ ok(historiaParaApp().cenas === CENAS, 'app recebe as cenas');
 { // herói novo: "Pronto" no criador leva para o lado do poço e toca a abertura
   const s0 = new Simulacao(MAPA_CLAREIRA), j0 = s0.adicionarJogador('N', 'Novo', null, { podeCriar: true });
   s0.definirCriando('N', true);
-  const r = s0.concluirCriacao('N', { nome: 'Lia' }); const e0 = s0.passo(0.05);
+  const r = s0.concluirCriacao('N', { nome: 'Luana' }); const e0 = s0.passo(0.05);
   ok(r && e0.some((e) => e.t === 'cena' && e.para === 'N' && e.id === 'acordar'), 'criou o personagem: cena da abertura');
   ok(Math.hypot(j0.x - CENAS.acordar.heroi.pos[0], j0.z - CENAS.acordar.heroi.pos[1]) < 0.01 && e0.some((e) => e.t === 'corrigir' && e.para === 'N'), 'herói acorda do lado do poço');
 }

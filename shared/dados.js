@@ -5071,3 +5071,86 @@ for (const [k, T] of Object.entries(ARVORES_PLANTIO)) {
     desc: `${T.desc} Plante numa área de plantio ou no seu terreno. Fica adulta em ${T.h} h.` };
   LOJA.push({ k: 'semente_' + k, preco: Math.round(T.semente * ECONOMIA.semente) }); // André 2026-11-17: x2,5
 }
+
+// ---------- Nome de NPC não pode ser nome de jogador (André 2026-11-19: "Se tiver o nome dos NPCs, não pode. Nem parecido") ----------
+// O nome do jogador vira um "esqueleto" (sem acento, letra larga ou de outro alfabeto que parece a nossa vira a nossa,
+// número dentro de palavra vira letra, I maiúsculo = l minúsculo = 1, letra repetida conta uma vez) e é recusado se:
+//   - uma palavra dele é o nome de um NPC ("Otávio", "Otavio x", "0tavi0", "Ottávio", "lvo", "Dario2"), ou o nome todo
+//     sem espaços é ("O t a v i o", "Dragão de Cinzas");
+//   - uma palavra contém o nome de um NPC de 6 letras ou mais ("xOtavio", "Cecílias"); nome curto só inteiro, senão
+//     Luciano (Lúcia), Juliana (Lia) e Mateus (Teo) cairiam;
+//   - tem letra que não é dos alfabetos comuns (latino, grego, cirílico, chinês, japonês, coreano) ou mistura a nossa com
+//     outro alfabeto: o truque de copiar o nome com letras parecidas (Lisu, Cherokee...). Esse caso volta 'parecido'.
+// Título do NPC (Mestre, Dona, Irmã...) não conta. Chefe entra pelo nome inteiro (Maíra, Gorduncho, Presa-de-Prata).
+export const NOMES_RESERVADOS = { extra: ['Vesper', 'Aethra', 'Servidor', 'Sistema', 'Admin', 'Moderador', 'Suporte'], titulos: ['mestre', 'mestra', 'dona', 'seu', 'irma', 'irmao', 'velho', 'avo', 'capitao', 'capita', 'guardia', 'sentinela', 'pescador'], grudadoMin: 6 };
+const PARECIDAS = {
+  а: 'a', в: 'b', е: 'e', ѕ: 's', і: 'i', ј: 'j', к: 'k', ҡ: 'k', м: 'm', н: 'h', һ: 'h', о: 'o', р: 'p', с: 'c', т: 't', у: 'y', х: 'x', ԁ: 'd', ѵ: 'v', ԛ: 'q', ԝ: 'w', г: 'r', п: 'n', и: 'u', ь: 'b', з: '3', д: 'a', л: 'n',
+  α: 'a', β: 'b', ε: 'e', η: 'n', ι: 'i', κ: 'k', ν: 'v', ο: 'o', ρ: 'p', τ: 't', υ: 'u', χ: 'x', γ: 'y', ω: 'w', μ: 'u', ς: 's', σ: 'o',
+  օ: 'o', ս: 'u', ց: 'g', հ: 'h', ո: 'n', ı: 'i', ł: 'l', ø: 'o', ð: 'd', đ: 'd', ħ: 'h', ŧ: 't', ß: 'b', æ: 'ae', œ: 'oe', þ: 'th', ŋ: 'n', ɡ: 'g', ɑ: 'a', ɪ: 'i', ʟ: 'l', ᴀ: 'a', ʙ: 'b', ᴄ: 'c', ᴅ: 'd', ᴇ: 'e', ꜰ: 'f', ɢ: 'g', ʜ: 'h', ᴊ: 'j', ᴋ: 'k', ᴍ: 'm', ɴ: 'n', ᴏ: 'o', ᴘ: 'p', ʀ: 'r', ꜱ: 's', ᴛ: 't', ᴜ: 'u', ᴠ: 'v', ᴡ: 'w', ʏ: 'y', ᴢ: 'z', ɵ: 'o', ǫ: 'o', ȷ: 'j', ʋ: 'v',
+};
+// maiúsculas de outro alfabeto que parecem as nossas (antes de virar minúscula: Η grega é H, mas η é n)
+const MAIUSCULAS = { Α: 'a', Β: 'b', Ε: 'e', Ζ: 'z', Η: 'h', Κ: 'k', Μ: 'm', Ν: 'n', Ο: 'o', Ρ: 'p', Τ: 't', Υ: 'y', Χ: 'x', А: 'a', В: 'b', Е: 'e', К: 'k', М: 'm', Н: 'h', О: 'o', Р: 'p', С: 'c', Т: 't', Х: 'x', ẞ: 'b' };
+const BARRA = new Set(['I', 'l', '1', 'Ι', 'І', 'Ӏ', 'ӏ', 'ǀ', '|']); // I maiúsculo, l minúsculo e 1 são o mesmo traço
+const NUMEROS = { 0: 'o', 2: 'z', 3: 'e', 4: 'a', 5: 's', 6: 'g', 7: 't', 8: 'b', 9: 'g' };
+const ALFABETOS = /^[\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{N}\p{M} ]*$/u;
+const INVISIVEIS = /[ᅟᅠㅤﾠ]/u; // preenchimento do coreano: letra que não aparece
+const escrita = (c) => (/\p{Script=Latin}/u.test(c) ? 'lat' : /\p{L}/u.test(c) ? 'outra' : '');
+function palavraEsq(bruta) {
+  let w = '';
+  for (const c of bruta) {
+    if (BARRA.has(c)) { w += '|'; continue; }
+    const m = MAIUSCULAS[c] ?? (() => { const l = c.toLowerCase(); return PARECIDAS[l] ?? NUMEROS[l] ?? l; })();
+    w += /^[a-z]+$/.test(m) ? m : '?';
+  }
+  return w.replace(/(.)\1+/g, '$1'); // letra repetida conta uma vez
+}
+// palavras do esqueleto (cada uma com as variantes: como está e sem número no começo e no fim) e se é truque de alfabeto
+function esqueleto(nome) {
+  const base = String(nome).normalize('NFKC').normalize('NFD').replace(/\p{M}/gu, '');
+  const letras = [...base].filter((c) => /\p{L}/u.test(c));
+  const truque = !ALFABETOS.test(base) || INVISIVEIS.test(base) || (letras.some((c) => escrita(c) === 'lat') && letras.some((c) => escrita(c) === 'outra' && !MAIUSCULAS[c] && !PARECIDAS[c.toLowerCase()] && !BARRA.has(c)));
+  const palavras = [];
+  for (const bruta of base.split(/[^\p{L}\p{N}|]+/u)) {
+    if (!bruta || !/\p{L}/u.test(bruta)) continue; // só número ("Ana 814"): não vira letra
+    const v = [palavraEsq(bruta)], sem = bruta.replace(/^\p{N}+|\p{N}+$/gu, '');
+    if (sem && sem !== bruta) v.push(palavraEsq(sem)); // "Dario2"
+    v.latina = /\p{Script=Latin}/u.test(bruta); // palavra com letra nossa (Ελένη, toda em grego, não)
+    palavras.push(v);
+  }
+  return { palavras, truque };
+}
+let reservados = null;
+function listaReservados() {
+  if (reservados) return reservados;
+  const l = new Map(); // esqueleto -> { npc, n: letras do nome original }
+  const por = (k, npc, n) => { if (k && k.replace(/\?/g, '').length >= 2 && !l.has(k)) l.set(k, { npc, n }); };
+  // o nome escrito como o NPC e do jeito que o jogador pode digitar (tudo minúsculo, tudo maiúsculo): o I/l muda com a caixa
+  const formas = (n) => [n, n.toLowerCase(), n.toUpperCase(), n.toLowerCase().replace(/(^|\s)\p{L}/gu, (x) => x.toUpperCase())];
+  // gente (NPCs da vila, aventureiros, rivais): o primeiro nome que não é título
+  for (const n of [...(MAPA_CLAREIRA.npcs || []).map((x) => String(x.nome || '').split(',')[0]), ...AMIGOS_VIRTUAIS.map((d) => d.nome), ...RIVAIS.map((d) => d.nome), ...NOMES_RESERVADOS.extra]) {
+    if (!n || /mural/i.test(n)) continue;
+    const nome = n.trim(), ps = nome.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+    const i = ps.findIndex((w) => !NOMES_RESERVADOS.titulos.includes(w.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')));
+    if (i < 0) continue;
+    for (const f of formas(ps[i])) por(palavraEsq(f.normalize('NFD').replace(/\p{M}/gu, '')), nome, [...ps[i]].length);
+  }
+  // chefes e bosses de mundo: o nome inteiro, junto (Presa-de-Prata, Dragão de Cinzas)
+  for (const c of [...Object.values(CHEFES_HISTORIA), ...Object.values(BOSSES_MUNDO)]) {
+    const n = String(c?.nome || '').split(',')[0].trim(); if (!n) continue;
+    for (const f of formas(n)) por(esqueleto(f).palavras.map((v) => v[0]).join(''), n, [...n].filter((x) => /\p{L}/u.test(x)).length);
+  }
+  return (reservados = l);
+}
+// Devolve o nome do NPC que o nome do jogador usa, 'parecido' no truque de letras de outro alfabeto, ou null
+export function nomeReservado(nome) {
+  const { palavras, truque } = esqueleto(String(nome).slice(0, 64)); // nome de jogador tem até 16: corta lixo grande
+  // letra que o esqueleto não conhece junto de letra nossa (ɾ, ꞃ, ɨ...): truque de letra parecida
+  if (truque || palavras.some((v) => v.latina && v[0].includes('?'))) return 'parecido';
+  const junto = palavras.map((v) => v[0]).join(''), sem = (x) => x.replace(/\|/g, 'i').replace(/(.)\1+/g, '$1');
+  for (const [k, { npc, n }] of listaReservados()) {
+    if (junto === k) return npc;
+    const longo = n >= NOMES_RESERVADOS.grudadoMin, ks = longo && sem(k); // nome comprido: i e l também valem iguais (Heiena, Cecllia)
+    for (const v of palavras) for (const w of v) if (w === k || (longo && (w.includes(k) || sem(w).includes(ks)))) return npc;
+  }
+  return null;
+}
