@@ -68,4 +68,5 @@ O servidor novo só instala em hora marcada (Brasília): 05h–07h e 14h–15h. 
 (19/12 20h a 26/12 20h), só 05h–07h. De 19/12 18h a 20/12 02h nada instala. Fora da janela o servidor espera e
 instala o pacote mais novo quando a janela abrir (`podeInstalar` em `server/atualizar.js`).
 Conserto urgente: ponha `[servidor urgente]` no título do PR; o pacote sai marcado (campo assinado) e instala na hora,
-menos no bloqueio do lançamento. Servidor de teste (reserva, robôs): `JANELA_LIVRE=1` no ambiente instala sempre.
+menos no bloqueio do lançamento. Para furar o bloqueio (conserto que impede os amigos de entrar ou jogar), só com o OK do
+Presidente escrito no PR: `[furar bloqueio]` no título. Servidor de teste (reserva, robôs): `JANELA_LIVRE=1` no ambiente instala sempre.

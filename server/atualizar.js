@@ -91,8 +91,10 @@ export const JANELAS = [[5, 7], [14, 15]];
 const BRASILIA = -3 * 3600e3;
 const LANCAMENTO_SEMANA = [Date.parse('2026-12-19T20:00:00-03:00'), Date.parse('2026-12-26T20:00:00-03:00')];
 const BLOQUEIO = [Date.parse('2026-12-19T18:00:00-03:00'), Date.parse('2026-12-20T02:00:00-03:00')];
-export function podeInstalar(agora = Date.now(), urgente = false) {
-  if (process.env.JANELA_LIVRE === '1') return true; // teste local
+// furar = conserto que impede os amigos de entrar ou jogar, com o OK do Presidente escrito no PR e [furar bloqueio]
+// no título (Presidente 2026-11-19: "seis horas de estreia quebrada são piores que 30 segundos de reinício").
+export function podeInstalar(agora = Date.now(), urgente = false, furar = false) {
+  if (process.env.JANELA_LIVRE === '1' || furar) return true; // teste local / furar bloqueio
   if (agora >= BLOQUEIO[0] && agora < BLOQUEIO[1]) return false;
   if (urgente) return true;
   const hora = new Date(agora + BRASILIA).getUTCHours();
@@ -141,7 +143,7 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
       if (chaves.length && !assinaturaValida(pacote, chaves)) throw new Error(`pacote ${nova} sem assinatura válida (assinado_por=${pacote.assinado_por || 'ninguém'}): não instalo`);
       const emitido = chaves.length ? emitidoAceito(pacote, pasta) : null;
       if (chaves.length && !emitido) throw new Error(`pacote ${nova} mais velho que o último instalado (ou sem data): não instalo`);
-      if (!podeInstalar(Date.now(), pacote.urgente === true)) {
+      if (!podeInstalar(Date.now(), pacote.urgente === true, pacote.furar_bloqueio === true)) {
         if (esperando !== nova) console.log(`Servidor novo ${nova} pronto; instala na próxima janela (05h–07h ou 14h–15h de Brasília).`);
         esperando = nova;
         return;
@@ -169,5 +171,7 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
   };
   setTimeout(conferir, Number(process.env.ESPERA_ATUALIZAR_MS || 60 * 1000));
   setInterval(conferir, 5 * 60 * 1000);
-  return true;
+  // Devolve o conferir (verdadeiro como antes): o reinício fixo (server/index.js) chama antes de reiniciar, para o
+  // pacote que esperava a janela instalar junto e o servidor não reiniciar duas vezes.
+  return { conferir };
 }

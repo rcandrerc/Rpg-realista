@@ -21,6 +21,7 @@ ok(!podeInstalar(t('2026-12-19T19:00:00-03:00'), true), 'lançamento 19/12 19h: 
 ok(!podeInstalar(t('2026-12-20T01:59:00-03:00'), true), '20/12 01h59: nem urgente');
 ok(podeInstalar(t('2026-12-20T02:00:00-03:00'), true), '20/12 02h00: urgente volta');
 ok(podeInstalar(t('2026-12-19T14:30:00-03:00')), '19/12 14h30 (antes do bloqueio) instala');
+ok(podeInstalar(t('2026-12-19T19:00:00-03:00'), false, true), '[furar bloqueio] instala no lançamento');
 process.env.JANELA_LIVRE = '1';
 ok(podeInstalar(t('2026-11-25T09:10:00-03:00')), 'JANELA_LIVRE=1 (teste local) instala sempre');
 if (falhas) { console.log(`${falhas} falha(s)`); process.exit(1); }
