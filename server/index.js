@@ -94,8 +94,16 @@ class SalaClareira extends Room {
     if (tipoDica === 'dica') dicaParaRegra(msg.texto, amg.AMIGA.nome, chaveDe).then((regra) => { if (!regra || !amg.aprenderDicaAmiga(id, regra, msg.texto)) conversar(); }).catch((e) => console.error('amigo IA: dica deu erro', e));
     else conversar();
   }
+  // tira o herói do mundo na hora, sem gravar (o progresso dele já foi para a sessão nova)
+  tirarDoMundo(id) {
+    for (const ctx of this.sim.amigosIa) ctx.amigaSair(id);
+    this.sim.removerJogador(id); this.visao.esquecer(id); this.contaDe?.delete(id);
+  }
   onCreate() {
     salas.add(this);
+    // revisão de segurança 2026-11-19: mensagem do tipo '__proto__' achava o Object.prototype na tabela do Colyseus e
+    // derrubava o servidor inteiro (TypeError fora de qualquer try). Sem protótipo, tipo desconhecido é só ignorado
+    Object.setPrototypeOf(this.onMessageHandlers, null);
     // 2026-11-16 (ronda dos robôs): o robô 2 com placa lenta caiu na primeira entrada com "seat reservation expired"
     // (15 s do Colyseus). Celular fraco montando o mundo atrás da capa pode passar disso; 45 s não muda nada para quem entra rápido.
     this.setSeatReservationTime(45);
@@ -363,6 +371,7 @@ class SalaClareira extends Room {
       if (b.n < custo) return;
       b.n -= custo;
       if (temChavePerigosa(m)) return; // '__proto__' e companhia nunca são dado de jogo (auditoria 2026-11-13)
+      if (c.userData.substituido) return; // a conta entrou por outro aparelho: o antigo não mexe em mais nada (revisão 2026-11-19)
       if (c.auth?.robo && ROBO_NAO.has(tipo) && !(tipo === 'time' && m?.acao === 'sozinho')) return; // robô de testes: não mexe na economia nem fala com ninguém (seguir sozinho na etapa de time pode)
       // mensagem que dá erro não derruba a sala nem desconecta ninguém (André 2026-11-07: "Usar" na bancada desconectava)
       try { const r = fn(c, m); if (r && typeof r.catch === 'function') r.catch((e) => console.error(`mensagem ${tipo} deu erro:`, e)); } catch (e) { console.error(`mensagem ${tipo} deu erro:`, e); }
@@ -386,6 +395,7 @@ class SalaClareira extends Room {
     let fotoJson = null;
     let perto = null; // área de interesse: preparada uma vez por passo, só se alguém pediu
     for (const c of this.clients) {
+      if (c.userData?.substituido) continue; // já saiu do mundo (onJoin): só falta o socket fechar
       if (c.userData?.aoi) {
         perto ??= this.visao.preparar(foto, eventos);
         c.send('mundoJ', this.visao.paraJogador(perto, c.sessionId));
@@ -421,14 +431,26 @@ class SalaClareira extends Room {
       // a mesma conta abriu o jogo em outro aparelho ou aba: o antigo sai
       for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) {
         const vj = this.sim.jogadores.get(outro.sessionId);
-        if (vj) { this.sim.saiuComVeiculo(vj); this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj)); velhos.push(vj.id); } // o mais novo vale (com o lugar onde ele estava)
+        if (vj) { this.sim.saiuComVeiculo(vj); this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj)); velhos.push(vj.id); fantasmas.push(vj.id); } // o mais novo vale (com o lugar onde ele estava)
+        // revisão de segurança 2026-11-19: o herói antigo sai do mundo já (fantasmas, logo abaixo) e as mensagens do aparelho
+        // antigo são ignoradas (ouvir). Antes ele seguia jogando até o socket fechar (até ~30 s) com uma cópia da mochila: duplicava
         (outro.userData ||= {}).substituido = true; outro.leave(4001);
       }
       // a mesma conta numa outra sala (salas cheias abrem outra): também sai, e o progresso dela vem junto
       for (const s of salas) if (s !== this) for (const outro of s.clients) if (outro.auth?.id === conta.id) {
         const vj = s.sim.jogadores.get(outro.sessionId);
-        if (vj) { s.sim.saiuComVeiculo(vj); s.sim.guardarPosicao(vj); conta.progresso = vj.prog; }
+        if (vj) { s.sim.saiuComVeiculo(vj); s.sim.guardarPosicao(vj); conta.progresso = vj.prog; s.tirarDoMundo(vj.id); }
         (outro.userData ||= {}).substituido = true; outro.leave(4001);
+      }
+      // a mesma conta esperando reconexão (queda, 20 s) numa OUTRA sala: o herói de lá sai já, com o progresso vindo para cá.
+      // Antes ficava lá e, acabando a espera, gravava a mochila velha por cima (duplicava o que foi dado ou vendido aqui)
+      for (const s of salas) if (s !== this) {
+        const vivosLa = new Set(s.clients.map((o) => o.sessionId));
+        for (const vj of [...s.sim.jogadores.values()]) if (!vj.bot && vj.conta === 'c' + conta.id && !vivosLa.has(vj.id)) {
+          s.sim.saiuComVeiculo(vj); s.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(s.sim, vj));
+          const espera = s.esperas?.get(vj.id); if (espera) { s.esperas.delete(vj.id); espera.reject(new Error('substituido')); }
+          s.tirarDoMundo(vj.id);
+        }
       }
       // o servidor já tinha visto a queda: o herói antigo está no mundo esperando reconexão (allowReconnection, 20 s) e
       // o jogo entrou de novo como sessão nova. O novo herda o progresso e o lugar dele (antes vinham do banco, de até
