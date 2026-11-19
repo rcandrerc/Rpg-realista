@@ -173,6 +173,9 @@ func tocou_tela(pos: Vector2) -> void:
 # amigo), Seguir, Duelo e Equipamento. De longe, só time e mensagem (e Parar de seguir, se estiver seguindo).
 func cartao_acoes(achou: String, nome: String, longe: bool, bot: bool) -> Array:
 	var bts: Array = []
+	# conversa por opções (André 2026-11-19): de perto, ou de longe se ele está no meu time
+	if bot and achou in m.online.amiga_ids and m.conversa and m.conversa.AMIGA_OPCOES and (not longe or (m.amigos and m.amigos.no_meu_time(achou))):
+		bts.append(["Conversar", func(): esconder_cartao(); m.conversa.abrir_amiga(achou)])
 	if not longe:
 		bts.append(["Pedir troca", _responder.bind("pedir", achou)])
 	var A = m.amigos

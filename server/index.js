@@ -11,7 +11,7 @@ import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, 
 import { Contas, verificadorGoogle, roboCel } from './contas.js';
 import { Visao } from './visao.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { iaEsgotada, puxarAssunto, pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
+import { iaEsgotada, iaVoltaEm, podeIaJogador, puxarAssunto, pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
 import { ligarAtualizacaoTrancada } from './atualizar.js';
 import { reserva, vigiarReserva } from './caddy-reserva.js'; // caminho reserva pelo IP (André 2026-11-16, sslip.io bloqueado no celular)
 
@@ -25,7 +25,7 @@ const TICK = 1 / 20;
 const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, venderLote: 10, mudarLote: 10, pagarTaxa: 5, construir: 5, desmontar: 5, horta: 3, plantarArvore: 3, diaria: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5, lentidao: 5 } };
 // O robô de testes (ferramentas/robo/robo.mjs, André 2026-11-14) joga como um jogador, mas nunca negocia, nunca compra
 // terreno, não conversa e não convida ninguém: assim não estraga a economia nem o jogo de quem joga de verdade
-const ROBO_NAO = new Set(['troca', 'chat', 'amigo', 'time', 'amiga', 'chaveIa', 'trocarNome', 'lote', 'venderLote', 'mudarLote', 'pagarTaxa', 'construir', 'desmontar', 'nivelTeste', 'verEquip', 'duelo']);
+const ROBO_NAO = new Set(['troca', 'chat', 'amigo', 'time', 'amiga', 'chaveIa', 'trocarNome', 'lote', 'venderLote', 'mudarLote', 'pagarTaxa', 'construir', 'desmontar', 'nivelTeste', 'verEquip', 'duelo', 'comando']);
 const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0, picoPing: 0, picoPingT: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // a conta já está jogando (ligada agora) em alguma sala, por outro aparelho (outra sessão de login: cada aparelho tem a
@@ -73,10 +73,13 @@ class SalaClareira extends Room {
     if (!amg.iaAmiga(id)) return amg.respostaAmiga(id, { assunto: amg.assuntoAmiga(msg.texto) });
     // a IA dele acabou hoje (André 2026-11-17): ela está "ocupada" e nem gasta pedido
     if (amg.semIaAmiga(amg.amiga, this.sim.jogadores.get(id))) return amg.cansouIaAmiga(id, amg.assuntoAmiga(msg.texto));
+    if (!chaveDe && !podeIaJogador(conta ? 'c' + conta.id : 's' + id)) return amg.respostaAmiga(id, { assunto: amg.assuntoAmiga(msg.texto) }); // passou da cota dele: só ele recebe falas prontas
     // a chave Groq de quem escreveu paga a resposta (André 2026-11-10); as contas de teste usam a do servidor
     const conversar = () => pensarAmiga(ctx, msg.texto, chaveDe).then((r) => {
+      if (amg.amiga) amg.amiga.ia.fonte = { ia: r?.ia || 'regras', t: amg.tempo }; // o registro do dia anota quem respondeu (André 2026-11-19)
       const regra = amg.assuntoAmiga(msg.texto);
-      if (!r && iaEsgotada(chaveDe)) return amg.cansouIaAmiga(id, regra); // acabou o limite do dia agora
+      if (!r && chaveDe && iaEsgotada(chaveDe)) return amg.cansouIaAmiga(id, regra); // a chave dele acabou hoje
+      if (!r && !chaveDe && (this.sim.iaAcabouAte = iaVoltaEm())) return amg.respostaAmiga(id, { assunto: regra }); // acabaram Gemini e Groq: responde pelas regras e já já desloga (André 2026-11-19)
       // a IA não achou ação: vale a das regras (ex.: "vem cá" que a IA tratou como conversa)
       if (['presente', 'pedirItem'].includes(regra)) return amg.respostaAmiga(id, { assunto: regra }); // troca aberta: quem decide são as regras (fase 3)
       // pedido claro de ação (time, sair, vir) vale sempre pelas regras, para a fala e a ação baterem (André 2026-11-09)
@@ -132,8 +135,9 @@ class SalaClareira extends Room {
         if (!ctx) return null;
         ctx.idioma = c?.userData?.idioma || 'pt';
         return pensarAmiga(ctx, puxarAssunto(ctx, evento), conta ? contas.chaveIa(conta.id) : '').then((r) => {
+          if (r?.fala && amg.amiga) amg.amiga.ia.fonte = { ia: r.ia || '', t: amg.tempo };
           if (r?.fala) amg.respostaAmiga(id, { assunto: 'conversa', fala: r.fala });
-          else if (!r && iaEsgotada(conta ? contas.chaveIa(conta.id) : '')) amg.cansouIaAmiga(id); // acabou: avisa que vai descansar
+          else if (!r) { const ch = conta ? contas.chaveIa(conta.id) : ''; if (ch && iaEsgotada(ch)) amg.cansouIaAmiga(id); else if (!ch) this.sim.iaAcabouAte = iaVoltaEm(); } // acabou: a dele avisa; a do servidor desloga
         }).catch((e) => console.error('amigo IA: puxar assunto deu erro', e));
       };
     }
@@ -187,6 +191,7 @@ class SalaClareira extends Room {
     const texto = (v) => (typeof v === 'string' ? v.slice(0, 32) : undefined);
     this.ouvir('verEquip', (c, m) => { if (m && typeof m.com === 'string' && m.com.length < 40) this.sim.verEquip(c.sessionId, { com: m.com }); }); // ver o equipamento de quem está perto
     this.ouvir('amigo', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.amigo(c.sessionId, { acao: m.acao, com: texto(m.com), c: texto(m.c), nome: texto(m.nome) }); });
+    this.ouvir('comando', (c, m) => { if (m && typeof m.c === 'string' && m.c.length < 10) this.sim.comandoTime(c.sessionId, { c: m.c, para: texto(m.para) }); }); // comando rápido do time (André 2026-11-19)
     this.ouvir('time', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.time(c.sessionId, { acao: m.acao, com: texto(m.com) }); });
     this.ouvir('duelo', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.duelo(c.sessionId, { acao: m.acao, com: texto(m.com) }); }); // duelo (shared/duelo.js, André 2026-11-17)
     // amizade feita ou desfeita: grava na conta (as duas pontas); desfeita, avisa também as outras salas
@@ -294,7 +299,7 @@ class SalaClareira extends Room {
     this.ouvir('modo', (c, m) => this.sim.trocarModo(c.sessionId, String(m)));
     this.ouvir('falar', (c, m) => this.sim.falar(c.sessionId, m));
     // Cecília (shared/amiga.js): só o dono recebe resposta; os outros não conversam com ela
-    this.ouvir('amiga', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) (this.sim.amigoIaDe(typeof m.id === 'string' ? m.id : '') || this.sim).conversaAmiga(c.sessionId, { acao: m.acao }); }); // m.id: qual amigo (Cecília ou Dario); sem id, a Cecília // m opcional: { npc, conversa } (menu do NPC no app)
+    this.ouvir('amiga', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) (this.sim.amigoIaDe(typeof m.id === 'string' ? m.id : '') || this.sim).conversaAmiga(c.sessionId, { acao: m.acao, op: typeof m.op === 'string' ? m.op.slice(0, 20) : undefined, menu: typeof m.menu === 'string' ? m.menu.slice(0, 20) : undefined }); }); // op/menu: conversa por opções (André 2026-11-19) // m.id: qual amigo (Cecília ou Dario); sem id, a Cecília // m opcional: { npc, conversa } (menu do NPC no app)
     this.ouvir('montar', (c) => this.sim.montar(c.sessionId));
     this.ouvir('vila', (c) => this.sim.voltarVila(c.sessionId)); // botão da casinha: canaliza e volta para a vila (recarga de 10 min)
     this.ouvir('totem', (c, m) => { if (m && typeof m.para === 'string' && m.para.length < 24) this.sim.irTotem(c.sessionId, m.para); }); // totem de teleporte: vai para outro já descoberto (paga a taxa)
@@ -344,7 +349,8 @@ class SalaClareira extends Room {
     });
     this.sim.aoTrocar = () => this.salvarProgressos(); // troca feita: as duas contas gravam na hora
     this.setSimulationInterval(() => this.tick(), TICK * 1000);
-    this.clock.setInterval(() => this.salvarProgressos(), 15000); // nível, XP e skills vão para a conta
+    this.clock.setInterval(() => this.salvarProgressos(), 15000);
+    this.clock.setInterval(() => { this.sim.iaAcabouAte = iaVoltaEm(); }, 20000); // IA do dia acabou? Cecília e Dario deslogam até voltar (André 2026-11-19) // nível, XP e skills vão para a conta
   }
 
   // Grava na conta o progresso de quem mudou desde a última vez

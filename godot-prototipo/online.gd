@@ -1377,6 +1377,9 @@ func evento(ev: Dictionary) -> void:
 			if m.leilao:
 				m.leilao.do_servidor(ev)
 			return
+		"comando": # comando rápido do time (André 2026-11-19): alguém do time mandou "Espera aqui", "Me segue"...
+			m.hud.comando(str(ev.get("nome", "")), str(ev.get("texto", "")))
+			m.sons.tocar("q_anel_1", -12.0)
 		"balao": # chat Local (André 2026-11-18): a frase em cima da cabeça de quem falou, por uns segundos
 			_balao(str(ev.get("id", "")), str(ev.get("texto", "")), int(ev.get("npc", 0)) == 1, str(ev.get("lingua", "")) != "")
 			return
@@ -1387,7 +1390,7 @@ func evento(ev: Dictionary) -> void:
 				m.missao_fala.mostrar(str(ev.get("npc", "")), str(ev.texto), str(ev.missao))
 				return
 			var fala_txt := Idioma.frase(str(ev.texto)) # inglês: a fala do NPC chega em português (a da IA já vem no idioma)
-			if not (m.conversa and m.conversa.fala(str(ev.get("npc", "")), fala_txt, ev)): # janela do NPC aberta: a fala aparece nela
+			if not (m.conversa and m.conversa.fala(str(ev.get("npc", "")), fala_txt, ev)) and fala_txt != "": # janela do NPC aberta: a fala aparece nela
 				m.hud.aviso(fala_txt)
 			if str(ev.get("abrir", "")) == "resetar":
 				m.menu.perguntar_reset(int(ev.get("custo", 0)))

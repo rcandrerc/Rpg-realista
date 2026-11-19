@@ -39,6 +39,105 @@ func _init(principal) -> void:
 	m = principal
 	layer = 3 # junto da HUD (as barras ficam embaixo do painel do herói), abaixo do menu do topo (4)
 
+# Comandos rápidos do time (André 2026-11-19: "no combate vai ser praticamente impossível chegar perto ... eu clico ali no
+# time rapidinho e aperto o botão"): tocar na barra de alguém do time (jogador ou NPC) abre 4 botões ao lado. O pedido vai
+# ao servidor (simulacao.js comandoTime): aparece no chat do time; jogador recebe o aviso na tela; Cecília e Dario obedecem.
+const COMANDOS := [["espera", "Espera aqui", "barreira"], ["segue", "Me segue", "disparada"], ["ataca", "Ataca meu alvo", "it_espada"], ["recua", "Recua", "desfazer"]]
+var _toques: Array = [] # [Button] na mesma ordem das barras
+var _cmd: PanelContainer = null
+var _cmd_id := ""
+var _cmd_ate := 0.0
+func _ids_barras() -> Array:
+	var eu := str(m.online.meu_id) if m.online else ""
+	var ids: Array = []
+	for t in time:
+		if str(t.id) != eu:
+			ids.append(t)
+	return ids
+
+func _toque_barra(i: int) -> void:
+	var lista := _ids_barras()
+	if i >= lista.size():
+		return
+	var t: Dictionary = lista[i]
+	if _cmd != null and _cmd_id == str(t.id):
+		_fechar_comandos()
+		return
+	_abrir_comandos(str(t.id), str(t.get("nome", "")), i)
+
+func _abrir_comandos(id: String, nome: String, i: int) -> void:
+	_fechar_comandos()
+	_cmd_id = id
+	_cmd_ate = m.tempo + 5.0
+	_cmd = PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.08, 0.07, 0.06, 0.86)
+	sb.border_color = Color(COR_TIME, 0.6)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(10)
+	sb.set_content_margin_all(6)
+	_cmd.add_theme_stylebox_override("panel", sb)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	_cmd.add_child(v)
+	var cab := Label.new()
+	cab.text = nome.split(",")[0]
+	cab.add_theme_font_size_override("font_size", 13)
+	cab.add_theme_color_override("font_color", COR_TIME)
+	v.add_child(cab)
+	for c in COMANDOS:
+		var b := Button.new()
+		b.text = Idioma.frase(str(c[1]))
+		b.focus_mode = Control.FOCUS_NONE
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.custom_minimum_size = Vector2(170, 34)
+		b.add_theme_font_size_override("font_size", 14)
+		b.add_theme_constant_override("icon_max_width", 20)
+		b.add_theme_constant_override("h_separation", 8)
+		b.icon = Menu.icone_tex(str(c[2]))
+		Menu.estilo_botao(b, false)
+		b.pressed.connect(_mandar_comando.bind(id, str(c[0])))
+		v.add_child(b)
+	_cmd.scale = Vector2(barras_s, barras_s)
+	_cmd.position = BARRAS + barras_d + Vector2(204, i * 40.0) * barras_s
+	add_child(_cmd)
+
+func _mandar_comando(id: String, c: String) -> void:
+	m.rede("comando", {"c": c, "para": id})
+	m.sons.tocar("q_anel_1", -18.0)
+	_fechar_comandos()
+
+func _fechar_comandos() -> void:
+	if _cmd != null:
+		_cmd.queue_free()
+	_cmd = null
+	_cmd_id = ""
+
+func _arrumar_toques() -> void:
+	var ids: Array = []
+	for t in _ids_barras():
+		ids.append(str(t.id))
+	var mostra: bool = not m.hud.esconder_combate
+	if _cmd != null and (m.tempo > _cmd_ate or not mostra or not (_cmd_id in ids)):
+		_fechar_comandos()
+	while _toques.size() < ids.size():
+		var b := Button.new()
+		b.flat = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.mouse_filter = Control.MOUSE_FILTER_STOP
+		var vazio := StyleBoxEmpty.new()
+		for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+			b.add_theme_stylebox_override(st, vazio)
+		b.pressed.connect(_toque_barra.bind(_toques.size()))
+		add_child(b)
+		_toques.append(b)
+	for i in _toques.size():
+		var b: Button = _toques[i]
+		b.visible = mostra and i < ids.size()
+		if b.visible:
+			b.position = BARRAS + barras_d + Vector2(0, i * 40.0) * barras_s
+			b.size = Vector2(196, 36) * barras_s
+
 func _ready() -> void:
 	_barras = Control.new()
 	_barras.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -107,6 +206,8 @@ func _process_parte(dt: float) -> void:
 		buscando = false
 	if em_time() and Engine.get_process_frames() % 3 == 0: # FPS (auditoria 2026-11-11): barras do time 20 vezes por segundo
 		_barras.queue_redraw()
+	if (em_time() or not _toques.is_empty()) and Engine.get_process_frames() % 15 == 0:
+		_arrumar_toques()
 
 # ---------- o que vem do servidor (online.gd) ----------
 func do_servidor(ev: Dictionary) -> void:

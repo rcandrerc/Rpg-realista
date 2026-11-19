@@ -37,6 +37,11 @@ const ACOES := {
 	"amiga_equip": ["Ver equipamento", "basico"],
 }
 const AMIGA_JANELA := false # a janela de conversa com botões de fala da Cecília/Dario (desligada a pedido do André, 2026-11-13)
+# Conversa por opções (André 2026-11-19, sem IA): o botão de ação perto da Cecília/Dario abre esta janela com as opções
+# que o servidor manda (shared/amiga.js opcoesAmiga); no time, tocar no nome dele no painel do time abre de longe.
+# Tocar no corpo continua abrindo o cartão de jogador (troca.gd), que ganhou o botão "Conversar".
+const AMIGA_OPCOES := false # André 2026-11-19: "a gente esquece tudo que a gente falou": Cecília e Dario iguais a jogador (cartão + chat com IA); o menu de perguntas fica guardado, desligado
+var _amiga_menu := "inicio" # o menu que está na tela (o servidor confere a opção nele)
 const AMIGA_BOTOES := ["amiga_casa", "amiga_ajuda", "amiga_time", "amiga_dungeon", "amiga_troca", "amiga_equip"]
 var _amiga := {} # id -> a Cecília ou o Dario vistos como NPC da janela (o corpo vem do online.gd, como outro jogador)
 var _amiga_pedido = null # o que ela pediu ({k, n, nome}): aparece o botão Dar
@@ -195,7 +200,7 @@ func tocou_tela(pos: Vector2) -> void:
 		return
 	var achou = null
 	var md := 1e9
-	for n in _com_amiga():
+	for n in _com_amiga(false):
 		var d := _dist(n)
 		if d > 35.0:
 			continue
@@ -220,13 +225,13 @@ func tocou_tela(pos: Vector2) -> void:
 	m.hud.aviso("Indo até %s" % _curto(achou))
 
 # os NPCs da vila e, para o dono dela, a Cecília (um jogador do servidor com bot: o corpo é o do online.gd)
-func _com_amiga() -> Array:
+func _com_amiga(falar := true) -> Array:
 	var l: Array = m.npcs
 	if m.totem: # totens de teleporte (totem.gd): a pedra abre a janela como um NPC
 		l = l + m.totem.como_npcs()
 	if not m.on():
 		return l
-	if not AMIGA_JANELA: # André 2026-11-13: Cecília e Dario são como jogadores (cartão do troca.gd + chat), sem botões que falam
+	if not AMIGA_JANELA and not (AMIGA_OPCOES and falar): # o toque no corpo fica com o cartão (troca.gd) # André 2026-11-13: Cecília e Dario são como jogadores (cartão do troca.gd + chat), sem botões que falam
 		return l
 	for aid in m.online.amiga_ids: # a Cecília e o Dario (André 2026-11-11)
 		var a = _amiga_npc(str(aid))
@@ -303,7 +308,10 @@ func _process_parte(dt: float) -> void:
 	_reabrir()
 	if npc != null and not is_same(m.P.hist_info, _hi_visto): # chegou progresso novo com a janela aberta
 		_botao_missao()
-	if npc != null:
+	if npc != null and npc.get("longe", false): # conversa de longe pelo painel do time: fecha se ele sair do time
+		if m.h.morto > 0.0 or not (m.amigos and m.amigos.no_meu_time(str(npc.id))):
+			fechar()
+	elif npc != null:
 		# o NPC vira para o herói enquanto conversa e volta para onde olhava depois
 		var alvo: float = atan2(m.heroi.position.x - npc.no.position.x, m.heroi.position.z - npc.no.position.z)
 		if npc.funcao != "totem": # a pedra não vira
@@ -381,8 +389,16 @@ func _abrir(n: Dictionary, toque: bool) -> void:
 		fala_ui.text = "..."
 		_amiga_pedido = null # o pedido e o time são de cada amigo: a resposta do servidor traz os deste
 		_amiga_time = false
-		m.rede("amiga", {"acao": "oi", "id": str(n.id)})
-		_botoes_amiga()
+		n.longe = false
+		if AMIGA_OPCOES: # as opções chegam com a primeira fala dele (fala())
+			_amiga_menu = "inicio"
+			for c in opcoes.get_children():
+				opcoes.remove_child(c)
+				c.queue_free()
+			m.rede("amiga", {"acao": "menu", "id": str(n.id)})
+		else:
+			m.rede("amiga", {"acao": "oi", "id": str(n.id)})
+			_botoes_amiga()
 	for c in (opcoes.get_children() if not n.get("amiga", false) else []):
 		opcoes.remove_child(c)
 		c.queue_free()
@@ -705,9 +721,100 @@ func _atualizar_consertar() -> void:
 			b.text = Idioma.frase(str(b.get_meta("pt")))
 
 # o servidor respondeu ("fala"): se a janela desse NPC está aberta, a fala aparece nela. true = mostrou aqui
+# ---------- conversa por opções (André 2026-11-19) ----------
+# Abre a conversa com a Cecília/Dario pelo id dele no online.gd: de perto (cartão "Conversar") ou de longe pelo painel do
+# time (amigos.gd). De longe não tem corpo por perto: a janela abre sem virar a câmera.
+func abrir_amiga(aid: String) -> void:
+	if not m.on() or (m.h != null and m.h.morto > 0.0):
+		return
+	if m.troca:
+		m.troca.esconder_cartao()
+	var n = _amiga_npc(aid)
+	if n != null and _dist(n) <= 4.5: # de perto: a janela de sempre (vira para ele)
+		n.longe = false
+		abrir(n)
+		return
+	var o = m.online.outros.get(aid)
+	var nome: String = str(o.get("nome", "")) if o is Dictionary else ""
+	if nome == "" and m.amigos:
+		for t in m.amigos.time:
+			if str(t.get("id", "")) == aid:
+				nome = str(t.get("nome", ""))
+	if not _amiga.has(aid): # longe: o NPC da janela sem o corpo (retrato pelo visual que o servidor manda)
+		_amiga[aid] = {"id": aid, "nome": "%s, %s" % [nome if nome != "" else "Amigo", str(m.online.amiga_papeis.get(aid, ""))], "funcao": "amiga", "amiga": true,
+			"acoes": [], "falas": [], "modelo": str(o.get("visual", "victoria")) if o is Dictionary else "victoria", "aparencia": {}, "info": {"roupa": ""}}
+	n = _amiga[aid]
+	n.longe = true
+	if indo != null:
+		indo = null
+	npc = n
+	nome_ui.text = str(n.nome).get_slice(",", 0)
+	var papel := str(n.nome).get_slice(",", 1).strip_edges() if str(n.nome).contains(",") else ""
+	papel_ui.text = Idioma.frase((papel.substr(0, 1).to_upper() + papel.substr(1)) if papel != "" else "")
+	fala_ui.text = "..."
+	_itens_passe(false)
+	_btn_missao = null
+	_amiga_menu = "inicio"
+	for c in opcoes.get_children():
+		opcoes.remove_child(c)
+		c.queue_free()
+	retrato_ui.texture = _retratos.get(aid) if _retratos.has(aid) else (_retrato(n) if n.has("no") and is_instance_valid(n.get("no")) else null)
+	retrato_ui.modulate = Color.WHITE
+	_aberto_ms = -ESPERA_TOQUE
+	raiz.visible = true
+	m.hud.bloqueado = true
+	m.hud.esconder_combate = true
+	m.sons.tocar("pano", -10.0)
+	m.rede("amiga", {"acao": "menu", "id": aid})
+
+# a fala dele e as próximas opções (texto vazio: só trocou de menu, a fala de antes fica)
+func _fala_opcoes(texto: String, ev: Dictionary) -> void:
+	if texto != "":
+		fala_ui.text = Idioma.frase(texto)
+	_amiga_menu = str(ev.get("menu", "inicio"))
+	_amiga_time = ev.get("noTime", false) == true
+	for c in opcoes.get_children():
+		opcoes.remove_child(c)
+		c.queue_free()
+	var nid := str(npc.id)
+	for o in ev.get("opcoes", []):
+		var k := str(o.get("id", ""))
+		var t := str(o.get("t", ""))
+		opcoes.add_child(_opcao(t, _icone_opcao(k), func(): _tocar_opcao(nid, k)))
+	if ev.get("fecha", false) == true:
+		var quem = npc
+		await get_tree().create_timer(1.6).timeout
+		if npc == quem:
+			fechar()
+
+func _tocar_opcao(nid: String, k: String) -> void:
+	if npc == null or str(npc.id) != nid:
+		return
+	match k:
+		"equip": # o equipamento dele: a mesma janela de qualquer jogador (troca.gd)
+			fechar()
+			m.troca.pedir_equip(nid)
+			return
+		"seguir": # o herói segue ele até o campo (seguir.gd; o servidor escolhe o campo)
+			fechar()
+			m.rede("amiga", {"acao": "seguir", "id": nid})
+			return
+	m.rede("amiga", {"acao": "op", "op": k, "menu": _amiga_menu, "id": nid})
+	m.sons.tocar("q_anel_1", -18.0)
+
+const ICONE_OPCAO := {"comandos": "topo_multi", "timeMenu": "marcado", "equip": "eq_corpo", "tchau": "sair", "inicio": "desfazer", "time": "topo_multi",
+	"sairTime": "sair", "troca": "troca", "dar": "it_ouro", "foco": "marcado", "atras": "barreira", "recua": "rolar", "livre": "it_espada",
+	"seguir": "lobo", "vir": "disparada", "cacar": "it_espada", "pescar": "onda", "minerar": "picareta", "lenha": "it_lenha", "parar": "desfazer",
+	"voltar": "topo_vila", "ajuda": "falar", "ondeUpar": "topo_missoes", "missao": "it_tomo", "piada": "falar", "fazendo": "falar"}
+func _icone_opcao(k: String) -> String:
+	return str(ICONE_OPCAO.get(k, "falar"))
+
 func fala(npc_id: String, texto: String, ev := {}) -> bool:
 	if not _depois.is_empty() and str(_depois.n.id) == npc_id:
 		_depois_fala[npc_id] = texto
+	if npc != null and npc.get("amiga", false) and str(ev.get("quem", "")) == str(npc.id) and ev.has("opcoes"):
+		_fala_opcoes(texto, ev) # conversa por opções (André 2026-11-19)
+		return true
 	if npc == null or str(npc.id) != npc_id:
 		return false
 	fala_ui.text = Idioma.frase(texto)

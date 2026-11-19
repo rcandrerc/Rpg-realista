@@ -14,10 +14,19 @@ for (const id of ['cecilia', 'dario']) {
   a.registro['2020-01-01'] = { [j.conta]: [{ de: 'ele', texto: 'velho' }] }; c.registrarAmiga(a, j.conta, 'ele', 'novo');
   ok(!a.registro['2020-01-01'], `${id}: dia velho sai (fica só hoje e ontem)`);
 }
-// IA desligada (André 2026-11-18): todos respondem pelo repertório pronto e a lista não mostra o botão de ativar chave
+// IA ligada de novo (André 2026-11-19: "pode deixar aberta a chave pra todos"): todo jogador, só Cecília e Dario
 {
   const { IA_CONVERSA } = await import('../../shared/index.js');
-  ok(IA_CONVERSA.ligada === false, 'IA das conversas desligada no jogo');
-  const c = s.amigosIa.find((x) => x.AMIGA.id === 'cecilia'); c.iaPorChave = true; (c.amigaFalam ||= new Set()).add('andre');
-  ok(!c.iaAmiga('andre'), 'mesmo com chave, a resposta vem do repertório pronto');
+  ok(IA_CONVERSA.ligada === true && IA_CONVERSA.quem.join() === 'cecilia,dario', 'IA ligada só na Cecília e no Dario');
+  const c = s.amigosIa.find((x) => x.AMIGA.id === 'cecilia'); c.iaPorChave = true;
+  ok(c.iaAmiga('andre'), 'sem chave própria, a resposta vem da IA do servidor');
+  const g = s.amigosIa.find((x) => x.AMIGA.rival && x.amiga);
+  ok(!g || !g.iaAmiga('andre'), 'a Geada não tem IA');
+}
+// a fala da IA leva a marca de qual IA respondeu (André 2026-11-19: a ronda das 9h ajusta o Gemini primeiro)
+{
+  const c = s.amigosIa.find((x) => x.AMIGA.id === 'dario'), a = c.amiga, hoje = () => Object.values(a.registro).at(-1)[j.conta];
+  a.ia.fonte = { ia: 'gemini-3.5-flash-lite', t: c.tempo }; c.registrarAmiga(a, j.conta, 'ela', 'resposta da IA');
+  c.registrarAmiga(a, j.conta, 'ela', 'fala pronta');
+  ok(hoje().at(-2).ia === 'gemini-3.5-flash-lite' && !hoje().at(-1).ia, 'o registro marca qual IA respondeu (e só aquela fala)');
 }
