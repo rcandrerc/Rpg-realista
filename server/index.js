@@ -170,6 +170,7 @@ class SalaClareira extends Room {
     this.ouvir('barra_vista', (c) => this.sim.verBarra(c.sessionId)); // abriu a aba Habilidades (missão "Confira sua barra")
     this.ouvir('diaria', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12 && (m.id == null || (typeof m.id === 'string' && m.id.length < 16))) this.sim.diaria(c.sessionId, { acao: m.acao, id: m.id }); }); // missões diárias (aba Diárias)
     this.ouvir('guilda', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12 && (m.id == null || (typeof m.id === 'string' && m.id.length < 8))) this.sim.guilda(c.sessionId, { acao: m.acao, id: m.id }); }); // Guilda dos Aventureiros (mural e aba Guilda)
+    this.ouvir('missao_vila', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) this.sim.missaoVila(c.sessionId, { acao: m.acao }); }); // missões das vilas (aba Vilas e o cartão âmbar; 'vila' já é o Voltar para a vila)
     this.ouvir('item', (c, m) => this.sim.item(c.sessionId, m)); // mochila: equipar, tirar, usar, comprar, vender
     this.ouvir('leilao', (c, m) => { // Casa do Comércio (Otávio, Rio Claro)
       // robô de testes (André 2026-11-16: "conserta os dois robôs"): faz a missão do leilão sem mexer na economia de
