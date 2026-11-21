@@ -729,7 +729,7 @@ func _montar_lugares() -> Array:
 		ref = {"k": kk, "ox": float(mp.x), "oz": float(mp.z), "id": mp.id}
 	for it in merc:
 		var km := "%.1f" % (dist.call(it) / 1000.0)
-		it.nome = "%s  (%s km" % [it.nome, km.replace(".", ",")]
+		it.nome = "%s  (%s km" % [str(it.curto), km.replace(".", ",")] # só o nome, sem ", mercador" (André 2026-11-21: o texto cortava o valor)
 		var pk = pk_costas if pk_costas is Dictionary else ref
 		if m.transporte != null and pk is Dictionary and pk.has("ox") and str(pk.get("id", "")) != str(it.id):
 			if Vector2(float(it.x) - float(pk.ox), float(it.z) - float(pk.oz)).length() >= 40.0:
