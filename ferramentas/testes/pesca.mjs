@@ -60,6 +60,9 @@ ok(j.prog.prof.pes > 0 && j.prog.vara === Object.values(pegos).reduce((a, b) => 
 s.eventos = []; s.pescar('P', { acao: 'lancar', ...boia });
 for (let i = 0; i < 100 && j.pesca.st !== 'fisgou'; i++) s.passoPesca(j, 0.1);
 for (let i = 0; i < 15 && j.pesca; i++) s.passoPesca(j, 0.1);
+// os outros veem (André 2026-11-21): "pescaVer" para todos, com onde a boia está, do arremesso até o fim
+{ const v = s.eventos.filter((e) => e.t === 'pescaVer' && e.id === 'P');
+  ok(v.every((e) => !e.para) && ['lancando', 'espera', 'fisgou', 'fim'].every((st) => v.some((e) => e.st === st)) && Math.abs(v.find((e) => e.st === 'lancando').x - boia.x) < 0.01, `os outros veem a pesca: ${v.map((e) => e.st).join(' > ')}`); }
 ok(!j.pesca && avisos().some((t) => /escapou/.test(t)), 'demorou no "!": o peixe escapa');
 // andar recolhe a linha
 s.eventos = []; s.pescar('P', { acao: 'lancar', ...boia });

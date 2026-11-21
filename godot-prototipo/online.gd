@@ -905,6 +905,8 @@ func animar(o: Dictionary, c: Dictionary) -> void:
 	var acao = c.get("acao")
 	if o.get("coleta") != null and not c.get("morto", false) and not (acao is Dictionary and int(c.get("acaoSeq", 0)) != o.seq):
 		return # minerando ou cortando lenha: o golpe anda em _coleta_quadro
+	if o.get("pesca") != null and not c.get("morto", false) and not (acao is Dictionary and int(c.get("acaoSeq", 0)) != o.seq):
+		return # pescando: parado segurando a vara (_pesca_quadro)
 	if acao is Dictionary and int(c.get("acaoSeq", 0)) != o.seq:
 		o.seq = int(c.get("acaoSeq", 0))
 		var a := animacao(str(acao.get("nome", "")))
@@ -1142,6 +1144,10 @@ func evento(ev: Dictionary) -> void:
 		"pesca": # pescaria (pesca.gd): lançou, boia na água, "!", briga, pegou, fim
 			if m.pesca:
 				m.pesca.evento(ev)
+			return
+		"pescaVer": # outro jogador ou bot pescando (André 2026-11-21): vara, linha e boia para quem vê
+			if str(ev.get("id", "")) != meu_id and outros.has(str(ev.id)):
+				_pesca_outro(outros[str(ev.id)], ev)
 			return
 		"regador": # encheu o regador (botão Encher ou mergulho)
 			if m.construcao:
@@ -1724,6 +1730,7 @@ func reservar_corpo(vis: String) -> void:
 # saiu da visão: o corpo fica escondido e parado para ser reaproveitado (NPC e, desde 2026-11-13, jogador também)
 func _soltar_corpo(o: Dictionary) -> void:
 	_coleta_fim(o) # a ferramenta da coleta não fica no corpo guardado
+	_pesca_fim(o) # nem a vara, a linha e a boia
 	if o.get("montaria") != null:
 		o.montaria.remover()
 		o.montaria = null
@@ -1827,6 +1834,8 @@ func _passo(dt: float) -> void:
 		o.uma_vez = max(0.0, o.uma_vez - dt)
 		if o.get("coleta") != null:
 			_coleta_quadro(o)
+		if o.get("pesca") != null:
+			_pesca_quadro(o, dt)
 		if o.get("montaria") != null: # o lobo anda no ritmo do que o corpo andou de verdade neste quadro
 			var v: float = Vector2(o.no.position.x - antes.x, o.no.position.z - antes.z).length() / max(dt_pos, 0.001)
 			o.vel_m = lerp(float(o.get("vel_m", 0.0)), min(v, 12.0), min(1.0, dt_pos * 6.0))
@@ -2054,3 +2063,186 @@ func _coleta_fim(o: Dictionary) -> void:
 	o.seq = -1
 	if o.anim and o.anim.current_animation == "descendente":
 		o.anim.play(animacao("Idle"), 0.2)
+
+# ---------- pesca dos outros (André 2026-11-21: "quero animação de pesca sim neles") ----------
+# O servidor manda "pescaVer" a cada passo da pesca de alguém (lancando, espera, fisgou, briga, pegou, fim) com onde a
+# boia está. Quem vê: a vara na mão (cabo de cortiça, haste de madeira e molinete, como a do herói em pesca.gd), a linha
+# da ponta até a boia vermelha e branca, a boia balançando na água, afundando no "!" e a vara sacudindo na briga.
+const VARA_OUTRO := 1.7
+
+func _pesca_outro(o: Dictionary, ev: Dictionary) -> void:
+	var st := str(ev.get("st", ""))
+	if st == "fim":
+		_pesca_fim(o)
+		return
+	if not is_instance_valid(o.no) or o.get("esq") == null or o.get("montaria") != null:
+		return
+	var p = o.get("pesca")
+	if p == null:
+		_coleta_fim(o)
+		p = _montar_pesca_outro(o)
+		o.pesca = p
+		var an: AnimationPlayer = o.anim
+		if an and an.has_animation(animacao("Idle")):
+			an.play(animacao("Idle"), 0.2)
+	p.st = st
+	p.t = 0.0
+	p.vista = m.tempo
+	if ev.has("x"):
+		p.alvo = Vector3(float(ev.x), float(m.terreno.agua.nivel) if m.terreno else 0.0, float(ev.z))
+	if st == "lancando": # a boia sai da ponta e cai na água
+		p.voo = 0.0
+
+func _montar_pesca_outro(o: Dictionary) -> Dictionary:
+	var L: Dictionary = m.lugar_armas(o.visual)
+	m.colisor_espada(o.esq, null)
+	m.prender(o.esq, o.espada, L.espadaCostas)
+	m.prender(o.esq, o.cajado, L.cajadoCostas)
+	var vara := Node3D.new()
+	var madeira := StandardMaterial3D.new()
+	madeira.albedo_color = Color("5a3b22")
+	madeira.roughness = 0.38
+	var cortica := StandardMaterial3D.new()
+	cortica.albedo_color = Color("a8835a")
+	cortica.roughness = 0.9
+	var metal := StandardMaterial3D.new()
+	metal.albedo_color = Color("7d848c")
+	metal.roughness = 0.35
+	metal.metallic = 0.85
+	var pecas := [[0.024, 0.022, 0.34, cortica, 0.2], [0.018, 0.005, VARA_OUTRO - 0.3, madeira, 0.3 + (VARA_OUTRO - 0.3) / 2.0]]
+	for q in pecas:
+		var c := CylinderMesh.new()
+		c.bottom_radius = q[0]
+		c.top_radius = q[1]
+		c.height = q[2]
+		c.radial_segments = 8
+		c.rings = 1
+		var mi := MeshInstance3D.new()
+		mi.mesh = c
+		mi.material_override = q[3]
+		mi.position.y = q[4]
+		vara.add_child(mi)
+	var mol := MeshInstance3D.new()
+	var mc := CylinderMesh.new()
+	mc.top_radius = 0.042
+	mc.bottom_radius = 0.042
+	mc.height = 0.04
+	mol.mesh = mc
+	mol.material_override = metal
+	mol.rotation.z = PI / 2.0
+	mol.position = Vector3(0, 0.42, 0.06)
+	vara.add_child(mol)
+	var ponta := Marker3D.new()
+	ponta.position = Vector3(0, VARA_OUTRO, 0)
+	vara.add_child(ponta)
+	m.add_child(vara)
+	var ba: BoneAttachment3D = m.prender(o.esq, vara, L.espadaMao)
+	# a boia: metade de cima vermelha, de baixo branca (a mesma do herói, pesca.gd _montar_boia)
+	var boia := Node3D.new()
+	for metade in [0, 1]:
+		var sm := SphereMesh.new()
+		sm.radius = 0.055
+		sm.height = 0.055
+		sm.is_hemisphere = true
+		sm.radial_segments = 12
+		sm.rings = 4
+		var bi := MeshInstance3D.new()
+		bi.mesh = sm
+		var bm := StandardMaterial3D.new()
+		bm.albedo_color = Color("e8463a" if metade == 0 else "f2f1ec")
+		bm.roughness = 0.35
+		if metade == 0:
+			bm.emission_enabled = true
+			bm.emission = Color("401010")
+		bi.material_override = bm
+		if metade == 1:
+			bi.rotation.x = PI
+		bi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		boia.add_child(bi)
+	boia.visible = false
+	m.add_child(boia)
+	# a linha: da ponta da vara até a boia, com uma barriga de leve (redesenhada a cada quadro)
+	var im := ImmediateMesh.new()
+	var linha := MeshInstance3D.new()
+	linha.mesh = im
+	var lm := StandardMaterial3D.new()
+	lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lm.albedo_color = Color(0.92, 0.92, 0.88, 0.85)
+	lm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	linha.material_override = lm
+	linha.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	m.add_child(linha)
+	return {"vara": vara, "ba": ba, "ponta": ponta, "boia": boia, "linha": linha, "im": im, "st": "", "t": 0.0, "voo": 1.0, "alvo": null, "vista": m.tempo, "rot0": vara.rotation}
+
+func _pesca_quadro(o: Dictionary, dt: float) -> void:
+	var p: Dictionary = o.pesca
+	if m.tempo - float(p.vista) > 40.0: # o fim se perdeu (saiu da visão): tira
+		_pesca_fim(o)
+		return
+	p.t = float(p.t) + dt
+	if not is_instance_valid(p.vara) or not is_instance_valid(p.boia):
+		return
+	var tp: Vector3 = (p.ponta as Node3D).global_position
+	if p.alvo != null: # de frente para a boia
+		var d: Vector3 = p.alvo - o.no.position
+		o.no.rotation.y = lerp_angle(o.no.rotation.y, atan2(d.x, d.z), 0.2)
+	# a vara: sacode na briga, dá um tranco no "!" e no peixe saindo
+	var sac := 0.0
+	match str(p.st):
+		"briga":
+			sac = sin(float(p.t) * 18.0) * 0.12
+		"fisgou":
+			sac = sin(float(p.t) * 30.0) * 0.06
+		"pegou":
+			sac = -0.25 * max(0.0, 1.0 - float(p.t) * 2.0)
+	p.vara.rotation = p.rot0 + Vector3(sac, 0, 0)
+	var boia: Node3D = p.boia
+	if p.alvo == null:
+		boia.visible = false
+		p.im.clear_surfaces()
+		return
+	boia.visible = str(p.st) != "pegou" or float(p.t) < 0.4
+	var bp: Vector3 = p.alvo
+	if float(p.voo) < 1.0: # voando da ponta até a água (arco)
+		p.voo = min(1.0, float(p.voo) + dt / 0.6)
+		var k: float = float(p.voo)
+		bp = tp.lerp(p.alvo, k) + Vector3(0, sin(k * PI) * 1.2, 0)
+	else:
+		var afunda := 0.0
+		match str(p.st):
+			"fisgou":
+				afunda = 0.07 + sin(float(p.t) * 22.0) * 0.03
+			"briga":
+				afunda = 0.05 + sin(float(p.t) * 9.0) * 0.04
+				bp += Vector3(sin(float(p.t) * 3.1) * 0.25, 0, cos(float(p.t) * 2.3) * 0.25) # o peixe puxa
+			"pegou":
+				bp = bp.lerp(tp, min(1.0, float(p.t) * 1.5)) # recolhe
+			_:
+				afunda = -0.01 + sin(float(p.t) * 2.2) * 0.012 # balança na água
+		bp.y -= afunda
+	boia.global_position = bp
+	# a linha com barriga (desce até 0,25 m no meio quando frouxa; reta na briga)
+	var frouxa: float = 0.0 if str(p.st) in ["briga", "fisgou"] else 0.25
+	var im: ImmediateMesh = p.im
+	im.clear_surfaces()
+	im.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+	for i in 13:
+		var f := float(i) / 12.0
+		var q: Vector3 = tp.lerp(bp + Vector3(0, 0.05, 0), f)
+		q.y -= sin(f * PI) * frouxa
+		im.surface_add_vertex(q)
+	im.surface_end()
+
+func _pesca_fim(o: Dictionary) -> void:
+	var p = o.get("pesca")
+	if p == null:
+		return
+	o.erase("pesca")
+	for k in ["boia", "linha"]:
+		if is_instance_valid(p[k]):
+			p[k].queue_free()
+	if is_instance_valid(p.vara):
+		m.soltar_arma(p.vara)
+		p.vara.queue_free()
+	o.modo = "" # a espada ou o cajado volta para a mão na próxima foto
+	o.seq = -1
