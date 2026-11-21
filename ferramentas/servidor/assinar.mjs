@@ -13,7 +13,10 @@ import { textoAssinado, idChave, CHAVES_ASSINATURA } from '../../server/atualiza
 const arqPacote = process.argv[2];
 const arqChave = process.env.ASSINATURA_PACOTE || path.join(os.homedir(), '.aethra', 'assinatura-pacote.pem');
 const naOracle = process.env.RUNNER_ENVIRONMENT === 'self-hosted';
-const exigida = CHAVES_ASSINATURA.length > 0; // passo 2 em diante: o servidor só instala pacote assinado
+// Lista que o servidor aceita (server/atualizar.js). Os testes (ferramentas/testes/) trocam por CHAVES_ASSINATURA_TESTE
+// (JSON) para treinar os dois casos; o CI de verdade nunca define. Só mexe nesta conferência prévia, nunca no servidor.
+const lista = process.env.CHAVES_ASSINATURA_TESTE ? JSON.parse(process.env.CHAVES_ASSINATURA_TESTE) : CHAVES_ASSINATURA;
+const exigida = lista.length > 0; // passo 2 em diante: o servidor só instala pacote assinado
 const falhar = (msg) => { console.log(`::error::${msg} Nada publicado; veja ferramentas/runner/LEIAME.md.`); process.exit(1); };
 
 // Cria a chave sem corrida: grava num arquivo temporário e liga no nome final só se ninguém criou antes (link falha
@@ -37,7 +40,14 @@ function criarChave() {
 // Troca de chave de propósito (pages.yml > "Criar de propósito uma chave nova", rodado na Oracle): a nova entra no
 // lugar da velha de uma vez (rename troca o arquivo inteiro), e a velha some. Só antes do passo 2 (lista vazia): depois
 // dele, trocar a chave faria o servidor no ar recusar tudo, então a troca é recusada e nada publica (LEIAME).
-if (fs.existsSync(arqChave) && naOracle && process.env.CRIAR_CHAVE_ASSINATURA === '1') {
+// "Re-run" de uma execução com a caixa da troca (GITHUB_RUN_ATTEMPT > 1) usa o código e as opções daquela vez, inclusive
+// a lista vazia: trocaria de novo e apagaria a chave que já foi para a lista; e, se a 1ª tentativa morreu antes de
+// trocar, assinaria com a chave velha e mostraria a pública dela. Então nova tentativa com a caixa não troca nem assina:
+// o job cai e nada publica (revisão independente). Para trocar ou publicar: Run workflow de novo, nunca Re-run.
+const novaTentativa = Number(process.env.GITHUB_RUN_ATTEMPT || 1) > 1;
+if (naOracle && process.env.CRIAR_CHAVE_ASSINATURA === '1' && novaTentativa) {
+  falhar('Nova tentativa (Re-run) de uma execução com a troca de chave: não troco nem assino. Rode o pages.yml de novo (Run workflow), com a caixa só se ainda precisar trocar.');
+} else if (fs.existsSync(arqChave) && naOracle && process.env.CRIAR_CHAVE_ASSINATURA === '1') {
   if (exigida) falhar('Troca de chave recusada: o servidor já exige assinatura (CHAVES_ASSINATURA preenchida). A chave atual ficou como estava.');
   const { privateKey } = crypto.generateKeyPairSync('ed25519');
   const tmp = `${arqChave}.${process.pid}.tmp`;
@@ -69,7 +79,7 @@ try { privada = crypto.createPrivateKey(fs.readFileSync(arqChave)); } catch (e) 
 }
 const publica = crypto.createPublicKey(privada).export({ type: 'spki', format: 'der' }).toString('base64');
 // Chave diferente da que o servidor aceita (outra máquina, chave trocada): mesma coisa, nada publica.
-if (exigida && !CHAVES_ASSINATURA.includes(publica)) falhar(`A chave desta máquina (${idChave(publica)}, pública ${publica}) não está em CHAVES_ASSINATURA.`);
+if (exigida && !lista.includes(publica)) falhar(`A chave desta máquina (${idChave(publica)}, pública ${publica}) não está em CHAVES_ASSINATURA.`);
 const pacote = JSON.parse(fs.readFileSync(arqPacote, 'utf8'));
 delete pacote.assinatura;
 delete pacote.assinado_por;

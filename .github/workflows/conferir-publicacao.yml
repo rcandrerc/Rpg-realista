@@ -1,0 +1,30 @@
+# Robô diário da publicação (frente 2, portão de 10/12; Presidente 2026-11-19): o que o jogo baixa está inteiro e em
+# dia? Cardápio igual no Pages e no balde, todos os pedaços no balde, pacote do servidor igual nos dois, site não
+# parado e servidor do jogo não para trás. Só lê (nada publica). Vermelho = a ronda das 9h vê.
+# Ver ferramentas/atualizacao/conferir-publicacao.mjs.
+name: Conferir publicação
+
+on:
+  schedule:
+    - cron: '20 11 * * *' # 08:20 de Brasília: depois do reinício das 05h e antes da ronda das 9h
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  conferir:
+    runs-on: ${{ github.event.repository.private && (vars.RUNNER_TESTES || vars.RUNNER_BUILD) || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # histórico da main: o que ainda não saiu desde o publicado.txt
+          filter: blob:none
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node ferramentas/atualizacao/conferir-publicacao.mjs
+        env:
+          ORACLE_URL: ${{ vars.ORACLE_URL }}

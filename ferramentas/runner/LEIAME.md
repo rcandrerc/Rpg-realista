@@ -138,18 +138,29 @@ velha é apagada. Depois do passo 2 a troca é recusada (o job cai e a chave fic
 recusaria tudo que a nova assinasse. Para trocar depois do passo 2: primeiro a pública nova entra em chaves-assinatura.txt
 na máquina do jogo, depois na lista do código, e só então a chave da Oracle é trocada à mão.
 
-**Como o passo 2 entra:** (1) rodar o pages.yml marcando a caixa, que troca a chave de 19/11 (f1ef4ea7, criada antes
-da aprovação de forks) por uma nova e mostra a pública no log; (2) PR pondo essa pública em CHAVES_ASSINATURA
-(server/atualizar.js). O servidor instala esse pacote ainda sem exigir (lista vazia no código dele) e, dali em diante,
-só instala pacote assinado pela nova.
+**Como o passo 2 entra:** (0) antes, o servidor no ar precisa ser um que grava a data de TODO pacote que instala
+(emitido.txt), mesmo sem exigir; o `/saude` com o campo `servidor` mostra que é. (1) Rodar o pages.yml marcando a
+caixa, que troca a chave de 19/11 (f1ef4ea7, criada antes da aprovação de forks) por uma nova e mostra a pública no
+log. (2) PR pondo essa pública e a reserva em CHAVES_ASSINATURA (server/atualizar.js). O servidor instala esse pacote
+ainda sem exigir (lista vazia no código dele), grava a data dele e, dali em diante, só instala pacote assinado por
+uma chave da lista e mais novo que ele. Sem o passo 0, o primeiro servidor que exige aceitaria de volta um pacote
+mais velho da mesma chave (sem a lista) e voltaria a não exigir (revisão independente).
+
+**Nunca "Re-run" numa execução que trocou a chave:** a nova tentativa usa o código e as opções daquela vez (lista
+vazia) e trocaria de novo, apagando a chave que já está na lista. Desde 19/11 o assinar.mjs derruba o job numa nova
+tentativa com a caixa marcada (GITHUB_RUN_ATTEMPT > 1): não troca nem assina. Para trocar ou publicar, Run workflow
+de novo.
 
 **Chave reserva (decisão do Presidente, 19/11):** a lista leva também uma pública RESERVA Ed25519, gerada fora da
 Oracle. A privada fica só no fontes (`chaves/servidor/assinatura-reserva.pem`) e no Drive do André, nunca na Oracle,
-no repositório ou no chat. Ela serve só se a máquina de builds for perdida, e só com o OK do Presidente. Como usar:
-publicar pelo atalho do GitHub (o pacote sai sem assinatura), baixar `servidor/pacote.json` do site, assinar numa
-máquina de confiança com `ASSINATURA_PACOTE=<caminho da reserva> RUNNER_ENVIRONMENT=self-hosted node
-ferramentas/servidor/assinar.mjs pacote.json` e subir o pacote.json assinado no mesmo lugar (balde e Pages). Depois,
-apagar a cópia local da reserva. O servidor também recusa pacote emitido antes do último que instalou
+no repositório ou no chat. Ela serve só se a máquina de builds for perdida, e só com o OK do Presidente: assina UM
+pacote que põe a chave da máquina de builds nova na lista, e daí em diante tudo volta ao normal. Assinar é só
+`ASSINATURA_PACOTE=<caminho da reserva> RUNNER_ENVIRONMENT=self-hosted node ferramentas/servidor/assinar.mjs pacote.json`
+numa máquina de confiança, apagando a cópia local da reserva depois. Falta o caminho para PUBLICAR esse pacote: o link
+de escrita do balde só existe como segredo do GitHub (ORACLE_PAR), então não dá para subir à mão. Ele vai entrar num
+PR próprio (pacote assinado como arquivo de release + uma opção no pages.yml que o publica no balde e no Pages) e é
+ensaiado antes de 10/12. Enquanto isso, a saída é o André pôr a pública nova em chaves-assinatura.txt na máquina do
+jogo (uma linha, como root). O servidor também recusa pacote emitido antes do último que instalou
 (`emitido_em`, guardado em emitido.txt), então um pacote antigo reenviado não volta.
 
 Isolamento da chave: todas as vagas rodam com o mesmo usuário `runner`. Por isso só código de colaboradores pode
