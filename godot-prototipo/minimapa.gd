@@ -713,8 +713,28 @@ func _montar_lugares() -> Array:
 		(merc if pack else npcs).append(it)
 	npcs.sort_custom(func(a, b): return dist.call(a) < dist.call(b)) # os mais perto em cima
 	merc.sort_custom(func(a, b): return dist.call(a) < dist.call(b))
-	for it in npcs + merc:
+	for it in npcs:
 		it.nome = "%s  (%d m)" % [it.nome, int(dist.call(it))]
+		l.append(it)
+	# mercadores (André 2026-11-21): distância em km com 1 casa e quanto paga pelo pack, na mesma linha. Com um pack nas
+	# costas é o preço dele; sem pack, o de um pack feito no mercador mais perto de você (referência).
+	var pk_costas = m.P.prog.get("pack") if m.P != null and m.P.prog is Dictionary else null
+	var ref := {}
+	if not (pk_costas is Dictionary) and merc.size() > 0 and m.transporte != null:
+		var mp = merc[0] # já ordenado: o mais perto
+		var kk := ""
+		for n in m.mundo.get("npcs", []):
+			if str(n.id) == str(mp.npc):
+				kk = str(n.get("merch", ""))
+		ref = {"k": kk, "ox": float(mp.x), "oz": float(mp.z), "id": mp.id}
+	for it in merc:
+		var km := "%.1f" % (dist.call(it) / 1000.0)
+		it.nome = "%s  (%s km" % [it.nome, km.replace(".", ",")]
+		var pk = pk_costas if pk_costas is Dictionary else ref
+		if m.transporte != null and pk is Dictionary and pk.has("ox") and str(pk.get("id", "")) != str(it.id):
+			if Vector2(float(it.x) - float(pk.ox), float(it.z) - float(pk.oz)).length() >= 40.0:
+				it.nome += " · %d" % m.transporte.preco(pk, float(it.x), float(it.z))
+		it.nome += ")"
 		l.append(it)
 	for it in l:
 		if str(it.tipo) == "caca":
