@@ -87,6 +87,12 @@ var arrastar_terreno := false
 var esconder_combate := false # janela de um NPC aberta: skills, golpe, joystick e cura somem (fica o painel de vida)
 var caido := false # herói caído (morte.gd): os botões de luta somem até ele levantar
 const BARRA_Q := 1.0 / 512.0
+# André 2026-11-21: o aviso ("Vá até uma bigorna...") ficava atrás da mochila aberta (menu, camada 20) e só aparecia
+# ao fechar. Aviso e destaque agora têm camada própria por cima das janelas (30: acima do menu, da janela de criar e
+# da festa; abaixo do medidor de teste, 50). Não pega toque.
+var _avisos_camada: CanvasLayer
+var _avisos: Control
+var _avisos_tinha := false
 var _combate: Control # joystick e botões, desenhados por cima de _tela (some com fade)
 var _joy_ctl: Control # o joystick (filho de _combate, desenhado atrás dos botões)
 var _joy_tinha := false
@@ -101,6 +107,14 @@ func _ready() -> void:
 	_tela.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tela.draw.connect(_desenhar)
 	add_child(_tela)
+	_avisos_camada = CanvasLayer.new()
+	_avisos_camada.layer = 30
+	add_child(_avisos_camada)
+	_avisos = Control.new()
+	_avisos.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_avisos.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_avisos.draw.connect(_desenhar_avisos)
+	_avisos_camada.add_child(_avisos)
 	_combate = Control.new()
 	_combate.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_combate.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -503,7 +517,12 @@ func _process_parte(dt: float) -> void:
 	# aparece mudou, ou todo quadro enquanto há coisa animando (aviso, dano, recarga, joystick, edição). O brilho
 	# que respira no selo do nível é lento: 15 vezes por segundo bastam.
 	var q := Engine.get_process_frames()
-	var anim_tela: bool = editando or _aviso_t > 0 or _destaque_t > 0 or _dano_t > 0 or (vida < 0.3 and vida > 0.0) or _combate_a > 0.0 or canal >= 0.0
+	var tem_aviso: bool = _aviso_t > 0 or _destaque_t > 0
+	_avisos_camada.visible = visible # a camada de cima some junto com o HUD (cinemática, login)
+	if tem_aviso or _avisos_tinha: # anima enquanto há aviso (e uma vez mais ao acabar, para sumir)
+		_avisos.queue_redraw()
+	_avisos_tinha = tem_aviso
+	var anim_tela: bool = editando or _dano_t > 0 or (vida < 0.3 and vida > 0.0) or _combate_a > 0.0 or canal >= 0.0
 	# FPS (varredura 2026-11-12): as barras entram no sinal arredondadas a 1/512 (menos de 1 pixel da barra: a vida e a
 	# mana enchendo devagar redesenhavam o painel todo quadro sem mudar nada na tela). Se só as barras mudaram, o painel
 	# redesenha em quadro par (30 vezes por segundo, como o brilho do selo que já era 15).
@@ -696,18 +715,24 @@ func _desenhar() -> void:
 		_tela.draw_rect(Rect2(pc - Vector2(2, 2), tam + Vector2(4, 4)), Color(0, 0, 0, 0.55))
 		_tela.draw_rect(Rect2(pc, Vector2(tam.x * clamp(canal, 0.0, 1.0), tam.y)), Color(0.75, 0.55, 1.0))
 		_tela.draw_rect(Rect2(pc - Vector2(2, 2), tam + Vector2(4, 4)), COR_BORDA, false, 1.5)
+
+# aviso e destaque (subiu de nível, comando do time): mesmo desenho de antes, na camada de cima (_avisos_camada)
+func _desenhar_avisos() -> void:
+	var f := ThemeDB.fallback_font
 	if _aviso_t > 0:
 		var w := f.get_string_size(aviso_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
 		var a: float = clamp(_aviso_t, 0.0, 1.0)
-		_tela.draw_string_outline(f, Vector2((_tela.size.x - w) * 0.5, 150), aviso_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, 5, Color(0, 0, 0, 0.6 * a))
-		_tela.draw_string(f, Vector2((_tela.size.x - w) * 0.5, 150), aviso_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 0.92, 0.7, a))
+		# fundo escuro atrás do texto: por cima da mochila aberta ele precisa ler contra os quadros do menu
+		_avisos.draw_rect(Rect2((_avisos.size.x - w) * 0.5 - 14.0, 150.0 - 26.0, w + 28.0, 36.0), Color(0.05, 0.04, 0.03, 0.6 * a))
+		_avisos.draw_string_outline(f, Vector2((_avisos.size.x - w) * 0.5, 150), aviso_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, 5, Color(0, 0, 0, 0.6 * a))
+		_avisos.draw_string(f, Vector2((_avisos.size.x - w) * 0.5, 150), aviso_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 0.92, 0.7, a))
 	if _destaque_t > 0:
 		var tam := 40
 		var wd := f.get_string_size(destaque_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam).x
 		var ad: float = clamp(_destaque_t / 0.6, 0.0, 1.0) * clamp((3.2 - _destaque_t) / 0.15, 0.0, 1.0)
-		var pd := Vector2((_tela.size.x - wd) * 0.5, _tela.size.y * 0.36)
-		_tela.draw_string_outline(f, pd, destaque_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, 10, Color(0.16, 0.08, 0.0, 0.85 * ad))
-		_tela.draw_string(f, pd, destaque_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, Color(1.0, 0.8, 0.3, ad))
+		var pd := Vector2((_avisos.size.x - wd) * 0.5, _avisos.size.y * 0.36)
+		_avisos.draw_string_outline(f, pd, destaque_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, 10, Color(0.16, 0.08, 0.0, 0.85 * ad))
+		_avisos.draw_string(f, pd, destaque_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam, Color(1.0, 0.8, 0.3, ad))
 
 # rosto do herói no círculo do painel (André 2026-11-06: "a foto do meu avatar, e não essa letra"); sem palco, a letra
 func _retrato_heroi(c: Vector2, r: float) -> void:
