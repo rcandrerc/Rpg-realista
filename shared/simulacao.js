@@ -2693,7 +2693,7 @@ export class Simulacao {
         if (P.tier[f.peixe] < 2) return this.pegarPeixe(j);
         const t = P.tier[f.peixe], B = P.briga;
         Object.assign(f, { st: 'briga', t: 0, prog: B.comeco, tap: Math.max(B.toqueMin, B.toque - B.toqueTier * t), dec: B.cai + B.caiTier * t, toques: [] });
-        this.evento({ t: 'pesca', para: id, st: 'briga', prog: f.prog, tap: r2(f.tap), dec: r2(f.dec), max: B.max });
+        this.evento({ t: 'pesca', para: id, st: 'briga', prog: f.prog, tap: r2(f.tap), dec: r2(f.dec), max: B.max }); this.pescaVer(j, 'briga');
         return aviso('Peixe grande! Toque rápido no botão pra puxar!');
       }
       if (f.st === 'briga') {
@@ -2723,24 +2723,25 @@ export class Simulacao {
     j.ry = Math.atan2(x - j.x, z - j.z);
     j.pesca = { st: 'lancando', t: 0, x, z, ox: j.x, oz: j.z, lista: P.spots[sp.tipo].peixes[sp.agua], spot: sp.tipo, espera: (P.espera[0] + Math.random() * (P.espera[1] - P.espera[0])) * P.esperaK };
     this.evento({ t: 'pesca', para: id, st: 'lancando', x: r2(x), z: r2(z) });
+    this.pescaVer(j, 'lancando', { x: r2(x), z: r2(z) });
   }
   passoPesca(j, dt) {
     const P = PESCA, f = j.pesca; if (!f) return;
     if (j.morto || j.montado || j.criando) return this.pararPesca(j, null);
     f.t += dt;
-    if (f.st === 'lancando' && f.t >= P.lancar) { f.st = 'espera'; f.t = 0; this.evento({ t: 'pesca', para: j.id, st: 'espera' }); }
+    if (f.st === 'lancando' && f.t >= P.lancar) { f.st = 'espera'; f.t = 0; this.evento({ t: 'pesca', para: j.id, st: 'espera' }); this.pescaVer(j, 'espera'); }
     else if (f.st === 'espera' && f.t >= f.espera) {
       const lista = f.lista;
       let r = Math.random() * lista.reduce((a, [, w]) => a + w, 0);
       f.peixe = lista[0][0];
       for (const [k, w] of lista) { r -= w; if (r <= 0) { f.peixe = k; break; } }
       f.st = 'fisgou'; f.t = 0; f.janela = (P.tier[f.peixe] >= 3 ? P.janelaRaro : P.janela) + P.folga;
-      this.evento({ t: 'pesca', para: j.id, st: 'fisgou' });
+      this.evento({ t: 'pesca', para: j.id, st: 'fisgou' }); this.pescaVer(j, 'fisgou');
     } else if (f.st === 'fisgou' && f.t > f.janela) this.pararPesca(j, 'O peixe escapou...');
     else if (f.st === 'briga') {
       f.prog -= f.dec * dt;
       if (f.prog <= 0 || f.t > P.briga.max) this.pararPesca(j, 'A linha arrebentou... o peixe fugiu!');
-    } else if (f.st === 'pegou' && f.t > 1.6) j.pesca = null;
+    } else if (f.st === 'pegou' && f.t > 1.6) { j.pesca = null; this.pescaVer(j, 'fim'); }
   }
   // tirou o peixe da água: peso sorteado (quase sempre o menor), vigor e pontos de Pescador, XP, gasta a vara
   pegarPeixe(j) {
@@ -2759,7 +2760,7 @@ export class Simulacao {
     let quebrou = false;
     if (p.vara >= P.durabilidade) { tirar(p.mochila, 'vara', 1); p.vara = 0; quebrou = true; }
     Object.assign(f, { st: 'pegou', t: 0 });
-    this.evento({ t: 'pesca', para: j.id, st: 'pegou', peixe: k, nome, peso: txt, tier, dobro, vara: P.durabilidade - p.vara });
+    this.evento({ t: 'pesca', para: j.id, st: 'pegou', peixe: k, nome, peso: txt, tier, dobro, vara: P.durabilidade - p.vara }); this.pescaVer(j, 'pegou');
     this.evento({ t: 'aviso', para: j.id, texto: (tier >= 4 ? 'LENDÁRIO! ' : tier >= 3 ? 'Que peixão! ' : '') + `Pegou: ${nome} · ${txt}` });
     if (quebrou) this.evento({ t: 'aviso', para: j.id, texto: 'Sua vara de pescar quebrou. Crie outra na mochila' });
     this.historia(j, 'pesca', { k, n: dobro ? 2 : 1, barco: j.veiculo === 'barquinho' });
@@ -2813,10 +2814,17 @@ export class Simulacao {
       }
     }
   }
+  // os outros veem a pesca (André 2026-11-21: "quero animação de pesca sim neles"): vara na mão, linha e boia onde caiu.
+  // Vai para todos (sem "para"); quem pesca já recebe o evento "pesca" dele. x, z: onde a boia está (vem a cada passo novo,
+  // para quem chegou perto depois do arremesso também ver)
+  pescaVer(j, st, extra = {}) {
+    const f = j.pesca;
+    this.evento({ t: 'pescaVer', id: j.id, st, ...(f ? { x: r2(f.x), z: r2(f.z) } : {}), ...extra });
+  }
   pararPesca(j, motivo = undefined) {
     if (!j.pesca) return;
     j.pesca = null;
-    this.evento({ t: 'pesca', para: j.id, st: 'fim' });
+    this.evento({ t: 'pesca', para: j.id, st: 'fim' }); this.pescaVer(j, 'fim');
     if (motivo) this.evento({ t: 'aviso', para: j.id, texto: motivo });
   }
 
