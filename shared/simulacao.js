@@ -4341,6 +4341,9 @@ export class Simulacao {
       return;
     }
     if (j.esc && !j.morto) return this.passoEscalada(j, dt);
+    // bot no barquinho (André 2026-11-21): boia na linha d'água como o celular põe o herói sentado no banco (transporte.gd),
+    // em vez de cair até o fundo do lago e aparecer nadando
+    if (j.veiculo === 'barquinho' && !j.morto) { j.y = AGUA.nivel - 0.08; j.vy = 0; j.chao = true; } else
     this.passoVertical(j, dt);
     if (j.morto) j.montado = null;
     if (j.morto || j.trava > 0) return;
@@ -4358,7 +4361,7 @@ export class Simulacao {
       j.ry += angDif(alvo, j.ry) * Math.min(1, dt * 12);
     }
     if (j.chao && !j.arrancada && m > 0.5 && !mont) { this.tentarEscalar(j, correr, dt); if (j.esc) return; } else j.empurra = 0;
-    j.anim = this.animMovimento(j, m > 0.15, correr);
+    j.anim = j.veiculo === 'barquinho' ? 'Idle' : this.animMovimento(j, m > 0.15, correr); // remando: sentado (o barco é que anda)
   }
   // Queda, pouso e o tempo do mortal
   passoVertical(j, dt) {
