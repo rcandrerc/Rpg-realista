@@ -2286,7 +2286,7 @@ export const Amiga = {
   // a peça mais fraca dela (que ainda dá para melhorar): { l, it }
   pecaFracaAmiga() {
     const e = this.amiga?.prog.equip || {}; let f = null;
-    for (const [l, it] of Object.entries(e)) if (it && l !== 'cajado' && (it.r | 0) < this.AMIGA.equipInteresse.rarMax && (!f || this.notaEquipAmiga(it) < this.notaEquipAmiga(f.it))) f = { l, it };
+    for (const [l, it] of Object.entries(e)) if (it && (it.r | 0) < this.AMIGA.equipInteresse.rarMax && (!f || this.notaEquipAmiga(it) < this.notaEquipAmiga(f.it))) f = { l, it };
     return f;
   },
   falaEquipAmiga() { const f = this.pecaFracaAmiga(); return this.AMIGA.falasEquip.lista.replace('{lista}', this.listaEquipAmiga() || 'nada').replace('{fraca}', f ? nomeDoItem(f.it) : 'nenhuma, tô bem equipada'); },
@@ -2298,7 +2298,7 @@ export const Amiga = {
   melhorPecaAmiga(it) {
     const p = this.amiga?.prog; if (!p || !it || !ehEquip(it.k)) return false;
     const l = ITENS[it.k].lugar;
-    return l !== 'cajado' && Object.hasOwn(p.equip, l) && reforcoOk(it, p.atr) && this.notaEquipAmiga(it) > this.notaEquipAmiga(p.equip[l]);
+    return Object.hasOwn(p.equip, l) && reforcoOk(it, p.atr) && this.notaEquipAmiga(it) > this.notaEquipAmiga(p.equip[l]);
   },
   // veste na hora o que for melhor na mochila (depois da troca); devolve os nomes
   vestirMelhorAmiga(j) {
@@ -2314,7 +2314,7 @@ export const Amiga = {
     for (let i = 0; i < p.mochila.length; i++) {
       const it = itemValido(p.mochila[i]); if (!it || !ehEquip(it.k)) continue;
       const l = ITENS[it.k].lugar;
-      if (l === 'cajado' || !Object.hasOwn(p.equip, l) || !reforcoOk(it, p.atr)) continue;
+      if (!Object.hasOwn(p.equip, l) || !reforcoOk(it, p.atr)) continue;
       if (nota(it) > nota(p.equip[l])) this.item(j.id, { acao: 'equipar', i }); // a peça velha volta pra mochila e é vendida abaixo
     }
     const guarda = (it) => it.cad || it.k === 'pocao' || it.k.startsWith('semente_') || this.AMIGA.plantas.includes(it.k) || this.AMIGA.pedidos.some((o) => o.k === it.k) || ITENS[it.k].comida;
