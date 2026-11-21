@@ -1116,6 +1116,8 @@
 "Tire o que está pronto para começar outro prato.": "Take out what's done to start another dish.",
 "Parado: o lugar de pronto encheu.": "Stopped: the output slot is full.",
 "Tocar na panela devolve os ingredientes do que não cozinhou.": "Tapping the pot returns the ingredients that weren't cooked.",
+"Toque na lenha ou no carvão da mochila para pôr no fogo. Toque na panela para escolher o prato.": "Tap firewood or charcoal in your inventory to add it to the fire. Tap the pot to pick a dish.",
+"Toque no combustível para pôr lenha. Tocar na panela devolve os ingredientes do que não cozinhou.": "Tap the fuel slot to add firewood. Tapping the pot returns the ingredients that weren't cooked.",
 "Cozinhar na hora (aba Criar)": "Cook instantly (Craft tab)",
 "Plantar": "Plant",
 "Desmontar": "Dismantle",
