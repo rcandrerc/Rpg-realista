@@ -3640,6 +3640,8 @@ export const DUPLAS_GUERRA = [
 // offline (André 2026-11-11, "ganham XP devagar e nunca passam do nível do jogador mais alto do servidor"): ao voltar
 // para o mundo, cada hora fora conta como horasPorDia/24 h jogadas; cada hora jogada dá porHora do XP do próximo nível,
 // dividido por (1 + nível/meio). No máximo maxDias dias.
+// André 2026-11-21: true = Cecília, Dario, Kira, Rufo e Lis caçam, coletam e andam sem a trava da névoa (zonaFechadaEm). Para voltar: false.
+export const NPC_SEM_NEVOA = true;
 export const NPC_VIDA = {
   moradia: [
     { nivel: 1, nome: 'a vila', x: -3.5, z: -7, r: 9 },
