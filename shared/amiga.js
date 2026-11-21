@@ -15,9 +15,10 @@
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
 import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME } from './dados.js';
-import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
+import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO, VEICULOS } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
+import { lugarDoVeiculo, fundoAgua, devolverBarquinho } from './transporte.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
 import { HISTORIA } from './dados.js';
 import { LOJA, precoLoja, PLANTIO, RECEITA_ESTACAO, CATALISADOR, LUGARES } from './dados.js';
@@ -1280,6 +1281,7 @@ export const Amiga = {
     // navio (André 2026-11-21: "se eu quiser ir com os bots podem ficar em cima passeando"): o dono no leme ou no convés
     // e ela perto: sobe e passeia no convés até ele descer (shared/transporte.js bordoBot)
     if (this.bordoBot(j, dono, dt)) return;
+    this.barcoAmiga(j, dono, dt); // água: entra no barquinho dela (se tiver) e desce na margem
     // ficou muito para trás (o dono voltou para a vila, disparou no lobo...): monta no lobo e vem pela estrada até ele
     // (André 2026-11-10: nada de aparecer do lado; antes, de R.longe m para lá, ela surgia atrás dele)
     this.cavernaAmiga(j, dono);
@@ -1300,7 +1302,7 @@ export const Amiga = {
     if (!alvo && S?.chegou && d <= this.AMIGA.lidera.espera) alvo = this.alvoSozinhoAmiga(j, S.c); // no campo: ela puxa os monstros
     // montaria: monta quando o dono monta (e desce para lutar); levando, quem decide é a viagem dela
     const monta = !!dono.montado && !alvo && !ia.atividade; // coletando: a pé
-    if (!leva && monta !== !!j.montado) j.montado = monta ? (MONTARIAS[dono.montado] ? dono.montado : 'lobo') : null;
+    if (!leva && !j.veiculo && monta !== !!j.montado) j.montado = monta ? (MONTARIAS[dono.montado] ? dono.montado : 'lobo') : null;
     // combate pelo cérebro por regras (André 2026-11-11, shared/cerebro.js + CEREBRO em dados.js): poção, Cura (nela e
     // em quem do time está mal), fugir sem poção, recuar do golpe carregado, proteger aliado, atacar de espada ou cajado
     if (this.cerebroAmiga(j, dono, alvo)) return;
@@ -1549,7 +1551,7 @@ export const Amiga = {
     const funda = (x, z) => (noLago(x, z)?.fundo || 0) > V.agua, f = Math.min(V.frente, da);
     const agua = funda(j.x, j.z) || funda(j.x + dx / da * f, j.z + dz / da * f);
     if (agua) { v.seco = 0; if (j.montado) j.montado = null; }
-    else if (!j.montado) { v.seco += dt; if (v.seco >= V.seco && j.chao && !j.esc) j.montado = MONTARIAS[dono.montado] ? dono.montado : 'lobo'; }
+    else if (!j.montado && !j.veiculo) { v.seco += dt; if (v.seco >= V.seco && j.chao && !j.esc) j.montado = MONTARIAS[dono.montado] ? dono.montado : 'lobo'; }
     // preso (árvore, pedra, gente): desvia de lado um pouco; no mesmo ponto 3 vezes, pula para o próximo
     v.t += dt;
     if (v.desvio > 0) v.desvio -= dt;
@@ -1564,6 +1566,51 @@ export const Amiga = {
     if (v.desvio > 0) { const l = v.lado; [mx, mz] = [mx * 0.3 + mz * l, mz * 0.3 - mx * l]; const n = Math.hypot(mx, mz); mx /= n; mz /= n; }
     j.entrada = { mx, mz, correr: true }; ia.naEstrada = true;
     return true;
+  },
+  // ---------- barquinho (André 2026-11-21: "pedi pra fazerem o barquinho... fui pro lago, ele nadou atrás de mim e não
+  // usou; quando perguntei ele disse que estava de barco") ----------
+  // Com o barquinho na mochila, o bot do time entra nele (a mesma ação do jogador: veiculo 'colocar') quando o dono está
+  // na água (nadando ou de barco) e a água ali ou logo à frente dá para o barco. Desce na margem (veiculo 'descer')
+  // quando o dono sai da água; preso na beira sem conseguir descer, guarda o barco e sai a pé.
+  barcoAmiga(j, dono, dt) {
+    const ia = j.ia, B = this.AMIGA.barco || { olha: 1.8, perto: 2.5, preso: 4 };
+    if (j.morto || j.esc || j.trava > 0 || this.tempo < (ia.barcoT || 0)) return;
+    const donoNaAgua = dono.veiculo === 'barquinho' || fundoAgua(dono.x, dono.z) > AGUA.peito - 0.3;
+    const dx = dono.x - j.x, dz = dono.z - j.z, d = Math.hypot(dx, dz) || 1;
+    if (j.veiculo === 'barquinho') {
+      ia.barcoPreso = j.bloqueado ? (ia.barcoPreso || 0) + dt : 0;
+      const frente = lugarDoVeiculo('barquinho', j.x + dx / d * B.olha, j.z + dz / d * B.olha);
+      if ((!donoNaAgua && (!frente || d < B.perto)) || ia.barcoPreso > B.preso) {
+        ia.barcoT = this.tempo + 1;
+        this.veiculo(j.id, { acao: 'descer' });
+        if (j.veiculo === 'barquinho' && (ia.barcoPreso > B.preso * 2 || (!donoNaAgua && ia.barcoPreso > B.preso))) { // margem longe ou mochila cheia: guarda e sai nadando
+          j.veiculo = null; devolverBarquinho(j.prog); j.progSujo = true; ia.barcoPreso = 0;
+        }
+      }
+      return;
+    }
+    ia.barcoPreso = 0;
+    if (j.veiculo || !donoNaAgua || d < B.perto || contar(j.prog.mochila, 'barquinho') < 1) return;
+    if (Math.max(fundoAgua(j.x, j.z), fundoAgua(j.x + dx / d * B.olha, j.z + dz / d * B.olha)) < VEICULOS.barquinho.fundo) return;
+    ia.barcoT = this.tempo + 2; // não tenta de novo a cada passo
+    if (j.coleta) this.pararColeta(j, null);
+    if (j.pesca) this.pararPesca(j, null);
+    this.veiculo(j.id, { acao: 'colocar', k: 'barquinho' });
+  },
+  // pediu o barquinho pelo chat: faz de verdade (com o material da mochila) ou diz o que falta; a fala é sempre o que
+  // aconteceu no jogo (a IA dizia "já fiz" e "tô de barco" sem ter feito)
+  barcoPedidoAmiga(a) {
+    const P = this.AMIGA.barcoFalas || {};
+    if (a.veiculo === 'barquinho') return P.nele || 'Tô no barquinho agora, remando atrás de você!';
+    if (contar(a.prog.mochila, 'barquinho') > 0) return P.tem || 'Já tenho um barquinho na mochila. Quando você entrar na água, eu vou de barco atrás.';
+    const custo = FERRAMENTAS_FAZENDA.barquinho.custo, nome = (k) => ITENS[k].nome.toLowerCase();
+    const faltam = Object.entries(custo).filter(([k, n]) => contar(a.prog.mochila, k) < n).map(([k, n]) => `${n - contar(a.prog.mochila, k)} ${nome(k)}`);
+    if (faltam.length) return `Ainda não dá pra fazer o barquinho: falta ${faltam.join(' e ')} (precisa de ${Object.entries(custo).map(([k, n]) => `${n} ${nome(k)}`).join(' e ')}).`;
+    const prova = a.prog.mochila.map((o) => (o ? { ...o } : null));
+    for (const [k, n] of Object.entries(custo)) tirar(prova, k, n);
+    if (!guardar(prova, { k: 'barquinho', n: 1 })) return 'Tenho o material, mas a mochila tá cheia. Vou abrir espaço e faço.';
+    a.prog.mochila = prova; a.progSujo = true; this.avisarProg(a);
+    return P.fez || 'Pronto, fiz o barquinho! Quando você entrar na água, eu vou de barco junto.';
   },
   // o dono entrou na caverna (já com o selo aberto): chegando lá dentro andando, ela entra junto (passe do time)
   cavernaAmiga(j, dono) {
@@ -1592,7 +1639,8 @@ export const Amiga = {
     if (ia?.atividade && tem('pararAtividade')) return 'pararAtividade';
     let negou = false;
     for (const k of ['pescar', 'minerar', 'lenha']) if (tem(k)) { if (!negado(k)) return k; negou = true; } // "vamos pescar" é pescar, não caçar
-    if (tem('equip')) return 'equip'; // "o que você tá usando?" (André 2026-11-10)
+    if (tem('equip')) return 'equip';
+    if (A.barco && tem('barco') && !negado('barco')) return 'barco'; // "faz o barquinho" (antes de "vamos" = time) // "o que você tá usando?" (André 2026-11-10)
     for (const k of ['ondeUpar', 'nivel', 'missao']) if (A[k] && tem(k)) return k; // perguntas com resposta de verdade (André 2026-11-16), antes de "upar/missão" = time
     // André 2026-11-19 ("vamos, eu te sigo... aí ele escolhe o que quer fazer"): ela escolhe e vai na frente, sem "pra onde?"
     if (A.liderar && tem('liderar') && !negado('liderar')) return 'liderar';
@@ -1647,7 +1695,8 @@ export const Amiga = {
       // André 2026-11-17 (ronda): "morreu também?" e ela "não, ainda tô de pé" (a ficha não dizia que ela tinha caído)
       morta: !!a.morto, caiuHa: a.ia.caiuT != null && this.tempo - a.ia.caiuT < 1800 ? Math.round((this.tempo - a.ia.caiuT) / 60) : null,
       // "o barquinho você pode fazer" e ela disse 3 vezes que não conseguia: ela sabe a receita e o que tem
-      barco: contar(a.prog.mochila, 'barquinho') ? 'você já tem um' : `faz na bancada com ${Object.entries(FERRAMENTAS_FAZENDA.barquinho.custo).map(([k, n]) => `${n} ${ITENS[k].nome.toLowerCase()}`).join(' e ')} (você tem ${Object.keys(FERRAMENTAS_FAZENDA.barquinho.custo).map((k) => `${contar(a.prog.mochila, k)} ${ITENS[k].nome.toLowerCase()}`).join(' e ')})`,
+      // André 2026-11-21: ele disse "tô de barco" nadando. Agora a ficha diz onde ele está de verdade
+      barco: a.veiculo === 'barquinho' ? 'você está NO barquinho agora, remando' : contar(a.prog.mochila, 'barquinho') ? `você tem um na mochila, mas NÃO está nele agora${fundoAgua(a.x, a.z) > AGUA.peito - 0.3 ? ' (está nadando)' : ''}; entra nele sozinh${this.AMIGA.genero === 'm' ? 'o' : 'a'} quando ${j.nome} estiver na água e você no time` : `você não tem; dá para fazer com ${Object.entries(FERRAMENTAS_FAZENDA.barquinho.custo).map(([k, n]) => `${n} ${ITENS[k].nome.toLowerCase()}`).join(' e ')} (você tem ${Object.keys(FERRAMENTAS_FAZENDA.barquinho.custo).map((k) => `${contar(a.prog.mochila, k)} ${ITENS[k].nome.toLowerCase()}`).join(' e ')})`,
       casaPronta: !!pronta, noite: ehNoite(horaDoJogo(j.prog.dia)), pedido: a.pedido ? `${a.pedido.n} ${ITENS[a.pedido.k].nome}` : null,
       chamou: id === this.amigaDono && a.ia.chamado && a.ia.chamado.ate > this.tempo ? a.ia.chamado.quer : null,
       humor: (() => { // o que ela decidiu sobre caçar/time agora (decisaoTimeAmiga); o mesmo sorteio vale quando ele chamar
@@ -1948,6 +1997,7 @@ export const Amiga = {
       case 'troca': fala = a.troca ? sorteia(this.AMIGA.falasTroca.abre) : sorteia(this.AMIGA.falasTroca.topa); break; // só topa: a troca ele abre (André 2026-11-13)
       case 'presente': case 'pedirItem': { const ult = [...this.chatDeAmiga(j)].reverse().find((c) => c.de === 'ele'); fala = this.pedidoTrocaAmiga(r.assunto, ult?.texto || ''); r = { ...r, fala: '' }; break; }
       case 'equip': fala = this.falaEquipAmiga(); break;
+      case 'barco': fala = this.barcoPedidoAmiga(a); r = { ...r, fala: '' }; break; // o que aconteceu de verdade, nunca a fala da IA
       // chat básico (sem IA) com resposta de verdade (André 2026-11-16): nível, onde upar, a missão dele
       case 'nivel': { const S = this.saberAmiga(a, j); fala = `Tô nível ${a.prog.nivel}, de ${S.arma}. E você tá no ${j.prog.nivel}, né?`; break; }
       case 'ondeUpar': { const S = this.saberAmiga(a, j); fala = S.camposDele ? `Pro seu nível: ${S.camposDele.split('; ').slice(0, 2).map((x) => x.replace(/,.*$/, ')')).join(' ou ')}.` : 'Sei não, pergunta na vila!'; break; }
@@ -2266,6 +2316,7 @@ export const Amiga = {
   semIaAmiga(a, j) { const t = a?.semIa?.[j?.conta]; return !!t && Date.now() < t; },
   cansouIaAmiga(id, regra = 'conversa') {
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j) return;
+    if (regra === 'barco') return this.respostaAmiga(id, { assunto: 'barco' }); // o barquinho sai mesmo sem a IA (André 2026-11-21)
     const FA = this.AMIGA.falas, ja = this.semIaAmiga(a, j);
     if (!ja) (a.semIa ||= {})[j.conta] = Date.now() + (this.AMIGA.chat.semIa || 10800) * 1000;
     const pedido = ['time', 'vir', 'pescar', 'minerar', 'lenha', 'troca', 'cacar', 'sim'].includes(regra);

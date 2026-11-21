@@ -903,6 +903,8 @@ func outro(j: Dictionary) -> void:
 func animar(o: Dictionary, c: Dictionary) -> void:
 	var an: AnimationPlayer = o.anim
 	var acao = c.get("acao")
+	if o.get("coleta") != null and not c.get("morto", false) and not (acao is Dictionary and int(c.get("acaoSeq", 0)) != o.seq):
+		return # minerando ou cortando lenha: o golpe anda em _coleta_quadro
 	if acao is Dictionary and int(c.get("acaoSeq", 0)) != o.seq:
 		o.seq = int(c.get("acaoSeq", 0))
 		var a := animacao(str(acao.get("nome", "")))
@@ -1351,6 +1353,8 @@ func evento(ev: Dictionary) -> void:
 		"coleta":
 			if str(ev.id) == meu_id:
 				m.trabalho.comecou(str(ev.no), float(ev.dur), str(ev.get("prof", "min")))
+			else: # outro jogador ou bot minerando / cortando lenha: os outros veem o golpe (André 2026-11-21)
+				_coleta_outro(str(ev.id), str(ev.no), float(ev.dur), str(ev.get("prof", "min")))
 			return
 		"coletou":
 			m.trabalho.coletou(ev)
@@ -1366,6 +1370,8 @@ func evento(ev: Dictionary) -> void:
 		"coletaFim":
 			if str(ev.id) == meu_id:
 				m.trabalho.parar(false)
+			elif outros.has(str(ev.id)):
+				_coleta_fim(outros[str(ev.id)])
 			return
 		"criou":
 			m.trabalho.criou(ev)
@@ -1717,6 +1723,7 @@ func reservar_corpo(vis: String) -> void:
 
 # saiu da visão: o corpo fica escondido e parado para ser reaproveitado (NPC e, desde 2026-11-13, jogador também)
 func _soltar_corpo(o: Dictionary) -> void:
+	_coleta_fim(o) # a ferramenta da coleta não fica no corpo guardado
 	if o.get("montaria") != null:
 		o.montaria.remover()
 		o.montaria = null
@@ -1818,6 +1825,8 @@ func _passo(dt: float) -> void:
 				o.esq_y0 = o.esq.position.y
 			o.esq.position.y = float(o.esq_y0) + o.sobe
 		o.uma_vez = max(0.0, o.uma_vez - dt)
+		if o.get("coleta") != null:
+			_coleta_quadro(o)
 		if o.get("montaria") != null: # o lobo anda no ritmo do que o corpo andou de verdade neste quadro
 			var v: float = Vector2(o.no.position.x - antes.x, o.no.position.z - antes.z).length() / max(dt_pos, 0.001)
 			o.vel_m = lerp(float(o.get("vel_m", 0.0)), min(v, 12.0), min(1.0, dt_pos * 6.0))
@@ -1983,3 +1992,65 @@ func _balao(id: String, texto: String, npc: bool, lingua := false) -> void: # li
 		add_child(baloes)
 	baloes.falar(no, Idioma.frase(texto) if npc and not lingua else texto, lingua)
 
+
+# ---------- coleta dos outros (André 2026-11-21: "minerando e cortando lenha eles também não têm animação, eu quero") ----------
+# O servidor manda "coleta" a cada batida (para todos) e "coletaFim" no fim. Quem vê: a picareta ou o machado na mão, as
+# armas nas costas, virado para o veio ou a árvore, e o golpe de cima para baixo no tempo da batida (o mesmo
+# "descendente" por partes do herói, trabalho.gd _tempo_golpe), dois golpes por batida.
+const FERRAMENTA_OUTRO := {"min": ["res://ferramentas3d/Pickaxe_Bronze.gltf", 0.8], "len": ["res://ferramentas3d/Axe_Bronze.gltf", 1.05]}
+
+func _coleta_outro(id: String, no_id: String, dur: float, prof: String) -> void:
+	var o = outros.get(id)
+	if o == null or not is_instance_valid(o.no) or o.get("esq") == null or o.get("montaria") != null:
+		return
+	var c = o.get("coleta")
+	if c == null:
+		c = {"f": null}
+		if FERRAMENTA_OUTRO.has(prof) and m.trabalho:
+			var f: Node3D = m.trabalho._ferramenta(FERRAMENTA_OUTRO[prof][0], FERRAMENTA_OUTRO[prof][1])
+			var L: Dictionary = m.lugar_armas(o.visual)
+			m.colisor_espada(o.esq, null)
+			m.prender(o.esq, o.espada, L.espadaCostas)
+			m.prender(o.esq, o.cajado, L.cajadoCostas)
+			m.prender(o.esq, f, L.espadaMao)
+			f.visible = true
+			c.f = f
+		o.coleta = c
+		if o.anim.has_animation("descendente"):
+			o.anim.play("descendente", 0.12, 0.0)
+	c.t0 = m.tempo
+	c.dur = max(0.2, dur)
+	var alvo = m.trabalho.por_id.get(no_id) if m.trabalho else null
+	c.pos = alvo.pos if alvo != null else null
+
+# um quadro do golpe de quem está coletando (chamado em _process, depois de mexer o corpo)
+func _coleta_quadro(o: Dictionary) -> void:
+	var c: Dictionary = o.coleta
+	var t: float = m.tempo - float(c.t0)
+	if t > float(c.dur) + 2.0: # a batida seguinte não veio (saiu da visão, o aviso de fim se perdeu): para
+		_coleta_fim(o)
+		return
+	if c.get("pos") != null: # de frente para o veio ou a árvore
+		var d: Vector3 = c.pos - o.no.position
+		o.no.rotation.y = lerp_angle(o.no.rotation.y, atan2(d.x, d.z), 0.3)
+	var an: AnimationPlayer = o.anim
+	if an == null or not an.has_animation("descendente"):
+		return
+	if an.current_animation != "descendente":
+		an.play("descendente", 0.12, 0.0)
+	var meio: float = float(c.dur) / 2.0
+	var f: float = clamp(fmod(t, meio) / meio, 0.0, 1.0) if t < float(c.dur) else 0.0
+	an.seek(m.trabalho._tempo_golpe(f), true)
+
+func _coleta_fim(o: Dictionary) -> void:
+	var c = o.get("coleta")
+	if c == null:
+		return
+	o.erase("coleta")
+	if c.get("f") != null and is_instance_valid(c.f):
+		m.soltar_arma(c.f)
+		c.f.queue_free()
+	o.modo = "" # a próxima foto põe a espada ou o cajado de volta na mão
+	o.seq = -1
+	if o.anim and o.anim.current_animation == "descendente":
+		o.anim.play(animacao("Idle"), 0.2)

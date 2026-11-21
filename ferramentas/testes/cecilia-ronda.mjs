@@ -44,6 +44,6 @@ const c = s.amigosIa.find((x) => x.AMIGA.id === 'cecilia'), a = c.amiga;
 // 5) barquinho: ela sabe que pode fazer
 {
   const ctx = c.contextoAmiga('andre');
-  ok(/bancada/.test(ctx.barco) && /lenha/.test(ctx.barco), `barquinho na ficha: ${ctx.barco}`);
-  ok(/vai juntar o material e fazer/.test(mensagensConversa(ctx, 'o barquinho vc pode fazer')[0].content), 'a IA não diz que não consegue');
+  ok(/dá para fazer/.test(ctx.barco) && /lenha/.test(ctx.barco), `barquinho na ficha: ${ctx.barco}`);
+  ok(/o jogo faz de verdade/.test(mensagensConversa(ctx, 'o barquinho vc pode fazer')[0].content), 'a IA não diz que não consegue');
 }
