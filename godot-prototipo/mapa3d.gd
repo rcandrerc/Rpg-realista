@@ -73,6 +73,8 @@ var b_mais := Rect2()
 var b_menos := Rect2()
 var b_eu := Rect2()
 var b_ir := Rect2()
+var b_marca := Rect2() # "Marcar" / "Desmarcar" do lugar tocado, ou "Tirar marca" (minimapa.gd, marca do jogador)
+var b_ver_marca := Rect2() # "Ver marca": leva a câmera até a bandeira
 var b_lista := Rect2()
 var b_nevoa := Rect2() # tira e põe a névoa no mapa (André 2026-11-17)
 var b_tp := Rect2() # "Teleportar" do totem escolhido
@@ -1034,6 +1036,21 @@ func _toque(pos: Vector2) -> void:
 	if mm.marcado != null and b_ir.has_point(lp):
 		mm._ir()
 		return
+	if b_marca.has_point(lp): # só marcar, para ir andando (André 2026-11-21)
+		if mm.marcado != null:
+			mm.marcar_ponto()
+		else:
+			mm.tirar_ponto()
+		return
+	if b_ver_marca.has_point(lp) and mm.ponto != null:
+		if m.rota:
+			mm._marcar(mm.ponto)
+			mm.selecionado = ""
+		foco_alvo = Vector3(mm.ponto.x, 0.0, mm.ponto.y)
+		dist_alvo = minf(dist_alvo, DIST_ABRIR)
+		if m.sons:
+			m.sons.tocar("pano", -16.0)
+		return
 	if b_mais.has_point(lp) or b_menos.has_point(lp):
 		dist_alvo = clampf(dist_alvo * (1.0 / 1.45 if b_mais.has_point(lp) else 1.45), DIST_MIN, DIST_MAX)
 		if m.sons:
@@ -1128,6 +1145,11 @@ func _desenhar() -> void:
 		if s == null or s.x < -60 or s.y < -30 or s.x > tam.x + 60 or s.y > tam.y + 30:
 			continue
 		_fita2d(c, s - Vector2(0, 20), str(v.nome), 17 if perto else 13, {"nivel": int(v.get("nivel", 0))})
+	if mm.ponto != null and not tm: # marca do jogador: bandeira azul (fica até desmarcar)
+		var sp = _na_tela(mm.ponto.x, mm.ponto.y, 2.0)
+		if sp != null:
+			_sombra(c, sp - Vector2(0, 5.0), 6.0)
+			mm.bandeira(c, sp, 1.25)
 	if mm.marcado != null:
 		var sm = _na_tela(mm.marcado.x, mm.marcado.y, 2.0)
 		if sm != null:
@@ -1670,11 +1692,36 @@ func _botoes(c: Control, tam: Vector2, lw := 0.0, tm := false) -> void:
 	_botao(c, b_mais, "+", 26)
 	_bussola(c, cz + Vector2(92, 0))
 	b_ir = Rect2()
+	b_marca = Rect2()
+	b_ver_marca = Rect2()
+	if mm.marcado == null and mm.ponto != null and not tm and pronto: # já tem marca: "Ver marca" e "Tirar marca"
+		var d := int(round(mm.metros_ate_ponto()))
+		var tv := Idioma.frase("Ver marca (%d m)" % d)
+		var tt := Idioma.frase("Tirar marca")
+		var wv := fonte.get_string_size(tv, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x + 36.0
+		var wt := fonte.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x + 36.0
+		var xv := cz.x - (wv + wt + 10.0) * 0.5
+		b_ver_marca = Rect2(Vector2(xv, cz.y - 84.0), Vector2(wv, 44))
+		b_marca = Rect2(Vector2(xv + wv + 10.0, cz.y - 84.0), Vector2(wt, 44))
+		_botao(c, b_ver_marca, tv, 18)
+		_botao(c, b_marca, tt, 18)
+		b_ver_marca = b_ver_marca.grow(4.0)
+		b_marca = b_marca.grow(4.0)
 	if mm.marcado != null and m.rota:
 		var metros: float = m.rota.comprimento(mm.previa)
 		var lugar := _nome_marcado()
 		var t := Idioma.frase("Ir para %s (%d m)" % [lugar, int(round(metros))]) if lugar != "" else Idioma.frase("Ir para (%d m)" % int(round(metros)))
 		var w := fonte.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 40.0
-		b_ir = Rect2(Vector2(cz.x - w * 0.5, cz.y - 84.0), Vector2(w, 44))
+		# ao lado, "Marcar": só deixa a bandeira no mapa para ir andando (ou "Desmarcar", se este já é o lugar marcado)
+		var tm2 := "Desmarcar" if mm.e_a_marca(mm.marcado) else "Marcar"
+		var wm := fonte.get_string_size(Idioma.frase(tm2), HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x + 36.0 if not tm else 0.0
+		var x0 := cz.x - (w + wm + (10.0 if wm > 0.0 else 0.0)) * 0.5
+		b_marca = Rect2()
+		if wm > 0.0:
+			b_marca = Rect2(Vector2(x0, cz.y - 84.0), Vector2(wm, 44))
+			_botao(c, b_marca, tm2, 18)
+			b_marca = b_marca.grow(4.0)
+			x0 += wm + 10.0
+		b_ir = Rect2(Vector2(x0, cz.y - 84.0), Vector2(w, 44))
 		_botao(c, b_ir, t, 20)
-		b_ir = b_ir.grow(8.0)
+		b_ir = b_ir.grow(4.0)

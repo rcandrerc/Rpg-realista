@@ -91,6 +91,125 @@ var botao_tp := Rect2() # "Teleportar"
 var escuro: ColorRect
 const COR_ROTA := Color("ffd27a")
 const COR_PINO := Color("ff6a4a")
+# Marca do jogador (André 2026-11-21: "opção para marcar pontos no mapa... além de ir para, ter opção só marcar, que fica
+# mostrando no mapa, pra se a pessoa quiser ir manualmente"). No mapa, o lugar tocado (no chão ou na lista de Lugares)
+# ganha o botão "Marcar" ao lado do "Ir para": vira uma bandeira azul que fica no mapa, no minimapa (na beirada, com os
+# metros, quando está longe) e no mundo (coluna de luz azul). Uma marca por vez; "Desmarcar"/"Tirar marca" tira.
+# Fica gravada em user://mapa.cfg (fechar o jogo não perde).
+const COR_MARCA := Color("4fc3ff")
+const MARCA_LUZ_LONGE := 320.0 # metros: mais longe que isso a coluna de luz some (o minimapa continua apontando)
+var ponto = null # Vector2 (metros) da marca do jogador, ou null
+var ponto_nome := "" # nome do lugar marcado ("Vila ...", "Puglins Nv 15"), ou "" quando é um ponto qualquer
+var _luz_marca: MeshInstance3D
+
+func _ler_ponto() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(CFG_MAPA) != OK or not cfg.has_section_key("marca", "x"):
+		return
+	ponto = Vector2(float(cfg.get_value("marca", "x", 0.0)), float(cfg.get_value("marca", "z", 0.0)))
+	ponto_nome = str(cfg.get_value("marca", "nome", ""))
+
+func _gravar_ponto() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(CFG_MAPA) # mantém o resto (modo, filtro das camadas)
+	if cfg.has_section("marca"):
+		cfg.erase_section("marca")
+	if ponto != null:
+		cfg.set_value("marca", "x", ponto.x)
+		cfg.set_value("marca", "z", ponto.y)
+		cfg.set_value("marca", "nome", ponto_nome)
+	cfg.save(CFG_MAPA)
+
+# o lugar marcado agora (pino) é a marca do jogador?
+func e_a_marca(p) -> bool:
+	return ponto != null and p != null and (p as Vector2).distance_to(ponto) < 3.0
+
+# botão "Marcar" / "Desmarcar" do lugar tocado
+func marcar_ponto() -> void:
+	if marcado == null:
+		return
+	if e_a_marca(marcado):
+		tirar_ponto()
+		return
+	ponto = marcado
+	ponto_nome = _clareira_em(marcado)
+	_gravar_ponto()
+	if m.sons:
+		m.sons.tocar("pano", -12.0)
+	if m.hud:
+		m.hud.aviso(Idioma.frase("Marcado no mapa: %s" % ponto_nome) if ponto_nome != "" else Idioma.frase("Lugar marcado no mapa"))
+
+func tirar_ponto() -> void:
+	if ponto == null:
+		return
+	ponto = null
+	ponto_nome = ""
+	_gravar_ponto()
+	if m.sons:
+		m.sons.tocar("pano", -16.0)
+	if m.hud:
+		m.hud.aviso(Idioma.frase("Marca tirada do mapa"))
+
+# metros em linha reta do herói até a marca
+func metros_ate_ponto() -> float:
+	if ponto == null or m.heroi == null:
+		return 0.0
+	return Vector2(m.heroi.position.x, m.heroi.position.z).distance_to(ponto)
+
+# bandeira azul da marca (a ponta do mastro no lugar)
+func bandeira(c: Control, pos: Vector2, s: float) -> void:
+	var topo: Vector2 = pos + Vector2(0, -22.0 * s)
+	var escuro := Color(0.05, 0.04, 0.03, 0.85)
+	c.draw_circle(pos, 3.2 * s, escuro)
+	c.draw_line(pos, topo + Vector2(0, -1.5 * s), escuro, 4.0 * s, true)
+	var pano := PackedVector2Array([topo, topo + Vector2(13.0 * s, 3.0 * s), topo + Vector2(10.0 * s, 6.5 * s), topo + Vector2(14.0 * s, 11.0 * s), topo + Vector2(0, 11.0 * s)])
+	var borda := PackedVector2Array()
+	for q in pano:
+		borda.append(q)
+	borda.append(pano[0])
+	c.draw_colored_polygon(pano, COR_MARCA)
+	c.draw_polyline(borda, escuro, 1.5 * s, true)
+	c.draw_line(pos, topo, Color(0.93, 0.86, 0.7), 2.0 * s, true)
+	c.draw_circle(pos, 2.0 * s, COR_MARCA)
+
+# coluna de luz azul no mundo, em cima da marca (a mesma luz da marca da missão, missao_ativa.gd, em azul)
+const SH_LUZ_MARCA := """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
+uniform vec4 cor = vec4(0.31, 0.76, 1.0, 1.0);
+void fragment() {
+	float h = 1.0 - UV.y;
+	float borda = pow(abs(dot(NORMAL, VIEW)), 1.4);
+	float pulso = 0.75 + 0.25 * sin(TIME * 2.0);
+	float risco = smoothstep(0.0, 0.25, fract(h * 4.0 - TIME * 0.5));
+	ALBEDO = mix(cor.rgb, vec3(1.0), (1.0 - h) * 0.45);
+	ALPHA = clamp(borda * (1.0 - h) * pulso * (0.35 + 0.35 * risco), 0.0, 1.0);
+}
+"""
+func _luz_da_marca() -> void:
+	var mostrar: bool = ponto != null and m.heroi != null and metros_ate_ponto() < MARCA_LUZ_LONGE
+	if mostrar and _luz_marca == null:
+		_luz_marca = MeshInstance3D.new()
+		var cil := CylinderMesh.new()
+		cil.top_radius = 0.8
+		cil.bottom_radius = 1.3
+		cil.height = 24.0
+		cil.radial_segments = 16
+		cil.rings = 1
+		cil.cap_top = false
+		cil.cap_bottom = false
+		_luz_marca.mesh = cil
+		_luz_marca.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var mat := ShaderMaterial.new()
+		var sh := Shader.new()
+		sh.code = SH_LUZ_MARCA
+		mat.shader = sh
+		_luz_marca.material_override = mat
+		m.add_child(_luz_marca)
+	if mostrar:
+		_luz_marca.position = Vector3(ponto.x, m.chao_em(ponto.x, ponto.y) + 12.0, ponto.y)
+	if _luz_marca != null and _luz_marca.visible != mostrar:
+		_luz_marca.visible = mostrar
 
 func _init(principal) -> void:
 	m = principal
@@ -233,6 +352,7 @@ void fragment() {
 	# só o mapa 3D (André 2026-11-16: "agora eu quero acabar com o 2D"): a escolha antiga gravada não vale mais. O
 	# desenho 2D fica só de reserva, para quando o mundo grande (mundo_grade.json) não existir.
 	modo_3d = true
+	_ler_ponto() # a marca do jogador gravada (André 2026-11-21)
 
 # o minimapa.png (client/src/minimapa.js) escurece as pontas; por cima do mundo a conta volta à cor de antes
 const VINHETA_HOJE := """
@@ -858,6 +978,8 @@ func _process(_dt: float) -> void:
 func _process_parte(_dt: float) -> void:
 	if m.heroi == null:
 		return
+	if Engine.get_process_frames() % 20 == 0: # coluna de luz da marca do jogador
+		_luz_da_marca()
 	# some junto com a HUD (menu do personagem, criador, conversa com NPC)
 	mini.visible = m.hud.visible and not m.hud.bloqueado or aberto
 	if mini.visible:
@@ -985,6 +1107,14 @@ func _desenhar_mini() -> void:
 		if dq.length() > RAIO - 7.0:
 			dq = dq.normalized() * (RAIO - 7.0)
 		_coracao(c, meio + dq, 5.5)
+	if ponto != null: # marca do jogador: a bandeira azul, na beirada com os metros quando está longe
+		var dm: Vector2 = Vector2(ponto.x - p.x, ponto.y - p.z) * k
+		var longe_m: bool = dm.length() > RAIO - 14.0
+		if longe_m:
+			dm = dm.normalized() * (RAIO - 14.0)
+		bandeira(c, meio + dm + Vector2(0, 7), 0.72)
+		if longe_m:
+			_texto(c, meio + dm + Vector2(0, 14), "%d m" % int(round(metros_ate_ponto())), 11, COR_MARCA, true, 3)
 	# "Ir para" em andamento: o resto da rota e o lugar marcado (na beirada, se estiver longe)
 	if m.rota and m.rota.ativo:
 		var cam: PackedVector2Array = m.rota.caminho
@@ -1307,6 +1437,8 @@ func _desenhar_mapa() -> void:
 		var q: Vector2 = em.call(ce.x, ce.z)
 		_coracao(c, q, 7.0)
 		_texto(c, q + Vector2(0, -14), ce.nome, 13, COR_AMIGA.lightened(0.3))
+	if ponto != null: # marca do jogador
+		bandeira(c, em.call(ponto.x, ponto.y), 1.15)
 	# rota pela estrada: a que está sendo andada e a do lugar marcado agora
 	if m.rota and m.rota.ativo and marcado == null:
 		_rota_grande(c, m.rota.caminho, m.rota.i, em)
