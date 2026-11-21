@@ -3725,6 +3725,45 @@ export const DUPLAS_GUERRA = [
 // dividido por (1 + nível/meio). No máximo maxDias dias.
 // André 2026-11-21: true = Cecília, Dario, Kira, Rufo e Lis caçam, coletam e andam sem a trava da névoa (zonaFechadaEm). Para voltar: false.
 export const NPC_SEM_NEVOA = true;
+// Encomenda pelo chat (André 2026-11-21: "minera um pouco de ferro pra mim, eu compro"; "isso pra árvore, ferro, qualquer
+// recurso"; "depois eu peço vem aqui que vou trocar"). O bot vai ao lugar mais perto DELE daquele recurso (mesmo com você
+// longe), coleta de verdade, guarda separado (não vende na vila) e avisa. "Vem aqui" com a encomenda pronta: ele vem sempre
+// e, ao abrir a troca, a encomenda já vai pra mesa pelo preço dele. Sem ferramenta, nível, vigor, horário ou lugar: diz o
+// porquê e não sai. palavras: como ele fala do recurso; no: tipo do nó em COLETA (pesca: spot); item: o que conta (peixe:
+// qualquer peixe). padrao: quantos quando ele não diz número; max: teto; tempo: s até desistir e trazer o que tiver.
+export const ENCOMENDA = {
+  padrao: 10, max: 40, tempo: 1800, vir: 900,
+  recursos: {
+    ferro: { palavras: ['ferro', 'minerio de ferro'], coleta: 'minerar', no: 'ferro', item: 'minerio_ferro', nome: 'minério de ferro' },
+    cobre: { palavras: ['cobre', 'minerio de cobre'], coleta: 'minerar', no: 'cobre', item: 'minerio_cobre', nome: 'minério de cobre' },
+    cristal: { palavras: ['cristal', 'cristais'], coleta: 'minerar', no: 'cristal', item: 'cristal', nome: 'cristal' },
+    pedra: { palavras: ['pedra', 'pedras'], coleta: 'minerar', no: 'pedra', item: 'pedra', nome: 'pedra' },
+    lenha: { palavras: ['lenha', 'madeira', 'madeiras', 'tronco', 'troncos', 'arvore', 'arvores'], coleta: 'lenha', no: 'arvore', item: 'lenha', nome: 'lenha' },
+    peixe: { palavras: ['peixe', 'peixes', 'pescado'], coleta: 'pescar', no: null, item: 'peixe', nome: 'peixe' },
+  },
+  // verbo de pegar o recurso; e o "pra mim" que separa encomenda de convite ("bora minerar" é junto, no time)
+  verbos: ['minera', 'minerar', 'minere', 'mineira', 'corta', 'cortar', 'corte', 'pesca', 'pescar', 'pesque', 'pega', 'pegar', 'pegue', 'junta', 'juntar', 'coleta', 'coletar', 'tira', 'tirar', 'farma', 'farmar', 'arruma', 'arrumar', 'consegue', 'busca', 'buscar', 'traz', 'traga', 'quebra', 'quebrar'],
+  praMim: ['pra mim', 'para mim', 'pramim', 'eu compro', 'te compro', 'te pago', 'me vende', 'me vender', 'me arruma', 'me consegue', 'me traz', 'me traga', 'pra eu', 'para eu', 'encomenda'],
+  falas: {
+    aceita: ['Fechou! Vou {coleta} {n} de {item} {lugar}. Quando juntar, te aviso.', 'Beleza, tô indo pegar {n} de {item} pra você, {lugar}. Te aviso quando tiver.'],
+    progresso: ['Tô pegando sua encomenda {lugar}: já tenho {tem} de {n} de {item}.', 'Ainda tô nisso: {tem} de {n} de {item}, {lugar}.'],
+    pronta: ['Peguei {tem} de {item} da sua encomenda! Me chama ("vem aqui") que eu levo e a gente troca.', 'Encomenda pronta: {tem} de {item} separados pra você. Me chama que eu vou até você.'],
+    parcial: ['Consegui só {tem} de {n} de {item} ({motivo}). Tá separado pra você: me chama que eu levo.'],
+    nada: ['Não consegui pegar {item} nenhum ({motivo}). Foi mal, sem encomenda dessa vez.'],
+    chegou: ['Trouxe {tem} de {item}! Abre a troca comigo que já vai pra mesa.', 'Cheguei com {tem} de {item} pra você. Abre a troca aí.'],
+    naMesa: 'Sua encomenda ({tem} de {item}) já tá na mesa.',
+    qual: 'Pego sim! Mas fala qual recurso: ferro, cobre, pedra, cristal, lenha ou peixe?',
+    noTime: 'Tô na sua pt agora. Pra eu ir sozinh{a|o} pegar isso, me tira da pt; ou chama pra {coleta} junto.',
+    semFerramenta: 'Não tenho {ferramenta} na mochila, então não dá pra {coleta} agora.',
+    nivel: 'Ainda não tenho nível pra {item}: precisa de {prof} Nv {nivel} e eu tô no {meu}.',
+    vigor: 'Tô sem vigor pra {coleta} agora. Quando recuperar, me pede de novo.',
+    hora: 'Agora é fora do meu horário de sair. Me pede de novo de dia.',
+    mochila: 'Minha mochila tá quase cheia, não cabe sua encomenda agora.',
+    semLugar: 'Não achei lugar com {item} que eu consiga ir agora. Foi mal.',
+    caiu: 'Acabei de cair, tô renascendo. Me pede de novo daqui a pouco.',
+    motivos: { vigor: 'acabou meu vigor', hora: 'ficou tarde', mochila: 'a mochila encheu', acabou: 'acabou o recurso por lá', tempo: 'demorou demais', luta: 'tive que fugir de um mob' },
+  },
+};
 export const NPC_VIDA = {
   moradia: [
     { nivel: 1, nome: 'a vila', x: -3.5, z: -7, r: 9 },

@@ -24,7 +24,7 @@ import { HISTORIA } from './dados.js';
 import { LOJA, precoLoja, PLANTIO, RECEITA_ESTACAO, CATALISADOR, LUGARES } from './dados.js';
 import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js';
 import { diaDiarias, premioDiaria } from './diarias.js';
-import { ARVORES_PLANTIO } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
+import { ARVORES_PLANTIO, ENCOMENDA, PROFISSOES, MINA } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
 import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera, QUEM_LIBERA, SEM_NEVOA } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
@@ -47,8 +47,19 @@ const normAmiga = (t) => String(t).toLowerCase().normalize('NFD').replace(/[\u03
 const PEDIDO_FAZER = /\b(faz|faca|fazer|faria|cria|criar|crie|constroi|construir|construa|monta|montar|monte|forja|forjar|crafta|craftar|fabrica|fabricar|pega|pegar|busca|buscar|traz|trazer|traga|me da|me de|me manda|me envia|entrega|entregar|termina|terminar|completa|completar|conclui|concluir|junta|juntar|coleta|coletar|compra|comprar|vende|vender|planta|plantar|colhe|colher|ergue|levanta|forma|formar|prepara|preparar|cozinha|cozinhar|consegue|conseguiria|pode|poderia|da pra|tem como)\b/;
 const PROMESSA = /\b((to|tou|estou|ja to|ja estou) (fazendo|criando|construindo|montando|forjando|craftando|fabricando|terminando|juntando|coletando|buscando|pegando|preparando|cozinhando|formando|erguendo|plantando|colhendo|trabalhando nisso|indo fazer|indo buscar|indo pegar|providenciando|resolvendo)|(vou|ja vou|vou ja|eu vou|deixa que eu|ja ja eu|daqui a pouco eu|depois eu) (fazer|criar|construir|montar|forjar|craftar|fabricar|terminar|juntar|coletar|buscar|pegar|preparar|cozinhar|formar|erguer|plantar|colher|providenciar|resolver|te mandar|te dar|te entregar|mandar|entregar|comecar|começar|ja)|(ja )?(fiz|criei|construi|montei|forjei|crafte|crafitei|fabriquei|terminei|juntei|coletei|peguei|preparei|cozinhei|formei|ergui|plantei|colhi|te mandei|te dei|te entreguei|mandei pra voce|comecei)|deixa comigo|pode deixar|ja ta saindo|ta saindo|em andamento|ja ja fica pronto|ja ja ta pronto|fica pronto em|daqui a pouco fica)\b/;
 export function promessaSemAcaoAmiga(pedido, fala) { return PEDIDO_FAZER.test(normAmiga(pedido)) && PROMESSA.test(normAmiga(fala)); }
+// encomenda (André 2026-11-21): quantos do recurso ela tem (peixe: qualquer peixe)
+const contarRec = (mochila, item) => (item === 'peixe' ? mochila.reduce((s, o) => s + (o && ITENS[o.k]?.peixe && !o.cad ? o.n || 1 : 0), 0) : contar(mochila, item));
+// "minera 20 de ferro pra mim", "corta lenha pra mim que eu compro": { rec, n } ou null (convite "bora minerar" não é)
+export function encomendaDoTexto(texto) {
+  const t = ' ' + normAmiga(texto) + ' ', E = ENCOMENDA, tem = (l) => l.some((w) => t.includes(' ' + w + ' '));
+  if (!tem(E.praMim)) return null;
+  const rec = Object.keys(E.recursos).find((k) => tem(E.recursos[k].palavras));
+  if (!tem(E.verbos) && !(rec && /\b(quero|preciso|vende|compro)\b/.test(t))) return null;
+  const n = Number((t.match(/ (\d{1,3}) /) || [])[1]) || 0;
+  return { rec: rec || '', n: n ? Math.min(E.max, n) : E.padrao };
+}
 // ações em que o jogo faz de verdade o que ele pediu (a fala pode dizer que está indo/fazendo)
-const ACOES_DE_VERDADE = new Set(['time', 'vir', 'cacar', 'voltar', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'barco', 'ajudarMissao', 'liderar', 'troca', 'amigo']);
+const ACOES_DE_VERDADE = new Set(['time', 'vir', 'cacar', 'voltar', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'barco', 'ajudarMissao', 'liderar', 'troca', 'amigo', 'encomenda']);
 const PASSEIOS = [[-6, -10.5], [-8.6, -9.4], [-2.5, -6], [1, 0.5], [-4, 2], [-1, 12]]; // praça, Rosa, ferraria, entrada
 const REGA_MS = HORTA.rega * 3600000;
 
@@ -442,7 +453,7 @@ export const Amiga = {
     // caiu lutando: renasce em casa (a cama dela), como qualquer jogador, e CONTINUA no time (André 2026-11-11: "quando o bot
     // morre, ele sai do meu time. Eu não quero"). Uma vez por queda: avisa, conserta no Tomás e repõe as poções na Rosa com o
     // ouro dela; ao levantar, o passoTimeAmiga a traz de volta até o dono pela estrada (montada).
-    if (j.morto) { if (!ia.caiu) { ia.caiu = true; ia.caiuT = this.tempo; this.evolucaoAmiga(j, 'morreu', ia.av?.c?.nome || (j.time ? 'no time' : '')); const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
+    if (j.morto) { if (!ia.caiu) { ia.caiu = true; ia.caiuT = this.tempo; this.evolucaoAmiga(j, 'morreu', ia.av?.c?.nome || (j.time ? 'no time' : '')); const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); if (ia.encomenda && !ia.encomenda.pronta) this.fimEncomendaAmiga(j, 'luta'); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
     ia.caiu = false;
     if (j.duelo) return this.passoDueloAmiga(j); // duelando (shared/duelo.js): só luta contra quem chamou
     if (this.guerraAmiga(j, dt)) return; // Chama x Geada (shared/guerra.js): atacar, ajudar, fugir ou poupar a outra raça
@@ -690,17 +701,25 @@ export const Amiga = {
   },
   // coletando sozinho (pesca, minério, lenha): vai até o lugar, coleta o que der (fica com tudo, vende na vila), briga se
   // um monstro vier nele. Sem lugar ou sem vigor: volta (e da próxima vez caça).
-  coletaSozinhoAmiga(j, av, foraDeHora, livres, voltar, dt) {
+  coletaSozinhoAmiga(j, av, foraDeHora, livres, voltar0, dt) {
     const ia = j.ia, t = this.tempo, c = av.c, A = NPC_VIDA.aventura;
-    if (foraDeHora || livres < A.mochilaLivre || t >= av.ate) return voltar();
+    // encomenda (André 2026-11-21): ao parar por qualquer motivo, avisa ele de verdade do que conseguiu
+    const enc = av.encomenda ? ia.encomenda : null, voltar = (m) => { if (enc && !enc.pronta) this.fimEncomendaAmiga(j, m); voltar0(); };
+    if (enc && !enc.pronta && contarRec(j.prog.mochila, enc.item) - enc.base >= enc.n) return voltar(); // juntou tudo
+    if (foraDeHora || livres < A.mochilaLivre || t >= av.ate) return voltar(foraDeHora ? 'hora' : livres < A.mochilaLivre ? 'mochila' : 'tempo');
     const bate = this.inimigosDe(j).find((e) => !e.morto && !e.treino && e.vez === j.id && Math.hypot(e.x - j.x, e.z - j.z) < 6);
-    if (bate) { if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null); if (!this.cerebroAmiga(j, j, bate)) this.pararAmiga(j); if (ia.cer?.faca === 'fugir') voltar(); return; }
+    if (bate) { if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null); if (!this.cerebroAmiga(j, j, bate)) this.pararAmiga(j); if (ia.cer?.faca === 'fugir') voltar('luta'); return; }
     if (j.pesca) return this.pescandoAmiga(j);
     if (j.coleta || j.fabrica) return this.pararAmiga(j);
     if (av.fase === 'ir') { if (this.irLongeAmiga(j, c.x, c.z, dt)) av.fase = 'cacar'; return; }
     ia.ruins ||= new Map();
-    if (!ia.alvoColeta || t > ia.alvoColetaT) { ia.alvoColeta = this.acharColetaAmiga(j, { x: c.x, z: c.z, y: c.y ?? j.y }, av.coleta); ia.alvoColetaT = t + NPC_VIDA.coleta.cada; }
+    if (!ia.alvoColeta || t > ia.alvoColetaT) { ia.alvoColeta = this.acharColetaAmiga(j, { x: c.x, z: c.z, y: c.y ?? j.y }, av.coleta, av.noTipo); ia.alvoColetaT = t + NPC_VIDA.coleta.cada; }
     const al = ia.alvoColeta;
+    if (!al && enc) { // acabou o veio dela: tenta o próximo lugar com o recurso; senão traz o que tem
+      const outro = this.lugarRecursoAmiga(j, ENCOMENDA.recursos[enc.rec], c);
+      if (outro) { Object.assign(av, { fase: 'ir', c: outro }); ia.viagem = null; return; }
+      return voltar('acabou');
+    }
     if (!al) { av.semColeta = true; av.fase = 'escolher'; av.coleta = null; return; } // acabou o lugar: vai caçar
     const d = Math.hypot(al.x - j.x, al.z - j.z);
     if (d > al.perto) return this.irDireto(j, al.x, al.z, d > 6);
@@ -708,7 +727,7 @@ export const Amiga = {
     if (av.coleta === 'pescar') { j.ry = Math.atan2(al.sx - j.x, al.sz - j.z); this.pescar(j.id, { acao: 'lancar', x: al.sx, z: al.sz }); }
     else this.coletar(j.id, { no: al.no });
     if (j.coleta || j.pesca) return;
-    if (vigorAgora(j.prog.vigor) < 1) { av.semColeta = true; return voltar(); } // cansou: volta, e na próxima caça
+    if (vigorAgora(j.prog.vigor) < 1) { av.semColeta = true; return voltar('vigor'); } // cansou: volta, e na próxima caça
     ia.ruins.set(al.id, t + 60); ia.alvoColeta = null;
   },
   pararAmiga(j) { j.entrada = { mx: 0, mz: 0, correr: false }; },
@@ -1686,6 +1705,7 @@ export const Amiga = {
     if (this.amiga?.troca) { if (tem('presente')) return 'presente'; if (tem('pedirItem')) return 'pedirItem'; } // janela de troca aberta (fase 3)
     else if (this.amiga && tem('pedirItem') && this.itensNoTextoAmiga(t).length) return 'pedirItem'; // "tem cenoura?" e ela tem: oferece
     if (ia?.atividade && tem('pararAtividade')) return 'pararAtividade';
+    if (this.amiga && encomendaDoTexto(texto)) return 'encomenda'; // "minera ferro pra mim, eu compro" (André 2026-11-21)
     let negou = false;
     for (const k of ['pescar', 'minerar', 'lenha']) if (tem(k)) { if (!negado(k)) return k; negou = true; } // "vamos pescar" é pescar, não caçar
     if (tem('equip')) return 'equip';
@@ -1737,7 +1757,8 @@ export const Amiga = {
     const av = a.ia.av, bicho = av?.c ? `${TIPOS_INIMIGO[av.c.tipo]?.nome || 'monstros'} nível ${av.c.nivel || 1} em ${nomeLugarAmiga(av.c.nome)}` : ''; // André 2026-11-17: "tô indo fazer os imps nível 36"
     const so = this.AMIGA.genero === 'm' ? 'sozinho' : 'sozinha';
     const col = av?.coleta && { pescar: 'pescar', minerar: 'minerar', lenha: 'cortar lenha' }[av.coleta], colG = av?.coleta && { pescar: 'pescando', minerar: 'minerando', lenha: 'cortando lenha' }[av.coleta];
-    const sozinho = av && { escolher: 'escolhendo onde caçar', ir: col ? `indo ${col} ${so}` : `indo caçar ${bicho} ${so}`, cacar: col ? `${colG} ${so}` : `caçando ${bicho} ${so}`, voltar: 'voltando para a vila vender, consertar e comprar poção', descansar: 'descansando na vila depois da caçada', missao: `fazendo a missão da história ${so}`, plantar: `plantando árvores da diária ${so}`, evoluir: 'evoluindo um equipamento na vila' }[av.fase];
+    const encR = av?.encomenda && a.ia.encomenda && !a.ia.encomenda.pronta ? ENCOMENDA.recursos[a.ia.encomenda.rec] : null; // André 2026-11-21: a encomenda dele
+    const sozinho = av && encR && ['ir', 'cacar'].includes(av.fase) ? `${av.fase === 'ir' ? 'indo pegar' : 'pegando'} ${encR.nome} da encomenda que ${j.nome} pediu (${Math.max(0, contarRec(a.prog.mochila, a.ia.encomenda.item) - a.ia.encomenda.base)} de ${a.ia.encomenda.n}), ${a.ia.encomenda.lugar}` : av && { escolher: 'escolhendo onde caçar', ir: col ? `indo ${col} ${so}` : `indo caçar ${bicho} ${so}`, cacar: col ? `${colG} ${so}` : `caçando ${bicho} ${so}`, voltar: 'voltando para a vila vender, consertar e comprar poção', descansar: 'descansando na vila depois da caçada', missao: `fazendo a missão da história ${so}`, plantar: `plantando árvores da diária ${so}`, evoluir: 'evoluindo um equipamento na vila' }[av.fase];
     return {
       semCasa: !this.AMIGA.terreno, mora: !this.AMIGA.terreno ? this.moradiaAmiga(a)?.nome || 'a vila' : null,
       nome: this.AMIGA.nome, persona: this.AMIGA.persona || null, genero: this.AMIGA.genero || 'f', amigo: j.nome, amizade: this.amizadeAmiga(j),
@@ -1745,6 +1766,7 @@ export const Amiga = {
       noTime: !!(a.time && a.time === j.time), distancia: Math.round(Math.hypot(a.x - j.x, a.z - j.z)),
       fazendo: sozinho ? sozinho : a.ia.atividade ? `${this.AMIGA.atividades[a.ia.atividade].nome} junto com ele` : a.time ? 'caçando no time com ele' : a.ia.fase === 'trabalhar' ? (a.ia.anim === 'construir' ? 'construindo a casa' : 'cuidando da horta') : a.ia.fase === 'andar' ? 'passeando pela vila' : (this.AMIGA.terreno ? 'descansando na porta de casa' : 'passeando pela vila'),
       // André 2026-11-17 (ronda): "morreu também?" e ela "não, ainda tô de pé" (a ficha não dizia que ela tinha caído)
+      encomenda: (() => { const e = this.encomendaProntaAmiga(a, j); return e ? `${e.tem} de ${ENCOMENDA.recursos[e.rec].nome} separados pra ${j.nome} (encomenda dele); se ele pedir pra você vir, você leva e põe na troca` : null; })(),
       morta: !!a.morto, caiuHa: a.ia.caiuT != null && this.tempo - a.ia.caiuT < 1800 ? Math.round((this.tempo - a.ia.caiuT) / 60) : null,
       // "o barquinho você pode fazer" e ela disse 3 vezes que não conseguia: ela sabe a receita e o que tem
       // André 2026-11-21: ele disse "tô de barco" nadando. Agora a ficha diz onde ele está de verdade
@@ -2071,7 +2093,7 @@ export const Amiga = {
     if (r.assunto !== 'time' && this.apeloAmiga(a, j)) r = { ...r, assunto: 'time', fala: '' }; // pediu com jeito depois do não: ela reconsidera
     // livre: passa a acompanhar quem falou; com outro amigo: conversa, mas ação só depois (André 2026-11-10)
     const mesmoTime = !!(a.time && a.time === j.time) && ['time', 'vir'].includes(r.assunto); // no time de todos: "bora pro time" e "vem cá" valem
-    if (!this.trocarDonoAmiga(id) && !mesmoTime && ['time', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'vir', 'sim', 'nao', 'troca', 'presente', 'pedirItem', 'cacar', 'voltar', 'liderar', 'ajudarMissao'].includes(r.assunto)) return this.dizerAmiga(this.comOutroAmiga(), false, id);
+    if (!this.trocarDonoAmiga(id) && !mesmoTime && ['time', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'vir', 'sim', 'nao', 'troca', 'presente', 'pedirItem', 'cacar', 'voltar', 'liderar', 'ajudarMissao', 'encomenda'].includes(r.assunto)) return this.dizerAmiga(this.comOutroAmiga(), false, id);
     const F = this.AMIGA.chat.falas, FA = this.AMIGA.falas, ia = a.ia, noTime = !!(a.time && a.time === j.time);
     const perto = Math.hypot(a.x - j.x, a.z - j.z) < 6;
     // André 2026-11-17: "vamos fazer alguma coisa, escolhe aí", ela escolhe, e ele "bora pra isso aí mesmo": o que ela
@@ -2149,6 +2171,8 @@ export const Amiga = {
       case 'vir': {
         if (noTime || perto) { fala = sorteia(F.perto); break; }
         if (a.morto) { fala = FA.caiu; break; }
+        // encomenda pronta pra ele: vem sempre, com tempo de atravessar o mapa (André 2026-11-21)
+        if (this.encomendaProntaAmiga(a, j)) { this.levarEncomendaAmiga(a, j); fala = 'Tô indo aí levar sua encomenda!'; r = { ...r, fala: '' }; break; }
         const pediu = chamado && chamado.quer !== 'time';
         if (!pediu && Math.random() >= Math.min(0.95, this.vontadeAmiga(a, j).p + 0.2)) { fala = sorteia(F.naoVir); break; }
         ia.vir = { ate: this.tempo + 120, longe: this.tempo + 4 }; ia.chamado = null; ia.conversaAte = 0;
@@ -2170,7 +2194,9 @@ export const Amiga = {
         fala = a.pedido ? sorteia(FA.pedido).replace('{item}', `${a.pedido.n} ${ITENS[a.pedido.k].nome.toLowerCase()}`) + ' Me entrega quando passar aqui!' : sorteia(FA.semPedido);
         break;
       case 'casa': { const L = this.loteDaAmiga(), pronta = L && this.AMIGA.casa.every((c) => L.pecas.some((o) => mesmaPeca(o, pecaDaCasa(L.def, c)))); fala = sorteia(pronta ? FA.pronta : FA.obra); break; }
-      case 'troca': fala = a.troca ? sorteia(this.AMIGA.falasTroca.abre) : sorteia(this.AMIGA.falasTroca.topa); break; // só topa: a troca ele abre (André 2026-11-13)
+      case 'troca': // "vem aqui que vou trocar" com a encomenda pronta e ela longe: vem até ele
+        if (!a.troca && !perto && !a.morto && this.encomendaProntaAmiga(a, j)) { this.levarEncomendaAmiga(a, j); fala = 'Tô indo aí levar sua encomenda!'; r = { ...r, fala: '' }; break; }
+        fala = a.troca ? sorteia(this.AMIGA.falasTroca.abre) : sorteia(this.AMIGA.falasTroca.topa); break; // só topa: a troca ele abre (André 2026-11-13)
       case 'presente': case 'pedirItem': { const ult = [...this.chatDeAmiga(j)].reverse().find((c) => c.de === 'ele'); fala = this.pedidoTrocaAmiga(r.assunto, ult?.texto || ''); r = { ...r, fala: '' }; break; }
       case 'equip': fala = this.falaEquipAmiga(); break;
       case 'barco': fala = this.barcoPedidoAmiga(a); r = { ...r, fala: '' }; break; // o que aconteceu de verdade, nunca a fala da IA
@@ -2186,6 +2212,11 @@ export const Amiga = {
       }
       case 'amigo': { // "me adiciona?" pelo chat: o mesmo pedido de tocar nela (ela decide e avisa)
         this.pedidoAmizadeAmiga(id, true); return;
+      }
+      case 'encomenda': { // André 2026-11-21: "minera ferro pra mim, eu compro": vai e coleta de verdade, ou diz por que não
+        const ult = [...this.chatDeAmiga(j)].reverse().find((c) => c.de === 'ele');
+        fala = this.encomendaAmiga(a, j, ult?.texto || ''); r = { ...r, fala: '' };
+        break;
       }
       case 'cacar': { // André 2026-11-16: "vai lá caçar sozinha" agora é feito de verdade
         const v = this.sairCacarAmiga(a, j, r.lugar);
@@ -2542,6 +2573,8 @@ export const Amiga = {
     if (d < 2.8) {
       ia.vir = null; this.pararAmiga(j); ia.fase = 'pensar'; ia.viu = true;
       ia.conversaAte = this.tempo + this.AMIGA.conversa; j.ry = Math.atan2(dono.x - j.x, dono.z - j.z);
+      const enc = this.encomendaProntaAmiga(j, dono);
+      if (enc) { ia.conversaAte = this.tempo + 20; this.dizerAmiga(this.falaEncAmiga(sorteia(ENCOMENDA.falas.chegou), enc, j)); return true; } // trouxe a encomenda: espera ele abrir a troca
       this.dizerAmiga(sorteia(this.AMIGA.chat.falas.chegou) + ' ' + sorteia(this.AMIGA.chat.falas.chegouPergunta));
       ia.chamado = { quer: 'time', ate: this.tempo + this.AMIGA.chat.chamar.espera }; // "bora"/"sim"/Time agora entram sem sorteio
       this.combinarAmiga(j);
@@ -2597,7 +2630,8 @@ export const Amiga = {
       if (!Object.hasOwn(p.equip, l) || !reforcoOk(it, p.atr)) continue;
       if (nota(it) > nota(p.equip[l])) this.item(j.id, { acao: 'equipar', i }); // a peça velha volta pra mochila e é vendida abaixo
     }
-    const guarda = (it) => it.cad || it.k === 'pocao' || it.k.startsWith('semente_') || this.AMIGA.plantas.includes(it.k) || this.AMIGA.pedidos.some((o) => o.k === it.k) || ITENS[it.k].comida;
+    const enc = j.ia?.encomenda, daEnc = (it) => enc && (enc.item === 'peixe' ? ITENS[it.k]?.peixe : it.k === enc.item); // encomenda: não vende
+    const guarda = (it) => daEnc(it) || it.cad || it.k === 'pocao' || it.k.startsWith('semente_') || this.AMIGA.plantas.includes(it.k) || this.AMIGA.pedidos.some((o) => o.k === it.k) || ITENS[it.k].comida;
     let ouro = 0, vendeu = 0;
     for (let i = 0; i < p.mochila.length; i++) {
       const it = itemValido(p.mochila[i]); if (!it) continue;
@@ -2622,6 +2656,15 @@ export const Amiga = {
     this.abrirTroca(dono, a);
     for (const r of a.ia.reserva || []) { const i = a.prog.mochila.findIndex((o) => o?.k === r.k && !o.cad); if (i >= 0) this.troca(a.id, { acao: 'por', i, n: Math.min(r.n, a.prog.mochila[i].n || 1) }); }
     a.ia.reserva = null; // o que ela ofereceu no chat já vai pra mesa
+    const enc = this.encomendaProntaAmiga(a, dono); // a encomenda dele vai pra mesa (André 2026-11-21)
+    if (enc) {
+      let falta = Math.min(enc.tem, contarRec(a.prog.mochila, enc.item));
+      for (let i = 0; i < a.prog.mochila.length && falta > 0; i++) {
+        const o = a.prog.mochila[i]; if (!o || o.cad || !(enc.item === 'peixe' ? ITENS[o.k]?.peixe : o.k === enc.item)) continue;
+        const n = Math.min(falta, o.n || 1); this.troca(a.id, { acao: 'por', i, n }); falta -= n;
+      }
+      this.falarAmiga(this.falaEncAmiga(ENCOMENDA.falas.naMesa, enc, a));
+    }
     return true;
   },
   // o servidor mexeu na troca dela (enviarTroca): pensa de novo daqui a pouco
@@ -2669,6 +2712,7 @@ export const Amiga = {
     const p = a.pedido, veio = p ? ele.itens.reduce((s, e) => { const it = itemValido(JSON.parse(e.chave)); return s + (it?.k === p.k ? e.n : 0); }, 0) : 0;
     const quem = this.jogadores.get(T.a === a.id ? T.b : T.a);
     if (p && veio >= p.n) { a.pedido = null; this.ganharAmizadeAmiga(quem, 1, false); }
+    if (a.ia.encomenda?.pronta && quem && a.ia.encomenda.conta === quem.conta && eu.itens.length) a.ia.encomenda = null; // entregue
     if (presente) { this.ganharAmizadeAmiga(quem, 1, false); this.falarAmiga(this.AMIGA.falasTroca.obrigada); } else this.falarAmiga(sorteia(this.AMIGA.falasTroca.feita));
     a.ia.trocaT = null; a.ia.trocaViu = null;
     const vestiu = this.vestirMelhorAmiga(a); // ganhou peça melhor: veste na hora
@@ -2821,7 +2865,76 @@ export const Amiga = {
     } else ia.puxarT = 0;
   },
   // o lugar de coleta mais perto dela, perto do André: { id, x, z, perto, no | sx, sz }
-  acharColetaAmiga(j, dono, tipo) {
+  // ---------- encomenda pelo chat (André 2026-11-21: "minera um pouco de ferro pra mim, eu compro") ----------
+  // o lugar com o recurso mais perto DELA (mesmo longe dele), fora de região que a história dela ainda não abriu
+  lugarRecursoAmiga(j, R, menos = null) {
+    let melhor = null, md = Infinity;
+    const ok = (x, z) => !(menos && Math.hypot(x - menos.x, z - menos.z) < 12) && !(j.semTeto && zonaFechadaEm(j.prog, x, z));
+    if (R.coleta === 'pescar') { for (const v of this.spots || []) if (v.ativo && ok(v.x, v.z)) { const d = Math.hypot(v.x - j.x, v.z - j.z); if (d < md) { md = d; melhor = { id: v.id, x: v.x, z: v.z, y: 0 }; } } return melhor; }
+    for (const no of this.coletaveis.values()) {
+      if (no.tipo !== R.no || this.cargas(j, no) <= 0 || !ok(no.x, no.z)) continue;
+      const d = Math.hypot(no.x - j.x, no.z - j.z); if (d < md) { md = d; melhor = { id: no.id, x: no.x, z: no.z, y: no.y ?? null }; }
+    }
+    return melhor;
+  },
+  // nome de verdade do lugar: a mina, o campo de caça perto, ou a distância
+  ondeFicaAmiga(a, c) {
+    const no = this.coletaveis.get(c.id), mina = no?.mina && MINA.find((m) => m.id === no.mina);
+    if (mina?.nome) return `no ${nomeLugarAmiga(mina.nome)}`;
+    let perto = null, md = 70;
+    for (const k of this.cacas || []) { const d = k.def; if (d?.nome && !d.boss && !d.tunel && Math.hypot(d.x - c.x, d.z - c.z) < md) { md = Math.hypot(d.x - c.x, d.z - c.z); perto = d.nome; } }
+    if (perto) return `perto de ${nomeLugarAmiga(perto)}`;
+    return `num lugar a ${Math.round(Math.hypot(c.x - a.x, c.z - a.z))} m daqui`;
+  },
+  falaEncAmiga(f, enc, j, extra = {}) {
+    const R = ENCOMENDA.recursos[enc.rec], v = { n: enc.n, tem: enc.tem ?? Math.max(0, contarRec(j.prog.mochila, enc.item) - enc.base), item: R.nome, lugar: enc.lugar || 'lá', coleta: this.AMIGA.atividades[R.coleta]?.nome || R.coleta, ...extra };
+    return String(f).replace(/\{(\w+)\}/g, (m, k) => (v[k] ?? m));
+  },
+  // a encomenda pronta para esse jogador (null se não tem)
+  encomendaProntaAmiga(a, j) { const e = a?.ia?.encomenda; return e && e.pronta && j && e.conta === j.conta && e.tem > 0 ? e : null; },
+  levarEncomendaAmiga(a, j) {
+    if (a.ia.av && ['ir', 'cacar', 'escolher'].includes(a.ia.av.fase)) { if (a.coleta) this.pararColeta(a, null); if (a.pesca) this.pararPesca(a, null); Object.assign(a.ia.av, { fase: 'voltar', c: null, coleta: null }); }
+    a.ia.vir = { ate: this.tempo + ENCOMENDA.vir, longe: this.tempo + 4 }; a.ia.chamado = null; a.ia.conversaAte = 0; a.ia.viagem = null;
+  },
+  // pediu pelo chat: confere tudo de verdade; se dá, sai agora para o lugar mais perto dela. Devolve a fala (sincera)
+  encomendaAmiga(a, j, texto) {
+    const E = ENCOMENDA, F = E.falas, pedido = encomendaDoTexto(texto) || { rec: '', n: E.padrao }, ia = a.ia;
+    const atual = ia.encomenda;
+    if (atual && atual.conta === j.conta && !atual.pronta && ia.av?.encomenda) return this.falaEncAmiga(sorteia(F.progresso), atual, a);
+    if (atual && this.encomendaProntaAmiga(a, j)) return this.falaEncAmiga(sorteia(F.pronta), atual, a);
+    if (!pedido.rec) return F.qual;
+    const R = E.recursos[pedido.rec], Ativ = this.AMIGA.atividades[R.coleta], base = { rec: pedido.rec, n: pedido.n, item: R.item };
+    const diz = (f, x = {}) => this.falaEncAmiga(f, { ...base, tem: 0 }, a, x);
+    if (a.morto) return F.caiu;
+    if (a.time && a.time === j.time) return diz(F.noTime);
+    if (!naHoraDe(this.rotinaAmiga(), horaDoJogo(a.prog.dia))) return F.hora;
+    if (contar(a.prog.mochila, Ativ.ferramenta) <= 0) return diz(F.semFerramenta, { ferramenta: ITENS[Ativ.ferramenta]?.nome.toLowerCase() || Ativ.ferramenta });
+    const K = R.no && COLETA[R.no];
+    if (K && profNivel(a.prog.prof[K.prof]) < (K.nivel || 1)) return diz(F.nivel, { prof: PROFISSOES[K.prof]?.nome || K.prof, nivel: K.nivel, meu: profNivel(a.prog.prof[K.prof]) });
+    if (vigorAgora(a.prog.vigor) < 1) return diz(F.vigor);
+    if (a.prog.mochila.filter((o) => !o).length < NPC_VIDA.aventura.mochilaLivre) return F.mochila;
+    const c = this.lugarRecursoAmiga(a, R);
+    if (!c) return diz(F.semLugar);
+
+    if (a.ia.fase === 'trabalhar') { a.ia.fase = 'pensar'; a.acao = null; }
+    if (ia.atividade) this.fimAtividadeAmiga(a, true);
+    if (a.coleta) this.pararColeta(a, null); if (a.pesca) this.pararPesca(a, null);
+    ia.encomenda = { ...base, base: contarRec(a.prog.mochila, R.item), conta: j.conta, pronta: false, lugar: this.ondeFicaAmiga(a, c) };
+    ia.av = { fase: 'ir', c, coleta: R.coleta, noTipo: R.no, encomenda: true, ate: this.tempo + E.tempo };
+    ia.viagem = null; ia.vir = null; ia.alvoColeta = null; ia.conversaAte = this.tempo + 2;
+    return this.falaEncAmiga(sorteia(F.aceita), ia.encomenda, a);
+  },
+  // acabou (juntou tudo ou parou): separa o que pegou e avisa ele, se estiver na sala
+  fimEncomendaAmiga(j, motivo) {
+    const enc = j.ia.encomenda; if (!enc || enc.pronta) return;
+    enc.tem = Math.min(enc.n, Math.max(0, contarRec(j.prog.mochila, enc.item) - enc.base)); enc.pronta = true;
+    const F = ENCOMENDA.falas, m = F.motivos[motivo] || '';
+    const fala = enc.tem >= enc.n ? sorteia(F.pronta) : enc.tem > 0 ? F.parcial[0] : F.nada[0];
+    if (!enc.tem) j.ia.encomenda = null;
+    const ele = [...this.jogadores.values()].find((p) => !p.bot && p.conta === enc.conta);
+    if (ele) this.dizerAmiga(this.falaEncAmiga(fala, enc, j, { motivo: m }), false, ele.id);
+  },
+  acharColetaAmiga(j, dono, tipo, noTipo = null) {
     const C = this.AMIGA.coleta, ia = j.ia, ruim = (id) => (ia.ruins.get(id) || 0) > this.tempo;
     let melhor = null, md = Infinity;
     if (tipo === 'pescar') {
@@ -2843,6 +2956,7 @@ export const Amiga = {
     for (const no of this.coletaveis.values()) {
       const K = COLETA[no.tipo]; if (!K || K.mao || ruim(no.id)) continue;
       if (tipo === 'lenha' ? no.tipo !== 'arvore' : K.prof !== 'min') continue;
+      if (noTipo && no.tipo !== noTipo) continue; // encomenda: só o recurso pedido
       if (Math.hypot(no.x - dono.x, no.z - dono.z) > C.raio || (no.y != null && Math.abs((dono.y || 0) - no.y) > 2.5)) continue;
       if (profNivel(j.prog.prof[K.prof]) < (K.nivel || 1) || this.cargas(j, no) <= 0) continue;
       if (dono.coleta?.no === no.id) continue; // não pega o mesmo que ele
