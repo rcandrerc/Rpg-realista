@@ -3284,6 +3284,30 @@ func linha_ouro(tam := 16) -> Control:
 	return l
 
 # quadradinho de item: moldura e ícone na cor da raridade, quantidade no canto
+# barra de água do regador (André 2026-11-21): fina, na esquerda do quadrado; esvazia a cada rega (20 regas cheio)
+static func barra_agua(b: Control, frac: float) -> void:
+	frac = clampf(frac, 0.0, 1.0)
+	var fundo := ColorRect.new()
+	fundo.color = Color(0.02, 0.03, 0.05, 0.85)
+	fundo.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	fundo.offset_left = 4
+	fundo.offset_right = 10
+	fundo.offset_top = 8
+	fundo.offset_bottom = -8
+	fundo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(fundo)
+	var agua := ColorRect.new()
+	agua.color = Color("4fb4ff") if frac > 0.25 else Color("e0a040")
+	agua.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	agua.anchor_top = 1.0 - frac
+	agua.anchor_bottom = 1.0
+	agua.offset_left = 1
+	agua.offset_right = -1
+	agua.offset_top = 0
+	agua.offset_bottom = -1
+	agua.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fundo.add_child(agua)
+
 func celula(it, escolhido: bool, fn: Callable, tam := 56, marcado := false) -> Button:
 	var P = m.P
 	var b := Button.new()
@@ -3312,6 +3336,8 @@ func celula(it, escolhido: bool, fn: Callable, tam := 56, marcado := false) -> B
 			r.position = Vector2(4, 1)
 			r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			b.add_child(r)
+		if it.k == "regador":
+			barra_agua(b, P.agua_frac())
 		if int(it.get("n", 1)) > 1:
 			var n := rotulo(str(int(it.n)), 14 if tam >= 64 else 12, TEXTO)
 			n.add_theme_constant_override("outline_size", 4)
