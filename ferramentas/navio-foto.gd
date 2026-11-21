@@ -61,10 +61,13 @@ func _initialize() -> void:
 		["navio-3-popa", Vector3(-9, 5.5, -15), Vector3(0, 3.5, 0)],
 		["navio-4-de-cima", Vector3(9, 13, -9), Vector3(0, 1.2, 0)],
 		["navio-5-proa-perto", Vector3(5, 3.0, 11), Vector3(0, 1.6, 5.5)],
+		["navio-6-porao", Vector3(3.6, 4.2, -2.2), Vector3(0, 0.9, 0.9)],
 	]
 	await esperar(10)
 	t._por_packs(nav, [], 4, Vector2(0.62, 0.55), 0.0)
 	for i in vistas.size():
+		if i == 5:
+			t._por_packs(nav, ["perola", "obsid", "ervas", "brasa", "perola", "ervas"], 4, Vector2(0.62, 0.55), 0.0)
 		if i == 3:
 			t._por_packs(nav, ["perola", "perola", "obsid", "ervas", "brasa", "perola", "ervas", "obsid", "perola", "brasa", "ervas", "obsid"], 4, Vector2(0.62, 0.55), 0.0)
 		cam.position = vistas[i][1]
