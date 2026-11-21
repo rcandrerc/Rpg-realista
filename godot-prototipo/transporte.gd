@@ -786,6 +786,14 @@ func _mastro_vela(corpo: Node3D, zm: float, boca: float, pique: float, topo: flo
 	_pau(rig, Dc + Vector3(0, -0.05, -0.1), Vector3(0, D + 0.05, -retranca + 0.4), 0.014, 0.014, _mt_cabo, 4)
 	_juntar(rig)
 
+# os 16 lugares do porão (4 colunas x 4 fileiras), em volta do meio da área de carga; o 1º na frente, à esquerda
+func _lugares_porao() -> Array:
+	var l := []
+	for fila in 4:
+		for col in 4:
+			l.append(Vector3((float(col) - 1.5) * 0.64, 0.0, (1.5 - float(fila)) * 0.64))
+	return l
+
 func modelo_navio() -> Node3D:
 	_materiais_navio()
 	var g := Node3D.new()
@@ -1023,18 +1031,31 @@ func modelo_navio() -> Node3D:
 			_caixa(corpo, Vector3(0.05, 0.04, 0.5), Vector3(topo.x + lado * 0.02 * k, y, zc), _mt_madeira)
 		for dz in [-0.24, 0.24]:
 			_pau(corpo, topo + Vector3(0, 0, dz), Vector3(topo.x + lado * 0.1, NAV_AGUA - 0.1, zc + dz), 0.015, 0.015, _mt_corda, 4)
+	# os 16 lugares do porão no convés, entre os mastros (André 2026-11-21: "não vi os lugares pra guardar os packs, quero
+	# eles visualmente mostrados"): um estrado de madeira por lugar (4 x 4), com a borda de cabo em volta da área de
+	# carga e as argolas de amarrar. Vazio mostra o estrado; com pack, o caixote fica em cima dele.
+	var zc_p: float = (NAV_MASTRO_F + NAV_MASTRO_R) * 0.5 - 0.1
+	for q in _lugares_porao():
+		var c3: Vector3 = D2 + Vector3(q.x, 0.0, zc_p + q.z)
+		for dx in [-0.21, 0.21]: # os dois barrotes de baixo
+			_caixa(corpo, Vector3(0.07, 0.05, 0.5), c3 + Vector3(dx, 0.025, 0), _mt_mastro)
+		for k in 4: # as tábuas de cima
+			_caixa(corpo, Vector3(0.56, 0.025, 0.1), c3 + Vector3(0, 0.0625, -0.195 + float(k) * 0.13), _mt_madeira_esc)
+		_caixa(corpo, Vector3(0.6, 0.012, 0.54), c3 + Vector3(0, 0.006, 0), _mt_cabo) # sombra escura embaixo: o lugar se destaca do convés
+	var bx: float = 1.32
+	var bz0: float = zc_p - 1.27
+	var bz1: float = zc_p + 1.27
+	for lado in [-1.0, 1.0]: # cabo da borda da área de carga, nos quatro lados, com as argolas de ferro nos cantos
+		_pau(corpo, D2 + Vector3(lado * bx, 0.06, bz0), D2 + Vector3(lado * bx, 0.06, bz1), 0.04, 0.04, _mt_corda, 6)
+		_pau(corpo, D2 + Vector3(-bx, 0.06, zc_p + lado * 1.27), D2 + Vector3(bx, 0.06, zc_p + lado * 1.27), 0.04, 0.04, _mt_corda, 6)
+		for lz in [bz0, bz1]:
+			_cil(corpo, 0.07, 0.03, D2 + Vector3(lado * bx, 0.03, lz), _mt_ferro, Vector3.ZERO, 10)
 	_juntar(corpo)
-	# os packs do porão empilhados no convés entre os mastros (4 de largura, 2 fileiras, 2 andares)
 	var pk := Node3D.new()
 	pk.name = "packs"
-	pk.position = D2 + Vector3(0, 0.0, (NAV_MASTRO_F + NAV_MASTRO_R) * 0.5 + 0.1)
-	var lug := []
-	for andar in 2:
-		for fila in 2:
-			for col in 4:
-				lug.append(Vector3((float(col) - 1.5) * 0.6, float(andar) * 0.62, 0.32 - float(fila) * 0.62))
-	pk.set_meta("lugares", lug)
-	pk.set_meta("alinhado", true) # empilhados certinhos, como carga amarrada
+	pk.position = D2 + Vector3(0, 0.075, zc_p)
+	pk.set_meta("lugares", _lugares_porao())
+	pk.set_meta("alinhado", true) # um em cada estrado, certinho, como carga amarrada
 	corpo.add_child(pk)
 	_sombra(g)
 	return g
@@ -2185,9 +2206,9 @@ func _escada_navio() -> void:
 # VEICULOS.navio.solido: o convés (chão), a amurada dos dois lados (parede, com o vão da escada de corda), proa e
 # popa fechadas, os mastros, a roda do leme, a escotilha e a carga empilhada (sobe com os packs). Fora da escada, quem
 # nada não sobe (o costado é alto); pela escada: o degrau na água e depois o convés (escalada curta do andar.gd).
-var _caixas_navio := {} # packs -> caixas
+var _caixas_navio := {} # quantos packs -> caixas
 func caixas_navio(n_packs: int) -> Array:
-	var faixa: int = 0 if n_packs <= 0 else 1 if n_packs <= 8 else 2
+	var faixa: int = clampi(n_packs, 0, int(V.navio.porao))
 	if _caixas_navio.has(faixa):
 		return _caixas_navio[faixa]
 	var S: Dictionary = V.navio.solido
@@ -2222,9 +2243,13 @@ func caixas_navio(n_packs: int) -> Array:
 	l.append([-0.32, 0.32, NAV_LEME.z - 0.3, NAV_LEME.z + 0.2, D + 1.55]) # roda do leme
 	l.append([-0.2, 0.2, NAV_LEME.z + 0.6, NAV_LEME.z + 0.9, D + 0.55]) # bitácula
 	l.append([-0.65, 0.65, -3.1, -2.1, D + 0.17]) # escotilha (degrauzinho)
-	if faixa > 0: # a carga entre os mastros (1 ou 2 andares de packs)
-		var zc: float = (NAV_MASTRO_F + NAV_MASTRO_R) * 0.5 + 0.1
-		l.append([-1.2, 1.2, zc - 0.52, zc + 0.54, D + 0.62 * float(faixa)])
+	# a área de carga: os estrados (degrauzinho) e um caixote em cima de cada lugar ocupado
+	var zc: float = (NAV_MASTRO_F + NAV_MASTRO_R) * 0.5 - 0.1
+	l.append([-1.3, 1.3, zc - 1.25, zc + 1.25, D + 0.075])
+	var lug: Array = _lugares_porao()
+	for i in faixa:
+		var q: Vector3 = lug[i]
+		l.append([q.x - 0.29, q.x + 0.29, zc + q.z - 0.22, zc + q.z + 0.22, D + 0.075 + 0.62])
 	_caixas_navio[faixa] = l
 	return l
 
