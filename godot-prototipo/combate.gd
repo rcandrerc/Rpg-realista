@@ -102,16 +102,19 @@ func _c(no: Node3D) -> Dictionary:
 			if not (mi.mesh is QuadMesh): # o corpo, não a barra de vida
 				malhas.append(mi)
 		c = {"tilt": Vector2.ZERO, "v": Vector2.ZERO, "preparo": 0.0, "preparo_dur": 0.0, "firme": 0.0,
-			"morto": -1.0, "escala": no.scale, "malhas": malhas, "volta": 0.0, "reagiu": -9.0, "arco": null, "firme_txt": null}
+			"morto": -1.0, "escala": no.scale, "malhas": malhas, "volta": 0.0, "reagiu": -9.0, "meu_golpe": -9.0, "arco": null, "firme_txt": null}
 		_corpos[no] = c
 	return c
 
 # tranco do golpe: o corpo inclina para longe de quem bateu e volta na mola
-func reacao(no: Node3D, de: Vector3, forte := false) -> void:
+# meu = o golpe foi do herói deste celular (false: outro jogador, bot ou NPC bateu; online.gd)
+func reacao(no: Node3D, de: Vector3, forte := false, meu := true) -> void:
 	if not is_instance_valid(no):
 		return
 	var c := _c(no)
 	c.reagiu = m.tempo
+	if meu:
+		c.meu_golpe = m.tempo
 	if c.firme > 0.0:
 		forte = false # firme: quase não balança
 	else:
@@ -191,12 +194,17 @@ func morreu(no: Node3D) -> void:
 	c.preparo = 0.0
 	c.firme = 0.0
 	c.volta = 0.0
-	# último monstro por perto: câmera lenta curtinha (só o tempo; a câmera fica como está)
+	# último monstro por perto: câmera lenta curtinha (só o tempo; a câmera fica como está). Só quando foi o golpe do
+	# herói que derrubou (André 2026-11-21, vídeo perto da Vila da Clareira: "slow motion muito frequente, FPS e ping
+	# normais"). Antes valia qualquer golpe: os bots e os outros jogadores matando bicho longe deixavam o jogo inteiro
+	# a 30% por 0,45 s a cada morte, e o herói corria em câmera lenta sem estar lutando.
+	if m.tempo - float(c.meu_golpe) >= 0.6 or no.position.distance_to(m.heroi.position) > 30.0:
+		return
 	var vivos := 0
 	for e in m.inimigos:
 		if e.no != no and e.estado != "morto" and e.no.position.distance_to(m.heroi.position) < 15.0:
 			vivos += 1
-	if vivos == 0 and m.tempo - c.reagiu < 0.6:
+	if vivos == 0:
 		m.lenta(0.45, 0.3)
 
 # voltou (renasceu): aparece com um sopro de poeira, crescendo
