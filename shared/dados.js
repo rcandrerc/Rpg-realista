@@ -1423,7 +1423,7 @@ export const PVP = {
   moeda: { vitoria: 30, derrota: 12, empate: 20, abate: 2, abateMax: 20, minimo: 60 },
   times: { chama: { nome: 'Chama', cor: 'ff9a3c' }, geada: { nome: 'Geada', cor: '8fd0ff' } },
   // NPCs que completam cada time, na ordem de preferência (Chama: depois deles, qualquer aventureiro que estiver online)
-  npcs: { chama: ['cecilia', 'dario'], geada: ['kira', 'rufo', 'lis'] },
+  npcs: { chama: ['cecilia', 'dario', 'lia'], geada: ['kira', 'rufo', 'lis', 'gael'] },
   travar: 0.5, // atordoar/congelar de jogador em jogador vale essa fração do tempo (igual ao duelo)
 };
 // Loja da Arena (André 2026-11-21: "moeda específica que vai ter item exclusivo de uma loja", "loja pontos fixa"): preço
@@ -3235,7 +3235,11 @@ const AV = [
   ['gael', 'Gael Lobo', 'm', null, 0x1c1a1f, 0xe0b030, 0xc68a62, 0x7a7c80, 0x222226, 1.04, 15, 'cacar', 'caçador frio e eficiente, competitivo, não gosta de perder drop'],
   ['rosamar', 'Rosa-Mar', 'f', 'vita', 0xa8401c, 0x3a6fd0, 0xf3cdb0, 0x24345c, 0xe8e2d4, 1, 9, 'pescar', 'marinheira animada, ama o mar e adora contar histórias'],
 ];
-export const AVENTUREIROS = AV.map(([id, nome, g, penteado, cabelo, olhos, pele, roupa, calca, altura, nivel, gosto, jeito]) => mesclarAmigo(g === 'm' ? DARIO : AMIGA, {
+// André 2026-11-21 ("pega os que já tem pronto"): a Lia Brasa e o Gael Lobo saíram daqui e viraram bots completos
+// (LIA na Chama, GAEL na Geada, mais abaixo); a linha deles em AV continua (a cara, o jeito e o nível vêm de lá).
+export const AV_PROMOVIDOS = ['lia', 'gael'];
+const linhaAv = (id) => AV.find((r) => r[0] === id);
+export const AVENTUREIROS = AV.filter(([id]) => !AV_PROMOVIDOS.includes(id)).map(([id, nome, g, penteado, cabelo, olhos, pele, roupa, calca, altura, nivel, gosto, jeito]) => mesclarAmigo(g === 'm' ? DARIO : AMIGA, {
   id, nome, conta: 'a:' + id, papel: g === 'm' ? 'o aventureiro' : 'a aventureira', genero: g,
   persona: `${g === 'm' ? 'um aventureiro' : 'uma aventureira'} de anime num RPG medieval de fantasia: ${jeito}`,
   visual: g === 'm' ? 'cabelo_m' : 'ruiva', aparencia: { cabelo, olhos, pele, roupa, calca, altura, penteado }, // penteado null = o cabelo do próprio corpo
@@ -3392,7 +3396,7 @@ DARIO.desculpas = DESCULPAS_SAIR.m;
 // botão de ativar chave. O sistema de IA continua no código (server/ia-amiga.js): ligada: true volta tudo como era.
 // André 2026-11-19 ("pode deixar aberta a chave pra todos"): ligada de novo, aberta a todo jogador, só na Cecília e no Dario
 // (a Geada não tem IA: fala pelas regras e na língua dela). Gemini primeiro, depois Groq; acabou o do dia, as regras e os botões.
-export const IA_CONVERSA = { ligada: true, quem: ['cecilia', 'dario'] };
+export const IA_CONVERSA = { ligada: true, quem: ['cecilia', 'dario', 'lia'] }; // Lia Brasa (André 2026-11-21): igual ao Dario
 // ---------- repertório único de conversa (André 2026-11-18: "a única coisa que tem que diferenciar é masculino de
 // feminino ... conversar com a Cecília, sempre ela respondendo em feminino; com o Dário, sempre masculino") ----------
 // Um repertório só para todos os NPCs. {feminino|masculino} escolhe pelo gênero de quem fala (shared/amiga.js vozAmiga).
@@ -3611,9 +3615,31 @@ export const LIS = rivalGeada(AMIGA, 'lis', 'Lis', 'a estrategista da Geada', {
   equip: { corpo: { k: 'peitoral', r: 1 }, pernas: { k: 'short', r: 1 }, pes: { k: 'botas', r: 1 }, capa: { k: 'capa', r: 2 }, cajado: { k: 'cajado', r: 1 } },
   guerra: { coragem: 0.45, honra: 0.6, paciencia: 0.9 },
 });
-export const RIVAIS = [KIRA, RUFO, LIS];
+// Gael Lobo (André 2026-11-21: "inclua mais 2 NPCs... igual igual o Dario... um pro Geada e um pro nosso lado"): o
+// aventureiro pronto (linha 'gael' em AV: cara, jeito, rotina e cérebro dele) virou o quarto da Geada, igual ao Rufo
+// por dentro (mesmo código de bot: cajado, barco, história, diárias, encomenda, packs, guerra).
+const avGael = linhaAv('gael');
+export const GAEL = rivalGeada(DARIO, 'gael', 'Gael Lobo', 'o caçador da Geada', {
+  genero: 'm', visual: 'cabelo_m', nivelInicial: 44,
+  persona: 'o caçador da Geada: frio, eficiente e competitivo, fala pouco, não gosta de perder drop nem briga',
+  aparencia: { cabelo: avGael[4], olhos: avGael[5], pele: avGael[6], roupa: avGael[7], calca: avGael[8], altura: avGael[9], penteado: avGael[3] },
+  equip: { corpo: { k: 'peitoral', r: 2 }, pernas: { k: 'calca', r: 2 }, pes: { k: 'botas', r: 2 }, capa: { k: 'capa', r: 2 }, espada: { k: 'espada', r: 1 } },
+  guerra: { coragem: 0.8, honra: 0.5, paciencia: 0.6 },
+});
+export const RIVAIS = [KIRA, RUFO, LIS, GAEL];
 // O Dario é o líder da Chama (André 2026-11-18): defende os seus. Só o jeito na guerra (as falas estão em FALAS_GUERRA).
 DARIO.guerra = { coragem: 0.7, honra: 0.85, paciencia: 0.5 };
+// Lia Brasa (André 2026-11-21): a aventureira pronta (linha 'lia' em AV) virou bot completo da Chama, igual à Cecília e
+// ao Dario: terreno com casa e horta, história do zero, diárias, sem teto e sem a trava da névoa (NPC_SEM_NEVOA), IA na
+// conversa, botão Seguir, convite de time e o jeito de guerra (25 m etc. vêm do código de guerra, que vale para todos).
+const avLia = linhaAv('lia');
+export const LIA = mesclarAmigo(AMIGA, {
+  id: 'lia', nome: 'Lia Brasa', conta: 'a:lia', papel: 'a guerreira da Chama', genero: 'f', visual: 'ruiva', nivelInicial: 40, // fora da Trégua, perto do Dario (a Geada entrou no 42 a 45)
+  persona: 'uma guerreira de anime num RPG medieval de fantasia: impulsiva e risonha, a primeira a pular na briga, caça sem parar e defende a Chama',
+  aparencia: { cabelo: avLia[4], olhos: avLia[5], pele: avLia[6], roupa: avLia[7], calca: avLia[8], altura: avLia[9], penteado: avLia[3] },
+  guerra: { coragem: 0.9, honra: 0.6, paciencia: 0.2 },
+});
+AMIGOS_VIRTUAIS.splice(2, 0, LIA); // depois do Dario (o repertório e as desculpas ela herda da Cecília)
 
 // Falas da guerra, montadas por peças (sem IA). Cada NPC: gatilho -> frases. Um gatilho com sufixo é mais específico e
 // ganha quando a situação bate: _rev (ele já me derrubou mais vezes do que eu a ele), _fregues (eu já o derrubei mais),
@@ -3705,6 +3731,42 @@ export const FALAS_GUERRA = {
     recusa: ['Não dá, {nome}. Você é da Geada.'],
     lingua: ['Não entendo uma palavra da Geada.', 'Língua de gelo. Guarda pra você.', 'Fala de gente, {nome}.'],
   },
+  lia: { // a Chama impulsiva (só falas de guerra; a conversa normal é a de todos)
+    avista: ['Geada! Deixa comigo!', 'Olha lá, {nome}! Bora!', 'Achei gelo pra derreter!'],
+    ataca: ['Pela Chama!', 'Toma, {nome}!', 'Esquenta aí!'],
+    ajuda: ['Tô chegando!', 'Segura que eu chego!'],
+    foge: ['Opa, essa não! Pra vila!', 'Volto já, {nome}!'],
+    poupa: ['Você é pequeno demais, {nome}. Vai.'],
+    desiste: ['Correu! Kkk.'],
+    segura: ['Na vila não pode. Que pena.'],
+    mata: ['Derreteu! Kkk.', 'A Chama segue acesa!'],
+    morre: ['Ai! Essa doeu, {nome}...'],
+    recusa: ['Nem vem, {nome}. Você é da Geada.'],
+    lingua: ['Não entendi nada, mas parece xingamento.', 'Fala direito, picolé!'],
+  },
+  gael: {
+    abre: ['Hm.', '{nome}.', 'Rastro novo.'],
+    fecho: ['O lobo não erra duas vezes.', 'A Geada caça junta.', 'Fique longe do meu campo.'],
+    avista: ['Rastro da Chama. Fresco.', 'Te vi, {nome}.', 'Presa à vista.', 'Esse campo é meu, {nome}.'],
+    avista_rev: ['{nome}. Hoje o placar muda.', 'Você teve sorte {ele} vezes. Acabou.'],
+    avista_fregues: ['{nome}, {eu} a {ele}. Quer mais?', 'Minha presa favorita voltou.'],
+    ataca: ['Agora.', 'Peguei você, {nome}.', 'Sem fuga.'],
+    ajuda: ['Cerco fechado.', 'Tô no flanco.'],
+    foge: ['Recuo. Volto pela trilha.', 'Hoje não. Amanhã sim.'],
+    poupa: ['Pequeno demais. Não vale o drop.', 'Cresce, {nome}. Depois eu volto.'],
+    desiste: ['Fugiu. Eu sigo o rastro depois.', 'Corre. Eu lembro do cheiro.'],
+    segura: ['Na vila você está seguro. Lá fora, não.', 'Eu espero na trilha.'],
+    mata: ['Caça boa.', 'Mais um, {nome}.', 'O lobo come primeiro.'],
+    morre: ['Boa mordida, {nome}...', 'Não vai acontecer de novo.'],
+    conversa: ['Fala.', 'Gael, da Geada. O que quer?', 'Seja rápido, tô caçando.', 'Você está no meu campo, {nome}.'],
+    conversa_tregua: ['Trégua ainda. Não caço filhote.', 'Volta no Nv 31.'],
+    conversa_rev: ['{ele} vezes você me pegou. Eu não esqueço.', 'Você caça bem. Pena ser da Chama.'],
+    conversa_fregues: ['{eu} a {ele}. O lobo está ganhando.', 'Trouxe drop pra mim?'],
+    recusa: ['Não. Você é da Chama.', 'Lobo não caça com brasa.', 'Nem pensar, {nome}.'],
+    kael: ['Kael aponta. Eu caço.', 'O Kael confia no meu faro.', 'Pergunte ao Kael. Eu só caço.'],
+    provoca: ['Late menos, {nome}.', 'Cachorro que late não morde.', 'Fala. Eu só escuto o rastro.'],
+    lingua: ['Língua de brasa. Não entendo.', 'Seus sons não me dizem nada.', 'Fala a língua da Geada.'],
+  },
 };
 // O que alguém escreveu no chat Local e que muda a resposta (sem acento, minúsculas). Sem nenhuma: 'conversa'.
 export const ASSUNTOS_GUERRA = [['kael', /\bkael\b|\bcaio\b/], ['provoca', /fraco|covarde|lixo|noob|medroso|perdedor|ruim|vem|vou te|bora lutar|duvido/]];
@@ -3718,6 +3780,9 @@ export const DUPLAS_GUERRA = [
   [['kira', 'Alguém viu o Kael hoje?'], ['lis', 'Na torre. Pediu silêncio. Olhou pro Rufo quando falou.']],
   [['rufo', 'Tô com fome. A Chama pelo menos tem fogueira.'], ['kira', 'Fale isso de novo e você dorme na neve.']],
   [['lis', 'Kira, minha mana acabou na última luta.'], ['kira', 'Fique atrás de mim na próxima.']],
+  [['gael', 'Rufo, você espantou minha caça de novo.'], ['rufo', 'Não espantei, avisei que eu tava chegando!']],
+  [['kira', 'Gael, achou rastro da Chama?'], ['gael', 'Perto do rio. Dois. Um é o Dario.']],
+  [['lis', 'Gael, quantos lobos hoje?'], ['gael', 'Doze. E meio. O Rufo pisou no décimo terceiro.']],
 ];
 
 // Vida própria dos NPCs (André 2026-11-11: "quero que eles andem sozinhos"; os 22 iguais). Fora do time cada um sai
@@ -3730,7 +3795,7 @@ export const DUPLAS_GUERRA = [
 // offline (André 2026-11-11, "ganham XP devagar e nunca passam do nível do jogador mais alto do servidor"): ao voltar
 // para o mundo, cada hora fora conta como horasPorDia/24 h jogadas; cada hora jogada dá porHora do XP do próximo nível,
 // dividido por (1 + nível/meio). No máximo maxDias dias.
-// André 2026-11-21: true = Cecília, Dario, Kira, Rufo e Lis caçam, coletam e andam sem a trava da névoa (zonaFechadaEm). Para voltar: false.
+// André 2026-11-21: true = Cecília, Dario, Lia, Kira, Rufo, Lis e Gael caçam, coletam e andam sem a trava da névoa (zonaFechadaEm). Para voltar: false.
 export const NPC_SEM_NEVOA = true;
 // Encomenda pelo chat (André 2026-11-21: "minera um pouco de ferro pra mim, eu compro"; "isso pra árvore, ferro, qualquer
 // recurso"; "depois eu peço vem aqui que vou trocar"). O bot vai ao lugar mais perto DELE daquele recurso (mesmo com você

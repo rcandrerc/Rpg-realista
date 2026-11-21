@@ -2,14 +2,14 @@
 // independentes quando eu estiver offline"). Os 20 aventureiros continuam na lista, sem corpo no servidor, e evoluem
 // devagar só no tempo em que a sala fica vazia (xpOfflineNpc), sem passar do jogador mais alto.
 // Uso: node ferramentas/testes/npcs-fora.mjs
-import { Simulacao, MAPA_CLAREIRA, AVENTUREIROS, AMIGOS_VIRTUAIS, NPCS_NO_MUNDO, npcNoMundo, xpOfflineNpc, xpProximo, PONTOS_POR_NIVEL } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, AVENTUREIROS, AMIGOS_VIRTUAIS, NPCS_NO_MUNDO, AV_PROMOVIDOS, npcNoMundo, xpOfflineNpc, xpProximo, PONTOS_POR_NIVEL } from '../../shared/index.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 
-ok(AVENTUREIROS.length === 20 && AMIGOS_VIRTUAIS.length === 22, 'os 20 continuam na lista (nada some)');
+ok(AVENTUREIROS.length + AV_PROMOVIDOS.length === 20 && AMIGOS_VIRTUAIS.length === 21, 'os 20 continuam (18 aventureiros; Lia e Gael viraram bots, 2026-11-21)');
 ok(Array.isArray(NPCS_NO_MUNDO.aventureiros) && NPCS_NO_MUNDO.aventureiros.length === 0, 'nenhum aventureiro no mundo com gente jogando');
 const s = new Simulacao(MAPA_CLAREIRA);
-{ const aqui = s.amigosIa.filter((x) => !x.AMIGA.rival); ok(aqui.length === 2 && aqui.map((x) => x.AMIGA.id).sort().join() === 'cecilia,dario', 'na sala: só Cecília e Dario (e a Geada, Chama x Geada: guerra.mjs)'); }
-ok(AMIGOS_VIRTUAIS.filter(npcNoMundo).length === 2, 'a lista de quem conversa também só tem os dois');
+{ const aqui = s.amigosIa.filter((x) => !x.AMIGA.rival); ok(aqui.length === 3 && aqui.map((x) => x.AMIGA.id).sort().join() === 'cecilia,dario,lia', 'na sala: só Cecília, Dario e Lia (e a Geada, Chama x Geada: guerra.mjs)'); }
+ok(AMIGOS_VIRTUAIS.filter(npcNoMundo).length === 3, 'a lista de quem conversa também só tem os três');
 
 // evolui com a sala vazia: 2 dias fora sobe devagar; nunca passa do teto
 const p = { nivel: 3, xp: 0, pontos: 0 };

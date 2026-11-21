@@ -4,11 +4,11 @@
 // Uso: node ferramentas/testes/aventureiros.mjs
 import { Simulacao, MAPA_CLAREIRA, AVENTUREIROS, AMIGOS_VIRTUAIS, CEREBRO, NPC_VIDA, CRIADOR, aparenciaValida, IA_CONVERSA } from '../../shared/index.js';
 IA_CONVERSA.ligada = true; // testa o sistema de IA guardado (desligado no jogo desde 2026-11-18)
-import { NPCS_NO_MUNDO } from '../../shared/dados.js'; NPCS_NO_MUNDO.aventureiros = null; // aqui o teste usa os 20 (no jogo andam só os de NPCS_NO_MUNDO)
+import { NPCS_NO_MUNDO, AV_PROMOVIDOS } from '../../shared/dados.js'; NPCS_NO_MUNDO.aventureiros = null; // aqui o teste usa os 20 (no jogo andam só os de NPCS_NO_MUNDO)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 
-ok(AVENTUREIROS.length === 20 && AMIGOS_VIRTUAIS.length === 22, '20 aventureiros + Cecília e Dario');
-ok(new Set(AMIGOS_VIRTUAIS.map((d) => d.id)).size === 22 && new Set(AMIGOS_VIRTUAIS.map((d) => d.conta)).size === 22, 'ids e contas sem repetir');
+ok(AVENTUREIROS.length === 18 && AV_PROMOVIDOS.length === 2 && AMIGOS_VIRTUAIS.length === 21, '18 aventureiros + Cecília, Dario e Lia (o Gael foi para a Geada)');
+ok(new Set(AMIGOS_VIRTUAIS.map((d) => d.id)).size === 21 && new Set(AMIGOS_VIRTUAIS.map((d) => d.conta)).size === 21, 'ids e contas sem repetir');
 ok(AVENTUREIROS.every((d) => CRIADOR.corpos.includes(d.visual)), 'todos no padrão do criador (Ruiva e cabelo_m)');
 ok(AVENTUREIROS.every((d) => { const a = aparenciaValida(d.aparencia); return ['cabelo', 'olhos', 'pele', 'roupa', 'calca'].every((k) => a[k] === d.aparencia[k]) && a.penteado === (d.aparencia.penteado ?? null); }), 'cores e penteado da paleta do criador (o servidor não troca nada)');
 ok(AVENTUREIROS.every((d) => d.visual === (d.genero === 'm' ? 'cabelo_m' : 'ruiva')), 'moças na Ruiva, rapazes no cabelo_m');
@@ -21,13 +21,13 @@ s.nivelTetoNpc = 12; // o jogador mais alto do servidor
 const d = s.adicionarJogador('andre', 'André', 'ruiva', {});
 for (const x of s.amigosIa) x.amigaEntrar('andre', false); // sem chave: vê todos, não conversa
 const aventureiros = s.amigosIa.filter((x) => !x.AMIGA.terreno && !x.AMIGA.rival); // a Geada (Chama x Geada) fica de fora: tem teste próprio (guerra.mjs)
-ok(aventureiros.length === 20 && aventureiros.every((x) => x.amiga && s.jogadores.has(x.AMIGA.id)), 'os 20 entram no mundo junto com qualquer jogador');
+ok(aventureiros.length === 18 && aventureiros.every((x) => x.amiga && s.jogadores.has(x.AMIGA.id)), 'os 18 entram no mundo junto com qualquer jogador');
 ok(aventureiros.every((x) => !x.amigaFalam.has('andre') && x.amigaDono == null), 'sem chave: nenhum vira "dono" de ninguém');
-ok(aventureiros.every((x) => x.amiga.prog.nivel <= 12) && aventureiros.find((x) => x.AMIGA.id === 'helena').amiga.prog.nivel === 12 && aventureiros.find((x) => x.AMIGA.id === 'lia').amiga.prog.nivel === 3, 'nível da lista, sem passar do jogador mais alto (Helena 20 -> 12)');
+ok(aventureiros.every((x) => x.amiga.prog.nivel <= 12) && aventureiros.find((x) => x.AMIGA.id === 'helena').amiga.prog.nivel === 12 && aventureiros.find((x) => x.AMIGA.id === 'tome').amiga.prog.nivel === 5, 'nível da lista, sem passar do jogador mais alto (Helena 20 -> 12)');
 ok(aventureiros.every((x) => x.amiga.prog.equip.cajado && x.amiga.prog.equip.espada), 'espada e cajado, como todo herói');
-const lia = aventureiros.find((x) => x.AMIGA.id === 'lia'), isolda = aventureiros.find((x) => x.AMIGA.id === 'isolda');
+const lia = aventureiros.find((x) => x.AMIGA.id === 'tome'), isolda = aventureiros.find((x) => x.AMIGA.id === 'isolda');
 for (let i = 0; i < 3; i++) s.passo(0.05);
-ok(isolda.amiga.prog.atr.int > lia.amiga.prog.atr.int, `pontos pelo jeito: Isolda (cajado) Int ${isolda.amiga.prog.atr.int}, Lia Int ${lia.amiga.prog.atr.int}`);
+ok(isolda.amiga.prog.atr.int > lia.amiga.prog.atr.int, `pontos pelo jeito: Isolda (cajado) Int ${isolda.amiga.prog.atr.int}, Tomé Int ${lia.amiga.prog.atr.int}`);
 const M0 = NPC_VIDA.moradia[0];
 ok(aventureiros.every((x) => Math.hypot(x.amiga.x - M0.x, x.amiga.z - M0.z) <= M0.r + 0.5), 'nascem espalhados na vila');
 // algumas horas de jogo (de dia): saem para caçar, matam, ganham XP, voltam
@@ -50,8 +50,8 @@ ok(ms < 8, `custo: ${ms.toFixed(2)} ms por passo com 22 NPCs (o servidor tem 50 
 // save na tabela mundo e volta
 for (const x of aventureiros) x.guardarAmiga();
 const salvos = s.npcsParaSalvar().filter((n) => !['kira', 'rufo', 'lis'].includes(n.id)); // a Geada salva junto (teste em guerra.mjs)
-ok(salvos.length === 20 && salvos.every((n) => n.dados.prog && n.dados.t), 'o progresso dos 20 vai para o banco (tabela mundo)');
-ok(!s.lotesParaSalvar().some((l) => l.dono?.startsWith('a:') && !['a:cecilia', 'a:dario'].includes(l.dono)), 'nenhum terreno criado para aventureiro');
+ok(salvos.length === 18 && salvos.every((n) => n.dados.prog && n.dados.t), 'o progresso dos 18 vai para o banco (tabela mundo)');
+ok(!s.lotesParaSalvar().some((l) => l.dono?.startsWith('a:') && !['a:cecilia', 'a:dario', 'a:lia'].includes(l.dono)), 'nenhum terreno criado para aventureiro');
 // todos saem com o último jogador
 for (const x of s.amigosIa) x.amigaSair('andre');
 ok(s.amigosIa.every((x) => !x.amiga), 'o último jogador saiu: todos saem (e param de gastar servidor)');
@@ -88,6 +88,6 @@ ok(bia.amiga && bia.amigaDono == null, 'quem tinha a chave saiu: ela continua vi
   NPCS_NO_MUNDO.aventureiros = ['lia', 'tome', 'ravi', 'bia'];
   const s5 = new Simulacao(MAPA_CLAREIRA);
   const ids = s5.amigosIa.filter((x) => !x.AMIGA.rival).map((x) => x.AMIGA.id); // a Geada (Kira, Rufo, Lis) anda sempre: teste em guerra.mjs
-  ok(ids.length === 6 && ['cecilia', 'dario', 'lia', 'tome', 'ravi', 'bia'].every((id) => ids.includes(id)) && AVENTUREIROS.length === 20, `no mundo só ${ids.join(', ')}; a lista dos 20 fica guardada`);
+  ok(ids.length === 6 && ['cecilia', 'dario', 'lia', 'tome', 'ravi', 'bia'].every((id) => ids.includes(id)) && AVENTUREIROS.length === 18, `no mundo só ${ids.join(', ')}; a lista dos 20 fica guardada`);
   NPCS_NO_MUNDO.aventureiros = null;
 }
