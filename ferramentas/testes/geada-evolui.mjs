@@ -2,14 +2,14 @@
 // ganham o próprio ouro, reforçam o equipamento com ele e cada passo vai para o diário de evolução (/npcs.json, relatório
 // das 10h). Sem rede. Uso: node ferramentas/testes/geada-evolui.mjs
 import { readFileSync } from 'node:fs';
-import { Simulacao, MAPA_CLAREIRA, RIVAIS, xpProximo } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, RIVAIS, NPC_VIDA, xpProximo } from '../../shared/index.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA); s.adicionarJogador('p', 'P', 'ruiva', { conta: 9 });
 for (const x of s.amigosIa) x.amigaEntrar('p', false);
 const G = s.amigosIa.filter((x) => RIVAIS.some((d) => d.id === x.AMIGA.id));
-ok(G.length === 3 && G.every((g) => g.amiga), 'os três da Geada entram no mundo');
+ok(G.length === RIVAIS.length && G.length === 4 && G.every((g) => g.amiga), 'os quatro da Geada (com o Gael) entram no mundo');
 const ini = new Map(G.map((g) => [g.AMIGA.id, { nv: g.amiga.prog.nivel, ouro: g.amiga.prog.ouro }]));
-for (const g of G) { g.amiga.prog.xp = xpProximo(g.amiga.prog.nivel) - 30; g.amiga.ia.av = { fase: 'escolher' }; g.amiga.prog.dia = { h: 10, t: Date.now() }; g.amiga.missaoDia = { dia: new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), seg: 1e9 }; g.amiga.ia.diariaFalhou = Infinity; } // aqui é a caça: missão da história (André 2026-11-21, a Geada também faz) e diárias já deram o tempo do dia // perto de subir, já saindo para caçar
+for (const g of G) { g.amiga.prog.xp = xpProximo(g.amiga.prog.nivel) - 30; g.amiga.ia.av = { fase: 'escolher' }; g.amiga.prog.dia = { h: ((NPC_VIDA.rotina[g.AMIGA.id] || NPC_VIDA.rotina.padrao).sai + 3) % 24, t: Date.now() }; /* no horário dele (o Gael caça de noite) */ g.amiga.missaoDia = { dia: new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), seg: 1e9 }; g.amiga.ia.diariaFalhou = Infinity; } // aqui é a caça: missão da história (André 2026-11-21, a Geada também faz) e diárias já deram o tempo do dia // perto de subir, já saindo para caçar
 for (let i = 0; i < 25 * 60 * 10; i++) s.passo(0.1);
 for (const g of G) {
   const a = g.amiga, n = g.AMIGA.nome, i0 = ini.get(g.AMIGA.id);
