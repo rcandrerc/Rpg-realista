@@ -142,7 +142,10 @@ func zoom(fator: float) -> void:
 	if foco_livre != null: # câmera flutuante do modo construção: afasta mais para ver o terreno inteiro
 		dist = clamp(dist * fator, max(DIST_MIN, ZOOM_PERTO), LIVRE_LONGE)
 		return
-	dist = clamp(dist * fator, max(DIST_MIN, ZOOM_PERTO), _longe_max() if _no_leme() else min(DIST_MAX, ZOOM_LONGE))
+	if _no_leme(): # pilotando o navio: vai mais longe
+		dist = clamp(dist * fator, max(DIST_MIN, ZOOM_PERTO), NAVIO_LONGE)
+		return
+	dist = clamp(dist * fator, max(DIST_MIN, ZOOM_PERTO), min(DIST_MAX, ZOOM_LONGE))
 
 # atalho do zoom (André 2026-11-12: "no combate quero afastar a tela ao máximo, rápido, com um toque só"): um toque
 # vai em ~0,3 s para o mais longe da pinça (ZOOM_LONGE); outro toque volta para onde estava. Só mexe na distância
