@@ -2,7 +2,7 @@ extends CanvasLayer
 # Menu do topo (no jeito do Quimera): em cima à direita, logo à esquerda do minimapa, ficam os ícones Multijogador e Configurações (a Conta é aba de Configurações)
 # e, na ponta, uma seta. A seta recolhe os ícones (eles deslizam para dentro da seta e somem) e traz de volta;
 # a seta gira junto. Aberto ou fechado fica guardado no aparelho. Cada ícone abre a sua janela no meio da tela.
-# Regra do André: no topo só entram conta, multijogador e configurações (e, pedido dele em 2026-11-04, a mochila, primeiro da fila). Pedido dele (2026-11-03): a casinha do Voltar
+# Regra do André: no topo só entram conta, multijogador, configurações e (pedido dele em 2026-11-21) o PvP (e, pedido dele em 2026-11-04, a mochila, primeiro da fila). Pedido dele (2026-11-03): a casinha do Voltar
 # para a vila também fica aqui, na ponta perto da seta; ela não abre janela, começa a canalização (volta_vila.gd) e mostra
 # a recarga de 10 min (varredura escura e o tempo embaixo).
 
@@ -16,7 +16,7 @@ const MARGEM := Vector2(176, 70) # distância do canto de cima à direita: o men
 # André 2026-11-06: o martelo da construção sai de baixo (confundia com as skills) e vem para cá, do lado da mochila:
 # aceso no meu terreno, escuro fora dele
 # André 2026-11-11: "o menu de missões vai para aquela action bar" (antes era uma aba do menu do personagem)
-const ITENS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["missoes", "Missões", "topo_missoes"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
+const ITENS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["missoes", "Missões", "topo_missoes"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["pvp", "PvP", "topo_pvp"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
 # André 2026-11-16: o ícone Conta saiu da barra ("menos poluído"); Trocar de conta, Sair da conta e Apagar personagem
 # ficam iguais, na aba Conta de Configurações (montar_config). abrir("conta") continua valendo e cai nessa aba.
 const TEMPO := 0.28 # segundos da animação de abrir e recolher (igual ao Quimera)
@@ -92,6 +92,8 @@ func _ready() -> void:
 			b.pressed.connect(_construir)
 			construir_ico = b.get_child(0)
 			construir_btn = b
+		elif k == "pvp": # André 2026-11-21: Arena 3x3 Geada x Chama, Battle Royale (em breve) e a Loja da Arena (arena_pvp.gd)
+			b.pressed.connect(func(): m.arena_pvp.abrir())
 		elif k == "missoes": # a lista das missões (menu.gd montar_missoes), sozinha, sem as abas do personagem
 			b.pressed.connect(func(): m.menu.abrir("missoes"))
 		elif k == "mochila": # André 2026-11-04: a bolsa (Mochila e Criar) sai do menu da barra de vida e ganha botão aqui
@@ -442,6 +444,9 @@ func montar() -> void:
 			montar_config()
 		"creditos":
 			montar_creditos()
+		"pvp":
+			if m.arena_pvp:
+				m.arena_pvp.montar_janela(self)
 	_caber()
 
 # Créditos e direitos (André 2026-11-14: "all rights reserved, para garantir"). Lista os terceiros que a licença deles

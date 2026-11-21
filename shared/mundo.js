@@ -400,9 +400,14 @@ export const ARENAS_BOSS = [
   { id: 'colosso_gelido', x: -270, z: 1240, r: 17 },
   { id: 'dragao_cinzas', x: 680, z: 1228, r: 18 },
 ];
+// Arena PvP 3x3 Geada x Chama (André 2026-11-21: "no mapa aberto é muito grande... se quiser só isolamos uma área pra
+// testar"): um disco plano no alto da cordilheira do nordeste, longe de vila, estrada e campo, dentro da névoa (ninguém
+// chega andando; só a partida leva e traz, shared/arena.js). Fica fora de ARENAS_BOSS (não tem boss) e de LUGARES_MUNDO
+// (trilhas e veios não mudam de lugar). As regras e a loja ficam em shared/dados.js (PVP, LOJA_PVP).
+export const ARENA_PVP = { id: 'arena_pvp', x: 800, z: -420, r: 20 };
 function aplainarArenas(G, dist) {
   const { nx, nz, h, passo } = G, RAMPA = 16;
-  for (const A of ARENAS_BOSS) {
+  for (const A of [...ARENAS_BOSS, ARENA_PVP]) {
     let soma = 0, n = 0;
     for (let a = 0; a < 6.28; a += 0.5) for (const f of [0, 0.5, 1]) { soma += alturaMundo(G, A.x + Math.cos(a) * A.r * f, A.z + Math.sin(a) * A.r * f); n++; }
     A.y = +Math.max(1.6, soma / n).toFixed(2);

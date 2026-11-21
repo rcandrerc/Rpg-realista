@@ -23,6 +23,7 @@ import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
 import { Guilda } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11-18)
 import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
 import { Guerra } from './guerra.js'; // Chama x Geada (André 2026-11-18)
+import { Arena } from './arena.js'; // Arena PvP 3x3 Geada x Chama (André 2026-11-21)
 import { RIVAIS, RACA_PADRAO, GUERRA, RACAS, COMANDOS_TIME } from './dados.js';
 
 const TAU = Math.PI * 2;
@@ -450,6 +451,8 @@ export class Simulacao {
   }
   removerJogador(id) {
     const j = this.jogadores.get(id);
+    if (j?.pvp) this.sairArena(j, 'saiu'); // Arena PvP: volta para o lugar de antes (a conta guarda esse)
+    if (this.filaPvp) this.filaPvp = this.filaPvp.filter((f) => f.id !== id);
     if (j?.troca) this.fecharTroca(j.troca, `${j.nome} saiu do jogo: a troca foi desfeita`);
     if (j?.time) this.sairDoTime(j, `${j.nome} saiu do jogo`);
     this.jogadores.delete(id);
@@ -491,6 +494,7 @@ export class Simulacao {
   }
   // guarda no progresso onde o herói está (vai para a conta junto com o resto, a cada 15 s e quando ele sai)
   guardarPosicao(j) {
+    if (j.pvp) { const d = j.pvp.de; j.prog.pos = { x: r2(d.x), y: r2(d.y), z: r2(d.z), ry: r2(d.ry) }; j.progSujo = true; return; } // na Arena PvP: guarda o lugar de antes
     if (j.morto || j.criando || j.esc) return;
     const q = j.prog.pos;
     if (q && Math.hypot(q.x - j.x, q.z - j.z) < 1 && Math.abs(q.y - j.y) < 0.5) return;
@@ -608,6 +612,7 @@ export class Simulacao {
     const sub = c.tipo === 'jogador' ? this.naCaverna(c) : !!c.sub;
     const l = (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando && !(o.bot && !o.time) && (o.tipo === 'jogador' ? this.naCaverna(o) : !!o.sub) === sub);
     if (c.tipo === 'jogador' && c.duelo?.luta) { const o = this.oponenteDuelo(c); if (o && !o.morto) l.push(o); } // duelo (shared/duelo.js): o outro vira alvo
+    if (c.tipo === 'jogador' && c.pvp) { for (const o of this.inimigosArena(c)) if (!l.includes(o)) l.push(o); return l; } // Arena PvP (shared/arena.js): só o outro time; a guerra de fora não vale lá
     if (c.tipo === 'jogador' && c.guerra && !(c.semGuerraAte > this.tempo)) for (const o of this.jogadores.values()) if (this.emGuerra(c, o) && this.naCaverna(o) === sub && !l.includes(o)) l.push(o); // Chama x Geada (shared/guerra.js): a outra raça fora da zona segura
     return l;
   }
@@ -959,6 +964,7 @@ export class Simulacao {
   }
   // (x, z) está numa zona que a névoa ainda fecha para j? Avisa (no máximo a cada 4 s) qual missão abre
   naNevoa(j, x, z) {
+    if (j.pvp) return false; // na Arena PvP (dentro da névoa de propósito, shared/arena.js): a névoa não vale
     const Z = zonaFechadaEm(j.prog, x, z); if (!Z) return false;
     if (!(j.nevoaT > this.tempo)) { j.nevoaT = this.tempo + 4; this.evento({ t: 'aviso', para: j.id, texto: textoNevoa(j.prog, Z.id) }); this.evento({ t: 'nevoa', para: j.id, zona: Z.id }); }
     return true;
@@ -3869,9 +3875,13 @@ export class Simulacao {
   ferir(alvo, n, de, h = null) {
     if (alvo.morto || alvo.arrancada || alvo.criando || alvo.voando) return; // voando: boss no ar (skill 'voo' ou 'sumir')
     if (alvo.tipo === 'jogador' && alvo.cenaAte > this.tempo) return; // vendo uma cena da história (cena())
-    const guerra = alvo.tipo === 'jogador' && de?.tipo === 'jogador' && this.emGuerra(alvo, de); // Chama x Geada (shared/guerra.js): de verdade, sem o "ninguém morre" do duelo
+    // Arena PvP (André 2026-11-21, shared/arena.js): dentro da partida só os dois times se acertam (nada de guerra nem
+    // duelo); quem está na arena e quem está fora não se ferem
+    const arena = alvo.tipo === 'jogador' && de?.tipo === 'jogador' && this.rivaisArena(alvo, de);
+    if (!arena && alvo.tipo === 'jogador' && de?.tipo === 'jogador' && (alvo.pvp || de.pvp)) return;
+    const guerra = !arena && alvo.tipo === 'jogador' && de?.tipo === 'jogador' && this.emGuerra(alvo, de); // Chama x Geada (shared/guerra.js): de verdade, sem o "ninguém morre" do duelo
     if (guerra && de.semGuerraAte > this.tempo) return; // voltou da queda longe de onde caiu: o teleporte não vale ponto (Presidente 2026-11-19)
-    const duelo = alvo.tipo === 'jogador' && de?.tipo === 'jogador' && !guerra; // jogador em jogador: só no duelo (shared/duelo.js) ou na guerra
+    const duelo = alvo.tipo === 'jogador' && de?.tipo === 'jogador' && !guerra && !arena; // jogador em jogador: só no duelo (shared/duelo.js) ou na guerra
     if (duelo && !this.duelando(alvo, de)) return;
     if (guerra) { alvo.pvpDe = de.id; alvo.pvpT = this.tempo; de.pvpAlvo = alvo.id; de.pvpT = this.tempo; }
     if (de?.tipo === 'jogador' && alvo.tipo !== 'jogador' && this.mobFechadoPara(alvo, de)) return; // monstro de região fechada: a névoa protege (André 2026-11-11)
@@ -3906,6 +3916,7 @@ export class Simulacao {
     if (alvo.tipo === 'jogador') { alvo.combateAte = this.tempo + ESTAMINA.combate; alvo.lutouT = this.tempo; if (alvo.coleta) this.pararColeta(alvo, 'Atacado! A coleta parou'); this.cancelarVila(alvo, 'Atacado! A volta para a vila parou'); }
     if (de?.tipo === 'jogador') { de.combateAte = this.tempo + ESTAMINA.combate; de.lutouT = this.tempo; } // lutouT: time só ganha XP de quem lutou nos últimos TIME.combate s
     this.evento(crit ? { t: 'dano', alvo: alvo.id, n, crit: true } : h?.dot ? { t: 'dano', alvo: alvo.id, n, dot: h.dot } : { t: 'dano', alvo: alvo.id, n });
+    if (arena) { if (!this.golpeArena(alvo, de, h) && !(alvo.trava > 0) && !alvo.esc) this.tocar(alvo, A.hit, 1.4); return; } // arena: cai e levanta na base (shared/arena.js)
     if (duelo) { if (!this.golpeDuelo(alvo, de)) { if (h) this.efeitoDuelo(alvo, h); if (!(alvo.trava > 0) && !alvo.esc) this.tocar(alvo, A.hit, 1.4); } return; } // duelo: ninguém morre (para em DUELO.fim)
     if (alvo.tipo !== 'jogador' && de?.tipo === 'jogador') (alvo.atacantes ||= new Set()).add(de.id);
     const ehChefe = alvo.tipo === 'chefe' || !!TIPOS_INIMIGO[alvo.tipo]?.chefe || !!alvo.bm; // fora do if: o golpe final também usa
@@ -3960,6 +3971,7 @@ export class Simulacao {
   }
   morrer(c, de = null) { // de: quem deu o golpe final (null: queda, afogado...)
     if (c.coleta) this.pararColeta(c, null);
+    if (c.pvp) this.sairArena(c, 'caiu'); // caiu na arena por outra coisa (queda): sai da partida e a morte segue a regra de sempre
     c.morto = true; c.dash = null; c.arrancada = null; c.esc = null;
     this.tocar(c, A.death, 1);
     c.trava = Infinity;
@@ -4078,7 +4090,7 @@ export class Simulacao {
     const T = this.terreno, lim = j.y + SUBIDA.degrau;
     // névoa (André 2026-11-11: "consegui passar"): quando o servidor recusa a posição do celular, ele mesmo anda o herói
     // pelo joystick por meio segundo; aqui também a zona fechada é parede, senão cada "corrigir" levava ele mais para dentro
-    const dentro = !!zonaFechadaEm(j.prog, j.x, j.z);
+    const dentro = !!j.pvp || !!zonaFechadaEm(j.prog, j.x, j.z); // Arena PvP: a névoa não vale lá dentro
     const vai = (x, z) => {
       if (!dentro && j.prog && zonaFechadaEm(j.prog, x, z)) { this.naNevoa(j, x, z); return false; }
       const h = T.altura(x, z, j.y); if (h > lim) return false;
@@ -4282,6 +4294,7 @@ export class Simulacao {
     for (const j of this.jogadores.values()) this.passoJogador(j, dt);
     this.passoTrocas();
     this.passoDuelos(); // duelo (André 2026-11-17)
+    this.passoArena(dt); // Arena PvP 3x3 Geada x Chama (André 2026-11-21)
     this.passoTimes(dt);
     for (const e of this.inimigos) this.passoInimigo(e, dt);
     this.passoCacas(dt);
@@ -4756,6 +4769,7 @@ Object.assign(Simulacao.prototype, Guilda); // Guilda dos Aventureiros: contrato
 Object.assign(Simulacao.prototype, Economia); // livro-caixa da economia (André 2026-11-16)
 Object.assign(Simulacao.prototype, Duelo); // duelo (André 2026-11-17)
 Object.assign(Simulacao.prototype, Guerra); // Chama x Geada (André 2026-11-18, shared/guerra.js)
+Object.assign(Simulacao.prototype, Arena); // Arena PvP 3x3 Geada x Chama (André 2026-11-21, shared/arena.js)
 // o amigo virtual (contexto da Cecília ou do Dario) pelo corpo, pelo id ou pela conta; null = não é amigo virtual
 Simulacao.prototype.amigoIaDe = function (o) {
   if (!o) return null;

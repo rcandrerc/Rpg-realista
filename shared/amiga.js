@@ -14,7 +14,7 @@
 //   A amizade é de cada um (j.amizades[conta]); j.amizade é a de quem ela acompanha agora.
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { DIARIAS, DUELO, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME } from './dados.js';
+import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME } from './dados.js';
 import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
@@ -423,6 +423,7 @@ export const Amiga = {
     const ia = j.ia, L = this.loteDaAmiga();
     if (this.tempo >= (ia.diarioT || 0)) { ia.diarioT = this.tempo + 5; this.diarioAmiga(); this.vigiarEvolucaoAmiga(j); } // memória: conversas que terminaram
     this.passoChatAmiga(j); // mensagens dela no chat (respostas "digitando" e quando ela chama o André)
+    if (j.pvp) return this.passoArenaAmiga(j); // Arena PvP (shared/arena.js): luta pelo time dela até a partida acabar
     if (j.troca) return this.passoTrocaAmiga(j); // trocando (fase 3): fica parada olhando para ele e negocia
     // caiu lutando: renasce em casa (a cama dela), como qualquer jogador, e CONTINUA no time (André 2026-11-11: "quando o bot
     // morre, ele sai do meu time. Eu não quero"). Uma vez por queda: avisa, conserta no Tomás e repõe as poções na Rosa com o
@@ -1197,6 +1198,21 @@ export const Amiga = {
     if (j.vida < j.vidaMax * 0.45 && this.habOkAmiga(j, 'cura_floresta')) { this.pararAmiga(j); return this.usarHabQ(j.id, 'cura_floresta'); }
     if (Math.hypot(j.x - D.x, j.z - D.z) > DUELO.raio - 3) return this.irDireto(j, D.x, D.z, true); // perto da borda: volta pro meio
     const c = { s: { pertoDeMim: 1, agrupados: 0 }, jeito: CEREBRO.jeitos[this.AMIGA.id] || CEREBRO.jeitos.padrao };
+    this.atacarAmiga(j, o, c);
+  },
+  // Arena PvP 3x3 (André 2026-11-21, shared/arena.js): caída, espera levantar; na contagem, parada olhando para o meio;
+  // na luta vai no inimigo mais perto (o que bateu nela por último, se ainda estiver de pé), cura com pouca vida e não sai
+  // da arena
+  passoArenaAmiga(j) {
+    const P = j.pvp, A = PVP.arena; j.montado = null;
+    if (j.morto || P.M.fase !== 'luta' || j.trava > 0) { if (!j.morto) j.ry = Math.atan2(A.x - j.x, A.z - j.z); return this.pararAmiga(j); }
+    const l = this.inimigosArena(j); if (!l.length) return this.irDireto(j, A.x, A.z, true);
+    let o = l.find((x) => x.id === j.ia.pvpAlvo && Math.hypot(x.x - j.x, x.z - j.z) < 12);
+    if (!o) { o = l[0]; for (const x of l) if (Math.hypot(x.x - j.x, x.z - j.z) < Math.hypot(o.x - j.x, o.z - j.z)) o = x; }
+    j.ia.pvpAlvo = o.id;
+    if (j.vida < j.vidaMax * 0.4 && this.habOkAmiga(j, 'cura_floresta')) { this.pararAmiga(j); return this.usarHabQ(j.id, 'cura_floresta'); }
+    if (Math.hypot(j.x - A.x, j.z - A.z) > A.r - 1.5) return this.irDireto(j, A.x, A.z, true); // na borda: volta pro meio
+    const c = { s: { pertoDeMim: l.filter((x) => Math.hypot(x.x - j.x, x.z - j.z) < 6).length, agrupados: 0 }, jeito: CEREBRO.jeitos[this.AMIGA.id] || CEREBRO.jeitos.padrao };
     this.atacarAmiga(j, o, c);
   },
   // o duelo acabou: para e volta para o que fazia (sem fala pronta)

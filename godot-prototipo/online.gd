@@ -1325,6 +1325,10 @@ func evento(ev: Dictionary) -> void:
 			if m.duelo:
 				m.duelo.do_servidor(ev)
 			return
+		"pvp": # Arena PvP 3x3 (arena_pvp.gd, André 2026-11-21): fila, início, abates, pulos, fim e a loja
+			if m.arena_pvp:
+				m.arena_pvp.do_servidor(ev)
+			return
 		"reinicio": # o servidor vai reiniciar (merge ou reinício programado): faixa no alto e contagem (reinicio.gd)
 			if m.reinicio:
 				m.reinicio.do_servidor(int(ev.get("s", 0)))

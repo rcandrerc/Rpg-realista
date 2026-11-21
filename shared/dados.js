@@ -3,7 +3,7 @@
 
 import { raioNaDirecao, dentroDoMapa } from './mapa.js';
 import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME, usarMundo, gradeDoMundo } from './relevo.js';
-import { montarMundo, alturaMundo, terraEm, ARENAS_BOSS, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO, defsDasCavernas, CAVERNA_MUNDO_FORMA, CAVERNAS_MUNDO, MORRO_BOCA } from './mundo.js';
+import { montarMundo, alturaMundo, terraEm, ARENAS_BOSS, ARENA_PVP, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO, defsDasCavernas, CAVERNA_MUNDO_FORMA, CAVERNAS_MUNDO, MORRO_BOCA } from './mundo.js';
 import { CAVERNA, TUNEL, noTunel, noTuneis, pontoDoTunel, montarCaverna, registrarTunel } from './caverna.js';
 import { arrumarVila, lugarNaVila, naPeca, MODELOS_VILA, arrumarCidade, distRuas, distRet, CALCADA, COMERCIO_GRANDE, CAVALO_CARROCA, CACAMBA_CARROCA } from './vilas.js';
 export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
@@ -1409,6 +1409,33 @@ export const TROCA = { perto: 6, longe: 14, maxItens: 12, pedido: 30, entrePedid
 // npc: vontade da Cecília e do Dario (base + por ponto de amizade; menos cansado, de noite). humor: s que o sim/não vale.
 export const DUELO = { perto: 6, pedido: 15, entrePedidos: 4, contagem: 3, raio: 20, fim: 0.1, travar: 0.5,
   npc: { base: 0.65, porAmizade: 0.03, cansada: 0.45, noite: 0.2, min: 0.05, max: 0.95, humor: 90 } };
+// Arena PvP 3x3 Geada x Chama (André 2026-11-21), shared/arena.js. "o 3x3 dura 5 mins, o time que matar mais nesse tempo
+// vence, no final abre uma janela com a qtd de kills e quem venceu". Entra pelo menu do topo (botão PvP); o Battle Royale
+// fica "em breve". Para testar sozinho, os NPCs completam os times (Cecília, Dario e os aventureiros na Chama; Kira, Rufo e
+// Lis na Geada). Ninguém morre de verdade: quem cai levanta na base do time em renascer s, sem perder XP nem desgastar.
+// espera: s na fila antes de completar com NPCs (6 pessoas de verdade começam na hora); contagem: s antes de valer;
+// duracao: s da partida; borda: m além do raio da arena que o servidor ainda aceita antes de puxar de volta.
+// moeda: Insígnias da Arena (prog.pvp.pts), ganhas no fim da partida (vitória, derrota, empate e cada abate, com teto).
+// minimo: quem ficou menos que isso da partida (s) não ganha nada (entrou e saiu). Valores para teste: o André ajusta.
+export const PVP = {
+  arena: ARENA_PVP, time: 3, espera: 15, contagem: 5, duracao: 300, renascer: 5, borda: 1.5, base: 15,
+  nomeMoeda: 'Insígnias da Arena',
+  moeda: { vitoria: 30, derrota: 12, empate: 20, abate: 2, abateMax: 20, minimo: 60 },
+  times: { chama: { nome: 'Chama', cor: 'ff9a3c' }, geada: { nome: 'Geada', cor: '8fd0ff' } },
+  // NPCs que completam cada time, na ordem de preferência (Chama: depois deles, qualquer aventureiro que estiver online)
+  npcs: { chama: ['cecilia', 'dario'], geada: ['kira', 'rufo', 'lis'] },
+  travar: 0.5, // atordoar/congelar de jogador em jogador vale essa fração do tempo (igual ao duelo)
+};
+// Loja da Arena (André 2026-11-21: "moeda específica que vai ter item exclusivo de uma loja", "loja pontos fixa"): preço
+// fixo em Insígnias. Exclusivos por enquanto são títulos (só saem daqui); os itens de visual (capa, estandarte, montaria)
+// entram quando tiverem modelo. k: item da mochila (n por compra) ou t: título.
+export const LOJA_PVP = [
+  { id: 'pocao5', k: 'pocao', n: 5, preco: 15 },
+  { id: 'mana5', k: 'pocao_mana', n: 5, preco: 15 },
+  { id: 'tit_lamina', t: 'arena_lamina', preco: 150 },
+  { id: 'tit_muralha', t: 'arena_muralha', preco: 150 },
+  { id: 'tit_lenda', t: 'arena_lenda', preco: 600 },
+];
 // Amigos e time (André 2026-11-05): até 20 amigos na conta; o time junta até 5 amigos da mesma sala.
 // XP e drop dos monstros valem para quem do time está a até 'perto' metros do monstro que caiu e lutou há pouco.
 export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3, buscaMin: 2, buscaMax: 8, entreBuscas: 1, pedidoDias: 14 }; // amigos, s, s; busca por nome (André 2026-11-15): letras, resultados, s; pedido a distância guardado (dias)
@@ -2099,6 +2126,40 @@ for (const A of ARENAS_BOSS) {
   }
 }
 
+// enfeite da Arena PvP (André 2026-11-21, shared/arena.js): um anel de pilares em volta (fora da borda, ninguém se esconde
+// atrás) e duas estátuas, uma atrás de cada base (a da Chama a oeste, a da Geada a leste). O chão das bases e as cores
+// dos times o app desenha quando a partida começa (godot-prototipo/arena_pvp.gd).
+{
+  const C = MAPA_CLAREIRA.cenario, A = ARENA_PVP;
+  const peca = (m, x, z, ry, s, rz = 0, dy = 0) => {
+    C.pecas.push({ m, x: +x.toFixed(2), z: +z.toFixed(2), y: dy, ry: +ry.toFixed(3), s, ...(rz ? { rz } : {}) });
+    const alto = +Math.max(0.2, ALTO_CENARIO[m] * s + dy).toFixed(2);
+    if (SOLIDO_CENARIO[m]) C.solidos.push({ x: +x.toFixed(2), z: +z.toFixed(2), r: +(SOLIDO_CENARIO[m] * s).toFixed(2), alto });
+    for (const [lx, r] of FILA_CENARIO[m] || []) C.solidos.push({ x: +(x + lx * s * Math.cos(ry)).toFixed(2), z: +(z - lx * s * Math.sin(ry)).toFixed(2), r: +(r * s).toFixed(2), alto });
+  };
+  // dentro (André 2026-11-21: "vai ter obstáculos, lugar pra se esconder... plano, mas não liso"): ruínas espelhadas
+  // (justo para os dois lados), com as bases livres (4 m em volta) e um corredor aberto no meio. [modelo, dx, dz, ry, escala]
+  // do lado da Geada (dx > 0); o lado da Chama é o espelho (dx e ry trocam de sinal). dx = 0 fica só uma vez.
+  const DENTRO = [
+    ['parede', 0, 7, 0, 1], ['parede', 0, -7, 0, 1], // muros do meio: esconde quem vem pelos lados
+    ['rocha2', 0, 0, 0.6, 1.15], // a pedra do meio
+    ['pilar', 3.6, 3.4, 0.3, 1], ['pilar', 3.6, -3.4, -0.5, 0.8],
+    ['tronco_caido', 7, 0.6, Math.PI / 2, 1], // tronco baixo atravessado no caminho de cada base
+    ['parede_janela', 10, 6.5, Math.PI / 2, 1], ['parede_janela', 10, -6.5, Math.PI / 2, 1], // muros com janela na frente da base
+    ['rocha1', 6.5, 10.5, 1.2, 1], ['rocha3', 6.5, -10.5, 2.1, 0.95],
+    ['carroca', 3.5, 14, 0.35, 1], ['rocha2', 3.5, -14.5, 0.9, 0.9],
+    ['arvore_morta1', 13, 12, 0.8, 0.75], ['arvore_morta1', 13, -12, 2.4, 0.7],
+    ['toco2', 9.5, 15.5, 0, 1], ['toco2', 9.5, -15.5, 1, 1.1], ['tronco_caido', 12.5, -16, 0.5, 0.8],
+  ];
+  for (const [m, dx, dz, ry, sc] of DENTRO) for (const lado of dx ? [1, -1] : [1]) peca(m, A.x + dx * lado, A.z + dz, ry * lado, sc);
+  const N = 16, R = A.r + 2.5;
+  for (let i = 0; i < N; i++) {
+    const a = (i + 0.5) / N * Math.PI * 2; if (Math.abs(Math.cos(a)) > 0.97) continue; // atrás das bases fica a estátua
+    peca('pilar', A.x + Math.cos(a) * R, A.z + Math.sin(a) * R, -a, i % 3 === 1 ? 1.05 : 1.25, i % 5 === 2 ? 0.05 : 0);
+  }
+  for (const lado of [-1, 1]) peca('estatua', A.x + lado * (A.r + 3), A.z, lado < 0 ? Math.PI / 2 : -Math.PI / 2, 1.6);
+}
+
 // FASE 3, Parte 6 (André 2026-11-08: "reduzir a quantidade de mercadores... spots mais distantes"; 2026-11-09: "6 muito
 // pra uma região"): o mundo grande ganha 6 mercadores de pack, poucos por região, com os 6 packs que faltavam. Vael
 // (anel novo): 2, no Porto de Vael e no Posto do Oeste. Ilha do Meio: 1, no cais oeste (pérolas). Aurora: 3, no cais,
@@ -2152,9 +2213,10 @@ for (const n of MERCADORES_MUNDO) {
   // árvore que caiu dentro de uma arena de boss vai para fora da borda (não some: só muda de lugar) e as da rampa
   // acompanham o chão novo
   const GR = gradeDoMundo();
-  for (const t of novas) for (const A of ARENAS_BOSS) {
+  for (const t of novas) for (const A of [...ARENAS_BOSS, ARENA_PVP]) { // + a Arena PvP (André 2026-11-21)
     const d = Math.hypot(t.x - A.x, t.z - A.z);
     if (d > A.r + 20) continue;
+    if (d < A.r + 4 && A === ARENA_PVP) { t.hx = t.x; t.hz = t.z; } // Arena PvP (2026-11-21): o sorteio das nativas (NATIVAS) vale o lugar de antes: as mesmas árvores ficam
     if (d < A.r + 4) { const k = (A.r + 4 + (d % 3)) / (d || 1); t.x = +(A.x + (t.x - A.x) * k + (d ? 0 : A.r + 4)).toFixed(2); t.z = +(A.z + (t.z - A.z) * k).toFixed(2); }
     t.y = +alturaMundo(GR, t.x, t.z).toFixed(2);
   }
@@ -2519,7 +2581,7 @@ const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'peca:comercio:6
   const totem = (id) => TOTENS.lista.find((t) => t.id === id);
   // o que nenhuma casa pode pisar: campos, minas, cavernas, cais, arenas e os mercadores que já estão no lugar
   const evitar = [...LUGARES_MUNDO.filter((l) => l.tipo !== 'vila' && l.tipo !== 'posto').map((l) => ({ x: l.x, z: l.z, r: l.r + 4 })),
-    ...ARENAS_BOSS.map((a) => ({ x: a.x, z: a.z, r: a.r + 10 })), ...MERCADORES_MUNDO.map((n) => ({ x: n.x, z: n.z, r: 2.5 })),
+    ...[...ARENAS_BOSS, ARENA_PVP].map((a) => ({ x: a.x, z: a.z, r: a.r + 10 })), ...MERCADORES_MUNDO.map((n) => ({ x: n.x, z: n.z, r: 2.5 })),
     ...(MAPA_CLAREIRA.cais || []).map((c) => ({ x: c.x, z: c.z, r: c.d / 2 + 3 }))];
   // os bairros de Aurora (terrenos dos jogadores): nada de casa em cima
   const AUR = LUGARES_MUNDO.find((l) => l.id === 'vila_aurora');
@@ -4851,6 +4913,11 @@ export const TITULOS = {
   guilda_A: { nome: 'Aventureiro Rank A', r: 2, como: 'Chegou ao rank A da Guilda', cond: { guilda: 'A' }, b: { critico: 0.03 } },
   guilda_S: { nome: 'Aventureiro Rank S', r: 3, como: 'Chegou ao rank S da Guilda', cond: { guilda: 'S' }, b: { dano: 0.05 } },
   guilda_SS: { nome: 'Aventureiro Rank SS', r: 4, como: 'Chegou ao rank SS da Guilda', cond: { guilda: 'SS' }, b: { dano: 0.06, critico: 0.03 } },
+  // Arena PvP (André 2026-11-21, shared/arena.js): os da loja só saem da Loja da Arena; o Gladiador vem das vitórias
+  gladiador: { nome: 'Gladiador', r: 1, como: 'Venceu 10 partidas na Arena', cond: { pvpV: 10 }, b: { defesa: 0.02 } },
+  arena_lamina: { nome: 'Lâmina da Arena', r: 2, como: 'Comprado na Loja da Arena', cond: { loja: 'pvp' }, b: { dano: 0.03 } },
+  arena_muralha: { nome: 'Muralha da Arena', r: 2, como: 'Comprado na Loja da Arena', cond: { loja: 'pvp' }, b: { defesa: 0.03 } },
+  arena_lenda: { nome: 'Lenda da Arena', r: 3, como: 'Comprado na Loja da Arena', cond: { loja: 'pvp' }, b: { dano: 0.03, critico: 0.03 } },
 };
 // profissões: Nv 10 (Raro) e Nv 20 (Lendário) de cada uma
 for (const [k, n10, n20, bk, v] of [
@@ -4874,7 +4941,7 @@ export const NATIVAS = { pertoVila: 55, umEmPerto: 40, umEmLonge: 12 };
 {
   const vilas = [{ x: 0, z: 0, r: 34 }, ...VILAS_TERRENO.map((V) => ({ x: V.area.x, z: V.area.z, r: Math.max(V.area.rx, V.area.rz) }))];
   const fica = (a) => {
-    const x = Math.round(a.x), z = Math.round(a.z), h = ((Math.imul(x, 73856093) ^ Math.imul(z, 19349663)) >>> 0) >>> 7;
+    const x = Math.round(a.hx ?? a.x), z = Math.round(a.hz ?? a.z), h = ((Math.imul(x, 73856093) ^ Math.imul(z, 19349663)) >>> 0) >>> 7;
     return h % (vilas.some((v) => Math.hypot(x - v.x, z - v.z) < v.r + NATIVAS.pertoVila) ? NATIVAS.umEmPerto : NATIVAS.umEmLonge) === 0;
   };
   const nativas = [], vivas = new Set();
