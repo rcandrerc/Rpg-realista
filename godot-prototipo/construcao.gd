@@ -4896,6 +4896,8 @@ func _slot(k: String, ico: String, numero: String, escolhido: bool, tem: bool, c
 		n.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 		n.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(n)
+	if k == "regar" and m.P.contar("regador") > 0:
+		Menu.barra_agua(b, m.P.agua_frac())
 	b.pressed.connect(func(): escolher(k))
 	b.set_meta("guia", "cons:" + k) # guia das missões (guia.gd): a peça ou a ação que a missão pede
 	return b

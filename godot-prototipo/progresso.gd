@@ -282,6 +282,11 @@ func custo_vigor(k: String, base: float) -> float:
 	return base * (1.0 - prof_bonus(k).menosVigor)
 
 # quantos de um material tem na mochila
+# água do regador de 0 a 1 (shared/dados.js HORTA.agua; prog.agua é o que sobrou)
+func agua_frac() -> float:
+	var cap := float(dados.get("horta", {}).get("agua", 20))
+	return float(prog.get("agua", cap)) / maxf(cap, 1.0)
+
 func contar(k: String) -> int:
 	var n := 0
 	for o in prog.mochila:
