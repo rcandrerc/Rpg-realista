@@ -253,6 +253,8 @@ func alvo() -> Dictionary:
 						continue
 					var p := Vector2(float(cc.x), float(cc.z))
 					var d := hp.distance_to(p) + (100000.0 if m.nevoa.fechado(p.x, p.y) else 0.0)
+					if m.trabalho and m.trabalho.zona_esgotada(str(mn.get("id", ""))):
+						d += 50000.0 # esgotado: aponta para outro com minério (se todos estiverem, ainda mostra o mais perto)
 					if d < md:
 						md = d
 						melhor = {"pos": p, "nome": str(cc.get("nome", "o campo de caça")), "npc": ""}
