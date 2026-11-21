@@ -68,7 +68,7 @@ const f = s.foto().jogadores;
 ok(f.find((o) => o.id === kira.id)?.raca === 'geada' && !f.find((o) => o.id === 'andre')?.raca, 'na foto: raca=geada só para quem não é da Chama');
 // save: a memória vai junto
 ck.guardarAmiga(); ok(s.npcSalvos.get('kira')?.guerra?.[d.conta || d.nome || d.id]?.v === 1, 'o placar vai para o save');
-ok(Object.keys(FALAS_GUERRA).every((k) => ['kira', 'rufo', 'lis', 'dario'].includes(k)) && RIVAIS.length === 3, '3 contra 3');
+ok(Object.keys(FALAS_GUERRA).every((k) => ['kira', 'rufo', 'lis', 'gael', 'dario', 'lia'].includes(k)) && RIVAIS.length === 4, '4 da Geada (Kira, Rufo, Lis, Gael); falas de guerra também do Dario e da Lia');
 
 // André 2026-11-18: "se você for do lado de Geada, aí você consegue dar trade, duelo... tudo igualzinho que eu faço com o Dário"
 {
@@ -122,7 +122,7 @@ ok(Object.keys(FALAS_GUERRA).every((k) => ['kira', 'rufo', 'lis', 'dario'].inclu
   // duplas: Rufo e Lis juntos, alguém perto ouvindo
   Object.assign(b, { x: C.x + 4, z: C.z }); Object.assign(r3, { x: C.x, z: C.z }); Object.assign(l3, { x: C.x + 3, z: C.z }); s3.duplaT = 0; const e2 = todos.length;
   for (let i = 0; i < 20 * 5; i++) s3.passo(0.05);
-  const falas = todos.slice(e2).filter((e) => e.t === 'chat' && e.canal === 'local' && e.para === 'b' && ['a:rufo', 'a:lis', 'a:kira'].includes(e.c));
+  const falas = todos.slice(e2).filter((e) => e.t === 'chat' && e.canal === 'local' && e.para === 'b' && ['a:rufo', 'a:lis', 'a:kira', 'a:gael'].includes(e.c));
   ok(falas.length >= 2 && new Set(falas.map((e) => e.c)).size >= 2, `dois da Geada conversam entre si: ${falas.map((e) => e.nome + ': ' + e.texto).join(' / ')}`);
   // feito no Geral, no máximo 1 a cada 10 min
   let anuncios = []; s3.aoAnuncio = (m) => anuncios.push(m);
