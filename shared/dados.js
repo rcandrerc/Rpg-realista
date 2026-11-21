@@ -2216,6 +2216,7 @@ for (const n of MERCADORES_MUNDO) {
   for (const t of novas) for (const A of [...ARENAS_BOSS, ARENA_PVP]) { // + a Arena PvP (André 2026-11-21)
     const d = Math.hypot(t.x - A.x, t.z - A.z);
     if (d > A.r + 20) continue;
+    if (d < A.r + 4 && A === ARENA_PVP) { t.hx = t.x; t.hz = t.z; } // Arena PvP (2026-11-21): o sorteio das nativas (NATIVAS) vale o lugar de antes: as mesmas árvores ficam
     if (d < A.r + 4) { const k = (A.r + 4 + (d % 3)) / (d || 1); t.x = +(A.x + (t.x - A.x) * k + (d ? 0 : A.r + 4)).toFixed(2); t.z = +(A.z + (t.z - A.z) * k).toFixed(2); }
     t.y = +alturaMundo(GR, t.x, t.z).toFixed(2);
   }
@@ -4940,7 +4941,7 @@ export const NATIVAS = { pertoVila: 55, umEmPerto: 40, umEmLonge: 12 };
 {
   const vilas = [{ x: 0, z: 0, r: 34 }, ...VILAS_TERRENO.map((V) => ({ x: V.area.x, z: V.area.z, r: Math.max(V.area.rx, V.area.rz) }))];
   const fica = (a) => {
-    const x = Math.round(a.x), z = Math.round(a.z), h = ((Math.imul(x, 73856093) ^ Math.imul(z, 19349663)) >>> 0) >>> 7;
+    const x = Math.round(a.hx ?? a.x), z = Math.round(a.hz ?? a.z), h = ((Math.imul(x, 73856093) ^ Math.imul(z, 19349663)) >>> 0) >>> 7;
     return h % (vilas.some((v) => Math.hypot(x - v.x, z - v.z) < v.r + NATIVAS.pertoVila) ? NATIVAS.umEmPerto : NATIVAS.umEmLonge) === 0;
   };
   const nativas = [], vivas = new Set();
