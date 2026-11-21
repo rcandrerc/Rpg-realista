@@ -3400,6 +3400,8 @@ export const REPERTORIO = {
     fazendo: ['fazendo o que', 'fazendo oq', 'fazendo o q', 'ta fazendo', 'tá fazendo', 'faz o que', 'que ce ta fazendo', 'oq ce ta fazendo', 'oq vc ta fazendo', 'ocupada', 'ocupado', 'ta ai', 'ta on'],
     desabafo: ['cansado', 'cansada', 'trabalho', 'trampo', 'trabalhando', 'dia ruim', 'dia pesado', 'triste', 'estressado', 'estressada', 'exausto', 'exausta', 'dor de cabeca', 'sono', 'com sono', 'chateado', 'chateada'],
     carinho: ['te amo', 'saudade', 'saudades', 'senti sua falta', 'gosto muito de voce', 'gosto mt de vc', 'minha amiga', 'meu amigo', 'casa comigo'],
+    // André 2026-11-21 ("pedi pra eles fazerem o barquinho"): faz de verdade ou diz o que falta (shared/amiga.js barcoPedidoAmiga)
+    barco: ['barco', 'barquinho', 'canoa', 'bote', 'jangada'],
   },
   falas: {
     oi: ['Oii! Tava pensando em você agora mesmo, sério.', 'Ei! Que bom que mandou mensagem, tava {entediada|parado demais}.', 'Opa! Fala, aventureiro!', 'Aeee, apareceu! Tudo certo por aí?', 'Oi oi! Tava aqui arrancando mato da horta.', 'Olha só quem lembrou de mim, hehe.', 'Fala! Tava afiando a espada aqui.', 'Salve! Tudo tranquilo por aí?', 'E aí! Sumido, hein.', 'Opa! Acabei de voltar do farm.', 'Eae! Bora upar hoje?'],
@@ -3432,8 +3434,8 @@ for (const D of AMIGOS_VIRTUAIS) {
 export const DIALOGO = {
   menus: {
     inicio: ['comoVai', 'fazendo', 'piada', 'desabafo', 'elogio', 'obrigado', 'comandos', 'timeMenu', 'equip', 'tchau'],
-    comandos: ['time', 'vir', 'seguir', 'cacar', 'pescar', 'minerar', 'lenha', 'parar', 'voltar', 'ajuda', 'dar', 'troca', 'ondeUpar', 'missao', 'inicio'],
-    timeMenu: ['foco', 'atras', 'recua', 'vir', 'seguir', 'pescar', 'parar', 'livre', 'sairTime', 'inicio'],
+    comandos: ['time', 'vir', 'seguir', 'cacar', 'pescar', 'minerar', 'lenha', 'parar', 'voltar', 'ajuda', 'dar', 'troca', 'barco', 'ondeUpar', 'missao', 'inicio'],
+    timeMenu: ['foco', 'atras', 'recua', 'vir', 'seguir', 'pescar', 'barco', 'parar', 'livre', 'sairTime', 'inicio'],
   },
   opcoes: {
     comoVai: { t: 'E aí, tudo bem?', a: 'comoVai' },
@@ -3458,6 +3460,7 @@ export const DIALOGO = {
     ajuda: { t: 'Precisa de algo?', acao: 'ajuda', quando: 'semPedido' },
     dar: { t: 'Toma o que você pediu', acao: 'dar', quando: 'pedido' },
     troca: { t: 'Bora trocar itens?', acao: 'troca' },
+    barco: { t: 'Faz um barquinho?', a: 'barco' }, // André 2026-11-21: faz de verdade ou diz o que falta
     ondeUpar: { t: 'Onde eu upo?', a: 'ondeUpar' },
     missao: { t: 'Qual minha missão?', a: 'missao' },
     foco: { t: 'Foca no meu alvo!', ordem: 'foco' },
