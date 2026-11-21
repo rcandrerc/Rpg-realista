@@ -12,6 +12,7 @@ import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CE
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito, npcApareceu } from './historia.js'; // progressão (André 2026-11-10)
 import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS } from './dados.js'; // bosses de mundo (André 2026-11-11)
 import { ECONOMIA, precoLoja } from './dados.js'; // economia (André 2026-11-16)
+import { AVISO_EVOLUIR } from './dados.js'; // aviso de ir à bigorna/bancada ao evoluir (André 2026-11-21)
 import { Economia } from './economia.js';
 import { LUGARES_MUNDO } from './mundo.js'; // os cais: a pesca no mar nasce em volta deles (André 2026-11-13)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
@@ -3272,7 +3273,7 @@ export class Simulacao {
     if (m.acao === 'evoluir') {
       if (!it || !ehEquip(it.k)) return aviso('Escolha uma peça da mochila para evoluir');
       const R = this.receitaEvoluir(it); if (!R) return aviso('Peça Mítica já está no máximo');
-      const motivo = this.motivoReceita(j, R).motivo; if (motivo) return aviso(motivo);
+      const motivo = this.motivoEvoluir(j, R); if (motivo) return aviso(motivo);
       const nome = nomeItem(it);
       j.fabrica = { ev: true, i, alvo: { k: it.k, r: it.r, e: it.e || 0 }, k: it.k, nome, n: 1, feito: 0, dur: CATALISADOR.tempoEvoluir, fim: this.tempo + CATALISADOR.tempoEvoluir };
       this.evento({ t: 'fabricando', para: j.id, k: it.k, nome, v: 'Evoluindo', n: 1, feito: 0, dur: CATALISADOR.tempoEvoluir });
@@ -3292,6 +3293,12 @@ export class Simulacao {
     const dur = CATALISADOR.tempoDestruir, nome = lista.length > 1 ? 'peças' : nomeItem(lista[0]);
     j.fabrica = { des: true, lista, k: lista[0].k, nome, n: lista.length, feito: 0, ganho: {}, dur, fim: this.tempo + dur };
     this.evento({ t: 'fabricando', para: j.id, k: lista[0].k, nome: nomeItem(lista[0]), v: 'Destruindo', n: lista.length, feito: 0, dur });
+  }
+  // por que não dá para evoluir agora ('' = dá). André 2026-11-21: longe da bigorna/bancada avisa para ir até uma
+  // (antes vinha o "Crie ..." da receita); o resto (nível, material, vigor) é o motivoReceita de sempre
+  motivoEvoluir(j, R) {
+    if (!this.estacaoPerto(j, R)) return AVISO_EVOLUIR[R.prof] || this.motivoReceita(j, R).motivo;
+    return this.motivoReceita(j, R).motivo;
   }
   // receita de evoluir a peça (formato de RECEITAS, para usar motivoReceita: lugar, nível, material e vigor) ou null
   receitaEvoluir(it) {
@@ -3341,7 +3348,7 @@ export class Simulacao {
     f.feito = 1;
     if (!it || it.k !== f.alvo.k || it.r !== f.alvo.r || (it.e || 0) !== f.alvo.e) return this.pararFabrica(j, 'A peça saiu do lugar na mochila');
     const R = this.receitaEvoluir(it); if (!R) return this.pararFabrica(j, '');
-    const motivo = this.motivoReceita(j, R).motivo; if (motivo) return this.pararFabrica(j, motivo);
+    const motivo = this.motivoEvoluir(j, R); if (motivo) return this.pararFabrica(j, motivo);
     const C = CATALISADOR, t = (profNivel(p.prof[R.prof]) - 1) / (PROF_MAX - 1);
     const falha = (C.falha[R.r] || 0) * (1 - 0.5 * t), sorte = R.r < RARIDADES.length - 1 ? C.sorte[0] + (C.sorte[1] - C.sorte[0]) * t : 0;
     const s = Math.random(), falhou = s < falha, pulou = !falhou && s < falha + sorte;
