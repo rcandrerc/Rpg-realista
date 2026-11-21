@@ -768,8 +768,10 @@ func _mastro_vela(corpo: Node3D, zm: float, boca: float, pique: float, topo: flo
 	var A := Vector3(0, D + 2.05, -r)
 	var B := Vector3(0, D + boca, -r)
 	var C := Vector3(0, D + pique, -retranca + 0.2)
-	var Dc := Vector3(0, D + 2.2, -retranca)
-	_pau(rig, Vector3(0, D + 2.0, -0.12), Vector3(0, D + 2.15, -retranca - 0.3), 0.075, 0.06, _mt_mastro) # retranca
+	# a retranca sobe para trás (André 2026-11-21: "a nossa tá reta, mas ela é inclinada pra cima"), ~20°
+	var sobe: float = 0.36 # metros que sobe por metro de retranca
+	var Dc := Vector3(0, D + 2.15 + retranca * sobe, -retranca)
+	_pau(rig, Vector3(0, D + 2.0, -0.12), Vector3(0, D + 2.0 + (retranca + 0.3) * sobe, -retranca - 0.3), 0.075, 0.06, _mt_mastro) # retranca
 	_pau(rig, Vector3(0, D + boca - 0.05, -0.12), C + (C - B).normalized() * 0.3, 0.065, 0.045, _mt_mastro) # carangueja
 	_vela_pano(rig, A, B, C, Dc, 0.55, Vector3(signf(giro), 0, 0) * -1.0)
 	# argolas da vela no mastro e as amarras no pau de cima e de baixo (os pontinhos escuros da referência)
