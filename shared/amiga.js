@@ -1251,16 +1251,31 @@ export const Amiga = {
     // muro, pilar ou rocha entre ela e o alvo (os obstáculos da arena são sólidos): contorna pelo lado, sempre o mesmo
     // até a linha abrir (troca de lado se ficar presa uns segundos); flecha e magia também param no obstáculo
     const k = this.bloqueioArena(j, o);
-    if (k) {
-      const dx = o.x - j.x, dz = o.z - j.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
-      if (!j.ia.pvpLado) { j.ia.pvpLado = (k.x - j.x) * uz - (k.z - j.z) * ux > 0 ? 1 : -1; j.ia.pvpLadoT = this.tempo; }
-      if (this.tempo - j.ia.pvpLadoT > 4) { j.ia.pvpLado *= -1; j.ia.pvpLadoT = this.tempo; }
-      const lado = j.ia.pvpLado;
-      return this.irDireto(j, j.x - uz * lado * 3 + ux * 0.6, j.z + ux * lado * 3 + uz * 0.6, true);
-    }
+    if (k) return this.contornarAmiga(j, o, k);
     j.ia.pvpLado = 0;
     const c = { s: { pertoDeMim: l.filter((x) => Math.hypot(x.x - j.x, x.z - j.z) < 6).length, agrupados: 0 }, jeito: CEREBRO.jeitos[this.AMIGA.id] || CEREBRO.jeitos.padrao };
     this.atacarAmiga(j, o, c);
+  },
+  // anda de lado do obstáculo k que tapa o alvo o, sempre pelo mesmo lado até a linha abrir (troca se ficar presa 4 s)
+  contornarAmiga(j, o, k) {
+    const dx = o.x - j.x, dz = o.z - j.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+    if (!j.ia.pvpLado) { j.ia.pvpLado = (k.x - j.x) * uz - (k.z - j.z) * ux > 0 ? 1 : -1; j.ia.pvpLadoT = this.tempo; }
+    if (this.tempo - j.ia.pvpLadoT > 4) { j.ia.pvpLado *= -1; j.ia.pvpLadoT = this.tempo; }
+    const lado = j.ia.pvpLado;
+    return this.irDireto(j, j.x - uz * lado * 3 + ux * 0.6, j.z + ux * lado * 3 + uz * 0.6, true);
+  },
+  // o primeiro sólido (círculo) do mundo na linha dela até o alvo, ou null (a magia não passa: visaoLivre)
+  bloqueioVisao(j, o) {
+    const dx = o.x - j.x, dz = o.z - j.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+    let achou = null, ate = d;
+    const l = new Set(this.obstaculos); for (let s = 0; s <= d + 6; s += 6) for (const k of this.pertoNaMata(j.x + ux * Math.min(s, d), j.z + uz * Math.min(s, d))) l.add(k);
+    for (const k of l) {
+      if (k.gente || k.semTopo || (k.alto != null && (j.y || 0) + 1.2 > k.alto)) continue;
+      const t = (k.x - j.x) * ux + (k.z - j.z) * uz;
+      if (t < 0 || t > ate) continue;
+      if (Math.hypot(j.x + ux * t - k.x, j.z + uz * t - k.z) < k.r + 0.45) { ate = t; achou = k; }
+    }
+    return achou;
   },
   // o primeiro obstáculo sólido da arena PvP na linha dela até o alvo (até 10 m), ou null
   bloqueioArena(j, o) {
@@ -1546,6 +1561,10 @@ export const Amiga = {
       j.ry = Math.atan2(alvo.x - j.x, alvo.z - j.z);
       if (da < min && !(j.trava > 0)) { const d = da || 1; j.entrada = { mx: (j.x - alvo.x) / d, mz: (j.z - alvo.z) / d, correr: true }; return true; }
       if (da > max) return this.irDireto(j, alvo.x, alvo.z, true), true;
+      // pedra, muro, árvore ou casa no meio (André 2026-11-21: magia não passa; a regra é a mesma do jogador): contorna
+      // pelo lado até enxergar; o que não é círculo (relevo, casa) ela vai chegando perto
+      if (!this.visaoLivre(j, alvo)) { const k = this.bloqueioVisao(j, alvo); return (k ? this.contornarAmiga(j, alvo, k) : this.irDireto(j, alvo.x, alvo.z, true)), true; }
+      j.ia.pvpLado = 0;
       this.pararAmiga(j);
       if (!skill() && t >= (ia.basicoT || 0)) { ia.basicoT = t + C.basicoCd; this.usarHabQ(j.id, 'cajado_basico'); }
       return true;

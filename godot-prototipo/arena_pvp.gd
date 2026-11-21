@@ -205,7 +205,8 @@ func _pulo(ev: Dictionary) -> void:
 
 # ---------- o alvo do golpe (main.gd mais_perto) ----------
 # o mais perto do outro time, de pé, à vista (só na luta)
-func alvo(pos: Vector3, max_d: float):
+# filtro: quem ele aceita (posição -> bool), p.ex. a linha de visão da magia (main.gd visao_livre)
+func alvo(pos: Vector3, max_d: float, filtro := Callable()):
 	if fase != "luta" or m.online == null:
 		return null
 	var melhor = null
@@ -217,7 +218,7 @@ func alvo(pos: Vector3, max_d: float):
 		if o == null or not is_instance_valid(o.no) or not o.no.visible:
 			continue
 		var d: float = o.no.position.distance_to(pos)
-		if d >= md:
+		if d >= md or (filtro.is_valid() and not filtro.call(o.no.position)):
 			continue
 		if not _alvos.has(id) or _alvos[id].no != o.no:
 			_alvos[id] = {"no": o.no, "estado": "vivo", "duelo": true, "id": id}

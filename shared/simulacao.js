@@ -10,7 +10,7 @@ import { Transporte, carrinhoNovo, topoCarrinho, lugarDoVeiculo } from './transp
 import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo, IA_CONVERSA } from './dados.js';
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito, npcApareceu } from './historia.js'; // progressão (André 2026-11-10)
-import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS } from './dados.js'; // bosses de mundo (André 2026-11-11)
+import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS, VISAO } from './dados.js'; // bosses de mundo (André 2026-11-11)
 import { ECONOMIA, precoLoja } from './dados.js'; // economia (André 2026-11-16)
 import { AVISO_EVOLUIR } from './dados.js'; // aviso de ir à bigorna/bancada ao evoluir (André 2026-11-21)
 import { Economia } from './economia.js';
@@ -328,7 +328,7 @@ export class Simulacao {
       ...(mapa.soltos || []).map((o, i) => ['s' + i, { id: 's' + i, tipo: o.tipo, x: o.x, z: o.z, r: 0.35, ry: o.ry, solto: true }]),
     ]);
     this.obstaculos = [...mapa.obstaculos, ...vila.arvores.map((a) => ({ x: a.x, z: a.z, r: 0.32 * a.s })), ...(mapa.veios || []).map((v, i) => ({ x: v.x, z: v.z, r: VEIO_RAIO * (TAMANHO_VEIO[v.tipo] ?? 1), veio: 'v' + i, ...(v.y != null ? { alto: v.y + 2.5 } : {}) })), // veio: some quando esgota (veioVazio)
-      ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3 })), ...this.terreno.postes,
+      ...(mapa.npcs || []).map((n) => ({ x: n.x, z: n.z, r: 0.3, gente: 1 })), ...this.terreno.postes, // gente: NPC não tapa a magia (visaoLivre)
       ...(mapa.treino || []).map((t) => ({ x: t.x, z: t.z, r: TREINO.raio, alto: TREINO.alto, semTopo: 1 }))]; // ninguém fica em pé no espantalho
     // casas: retângulo girado (meia largura / meia profundidade); inimigos não atravessam, o herói escala (shared/terreno.js)
     this.casas = vila.casas.map((c) => ({ x: c.x, z: c.z, cos: Math.cos(c.ry), sin: Math.sin(c.ry), hw: c.w / 2 + 0.35, hd: c.d / 2 + 0.35 }));
@@ -621,6 +621,54 @@ export class Simulacao {
     for (const o of this.inimigosDe(c)) { const d = dist(o, c); if (d < md) { md = d; melhor = o; } }
     return melhor;
   }
+  // ---------- linha de visão da magia (André 2026-11-21: "as skills de mágico se tiver algum objeto entre o alvo não deve
+  // ser possível usar... ainda consigo botar por dentro dos blocos, isso não pode no mundo todo, não só na arena") ----------
+  // Vale no mundo todo, para jogador e bot: pedra, rochedo, casa, muro, pilar, árvore, peça construída e o próprio relevo
+  // entre o peito de quem solta (a) e o do alvo (b) tapam. Mesa e caixote baixos não (a magia passa por cima).
+  // O app faz a mesma conta (godot-prototipo/main.gd visao_livre) só para avisar na hora; quem decide é aqui.
+  visaoLivre(a, b, quem = a) {
+    const ay = (a.y ?? this.terreno.altura(a.x, a.z)) + VISAO.peito, by = (b.y ?? this.terreno.altura(b.x, b.z)) + VISAO.peito;
+    const dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz, L = Math.sqrt(L2);
+    if (L < VISAO.colado) return true; // colado no alvo
+    const ponta = Math.min(VISAO.ponta, L / 4); // o pé de quem solta e o do alvo não contam (em pé no tampo, encostado)
+    // círculos sólidos: obstáculos do mapa (árvores da vila, veios, esteios, peças dos lotes) e os da grade (mata, ruínas,
+    // rochedos, muros e pilares da arena) ao longo da linha
+    const cand = new Set(this.obstaculos);
+    for (let s = 0; s <= L + 6; s += 6) { const t = Math.min(1, s / L); for (const k of this.pertoNaMata(a.x + dx * t, a.z + dz * t)) cand.add(k); }
+    for (const k of cand) {
+      if (k.gente || k.semTopo) continue; // NPC parado e espantalho não tapam (o espantalho é alvo)
+      const t = ((k.x - a.x) * dx + (k.z - a.z) * dz) / L2; if (t <= 0 || t >= 1) continue;
+      const s = t * L; if (s < ponta || s > L - ponta) continue;
+      if (Math.hypot(a.x + dx * t - k.x, a.z + dz * t - k.z) >= k.r * VISAO.raio) continue;
+      if (Math.hypot(a.x - k.x, a.z - k.z) < k.r || Math.hypot(b.x - k.x, b.z - k.z) < k.r) continue; // em cima dele
+      const y = ay + (by - ay) * t;
+      if (k.alto != null && y > k.alto) continue; // passa por cima
+      if (k.base != null && y < k.base - 2.5) continue; // árvore lá em cima, a linha está na caverna embaixo
+      if (k.veio && this.veioVazio(k.veio, quem)) continue; // veio esgotado: a pedra sumiu
+      return false;
+    }
+    // relevo, rochas do chão, casas (paredes e telhado) e tampos altos: o chão na linha passa da altura dela
+    const n = Math.ceil(L / VISAO.passo);
+    for (let i = 1; i < n; i++) {
+      const t = i / n, s = t * L; if (s < ponta || s > L - ponta) continue;
+      const y = ay + (by - ay) * t;
+      if (this.terreno.altura(a.x + dx * t, a.z + dz * t, y) > y) return false;
+    }
+    return true;
+  }
+  // o inimigo mais perto que a magia enxerga (sem nada no meio), ou null
+  maisPertoVisivel(c, max = 22) {
+    const l = this.inimigosDe(c).map((o) => ({ o, d: dist(o, c) })).filter((q) => q.d < max).sort((p, q) => p.d - q.d);
+    for (const q of l) if (this.visaoLivre(c, q.o)) return q.o;
+    return null;
+  }
+  // ponto no chão para magia sem alvo (campo, chuva, meteoro no ar): se tiver algo no meio, chega para perto de quem solta
+  pontoVisivel(c, p) {
+    for (let k = 1; k >= 0.1; k -= 0.15) { const q = { x: c.x + (p.x - c.x) * k, z: c.z + (p.z - c.z) * k }; if (this.visaoLivre(c, q)) return q; }
+    return { x: c.x, z: c.z };
+  }
+  // magia (árvore do cajado): só pega quem ela enxerga
+  ehMagia(h) { return VISAO.tipos.includes(h?.tipo) || !!h?.campo || !!h?.chuva || HABS[h?.id]?.arvore === 'cajado'; }
 
   // ---------- comandos vindos dos jogadores ----------
   entrada(id, e) {
@@ -1448,8 +1496,10 @@ export class Simulacao {
     const t = h.tipo;
     if (t === 'basicoEspada') return this.maisPerto(j, h.alcance + 1.5);
     if (t === 'corte' || t === 'esmagar') return this.maisPerto(j, h.lunge.r);
-    if (t === 'basicoMagia' || t === 'bola' || t === 'cadeia' || t === 'meteoro' || t === 'investida') return this.maisPerto(j, h.alcance + 0.5) || false;
-    if (t === 'anel' || t === 'gelo' || t === 'puxar') return this.maisPerto(j, h.area) || false;
+    if (t === 'investida') return this.maisPerto(j, h.alcance + 0.5) || false;
+    // magia (André 2026-11-21): só o alvo que ela enxerga; com algo no meio de todos, nem sai (usarHabQ diz "Sem visão do alvo")
+    if (t === 'basicoMagia' || t === 'bola' || t === 'cadeia' || t === 'meteoro') return this.maisPertoVisivel(j, h.alcance + 0.5) || false;
+    if (t === 'anel' || t === 'gelo' || t === 'puxar') return this.maisPertoVisivel(j, h.area) || false;
     return null;
   }
   // Alvo travado do mago (André 2026-11-03): o celular manda o índice v do monstro que está travado (o 1º ataque
@@ -1460,6 +1510,7 @@ export class Simulacao {
     if (!['basicoMagia', 'bola', 'cadeia', 'meteoro'].includes(h.tipo)) return null;
     const o = this.inimigos.find((e) => e.v === m.v && !e.morto);
     if (!o || Math.abs((o.y || 0) - (j.y || 0)) > 3) return null;
+    if (!this.visaoLivre(j, o)) return null; // travado atrás de pedra, muro ou casa: vai no mais perto que ela enxerga
     return dist(o, j) < h.alcance + 1.5 ? o : null; // folga de 1 m pelo atraso da rede
   }
   // Usa uma skill (botão da barra da arma na mão, ou o ataque básico). m: id ou { id, dx, dz } (direção do joystick)
@@ -1480,7 +1531,7 @@ export class Simulacao {
       const h = this.habPronta(j, hid);
       if (h.mana && j.mana < h.mana) return this.evento({ t: 'aviso', para: id, texto: 'Mana insuficiente' });
       const alvo = this.alvoTravado(j, h, m) || this.alvoHab(j, h);
-      if (alvo === false) return this.evento({ t: 'aviso', para: id, texto: this.maisPerto(j, 40) ? 'Longe demais' : 'Nenhum inimigo por perto' });
+      if (alvo === false) return this.evento({ t: 'aviso', para: id, texto: this.maisPerto(j, h.area && !h.alcance ? h.area : (h.alcance || 0) + 0.5) ? 'Sem visão do alvo' : this.maisPerto(j, 40) ? 'Longe demais' : 'Nenhum inimigo por perto' });
       if (base.arvore === 'espada') j.modo = 'Espada'; else if (base.arvore === 'cajado') j.modo = 'Magia';
       j.mana -= h.mana || 0;
       if (alvo) this.virarPara(j, alvo);
@@ -1492,9 +1543,12 @@ export class Simulacao {
         this.depois(h.canal, () => {
           if (j.canal !== c) return;
           if (j.morto) { j.canal = null; return; } // caiu concentrando: a magia some (antes ficava presa e travava o próximo golpe)
+          // o alvo foi para trás de uma pedra, muro ou casa no meio da concentração e ninguém mais está à vista: não sai
+          const fim = alvo && !alvo.morto && (!this.ehMagia(h) || this.visaoLivre(j, alvo)) ? alvo : this.alvoHab(j, h) || null;
+          if (!fim && this.ehMagia(h)) { this.cancelarCanal(j, 'Sem visão do alvo'); return; }
           j.canal = null;
           j.cds[hid] = this.tempo + h.cd;
-          this.soltarQ(j, h, alvo && !alvo.morto ? alvo : this.alvoHab(j, h) || null, m);
+          this.soltarQ(j, h, fim, m);
           this.contarUso(j, hid); // ataque básico também (André 2026-11-07: estava travado no Nv 1)
         });
         return;
@@ -1524,7 +1578,8 @@ export class Simulacao {
     o.dash = { vx: (o.x - p.x) / d * h.empurra / t, vz: (o.z - p.z) / d * h.empurra / t, t };
   }
   areaQ(j, p, r, n, h) {
-    const alvos = this.inimigosDe(j).filter((o) => dist(o, p) < r + 0.3 && Math.abs((o.y || 0) - (j.y || 0)) < 2.2);
+    const magia = this.ehMagia(h); // magia de área não passa por pedra, muro nem casa (André 2026-11-21)
+    const alvos = this.inimigosDe(j).filter((o) => dist(o, p) < r + 0.3 && Math.abs((o.y || 0) - (j.y || 0)) < 2.2 && (!magia || this.visaoLivre(p === j ? j : { x: p.x, y: p.y ?? (o.y ?? 0), z: p.z }, o, j)));
     for (const o of alvos) this.bater(j, o, n, h, p);
     return alvos;
   }
@@ -1558,7 +1613,7 @@ export class Simulacao {
       // alvo morreu antes do tiro sair (André 2026-11-04): vai no mais perto do alcance; sem ninguém, não atira no ar
       this.depois(g.hit, () => {
         if (j.morto) return;
-        const a = alvo && !alvo.morto ? alvo : this.maisPerto(j, h.alcance + 0.5);
+        const a = alvo && !alvo.morto && this.visaoLivre(j, alvo) ? alvo : this.maisPertoVisivel(j, h.alcance + 0.5); // atrás de algo: não atira
         if (!a) return;
         if (a !== alvo) this.virarPara(j, a);
         this.lancar(j, h, a);
@@ -1600,7 +1655,7 @@ export class Simulacao {
       this.areaQ(j, j, h.area, h.dmg, h);
       this.evento({ t: 'explosao', x: r2(j.x), z: r2(j.z), r: h.area, fx: h.id });
     } else if (t === 'meteoro') {
-      const p = alvo ? { x: alvo.x, z: alvo.z } : this.aFrente(j, 5);
+      const p = alvo ? { x: alvo.x, z: alvo.z } : this.pontoVisivel(j, this.aFrente(j, 5));
       this.evento({ t: 'meteoro', x: r2(p.x), z: r2(p.z), r: h.area, queda: h.queda });
       this.depois(h.queda, () => this.areaQ(j, p, h.area, h.dmg, h));
     } else if (t === 'cadeia') {
@@ -1612,7 +1667,7 @@ export class Simulacao {
         this.depois(i * 0.08, () => { this.evento({ t: 'cadeia', x0: r2(deI.x), y0: r2(deI.y), z0: r2(deI.z), x: r2(alvoI.x), z: r2(alvoI.z) }); this.bater(j, alvoI, n, h); });
         de = { x: o.x, y: (o.y || 0) + 1, z: o.z };
         let prox = null, md = h.pula;
-        for (const q of this.inimigosDe(j)) { const d = dist(q, o); if (!feitos.includes(q) && d < md) { md = d; prox = q; } }
+        for (const q of this.inimigosDe(j)) { const d = dist(q, o); if (!feitos.includes(q) && d < md && this.visaoLivre(o, q, j)) { md = d; prox = q; } } // não pula por trás de pedra
         o = prox;
       }
     } else if (t === 'teleporte') {
@@ -1641,7 +1696,7 @@ export class Simulacao {
     } else if (t === 'puxar') {
       this.evento({ t: 'vortice', x: r2(j.x), z: r2(j.z), r: h.area });
       for (const o of this.inimigosDe(j)) {
-        const d = dist(o, j); if (d > h.area || chefe(o)) continue;
+        const d = dist(o, j); if (d > h.area || chefe(o) || !this.visaoLivre(j, o)) continue;
         const fica = 1.6, tt = 0.3, m2 = Math.max(0, d - fica);
         o.dash = { vx: (j.x - o.x) / (d || 1) * m2 / tt, vz: (j.z - o.z) / (d || 1) * m2 / tt, t: tt };
         o.parado = Math.max(o.parado || 0, this.tempo + h.atordoa); o.trava = 0; o.acao = null;
@@ -3838,16 +3893,16 @@ export class Simulacao {
       }
       this.evento({ t: 'anel', x: j.x, z: j.z, r: h.time && j.time ? (h.timeR || 8) : 1.6, cor: 0x9be08f, dur: 0.8 });
     } else if (h.campo) {
-      const a = this.maisPerto(j, 16);
-      const p = a ? { x: a.x, z: a.z } : this.aFrente(j, 5);
+      const a = this.maisPertoVisivel(j, 16); // nada de campo atrás da pedra ou dentro dela (André 2026-11-21)
+      const p = a ? { x: a.x, z: a.z } : this.pontoVisivel(j, this.aFrente(j, 5));
       this.campos.push({ ...p, ...h.campo, dono: j, vida: h.campo.dur, tique: 0 });
       this.evento({ t: 'campo', x: r2(p.x), z: r2(p.z), r: h.campo.r, dur: h.campo.dur });
     } else if (h.chuva) {
-      const a = this.maisPerto(j, 22);
-      const p = a ? { x: a.x, z: a.z } : this.aFrente(j, 8);
+      const a = this.maisPertoVisivel(j, 22);
+      const p = a ? { x: a.x, z: a.z } : this.pontoVisivel(j, this.aFrente(j, 8));
       this.evento({ t: 'chuva', x: r2(p.x), z: r2(p.z), r: h.chuva.r, ondas: h.chuva.ondas });
       for (let k = 0; k < h.chuva.ondas; k++) this.depois(0.25 + k * 0.22, () => {
-        for (const o of this.inimigosDe(j)) if (dist(o, p) < h.chuva.r) this.ferir(o, h.chuva.dmg, j, h);
+        for (const o of this.inimigosDe(j)) if (dist(o, p) < h.chuva.r && this.visaoLivre({ x: p.x, y: o.y ?? 0, z: p.z }, o, j)) this.ferir(o, h.chuva.dmg, j, h);
       });
     } else if (h.dmg) this.corpoACorpo(j, h);
   }
@@ -4489,6 +4544,9 @@ export class Simulacao {
       if (!fim && this.mata.size) for (const k of this.pertoNaMata(p.x, p.z)) {
         if (k.arena && p.y < k.alto && Math.hypot(p.x - k.x, p.z - k.z) < k.r + 0.1) { fim = true; break; }
       }
+      // e no mundo todo (André 2026-11-21: "isso não pode no mundo todo"): ruína, rochedo, árvore, veio, esteio, peça
+      // construída; pedra do chão, casa e relevo já param acima (altura do terreno)
+      if (!fim && this.projBate(p)) fim = true;
       for (const o of this.inimigosDe(p.dono)) {
         if (p.acertou.has(o)) continue;
         const esc = o.bmEsc || TIPOS_INIMIGO[o.tipo]?.escala || 1;
@@ -4499,17 +4557,27 @@ export class Simulacao {
       }
       if (!fim) continue;
       const ex = p.h.proj.explosao;
-      if (ex) for (const o of this.inimigosDe(p.dono)) if (!p.acertou.has(o) && Math.hypot(o.x - p.x, o.z - p.z) < ex) this.ferir(o, p.h.dmg * (p.h.q ? 1 : 0.6), p.dono, p.h);
+      if (ex) for (const o of this.inimigosDe(p.dono)) if (!p.acertou.has(o) && Math.hypot(o.x - p.x, o.z - p.z) < ex && this.visaoLivre({ x: p.x, y: p.y - VISAO.peito, z: p.z }, o, p.dono)) this.ferir(o, p.h.dmg * (p.h.q ? 1 : 0.6), p.dono, p.h);
       this.evento({ t: 'projFim', id: p.id, x: r2(p.x), y: r2(p.y), z: r2(p.z), explosao: ex || 0, cor: p.h.proj.cor, estilo: p.h.proj.estilo });
       this.projeteis.splice(i, 1);
     }
     this.ator = null;
   }
+  // o projétil p está dentro de algum sólido (círculo) na altura dele?
+  projBate(p) {
+    for (const k of [...this.obstaculos, ...this.pertoNaMata(p.x, p.z)]) {
+      if (k.gente || k.semTopo || (k.alto != null && p.y > k.alto) || (k.base != null && p.y < k.base - 2.5)) continue;
+      if (Math.hypot(p.x - k.x, p.z - k.z) >= k.r * VISAO.raio) continue;
+      if (k.veio && this.veioVazio(k.veio, p.dono)) continue;
+      return true;
+    }
+    return false;
+  }
   passoCampos(dt) {
     for (let i = this.campos.length - 1; i >= 0; i--) {
       const f = this.campos[i]; f.vida -= dt; f.tique -= dt;
       this.ator = f.dono;
-      if (f.tique <= 0) { f.tique = 0.5; for (const o of this.inimigosDe(f.dono)) if (dist(o, f) < f.r) this.ferir(o, Math.round(f.dps * 0.5), f.dono); }
+      if (f.tique <= 0) { f.tique = 0.5; for (const o of this.inimigosDe(f.dono)) if (dist(o, f) < f.r && this.visaoLivre({ x: f.x, y: o.y ?? 0, z: f.z }, o, f.dono)) this.ferir(o, Math.round(f.dps * 0.5), f.dono); }
       if (f.vida <= 0) this.campos.splice(i, 1);
     }
     this.ator = null;

@@ -1653,6 +1653,11 @@ export const veiosDaZona = (z) => {
 };
 export const VEIOS = MINA.flatMap(veiosDaZona);
 export const VEIO_RAIO = 0.8; // sólido: ninguém atravessa
+// Linha de visão da magia (André 2026-11-21: "se tiver algum objeto entre o alvo não deve ser possível usar... no mundo
+// todo"): Simulacao.visaoLivre e godot-prototipo/main.gd visao_livre. peito: altura (m) da linha acima do pé de quem
+// solta e do alvo; ponta: o primeiro e o último pedaço (m) que não contam; raio: quanto do círculo sólido tapa (a beirada
+// não); passo: de quanto em quanto (m) confere o chão; colado: mais perto que isso sempre vê; tipos: skills que precisam
+export const VISAO = { peito: 1.2, ponta: 0.5, raio: 0.85, passo: 0.4, colado: 1, tipos: ['basicoMagia', 'bola', 'cadeia', 'meteoro', 'anel', 'gelo', 'puxar'] };
 // Receitas (Ferreiro na forja do Tomás, Alfaiate na banca da Rosa): usa os materiais, gasta vigor e dá pontos.
 // Peça de equipamento sai Comum, com chance de subir de raridade (melhor com o nível da profissão: 6% no Nv 1, 30% no Nv 20).
 export const RECEITAS = {
