@@ -347,7 +347,7 @@ export class Simulacao {
     for (const o of mapa.cenario?.solidos || []) {
       const k = Math.floor(o.x / 6) * 10007 + Math.floor(o.z / 6);
       if (!this.mata.has(k)) this.mata.set(k, []);
-      this.mata.get(k).push({ x: o.x, z: o.z, r: o.r, ...(o.alto != null ? { alto: o.alto } : {}) });
+      this.mata.get(k).push({ x: o.x, z: o.z, r: o.r, ...(o.alto != null ? { alto: o.alto } : {}), ...(o.arena ? { arena: 1 } : {}) });
     }
     this.refazerTampos();
     this.escadas = (mapa.escadas || []).map((e) => ({ ...e, alt: this.terreno.altura(e.topo.x, e.topo.z) }));
@@ -1490,7 +1490,8 @@ export class Simulacao {
         j.trava = h.canal;
         this.evento({ t: 'conjura', id: j.id, hab: hid, dur: r2(h.canal / h.at) });
         this.depois(h.canal, () => {
-          if (j.canal !== c || j.morto) return;
+          if (j.canal !== c) return;
+          if (j.morto) { j.canal = null; return; } // caiu concentrando: a magia some (antes ficava presa e travava o próximo golpe)
           j.canal = null;
           j.cds[hid] = this.tempo + h.cd;
           this.soltarQ(j, h, alvo && !alvo.morto ? alvo : this.alvoHab(j, h) || null, m);
@@ -4469,6 +4470,10 @@ export class Simulacao {
       this.ator = p.dono;
       p.vida -= dt; p.x += p.dx * v * dt; p.y += p.dy * v * dt; p.z += p.dz * v * dt;
       let fim = p.vida <= 0 || p.y < this.terreno.altura(p.x, p.z, p.y); // bate no chão ou na pedra
+      // arena PvP: muros, pilares, rochas e troncos seguram flecha e magia (André 2026-11-21: obstáculo para se proteger)
+      if (!fim && this.mata.size) for (const k of this.pertoNaMata(p.x, p.z)) {
+        if (k.arena && p.y < k.alto && Math.hypot(p.x - k.x, p.z - k.z) < k.r + 0.1) { fim = true; break; }
+      }
       for (const o of this.inimigosDe(p.dono)) {
         if (p.acertou.has(o)) continue;
         const esc = o.bmEsc || TIPOS_INIMIGO[o.tipo]?.escala || 1;

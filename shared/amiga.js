@@ -1212,8 +1212,31 @@ export const Amiga = {
     j.ia.pvpAlvo = o.id;
     if (j.vida < j.vidaMax * 0.4 && this.habOkAmiga(j, 'cura_floresta')) { this.pararAmiga(j); return this.usarHabQ(j.id, 'cura_floresta'); }
     if (Math.hypot(j.x - A.x, j.z - A.z) > A.r - 1.5) return this.irDireto(j, A.x, A.z, true); // na borda: volta pro meio
+    // muro, pilar ou rocha entre ela e o alvo (os obstáculos da arena são sólidos): contorna pelo lado, sempre o mesmo
+    // até a linha abrir (troca de lado se ficar presa uns segundos); flecha e magia também param no obstáculo
+    const k = this.bloqueioArena(j, o);
+    if (k) {
+      const dx = o.x - j.x, dz = o.z - j.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+      if (!j.ia.pvpLado) { j.ia.pvpLado = (k.x - j.x) * uz - (k.z - j.z) * ux > 0 ? 1 : -1; j.ia.pvpLadoT = this.tempo; }
+      if (this.tempo - j.ia.pvpLadoT > 4) { j.ia.pvpLado *= -1; j.ia.pvpLadoT = this.tempo; }
+      const lado = j.ia.pvpLado;
+      return this.irDireto(j, j.x - uz * lado * 3 + ux * 0.6, j.z + ux * lado * 3 + uz * 0.6, true);
+    }
+    j.ia.pvpLado = 0;
     const c = { s: { pertoDeMim: l.filter((x) => Math.hypot(x.x - j.x, x.z - j.z) < 6).length, agrupados: 0 }, jeito: CEREBRO.jeitos[this.AMIGA.id] || CEREBRO.jeitos.padrao };
     this.atacarAmiga(j, o, c);
+  },
+  // o primeiro obstáculo sólido da arena PvP na linha dela até o alvo (até 10 m), ou null
+  bloqueioArena(j, o) {
+    const dx = o.x - j.x, dz = o.z - j.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+    let achou = null, ate = Math.min(d, 10);
+    for (const k of this.pertoNaMata(j.x, j.z)) {
+      if (!k.arena || (j.y || 0) > k.alto - 0.05) continue;
+      const t = (k.x - j.x) * ux + (k.z - j.z) * uz;
+      if (t < 0 || t > ate) continue;
+      if (Math.hypot(j.x + ux * t - k.x, j.z + uz * t - k.z) < k.r + 0.45) { ate = t; achou = k; }
+    }
+    return achou;
   },
   // o duelo acabou: para e volta para o que fazia (sem fala pronta)
   fimDueloAmiga(j) { this.pararAmiga(j); j.ia.cer = null; },

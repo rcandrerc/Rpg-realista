@@ -38,11 +38,29 @@ correr(PVP.contagem + 0.1);
 ok(M.fase === 'luta' && s.inimigosDe(a).includes(k), 'na luta o outro time vira alvo');
 ok(!s.inimigosDe(a).some((o) => o.pvp?.time === 'chama'), 'o próprio time não é alvo');
 const xp0 = a.prog.xp;
+// obstáculos sólidos (André 2026-11-21: "não dessem pra passar por dentro"): o muro do meio fica em (x, z - 7)
+{ const muro = s.pertoNaMata(A.x, A.z - 7).filter((o) => o.arena && Math.hypot(o.x - A.x, o.z - (A.z - 7)) < 1);
+  ok(muro.length > 0 && muro.every((o) => o.alto > s.terreno.altura(o.x, o.z) + 1), `muro da arena sólido e alto (${muro[0]?.alto} m)`);
+  const sx = a.x, sz = a.z, sy = a.y;
+  a.x = A.x; a.z = A.z - 7; a.y = s.terreno.altura(a.x, a.z); s.colidir(a);
+  ok(muro.every((o) => Math.hypot(a.x - o.x, a.z - o.z) >= o.r + 0.3), 'o herói não atravessa o muro');
+  a.x = A.x; a.z = A.z - 4; a.y = s.terreno.altura(a.x, a.z);
+  const vk = k.vida, kx = k.x, kz = k.z, ky = k.y; k.x = A.x; k.z = A.z - 10; k.y = s.terreno.altura(k.x, k.z);
+  const h = { dmg: 40, proj: { vel: 30, vida: 2, largura: 0.6, cor: '#fff' } };
+  s.projeteis.push({ id: 999999, x: a.x, y: a.y + 1.2, z: a.z, dx: 0, dy: 0, dz: -1, h, dono: a, vida: 2, acertou: new Set() });
+  for (let i = 0; i < 20; i++) s.passoProjeteis(0.05);
+  ok(k.vida === vk, 'a flecha para no muro e não acerta quem está atrás');
+  ok(bloqueia(), 'o NPC vê o muro entre ele e o alvo e contorna');
+  function bloqueia() { const o = { x: A.x, z: A.z - 10 }, eu = { x: A.x, z: A.z - 4, y: a.y }; return !!s.bloqueioArena(eu, o); }
+  Object.assign(a, { x: sx, z: sz, y: sy }); Object.assign(k, { x: kx, z: kz, y: ky }); }
+k.canal = { hid: 'bola_fogo', h: { mana: 0 }, x: k.x, z: k.z }; // cai no meio da Bola de Fogo (André 2026-11-21: bots parados minutos)
 k.vida = 5; s.ferir(k, 50, a, { q: 1 });
 ok(k.morto && M.placar.chama === 1 && M.stats.a.k === 1, 'zerou: cai e conta o abate');
 ok(evs((e) => e.t === 'pvp' && e.fase === 'abate').length >= 1, 'todos ficam sabendo do abate');
 correr(PVP.renascer + 0.2);
 ok(!k.morto && k.vida === k.vidaMax && Math.hypot(k.x - A.x, k.z - A.z) < A.r, 'levanta na base');
+ok(!k.canal, 'levanta sem a magia presa (senão o NPC fica parado para sempre)');
+{ const x0 = k.x, z0 = k.z; correr(3); ok(k.morto || Math.hypot(k.x - x0, k.z - z0) > 1, 'o NPC volta a andar depois de renascer'); }
 // fora da arena ninguém acerta quem está nela
 const b = s.adicionarJogador('b', 'Luísa', 'ruiva', { conta: 2 }); b.x = A.x; b.z = A.z + 30; b.prog.nivel = 50;
 const va = a.vida; s.ferir(a, 30, b, { q: 1 }); ok(a.vida === va, 'quem está fora não fere quem está na arena');
