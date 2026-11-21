@@ -135,8 +135,8 @@ func montar_tela() -> void:
 	direitos.add_theme_constant_override("outline_size", 4)
 	direitos.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	direitos.offset_left = 14
-	direitos.offset_top = -30
-	direitos.offset_bottom = -8
+	direitos.offset_top = -58 # acima da "versão NNNN" (inicio.gd, canto de baixo), sem embolar
+	direitos.offset_bottom = -36
 	direitos.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	direitos.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	capa.add_child(direitos)
