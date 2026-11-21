@@ -1625,9 +1625,9 @@ export const RECEITAS = {
   calca: { prof: 'alf', faz: 'calca', usa: { couro: 3, tecido: 1 }, vigor: 8, nivel: 1 },
   peitoral: { prof: 'fer', faz: 'peitoral', usa: { barra_ferro: 4, couro: 2, tecido: 2 }, vigor: 6, nivel: 3 },
   // Cozinheiro no fogão (2026-11-07): carne dos bichos e o que sai da horta
-  carne_assada: { prof: 'coz', faz: 'carne_assada', usa: { carne: 1, lenha: 1 }, vigor: 2, nivel: 1 },
+  carne_assada: { prof: 'coz', faz: 'carne_assada', usa: { carne: 1 }, vigor: 2, nivel: 1 }, // sem lenha: lenha é só combustível (André 2026-11-21)
   sopa_legumes: { prof: 'coz', faz: 'sopa_legumes', usa: { cenoura: 1, batata: 1, rabanete: 1 }, vigor: 3, nivel: 1 },
-  pao_milho: { prof: 'coz', faz: 'pao_milho', usa: { milho: 2, lenha: 1 }, vigor: 3, nivel: 2 },
+  pao_milho: { prof: 'coz', faz: 'pao_milho', usa: { milho: 2 }, vigor: 3, nivel: 2 }, // sem lenha (André 2026-11-21)
   ensopado: { prof: 'coz', faz: 'ensopado', usa: { carne: 2, batata: 1, tomate: 1 }, vigor: 4, nivel: 3 },
   torta_abobora: { prof: 'coz', faz: 'torta_abobora', usa: { abobora: 1, milho: 1 }, vigor: 5, nivel: 5 },
   peixe_assado: { prof: 'coz', faz: 'peixe_assado', usa: { lambari: 2 }, vigor: 2, nivel: 1 }, // Quimera: 2 lambaris no forno
