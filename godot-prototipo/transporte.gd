@@ -644,10 +644,12 @@ func _materiais_navio() -> void:
 		for x in n:
 			var cima: bool = ((x / 2) + (y / 2)) % 2 == 0
 			var v: float = 0.95 + fio + rnd.randf_range(-0.025, 0.025) - (0.03 if cima else 0.0)
-			var costura: float = 1.0 - 0.16 * clampf(1.0 - absf(float(x % 16) - 1.0) / 1.2, 0.0, 1.0)
+			var tp: float = fmod(float(y) * VELA_PANOS / float(n), 1.0) # posição dentro do pano (0 e 1 = costuras)
+			var costura: float = 1.0 - 0.22 * clampf(1.0 - absf(tp * float(n) / VELA_PANOS - 1.0) / 1.2, 0.0, 1.0)
+			costura *= 0.74 + 0.26 * pow(sin(PI * tp), 0.6) # cada pano estufado: claro no meio, escuro junto da costura
 			var borda: float = 0.86 if x < 2 or x > n - 3 or y < 2 or y > n - 3 else 1.0
 			v *= costura * borda
-			img.set_pixel(x, y, Color(0.7 * v, 0.66 * v, 0.56 * v))
+			img.set_pixel(x, y, Color(0.74 * v, 0.68 * v, 0.55 * v))
 	img.generate_mipmaps()
 	_mt_vela = StandardMaterial3D.new()
 	_mt_vela.albedo_texture = ImageTexture.create_from_image(img)
@@ -722,26 +724,49 @@ func _pau(pai: Node3D, a: Vector3, b: Vector3, r0: float, r1: float, mt: Materia
 	return mi
 
 # vela de pano: quadrilátero A (punho da amura, embaixo no mastro), B (boca, em cima no mastro), C (pique), D (punho
-# da escota), com barriga (o vento enche o meio do pano para o lado "lado")
+# da escota), com barriga (o vento enche o pano para o lado "lado"). André 2026-11-21 ("a vela tá muito reta, não parece
+# uma vela... efeito de tecido, sem deixar pesado"): a barriga é funda e fica mais perto do mastro (como pano cheio de
+# vento: de um lado a curva para fora, do outro para dentro), a valuma e a esteira fazem curva para fora, e cada pano
+# entre duas costuras estufa um pouco (as faixas de luz e sombra da referência). Malha só (14 x 24): continua leve.
+const VELA_PANOS := 7.0 # quantos panos (faixas entre costuras) de baixo até em cima
 func _vela_pano(pai: Node3D, A: Vector3, B: Vector3, C: Vector3, D: Vector3, barriga: float, lado: Vector3) -> MeshInstance3D:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var n := 10
+	var nu := 14
+	var nv := 24
 	var pts := []
-	for i in n + 1:
-		var u: float = float(i) / float(n) # do mastro (0) para a valuma (1)
+	# para onde a valuma (D->C) e a esteira (A->D) fazem curva para fora, no plano da vela
+	var meio: Vector3 = (A + B + C + D) * 0.25
+	var fora_val: Vector3 = (D.lerp(C, 0.5) - meio)
+	fora_val = (fora_val - lado * fora_val.dot(lado)).normalized()
+	var fora_est: Vector3 = (A.lerp(D, 0.5) - meio)
+	fora_est = (fora_est - lado * fora_est.dot(lado)).normalized()
+	var comp_val: float = D.distance_to(C)
+	var comp_est: float = A.distance_to(D)
+	for i in nu + 1:
+		var u: float = float(i) / float(nu) # do mastro (0) para a valuma (1)
 		var lin := []
-		for j in n + 1:
-			var v: float = float(j) / float(n) # de baixo (0) para cima (1)
+		for j in nv + 1:
+			var v: float = float(j) / float(nv) # de baixo (0) para cima (1)
 			var p: Vector3 = (A.lerp(D, u)).lerp(B.lerp(C, u), v)
-			p += lado * barriga * sin(PI * u) * sin(PI * minf(1.0, v * 1.1 + 0.05)) * (1.0 - u * 0.35)
+			# valuma e esteira em arco (pano solto que o vento enche)
+			p += fora_val * comp_val * 0.07 * sin(PI * v) * pow(u, 3.0)
+			p += fora_est * comp_est * 0.05 * sin(PI * u) * pow(1.0 - v, 4.0)
+			# barriga: funda, com o ponto mais fundo a ~40% do mastro, e menor perto da carangueja e da retranca
+			var perfil: float = sin(PI * pow(u, 0.75))
+			var alto: float = pow(sin(PI * clampf(v * 0.92 + 0.04, 0.0, 1.0)), 0.7)
+			var b: float = barriga * perfil * alto
+			# cada pano estufa entre as costuras (faixas na diagonal, paralelas à retranca)
+			var pano: float = absf(sin(PI * v * VELA_PANOS))
+			b += barriga * 0.12 * pano * perfil
+			p += lado * b
 			lin.append(p)
 		pts.append(lin)
-	for i in n:
-		for j in n:
+	for i in nu:
+		for j in nv:
 			var q := [[i, j], [i + 1, j], [i + 1, j + 1], [i, j], [i + 1, j + 1], [i, j + 1]]
 			for e in q:
-				st.set_uv(Vector2(float(e[0]) / float(n), 1.0 - float(e[1]) / float(n)))
+				st.set_uv(Vector2(float(e[0]) / float(nu), 1.0 - float(e[1]) / float(nv)))
 				st.add_vertex(pts[e[0]][e[1]])
 	st.generate_normals()
 	var mi := MeshInstance3D.new()
@@ -767,13 +792,13 @@ func _mastro_vela(corpo: Node3D, zm: float, boca: float, pique: float, topo: flo
 	var r := 0.16
 	var A := Vector3(0, D + 2.05, -r)
 	var B := Vector3(0, D + boca, -r)
-	var C := Vector3(0, D + pique, -retranca + 0.2)
+	var C := Vector3(0, D + pique, -retranca * 0.6) # carangueja bem em pé (como na referência: vela quase triângulo)
 	# a retranca sobe para trás (André 2026-11-21: "a nossa tá reta, mas ela é inclinada pra cima"), ~20°
 	var sobe: float = 0.36 # metros que sobe por metro de retranca
 	var Dc := Vector3(0, D + 2.15 + retranca * sobe, -retranca)
 	_pau(rig, Vector3(0, D + 2.0, -0.12), Vector3(0, D + 2.0 + (retranca + 0.3) * sobe, -retranca - 0.3), 0.075, 0.06, _mt_mastro) # retranca
 	_pau(rig, Vector3(0, D + boca - 0.05, -0.12), C + (C - B).normalized() * 0.3, 0.065, 0.045, _mt_mastro) # carangueja
-	_vela_pano(rig, A, B, C, Dc, 0.55, Vector3(signf(giro), 0, 0) * -1.0)
+	_vela_pano(rig, A, B, C, Dc, 0.2 * retranca + 0.35, Vector3(signf(giro), 0, 0) * -1.0)
 	# argolas da vela no mastro e as amarras no pau de cima e de baixo (os pontinhos escuros da referência)
 	for i in 7:
 		var y: float = lerpf(D + 2.25, D + boca - 0.15, float(i) / 6.0)
@@ -935,13 +960,13 @@ func modelo_navio() -> Node3D:
 		_cil(corpo, 0.06, 0.03, pa + Vector3(0, 0.08, 0), _mt_ferro, Vector3(0, 0, PI * 0.5), 8)
 	# mastros e velas
 	var D2 := Vector3(0, D, 0)
-	_mastro_vela(corpo, NAV_MASTRO_F, 6.6, 9.0, 10.2, 2.9, 0.22)
-	_mastro_vela(corpo, NAV_MASTRO_R, 7.2, 10.2, 11.3, 5.3, 0.2)
+	_mastro_vela(corpo, NAV_MASTRO_F, 6.6, 9.7, 10.2, 2.9, 0.5)
+	_mastro_vela(corpo, NAV_MASTRO_R, 7.2, 10.9, 11.3, 5.3, 0.42)
 	# bujarrona: do gurupé até o topo do mastro de vante, punho da escota perto da proa
 	var tbuj := bico + Vector3(0, 0.6, 2.7)
 	var cbuj := Vector3(0, D + 9.2, NAV_MASTRO_F + 0.15)
 	var ebuj := Vector3(0, D + 1.2, NAV_L - 1.6)
-	_vela_pano(corpo, tbuj, cbuj, cbuj, ebuj, 0.35, Vector3(-1, 0, 0)).name = "bujarrona"
+	_vela_pano(corpo, tbuj, cbuj, cbuj, ebuj, 0.75, Vector3(-1, 0, 0)).name = "bujarrona"
 	_pau(corpo, bico + Vector3(0, 0.75, 3.35), Vector3(0, D + 10.0, NAV_MASTRO_F), 0.016, 0.016, _mt_cabo, 4) # estai
 	_pau(corpo, Vector3(0, D + 10.0, NAV_MASTRO_F), Vector3(0, D + 7.3, NAV_MASTRO_R), 0.016, 0.016, _mt_cabo, 4) # estai do grande
 	# enxárcias: de cada lado de cada mastro, dos vaus até a borda (três por lado), com as bigotas no costado

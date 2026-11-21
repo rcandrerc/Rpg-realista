@@ -63,6 +63,7 @@ func _initialize() -> void:
 		["navio-5-proa-perto", Vector3(5, 3.0, 11), Vector3(0, 1.6, 5.5)],
 		["navio-6-porao", Vector3(3.6, 4.2, -2.2), Vector3(0, 0.9, 0.9)],
 		["navio-7-popa-escada", Vector3(-3.2, 2.2, -11.5), Vector3(0, 1.0, -6.4)],
+		["navio-8-outro-lado", Vector3(-19, 5.0, 8), Vector3(0, 4.5, 0)],
 	]
 	await esperar(10)
 	t._por_packs(nav, [], 4, Vector2(0.62, 0.55), 0.0)
