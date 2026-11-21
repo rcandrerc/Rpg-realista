@@ -122,6 +122,29 @@ export function lugarDoVeiculo(k, x, z) {
   if (k === 'navio') return f >= V.navio.fundo * 0.5;
   return true;
 }
+// navio novo (André 2026-11-21, escuna de dois mastros de 12,8 m): quem pilota fica de pé atrás da roda do leme, a
+// V.navio.leme m do meio do navio (o celular manda a posição do herói, não a do meio). O meio do navio é esta conta;
+// ancorar, sair do jogo, morrer e a foto usam o meio (antes o navio ancorado pulava para onde o herói estava)
+export function centroNavio(j) {
+  const L = V.navio.leme || 0;
+  return { x: r2(j.x - Math.sin(j.ry || 0) * L), z: r2(j.z - Math.cos(j.ry || 0) * L), ry: r2(j.ry || 0) };
+}
+// meia largura do convés do navio em z (local; -1 = fora dele, na frente da proa ou atrás da popa)
+export function bocaNavio(lz) {
+  const B = V.navio.solido.boca;
+  if (lz < B[0][0] || lz > B[B.length - 1][0]) return -1;
+  for (let i = 1; i < B.length; i++) if (lz <= B[i][0]) { const a = B[i - 1], b = B[i], t = (lz - a[0]) / (b[0] - a[0]); return a[1] + (b[1] - a[1]) * t; }
+  return -1;
+}
+// (x, z) no convés de um destes navios ({x, z, ry} = o meio de cada um)? devolve { n, lx, lz } ou null
+export function noConves(navios, x, z) {
+  for (const n of navios) {
+    const dx = x - n.x, dz = z - n.z; if (dx * dx + dz * dz > 49) continue;
+    const s = Math.sin(n.ry || 0), c = Math.cos(n.ry || 0), lx = dx * c - dz * s, lz = dx * s + dz * c;
+    const w = bocaNavio(lz); if (w >= 0 && Math.abs(lx) <= w + 0.15) return { n, lx, lz };
+  }
+  return null;
+}
 // André 2026-11-21 ("barcos e navios mercantes... surgem no meio do continente"): a água mais perto de (x, z) onde o
 // veículo k cabe (anéis de 1 m até 20 m, depois de 3 m até raio). null = nenhuma
 export function aguaMaisPerto(k, x, z, raio = 400) {
@@ -358,6 +381,15 @@ export const Transporte = {
       this.evento({ t: 'veiculo', para: id, acao: 'subiu', k: m.k, x: r2(j.x), z: r2(j.z), ry: r2(j.ry) });
       return pronto();
     }
+    // largar o leme no meio da água (André 2026-11-21, navio sólido): o navio fica ancorado ali e o herói fica de pé no
+    // convés, atrás da roda do leme (anda pelo navio, pula na água ou pega o leme de novo pela janela do navio)
+    if (m.acao === 'largar_leme') {
+      if (j.veiculo !== 'navio') return;
+      p.navio.chao = centroNavio(j); j.veiculo = null; j.y = AGUA.nivel + V.navio.solido.conves;
+      aviso('Navio parado aqui. Ande pelo convés; pra navegar de novo, toque no navio.');
+      this.evento({ t: 'veiculo', para: id, acao: 'desceu', k: 'navio', x: r2(j.x), z: r2(j.z), leme: 1 });
+      return pronto();
+    }
     if (m.acao === 'descer') {
       const k = j.veiculo; if (!k) return;
       // onde o herói pisa depois (o celular acha a margem; aqui só conferimos que é terra perto)
@@ -373,7 +405,7 @@ export const Transporte = {
       }
       if (k === 'barquinho' && p.mochila.indexOf(null) < 0) return aviso('Mochila cheia: libere um lugar pra guardar o barquinho');
       if (k === 'carrinho') p.carrinho.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
-      else if (k === 'navio') { p.navio.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) }; aviso('Navio ancorado. Ele fica aqui até você voltar.'); }
+      else if (k === 'navio') { p.navio.chao = centroNavio(j); aviso('Navio ancorado. Ele fica aqui até você voltar.'); }
       else if (k === 'barquinho') guardarVeiculo(p, 'barquinho');
       j.veiculo = null;
       if (k !== 'carrinho') { j.x = sx; j.z = sz; }
@@ -492,7 +524,7 @@ export const Transporte = {
     const p = j.prog;
     if (p.pack) { this.packNoChao(p.pack, j.x, j.z); p.pack = null; }
     if (j.veiculo === 'carrinho') p.carrinho.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
-    else if (j.veiculo === 'navio') p.navio.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
+    else if (j.veiculo === 'navio') p.navio.chao = centroNavio(j);
     else if (j.veiculo === 'barquinho') devolverBarquinho(p);
     j.veiculo = null;
   },
@@ -501,7 +533,7 @@ export const Transporte = {
     if (!j?.veiculo) return;
     const p = j.prog;
     if (j.veiculo === 'carrinho') p.carrinho.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
-    else if (j.veiculo === 'navio') p.navio.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
+    else if (j.veiculo === 'navio') p.navio.chao = centroNavio(j);
     else if (j.veiculo === 'barquinho') devolverBarquinho(p);
     j.veiculo = null; j.progSujo = true;
   },
@@ -511,7 +543,7 @@ export const Transporte = {
   progParaSalvar(j) {
     const p = j.prog; if (!j.veiculo) return p;
     const s = { ...p }, aqui = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
-    if (j.veiculo === 'navio') s.navio = { ...(p.navio || { porao: [] }), chao: aqui };
+    if (j.veiculo === 'navio') s.navio = { ...(p.navio || { porao: [] }), chao: centroNavio(j) };
     else if (j.veiculo === 'carrinho') s.carrinho = { ...p.carrinho, chao: aqui };
     else if (j.veiculo === 'barquinho') { s.mochila = p.mochila.slice(); if (p.vcad) s.vcad = { ...p.vcad }; devolverBarquinho(s); } // cópia: o cadeado volta só na gravada
     return s;
@@ -563,6 +595,62 @@ export const Transporte = {
     }
     return l;
   },
+  // navios no mundo (ancorados ou com alguém no leme): { x, z, ry, dono } com o meio do navio
+  naviosNoMundo() {
+    const l = [];
+    for (const j of this.jogadores.values()) {
+      const n = j.prog?.navio; if (j.criando || !n) continue;
+      if (n.chao) l.push({ ...n.chao, dono: j.id }); else if (j.veiculo === 'navio') l.push({ ...centroNavio(j), dono: j.id });
+    }
+    return l;
+  },
+  // em pé no convés de algum navio (André 2026-11-21: "outras pessoas podem subir e ir comigo"): { n, lx, lz } ou null.
+  // O navio é chão (o celular manda o herói na altura do convés, longe do fundo) e fica no mapa até no mar aberto.
+  aBordo(x, z, y = null) {
+    const q = noConves(this.naviosNoMundo(), x, z);
+    if (!q || (y != null && Math.abs(y - (AGUA.nivel + V.navio.solido.conves)) > 2.6)) return null;
+    return q;
+  },
+  // Bots do time a bordo (André 2026-11-21: "se eu quiser ir com os bots podem ficar em cima passeando"): o dono no leme
+  // ou no convés de um navio e o bot do time a até solido.perto m: ele sobe e fica passeando pelo convés (de um lugar
+  // de "bordo" para outro, andando), indo junto com o navio. O dono saiu do navio: ele desce do lado dele.
+  // true = o bot está a bordo (a amiga não faz mais nada neste passo).
+  bordoBot(j, dono, dt) {
+    const S = V.navio.solido;
+    let nav = null;
+    if (dono && !dono.morto) {
+      if (dono.veiculo === 'navio') nav = { ...centroNavio(dono), dono: dono.id };
+      else { const q = this.aBordo(dono.x, dono.z, dono.y); if (q) nav = q.n; }
+    }
+    const B = j.bordo;
+    if (!nav) {
+      if (B) { // desce junto: do lado do dono (em terra ou no cais)
+        j.bordo = null;
+        const a = [...String(j.id)].reduce((q, ch) => q + ch.charCodeAt(0), 0) * 1.7;
+        j.x = dono ? dono.x + Math.sin(a) * 1.2 : j.x; j.z = dono ? dono.z + Math.cos(a) * 1.2 : j.z;
+        j.y = this.terreno.altura(j.x, j.z); j.vy = 0; j.chao = true;
+      }
+      return false;
+    }
+    if (!B) {
+      if (j.morto || j.esc || Math.hypot(nav.x - j.x, nav.z - j.z) > S.perto) return false;
+      const i = [...String(j.id)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % S.bordo.length; // cada bot num lugar
+      j.bordo = { dono: nav.dono, lx: S.bordo[i][0], lz: S.bordo[i][1], i, troca: this.tempo + 4 + Math.random() * 6 };
+      if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null);
+    }
+    const b = j.bordo;
+    if (b.dono !== nav.dono) { b.dono = nav.dono; }
+    if (this.tempo > b.troca) { b.i = (b.i + 1 + Math.floor(Math.random() * (S.bordo.length - 1))) % S.bordo.length; b.troca = this.tempo + 6 + Math.random() * 8; }
+    const alvo = S.bordo[b.i], dx = alvo[0] - b.lx, dz = alvo[1] - b.lz, d = Math.hypot(dx, dz), passo = Math.min(d, 1.3 * dt);
+    if (d > 0.05) { b.lx += dx / d * passo; b.lz += dz / d * passo; }
+    const s = Math.sin(nav.ry || 0), c = Math.cos(nav.ry || 0);
+    j.x = nav.x + b.lx * c + b.lz * s; j.z = nav.z - b.lx * s + b.lz * c;
+    j.y = AGUA.nivel + S.conves; j.vy = 0; j.chao = true;
+    j.ry = d > 0.05 ? (nav.ry || 0) + Math.atan2(dx, dz) : (nav.ry || 0) + (b.i % 2 ? 1.2 : -1.2); // parado: olha o mar
+    j.anim = d > 0.05 ? 'Walk' : 'Idle';
+    j.montado = null; j.entrada = { mx: 0, mz: 0, correr: false }; j.bordoT = this.tempo;
+    return true;
+  },
   // o que vai na foto: packs no chão, carrinhos e navios no mundo (de quem está no jogo)
   fotoCarga() {
     const veic = [];
@@ -570,7 +658,7 @@ export const Transporte = {
       if (j.criando) continue;
       const c = j.prog.carrinho, n = j.prog.navio, eu = j.veiculo;
       if (c && (c.chao || eu === 'carrinho')) { const q = c.chao || j; veic.push(['c', j.id, r2(q.x), r2(q.z), r2(q.ry), c.lv, c.packs.map((o) => o.k), c.quebrado ? 1 : 0, eu === 'carrinho' ? 1 : 0]); }
-      if (n && (n.chao || eu === 'navio')) { const q = n.chao || j; veic.push(['n', j.id, r2(q.x), r2(q.z), r2(q.ry), 1, n.porao.map((o) => o.k), 0, eu === 'navio' ? 1 : 0]); }
+      if (n && (n.chao || eu === 'navio')) { const q = n.chao || centroNavio(j); veic.push(['n', j.id, r2(q.x), r2(q.z), r2(q.ry), 1, n.porao.map((o) => o.k), 0, eu === 'navio' ? 1 : 0]); }
       if (eu === 'barquinho') veic.push(['b', j.id, r2(j.x), r2(j.z), r2(j.ry), 1, [], 0, 1]);
     }
     return { packs: (this.packsChao || []).map((o) => [o.g, o.k, o.x, o.z]), veic };

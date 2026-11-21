@@ -541,25 +541,500 @@ func modelo_barquinho() -> Node3D:
 	_sombra(g)
 	return g
 
-# navio mercante: casco largo, convés, porão com os packs à vista, mastro e vela de pano
+# ---------- navio mercante (André 2026-11-21: "eu queria que ele ficasse próximo disso aí"): escuna de dois mastros,
+# modelo nosso no estilo das fotos de referência. Casco curvo de tábuas feito aqui (seção por seção, como o barquinho),
+# faixa de tábuas pintadas de azul embaixo da borda, amurada com balaústres e corrimão, convés de tábuas, gurupés com
+# bujarrona, duas velas latinas de carangueja (retangulares com a ponta de cima inclinada, verga em cima e retranca
+# embaixo) de lona clara com costuras, cordame, leme de roda na popa, enfeites dourados na proa (volutas e o medalhão da
+# rosa dos ventos) e o lampião da popa. Os packs do porão aparecem empilhados no convés entre os mastros.
+# Medidas no "corpo": a água fica em y = NAV_AGUA (o nó fica 0,25 m abaixo do nível, como antes); proa em +z.
+const NAV_L := 6.4 # meio comprimento (proa em +L, espelho de popa em -L)
+const NAV_W := 1.8 # meia boca no meio
+const NAV_AGUA := 0.25 # linha d'água no "corpo"
+const NAV_CONVES := 1.15 # o piso do convés no "corpo"
+const NAV_MASTRO_F := 2.8 # z do mastro de vante
+const NAV_MASTRO_R := -1.0 # z do mastro grande
+const NAV_LEME := Vector3(0, 0, -4.6) # roda do leme (o herói pilota atrás dela)
+var _mt_azul: StandardMaterial3D
+var _mt_ouro: StandardMaterial3D
+var _mt_cabo: StandardMaterial3D
+var _mt_vela: StandardMaterial3D
+var _mt_conves: StandardMaterial3D
+var _mt_tabua: StandardMaterial3D
+var _mt_tabua_esc: StandardMaterial3D
+var _mt_vidro: StandardMaterial3D
+var _mt_marinho: StandardMaterial3D
+var _mt_mastro: StandardMaterial3D
+
+func _materiais_navio() -> void:
+	if _mt_azul != null:
+		return
+	# tábuas do casco e do convés: o veio da madeira (o mesmo das casas) cortado em tábuas de 22 cm, cada uma com o seu
+	# tom, a junta escura entre elas e uma emenda de topo em lugar diferente (feito uma vez aqui, 256 x 128)
+	var src: Image = (_mt_madeira.albedo_texture as ImageTexture).get_image()
+	if src.is_compressed():
+		src.decompress()
+	var W := 256
+	var H := 128
+	var tab := Image.create(W, H, false, Image.FORMAT_RGB8)
+	var rnd := RandomNumberGenerator.new()
+	rnd.seed = 23
+	var sw := src.get_width()
+	var sh := src.get_height()
+	for k in 4:
+		var tom: float = rnd.randf_range(0.82, 1.08)
+		var off: int = rnd.randi_range(0, sw - 1)
+		var emenda: int = rnd.randi_range(20, W - 20)
+		for y in 32:
+			var sy: int = clampi(int(float(y) / 32.0 * float(sh - 1)), 0, sh - 1)
+			for x in W:
+				var c := src.get_pixel((x * 4 + off) % sw, sy)
+				var f: float = tom
+				if y < 1 or y > 30:
+					f *= 0.45
+				if x == emenda:
+					f *= 0.5
+				tab.set_pixel(x, k * 32 + y, Color(c.r * f, c.g * f, c.b * f))
+	tab.generate_mipmaps()
+	var tex_tab := ImageTexture.create_from_image(tab)
+	_mt_tabua = StandardMaterial3D.new()
+	_mt_tabua.albedo_texture = tex_tab
+	_mt_tabua.roughness = 0.85
+	_mt_tabua.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_mt_tabua_esc = _mt_tabua.duplicate()
+	_mt_tabua_esc.albedo_color = Color(0.56, 0.42, 0.33)
+	_mt_conves = _mt_tabua.duplicate()
+	_mt_conves.albedo_color = Color(1.0, 0.93, 0.82)
+	# tábuas pintadas de azul: a tinta gasta deixa o veio aparecer
+	var az := Image.create(W, H, false, Image.FORMAT_RGB8)
+	for y in H:
+		for x in W:
+			var c := tab.get_pixel(x, y)
+			var l: float = clampf(c.r * 0.3 + c.g * 0.59 + c.b * 0.11, 0.0, 1.0)
+			var v: float = 0.5 + l * 0.75
+			az.set_pixel(x, y, Color(0.4 * v, 0.6 * v, 0.7 * v))
+	az.generate_mipmaps()
+	_mt_azul = _mt_tabua.duplicate()
+	_mt_azul.albedo_texture = ImageTexture.create_from_image(az)
+	_mt_azul.roughness = 0.75
+	_mt_ouro = StandardMaterial3D.new()
+	_mt_ouro.albedo_color = Color(0.93, 0.68, 0.24)
+	_mt_ouro.metallic = 0.9
+	_mt_ouro.roughness = 0.32
+	_mt_marinho = StandardMaterial3D.new()
+	_mt_marinho.albedo_color = Color(0.1, 0.17, 0.3)
+	_mt_marinho.roughness = 0.5
+	_mt_cabo = StandardMaterial3D.new()
+	_mt_cabo.albedo_color = Color(0.16, 0.13, 0.1)
+	_mt_cabo.roughness = 0.9
+	_mt_vidro = StandardMaterial3D.new()
+	_mt_vidro.albedo_color = Color(1.0, 0.78, 0.4)
+	_mt_vidro.emission_enabled = true
+	_mt_vidro.emission = Color(1.0, 0.66, 0.28)
+	_mt_vidro.emission_energy_multiplier = 0.9
+	_mt_mastro = StandardMaterial3D.new() # mastros e paus lisos (o veio triplanar listrava os cilindros)
+	_mt_mastro.albedo_color = Color(0.4, 0.27, 0.17)
+	_mt_mastro.roughness = 0.75
+	# lona da vela: a trama do pano mais as costuras dos panos (faixas paralelas à valuma) e o reforço da borda
+	var n := 128
+	var img := Image.create(n, n, false, Image.FORMAT_RGB8)
+	rnd.seed = 91
+	for y in n:
+		var fio: float = rnd.randf_range(-0.025, 0.025)
+		for x in n:
+			var cima: bool = ((x / 2) + (y / 2)) % 2 == 0
+			var v: float = 0.95 + fio + rnd.randf_range(-0.025, 0.025) - (0.03 if cima else 0.0)
+			var costura: float = 1.0 - 0.16 * clampf(1.0 - absf(float(x % 16) - 1.0) / 1.2, 0.0, 1.0)
+			var borda: float = 0.86 if x < 2 or x > n - 3 or y < 2 or y > n - 3 else 1.0
+			v *= costura * borda
+			img.set_pixel(x, y, Color(0.7 * v, 0.66 * v, 0.56 * v))
+	img.generate_mipmaps()
+	_mt_vela = StandardMaterial3D.new()
+	_mt_vela.albedo_texture = ImageTexture.create_from_image(img)
+	_mt_vela.roughness = 0.95
+	_mt_vela.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+# seção do casco em z: [meia largura, altura da borda, altura da quilha]
+func _nav_secao(z: float) -> Array:
+	var u: float = clampf(z / NAV_L, -1.0, 1.0)
+	var w: float
+	if u >= 0.0: # proa fina
+		w = NAV_W * pow(maxf(0.0, 1.0 - pow(u, 2.1)), 0.55)
+	else: # popa cheia, fecha no espelho
+		w = NAV_W * (1.0 - 0.4 * pow(-u, 2.4))
+	var borda: float = NAV_CONVES + 0.34 + 0.42 * pow(maxf(u, 0.0), 2.0) + 0.16 * pow(maxf(-u, 0.0), 2.0)
+	var quilha: float = -0.8 + 1.15 * pow(maxf(u, 0.0), 3.0) + 0.6 * pow(maxf(-u, 0.0), 3.0)
+	return [maxf(w, 0.01), borda, quilha]
+
+func _nav_ponto(z: float, t: float, fora := 0.0) -> Vector3: # t: -1 (borda esq) .. 0 (quilha) .. 1 (borda dir)
+	var sc: Array = _nav_secao(z)
+	var f: float = t * PI * 0.5
+	var s: float = sin(f)
+	var p := Vector3(float(sc[0]) * signf(s) * pow(absf(s), 0.7), float(sc[2]) + (float(sc[1]) - float(sc[2])) * (1.0 - cos(f)), z)
+	if fora != 0.0:
+		p += Vector3(signf(s), -cos(f) * 0.6, 0).normalized() * fora
+	return p
+
+# meia largura do convés (por dentro do casco) na altura y
+func _nav_largura(z: float, y: float) -> float:
+	var sc: Array = _nav_secao(z)
+	var k: float = clampf((y - float(sc[2])) / maxf(0.001, float(sc[1]) - float(sc[2])), 0.0, 1.0)
+	return float(sc[0]) * pow(sin(acos(1.0 - k)), 0.7)
+
+func _nav_malha(t0: float, t1: float, fora: float, nt: int, nz: int, mt: Material) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for iz in nz:
+		var za: float = -NAV_L + 2.0 * NAV_L * float(iz) / float(nz)
+		var zb: float = -NAV_L + 2.0 * NAV_L * float(iz + 1) / float(nz)
+		for it in nt:
+			var ta: float = lerpf(t0, t1, float(it) / float(nt))
+			var tb: float = lerpf(t0, t1, float(it + 1) / float(nt))
+			var a := _nav_ponto(za, ta, fora)
+			var b := _nav_ponto(za, tb, fora)
+			var c := _nav_ponto(zb, tb, fora)
+			var d := _nav_ponto(zb, ta, fora)
+			var uv := {a: Vector2(za / 4.0, ta * 2.6), b: Vector2(za / 4.0, tb * 2.6), c: Vector2(zb / 4.0, tb * 2.6), d: Vector2(zb / 4.0, ta * 2.6)}
+			for v in [a, c, b, a, d, c]:
+				st.set_uv(uv[v])
+				st.add_vertex(v)
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mt
+	return mi
+
+# um pau (mastro, verga, cabo) de a até b, mais fino em b
+func _pau(pai: Node3D, a: Vector3, b: Vector3, r0: float, r1: float, mt: Material, lados := 8) -> MeshInstance3D:
+	var c := CylinderMesh.new()
+	c.bottom_radius = r0
+	c.top_radius = r1
+	c.height = a.distance_to(b)
+	c.radial_segments = lados
+	c.rings = 1
+	var mi := MeshInstance3D.new()
+	mi.mesh = c
+	mi.material_override = mt
+	var y := (b - a).normalized()
+	var x := y.cross(Vector3.FORWARD if absf(y.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT).normalized()
+	mi.transform = Transform3D(Basis(x, y, x.cross(y)), (a + b) * 0.5)
+	pai.add_child(mi)
+	return mi
+
+# vela de pano: quadrilátero A (punho da amura, embaixo no mastro), B (boca, em cima no mastro), C (pique), D (punho
+# da escota), com barriga (o vento enche o meio do pano para o lado "lado")
+func _vela_pano(pai: Node3D, A: Vector3, B: Vector3, C: Vector3, D: Vector3, barriga: float, lado: Vector3) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n := 10
+	var pts := []
+	for i in n + 1:
+		var u: float = float(i) / float(n) # do mastro (0) para a valuma (1)
+		var lin := []
+		for j in n + 1:
+			var v: float = float(j) / float(n) # de baixo (0) para cima (1)
+			var p: Vector3 = (A.lerp(D, u)).lerp(B.lerp(C, u), v)
+			p += lado * barriga * sin(PI * u) * sin(PI * minf(1.0, v * 1.1 + 0.05)) * (1.0 - u * 0.35)
+			lin.append(p)
+		pts.append(lin)
+	for i in n:
+		for j in n:
+			var q := [[i, j], [i + 1, j], [i + 1, j + 1], [i, j], [i + 1, j + 1], [i, j + 1]]
+			for e in q:
+				st.set_uv(Vector2(float(e[0]) / float(n), 1.0 - float(e[1]) / float(n)))
+				st.add_vertex(pts[e[0]][e[1]])
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = _mt_vela
+	pai.add_child(mi)
+	return mi
+
+# mastro com a vela de carangueja: z do mastro, altura da boca, do pique e do topo, comprimento da retranca. A vela, a
+# retranca e a carangueja giram juntas um pouco para o lado (o vento enche de lado, como no mar de verdade).
+func _mastro_vela(corpo: Node3D, zm: float, boca: float, pique: float, topo: float, retranca: float, giro: float) -> void:
+	var D := NAV_CONVES
+	_pau(corpo, Vector3(0, D - 0.4, zm), Vector3(0, D + boca + 0.4, zm), 0.15, 0.11, _mt_mastro, 12)
+	_pau(corpo, Vector3(0, D + boca + 0.2, zm), Vector3(0, D + topo, zm), 0.08, 0.05, _mt_mastro, 10) # mastaréu
+	_caixa(corpo, Vector3(0.36, 0.3, 0.36), Vector3(0, D + boca + 0.3, zm), _mt_madeira) # pega do mastaréu
+	_caixa(corpo, Vector3(1.6, 0.07, 0.12), Vector3(0, D + boca + 0.05, zm), _mt_mastro) # vaus (onde as enxárcias abrem)
+	_cil(corpo, 0.07, 0.12, Vector3(0, D + topo + 0.04, zm), _mt_ouro, Vector3.ZERO, 10) # pomo dourado no topo
+	_cil(corpo, 0.22, 0.25, Vector3(0, D + 0.12, zm), _mt_mastro, Vector3.ZERO, 12) # calço no convés
+	var rig := Node3D.new()
+	rig.position = Vector3(0, 0, zm)
+	rig.rotation.y = giro
+	corpo.add_child(rig)
+	var r := 0.16
+	var A := Vector3(0, D + 2.05, -r)
+	var B := Vector3(0, D + boca, -r)
+	var C := Vector3(0, D + pique, -retranca + 0.2)
+	var Dc := Vector3(0, D + 2.2, -retranca)
+	_pau(rig, Vector3(0, D + 2.0, -0.12), Vector3(0, D + 2.15, -retranca - 0.3), 0.075, 0.06, _mt_mastro) # retranca
+	_pau(rig, Vector3(0, D + boca - 0.05, -0.12), C + (C - B).normalized() * 0.3, 0.065, 0.045, _mt_mastro) # carangueja
+	_vela_pano(rig, A, B, C, Dc, 0.55, Vector3(signf(giro), 0, 0) * -1.0)
+	# argolas da vela no mastro e as amarras no pau de cima e de baixo (os pontinhos escuros da referência)
+	for i in 7:
+		var y: float = lerpf(D + 2.25, D + boca - 0.15, float(i) / 6.0)
+		_cil(rig, 0.18, 0.05, Vector3(0, y, 0), _mt_cabo, Vector3.ZERO, 10)
+	for i in 6:
+		var u: float = (float(i) + 0.5) / 6.0
+		_caixa(rig, Vector3(0.1, 0.1, 0.06), B.lerp(C, u) + Vector3(0, 0.05, 0), _mt_cabo)
+		_caixa(rig, Vector3(0.11, 0.1, 0.06), A.lerp(Dc, u) + Vector3(0, -0.03, 0), _mt_cabo)
+	# adriças: do topo do mastro até a carangueja; escota: da ponta da retranca até o convés
+	_pau(rig, Vector3(0, D + topo - 0.3, 0.05), B.lerp(C, 0.45) + Vector3(0, 0.05, 0), 0.012, 0.012, _mt_cabo, 4)
+	_pau(rig, Vector3(0, D + topo - 0.6, 0.05), B.lerp(C, 0.85) + Vector3(0, 0.05, 0), 0.012, 0.012, _mt_cabo, 4)
+	_pau(rig, Dc + Vector3(0, -0.05, -0.1), Vector3(0, D + 0.05, -retranca + 0.4), 0.014, 0.014, _mt_cabo, 4)
+	_juntar(rig)
+
 func modelo_navio() -> Node3D:
+	_materiais_navio()
 	var g := Node3D.new()
 	var corpo := Node3D.new()
 	corpo.name = "corpo"
 	g.add_child(corpo)
-	_caixa(corpo, Vector3(3.0, 1.2, 8.5), Vector3(0, -0.1, 0), _mt_madeira_esc) # casco
+	var D := NAV_CONVES
+	var casco_mt: StandardMaterial3D = _mt_tabua_esc # fundo escuro; obras mortas (em cima) na madeira mais clara
+	var obras_mt: StandardMaterial3D = _mt_tabua
+	var esc_dup: StandardMaterial3D = _mt_madeira_esc.duplicate()
+	esc_dup.cull_mode = BaseMaterial3D.CULL_DISABLED
+	esc_dup.albedo_color = Color(0.42, 0.31, 0.23)
+	# casco: fundo escuro, tábuas claras, a faixa azul, cintas escuras e a borda
+	corpo.add_child(_nav_malha(-0.74, 0.74, 0.0, 12, 32, casco_mt))
 	for lado in [-1.0, 1.0]:
-		_caixa(corpo, Vector3(0.12, 0.5, 8.4), Vector3(lado * 1.5, 0.75, 0), _mt_madeira) # amurada
-	_caixa(corpo, Vector3(2.2, 1.1, 1.8), Vector3(0, 0.25, 4.5), _mt_madeira_esc, Vector3(-0.35, 0, 0)) # proa
-	_caixa(corpo, Vector3(2.9, 0.08, 8.3), Vector3(0, 0.52, 0), _mt_madeira) # convés
-	_caixa(corpo, Vector3(2.8, 0.9, 1.6), Vector3(0, 0.95, -3.4), _mt_madeira) # castelo de popa
-	_cil(corpo, 0.12, 7.0, Vector3(0, 4.0, 0.6), _mt_madeira_esc) # mastro
-	_caixa(corpo, Vector3(3.4, 0.1, 0.1), Vector3(0, 6.4, 0.6), _mt_madeira_esc) # verga
-	var vela := _caixa(corpo, Vector3(3.2, 3.6, 0.04), Vector3(0, 4.55, 0.68), _mt_pano)
-	vela.name = "vela"
+		corpo.add_child(_nav_malha(lado * 0.74, lado * 0.8, 0.0, 1, 32, obras_mt))
+		corpo.add_child(_nav_malha(lado * 0.8, lado * 0.93, 0.0, 2, 32, _mt_azul))
+		corpo.add_child(_nav_malha(lado * 0.93, lado * 1.0, 0.0, 1, 32, obras_mt))
+		corpo.add_child(_nav_malha(lado * 0.775, lado * 0.805, 0.03, 1, 32, esc_dup)) # cinta de baixo
+		corpo.add_child(_nav_malha(lado * 0.925, lado * 0.95, 0.03, 1, 32, esc_dup)) # cinta de cima
+		corpo.add_child(_nav_malha(lado * 0.86, lado * 1.0, -0.035, 2, 32, _mt_tabua)) # forro da amurada, por dentro
+	# espelho de popa: fecha o casco atrás, com a faixa dourada e duas janelinhas acesas
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var ze := -NAV_L
+	var centro := Vector3(0, (float(_nav_secao(ze)[1]) + float(_nav_secao(ze)[2])) * 0.5, ze)
+	var nt := 16
+	for i in nt:
+		var a := _nav_ponto(ze, -1.0 + 2.0 * float(i) / float(nt))
+		var b := _nav_ponto(ze, -1.0 + 2.0 * float(i + 1) / float(nt))
+		for v in [centro, a, b]:
+			st.add_vertex(v)
+	var topo_e: float = float(_nav_secao(ze)[1])
+	var w_e: float = float(_nav_secao(ze)[0])
+	for v in [Vector3(-w_e, topo_e, ze), Vector3(w_e, topo_e, ze), centro]:
+		st.add_vertex(v)
+	st.generate_normals()
+	var esp := MeshInstance3D.new()
+	esp.mesh = st.commit()
+	esp.material_override = esc_dup
+	corpo.add_child(esp)
+	_caixa(corpo, Vector3(w_e * 2.0 + 0.1, 0.09, 0.08), Vector3(0, topo_e - 0.05, ze - 0.03), _mt_ouro)
+	_caixa(corpo, Vector3(w_e * 1.7, 0.06, 0.06), Vector3(0, topo_e - 0.55, ze - 0.03), _mt_ouro)
+	for lx in [-0.5, 0.5]:
+		_caixa(corpo, Vector3(0.34, 0.26, 0.05), Vector3(lx, topo_e - 0.3, ze - 0.03), _mt_vidro)
+		_caixa(corpo, Vector3(0.42, 0.05, 0.07), Vector3(lx, topo_e - 0.15, ze - 0.04), _mt_ouro)
+		_caixa(corpo, Vector3(0.42, 0.05, 0.07), Vector3(lx, topo_e - 0.45, ze - 0.04), _mt_ouro)
+	# convés: tábuas ao longo do navio (fatias em z com a largura de dentro do casco)
+	var sd := SurfaceTool.new()
+	sd.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var nz := 30
+	for i in nz:
+		var za: float = -NAV_L + 0.06 + (2.0 * NAV_L - 0.5) * float(i) / float(nz)
+		var zb: float = -NAV_L + 0.06 + (2.0 * NAV_L - 0.5) * float(i + 1) / float(nz)
+		var wa: float = _nav_largura(za, D) - 0.02
+		var wb: float = _nav_largura(zb, D) - 0.02
+		for v in [Vector3(-wa, D, za), Vector3(wb, D, zb), Vector3(-wb, D, zb), Vector3(-wa, D, za), Vector3(wa, D, za), Vector3(wb, D, zb)]:
+			sd.set_normal(Vector3.UP)
+			sd.set_uv(Vector2(v.z / 4.0, v.x / 0.88))
+			sd.add_vertex(v)
+	var conv := MeshInstance3D.new()
+	conv.mesh = sd.commit()
+	conv.material_override = _mt_conves
+	corpo.add_child(conv)
+	# amurada: balaústres e o corrimão em cima da borda, de ponta a ponta; trincaniz (tábua por dentro, no pé)
+	var nb := 18
+	for lado in [-1.0, 1.0]:
+		for i in nb:
+			var za: float = -NAV_L + 0.15 + (2.0 * NAV_L - 0.75) * float(i) / float(nb)
+			var zb: float = -NAV_L + 0.15 + (2.0 * NAV_L - 0.75) * float(i + 1) / float(nb)
+			var a := _nav_ponto(za, lado) + Vector3(-lado * 0.04, 0.48, 0)
+			var b := _nav_ponto(zb, lado) + Vector3(-lado * 0.04, 0.48, 0)
+			var seg := _caixa(corpo, Vector3(0.1, 0.06, a.distance_to(b) + 0.03), (a + b) * 0.5, _mt_madeira_esc)
+			seg.basis = Basis.looking_at(b - a, Vector3.UP)
+			var pe := _nav_ponto(za, lado) + Vector3(-lado * 0.04, 0, 0)
+			_caixa(corpo, Vector3(0.07, 0.5, 0.07), pe + Vector3(0, 0.24, 0), _mt_madeira_esc)
+			var tb := _nav_ponto(za, lado) + Vector3(-lado * 0.05, 0.02, 0) # capa da borda
+			var tb2 := _nav_ponto(zb, lado) + Vector3(-lado * 0.05, 0.02, 0)
+			var cap := _caixa(corpo, Vector3(0.14, 0.04, tb.distance_to(tb2) + 0.03), (tb + tb2) * 0.5, _mt_madeira)
+			cap.basis = Basis.looking_at(tb2 - tb, Vector3.UP)
+	# proa: roda de proa, gurupé com a bujarrona, volutas e o medalhão dourados, beque e a âncora
+	var proa := _nav_ponto(NAV_L, 1.0)
+	var bico := Vector3(0, proa.y + 0.1, NAV_L + 0.1)
+	_pau(corpo, Vector3(0, D + 0.4, NAV_L - 1.2), bico + Vector3(0, 0.75, 3.4), 0.12, 0.06, _mt_mastro, 10) # gurupé
+	_cil(corpo, 0.07, 0.1, bico + Vector3(0, 0.79, 3.45), _mt_ouro, Vector3(-1.35, 0, 0), 8)
+	_pau(corpo, Vector3(0, -0.1, NAV_L - 0.15), bico, 0.11, 0.1, _mt_madeira_esc, 8) # roda de proa
+	var pomo := SphereMesh.new()
+	pomo.radius = 0.13
+	pomo.height = 0.26
+	pomo.radial_segments = 12
+	pomo.rings = 6
+	var pomo_mi := MeshInstance3D.new()
+	pomo_mi.mesh = pomo
+	pomo_mi.material_override = _mt_ouro
+	pomo_mi.position = bico + Vector3(0, 0.08, 0.02)
+	corpo.add_child(pomo_mi)
+	_pau(corpo, bico + Vector3(0, 0.75, 3.35), Vector3(0, NAV_AGUA + 0.15, NAV_L + 0.25), 0.02, 0.02, _mt_cabo, 4) # cabresto
+	for lado in [-1.0, 1.0]:
+		# volutas: dois caracóis dourados de cada lado da roda de proa, com a folha de cima
+		for k in 2:
+			var tor := TorusMesh.new()
+			tor.inner_radius = 0.13 - 0.04 * k
+			tor.outer_radius = 0.23 - 0.06 * k
+			tor.rings = 12
+			tor.ring_segments = 6
+			var vo := MeshInstance3D.new()
+			vo.mesh = tor
+			vo.material_override = _mt_ouro
+			vo.position = Vector3(lado * (0.16 + 0.04 * k), bico.y - 0.3 - 0.28 * k, NAV_L - 0.02 - 0.12 * k)
+			vo.rotation = Vector3(0, 0, PI * 0.5)
+			corpo.add_child(vo)
+		_pau(corpo, Vector3(lado * 0.14, bico.y - 0.75, NAV_L - 0.3), Vector3(lado * 0.1, bico.y + 0.05, NAV_L + 0.05), 0.05, 0.03, _mt_ouro, 6)
+		# medalhão da rosa dos ventos no costado da proa (aro dourado, fundo azul-escuro, estrela de oito pontas)
+		var zm: float = NAV_L * 0.62
+		var pm := _nav_ponto(zm, lado * 0.9) + Vector3(lado * 0.03, 0.02, 0)
+		var giro: float = atan2(_nav_ponto(zm + 0.2, lado * 0.9).x - _nav_ponto(zm - 0.2, lado * 0.9).x, 0.4)
+		var med := Node3D.new()
+		med.position = pm
+		med.rotation = Vector3(0, giro, lado * PI * 0.5)
+		corpo.add_child(med)
+		_cil(med, 0.36, 0.06, Vector3.ZERO, _mt_ouro, Vector3.ZERO, 20)
+		_cil(med, 0.29, 0.07, Vector3.ZERO, _mt_marinho, Vector3.ZERO, 20)
+		for i in 8:
+			var raio: float = 0.27 if i % 2 == 0 else 0.17
+			var ponta := _caixa(med, Vector3(0.06, 0.11, raio), Vector3(0, 0, 0), _mt_ouro)
+			ponta.rotation.y = float(i) * PI / 4.0
+			ponta.position = Vector3(sin(ponta.rotation.y), 0, cos(ponta.rotation.y)) * raio * 0.45 + Vector3(0, 0.01, 0)
+		_cil(med, 0.05, 0.1, Vector3.ZERO, _mt_ouro, Vector3.ZERO, 10)
+		_juntar(med)
+		# âncora de ferro pendurada no costado, na frente do medalhão
+		var pa := _nav_ponto(NAV_L * 0.8, lado * 0.97) + Vector3(lado * 0.08, -0.1, 0)
+		_caixa(corpo, Vector3(0.05, 0.7, 0.06), pa + Vector3(0, -0.3, 0), _mt_ferro)
+		_caixa(corpo, Vector3(0.05, 0.06, 0.5), pa + Vector3(0, 0.02, 0), _mt_ferro)
+		for dz in [-1.0, 1.0]: # os braços em curva para cima, com as unhas
+			_pau(corpo, pa + Vector3(0, -0.66, 0), pa + Vector3(0, -0.5, dz * 0.28), 0.03, 0.03, _mt_ferro, 6)
+			_pau(corpo, pa + Vector3(0, -0.5, dz * 0.28), pa + Vector3(0, -0.34, dz * 0.3), 0.035, 0.015, _mt_ferro, 6)
+		_cil(corpo, 0.06, 0.03, pa + Vector3(0, 0.08, 0), _mt_ferro, Vector3(0, 0, PI * 0.5), 8)
+	# mastros e velas
+	var D2 := Vector3(0, D, 0)
+	_mastro_vela(corpo, NAV_MASTRO_F, 6.6, 9.0, 10.2, 2.9, 0.22)
+	_mastro_vela(corpo, NAV_MASTRO_R, 7.2, 10.2, 11.3, 5.3, 0.2)
+	# bujarrona: do gurupé até o topo do mastro de vante, punho da escota perto da proa
+	var tbuj := bico + Vector3(0, 0.6, 2.7)
+	var cbuj := Vector3(0, D + 9.2, NAV_MASTRO_F + 0.15)
+	var ebuj := Vector3(0, D + 1.2, NAV_L - 1.6)
+	_vela_pano(corpo, tbuj, cbuj, cbuj, ebuj, 0.35, Vector3(-1, 0, 0)).name = "bujarrona"
+	_pau(corpo, bico + Vector3(0, 0.75, 3.35), Vector3(0, D + 10.0, NAV_MASTRO_F), 0.016, 0.016, _mt_cabo, 4) # estai
+	_pau(corpo, Vector3(0, D + 10.0, NAV_MASTRO_F), Vector3(0, D + 7.3, NAV_MASTRO_R), 0.016, 0.016, _mt_cabo, 4) # estai do grande
+	# enxárcias: de cada lado de cada mastro, dos vaus até a borda (três por lado), com as bigotas no costado
+	for zm in [[NAV_MASTRO_F, 6.6], [NAV_MASTRO_R, 7.2]]:
+		for lado in [-1.0, 1.0]:
+			for k in 3:
+				var zb: float = float(zm[0]) - 0.5 + 0.45 * float(k)
+				var pb := _nav_ponto(zb, lado) + Vector3(lado * 0.06, -0.15, 0)
+				_pau(corpo, Vector3(lado * 0.75, D + float(zm[1]), float(zm[0])), pb, 0.014, 0.014, _mt_cabo, 4)
+				_cil(corpo, 0.06, 0.05, pb, _mt_madeira_esc, Vector3(0, 0, PI * 0.5), 8)
+		# brandal: do topo para trás, no costado
+		for lado in [-1.0, 1.0]:
+			var pb2 := _nav_ponto(float(zm[0]) - 1.6, lado) + Vector3(lado * 0.06, -0.1, 0)
+			_pau(corpo, Vector3(0, D + float(zm[1]) + 2.6, float(zm[0])), pb2, 0.012, 0.012, _mt_cabo, 4)
+	# flâmula no topo do mastro grande (vermelho e dourado)
+	var fl := StandardMaterial3D.new()
+	fl.albedo_color = Color(0.72, 0.14, 0.12)
+	fl.cull_mode = BaseMaterial3D.CULL_DISABLED
+	fl.roughness = 0.9
+	var sf := SurfaceTool.new()
+	sf.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var ft := Vector3(0, D + 11.15, NAV_MASTRO_R - 0.05)
+	for v in [ft, ft + Vector3(0, -0.45, 0), ft + Vector3(0.12, -0.18, -1.5)]:
+		sf.add_vertex(v)
+	sf.generate_normals()
+	var flm := MeshInstance3D.new()
+	flm.mesh = sf.commit()
+	flm.material_override = fl
+	corpo.add_child(flm)
+	# leme de roda: coluna, a roda com raios e manetes, o abrigo da bússola na frente
+	var lp := Vector3(0, D, NAV_LEME.z)
+	_caixa(corpo, Vector3(0.24, 0.95, 0.2), lp + Vector3(0, 0.47, 0), _mt_madeira_esc)
+	_caixa(corpo, Vector3(0.5, 0.08, 0.36), lp + Vector3(0, 0.04, 0), _mt_madeira_esc)
+	var roda := Node3D.new()
+	roda.name = "roda_leme"
+	roda.position = lp + Vector3(0, 1.08, -0.15)
+	corpo.add_child(roda)
+	var aro := TorusMesh.new()
+	aro.inner_radius = 0.4
+	aro.outer_radius = 0.46
+	aro.rings = 24
+	aro.ring_segments = 6
+	var aro_mi := MeshInstance3D.new()
+	aro_mi.mesh = aro
+	aro_mi.material_override = _mt_madeira
+	aro_mi.rotation.x = PI * 0.5
+	roda.add_child(aro_mi)
+	for i in 8:
+		var ang := float(i) * TAU / 8.0
+		var dir := Vector3(sin(ang), cos(ang), 0)
+		_pau(roda, Vector3.ZERO, dir * 0.62, 0.022, 0.018, _mt_madeira_esc, 6)
+		_cil(roda, 0.03, 0.12, dir * 0.6, _mt_madeira, Vector3(0, 0, ang), 6)
+	_cil(roda, 0.08, 0.14, Vector3.ZERO, _mt_ouro, Vector3(PI * 0.5, 0, 0), 10)
+	_caixa(corpo, Vector3(0.34, 0.4, 0.3), lp + Vector3(0, 0.2, 0.75), _mt_madeira) # bitácula
+	_cil(corpo, 0.13, 0.14, lp + Vector3(0, 0.47, 0.75), _mt_ouro, Vector3.ZERO, 12)
+	# lampião na popa (poste e a lanterna acesa)
+	var pl := Vector3(0, float(_nav_secao(-NAV_L + 0.3)[1]), -NAV_L + 0.3)
+	_pau(corpo, pl, pl + Vector3(0, 1.1, -0.15), 0.035, 0.03, _mt_madeira_esc, 6)
+	_caixa(corpo, Vector3(0.2, 0.28, 0.2), pl + Vector3(0, 1.3, -0.18), _mt_vidro)
+	_caixa(corpo, Vector3(0.26, 0.05, 0.26), pl + Vector3(0, 1.46, -0.18), _mt_ouro)
+	_caixa(corpo, Vector3(0.26, 0.04, 0.26), pl + Vector3(0, 1.15, -0.18), _mt_ouro)
+	# no convés: escotilha do porão (grade), barris, rolos de cabo e malaguetas
+	_caixa(corpo, Vector3(1.3, 0.16, 1.0), D2 + Vector3(0, 0.08, -2.6), _mt_madeira_esc)
+	for i in 5:
+		_caixa(corpo, Vector3(1.2, 0.03, 0.05), D2 + Vector3(0, 0.17, -2.98 + float(i) * 0.19), _mt_madeira)
+		_caixa(corpo, Vector3(0.05, 0.03, 0.9), D2 + Vector3(-0.48 + float(i) * 0.24, 0.17, -2.6), _mt_madeira)
+	for b in [Vector3(-1.15, 0, -1.9), Vector3(-1.1, 0, -1.35), Vector3(1.15, 0, -1.7), Vector3(1.1, 0, 4.2)]:
+		_cil(corpo, 0.24, 0.6, D2 + b + Vector3(0, 0.3, 0), _mt_madeira, Vector3.ZERO, 12)
+		_cil(corpo, 0.25, 0.04, D2 + b + Vector3(0, 0.12, 0), _mt_ferro, Vector3.ZERO, 12)
+		_cil(corpo, 0.25, 0.04, D2 + b + Vector3(0, 0.48, 0), _mt_ferro, Vector3.ZERO, 12)
+	for c in [Vector3(0.75, 0, 4.6), Vector3(-0.9, 0, -3.8)]:
+		var rolo := TorusMesh.new()
+		rolo.inner_radius = 0.1
+		rolo.outer_radius = 0.26
+		rolo.rings = 14
+		rolo.ring_segments = 6
+		var rm := MeshInstance3D.new()
+		rm.mesh = rolo
+		rm.material_override = _mt_corda
+		rm.position = D2 + c + Vector3(0, 0.06, 0)
+		rm.scale = Vector3(1, 0.7, 1)
+		corpo.add_child(rm)
+	# escada de corda de cada lado, para subir da água (ao lado do mastro grande)
+	for lado in [-1.0, 1.0]:
+		var zc := NAV_MASTRO_R - 1.0
+		var topo := _nav_ponto(zc, lado) + Vector3(lado * 0.08, 0.0, 0)
+		for k in 6:
+			var y: float = topo.y - 0.12 - float(k) * 0.24
+			_caixa(corpo, Vector3(0.05, 0.04, 0.5), Vector3(topo.x + lado * 0.02 * k, y, zc), _mt_madeira)
+		for dz in [-0.24, 0.24]:
+			_pau(corpo, topo + Vector3(0, 0, dz), Vector3(topo.x + lado * 0.1, NAV_AGUA - 0.1, zc + dz), 0.015, 0.015, _mt_corda, 4)
+	_juntar(corpo)
+	# os packs do porão empilhados no convés entre os mastros (4 de largura, 2 fileiras, 2 andares)
 	var pk := Node3D.new()
 	pk.name = "packs"
-	pk.position = Vector3(0, 0.56, 1.8)
+	pk.position = D2 + Vector3(0, 0.0, (NAV_MASTRO_F + NAV_MASTRO_R) * 0.5 + 0.1)
+	var lug := []
+	for andar in 2:
+		for fila in 2:
+			for col in 4:
+				lug.append(Vector3((float(col) - 1.5) * 0.6, float(andar) * 0.62, 0.32 - float(fila) * 0.62))
+	pk.set_meta("lugares", lug)
+	pk.set_meta("alinhado", true) # empilhados certinhos, como carga amarrada
 	corpo.add_child(pk)
 	_sombra(g)
 	return g
@@ -585,7 +1060,7 @@ func _por_packs(no: Node3D, lista: Array, por_fila: int, passo: Vector2, base_y:
 		var col := i % por_fila
 		var fila := i / por_fila
 		p.position = lug[i] if i < lug.size() else Vector3((col - (por_fila - 1) * 0.5) * passo.x, base_y, -fila * passo.y)
-		p.rotation.y = float(i) * 0.3 - floor(float(i) * 0.3)
+		p.rotation.y = (float(i % 3) - 1.0) * 0.05 if pk.get_meta("alinhado", false) else float(i) * 0.3 - floor(float(i) * 0.3)
 		pk.add_child(p)
 
 # ---------- painel do pack e do carrinho (Quimera #packc), em cima à esquerda embaixo da vida ----------
@@ -811,6 +1286,7 @@ func abrir_carrinho() -> void:
 	if not (_jan and is_instance_valid(_jan)):
 		_aberta_ms = Time.get_ticks_msec() # janela nova (refazer com o "prog" não conta)
 	_jan_carrinho = true
+	_jan_navio = false
 	var C: Dictionary = V.carrinho
 	var dirigindo: bool = m.mov.veiculo.get("k", "") == "carrinho"
 	var lv := int(c.get("lv", 1))
@@ -1099,25 +1575,121 @@ func _acao(nome: String, ic: String, fn: Callable) -> Button:
 	b.set_meta("guia", "veiculo:" + nome.to_lower()) # guia das missões (guia.gd): Consertar, Melhorar...
 	return b
 
+# janela do navio (André 2026-11-21: "acrescentar o menu igual dos carrinhos... não vai ter gasolina, claro, mas vai
+# ter a opção de dirigir"): a mesma cara da janela do carrinho, sem combustível e sem vida. O porão: um lugar por pack
+# (16); tocar num pack põe nas costas, tocar num lugar vazio põe o das costas. Embaixo: Pilotar, Carregar e
+# Descarregar o carrinho e Guardar; no leme, Sair do leme (o navio fica parado ali e você anda no convés) e Descer (na
+# margem, como antes). Refaz quando o "prog" chega.
+var _jan_navio := false
 func abrir_navio() -> void:
 	var nv = m.P.prog.get("navio")
 	if not (nv is Dictionary):
 		return
-	var ops := []
+	if _jan:
+		_jan.queue_free()
+	if not (_jan and is_instance_valid(_jan)):
+		_aberta_ms = Time.get_ticks_msec()
+	_jan_carrinho = false
+	_jan_navio = true
+	var no_leme: bool = m.mov.veiculo.get("k", "") == "navio"
 	var pp: Array = nv.get("porao", [])
-	var pk = m.P.prog.get("pack")
-	if m.mov.veiculo.is_empty():
-		ops.append(["Zarpar (você pilota)", func(): m.rede("veiculo", {"acao": "subir", "k": "navio"})])
-	if pk is Dictionary:
-		ops.append(["Pôr o pack das costas no porão", func(): m.rede("pack", {"acao": "por_porao"})])
+	var cap: int = int(V.navio.porao)
+	var c = m.P.prog.get("carrinho")
+	var cp: Array = (c as Dictionary).get("packs", []) if c is Dictionary else []
+	_jan = CanvasLayer.new()
+	_jan.layer = 16
+	add_child(_jan)
+	var fundo := ColorRect.new()
+	fundo.color = Color(0, 0, 0, 0.35)
+	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fundo.gui_input.connect(_toque_fundo)
+	_jan.add_child(fundo)
+	var pc := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.12, 0.09, 0.06, 0.96)
+	sb.border_color = Color(0.85, 0.7, 0.4)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(16)
+	sb.set_content_margin_all(14)
+	pc.add_theme_stylebox_override("panel", sb)
+	_jan.add_child(pc)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	pc.add_child(vb)
+	# topo: ícone, nome, a barra do porão e o X
+	var topo := HBoxContainer.new()
+	topo.add_theme_constant_override("separation", 10)
+	vb.add_child(topo)
+	topo.add_child(_icone(m.hud.icone("it_navio"), 40))
+	var tv := VBoxContainer.new()
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	topo.add_child(tv)
+	tv.add_child(_rotulo("Navio mercante" + (" · no leme" if no_leme else ""), 18, Color("#ffe7a8")))
+	tv.add_child(_barra(float(pp.size()) / float(cap), Color("#6fb7c9"), "Porão %d/%d packs" % [pp.size(), cap], 300))
+	var x := Button.new()
+	x.text = "✕"
+	x.focus_mode = Control.FOCUS_NONE
+	x.custom_minimum_size = Vector2(44, 44)
+	x.add_theme_font_size_override("font_size", 20)
+	x.pressed.connect(_fechar_janela)
+	x.add_to_group("guia_saida")
+	topo.add_child(x)
+	# meio: o porão (8 por fileira, 2 fileiras)
+	var grade := GridContainer.new()
+	grade.columns = 8
+	grade.add_theme_constant_override("h_separation", 8)
+	grade.add_theme_constant_override("v_separation", 8)
+	vb.add_child(grade)
+	for i in cap:
+		if i < pp.size():
+			var k := str(pp[i].get("k", ""))
+			var nome := str(PK.get(k, {}).get("nome", "Pack")).replace("Pack de ", "")
+			var sl := _slot(Vector2(66, 66), m.hud.icone("it_pack"), nome, Color(str(PK.get(k, {}).get("cor", "#a0703a"))),
+				func(): _tirar_porao(i))
+			grade.add_child(sl)
+		else:
+			var vz := _slot(Vector2(66, 66), null, "vazio", Color(0.5, 0.42, 0.3), func(): _por_porao())
+			if i == pp.size():
+				vz.set_meta("guia", "veiculo:por_porao")
+			grade.add_child(vz)
+	vb.add_child(_rotulo("Toque num pack pra pegar nas costas; num lugar vazio pra pôr o das costas.", 12, Color("#a89a80")))
+	# embaixo: ações com ícone
+	var acoes := HBoxContainer.new()
+	acoes.add_theme_constant_override("separation", 10)
+	acoes.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_child(acoes)
+	if not no_leme:
+		acoes.add_child(_acao("Pilotar", "it_navio", func(): m.rede("veiculo", {"acao": "subir", "k": "navio"}); _fechar_janela()))
+	if c is Dictionary:
+		var b1 := _acao("Carregar", "it_carrinho", func(): m.rede("pack", {"acao": "carrinho_porao"}))
+		b1.tooltip_text = "Do carrinho pro porão"
+		acoes.add_child(b1)
+		var b2 := _acao("Descarregar", "it_carrinho", func(): m.rede("pack", {"acao": "porao_carrinho"}))
+		b2.tooltip_text = "Do porão pro carrinho"
+		acoes.add_child(b2)
+	if no_leme:
+		acoes.add_child(_acao("Sair do leme", "it_navio", func(): m.rede("veiculo", {"acao": "largar_leme"}); _fechar_janela()))
+		acoes.add_child(_acao("Descer", "it_navio", func(): m.rede("veiculo", {"acao": "descer"}); _fechar_janela()))
 	else:
-		for i in pp.size():
-			ops.append(["Pegar %s nas costas" % str(PK.get(str(pp[i].k), {}).get("nome", "pack")).replace("Pack de ", ""), func(): m.rede("pack", {"acao": "tirar_porao", "i": i})])
-	ops.append(["Carregar do carrinho", func(): m.rede("pack", {"acao": "carrinho_porao"})])
-	ops.append(["Descarregar no carrinho", func(): m.rede("pack", {"acao": "porao_carrinho"})])
-	if m.mov.veiculo.is_empty():
-		ops.append(["Guardar na mochila", func(): m.rede("veiculo", {"acao": "guardar", "k": "navio"})])
-	_janela("Navio mercante · porão %d/%d" % [pp.size(), int(V.navio.porao)], ops)
+		acoes.add_child(_acao("Guardar", "topo_mochila", func(): m.rede("veiculo", {"acao": "guardar", "k": "navio"}); _fechar_janela()))
+	if c is Dictionary:
+		vb.add_child(_rotulo("Carrinho: %d packs. Carregar e Descarregar levam tudo de uma vez (o carrinho precisa estar perto)." % cp.size(), 12, Color("#a89a80")))
+	m.hud.bloqueado = true
+	await get_tree().process_frame
+	if is_instance_valid(pc):
+		pc.position = (pc.get_viewport_rect().size - pc.size) * 0.5
+
+func _tirar_porao(i: int) -> void:
+	if m.P.prog.get("pack") is Dictionary:
+		m.hud.aviso("Você já tem um pack nas costas")
+		return
+	m.rede("pack", {"acao": "tirar_porao", "i": i})
+
+func _por_porao() -> void:
+	if not (m.P.prog.get("pack") is Dictionary):
+		m.hud.aviso("Traga um pack nas costas pra pôr no porão")
+		return
+	m.rede("pack", {"acao": "por_porao"})
 
 # janelinha simples de opções (a mesma cara da janela do NPC)
 var _jan: CanvasLayer
@@ -1125,6 +1697,7 @@ func _janela(titulo: String, ops: Array) -> void:
 	if not (_jan and is_instance_valid(_jan)):
 		_aberta_ms = Time.get_ticks_msec()
 	_jan_carrinho = false
+	_jan_navio = false
 	if _jan:
 		_jan.queue_free()
 	_jan = CanvasLayer.new()
@@ -1183,6 +1756,7 @@ func _toque_fundo(ev: InputEvent) -> void:
 
 func _fechar_janela() -> void:
 	_jan_carrinho = false
+	_jan_navio = false
 	if _jan:
 		_jan.queue_free()
 		_jan = null
@@ -1220,7 +1794,7 @@ func _estado_botao() -> String:
 	if m.P.contar("barquinho") > 0 and _agua_perto(hp.x, hp.z, float(V.barquinho.fundo)):
 		return "barquinho"
 	return ""
-var _abrir_do_leme := false
+var _abrir_do_leme := true # no leme o botão abre a janela do navio (porão e Ancorar), André 2026-11-21
 
 func _agua_perto(x: float, z: float, fundo: float) -> bool:
 	for r in [1.0, 2.5, 4.0]:
@@ -1281,6 +1855,7 @@ func atualizar(carga) -> void:
 			_por_packs(v.no, e[6], 2, Vector2(0.62, 0.55), 0.6)
 		elif tipo == "n":
 			_por_packs(v.no, e[6], 4, Vector2(0.62, 0.55), 0.0)
+			v.n_packs = (e[6] as Array).size()
 	for k in veic.keys():
 		if not vv.has(k):
 			_guardar_veic(veic[k])
@@ -1362,6 +1937,11 @@ func evento(ev: Dictionary) -> void:
 			m.P.carrinho_no_mundo()
 			m.mov.x = float(ev.x)
 			m.mov.z = float(ev.z)
+			if int(ev.get("leme", 0)) == 1: # largou o leme no meio da água: fica de pé no convés, atrás da roda
+				m.mov.y = float(m.terreno.agua.nivel) + float(V.navio.solido.conves)
+				m.mov.vy = 0.0
+				comb_local = -1.0
+				return
 			if str(ev.get("k", "")) == "carrinho": # o carrinho agora é sólido: desce do lado da cabine, não dentro dele
 				var lado := _lado_livre(m.mov.x, m.mov.z, m.mov.ry)
 				m.mov.x = lado.x
@@ -1384,6 +1964,8 @@ func prog_chegou() -> void:
 		m.conversa.atualizar_pack()
 	if _jan_carrinho and _jan and is_instance_valid(_jan):
 		abrir_carrinho.call_deferred() # a janela mostra o que o servidor mandou (combustível, packs, vida, nível)
+	elif _jan_navio and _jan and is_instance_valid(_jan):
+		abrir_navio.call_deferred() # o porão como o servidor mandou
 	var c = m.P.prog.get("carrinho")
 	if c is Dictionary and m.mov.veiculo.get("k", "") == "carrinho":
 		comb_local = float(c.get("comb", 0))
@@ -1421,7 +2003,7 @@ func _process_parte(dt: float) -> void:
 		var no: Node3D = v.no
 		# em pé em cima dele (André 2026-11-13: "se tiver duas pessoas, um ficar em cima"): o herói vai junto
 		var pisa = null
-		if a_pe and v.tipo == "c" and v.has("partes"):
+		if a_pe and (v.tipo == "c" or v.tipo == "n") and v.has("partes"):
 			for pt in v.partes:
 				if absf(m.mov.y - Terreno.topo_parte(pt, m.mov.x, m.mov.z)) < 0.08:
 					pisa = pt.qual
@@ -1435,6 +2017,8 @@ func _process_parte(dt: float) -> void:
 			var o: Dictionary = m.online.outros[v.dono]
 			alvo = Vector3(o.no.position.x, 0, o.no.position.z)
 			ry = o.no.rotation.y
+			if v.tipo == "n": # o piloto está no leme, atrás do meio do navio (shared/transporte.js centroNavio)
+				alvo -= Vector3(sin(ry), 0, cos(ry)) * float(V.navio.get("leme", NAV_LEME.z - 0.55))
 		var agua: bool = v.tipo != "c"
 		alvo.y = float(m.terreno.agua.nivel) - (0.25 if v.tipo == "n" else 0.0) if agua else m.terreno.altura(alvo.x, alvo.z)
 		if v.tipo == "c": # tira a altura que o _inclinar_carrinho somou no quadro passado (a conta segue do chão do meio)
@@ -1459,6 +2043,13 @@ func _process_parte(dt: float) -> void:
 				moveis_novos.append({"x": no.position.x, "z": no.position.z, "r2": 16.0, "partes": v.partes})
 			if pisa != null:
 				_levar(partes_antes, v.partes, pisa)
+		elif v.tipo == "n": # navio sólido (André 2026-11-21): convés, amurada, mastros e a carga viram chão e parede
+			var partes_n: Array = v.get("partes", [])
+			v.partes = [_parte("navio", no, caixas_navio(int(v.get("n_packs", 0))))]
+			if not dirigindo_eu:
+				moveis_novos.append({"x": no.position.x, "z": no.position.z, "r2": 49.0, "partes": v.partes})
+			if pisa != null:
+				_levar(partes_n, v.partes, pisa)
 		var corpo: Node3D = no.get_node_or_null("corpo")
 		if corpo:
 			if v.tipo == "c":
@@ -1477,6 +2068,8 @@ func _process_parte(dt: float) -> void:
 			elif m.online and m.online.outros.has(v.dono):
 				sentados[str(v.dono)] = v
 	m.terreno.moveis = moveis_novos
+	if meu_k == "":
+		_escada_navio()
 	# o herói no veículo: sentado no banco do carrinho ou do barco (sentar.gd), de pé no leme do navio
 	if meu_k != "":
 		var dy := 0.0
@@ -1487,9 +2080,9 @@ func _process_parte(dt: float) -> void:
 		elif meu_k == "barquinho": # no banco do meio (o quadril vai no banco pelo sentar.gd; o casco afundou 0,2 m)
 			dy = 0.12 + BARCO_AFUNDA - 0.1
 			atras = BARCO_BANCO.z
-		else: # no convés, na frente do castelo de popa (o leme)
-			dy = 0.33
-			atras = -2.3
+		else: # no convés, de pé atrás da roda do leme (navio novo, André 2026-11-21)
+			dy = NAV_CONVES - NAV_AGUA
+			atras = float(V.navio.get("leme", NAV_LEME.z - 0.55)) # shared/dados.js VEICULOS.navio.leme
 		if meu_k == "carrinho" and meu_no != null: # no banco do trator, deitado junto com ele na ladeira e na ponte
 			m.heroi.position = meu_no.transform * Vector3(0, dy, atras)
 			atras = 0.0
@@ -1542,6 +2135,98 @@ func caixas(nv: int) -> Dictionary:
 		carreta.append([-float(K.meia), float(K.meia), z0, z1, float(K.topo) + (float(K.andar2) if andar2 else 0.0)])
 	_caixas[nv] = {"trator": S.trator, "carreta": carreta}
 	return _caixas[nv]
+
+# Escada de corda (André 2026-11-21, navio sólido): nadando do lado do vão da amurada e indo para o navio, o herói sobe
+# a escada e fica de pé no convés, logo para dentro do vão (o costado é alto demais para a escalada do andar.gd).
+var _escada_t := 0.0
+func _escada_navio() -> void:
+	if m.hud.mover.length() < 0.3 or Time.get_ticks_msec() < _escada_t:
+		return
+	var S: Dictionary = V.navio.solido
+	var deck: float = float(m.terreno.agua.nivel) + float(S.conves)
+	if m.mov.y > deck - 0.3:
+		return
+	var esc: float = float(S.escada)
+	for chave in veic:
+		var v: Dictionary = veic[chave]
+		if v.tipo != "n" or not v.has("partes"):
+			continue
+		var pt: Dictionary = v.partes[0]
+		var dx: float = m.mov.x - float(pt.x)
+		var dz: float = m.mov.z - float(pt.z)
+		var lx: float = dx * float(pt.c) - dz * float(pt.s)
+		var lz: float = dx * float(pt.s) + dz * float(pt.c)
+		if absf(lz - esc) > 0.7:
+			continue
+		var w := 1.6
+		for i in range(1, (S.boca as Array).size()):
+			if esc <= float(S.boca[i][0]):
+				w = float(S.boca[i][1])
+				break
+		if absf(lx) < w or absf(lx) > w + 1.5:
+			continue
+		var para := Vector2(-signf(lx) * cos(float(pt.a)), signf(lx) * sin(float(pt.a))) # para dentro do navio (mundo)
+		if Vector2(sin(m.mov.ry), cos(m.mov.ry)).dot(para) < 0.3:
+			continue
+		var nlx: float = signf(lx) * (w - 0.55)
+		m.mov.x = float(pt.x) + nlx * float(pt.c) + esc * float(pt.s)
+		m.mov.z = float(pt.z) - nlx * float(pt.s) + esc * float(pt.c)
+		m.mov.y = deck
+		m.mov.vy = 0.0
+		m.mov.chao = true
+		m.mov.mergulho = 0.0
+		m.heroi.position = m.mov.posicao()
+		m.sons.tocar("pano", -6.0)
+		_escada_t = Time.get_ticks_msec() + 800
+		return
+
+# Navio sólido (André 2026-11-21: "eu posso subir em cima dele. Outras pessoas podem subir e ir comigo"): as caixas
+# [xmin, xmax, zmin, zmax, topo] no espaço do nó do navio (a água fica em NAV_AGUA), da tabela de shared/dados.js
+# VEICULOS.navio.solido: o convés (chão), a amurada dos dois lados (parede, com o vão da escada de corda), proa e
+# popa fechadas, os mastros, a roda do leme, a escotilha e a carga empilhada (sobe com os packs). Fora da escada, quem
+# nada não sobe (o costado é alto); pela escada: o degrau na água e depois o convés (escalada curta do andar.gd).
+var _caixas_navio := {} # packs -> caixas
+func caixas_navio(n_packs: int) -> Array:
+	var faixa: int = 0 if n_packs <= 0 else 1 if n_packs <= 8 else 2
+	if _caixas_navio.has(faixa):
+		return _caixas_navio[faixa]
+	var S: Dictionary = V.navio.solido
+	var D: float = NAV_AGUA + float(S.conves)
+	var alto: float = D + float(S.alta)
+	var B: Array = S.boca
+	var esc: float = float(S.escada)
+	var l: Array = []
+	for i in range(1, B.size()):
+		var za: float = float(B[i - 1][0])
+		var zb: float = float(B[i][0])
+		var w: float = minf(float(B[i - 1][1]), float(B[i][1]))
+		var wm: float = maxf(float(B[i - 1][1]), float(B[i][1]))
+		l.append([-wm, wm, za, zb, D]) # convés (a parte mais larga também: a amurada fica por cima)
+		for lado in [-1.0, 1.0]:
+			var x0: float = w if lado > 0 else -wm - 0.28
+			var x1: float = wm + 0.28 if lado > 0 else -w
+			if esc > za and esc < zb: # o vão da escada: a amurada abre 0,7 m e fica o degrau na água
+				l.append([x0, x1, za, esc - 0.35, alto])
+				l.append([x0, x1, esc + 0.35, zb, alto])
+				var xd0: float = wm + 0.05 if lado > 0 else -wm - 0.6
+				var xd1: float = wm + 0.6 if lado > 0 else -wm - 0.05
+				l.append([xd0, xd1, esc - 0.35, esc + 0.35, NAV_AGUA + 0.2])
+			else:
+				l.append([x0, x1, za, zb, alto])
+	var proa: Array = B[B.size() - 1]
+	var popa: Array = B[0]
+	l.append([-float(proa[1]) - 0.2, float(proa[1]) + 0.2, float(proa[0]), float(proa[0]) + 0.6, alto]) # proa fechada
+	l.append([-float(popa[1]) - 0.2, float(popa[1]) + 0.2, float(popa[0]) - 0.25, float(popa[0]), alto]) # espelho de popa
+	for zm in [NAV_MASTRO_F, NAV_MASTRO_R]:
+		l.append([-0.2, 0.2, zm - 0.2, zm + 0.2, D + 11.0])
+	l.append([-0.32, 0.32, NAV_LEME.z - 0.3, NAV_LEME.z + 0.2, D + 1.55]) # roda do leme
+	l.append([-0.2, 0.2, NAV_LEME.z + 0.6, NAV_LEME.z + 0.9, D + 0.55]) # bitácula
+	l.append([-0.65, 0.65, -3.1, -2.1, D + 0.17]) # escotilha (degrauzinho)
+	if faixa > 0: # a carga entre os mastros (1 ou 2 andares de packs)
+		var zc: float = (NAV_MASTRO_F + NAV_MASTRO_R) * 0.5 + 0.1
+		l.append([-1.2, 1.2, zc - 0.52, zc + 0.54, D + 0.62 * float(faixa)])
+	_caixas_navio[faixa] = l
+	return l
 
 func _parte(qual: String, n: Node3D, cx: Array) -> Dictionary:
 	var T: Transform3D = n.global_transform
@@ -1798,7 +2483,7 @@ func _rastro(v: Dictionary, no: Node3D, dt: float) -> void:
 		var col := MeshInstance3D.new()
 		col.name = "espuma_casco"
 		var q := PlaneMesh.new()
-		q.size = Vector2(3.4, 9.6) if nav else Vector2(1.45, 3.15)
+		q.size = Vector2(NAV_W * 2.0 + 0.3, NAV_L * 2.0 + 0.4) if nav else Vector2(1.45, 3.15)
 		col.mesh = q
 		var mc := ShaderMaterial.new()
 		mc.shader = load("res://agua_fx.gdshader")
@@ -1818,7 +2503,7 @@ func _rastro(v: Dictionary, no: Node3D, dt: float) -> void:
 	(v.espuma_casco as ShaderMaterial).set_shader_parameter("forca", 1.0)
 	var agora: float = m.tempo
 	var frente := Vector3(sin(no.rotation.y), 0, cos(no.rotation.y))
-	var popa: Vector3 = no.global_position - frente * ((4.3 if nav else BARCO_L) * 0.92)
+	var popa: Vector3 = no.global_position - frente * ((NAV_L if nav else BARCO_L) * 0.92)
 	popa.y = float(m.terreno.agua.nivel) + 0.015
 	var pts: Array = v.pontos
 	if pts.is_empty() or (pts[pts.size() - 1][0] as Vector3).distance_to(popa) > (0.6 if nav else 0.3):
@@ -1834,7 +2519,7 @@ func _rastro(v: Dictionary, no: Node3D, dt: float) -> void:
 	# a ponta da fita fica sempre colada na popa (o último ponto pode estar até 0,3 m para trás)
 	var lista: Array = pts.duplicate()
 	lista.append([popa, frente, agora, rapido])
-	var w0: float = 1.0 if nav else 0.32 # meia largura na popa
+	var w0: float = 1.1 if nav else 0.32 # meia largura na popa
 	im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
 	for i in range(lista.size() - 1, -1, -1):
 		var p: Array = lista[i]
