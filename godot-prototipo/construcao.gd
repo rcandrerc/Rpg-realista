@@ -153,6 +153,7 @@ var forno_pediu := 0.0
 var forno_alvo := "ent" # onde vai a lenha quando toca nela na mochila: combustível ou material (vira carvão)
 var forno_tipo := "fornalha" # fornalha ou fogão (André 2026-11-07: o fogão cozinha sozinho como a fornalha)
 var forno_prato := "" # fogão: o prato escolhido para pôr na panela
+var fogao_alvo := "" # fogão (André 2026-11-21: "igual o forno, eu escolho"): "comb" mostra a lenha, "ent" mostra os pratos
 var titulo_forno: Label
 var txt_moch_forno: Label
 var caixa_forno: VBoxContainer
@@ -4519,6 +4520,7 @@ func do_forno(ev: Dictionary) -> void:
 	var t0 := Time.get_ticks_usec()
 	var abriu: bool = ev.get("abrir", false) and not painel_forno.visible
 	if abriu:
+		fogao_alvo = "" # o fogão abre no lugar que faz sentido (sem fogo: combustível; com fogo: panela)
 		painel_forno.visible = true
 		m.sons.tocar("pano", -6.0)
 	if painel_forno.visible:
@@ -4610,7 +4612,10 @@ func _lugar_forno(titulo: String, lugar: String, barra, marcado: bool) -> VBoxCo
 	v.add_child(Menu.rotulo(titulo, 14, Menu.OURO if marcado else Menu.APAGADO))
 	var it = forno.get(lugar)
 	var fn := func():
-		if forno.get(lugar) != null:
+		if forno_tipo == "fogao" and lugar != "sai" and fogao_alvo != lugar:
+			fogao_alvo = lugar # André 2026-11-21: toca no combustível e aparece a lenha; na panela, os pratos
+			_montar_forno()
+		elif forno.get(lugar) != null:
 			m.rede("forno", {"acao": "tirar", "p": forno_id, "lugar": lugar})
 		elif lugar != "sai":
 			forno_alvo = lugar # lugar vazio: a lenha da mochila passa a ir para cá
@@ -4636,6 +4641,8 @@ func _montar_forno() -> void:
 		_montar_fogao()
 		return
 	titulo_forno.text = "Fornalha"
+	txt_moch_forno.visible = true
+	grade_forno.get_parent().get_parent().visible = true
 	txt_moch_forno.text = "Mochila (toque para pôr na fornalha)"
 	var cfg: Dictionary = D.get("fornalha", {})
 	var comb: Dictionary = cfg.get("combustivel", {})
@@ -4720,8 +4727,12 @@ func _montar_fogao() -> void:
 	h.add_theme_constant_override("separation", 16)
 	h.alignment = BoxContainer.ALIGNMENT_CENTER
 	caixa_forno.add_child(h)
-	h.add_child(_lugar_forno("Combustível", "comb", barra_fogo, false))
-	h.add_child(_lugar_forno("Panela", "ent", barra_forno, false))
+	if fogao_alvo == "":
+		var tem_fogo: bool = forno.get("comb") != null or float(forno.get("fogo", 0)) > 0.0
+		fogao_alvo = "ent" if tem_fogo or na_panela != null else "comb"
+	var na_lenha := fogao_alvo == "comb"
+	h.add_child(_lugar_forno("Combustível", "comb", barra_fogo, na_lenha))
+	h.add_child(_lugar_forno("Panela", "ent", barra_forno, not na_lenha))
 	var seta := Menu.rotulo("→", 30, Menu.OURO)
 	seta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(seta)
@@ -4730,7 +4741,8 @@ func _montar_fogao() -> void:
 	var pr := HBoxContainer.new()
 	pr.add_theme_constant_override("separation", 6)
 	pr.alignment = BoxContainer.ALIGNMENT_CENTER
-	caixa_forno.add_child(pr)
+	if not na_lenha:
+		caixa_forno.add_child(pr)
 	for k in rec:
 		var kk := str(k)
 		var fn := func():
@@ -4738,7 +4750,9 @@ func _montar_fogao() -> void:
 			_montar_forno()
 		pr.add_child(m.menu.celula({"k": kk, "n": 1}, kk == forno_prato, fn, 52))
 	var t := ""
-	if forno_prato != "":
+	if na_lenha:
+		t = Idioma.frase("Toque na lenha ou no carvão da mochila para pôr no fogo. Toque na panela para escolher o prato.") + " "
+	if forno_prato != "" and not na_lenha:
 		var R: Dictionary = rec[forno_prato]
 		var ing: Dictionary = R.get("ing", {})
 		var falta := false
@@ -4782,21 +4796,26 @@ func _montar_fogao() -> void:
 			t = Idioma.frase("Faltam ingredientes (dá para fazer %d)." % maxi(0, cabe)) + " "
 	if forno.get("anda", false):
 		t += Idioma.frase("Cozinhando: sai %s a cada %d s. Pode ir embora, o fogão continua." % [_nome(str(forno.get("faz", ""))), int(forno.get("dur", 0))])
-	elif na_panela == null:
+	elif na_panela == null and not na_lenha:
 		t += Idioma.frase("Escolha o prato e toque em +1, +5 ou Máx: os ingredientes vão da mochila para a panela.")
+	elif na_panela == null:
+		pass
 	elif forno.get("comb") == null and float(forno.get("fogo", 0)) <= 0.0:
 		t += Idioma.frase("Sem fogo: ponha lenha ou carvão no combustível.")
 	elif forno.get("sai") != null and str(forno.sai.k) != str(forno.get("faz", "")):
 		t += Idioma.frase("Tire o que está pronto para começar outro prato.")
 	else:
 		t += Idioma.frase("Parado: o lugar de pronto encheu.")
-	t += " " + Idioma.frase("Tocar na panela devolve os ingredientes do que não cozinhou.")
+	if not na_lenha:
+		t += " " + Idioma.frase("Toque no combustível para pôr lenha. Tocar na panela devolve os ingredientes do que não cozinhou.")
 	txt_forno.text = t # cada frase já saiu traduzida (inglês)
-	# mochila: só o que vai no fogo
+	# mochila: só o que vai no fogo, e só com o combustível escolhido
+	txt_moch_forno.visible = na_lenha
+	grade_forno.get_parent().get_parent().visible = na_lenha
 	var moch: Array = m.P.prog.get("mochila", [])
 	for i in moch.size():
 		var it = moch[i]
-		if it == null or not comb.has(str(it.k)):
+		if not na_lenha or it == null or not comb.has(str(it.k)):
 			continue
 		var fn := func():
 			if not _bau_arrastou:
