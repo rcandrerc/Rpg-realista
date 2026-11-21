@@ -78,7 +78,7 @@ export function precoPack(pack, para, pts = 0) {
 // mercado cheio (Quimera mgPkDm): por mercador e tipo de pack, guardado na conta (p.pkD = { 'npc:k': [n, ms] })
 const mercadoN = (p, chave, agora) => { const e = p.pkD?.[chave]; if (!e) return 0; const s = e[0] - Math.max(0, agora - e[1]) / (PR.mercado.volta * 1000); return s > 0 ? s : 0; };
 export const mercadoK = (p, npc, k, agora = Date.now()) => Math.max(PR.mercado.minimo, 1 - PR.mercado.cai * Math.max(0, mercadoN(p, npc + ':' + k, agora) - PR.mercado.livres));
-function mercadoConta(p, npc, k, agora = Date.now()) {
+export function mercadoConta(p, npc, k, agora = Date.now()) {
   const D = p.pkD ||= {};
   for (const q of Object.keys(D)) if (mercadoN(p, q, agora) <= 0) delete D[q];
   D[npc + ':' + k] = [mercadoN(p, npc + ':' + k, agora) + 1, agora];
