@@ -13,6 +13,7 @@ var seguida := {"k": 1.0, "t": -9.0}
 var combate_ate := -9.0
 var coletaveis: Array = [] # {id, tipo, pos, r, no (veio), minerio (pedaços que somem esgotado), cargas, volta_ate}
 var por_id := {}
+var por_zona := {} # id da zona de mineração (mundo.mina) -> [veios dela]: zona_esgotada (minimapa "mais perto", missão)
 # Desde 2026-11-03 todas as ~900 árvores da mata dão lenha: o botão procura só nas 9 casas de 6 m em volta do herói
 # (grade), e o que precisa olhar todo quadro (veio que voltou, câmera dentro da pedra) anda só pelos veios.
 var veios: Array = []
@@ -63,6 +64,10 @@ func _ready() -> void:
 			o.ry_veio = float(c.get("ry", 0.0))
 			_veios_fila.append(o)
 			veios.append(o)
+			if c.has("mina"):
+				if not por_zona.has(str(c.mina)):
+					por_zona[str(c.mina)] = []
+				por_zona[str(c.mina)].append(o)
 		coletaveis.append(o)
 		por_id[o.id] = o
 		var k := Vector2i(floori(o.pos.x / 6.0), floori(o.pos.z / 6.0))
@@ -711,6 +716,17 @@ func dentro_de_pedra(p: Vector3) -> bool:
 
 func esgotado(o: Dictionary) -> bool:
 	return o.cargas == 0 and o.volta_ate > m.tempo
+
+# a zona de mineração inteira está esgotada (todas as pedras dela): o "mais perto" do mapa e a seta da missão pulam
+# para a próxima (André 2026-11-21). Só sabe o que o servidor já mandou (o veio que você viu esgotar ou esgotou).
+func zona_esgotada(id: String) -> bool:
+	var l: Array = por_zona.get(id, [])
+	if l.is_empty():
+		return false
+	for o in l:
+		if not esgotado(o):
+			return false
+	return true
 
 # ---------- quadro a quadro ----------
 var _t_veios := 0.0
