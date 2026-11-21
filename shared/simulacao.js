@@ -6,7 +6,7 @@ import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barra
 import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
-import { Transporte, carrinhoNovo, topoCarrinho } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
+import { Transporte, carrinhoNovo, topoCarrinho, lugarDoVeiculo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
 import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo, IA_CONVERSA } from './dados.js';
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito, npcApareceu } from './historia.js'; // progressão (André 2026-11-10)
@@ -4082,6 +4082,8 @@ export class Simulacao {
     const vai = (x, z) => {
       if (!dentro && j.prog && zonaFechadaEm(j.prog, x, z)) { this.naNevoa(j, x, z); return false; }
       const h = T.altura(x, z, j.y); if (h > lim) return false;
+      // no veículo (André 2026-11-21, navios no meio do continente): o barco não sai da água, o carrinho não entra nela
+      if (j.veiculo && !lugarDoVeiculo(j.veiculo, x, z)) return false;
       j.x = x; j.z = z;
       if (j.chao && j.vy <= 0) { if (h >= j.y - 0.4) j.y = h; else j.chao = false; } // desce a pedra andando ou cai da beirada
       return true;
@@ -4093,6 +4095,7 @@ export class Simulacao {
     // o empurrão de um obstáculo (tina, bigorna, esteio, outro jogador) não pode jogar o herói para dentro de uma parede:
     // senão o chão "sobe" até o alto dela e ele aparece no telhado (ferraria: tina rente ao muro do fundo)
     if (T.altura(j.x, j.z, j.y) > lim) { j.x = x0; j.y = y0; j.z = z0; j.chao = chao0; j.bloqueado = true; }
+    if (j.veiculo && !lugarDoVeiculo(j.veiculo, j.x, j.z)) { j.x = x0; j.y = y0; j.z = z0; j.chao = chao0; j.bloqueado = true; } // empurrão também não tira o barco da água
   }
 
   // ---------- escalada ----------
@@ -4259,6 +4262,7 @@ export class Simulacao {
     this.tempo += dt;
     this.passoSpots();
     this.passoPacks();
+    this.passoVeiculos(); // barco ou navio que foi parar em terra volta para a água (André 2026-11-21)
     const vencidos = this.timers.filter((t) => t.t <= this.tempo);
     this.timers = this.timers.filter((t) => t.t > this.tempo);
     vencidos.forEach((t) => t.fn());
@@ -4327,7 +4331,8 @@ export class Simulacao {
       this.mover(j, a.dx * v * dt, a.dz * v * dt);
       a.t -= dt; if (a.t <= 0) j.arrancada = null;
     } else if (m > 0.15) {
-      const v = mont ? mont.correr : correr ? HEROI.correr : HEROI.andar; // montado: o lobo vai sempre no galope (André 2026-11-07)
+      const vv = this.velVeiculo(j); // no carrinho, barquinho ou navio: na velocidade dele (antes ia na do herói correndo)
+      const v = vv != null ? vv : mont ? mont.correr : correr ? HEROI.correr : HEROI.andar; // montado: o lobo vai sempre no galope (André 2026-11-07)
       this.mover(j, mx * v * dt, mz * v * dt);
       const alvo = Math.atan2(mx, mz);
       j.ry += angDif(alvo, j.ry) * Math.min(1, dt * 12);

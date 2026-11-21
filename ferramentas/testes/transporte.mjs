@@ -4,7 +4,7 @@ import { Simulacao, MAPA_CLAREIRA, LAGOS } from '../../shared/index.js';
 import { PACKS, PACK_REGRAS, VEICULOS, MERCADORES_PACK, ITENS, FERRAMENTAS_FAZENDA } from '../../shared/dados.js';
 import { noLago } from '../../shared/relevo.js';
 import { progressoValido } from '../../shared/progresso.js';
-import { fatorDistancia, precoPack, capacidadeCarrinho, velCarrinho } from '../../shared/transporte.js';
+import { fatorDistancia, precoPack, capacidadeCarrinho, velCarrinho, lugarDoVeiculo } from '../../shared/transporte.js';
 import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA), j = s.adicionarJogador('P', 'Pia');
@@ -181,3 +181,21 @@ ok(salvo.navio.porao.length === 16 && salvo.carrinho.lv === 2 && salvo.pack?.k =
 s.saiuComVeiculo(j);
 ok(!j.veiculo && j.prog.navio.chao, 'saiu do jogo no leme: o navio fica ancorado onde estava');
 ok(s.foto().carga.veic.some((v) => v[0] === 'n') && s.foto().carga.veic.some((v) => v[0] === 'c'), 'navio e carrinho aparecem na foto');
+
+// André 2026-11-21: "barcos e navios mercantes... surgem no meio do continente"
+{ // navio ancorado em terra (conta velha) volta para a água mais perto
+  j.prog.navio.chao = { x: tx, z: tz - 6, ry: 0 };
+  ok(!lugarDoVeiculo('navio', tx, tz - 6), 'o ponto do teste é terra');
+  s.tempo += 2; s.passoVeiculos();
+  const c = j.prog.navio.chao;
+  ok(lugarDoVeiculo('navio', c.x, c.z) && Math.hypot(c.x - tx, c.z - tz) < 60, `navio ancorado em terra voltou para a água (${c.x}, ${c.z})`); }
+{ // servidor recusou a posição do celular (cliente null): andando pelo joystick, o barquinho não sobe na terra
+  ir(bx, bz - 1); j.ry = 0; dar('barquinho', 1); s.veiculo('P', { acao: 'colocar', k: 'barquinho' });
+  ok(j.veiculo === 'barquinho', 'no barquinho de novo');
+  j.z = tz + 1.5; j.esc = null; j.chao = true; j.vy = 0; j.y = 0;
+  for (let i = 0; i < 100; i++) s.mover(j, 0, -0.1); // o servidor andando o herói pelo joystick (após recusar a posição do celular)
+  ok(j.veiculo === 'barquinho' && lugarDoVeiculo('barquinho', j.x, j.z) && j.z > tz - 0.6, `joystick para a margem: o barco parou na água (z ${j.z.toFixed(2)}, margem ${tz})`);
+  j.entrada = { mx: 0, mz: 0, correr: false };
+  // já estava em terra (antes do conserto): volta para a água e o celular recebe a correção
+  j.z = tz - 8; j.x = tx; s.eventos = []; s.tempo += 2; s.passoVeiculos();
+  ok(lugarDoVeiculo('barquinho', j.x, j.z) && s.eventos.some((e) => e.t === 'corrigir' && e.para === 'P'), 'barquinho em terra voltou para a água'); }

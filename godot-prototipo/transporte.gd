@@ -2047,6 +2047,12 @@ func _costas(id: String, corpo: Node3D, pk, esq) -> void:
 	if esq is Skeleton3D and is_instance_valid(esq): # preso no peito de cima do esqueleto: acompanha o corpo correndo e agachado
 		var i: int = (esq as Skeleton3D).find_bone("J_Bip_C_UpperChest")
 		if i >= 0:
-			base = (esq as Skeleton3D).global_transform * (esq as Skeleton3D).get_bone_global_pose(i).origin - Vector3(0, 0.38, 0)
+			var peito: Vector3 = (esq as Skeleton3D).get_bone_global_pose(i).origin
+			# sentado no barquinho ou no carrinho (André 2026-11-21: "muito alto qd sentado no barquinho"): a pose de fora
+			# é a da animação em pé; vale o peito já sentado que o sentar.gd guardou
+			var ps = poses.get(id)
+			if ps is Dictionary and ps.get("esq") == esq and is_instance_valid(ps.get("pose")) and ps.pose.peito_ok:
+				peito = ps.pose.peito_final
+			base = (esq as Skeleton3D).global_transform * peito - Vector3(0, 0.38, 0)
 	no.position = base + Vector3(-sin(ry) * atras, 0, -cos(ry) * atras)
 	no.rotation.y = ry

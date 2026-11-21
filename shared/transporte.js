@@ -114,6 +114,27 @@ export const capacidadeCarrinho = (c) => V.carrinho.capacidade * Math.min(V.carr
 export const velCarrinho = (c) => V.carrinho.vel - V.carrinho.perdePorPack * Math.max(0, (c?.packs?.length || 0) - V.carrinho.packsLivres);
 // água funda o bastante em (x, z)? (lago hoje; o mar entra na FASE 3)
 export const fundoAgua = (x, z) => noLago(x, z)?.fundo || 0;
+// o veículo k pode estar em (x, z)? carrinho fora da água; barquinho e navio só na água funda (a mesma conta do andouVeiculo)
+export function lugarDoVeiculo(k, x, z) {
+  const f = fundoAgua(x, z);
+  if (k === 'carrinho') return f <= 0.3;
+  if (k === 'barquinho') return f >= V.barquinho.fundo * 0.5;
+  if (k === 'navio') return f >= V.navio.fundo * 0.5;
+  return true;
+}
+// André 2026-11-21 ("barcos e navios mercantes... surgem no meio do continente"): a água mais perto de (x, z) onde o
+// veículo k cabe (anéis de 1 m até 20 m, depois de 3 m até raio). null = nenhuma
+export function aguaMaisPerto(k, x, z, raio = 400) {
+  if (lugarDoVeiculo(k, x, z)) return { x, z };
+  for (let r = 1; r <= raio; r += r < 20 ? 1 : 3) {
+    const n = Math.max(16, Math.min(96, Math.round(r * 2)));
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2, px = x + Math.sin(a) * r, pz = z + Math.cos(a) * r;
+      if (lugarDoVeiculo(k, px, pz)) return { x: r2(px), z: r2(pz) };
+    }
+  }
+  return null;
+}
 // barquinho de volta para a mochila; cheia, fica guardado à parte (prog.barcoFora) e volta quando abrir lugar
 // cadeado (André 2026-11-15: "travei ele... e sumiu da bag"): o barquinho e o navio saem da mochila quando vão para a água e
 // voltavam sem o cadeado; aí o Selecionar tudo / Vender vários pegava junto. prog.vcad lembra quem estava trancado.
@@ -438,13 +459,10 @@ export const Transporte = {
   // o celular mandou a posição nova (já conferida a velocidade): água/terra, combustível e o porão andando
   andouVeiculo(j, x, z, d) {
     const k = j.veiculo; if (!k) return true;
-    const fundo = fundoAgua(x, z);
+    if (!lugarDoVeiculo(k, x, z)) return false; // carrinho não entra na água; barquinho e navio não saem dela
     if (k === 'carrinho') {
-      if (fundo > 0.3) return false; // carrinho não entra na água
       const c = j.prog.carrinho; c.comb = Math.max(0, c.comb - d);
-    } else if (k === 'barquinho') { if (fundo < V.barquinho.fundo * 0.5) return false; }
-    else if (k === 'navio') {
-      if (fundo < V.navio.fundo * 0.5) return false;
+    } else if (k === 'navio') {
       for (const pk of j.prog.navio.porao) pk.nav = (pk.nav || 0) + d;
       if (j.prog.pack) j.prog.pack.nav = (j.prog.pack.nav || 0) + d; // o pack das costas também atravessou de navio
     }
@@ -508,6 +526,27 @@ export const Transporte = {
     if (j.prog.pack) return 'Com pack nas costas não dá. Leve ele andando (ou no carrinho).';
     if (j.veiculo) return 'Desça primeiro';
     return '';
+  },
+  // barco ou navio em terra (André 2026-11-21: "barcos e navios mercantes... surgem no meio do continente"). Antes do
+  // conserto do moverJogador, quando o servidor recusava a posição do celular (barco batendo na margem) ele mesmo andava
+  // o herói pelo joystick, a pé, sem olhar o veículo: o barco subia na terra e ia continente adentro (e ficava ancorado
+  // lá). Uma vez por segundo: quem está no barco em terra volta para a água mais perto; navio ancorado em terra também.
+  passoVeiculos() {
+    if ((this.tempo || 0) < (this._veicT || 0)) return;
+    this._veicT = (this.tempo || 0) + 1;
+    for (const j of this.jogadores.values()) {
+      if (j.criando || !j.prog) continue;
+      const k = j.veiculo;
+      if ((k === 'barquinho' || k === 'navio') && !j.morto && !lugarDoVeiculo(k, j.x, j.z)) {
+        const q = aguaMaisPerto(k, j.x, j.z);
+        if (q) { j.x = q.x; j.z = q.z; j.y = AGUA.nivel; j.cliente = null; this.corrigir(j); j.progSujo = true; }
+      }
+      const n = j.prog.navio;
+      if (n?.chao && !(this._semAgua ||= new WeakSet()).has(n.chao) && !lugarDoVeiculo('navio', n.chao.x, n.chao.z)) {
+        const q = aguaMaisPerto('navio', n.chao.x, n.chao.z);
+        if (q) { n.chao = { x: q.x, z: q.z, ry: n.chao.ry }; j.progSujo = true; } else this._semAgua.add(n.chao); // sem mar por perto: não procura de novo
+      }
+    }
   },
   passoPacks() {
     if (!this.packsChao?.length) return;

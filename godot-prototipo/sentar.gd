@@ -8,6 +8,11 @@ extends "res://cavalgar.gd"
 
 var deita := 0.06 # tronco para a frente (rad); remando vai e volta
 var torce := 0.0 # tronco girando em volta da coluna (rad); remando acompanha o lado do remo
+# André 2026-11-21 ("o pack nas costas está muito alto quando sentado no barquinho"): fora daqui o
+# get_bone_global_pose devolve a pose da animação (em pé), sem o quadril no banco. O peito de cima já sentado fica
+# guardado aqui (espaço do esqueleto) para o transporte.gd _costas pôr o pack no lugar certo.
+var peito_final := Vector3.ZERO
+var peito_ok := false
 
 func _process_modification() -> void:
 	var s := get_skeleton()
@@ -58,3 +63,5 @@ func _process_modification() -> void:
 	for osso in _dedos:
 		var d: Array = _dedos[osso]
 		s.set_bone_pose_rotation(osso, Quaternion(d[0], d[1]) * s.get_bone_rest(osso).basis.get_rotation_quaternion())
+	peito_final = s.get_bone_global_pose(_o.peito_alto if _o.peito_alto >= 0 else _o.peito).origin
+	peito_ok = true
