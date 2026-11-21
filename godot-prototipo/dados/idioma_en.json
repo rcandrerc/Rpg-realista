@@ -4210,5 +4210,11 @@
 "Veio de cristal da Gruta da Névoa": "Crystal Vein of the Mist Cave",
 "Ir ao mais próximo ›": "Go to nearest ›",
 "Pescaria": "Fishing",
+"Desmarcar": "Unmark",
+"Tirar marca": "Remove mark",
+"Ver marca (%d m)": "Show mark ({1} m)",
+"Marcado no mapa: %s": "Marked on the map: {1}",
+"Lugar marcado no mapa": "Place marked on the map",
+"Marca tirada do mapa": "Mark removed from the map",
 "Árvore (madeira)": "Tree (wood)"
 }
