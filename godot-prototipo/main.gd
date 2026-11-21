@@ -2364,23 +2364,24 @@ func _lista_perto(pos: Vector3, max_d: float) -> Array:
 		return inimigos_perto
 	return inimigos
 
-func mais_perto(pos: Vector3, max_d: float):
+# visao: só quem a magia enxerga de pos (visao_livre: nada de pedra, muro, árvore ou casa no meio)
+func mais_perto(pos: Vector3, max_d: float, visao := false):
 	var melhor = null
 	var md := max_d
 	for e in _lista_perto(pos, max_d):
 		if e.estado == "morto" or not is_instance_valid(e.no):
 			continue
 		var d: float = e.no.position.distance_to(pos)
-		if d < md:
+		if d < md and (not visao or visao_livre(pos, e.no.position)):
 			md = d
 			melhor = e
 	# duelo (André 2026-11-17: "não consegui atacar ela no duelo"): o outro também é alvo do golpe e das skills; sem
 	# isso o app dizia "Nenhum inimigo por perto" e nem mandava o golpe. O dano quem decide é o servidor (shared/duelo.js).
 	var o = duelo.alvo() if duelo else null
-	if o != null and o.no.position.distance_to(pos) < md:
+	if o != null and o.no.position.distance_to(pos) < md and (not visao or visao_livre(pos, o.no.position)):
 		melhor = o
 		md = o.no.position.distance_to(pos)
-	var ar = arena_pvp.alvo(pos, md) if arena_pvp else null # Arena PvP (arena_pvp.gd): o mais perto do outro time
+	var ar = (arena_pvp.alvo(pos, md, func(p: Vector3): return visao_livre(pos, p)) if visao else arena_pvp.alvo(pos, md)) if arena_pvp else null # Arena PvP (arena_pvp.gd): o mais perto do outro time
 	if ar != null:
 		melhor = ar
 	return melhor
@@ -2843,8 +2844,9 @@ func _flash_passo(dt: float) -> void:
 					mi.material_overlay = mi.get_meta("overlay_base") if mi.has_meta("overlay_base") else null
 
 func dano_area(pos: Vector3, raio: float, dmg: float, hab = null) -> void:
+	var magia: bool = hab is Dictionary and str(hab.get("tipo", "")) in VISAO_TIPOS # magia de área não passa por pedra nem casa
 	for e in inimigos.duplicate():
-		if e.estado != "morto" and Vector2(e.no.position.x - pos.x, e.no.position.z - pos.z).length() < raio:
+		if e.estado != "morto" and Vector2(e.no.position.x - pos.x, e.no.position.z - pos.z).length() < raio and (not magia or visao_livre(Vector3(pos.x, e.no.position.y, pos.z), e.no.position)):
 			ferir(e, dmg, pos, hab)
 
 func dano_arco(alcance: float, arco: float, dmg: float, hab = null) -> Array:
@@ -3132,7 +3134,67 @@ func comecar_q(nome: String, dur: float, hits: Array, ao_acertar: Callable, extr
 func sem_alvo() -> void:
 	if tempo - h.sem_alvo > 1.2:
 		h.sem_alvo = tempo
-		hud.aviso("Longe demais" if mais_perto(heroi.position, 40.0) else "Nenhum inimigo por perto")
+		if h.get("sem_visao", false):
+			hud.aviso("Sem visão do alvo")
+		else:
+			hud.aviso("Longe demais" if mais_perto(heroi.position, 40.0) else "Nenhum inimigo por perto")
+
+# ---------- linha de visão da magia (André 2026-11-21: "as skills de mágico se tiver algum objeto entre o alvo não deve
+# ser possível usar... isso não pode no mundo todo"). A mesma conta de Simulacao.visaoLivre (shared/simulacao.js) e os
+# números de VISAO (shared/dados.js): pedra, rochedo, casa, muro, pilar, árvore, peça construída e o relevo entre o peito
+# de quem solta (a) e o do alvo (b) tapam. Aqui é só para avisar na hora e não gastar a mana; quem decide é o servidor.
+const VISAO_TIPOS := ["basicoMagia", "bola", "cadeia", "meteoro", "anel", "gelo", "puxar"]
+const VISAO_PEITO := 1.2
+func visao_livre(a: Vector3, b: Vector3) -> bool:
+	if terreno == null or mov == null:
+		return true
+	var ay := a.y + VISAO_PEITO
+	var by := b.y + VISAO_PEITO
+	var dx := b.x - a.x
+	var dz := b.z - a.z
+	var l2 := dx * dx + dz * dz
+	var l := sqrt(l2)
+	if l < 1.0:
+		return true # colado no alvo
+	var ponta: float = min(0.5, l / 4.0)
+	var s := 0.0
+	while s <= l + 2.0:
+		var t: float = min(1.0, s / l)
+		var px := a.x + dx * t
+		var pz := a.z + dz * t
+		var ci := Vector2i(floori(px / 6.0), floori(pz / 6.0))
+		var lista: Array = mov.perto_obstaculos(px, pz) + mov._obst_extras.get(ci, [])
+		if fmod(s, 6.0) < 2.0:
+			lista += mov.perto_na_mata(px, pz)
+		for k in lista:
+			if k.has("gente") or k.has("semTopo"):
+				continue
+			var tk: float = ((float(k.x) - a.x) * dx + (float(k.z) - a.z) * dz) / l2
+			if tk <= 0.0 or tk >= 1.0 or tk * l < ponta or tk * l > l - ponta:
+				continue
+			var r: float = float(k.r)
+			if Vector2(a.x + dx * tk - float(k.x), a.z + dz * tk - float(k.z)).length() >= r * 0.85:
+				continue
+			if Vector2(a.x - float(k.x), a.z - float(k.z)).length() < r or Vector2(b.x - float(k.x), b.z - float(k.z)).length() < r:
+				continue # em cima dele
+			var y: float = ay + (by - ay) * tk
+			if k.has("alto") and y > float(k.alto):
+				continue
+			if k.has("base") and y < float(k.base) - 2.5:
+				continue
+			if k.has("veio") and mov.vazios.has(k.veio):
+				continue
+			return false
+		s += 2.0
+	var n := ceili(l / 0.4)
+	for i in range(1, n):
+		var t: float = float(i) / n
+		if t * l < ponta or t * l > l - ponta:
+			continue
+		var y: float = ay + (by - ay) * t
+		if terreno.altura(a.x + dx * t, a.z + dz * t, y) > y:
+			return false
+	return true
 
 # Golpe básico da arma na mão. Não trava: dá para andar enquanto bate (como no Quimera)
 func basico() -> bool:
@@ -3202,18 +3264,29 @@ func basico_espada() -> void:
 # travado está vivo mas fora do alcance (continua travado), ou null se não tem ninguém.
 const ALVO_SOLTA := 25.0 # travado mais longe que isso (fugiu, voltou para a clareira dele) solta
 func alvo_travado(alcance: float):
+	h.sem_visao = false
 	if not vivo(h.alvo_fixo):
 		h.alvo_fixo = null
 	if h.alvo_fixo != null:
 		var d: float = h.alvo_fixo.no.position.distance_to(heroi.position)
 		if d <= alcance:
-			return h.alvo_fixo
+			if visao_livre(heroi.position, h.alvo_fixo.no.position):
+				return h.alvo_fixo
+			# travado atrás de pedra, muro ou casa (André 2026-11-21): vai no mais perto que enxerga, sem destravar
+			var outro = mais_perto(heroi.position, alcance, true)
+			if outro != null:
+				return outro
+			h.sem_visao = true
+			return false
 		if d <= ALVO_SOLTA:
 			return false
 		h.alvo_fixo = null
-	var e = mais_perto(heroi.position, alcance)
+	var e = mais_perto(heroi.position, alcance, true)
 	if e != null:
 		h.alvo_fixo = e
+	elif mais_perto(heroi.position, alcance) != null:
+		h.sem_visao = true # tem alguém no alcance, mas atrás de alguma coisa
+		return false
 	return e
 
 # toque rápido na tela em cima de um monstro: ele vira o alvo travado (o mais perto do dedo na tela)
@@ -3254,7 +3327,7 @@ func basico_magia() -> void:
 	if alvo is bool:
 		if tempo - h.sem_alvo > 1.2:
 			h.sem_alvo = tempo
-			hud.aviso("Alvo longe demais")
+			hud.aviso("Sem visão do alvo" if h.get("sem_visao", false) else "Alvo longe demais")
 		recargas["basico"] = 0.25
 		return
 	if alvo == null:
@@ -3344,15 +3417,20 @@ func atirar(hab: Dictionary, alvo, alcance: float) -> void:
 # o alvo que a skill precisa (igual a Simulacao.alvoHab): sem ninguém no alcance ela nem sai. false = não pode
 func alvo_hab(hab: Dictionary):
 	var t: String = hab.tipo
+	h.sem_visao = false
 	if t == "corte" or t == "esmagar":
 		return mais_perto(heroi.position, hab.lunge.r)
-	if t in ["bola", "cadeia", "meteoro"] and vivo(h.alvo_fixo) and h.alvo_fixo.no.position.distance_to(heroi.position) <= hab.alcance + 0.5:
-		return h.alvo_fixo # magia de alvo único vai no alvo travado do mago quando ele está no alcance
-	if t in ["bola", "cadeia", "meteoro", "investida"]:
+	if t in ["bola", "cadeia", "meteoro"] and vivo(h.alvo_fixo) and h.alvo_fixo.no.position.distance_to(heroi.position) <= hab.alcance + 0.5 and visao_livre(heroi.position, h.alvo_fixo.no.position):
+		return h.alvo_fixo # magia de alvo único vai no alvo travado do mago quando ele está no alcance (e à vista)
+	if t == "investida":
 		var e = mais_perto(heroi.position, hab.alcance + 0.5)
 		return e if e else false
-	if t in ["anel", "gelo", "puxar"]:
-		var e = mais_perto(heroi.position, hab.area)
+	# magia (André 2026-11-21): só quem ela enxerga; alguém no alcance mas atrás de pedra, muro ou casa = "Sem visão do alvo"
+	if t in ["bola", "cadeia", "meteoro", "anel", "gelo", "puxar"]:
+		var r: float = hab.area if t in ["anel", "gelo", "puxar"] else hab.alcance + 0.5
+		var e = mais_perto(heroi.position, r, true)
+		if e == null and mais_perto(heroi.position, r) != null:
+			h.sem_visao = true
 		return e if e else false
 	return null
 
