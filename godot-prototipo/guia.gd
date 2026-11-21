@@ -264,6 +264,16 @@ func _passos_criar(k: String) -> Array:
 			if str(D.receitas[r].faz) == k:
 				chave = str(r)
 				break
+	# André 2026-11-21: cada estação só mostra o que é dela e o Criar da bolsa só o que se cria em qualquer lugar.
+	# O que pede estação: ir até ela, o botão dela na HUD (fogão: a janela do forno tem "Cozinhar na hora") e a
+	# estação certa em cima ("est:"), se houver outra perto
+	var est := ""
+	if m.menu != null and (D.get("receitas", {}).has(chave) or D.get("construcoes", {}).has(chave) or D.get("ferramentas", {}).has(chave)):
+		est = m.menu.estacao_do_item({"tipo": "receita" if D.get("receitas", {}).has(chave) else "obra", "k": chave})
+	if est == "fogao":
+		return ["ir", "hud:forno", "b^Cozinhar na hora", "est:fogao", "grupo:" + chave, "criar:" + chave, "b^Criar "]
+	if est != "":
+		return ["ir", "hud:bancada", "est:" + est, "grupo:" + chave, "criar:" + chave, "b^Criar "]
 	return ["ir", "topo:mochila", "aba:criar", "vertudo:" + chave, "grupo:" + chave, "criar:" + chave, "b^Criar "]
 
 func _aba_obra(k: String) -> String:
@@ -464,7 +474,15 @@ func _achar(p: String, hi: Dictionary, tipo: String) -> bool:
 	if p.begins_with("vertudo:"):
 		if tipo != "menu" or m.menu.aba != "criar" or m.menu.est_criar == "" or _meta("grupo:" + _grupo(p.substr(8))) != null:
 			return false
-		var b = _botao_texto("Ver tudo", false)
+		var b = _botao_texto("Qualquer lugar", false) # era "Ver tudo" (André 2026-11-21)
+		if b != null:
+			_alvo = b
+		return b != null
+	if p.begins_with("est:"): # a estação certa em cima da aba Criar (perto de duas: bancada e bigorna)
+		var est := p.substr(4)
+		if tipo != "menu" or m.menu.aba != "criar" or m.menu.est_criar == est:
+			return false
+		var b = _botao_texto(str(Menu.NOME_ESTACAO.get(est, est)).split(" ")[0], false)
 		if b != null:
 			_alvo = b
 		return b != null
