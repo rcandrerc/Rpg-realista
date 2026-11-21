@@ -1785,7 +1785,9 @@ export const PESCA = {
   mar: { quantos: { comum: 8, raro: 4, epico: 2 }, de: 30, ate: 160, margem: 7, fundo: 1.5 },
 };
 // pedra e lenha também na Rosa, para quem quer construir sem minerar tudo (no Quimera a pedra sai das rochas do mapa)
-LOJA.push({ k: 'lenha', preco: 80 }, { k: 'pedra', preco: 80 }); // André 2026-11-17: "uns 80, se não ninguém corta ou cata pedra" (eram 3 e 4)
+// André 2026-11-17: "uns 80, se não ninguém corta ou cata pedra" (eram 3 e 4); 2026-11-21: compra só de emergência, 200-500 ouro
+// conforme o esforço do farm (lenha 200, pedra 300). A venda ao NPC continua 1 (sem exploit).
+LOJA.push({ k: 'lenha', preco: 200 }, { k: 'pedra', preco: 300 });
 // Botão "Organizar" da mochila e do baú (André 2026-11-07): junta as pilhas pela metade e põe em ordem de tipo (esta
 // lista), depois raridade (a melhor primeiro), reforço e nome. Equipamento segue a ordem dos lugares do corpo (LUGARES).
 export const ORGANIZAR = ['equip', 'consumivel', 'tomo', 'ferramenta', 'obra', 'semente', 'material', 'outro'];

@@ -14,7 +14,7 @@ ok(PAGINA_PRECO.join() === '0,1000,5000,15000' && RESET_BUILD.porNivel === 30, '
 const pocao = LOJA.find((o) => o.k === 'pocao'), mana = LOJA.find((o) => o.k === 'pocao_mana');
 ok(precoLoja(pocao, 10) === 40 && precoLoja(pocao, 50) === 120 && precoLoja(mana, 10) === 48, 'poção sobe com o nível (Nv 10: 40 e 48)');
 ok(LOJA.filter((o) => o.r === 0).every((o) => o.preco === 150) && LOJA.filter((o) => o.r === 1).every((o) => o.preco === 900), 'peça Comum 150, Rara 900');
-ok(LOJA.some((o) => o.k === 'lenha' && o.preco === 80) && LOJA.some((o) => o.k === 'pedra' && o.preco === 80) && LOJA.some((o) => o.k === 'semente_cenoura'), 'lenha e pedra a 80, sementes continuam (material de pack)');
+ok(LOJA.some((o) => o.k === 'lenha' && o.preco === 200) && LOJA.some((o) => o.k === 'pedra' && o.preco === 300) && LOJA.some((o) => o.k === 'semente_cenoura'), 'lenha a 200 e pedra a 300, sementes continuam (material de pack)');
 ok(ECONOMIA.semente === 2.5 && LOJA.filter((o) => o.k.startsWith('semente_')).every((o) => o.preco >= 2), 'sementes 2,5x mais caras');
 ok(MORTE.consertoTabela.join() === '100,800,4000,16000,60000' && custoConserto({ k: 'peitoral', r: 1, d: 0 }) === 800 && custoConserto({ k: 'peitoral', r: 1, d: 90 }) === 80, 'conserto pesa pela raridade (André 2026-11-18, o dobro: Comum 100, Rara 800, Épico 4.000)');
 
