@@ -48,7 +48,7 @@ const MEDALHAO := 52.0
 const ABAS_PERSONAGEM := ["status", "habilidades", "profissoes", "titulos", "aparencia"]
 # André 2026-11-11: Missões saiu do menu do personagem e ganhou ícone no menu do topo (abre só ela)
 const ABAS_MISSOES := ["missoes", "diarias", "guilda"] # História e Diárias (André 2026-11-16); Guilda (2026-11-18)
-const ABAS_BOLSA := ["mochila", "criar", "loja"]
+const ABAS_BOLSA := ["mochila", "criar", "recipedia", "loja"] # Recipedia: todas as receitas para consultar (André 2026-11-21)
 # submenus da aba Criar
 # "aqui" (André 2026-11-05: "unificar os menus"): o botão de ação da mesa abre esta mesma aba Criar no submenu do que
 # a estação perto faz (Alfaiate e móveis na bancada, Ferreiro na bigorna, barras na fornalha); só aparece perto de uma.
@@ -820,7 +820,7 @@ func montar_direita() -> Control:
 	var abas := HBoxContainer.new()
 	abas.add_theme_constant_override("separation", 6)
 	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["titulos", "Títulos"], ["missoes", "História"], ["diarias", "Diárias"], ["guilda", "Guilda"], ["aparencia", "Aparência"],
-			["mochila", "Mochila"], ["criar", "Criar"], ["loja", "Loja"]]:
+			["mochila", "Mochila"], ["criar", "Criar"], ["recipedia", "Recipedia"], ["loja", "Loja"]]:
 		var b := botao(a[1], func(): trocar_aba(a[0]), 16)
 		b.custom_minimum_size = Vector2(126, 40)
 		botoes_aba[a[0]] = b
@@ -962,8 +962,10 @@ func estacoes_perto() -> Array:
 	return l
 
 # botão da mochila no menu do topo: volta na aba da bolsa que estava (Mochila ou Criar)
+# André 2026-11-21: o Criar da bolsa mostra só o que se cria em qualquer lugar (a estação mostra o dela)
 func abrir_bolsa() -> void:
-	abrir(aba if aba in ["mochila", "criar"] else "mochila")
+	est_criar = ""
+	abrir(aba if aba in ["mochila", "criar", "recipedia"] else "mochila")
 
 func fechar() -> void:
 	_pend.clear() # fechou sem confirmar: nada foi gasto
@@ -1072,6 +1074,8 @@ func atualizar() -> void:
 		montar_loja()
 	elif aba == "criar":
 		montar_criar()
+	elif aba == "recipedia":
+		montar_recipedia()
 	elif aba == "missoes":
 		montar_missoes()
 	elif aba == "diarias":
@@ -2435,10 +2439,13 @@ func montar_criar_quimera() -> void:
 			chips.add_child(chip_estacao(est, str(NOME_ESTACAO[est]).split(" ")[0], est == est_criar))
 	if tem_bau:
 		chips.add_child(chip_estacao("bau", "Baú", false))
-	var vt := botao("Ver tudo", func():
+	var vt := botao("Qualquer lugar", func(): # era "Ver tudo"; agora só o que se cria longe de estação (André 2026-11-21)
 		est_criar = ""
 		atualizar(), 15, est_criar == "")
 	vt.custom_minimum_size = Vector2(0, 40)
+	vt.icon = icone_tex("topo_mochila")
+	vt.expand_icon = false
+	vt.add_theme_constant_override("icon_max_width", 24)
 	chips.add_child(vt)
 	conteudo.add_child(chips)
 	lista_criar = VBoxContainer.new()
@@ -2475,7 +2482,9 @@ func entradas_grupo(g: String) -> Array:
 	var out := []
 	var q := busca_criar.strip_edges().to_lower()
 	for e in itens_criar(g):
-		if est_criar != "" and estacao_do_item(e) != est_criar:
+		# André 2026-11-21: "separar completamente": bancada só o da bancada, bigorna só o da bigorna e o Criar da
+		# bolsa (est_criar "") só o que se cria em qualquer lugar. Tudo junto, só para consultar: aba Recipedia.
+		if estacao_do_item(e) != est_criar:
 			continue
 		var equip: bool = e.tipo == "receita" and D.has("catalisador") and D.itens[str(D.receitas[e.k].faz)].has("lugar")
 		for r in (D.raridades.size() if equip else 1):
@@ -2561,7 +2570,7 @@ func preencher_lista_criar() -> void:
 			continue
 		var corpo := VBoxContainer.new()
 		corpo.add_theme_constant_override("separation", 6)
-		if k == "materiais" and est_criar in ["", "fornalha"] and not buscando:
+		if k == "materiais" and est_criar == "fornalha" and not buscando:
 			corpo.add_child(linha_fornalha())
 		for x in itens:
 			corpo.add_child(linha_criavel_rar(x.e, int(x.rar)) if int(x.rar) >= 0 else linha_criavel(x.e))
@@ -2570,9 +2579,38 @@ func preencher_lista_criar() -> void:
 		lista_criar.add_child(corpo)
 	if not algum:
 		lista_criar.add_child(rotulo("Nada encontrado." if buscando else "Nada para criar aqui.", 14, APAGADO))
+	if est_criar == "" and not buscando: # na bolsa: o resto fica na estação; a Recipedia mostra tudo
+		lista_criar.add_child(aviso_recipedia())
+
+# "O que pede bancada, bigorna, fornalha ou fogão só aparece perto dela" + botão Recipedia
+func aviso_recipedia() -> Control:
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(Color(0.1, 0.088, 0.072, 1), Color(0.3, 0.24, 0.16), 1, 8))
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 12)
+	cx.add_child(l)
+	for est in ["bancada", "bigorna", "fornalha", "fogao"]:
+		var ic := TextureRect.new()
+		ic.texture = icone_tex("cs_" + est)
+		ic.custom_minimum_size = Vector2(30, 30)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		l.add_child(ic)
+	var t := rotulo("O que pede bancada, bigorna, fornalha ou fogão aparece só perto dela. Para ver tudo, abra a Recipedia.", 13, OURO_CLARO)
+	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.add_child(t)
+	var b := botao("Recipedia", func(): trocar_aba("recipedia"), 14, true)
+	b.custom_minimum_size = Vector2(110, 40)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(b)
+	return cx
 
 # evoluir/reforçar as peças da mochila e vestidas, dentro do grupo (sem o título "Melhorar equipamento")
 func linhas_melhorar(corpo: Control, tipo: String) -> void:
+	if est_criar == "": # evoluir e reforçar são na bigorna e na bancada, não na bolsa (André 2026-11-21)
+		return
 	var ests: Array = [est_criar] if est_criar != "" else estacoes_perto()
 	var antes = conteudo # montar_melhorar_aqui escreve em "conteudo"
 	var tmp := VBoxContainer.new()
@@ -2892,6 +2930,329 @@ func linha_criavel(e: Dictionary) -> Control:
 	l.add_child(b)
 	if e.tipo == "obra" and motivo.begins_with("Você já tem"):
 		o.text = Idioma.frase(motivo)
+	return cx
+
+# ---------- Recipedia (André 2026-11-21) ----------
+# "Queria poder acessar um menu e ter todos os itens craftáveis do jogo, como se fosse um Wikipedia... incluindo os
+# packs, separados pelo nome do mercador... nada de lista, com símbolos, no mesmo formato de todo o jogo, mostrando
+# quantos itens precisa". Aba da bolsa (abre de qualquer lugar), só para consultar: sem botão Criar. Os mesmos grupos
+# sanfona da aba Criar, busca, filtro por estação (ícones) e os materiais em ícone com tem/precisa (icone_material).
+const FILTROS_REC := [["", "Todas", ""], ["livre", "Qualquer lugar", "topo_mochila"], ["bancada", "Bancada", "cs_bancada"], ["bigorna", "Bigorna", "cs_bigorna"],
+	["fornalha", "Fornalha", "cs_fornalha"], ["fogao", "Fogão", "cs_fogao"], ["pack", "Packs", "it_pack"]]
+var est_rec := "" # filtro de cima ("" = todas)
+var busca_rec := ""
+var grupos_rec := {} # grupo -> aberto
+var rar_rec := {} # receita -> raridade escolhida (armas e armaduras)
+var lista_rec: VBoxContainer
+
+func montar_recipedia() -> void:
+	var busca := LineEdit.new()
+	busca.placeholder_text = Idioma.frase("Buscar receita")
+	busca.text = busca_rec
+	busca.right_icon = icone_tex("lupa") if ResourceLoader.exists("res://icones/lupa.svg") else null
+	busca.add_theme_font_size_override("font_size", 16)
+	busca.custom_minimum_size = Vector2(0, 42)
+	busca.add_theme_stylebox_override("normal", caixa(Color(0.035, 0.03, 0.026, 1), Color(0.36, 0.29, 0.19), 1, 10))
+	busca.add_theme_stylebox_override("focus", caixa(Color(0.035, 0.03, 0.026, 1), OURO, 1, 10))
+	busca.clear_button_enabled = true
+	busca.text_changed.connect(func(t: String):
+		busca_rec = t
+		preencher_recipedia())
+	conteudo.add_child(busca)
+	var chips := HFlowContainer.new()
+	chips.add_theme_constant_override("h_separation", 6)
+	chips.add_theme_constant_override("v_separation", 6)
+	for f in FILTROS_REC:
+		var k: String = f[0]
+		var b := botao(f[1], func():
+			est_rec = k
+			grupos_rec = {}
+			atualizar()
+			rolagem.scroll_vertical = 0, 14, k == est_rec)
+		b.custom_minimum_size = Vector2(0, 38)
+		if str(f[2]) != "":
+			b.icon = icone_tex(str(f[2]))
+			b.expand_icon = false
+			b.add_theme_constant_override("icon_max_width", 24)
+		chips.add_child(b)
+	conteudo.add_child(chips)
+	lista_rec = VBoxContainer.new()
+	lista_rec.add_theme_constant_override("separation", 8)
+	conteudo.add_child(lista_rec)
+	preencher_recipedia()
+
+# tudo o que se cria num grupo da aba Criar, mais barras e carvão (fornalha) em Materiais
+func itens_recipedia(g: String) -> Array:
+	var D: Dictionary = m.P.dados
+	var l := itens_criar(g)
+	if g == "materiais":
+		for r in D.receitas:
+			if eh_da_fornalha(D.receitas[r]):
+				l.append({"tipo": "receita", "k": r, "nome": str(D.itens[str(D.receitas[r].faz)].nome), "nivel": int(D.receitas[r].nivel)})
+		l.sort_custom(func(a, b): return a.nivel < b.nivel or (a.nivel == b.nivel and a.nome.naturalnocasecmp_to(b.nome) < 0))
+	return l
+
+# mercadores de pack do mundo: [[nome, k do pack]] (sem mundo carregado: um "Mercador" por pack)
+func mercadores_pack() -> Array:
+	var PK: Dictionary = m.P.dados.get("packs", {})
+	var out := []
+	var npcs = m.get("npcs")
+	for n in (npcs if npcs is Array else []):
+		if not (n is Dictionary):
+			continue
+		var k := str(n.get("info", {}).get("merch", n.get("merch", "")))
+		if str(n.get("funcao", "")) == "pack" and PK.has(k):
+			out.append([str(n.nome).get_slice(",", 0), k])
+	if out.is_empty():
+		for k in PK:
+			out.append(["Mercador de pack", k])
+	out.sort_custom(func(a, b): return a[0].naturalnocasecmp_to(b[0]) < 0)
+	return out
+
+func preencher_recipedia() -> void:
+	if lista_rec == null or not is_instance_valid(lista_rec):
+		return
+	for c in lista_rec.get_children():
+		lista_rec.remove_child(c)
+		c.queue_free()
+	var D: Dictionary = m.P.dados
+	var q := busca_rec.strip_edges().to_lower()
+	var buscando := q != ""
+	var algum := false
+	var grupos := [] # [chave, nome, [linhas como {e, rar} ou {pack, merc}]]
+	if est_rec != "pack":
+		for g in GRUPOS_CRIAR:
+			var itens := []
+			for e in itens_recipedia(str(g[0])):
+				var est := estacao_do_item(e)
+				if est_rec != "" and est != ("" if est_rec == "livre" else est_rec):
+					continue
+				if q != "" and not (q in str(e.nome).to_lower()):
+					continue
+				itens.append({"e": e})
+			grupos.append([str(g[0]), str(g[1]), itens])
+	if est_rec in ["", "pack"]:
+		var por_merc := {}
+		var ordem := []
+		for mk in mercadores_pack():
+			var nome_pk := str(D.packs[mk[1]].nome)
+			if q != "" and not (q in nome_pk.to_lower()) and not (q in str(mk[0]).to_lower()):
+				continue
+			if not por_merc.has(mk[0]):
+				por_merc[mk[0]] = []
+				ordem.append(mk[0])
+			por_merc[mk[0]].append({"pack": mk[1], "merc": mk[0]})
+		for nome in ordem:
+			grupos.append(["pack:" + nome, "Packs · " + nome, por_merc[nome]])
+	for g in grupos:
+		var itens: Array = g[2]
+		if itens.is_empty():
+			continue
+		algum = true
+		var prontas := 0
+		for x in itens:
+			if tem_material_rec(x):
+				prontas += 1
+		var k: String = g[0]
+		lista_rec.add_child(cabeca_grupo_rec(k, str(g[1]), prontas, itens.size()))
+		if not (grupos_rec.get(k, false) or buscando):
+			continue
+		var corpo := VBoxContainer.new()
+		corpo.add_theme_constant_override("separation", 6)
+		for x in itens:
+			corpo.add_child(linha_pack_rec(x.pack, x.merc) if x.has("pack") else linha_receita_rec(x.e))
+		lista_rec.add_child(corpo)
+	if not algum:
+		lista_rec.add_child(rotulo("Nada encontrado." if buscando else "Nenhuma receita aqui.", 14, APAGADO))
+
+# materiais da receita (na raridade escolhida) ou do pack: {k: n}
+func materiais_rec(x: Dictionary) -> Dictionary:
+	var D: Dictionary = m.P.dados
+	if x.has("pack"):
+		if m.get("transporte") != null: # já com o desconto da profissão Mercador (transporte.gd custo)
+			return m.transporte.custo(x.pack)
+		return D.packs[x.pack].custo
+	var e: Dictionary = x.e
+	if e.tipo == "receita":
+		return m.P.receita_na_raridade(e.k, int(rar_rec.get(e.k, 0))).usa
+	var cons = m.get("construcao")
+	var C: Dictionary = cons.dados_criar(e.k) if cons != null else D.get("construcoes", {}).get(e.k, D.get("ferramentas", {}).get(e.k, {}))
+	return C.get("custo", {})
+
+func tem_material_rec(x: Dictionary) -> bool:
+	var usa := materiais_rec(x)
+	for k in usa:
+		if m.P.contar(k) < int(usa[k]):
+			return false
+	return true
+
+# cabeçalho da sanfona da Recipedia (igual ao da aba Criar; verde = você já tem o material)
+func cabeca_grupo_rec(k: String, nome: String, prontas: int, total: int) -> Control:
+	var antes: Dictionary = grupos_abertos
+	var antes_busca := busca_criar
+	grupos_abertos = grupos_rec
+	busca_criar = busca_rec
+	var b: Button = cabeca_grupo(k, nome, prontas, total)
+	grupos_abertos = antes
+	busca_criar = antes_busca
+	b.set_meta("guia", "rec:" + k)
+	for c in b.pressed.get_connections():
+		b.pressed.disconnect(c.callable)
+	b.pressed.connect(func():
+		if _arrastou:
+			return
+		grupos_rec[k] = not grupos_rec.get(k, false)
+		preencher_recipedia())
+	return b
+
+# onde se cria, com o ícone da estação: "Bigorna ou a forja do Tomás"
+func onde_rec(e: Dictionary) -> Array:
+	var D: Dictionary = m.P.dados
+	var est := estacao_do_item(e)
+	if est == "":
+		return ["", "Em qualquer lugar (aba Criar)"]
+	var onde: String = NOME_ESTACAO[est]
+	if e.tipo == "receita":
+		var of: Dictionary = D.oficina.get(str(D.receitas[e.k].prof), {})
+		if str(of.get("npc", "")) != "":
+			onde = "%s ou %s" % [onde, str(of.onde).replace("na ", "a ")]
+	return [est, onde]
+
+func linha_onde_rec(icone: String, texto: String) -> Control:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	if icone != "":
+		var ic := TextureRect.new()
+		ic.texture = icone_tex(icone)
+		ic.custom_minimum_size = Vector2(20, 20)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.modulate = tinta(ic.texture, OURO)
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(ic)
+	var o := rotulo(texto, 12, OURO)
+	o.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	o.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(o)
+	return h
+
+# uma receita para consultar: peça, nome, profissão e nível, onde se cria, raridades (arma e armadura) e materiais
+func linha_receita_rec(e: Dictionary) -> Control:
+	var P = m.P
+	var D: Dictionary = P.dados
+	var equip: bool = e.tipo == "receita" and D.has("catalisador") and D.itens[str(D.receitas[e.k].faz)].has("lugar")
+	var rar: int = clampi(int(rar_rec.get(e.k, 0)), 0, D.raridades.size() - 1) if equip else 0
+	var faz: Dictionary
+	var usa := materiais_rec({"e": e})
+	var custo := 0.0
+	var nv_txt := ""
+	if e.tipo == "receita":
+		var R0: Dictionary = D.receitas[e.k]
+		var R: Dictionary = P.receita_na_raridade(e.k, rar)
+		faz = {"k": str(R0.faz), "r": rar} if D.itens[str(R0.faz)].has("lugar") else {"k": str(R0.faz), "n": 1}
+		custo = P.custo_vigor(str(R0.prof), float(R.vigor))
+		nv_txt = "%s Nv %d" % [D.profissoes[str(R0.prof)].nome, int(R.nivel)]
+	else:
+		faz = {"k": ("obra_" + e.k) if D.get("construcoes", {}).has(e.k) else e.k, "n": 1}
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(Color(0.1, 0.088, 0.072, 1), P.cor_item(faz).darkened(0.35) if equip else Color(0.3, 0.24, 0.16), 1, 8))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	cx.add_child(v)
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 12)
+	v.add_child(l)
+	var c := celula(faz, false, func(): pass, 52)
+	c.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_child(c)
+	var txt := VBoxContainer.new()
+	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	txt.add_theme_constant_override("separation", 2)
+	var cab := HBoxContainer.new()
+	cab.add_theme_constant_override("separation", 10)
+	cab.add_child(rotulo(P.nome_item(faz) if equip else str(e.nome), 15, P.cor_item(faz) if equip else TEXTO))
+	if nv_txt != "":
+		cab.add_child(rotulo(nv_txt, 12, OURO_CLARO))
+	txt.add_child(cab)
+	var on := onde_rec(e)
+	txt.add_child(linha_onde_rec("cs_" + str(on[0]) if str(on[0]) != "" else "topo_mochila", str(on[1])))
+	l.add_child(txt)
+	if equip:
+		var rs := HBoxContainer.new()
+		rs.add_theme_constant_override("separation", 4)
+		for r in D.raridades.size():
+			var br := botao(str(D.raridades[r].nome), func():
+				if _arrastou:
+					return
+				rar_rec[e.k] = r
+				preencher_recipedia(), 12, r == rar)
+			br.custom_minimum_size = Vector2(0, 30)
+			br.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			br.add_theme_color_override("font_color", Color(D.raridades[r].cor) if r != rar else Color(D.raridades[r].cor).lightened(0.35))
+			rs.add_child(br)
+		v.add_child(rs)
+	var mats := HFlowContainer.new()
+	mats.add_theme_constant_override("h_separation", 10)
+	mats.add_theme_constant_override("v_separation", 4)
+	if rar > 0: # evoluir: primeiro a peça da raridade de baixo
+		var fk := str(D.receitas[e.k].faz)
+		var qt := 0
+		for ob in P.prog.mochila:
+			if ob != null and str(ob.k) == fk and int(ob.get("r", 0)) == rar - 1 and not ob.has("n"):
+				qt += 1
+		mats.add_child(icone_material(fk, qt, 1, {"k": fk, "r": rar - 1}))
+	for k in usa:
+		mats.add_child(icone_material(str(k), P.contar(k), int(usa[k])))
+	if custo > 0.0:
+		var vg := rotulo("Vigor %s" % P.num(custo, 1), 12, COR_VIGOR)
+		vg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		mats.add_child(vg)
+	v.add_child(mats)
+	return cx
+
+# um pack para consultar: o pack (na cor dele), o mercador que faz, o material e o vigor
+func linha_pack_rec(k: String, merc: String) -> Control:
+	var P = m.P
+	var D: Dictionary = P.dados
+	var PKk: Dictionary = D.packs[k]
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(Color(0.1, 0.088, 0.072, 1), Color(str(PKk.get("cor", "#8a6a3a"))).darkened(0.35), 1, 8))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	cx.add_child(v)
+	var l := HBoxContainer.new()
+	l.add_theme_constant_override("separation", 12)
+	v.add_child(l)
+	var q := PanelContainer.new()
+	q.custom_minimum_size = Vector2(52, 52)
+	q.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	q.add_theme_stylebox_override("panel", caixa(Color(0.045, 0.04, 0.036, 1), Color(str(PKk.get("cor", "#8a6a3a"))), 1, 8))
+	var ic := TextureRect.new()
+	ic.texture = icone_tex("it_pack")
+	ic.custom_minimum_size = Vector2(44, 44)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.modulate = Color(str(PKk.get("cor", "#ffffff"))).lightened(0.25) if ic.texture != null and ic.texture.resource_path.ends_with(".svg") else Color.WHITE
+	q.add_child(ic)
+	l.add_child(q)
+	var txt := VBoxContainer.new()
+	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	txt.add_theme_constant_override("separation", 2)
+	txt.add_child(rotulo(str(PKk.nome), 15, Color(str(PKk.get("cor", "#eeeeee"))).lightened(0.2)))
+	txt.add_child(linha_onde_rec("it_pack", "Feito por %s · leve a outro mercador" % merc))
+	l.add_child(txt)
+	var mats := HFlowContainer.new()
+	mats.add_theme_constant_override("h_separation", 10)
+	mats.add_theme_constant_override("v_separation", 4)
+	var usa := materiais_rec({"pack": k})
+	for c in usa:
+		mats.add_child(icone_material(str(c), P.contar(c), int(usa[c])))
+	var vg_n := float(D.get("packRegras", {}).get("vigor", 0))
+	if vg_n > 0.0:
+		var vg := rotulo("Vigor %s" % P.num(vg_n, 1), 12, COR_VIGOR)
+		vg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		mats.add_child(vg)
+	v.add_child(mats)
 	return cx
 
 func criar_item(e: Dictionary) -> void:
