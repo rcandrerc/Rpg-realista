@@ -129,7 +129,7 @@ export const Arena = {
   // põe o corpo em (x, z) no chão: o celular de quem é de verdade recebe o "corrigir"; os outros veem o pulo (sem deslizar)
   colocarPvp(j, x, z, ry = null, yRef = undefined) {
     const y = yRef != null ? this.terreno.altura(x, z, yRef) : this.terreno.altura(x, z);
-    Object.assign(j, { x, y, z, vy: 0, chao: true, dash: null, arrancada: null, esc: null, acao: null, ...(ry != null ? { ry } : {}) });
+    Object.assign(j, { x, y, z, vy: 0, chao: true, dash: null, arrancada: null, esc: null, acao: null, canal: null, ...(ry != null ? { ry } : {}) });
     j.cliente = null; j.orcT = null;
     if (!j.bot) this.corrigir(j);
     this.evento({ t: 'pvp', fase: 'pulo', id: j.id, x: r2(x), y: r2(y), z: r2(z) });
@@ -180,7 +180,7 @@ export const Arena = {
   golpeArena(alvo, de, h) {
     if (alvo.vida > 0) { if (h) this.efeitoDuelo(alvo, h); return false; }
     const M = alvo.pvp.M;
-    alvo.vida = 0; alvo.morto = true; alvo.dash = null; alvo.arrancada = null; alvo.esc = null; alvo.acao = null;
+    alvo.vida = 0; alvo.morto = true; alvo.dash = null; alvo.arrancada = null; alvo.esc = null; alvo.acao = null; alvo.canal = null;
     this.tocar(alvo, A.death, 1);
     alvo.trava = Infinity; alvo.pvp.volta = this.tempo + PVP.renascer;
     M.placar[de.pvp.time]++;

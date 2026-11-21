@@ -1488,7 +1488,8 @@ export class Simulacao {
         j.trava = h.canal;
         this.evento({ t: 'conjura', id: j.id, hab: hid, dur: r2(h.canal / h.at) });
         this.depois(h.canal, () => {
-          if (j.canal !== c || j.morto) return;
+          if (j.canal !== c) return;
+          if (j.morto) { j.canal = null; return; } // caiu concentrando: a magia some (antes ficava presa e travava o próximo golpe)
           j.canal = null;
           j.cds[hid] = this.tempo + h.cd;
           this.soltarQ(j, h, alvo && !alvo.morto ? alvo : this.alvoHab(j, h) || null, m);
