@@ -658,7 +658,10 @@ export const Transporte = {
       return false;
     }
     if (!B) {
-      if (j.morto || j.esc || Math.hypot(nav.x - j.x, nav.z - j.z) > S.perto) return false;
+      // André 2026-11-21 ("quando eu estiver no leme do navio em time com eles, eles sobem no navio"): o bot do time que
+      // vinha atrás (no cais, nadando ou no barquinho dele) sobe até S.pertoTime m; o barquinho volta para a mochila
+      if (j.morto || j.esc || Math.hypot(nav.x - j.x, nav.z - j.z) > (S.pertoTime || S.perto)) return false;
+      if (j.veiculo === 'barquinho') { j.veiculo = null; devolverBarquinho(j.prog); j.progSujo = true; }
       const i = [...String(j.id)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % S.bordo.length; // cada bot num lugar
       j.bordo = { dono: nav.dono, lx: S.bordo[i][0], lz: S.bordo[i][1], i, troca: this.tempo + 4 + Math.random() * 6 };
       if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null);

@@ -2012,7 +2012,7 @@ export const VEICULOS = {
   navio: { nome: 'Navio mercante', vel: 4, acelera: 0.9, giro: 0.7, porao: 16, fundo: 1.6, ancorar: 1.6, perto: 18, cabe: 4.5, leme: -5.15,
     solido: { conves: 0.9, alta: 0.85, escada: -2.0,
       boca: [[-6.3, 0.95], [-5, 1.22], [-4, 1.4], [-2, 1.58], [0, 1.62], [2, 1.54], [4, 1.2], [5, 0.9], [5.8, 0.5]],
-      bordo: [[-0.9, -3.4], [0.9, -3.6], [-1.0, -0.2], [1.0, 0.2], [-0.8, 2.2], [0.8, 2.0], [-0.5, 3.9], [0.5, 4.3], [0, -2.0], [-1.1, -4.6]], perto: 30 } },
+      bordo: [[-0.9, -3.4], [0.9, -3.6], [-1.0, -0.2], [1.0, 0.2], [-0.8, 2.2], [0.8, 2.0], [-0.5, 3.9], [0.5, 4.3], [0, -2.0], [-1.1, -4.6]], perto: 30, pertoTime: 60 } },
 };
 // itens: galão de combustível (pilha) e os veículos (um de cada, na mochila)
 ITENS.galao = { nome: 'Combustível', mat: true, pilha: 20, venda: 4, desc: 'Galão pro carrinho de carga. Cada um roda uns 160 m. Toque no carrinho pra abastecer.' };
@@ -2862,6 +2862,8 @@ export const AMIGA = {
   // longe do fim da rota para refazer (no máximo a cada novaEm s); preso: s sem sair do lugar = desvia de lado por desvio s
   // (depois de 3 desvios no mesmo ponto pula para o próximo); seco: s fora da água para subir de novo no lobo; agua: fundo
   // (m) que já desce do lobo e atravessa a nado; frente: m adiante na rota para ver a água
+  // travessia (André 2026-11-21): o dono no cais ou na água a até agua m, ou no navio a até navio m: o bot vai reto até ele
+  travessia: { agua: 90, navio: 200 },
   viagem: { estrada: 25, chega: 10, olha: 2.4, replanejar: 12, novaEm: 3, preso: 1.5, desvio: 0.8, seco: 0.8, agua: 0.5, frente: 3, folga: 1.6, extra: 60 },
   // André 2026-11-12 ("ficam caminhando sem sair do lugar o tempo todo, batendo na parede... ou ficam parados, ou ficam
   // andando de verdade"): querendo andar mas sem sair do lugar por preso s (andou menos que minimo do passo esperado):
