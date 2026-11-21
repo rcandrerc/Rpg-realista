@@ -534,7 +534,7 @@ func _botoes_pack(n: Dictionary) -> void:
 	for o in r[1]:
 		var fn: Callable = o[2]
 		var aceso: bool = o[3] if o.size() > 3 else true
-		var b := _opcao(str(o[0]), str(o[1]), func(): fn.call(); escolher.call_deferred("pack_volta"))
+		var b := _opcao(str(o[0]), str(o[1]), func(): fn.call(); if aceso: fechar()) # André 2026-11-21: escolheu a ação, a janela fecha (apagado só avisa e fica)
 		b.disabled = not aceso
 		if not aceso:
 			b.modulate = Color(1, 1, 1, 0.7)
@@ -633,7 +633,7 @@ func escolher(a: String) -> void:
 			else:
 				m.rede("item", {"acao": "fazer_passe"})
 				m.sons.tocar("forja", -6.0)
-				_itens_passe.call_deferred(true) # a mochila muda quando o servidor responde; refaz já e de novo na fala
+				fechar() # André 2026-11-21: escolheu, fecha; a resposta do servidor vira aviso na tela (online.gd)
 		"resetar":
 			fechar()
 			if m.on():
@@ -649,11 +649,14 @@ func escolher(a: String) -> void:
 				m.rede("falar", {"npc": n.id}) # a resposta chega em fala()
 				if a == "missao":
 					_missao_iniciada()
+				else:
+					fechar() # cura: escolheu, fecha (a resposta vira aviso)
 			elif a == "cura":
 				m.h.vida = m.P.st.vidaMax
 				m.h.mana = m.P.st.manaMax
 				m.fx.cura(m.heroi)
 				fala_ui.text = Idioma.frase("Pronto, novinho em folha. Vá com cuidado lá fora.")
+				fechar()
 			else:
 				fala_ui.text = Idioma.frase("As missões só valem online (o progresso fica na sua conta).")
 		"guilda": # Brenda: a aba Guilda da janela de Missões (contratos, rank e Prova)
@@ -1075,5 +1078,5 @@ func _sintetizar(n: Dictionary, k: String, da: int) -> void:
 	var quantos: int = mini(da, int(m.P.dados.catalisador.sintese.lote)) if _alq_max else 1
 	m.rede("item", {"acao": "sintetizar", "k": k, "n": quantos})
 	m.sons.tocar("magia", -6.0)
-	escolher.call_deferred("alquimia_volta")
+	fechar() # André 2026-11-21: sintetizou, fecha; fala a resposta do servidor em aviso
 
