@@ -4216,5 +4216,17 @@
 "Marcado no mapa: %s": "Marked on the map: {1}",
 "Lugar marcado no mapa": "Place marked on the map",
 "Marca tirada do mapa": "Mark removed from the map",
-"Árvore (madeira)": "Tree (wood)"
+"Árvore (madeira)": "Tree (wood)",
+"Navio mercante · no leme": "Merchant Ship · at the helm",
+"Porão %d/%d packs": "Hold {1}/{2} packs",
+"Pilotar": "Steer",
+"Sair do leme": "Leave the helm",
+"Descer": "Disembark",
+"Carregar": "Load",
+"Descarregar": "Unload",
+"Do carrinho pro porão": "From the cart to the hold",
+"Do porão pro carrinho": "From the hold to the cart",
+"Carrinho: %d packs. Carregar e Descarregar levam tudo de uma vez (o carrinho precisa estar perto).": "Cart: {1} packs. Load and Unload move everything at once (the cart must be nearby).",
+"Traga um pack nas costas pra pôr no porão": "Bring a pack on your back to put it in the hold",
+"Navio parado aqui. Ande pelo convés; pra navegar de novo, toque no navio.": "Ship stopped here. Walk around the deck; to sail again, tap the ship."
 }

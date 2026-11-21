@@ -2003,7 +2003,16 @@ export const VEICULOS = {
   // 2026-11-13 (André: "na velocidade final tá parecendo uma lancha... a curva mais lenta"): 3,2 -> 2,1 m/s (ritmo de
   // barco a remo de verdade) e giro 1,15 -> 0,65 rad/s; a física (acelera/deriva) fica igual
   barquinho: { nome: 'Barquinho', vel: 2.1, giro: 0.65, acelera: 0.8, deriva: 0.45, pessoas: 2, packs: 0, fundo: 0.35, perto: 3.5 },
-  navio: { nome: 'Navio mercante', vel: 4, acelera: 0.9, giro: 0.7, porao: 16, fundo: 1.6, ancorar: 1.6, perto: 18, cabe: 4.5 },
+  // leme (André 2026-11-21, navio novo de 12,8 m): quem pilota fica de pé leme m atrás do meio (godot transporte.gd NAV_LEME)
+  // solido (André 2026-11-21: "ele tem que ser sólido, eu posso subir em cima dele. Outras pessoas podem subir e ir
+  // comigo"): o convés fica conves m acima da água; boca = [z, meia largura] do convés de popa (z-) a proa (z+), por
+  // dentro da amurada (alta m acima do convés). escada: z do vão na amurada com a escada de corda de cada lado (sobe da
+  // água). bordo: lugares no convés [x, z] onde os bots do time passeiam quando o dono está a bordo (perto: embarcam de
+  // até perto m). Mesmos números no app (godot transporte.gd caixas_navio) e no servidor (shared/transporte.js).
+  navio: { nome: 'Navio mercante', vel: 4, acelera: 0.9, giro: 0.7, porao: 16, fundo: 1.6, ancorar: 1.6, perto: 18, cabe: 4.5, leme: -5.15,
+    solido: { conves: 0.9, alta: 0.85, escada: -2.0,
+      boca: [[-6.3, 0.95], [-5, 1.22], [-4, 1.4], [-2, 1.58], [0, 1.62], [2, 1.54], [4, 1.2], [5, 0.9], [5.8, 0.5]],
+      bordo: [[-0.9, -3.4], [0.9, -3.6], [-1.0, -0.2], [1.0, 0.2], [-0.8, 2.2], [0.8, 2.0], [-0.5, 3.9], [0.5, 4.3], [0, -2.0], [-1.1, -4.6]], perto: 30 } },
 };
 // itens: galão de combustível (pilha) e os veículos (um de cada, na mochila)
 ITENS.galao = { nome: 'Combustível', mat: true, pilha: 20, venda: 4, desc: 'Galão pro carrinho de carga. Cada um roda uns 160 m. Toque no carrinho pra abastecer.' };

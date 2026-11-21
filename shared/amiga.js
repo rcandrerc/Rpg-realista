@@ -1254,6 +1254,9 @@ export const Amiga = {
     // ele está seguindo ela (botão Seguir): ela vai na frente até o campo (levarAmiga)
     if (ia.seguido && (ia.seguido.id !== dono.id || this.tempo > ia.seguido.ate)) { ia.seguido = null; ia.viagemSeguida = null; }
     const S = ia.seguido?.c ? ia.seguido : null, leva = S && !S.chegou && d <= this.AMIGA.viagem.estrada;
+    // navio (André 2026-11-21: "se eu quiser ir com os bots podem ficar em cima passeando"): o dono no leme ou no convés
+    // e ela perto: sobe e passeia no convés até ele descer (shared/transporte.js bordoBot)
+    if (this.bordoBot(j, dono, dt)) return;
     // ficou muito para trás (o dono voltou para a vila, disparou no lobo...): monta no lobo e vem pela estrada até ele
     // (André 2026-11-10: nada de aparecer do lado; antes, de R.longe m para lá, ela surgia atrás dele)
     this.cavernaAmiga(j, dono);

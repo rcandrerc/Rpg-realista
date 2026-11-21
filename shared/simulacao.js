@@ -730,9 +730,11 @@ export class Simulacao {
     // corrigir de novo (antes cada pacote atrasado ganhava o seu "corrigir" e o herói voltava várias vezes; André 2026-11-12)
     if (Number.isInteger(p.c) && p.c < (j.corrSeq || 0) && this.tempo - (j.corrT ?? -99) < ORCAMENTO.correcao) return false;
     const mont = MONTARIAS[j.montado], vv = this.velVeiculo(j);
+    // em pé no convés de um navio (André 2026-11-21: passageiro): o navio anda junto, então vale a velocidade dele a mais
+    const bordo = !j.veiculo ? this.aBordo(p.x, p.z, p.y) : null, vNavio = bordo ? VEICULOS.navio.vel : 0;
     // carrinho, barquinho ou navio: a velocidade dele; pack nas costas: anda mais devagar e não corre (Quimera x0,68)
     const lentoH = j.lentoH && j.lentoH.ate > this.tempo ? 1 - j.lentoH.k * 0.8 : 1; // lentidão de skill de boss (folga de 20% para a rede)
-    const vmax = (vv != null ? vv : mont ? Math.max(mont.correr, HEROI.correr) : j.prog.pack ? HEROI.correr * PACK_REGRAS.costas.vel : j.ciente && j.semFolego ? HEROI.correr * ESTAMINA.trote : HEROI.correr) * 1.3 * lentoH;
+    const vmax = (vv != null ? vv : mont ? Math.max(mont.correr, HEROI.correr) : j.prog.pack ? HEROI.correr * PACK_REGRAS.costas.vel : j.ciente && j.semFolego ? HEROI.correr * ESTAMINA.trote : HEROI.correr) * 1.3 * lentoH + vNavio;
     if (j.orcT == null) {
       j.orc = ORCAMENTO.burst; j.orcT = this.tempo;
       // voltou de uma queda (folgaDaQueda): o celular seguiu andando sem internet; vale o caminho que deu para fazer
@@ -762,7 +764,7 @@ export class Simulacao {
     const preso = (j.presoAte || 0) > this.tempo && j.presoEm && Math.hypot(p.x - j.presoEm.x, p.z - j.presoEm.z) > 0.6; // atordoado, congelado ou derrubado por boss: não sai do lugar
     if (j.extraQ && !(j.extraQ.ate > this.tempo && j.extraQ.m > 0)) j.extraQ = null; // a folga da queda acabou: some de vez
     const extraQ = j.extraQ ? j.extraQ.m : 0;
-    const ok = !preso && d <= j.orc + tele + extraQ + 0.05 && p.y >= baixo - 0.6 && p.y <= chao + ORCAMENTO.altura && (dentroDoMapa(this.mapa, p.x, p.z) || naCais(this.mapa, p.x, p.z) || ((j.veiculo === 'barquinho' || j.veiculo === 'navio') && !!noLago(p.x, p.z)) || (!j.veiculo && marNadavel(p.x, p.z))) // barco: o mar também (FASE 3); a nado também (André 2026-11-18)
+    const ok = !preso && d <= j.orc + tele + extraQ + 0.05 && p.y >= baixo - 0.6 && (p.y <= chao + ORCAMENTO.altura || (!!bordo && p.y <= AGUA.nivel + VEICULOS.navio.solido.conves + 2.5)) && (dentroDoMapa(this.mapa, p.x, p.z) || naCais(this.mapa, p.x, p.z) || !!bordo || ((j.veiculo === 'barquinho' || j.veiculo === 'navio') && !!noLago(p.x, p.z)) || (!j.veiculo && marNadavel(p.x, p.z))) // barco: o mar também (FASE 3); a nado também (André 2026-11-18)
       && (j.caverna || !this.alemDoSelo(p.x, p.z, p.y)) // caverna da montanha: do selo para dentro só com o passe usado
       && !this.naNevoa(j, p.x, p.z); // progressão (André 2026-11-10): zona ainda fechada pela névoa, fica na borda
     if (!ok || (j.veiculo && !this.andouVeiculo(j, p.x, p.z, d))) { // veículo: carrinho não entra na água, barco não sai dela
@@ -811,7 +813,7 @@ export class Simulacao {
     j.x = p.x; j.y = p.y; j.z = p.z; j.ry = p.ry;
     // em cima de um carrinho (André 2026-11-13: "outras pessoas também podem pular em cima dele") também é chão: dá
     // para atacar, pular e usar magia lá de cima (shared/transporte.js topoCarrinho)
-    const sobre = p.y - chao > 0.15 ? topoCarrinho(this.carrinhosNoMundo(j), p.x, p.z) : -Infinity;
+    const sobre = p.y - chao > 0.15 ? Math.max(topoCarrinho(this.carrinhosNoMundo(j), p.x, p.z), bordo ? AGUA.nivel + VEICULOS.navio.solido.conves : -Infinity) : -Infinity;
     j.chao = p.y - Math.max(chao, sobre) < 0.15; j.vy = 0;
     // nadando no lago com o regador vazio pela metade: enche sozinho e avisa (André 2026-11-07)
     if (aguaRegador(j.prog) < HORTA.agua && (noLago(p.x, p.z)?.fundo || 0) > 1.2 && contar(j.prog.mochila, 'regador') > 0) this.encher(j, 'Você mergulhou: regador cheio');
@@ -4328,6 +4330,10 @@ export class Simulacao {
         j.dots = j.dots && j.dots.filter((d) => d.ate > this.tempo);
         if (!j.dots?.length) j.dots = null;
       }
+    }
+    if (j.bordo) { // bot do time passeando no convés do navio (shared/transporte.js bordoBot): o navio o leva
+      if (j.bordoT === this.tempo && !j.morto) return;
+      j.bordo = null;
     }
     if (this.guiado(j)) { // o celular move o herói; aqui só corre o tempo do dash
       if (j.arrancada) { j.arrancada.t -= dt; if (j.arrancada.t <= 0) j.arrancada = null; }
