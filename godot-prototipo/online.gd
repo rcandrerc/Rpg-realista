@@ -1241,7 +1241,7 @@ func evento(ev: Dictionary) -> void:
 					m.heroi_anim.play("apanhar", 0.05, 1.4)
 				if not eu and float(ev.n) > 0.0 and not m.combate.reagiu_agora(no): # golpe de outro jogador (o meu já reagiu na hora)
 					var quem_bateu = corpos.get(str(ev.get("de", "")))
-					m.combate.reacao(no, quem_bateu.position if quem_bateu else m.heroi.position, false)
+					m.combate.reacao(no, quem_bateu.position if quem_bateu else m.heroi.position, false, meu)
 				if meu and not eu and float(ev.n) > 0.0:
 					m.piscar(no)
 					# o golpe de espada já deu o tranco na hora; skills e tiros dão aqui, quando o servidor confirma
