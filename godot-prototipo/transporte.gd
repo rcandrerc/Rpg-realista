@@ -1675,6 +1675,11 @@ func abrir_navio() -> void:
 	topo.add_child(tv)
 	tv.add_child(_rotulo("Navio mercante" + (" · no leme" if no_leme else ""), 18, Color("#ffe7a8")))
 	tv.add_child(_barra(float(pp.size()) / float(cap), Color("#6fb7c9"), "Porão %d/%d packs" % [pp.size(), cap], 300))
+	# casco (André 2026-11-21, emboscadas): vida do navio; avariado não zarpa até consertar
+	var vmax: float = float(V.navio.get("vida", 6000))
+	var vida_n: float = float(nv.get("vida", vmax))
+	var avariado: bool = bool(nv.get("quebrado", false))
+	tv.add_child(_barra(vida_n / vmax, Color("#c0392b") if avariado else Color("#5fae4a"), "AVARIADO" if avariado else "Casco %d/%d" % [int(vida_n), int(vmax)], 300))
 	var x := Button.new()
 	x.text = "✕"
 	x.focus_mode = Control.FOCUS_NONE
@@ -1707,8 +1712,10 @@ func abrir_navio() -> void:
 	acoes.add_theme_constant_override("separation", 10)
 	acoes.alignment = BoxContainer.ALIGNMENT_CENTER
 	vb.add_child(acoes)
-	if not no_leme:
+	if not no_leme and not avariado:
 		acoes.add_child(_acao("Pilotar", "it_navio", func(): m.rede("veiculo", {"acao": "subir", "k": "navio"}); _fechar_janela()))
+	if avariado or vida_n < vmax:
+		acoes.add_child(_acao("Consertar", "cs_desmontar", func(): m.rede("veiculo", {"acao": "consertar_navio"})))
 	if c is Dictionary:
 		var b1 := _acao("Carregar", "it_carrinho", func(): m.rede("pack", {"acao": "carrinho_porao"}))
 		b1.tooltip_text = "Do carrinho pro porão"
@@ -1721,6 +1728,8 @@ func abrir_navio() -> void:
 		acoes.add_child(_acao("Descer", "it_navio", func(): m.rede("veiculo", {"acao": "descer"}); _fechar_janela()))
 	else:
 		acoes.add_child(_acao("Guardar", "topo_mochila", func(): m.rede("veiculo", {"acao": "guardar", "k": "navio"}); _fechar_janela()))
+	if avariado or vida_n < vmax:
+		vb.add_child(_custo_icones("Consertar o casco" + (" avariado" if avariado else ""), V.navio.get("consertoQuebrado" if avariado else "consertoParcial", {"lenha": 10})))
 	if c is Dictionary:
 		vb.add_child(_rotulo("Carrinho: %d packs. Carregar e Descarregar levam tudo de uma vez (o carrinho precisa estar perto)." % cp.size(), 12, Color("#a89a80")))
 	m.hud.bloqueado = true
@@ -2012,7 +2021,7 @@ func evento(ev: Dictionary) -> void:
 			m.sons.tocar("arvore_queda", -6.0)
 		"dano":
 			if m.fx and m.fx.has_method("numero"):
-				m.fx.numero(m.heroi.position + Vector3(0, 1.6, 0), "-%d carrinho" % int(ev.n), Color("#ffb35a"))
+				m.fx.numero(m.heroi.position + Vector3(0, 1.6, 0), "-%d %s" % [int(ev.n), "navio" if str(ev.get("k", "")) == "navio" else "carrinho"], Color("#ffb35a"))
 
 # o "prog" chegou (o servidor é quem sabe): combustível de verdade
 func prog_chegou() -> void:

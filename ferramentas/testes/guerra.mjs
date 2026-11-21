@@ -17,7 +17,7 @@ ok(!s.eventos.some((e) => e.t === 'amiga' && ['kira', 'rufo', 'lis'].includes(e.
 ok(s.zonaSeguraGuerra(TOTENS.lista[1].x + 20, TOTENS.lista[1].z), 'totem: 20 m é seguro');
 const v5 = s.cacas.find((c) => c.def.id === 'c_v5').def, caca5 = s.cacas.find((c) => c.def.id === 'caca5').def;
 ok(!s.zonaSeguraGuerra(v5.x, v5.z), 'campo Nv 45 (c_v5) é zona de guerra');
-ok(s.zonaSeguraGuerra(caca5.x, caca5.z), 'campo Nv 10 é seguro');
+ok(!s.zonaSeguraGuerra(caca5.x, caca5.z), 'campo Nv 10 não é mais seguro (André 2026-11-21: só vila, totem, terreno, mercador e cais)');
 // no campo c_v5: André Nv 40 e a Kira
 const nivel = (j, n) => { j.prog.nivel = n; s.aplicarStatus(j); j.vida = j.vidaMax; };
 const por = (j, x, z) => Object.assign(j, { x, z, y: s.terreno.altura(x, z) });
@@ -38,10 +38,12 @@ const ev0 = s.eventos.length;
 s.ferir(d, 1e6, kira);
 ok(d.morto && d.prog.xp === 1000 && d.prog.equip.corpo.d < 100, `morte de guerra: XP igual (${d.prog.xp}), equipamento desgastou (${d.prog.equip.corpo.d})`);
 const mem = kira.guerraMem[d.conta || d.nome || d.id];
-ok(mem && mem.v === 1 && mem.poupa > Date.now(), 'a Kira lembra que derrubou e vai poupar por um tempo');
+ok(mem && mem.v === 1 && !(mem.poupa > Date.now()), 'a Kira lembra que derrubou, sem trégua depois (André 2026-11-21: quem fica ali é caçado)');
 ok(s.eventos.slice(ev0).some((e) => e.t === 'chat' && e.canal === 'local' && e.c === 'a:kira'), 'a Kira fala (no Local) quando derruba');
 // cérebro: Rufo (coragem alta) ataca quem chega perto no campo
 for (let i = 0; i < 20 * 6; i++) s.passo(0.05); // André renasce
+ok(!d.morto && s.protegido(d) && d.protGuerraAte - s.tempo > GUERRA.protecao - 10, 'levantou com 2 min de proteção da outra raça');
+d.protGuerraAte = 0;
 nivel(d, 42); por(d, v5.x, v5.z); por(rufo, v5.x + 8, v5.z); por(kira, C.x, C.z); por(lis, C.x + 2, C.z);
 rufo.ia.guerra = null; rufo.ia.falaGuerraT = -1e9; rufo.vida = rufo.vidaMax;
 for (let i = 0; i < 20 * 3; i++) { d.entrada = { mx: 0, mz: 0 }; s.passo(0.05); }

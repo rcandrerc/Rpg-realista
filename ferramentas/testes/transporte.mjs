@@ -121,7 +121,7 @@ s.ferir(j, 100, null);
 ok(c.quebrado && !j.veiculo && s.packsChao.length === 4 && j.vida > v0 - 30, 'carrinho quebrou e os packs caíram; o herói levou só 20%');
 dar('lenha', 10); dar('barra_ferro', 1);
 s.veiculo('P', { acao: 'consertar' });
-ok(!c.quebrado && c.vida === 400, 'consertou (8 lenha + 1 barra de ferro)');
+ok(!c.quebrado && c.vida === VEICULOS.carrinho.vida, 'consertou (8 lenha + 1 barra de ferro)');
 // entregar do carrinho perto do mercador
 s.packsChao = []; c.packs = [{ k: 'lenha', ox: joca.x, oz: joca.z, mo: 'm_lenha' }];
 c.chao = { x: pedrao.x + 3, z: pedrao.z, ry: 0 }; ir(pedrao.x + 1, pedrao.z);
