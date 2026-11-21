@@ -640,6 +640,8 @@ func _lugares_base() -> Array:
 		if not mn.get("pequeno", false) and not mn.get("mundo", false): # os do mundo grande também: só o mais perto
 			l.append({"id": str(mn.get("id", mn.nome)), "tipo": "mina", "mn": mn, "nome": str(mn.get("nome", "Veio")), "curto": str(mn.get("nome", "Veio")), "x": float(mn.x), "z": float(mn.z), "r": float(mn.get("r", 4.0)) + 2.0})
 			continue
+		if m.trabalho and m.trabalho.zona_esgotada(str(mn.get("id", ""))):
+			continue # esgotado: o "mais perto" vai para o próximo que tem minério (André 2026-11-21)
 		var t := str(mn.get("tipo", ""))
 		var d := Vector2(float(mn.x) - hp.x, float(mn.z) - hp.z).length()
 		if not perto.has(t) or d < float(perto[t][0]):
@@ -1237,9 +1239,13 @@ func _desenhar_mapa() -> void:
 		var q: Vector2 = em.call(float(mn.x), float(mn.z))
 		var cm: Color = COR_MINA.get(str(mn.get("tipo", "")), Color("d9822b"))
 		c.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -7), q + Vector2(6, 0), q + Vector2(0, 7), q + Vector2(-6, 0)]), cm)
-		if mn.get("pequeno", false) or mn.get("mundo", false) or tm:
-			continue # veio pequeno (FASE 2): só o losango, sem nome (são muitos); no mapa do totem, nenhum nome
-		_texto(c, q + Vector2(0, -16), str(mn.get("nome", "Veio")), 13, Color("f2b56b") if str(mn.get("tipo", "cobre")) == "cobre" else cm.lightened(0.35))
+		if tm:
+			continue # no mapa do totem, nenhum nome
+		var miudo: bool = mn.get("pequeno", false) or mn.get("mundo", false)
+		# veio pequeno (FASE 2): são muitos, então o nome só aparece de perto (André 2026-11-21: cada spot tem nome no mapa)
+		if miudo and zoom < (2.6 if mn.get("mundo", false) else 1.6):
+			continue
+		_texto(c, q + Vector2(0, -16), str(mn.get("nome", "Veio")), 11 if miudo else 13, Color("f2b56b") if str(mn.get("tipo", "cobre")) == "cobre" else cm.lightened(0.35))
 	var cv := _caverna()
 	if not cv.is_empty() and filtro.ok("dungeon"):
 		var qc: Vector2 = em.call(cv.x, cv.z)

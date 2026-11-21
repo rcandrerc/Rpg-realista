@@ -1,5 +1,5 @@
 // Fogão a lenha e pratos de comida (André 2026-11-07). Uso: node ferramentas/testes/cozinhar.mjs
-import { Simulacao, MAPA_CLAREIRA, VIGOR, vigorAgora, ITENS, RECEITAS, DROPS, RECEITA_ESTACAO, contar } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, VIGOR, vigorAgora, ITENS, RECEITAS, DROPS, RECEITA_ESTACAO, PLANTAS, contar } from '../../shared/index.js';
 import './_tudo-aberto.mjs'; // progressão (2026-11-10): este teste não é sobre a névoa nem a trava de nível
 const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 });
@@ -10,6 +10,9 @@ const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 
 ok(RECEITA_ESTACAO(RECEITAS.sopa_legumes) === 'fogao' && RECEITA_ESTACAO(RECEITAS.espada) === 'bigorna' && RECEITA_ESTACAO(RECEITAS.botas) === 'bancada', 'pratos no fogão; o resto continua igual');
 ok(DROPS.lobo.mat.carne && DROPS.lobo.mat.couro && DROPS.puglin.mat.carne, 'lobo e puglin soltam carne (e ainda couro)');
 for (const k of ['carne_assada', 'sopa_legumes', 'pao_milho', 'ensopado', 'torta_abobora']) ok(ITENS[k]?.comida && RECEITAS[k], 'prato ' + k);
+// André 2026-11-21: receita de comida só leva coisa de comer (lenha e afins são combustível do fogão, não ingrediente)
+for (const [k, R] of Object.entries(RECEITAS)) if (R.prof === 'coz') for (const ing of Object.keys(R.usa))
+  ok(ITENS[ing]?.comida || PLANTAS[ing] || ing === 'carne', 'receita ' + k + ' só com comida (' + ing + ')');
 s.comprarLote('A', { x0: -28, z0: 55, x1: -20, z1: 63 }); ev();
 a.prog.mochila[0] = { k: 'cenoura', n: 2 }; a.prog.mochila[1] = { k: 'batata', n: 2 }; a.prog.mochila[2] = { k: 'rabanete', n: 2 };
 s.criarUm('A', { r: 'sopa_legumes' }); ok(avisos(ev()).includes('fogão'), 'sem fogão não cozinha');

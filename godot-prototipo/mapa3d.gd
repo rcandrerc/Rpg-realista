@@ -1303,8 +1303,8 @@ func _simbolos(c: Control, tam: Vector2, em: Callable, k: float, longe: bool) ->
 		var r := 6.0 if not miudo else 4.5
 		c.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -r - 1.5), q + Vector2(r + 1.5, 0), q + Vector2(0, r + 1.5), q + Vector2(-r - 1.5, 0)]), Color(0.05, 0.04, 0.03, 0.85))
 		c.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -r), q + Vector2(r, 0), q + Vector2(0, r), q + Vector2(-r, 0)]), cm)
-		if not miudo and not longe:
-			mm._texto(c, q + Vector2(0, -15), str(mn.get("nome", "Veio")), 13, Color("f2b56b") if str(mn.get("tipo", "cobre")) == "cobre" else cm.lightened(0.35))
+		if not longe and (not miudo or dist < 450.0): # os pequenos (cada um com nome) só de perto: são muitos
+			mm._texto(c, q + Vector2(0, -15), str(mn.get("nome", "Veio")), 13 if not miudo else 11, Color("f2b56b") if str(mn.get("tipo", "cobre")) == "cobre" else cm.lightened(0.35))
 	# spots de pesca (Radar ligado)
 	if m.get("pesca") and m.pesca.radar_ligado():
 		for id in m.pesca.spots:
