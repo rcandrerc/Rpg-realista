@@ -2133,9 +2133,11 @@ for (const A of ARENAS_BOSS) {
   const C = MAPA_CLAREIRA.cenario, A = ARENA_PVP;
   const peca = (m, x, z, ry, s, rz = 0, dy = 0) => {
     C.pecas.push({ m, x: +x.toFixed(2), z: +z.toFixed(2), y: dy, ry: +ry.toFixed(3), s, ...(rz ? { rz } : {}) });
-    const alto = +Math.max(0.2, ALTO_CENARIO[m] * s + dy).toFixed(2);
-    if (SOLIDO_CENARIO[m]) C.solidos.push({ x: +x.toFixed(2), z: +z.toFixed(2), r: +(SOLIDO_CENARIO[m] * s).toFixed(2), alto });
-    for (const [lx, r] of FILA_CENARIO[m] || []) C.solidos.push({ x: +(x + lx * s * Math.cos(ry)).toFixed(2), z: +(z - lx * s * Math.sin(ry)).toFixed(2), r: +(r * s).toFixed(2), alto });
+    // alto é a altura do topo no mundo (o chão da arena fica a uns 10 m): só pula por cima quem está acima dele.
+    // André 2026-11-21: "queria que eles fossem sólidos, não dessem pra passar por dentro"
+    const alto = +(alturaMundo(gradeDoMundo(), x, z) + Math.max(0.2, ALTO_CENARIO[m] * s + dy)).toFixed(2);
+    if (SOLIDO_CENARIO[m]) C.solidos.push({ x: +x.toFixed(2), z: +z.toFixed(2), r: +(SOLIDO_CENARIO[m] * s).toFixed(2), alto, arena: 1 });
+    for (const [lx, r] of FILA_CENARIO[m] || []) C.solidos.push({ x: +(x + lx * s * Math.cos(ry)).toFixed(2), z: +(z - lx * s * Math.sin(ry)).toFixed(2), r: +(r * s).toFixed(2), alto, arena: 1 });
   };
   // dentro (André 2026-11-21: "vai ter obstáculos, lugar pra se esconder... plano, mas não liso"): ruínas espelhadas
   // (justo para os dois lados), com as bases livres (4 m em volta) e um corredor aberto no meio. [modelo, dx, dz, ry, escala]
