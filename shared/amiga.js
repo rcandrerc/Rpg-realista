@@ -15,14 +15,14 @@
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
 import { DIARIAS, DUELO, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME } from './dados.js';
-import { CEREBRO, NPC_VIDA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
+import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
 import { HISTORIA } from './dados.js';
 import { LOJA, precoLoja, PLANTIO, RECEITA_ESTACAO, CATALISADOR, LUGARES } from './dados.js';
 import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
-import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera, QUEM_LIBERA } from './historia.js';
+import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera, QUEM_LIBERA, SEM_NEVOA } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
@@ -198,6 +198,8 @@ export const Amiga = {
       j.amigaAntes = antes; j.amigaAntesJogo = antesJogo;
       j.ia = { fase: 'pensar', ate: 0 };
       j.semTeto = !!this.AMIGA.terreno || !!this.AMIGA.rival; // Cecília e Dario sobem sem o teto do jogador mais alto (André 2026-11-16); a Geada também
+      // André 2026-11-21: enquanto eles grindam, sem a trava da névoa (nada de missão para abrir); desligue em NPC_SEM_NEVOA (shared/dados.js)
+      if (NPC_SEM_NEVOA && j.semTeto) SEM_NEVOA.add(j.prog); else SEM_NEVOA.delete(j.prog);
       if (this.AMIGA.raca) j.raca = this.AMIGA.raca; // Chama x Geada (shared/guerra.js): sem raça = Chama
       j.guerraMem = salvo.guerra && typeof salvo.guerra === 'object' && !Array.isArray(salvo.guerra) ? Object.fromEntries(Object.entries(salvo.guerra).slice(-300)) : {}; // quem ele já viu e o placar
       this.pocoesAmiga(j);

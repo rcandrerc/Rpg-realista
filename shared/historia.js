@@ -148,7 +148,10 @@ export function naZona(Z, x, z) {
   return !!Z.poligono && noPoligono(Z.poligono, x, z);
 }
 // a zona fechada (ainda na névoa) para a conta p em (x, z), ou null. A caverna (selo) o servidor confere à parte.
+// André 2026-11-21: contas de NPC sem a trava da névoa (Cecília, Dario, Kira, Rufo, Lis), por prog; ligado por NPC_SEM_NEVOA
+export const SEM_NEVOA = new WeakSet();
 export function zonaFechadaEm(p, x, z) {
+  if (p && SEM_NEVOA.has(p)) return null;
   for (const Z of ZONAS_GEO) if (!Z.selo && !liberado(p, Z.id) && naZona(Z, x, z)) return Z;
   return null;
 }
