@@ -640,6 +640,8 @@ func _lugares_base() -> Array:
 		if not mn.get("pequeno", false) and not mn.get("mundo", false): # os do mundo grande também: só o mais perto
 			l.append({"id": str(mn.get("id", mn.nome)), "tipo": "mina", "mn": mn, "nome": str(mn.get("nome", "Veio")), "curto": str(mn.get("nome", "Veio")), "x": float(mn.x), "z": float(mn.z), "r": float(mn.get("r", 4.0)) + 2.0})
 			continue
+		if m.trabalho and m.trabalho.zona_esgotada(str(mn.get("id", ""))):
+			continue # esgotado: o "mais perto" vai para o próximo que tem minério (André 2026-11-21)
 		var t := str(mn.get("tipo", ""))
 		var d := Vector2(float(mn.x) - hp.x, float(mn.z) - hp.z).length()
 		if not perto.has(t) or d < float(perto[t][0]):
