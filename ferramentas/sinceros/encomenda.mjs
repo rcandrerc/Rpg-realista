@@ -8,6 +8,8 @@ ok(encomendaDoTexto('minera um pouco de ferro pra mim, eu compro')?.rec === 'fer
 ok(encomendaDoTexto('corta 20 de lenha pra mim')?.n === 20, 'texto: 20 de lenha');
 ok(encomendaDoTexto('pesca uns peixes pra mim')?.rec === 'peixe', 'texto: peixe');
 ok(!encomendaDoTexto('bora minerar?'), 'texto: convite não é encomenda');
+ok(!encomendaDoTexto('bora minerar ferro junto'), 'texto: minerar ferro junto é convite');
+ok(encomendaDoTexto('pega umas madeiras')?.rec === 'lenha' && encomendaDoTexto('pega umas madeiras').n === 0, 'texto: pega umas madeiras (sem número: pergunta)');
 const s = new Simulacao(MAPA_CLAREIRA); const eu = s.adicionarJogador('andre', 'André', 'ruiva', { conta: 7 });
 for (const x of s.amigosIa) x.amigaEntrar('andre', true); s.passo(0.05);
 const c = s.amigosIa.find((x) => x.AMIGA.id === 'dario'), a = c.amiga; c.amiga.amigosDe = { 7: 1 };
@@ -29,5 +31,18 @@ if (a.ia.encomenda) {
   for (let k = 0; k < 20 * 900 && a.ia.vir; k++) s.passo(0.05);
   ok(Math.hypot(a.x - eu.x, a.z - eu.z) < 4, 'chegou perto: ' + a.ia.chatFila.map((x) => x.texto).join(' | '));
   const r = c.abrirTrocaAmiga(eu); ok(r === true && a.troca?.of[a.id].itens.length > 0, 'encomenda na mesa: ' + JSON.stringify(a.troca?.of[a.id].itens));
+}
+// na pt (André 2026-11-21): "coleta ferro" pergunta quantos, vai sozinho e volta
+if (a.troca) s.fecharTroca(a.troca, 'teste');
+a.ia.encomenda = null; a.ia.av = null;
+c.combinarAmiga(a); c.entrarTimeAmiga(a, eu); s.passo(0.05);
+console.log('   pt:', !!(a.time && a.time === eu.time));
+f = falar('coleta pedra'); ok(/quantos/i.test(f) && !a.ia.encomenda, 'pergunta quantos: ' + f);
+f = falar('2'); ok(!!a.ia.encomenda && a.ia.av?.encomenda, 'com o número, vai: ' + f);
+if (a.ia.encomenda && a.time) {
+  for (let k = 0; k < 20 * 60 * 600 && !a.ia.encomenda?.pronta; k++) s.passo(0.05);
+  ok(a.ia.encomenda?.pronta, 'na pt, coletou: ' + a.ia.chatFila.map((x) => x.texto).join(' | '));
+  for (let k = 0; k < 20 * 600 && Math.hypot(a.x - eu.x, a.z - eu.z) > 6; k++) s.passo(0.05);
+  ok(Math.hypot(a.x - eu.x, a.z - eu.z) <= 6, 'voltou pra perto dele na pt');
 }
 if (falhou) { console.log(falhou, 'falha(s)'); process.exit(1); } else console.log('tudo certo');

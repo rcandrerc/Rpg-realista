@@ -50,13 +50,22 @@ export function promessaSemAcaoAmiga(pedido, fala) { return PEDIDO_FAZER.test(no
 // encomenda (André 2026-11-21): quantos do recurso ela tem (peixe: qualquer peixe)
 const contarRec = (mochila, item) => (item === 'peixe' ? mochila.reduce((s, o) => s + (o && ITENS[o.k]?.peixe && !o.cad ? o.n || 1 : 0), 0) : contar(mochila, item));
 // "minera 20 de ferro pra mim", "corta lenha pra mim que eu compro": { rec, n } ou null (convite "bora minerar" não é)
+// André 2026-11-21 (2ª parte): "pega umas madeiras", "coleta um ferro" também é encomenda (sem "pra mim"), até na pt;
+// "bora minerar" / "minera comigo" continua sendo junto. n = 0: ele não disse quantos (ela pergunta).
 export function encomendaDoTexto(texto) {
   const t = ' ' + normAmiga(texto) + ' ', E = ENCOMENDA, tem = (l) => l.some((w) => t.includes(' ' + w + ' '));
-  if (!tem(E.praMim)) return null;
-  const rec = Object.keys(E.recursos).find((k) => tem(E.recursos[k].palavras));
+  const rec = Object.keys(E.recursos).find((k) => tem(E.recursos[k].palavras)), pra = tem(E.praMim);
+  if (!pra && (!rec || tem(E.junto))) return null;
   if (!tem(E.verbos) && !(rec && /\b(quero|preciso|vende|compro)\b/.test(t))) return null;
   const n = Number((t.match(/ (\d{1,3}) /) || [])[1]) || 0;
-  return { rec: rec || '', n: n ? Math.min(E.max, n) : E.padrao };
+  return { rec: rec || '', n: n ? Math.min(E.max, n) : 0 };
+}
+// resposta à pergunta dela ("quantos?" / "qual recurso?"): "20", "uns 15", "tanto faz", "ferro"
+export function respostaEncomenda(texto) {
+  const t = ' ' + normAmiga(texto) + ' ', E = ENCOMENDA, n = Number((t.match(/ (\d{1,3}) /) || [])[1]) || 0;
+  const rec = Object.keys(E.recursos).find((k) => E.recursos[k].palavras.some((w) => t.includes(' ' + w + ' '))) || '';
+  const qualquer = E.tantoFaz.some((w) => t.includes(' ' + w + ' '));
+  return n || rec || qualquer ? { rec, n: n ? Math.min(E.max, n) : qualquer ? E.padrao : 0 } : null;
 }
 // ações em que o jogo faz de verdade o que ele pediu (a fala pode dizer que está indo/fazendo)
 const ACOES_DE_VERDADE = new Set(['time', 'vir', 'cacar', 'voltar', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'barco', 'ajudarMissao', 'liderar', 'troca', 'amigo', 'encomenda']);
@@ -478,6 +487,9 @@ export const Amiga = {
     }
     if (ia.atividade && !(j.time && dono && j.time.membros.includes(dono.id))) this.fimAtividadeAmiga(j); // saiu do time: a coleta junto acaba (divide o que pegou)
     // no time do dono: segue, luta e cuida da vida (fase 2); saiu do time: volta para a vida dela
+    // encomenda na pt (André 2026-11-21: "mesmo em time, vai no spot mais próximo"): coleta sozinh@ e depois volta pro time
+    if (j.time && ia.av?.encomenda && ia.encomenda && !ia.encomenda.pronta) { ia.noTime = true; return this.passoSozinhoAmiga(j, dt); }
+    if (j.time && ia.av?.encomenda) ia.av = null; // terminou: o time traz de volta
     if (j.time && dono && j.time.membros.includes(dono.id)) { ia.noTime = true; return this.passoTimeAmiga(j, dono, dt); }
     if (j.time) this.sairDoTime(j, `${this.AMIGA.nome} saiu do time`); // o dono saiu da sala ou do time: ela não fica com outros
     if (ia.noTime) { ia.noTime = false; ia.viagem = null; j.montado = null; this.pararAmiga(j); ia.fase = 'pensar'; ia.ate = this.tempo + 1; if (dono) this.falarAmiga(this.AMIGA.falas.voltou); this.pocoesAmiga(j); }
@@ -1725,6 +1737,8 @@ export const Amiga = {
     else if (this.amiga && tem('pedirItem') && this.itensNoTextoAmiga(t).length) return 'pedirItem'; // "tem cenoura?" e ela tem: oferece
     if (ia?.atividade && tem('pararAtividade')) return 'pararAtividade';
     if (this.amiga && encomendaDoTexto(texto)) return 'encomenda'; // "minera ferro pra mim, eu compro" (André 2026-11-21)
+    const pq = ia?.encPergunta; // ela perguntou "quantos?" e ele respondeu "20"
+    if (pq && pq.ate > this.tempo && respostaEncomenda(texto)) return 'encomenda';
     let negou = false;
     for (const k of ['pescar', 'minerar', 'lenha']) if (tem(k)) { if (!negado(k)) return k; negou = true; } // "vamos pescar" é pescar, não caçar
     if (tem('equip')) return 'equip';
@@ -2917,15 +2931,20 @@ export const Amiga = {
   },
   // pediu pelo chat: confere tudo de verdade; se dá, sai agora para o lugar mais perto dela. Devolve a fala (sincera)
   encomendaAmiga(a, j, texto) {
-    const E = ENCOMENDA, F = E.falas, pedido = encomendaDoTexto(texto) || { rec: '', n: E.padrao }, ia = a.ia;
+    const E = ENCOMENDA, F = E.falas, ia = a.ia;
+    let pedido = encomendaDoTexto(texto);
+    const pq = ia.encPergunta && ia.encPergunta.ate > this.tempo && ia.encPergunta.conta === j.conta ? ia.encPergunta : null;
+    ia.encPergunta = null;
+    if (pq) { const r = respostaEncomenda(texto) || {}; pedido = { rec: pedido?.rec || r.rec || pq.rec, n: pedido?.n || r.n || pq.n || 0 }; }
+    pedido ||= { rec: '', n: 0 };
+    const pergunta = (f) => { ia.encPergunta = { rec: pedido.rec, n: pedido.n, conta: j.conta, ate: this.tempo + E.pergunta }; return f; };
     const atual = ia.encomenda;
     if (atual && atual.conta === j.conta && !atual.pronta && ia.av?.encomenda) return this.falaEncAmiga(sorteia(F.progresso), atual, a);
     if (atual && this.encomendaProntaAmiga(a, j)) return this.falaEncAmiga(sorteia(F.pronta), atual, a);
-    if (!pedido.rec) return F.qual;
+    if (!pedido.rec) return pergunta(F.qual);
     const R = E.recursos[pedido.rec], Ativ = this.AMIGA.atividades[R.coleta], base = { rec: pedido.rec, n: pedido.n, item: R.item };
     const diz = (f, x = {}) => this.falaEncAmiga(f, { ...base, tem: 0 }, a, x);
     if (a.morto) return F.caiu;
-    if (a.time && a.time === j.time) return diz(F.noTime);
     if (!naHoraDe(this.rotinaAmiga(), horaDoJogo(a.prog.dia))) return F.hora;
     if (contar(a.prog.mochila, Ativ.ferramenta) <= 0) return diz(F.semFerramenta, { ferramenta: ITENS[Ativ.ferramenta]?.nome.toLowerCase() || Ativ.ferramenta });
     const K = R.no && COLETA[R.no];
@@ -2934,21 +2953,25 @@ export const Amiga = {
     if (a.prog.mochila.filter((o) => !o).length < NPC_VIDA.aventura.mochilaLivre) return F.mochila;
     const c = this.lugarRecursoAmiga(a, R);
     if (!c) return diz(F.semLugar);
+    if (!pedido.n) return pergunta(this.falaEncAmiga(sorteia(F.quantos), { ...base, n: E.max }, a)); // André: "ela pergunta quantos"
+    const naPt = !!(a.time && a.time === j.time); // na pt dele: vai sozinh@ e volta pra ele (André 2026-11-21)
 
     if (a.ia.fase === 'trabalhar') { a.ia.fase = 'pensar'; a.acao = null; }
     if (ia.atividade) this.fimAtividadeAmiga(a, true);
     if (a.coleta) this.pararColeta(a, null); if (a.pesca) this.pararPesca(a, null);
-    ia.encomenda = { ...base, base: contarRec(a.prog.mochila, R.item), conta: j.conta, pronta: false, lugar: this.ondeFicaAmiga(a, c) };
+    ia.encomenda = { ...base, base: contarRec(a.prog.mochila, R.item), conta: j.conta, pronta: false, naPt, lugar: this.ondeFicaAmiga(a, c) };
     ia.av = { fase: 'ir', c, coleta: R.coleta, noTipo: R.no, encomenda: true, ate: this.tempo + E.tempo };
     ia.viagem = null; ia.vir = null; ia.alvoColeta = null; ia.conversaAte = this.tempo + 2;
-    return this.falaEncAmiga(sorteia(F.aceita), ia.encomenda, a);
+    return this.falaEncAmiga(sorteia(naPt ? F.aceitaPt : F.aceita), ia.encomenda, a);
   },
   // acabou (juntou tudo ou parou): separa o que pegou e avisa ele, se estiver na sala
   fimEncomendaAmiga(j, motivo) {
     const enc = j.ia.encomenda; if (!enc || enc.pronta) return;
     enc.tem = Math.min(enc.n, Math.max(0, contarRec(j.prog.mochila, enc.item) - enc.base)); enc.pronta = true;
     const F = ENCOMENDA.falas, m = F.motivos[motivo] || '';
-    const fala = enc.tem >= enc.n ? sorteia(F.pronta) : enc.tem > 0 ? F.parcial[0] : F.nada[0];
+    const pt = !!j.time; // na pt: volta seguindo ele, e a troca é ali do lado
+    const fala = enc.tem >= enc.n ? sorteia(pt ? F.prontaPt : F.pronta) : enc.tem > 0 ? (pt ? F.parcialPt : F.parcial)[0] : F.nada[0];
+    if (pt) j.ia.av = null;
     if (!enc.tem) j.ia.encomenda = null;
     const ele = [...this.jogadores.values()].find((p) => !p.bot && p.conta === enc.conta);
     if (ele) this.dizerAmiga(this.falaEncAmiga(fala, enc, j, { motivo: m }), false, ele.id);
