@@ -22,7 +22,9 @@ import { lugarDoVeiculo, fundoAgua, devolverBarquinho } from './transporte.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
 import { HISTORIA } from './dados.js';
 import { LOJA, precoLoja, PLANTIO, RECEITA_ESTACAO, CATALISADOR, LUGARES } from './dados.js';
-import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
+import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js';
+import { diaDiarias, premioDiaria } from './diarias.js';
+import { ARVORES_PLANTIO } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
 import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera, QUEM_LIBERA, SEM_NEVOA } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
@@ -155,7 +157,9 @@ export const Amiga = {
       // progressão (André 2026-11-10): quem mora no mundo sem casa (aventureiros) já tem tudo aberto. Cecília e Dario (com
       // terreno) fazem a história de verdade (André 2026-11-16, #569); até 2026-11-17 esta linha marcava a história deles
       // como toda feita a cada entrada (bug: "como fizeram todas as missões?"). Save sem histReal: começa do zero uma vez.
-      if (!this.AMIGA.terreno) j.prog.hist = { v: 2, p: HISTORIA.length, ac: false, e: 0, n: 0, m: 0 };
+      // André 2026-11-21 ("quero que eles façam... as missões de história principais"): a Geada (Kira, Rufo, Lis) também
+      // faz a história de verdade, como a Cecília e o Dario; antes ela entrava com tudo feito. Começa do zero uma vez.
+      if (!this.AMIGA.terreno && !this.AMIGA.rival) j.prog.hist = { v: 2, p: HISTORIA.length, ac: false, e: 0, n: 0, m: 0 };
       else if (!salvo.histReal || !j.prog.hist) j.prog.hist = { v: 2, p: 0, ac: false, e: 0, n: 0, m: 0 };
       delete j.prog.pos;
       // a roupa dela (look B) na primeira vez; depois ela veste o que achar melhor (fase 3) e isso fica salvo
@@ -201,6 +205,7 @@ export const Amiga = {
       j.semTeto = !!this.AMIGA.terreno || !!this.AMIGA.rival; // Cecília e Dario sobem sem o teto do jogador mais alto (André 2026-11-16); a Geada também
       // André 2026-11-21: enquanto eles grindam, sem a trava da névoa (nada de missão para abrir); desligue em NPC_SEM_NEVOA (shared/dados.js)
       if (NPC_SEM_NEVOA && j.semTeto) SEM_NEVOA.add(j.prog); else SEM_NEVOA.delete(j.prog);
+      if (j.semTeto) this.diariasOfflineAmiga(j, salvo.t); // os dias em que ninguém jogou: as diárias dele também (André 2026-11-21)
       if (this.AMIGA.raca) j.raca = this.AMIGA.raca; // Chama x Geada (shared/guerra.js): sem raça = Chama
       j.guerraMem = salvo.guerra && typeof salvo.guerra === 'object' && !Array.isArray(salvo.guerra) ? Object.fromEntries(Object.entries(salvo.guerra).slice(-300)) : {}; // quem ele já viu e o placar
       this.pocoesAmiga(j);
@@ -377,7 +382,7 @@ export const Amiga = {
   guardarAmiga() {
     const j = this.amiga, L = this.loteDaAmiga(); if (!j || (!L && this.AMIGA.terreno)) return;
     const amizades = { ...(j.amizades || {}) }; if (j.donoConta) amizades[j.donoConta] = j.amizade | 0;
-    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, evolucao: j.evolucao || [], ...(this.AMIGA.terreno ? { histReal: 1 } : {}), ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), guerra: j.guerraMem || {}, memorias: j.memorias || {}, fatos: j.fatos || {}, semIa: j.semIa || {}, conversas: this.conversasParaSalvarAmiga(j), registro: j.registro || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(this.AMIGA.recomecoJogo ? { recomecoJogo: this.AMIGA.recomecoJogo } : {}), ...(j.amigaAntesJogo ? { antesJogo: j.amigaAntesJogo } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
+    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, evolucao: j.evolucao || [], ...(this.AMIGA.terreno || this.AMIGA.rival ? { histReal: 1 } : {}), ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), guerra: j.guerraMem || {}, memorias: j.memorias || {}, fatos: j.fatos || {}, semIa: j.semIa || {}, conversas: this.conversasParaSalvarAmiga(j), registro: j.registro || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(this.AMIGA.recomecoJogo ? { recomecoJogo: this.AMIGA.recomecoJogo } : {}), ...(j.amigaAntesJogo ? { antesJogo: j.amigaAntesJogo } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
     if (!L) { (this.npcSalvos ||= new Map()).set(this.AMIGA.id, dados); (this.npcsMudados ||= new Set()).add(this.AMIGA.id); return; } // sem casa: tabela mundo do banco
     L.amiga = dados;
     this.lotesMudados.add(L.def.id);
@@ -482,7 +487,9 @@ export const Amiga = {
       return this.irTrabalhar(j, L, { x: ci + 0.5, z: cj + 1.1 }, this.AMIGA.passo.canteiro, 'pouso', 1.6, () => this.cuidarCanteiro(L, c));
     }
     // 3) tudo em ordem: sai para caçar (vida própria, André 2026-11-11), passeia pela vila ou descansa na porta de casa
-    if (Math.random() < NPC_VIDA.aventura.chance && naHoraDe(this.rotinaAmiga(), horaDoJogo(j.prog.dia)) && !this.grindAcabouAmiga(j)) { ia.av = { fase: 'escolher' }; return; }
+    // André 2026-11-21 ("quero que eles façam as diárias e as missões da história"): os 30 min de caça do dia acabaram,
+    // mas ainda tem missão ou diária para fazer: sai do mesmo jeito (o escolher não deixa caçar além do limite)
+    if (Math.random() < NPC_VIDA.aventura.chance && naHoraDe(this.rotinaAmiga(), horaDoJogo(j.prog.dia)) && (!this.grindAcabouAmiga(j) || this.temTarefaAmiga(j))) { ia.av = { fase: 'escolher' }; return; }
     if (Math.random() < 0.5) {
       const [x, z] = sorteia(PASSEIOS);
       this.irPara(j, L, { x: x + Math.random() - 0.5, z: z + Math.random() - 0.5 }, () => { ia.fase = 'parada'; ia.ate = this.tempo + this.AMIGA.passo.passeio * (0.5 + Math.random()); });
@@ -1135,6 +1142,7 @@ export const Amiga = {
     ia.chamado = null; ia.vir = null; ia.plano = null;
     this.gostoAmiga(j, plano || 'time');
     if (plano) { if (ia.atividade && ia.atividade !== plano) this.fimAtividadeAmiga(a, true); this.comecarAtividadeAmiga(a, plano); return; }
+    if (ia.missaoJunto?.id === id) { ia.missaoJunto.ate = this.tempo + NPC_VIDA.missao.juntoSeg; this.alvoMissaoJuntoAmiga(a, j, true); return; } // ele se ofereceu para a missão dela: vai na frente até a etapa
     let c = C.c || this.campoAmiga(a);
     if (this.fechadoParaAmiga(j, c)) c = this.campoJuntoAmiga(a, j); // ela não leva ele para onde a névoa barra
     if (c && this.AMIGA.seguivel && this.AMIGA.lidera) { // ela vai na frente até o campo e o app dele segue ela
@@ -1306,6 +1314,7 @@ export const Amiga = {
     // combate pelo cérebro por regras (André 2026-11-11, shared/cerebro.js + CEREBRO em dados.js): poção, Cura (nela e
     // em quem do time está mal), fugir sem poção, recuar do golpe carregado, proteger aliado, atacar de espada ou cajado
     if (this.cerebroAmiga(j, dono, alvo)) return;
+    if (!alvo && ia.missaoJunto && this.passoMissaoJuntoAmiga(j, dono, d, dt)) return; // ajudando na missão dela (André 2026-11-21)
     if (leva && !alvo && this.levarAmiga(j, dono, S, d, dt)) return;
     if (alvo && (j.coleta || j.pesca)) { this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null); } // monstro: larga a coleta
     if (!alvo && ia.atividade && this.passoAtividadeAmiga(j, dono)) return; // coletando junto (pesca, minério, lenha)
@@ -1641,6 +1650,9 @@ export const Amiga = {
     for (const k of ['pescar', 'minerar', 'lenha']) if (tem(k)) { if (!negado(k)) return k; negou = true; } // "vamos pescar" é pescar, não caçar
     if (tem('equip')) return 'equip';
     if (A.barco && tem('barco') && !negado('barco')) return 'barco'; // "faz o barquinho" (antes de "vamos" = time) // "o que você tá usando?" (André 2026-11-10)
+    // André 2026-11-21: "te ajudo na sua missão" (vem antes de "ajuda" e de "missão" = time) e "qual missão você tá fazendo?"
+    if (A.ajudarMissao && tem('ajudarMissao') && !negado('ajudarMissao') && !/ minha missao | me ajud/.test(t)) return 'ajudarMissao';
+    if (A.missaoDela && tem('missaoDela') && !/ minha missao /.test(t)) return 'missaoDela';
     for (const k of ['ondeUpar', 'nivel', 'missao']) if (A[k] && tem(k)) return k; // perguntas com resposta de verdade (André 2026-11-16), antes de "upar/missão" = time
     // André 2026-11-19 ("vamos, eu te sigo... aí ele escolhe o que quer fazer"): ela escolhe e vai na frente, sem "pra onde?"
     if (A.liderar && tem('liderar') && !negado('liderar')) return 'liderar';
@@ -1685,7 +1697,7 @@ export const Amiga = {
     const av = a.ia.av, bicho = av?.c ? `${TIPOS_INIMIGO[av.c.tipo]?.nome || 'monstros'} nível ${av.c.nivel || 1} em ${nomeLugarAmiga(av.c.nome)}` : ''; // André 2026-11-17: "tô indo fazer os imps nível 36"
     const so = this.AMIGA.genero === 'm' ? 'sozinho' : 'sozinha';
     const col = av?.coleta && { pescar: 'pescar', minerar: 'minerar', lenha: 'cortar lenha' }[av.coleta], colG = av?.coleta && { pescar: 'pescando', minerar: 'minerando', lenha: 'cortando lenha' }[av.coleta];
-    const sozinho = av && { escolher: 'escolhendo onde caçar', ir: col ? `indo ${col} ${so}` : `indo caçar ${bicho} ${so}`, cacar: col ? `${colG} ${so}` : `caçando ${bicho} ${so}`, voltar: 'voltando para a vila vender, consertar e comprar poção', descansar: 'descansando na vila depois da caçada' }[av.fase];
+    const sozinho = av && { escolher: 'escolhendo onde caçar', ir: col ? `indo ${col} ${so}` : `indo caçar ${bicho} ${so}`, cacar: col ? `${colG} ${so}` : `caçando ${bicho} ${so}`, voltar: 'voltando para a vila vender, consertar e comprar poção', descansar: 'descansando na vila depois da caçada', missao: `fazendo a missão da história ${so}`, plantar: `plantando árvores da diária ${so}`, evoluir: 'evoluindo um equipamento na vila' }[av.fase];
     return {
       semCasa: !this.AMIGA.terreno, mora: !this.AMIGA.terreno ? this.moradiaAmiga(a)?.nome || 'a vila' : null,
       nome: this.AMIGA.nome, persona: this.AMIGA.persona || null, genero: this.AMIGA.genero || 'f', amigo: j.nome, amizade: this.amizadeAmiga(j),
@@ -1744,6 +1756,7 @@ export const Amiga = {
       missaoDele: M ? `${M.nome}${E ? ` (agora: ${E.txt})` : ' (ainda não aceitou: fala com o NPC da missão)'}` : null,
       vida, pocoes: contar(a.prog.mochila, 'pocao'), arma: `espada e cajado (troca entre os dois na luta; agora: ${a.modo === 'Magia' ? 'cajado' : 'espada'})`, // André 2026-11-18: ela dizia que não usa cajado
       sozinha: this.podeSairAmiga(a, j), naLista: this.ehAmigoAmiga(j),
+      diariasDela: a.semTeto ? this.diariasTextoAmiga(a) : null, missaoJunto: a.ia.missaoJunto?.id === j.id,
       missaoDela: a.semTeto && missaoAtual(a.prog) ? `${missaoAtual(a.prog).nome}${a.prog.hist?.ac && etapaAtual(a.prog) ? ` (agora: ${etapaAtual(a.prog).txt})` : ''}` : null,
     };
   },
@@ -1809,6 +1822,84 @@ export const Amiga = {
     av.alvo = null;
     if (j.prog.hist.p !== p0) { this.guardarAmiga(); if (!this.querMissaoAmiga(j)) return voltar(); } // missão entregue
   },
+  // ---------- contar a missão e aceitar ajuda (André 2026-11-21: "se eu perguntar eles me falem qual missão estão
+  // fazendo e eu poder me oferecer pra ajudar") ----------
+  // as diárias dela hoje, em texto: "faltam: Plante 4 árvores (2/4)..." ou "já fiz todas hoje"
+  diariasTextoAmiga(a) {
+    if (!this.temDiarias?.(a)) return '';
+    const st = this.diariasDe(a), falta = DIARIAS.lista.filter((D) => (st.n[D.id] || 0) < D.n);
+    return falta.length ? `falta: ${falta.map((D) => `${D.txt.toLowerCase()} (${st.n[D.id] || 0}/${D.n})`).join(', ')}` : 'já fiz todas hoje';
+  },
+  // a missão da história dela agora (nome e etapa) ou null
+  missaoDelaAmiga(a) {
+    const M = a.semTeto && missaoAtual(a.prog); if (!M) return null;
+    const E = a.prog.hist?.ac && etapaAtual(a.prog), npc = (this.mapa.npcs || []).find((o) => o.id === M.npc);
+    return { M, txt: `${M.nome}${E ? ` (agora: ${E.txt})` : npc ? ` (falta aceitar com ${npc.nome.split(',')[0]})` : ''}`, cedo: M.nv > (a.prog.nivel | 0) };
+  },
+  falaMissaoDelaAmiga(a) {
+    const m = this.missaoDelaAmiga(a), di = this.diariasTextoAmiga(a);
+    const mis = !m ? 'Missão da história eu já fiz todas.' : m.cedo ? `A próxima missão é ${m.M.nome}, mas pede nível ${m.M.nv}.` : `Tô na missão ${m.txt}.`;
+    const junto = m && !m.cedo ? ' Quer me ajudar? É só falar "te ajudo na missão".' : '';
+    return `${mis}${di ? ` Das diárias, ${di}.` : ''}${junto}`;
+  },
+  // ele se ofereceu: no time, ela já vai na frente até a etapa; fora, manda o convite (ela sempre topa ajuda na missão)
+  ajudaMissaoAmiga(a, j) {
+    const m = this.missaoDelaAmiga(a), noTime = !!(a.time && a.time === j.time), FA = this.AMIGA.falas;
+    if (!m) return { ok: false, fala: `Valeu! Mas missão da história eu já fiz todas.${this.diariasTextoAmiga(a) ? ` Das diárias, ${this.diariasTextoAmiga(a)}.` : ''}` };
+    if (m.cedo) return { ok: false, fala: `Valeu! Mas a próxima (${m.M.nome}) pede nível ${m.M.nv}, ainda não dá.` };
+    if (a.morto) return { ok: false, fala: FA.caiu };
+    if (j.morto) return { ok: false, fala: 'Levanta primeiro, aí a gente vai!' };
+    if (!noTime && this.timeCheioAmiga(j)) return { ok: false, fala: FA.recusa.cheio };
+    a.ia.missaoJunto = { id: j.id, ate: this.tempo + NPC_VIDA.missao.juntoSeg, p: null };
+    a.ia.chamado = null; a.ia.vir = null; a.ia.plano = null;
+    if (noTime) { this.alvoMissaoJuntoAmiga(a, j, true); return { ok: true, fala: `Bora! Missão ${m.txt}. Cola em mim!` }; }
+    this.combinarAmiga(a);
+    const mandou = this.convidarTimeAmiga(a, j, null);
+    return { ok: true, fala: mandou ? `Opa, ajuda é sempre bem-vinda! Tô na missão ${m.txt}. Te mandei o time, aceita e cola em mim.` : `Fechou! Tô na missão ${m.txt}. Me chama no time que a gente vai.` };
+  },
+  // para onde a etapa de agora leva (o NPC para aceitar ou o lugar da etapa); muda de etapa: ela avisa e o app segue de novo
+  alvoMissaoJuntoAmiga(a, dono, forca = false) {
+    const MJ = a.ia.missaoJunto, h = a.prog.hist || {}, chave = `${h.p}.${h.ac ? h.e : 'ac'}`;
+    if (!forca && MJ.p === chave && a.ia.seguido?.id === dono.id) return a.ia.seguido;
+    const al = this.alvoHistoria(a); if (!al) return null;
+    MJ.p = chave; MJ.fim = null;
+    const c = { nome: al.nome || 'a missão', x: al.x, z: al.z, r: 6, missao: true };
+    a.ia.seguido = { id: dono.id, c, chegou: false, ate: this.tempo + this.AMIGA.lidera.ate }; a.ia.viagemSeguida = null;
+    this.evento({ t: 'seguir', para: dono.id, npc: a.id, nome: this.AMIGA.nome, lugar: nomeLugarAmiga(c.nome) });
+    return a.ia.seguido;
+  },
+  // no time com quem se ofereceu: vai na frente até a etapa; lá, com ele perto, faz a etapa (mais rápido que sozinha) e
+  // segue para a próxima até entregar a missão. true = cuidou do passo
+  passoMissaoJuntoAmiga(j, dono, d, dt) {
+    const ia = j.ia, MJ = ia.missaoJunto, MS = NPC_VIDA.missao, M = missaoAtual(j.prog);
+    if (MJ.id !== dono.id || this.tempo > MJ.ate || !M || M.nv > (j.prog.nivel | 0)) { ia.missaoJunto = null; if (ia.seguido?.c?.missao) ia.seguido = null; return false; }
+    const S = this.alvoMissaoJuntoAmiga(j, dono); if (!S) { ia.missaoJunto = null; return false; }
+    S.ate = this.tempo + this.AMIGA.lidera.ate;
+    if (!S.chegou) return this.levarAmiga(j, dono, S, d, dt);
+    this.pararAmiga(j); j.montado = null;
+    const h = j.prog.hist;
+    if (!h?.ac) { // chegou no NPC: aceita a missão
+      const n = (this.mapa.npcs || []).find((o) => o.id === M.npc);
+      j.ry = n ? Math.atan2(n.x - j.x, n.z - j.z) : j.ry;
+      if (!n || !this.falaHistoria(j, n, () => {}, true)) { ia.missaoJunto = null; ia.seguido = null; return false; }
+      this.guardarAmiga(); return true;
+    }
+    if (d > this.AMIGA.lidera.espera) { j.ry = Math.atan2(dono.x - j.x, dono.z - j.z); return true; } // espera ele chegar
+    if (MJ.fim == null) MJ.fim = this.tempo + MS.porEtapa * MS.junto * (0.6 + Math.random() * 0.8);
+    if (this.tempo >= (MJ.golpe || 0)) { MJ.golpe = this.tempo + 1.4; j.acao = { nome: 'pouso', ts: 1 }; j.acaoSeq = (j.acaoSeq | 0) + 1; }
+    if (this.tempo < MJ.fim) return true;
+    j.acao = null; const p0 = h.p;
+    this.proximaEtapa(j);
+    if (j.prog.hist.p !== p0) { // missão entregue
+      ia.missaoJunto = null; ia.seguido = null; this.guardarAmiga();
+      this.dizerAmiga(`Missão entregue! Valeu demais pela ajuda, ${dono.nome}!`, true, dono.id);
+      return true;
+    }
+    const E = etapaAtual(j.prog);
+    if (E) this.dizerAmiga(`Feito! Agora: ${E.txt}. Bora!`, true, dono.id);
+    this.alvoMissaoJuntoAmiga(j, dono, true);
+    return true;
+  },
   // vai até (x, z) pela estrada; outra terra sem barco ou preso: vale como chegou (faz a etapa por ali)
   chegouMissaoAmiga(j, x, z, dt) {
     if (j.ia.viagem?.bloqueio) { j.ia.viagem = null; return true; }
@@ -1816,14 +1907,24 @@ export const Amiga = {
   },
   // a diária que falta e que ele sabe fazer agora: 'plantar' | 'pescar' | 'lenha' | 'minerar' | null (caçar conta sozinho)
   diariaQueFaltaAmiga(j) {
-    if (!j.semTeto || !this.temDiarias?.(j) || vigorAgora(j.prog.vigor) < 1 || (j.ia.diariaFalhou || 0) > this.tempo) return null;
+    const op = this.diariasQueFaltamAmiga(j);
+    return op.length && Math.random() < NPC_VIDA.diaria.chance ? sorteia(op) : null;
+  },
+  // as diárias que faltam e que ele sabe fazer agora (sem sorteio)
+  diariasQueFaltamAmiga(j) {
+    if (!j.semTeto || !this.temDiarias?.(j) || vigorAgora(j.prog.vigor) < 1 || (j.ia.diariaFalhou || 0) > this.tempo) return [];
     const st = this.diariasDe(j), falta = (id) => { const D = DIARIAS.lista.find((x) => x.id === id); return D && (st.n[id] || 0) < D.n; };
     const tem = (f) => contar(j.prog.mochila, f) > 0;
     const op = [];
     if (falta('arvores') && (this.sementePlantioAmiga(j) || j.prog.ouro >= this.precoSementeAmiga() * 4)) op.push('plantar');
     if (falta('peixes') && tem('vara')) op.push('pescar');
     if (falta('coleta')) { if (tem('machado')) op.push('lenha'); else if (tem('picareta')) op.push('minerar'); }
-    return op.length && Math.random() < NPC_VIDA.diaria.chance ? sorteia(op) : null;
+    return op;
+  },
+  // tem missão da história (dentro do tempo do dia) ou diária para fazer agora?
+  temTarefaAmiga(j) {
+    const M = j.semTeto && missaoAtual(j.prog);
+    return (!!M && M.nv <= (j.prog.nivel | 0) && this.missaoHojeAmiga(j) < this.limiteMissaoAmiga(j)) || this.diariasQueFaltamAmiga(j).length > 0;
   },
   sementePlantioAmiga(j) { return NPC_VIDA.diaria.arvores.find((s) => contar(j.prog.mochila, 'semente_' + s) > 0) || null; },
   precoSementeAmiga() { const s = NPC_VIDA.diaria.arvores[0]; return precoLoja(LOJA.find((o) => o.k === 'semente_' + s), 1) || 10; },
@@ -1861,6 +1962,40 @@ export const Amiga = {
     if ((this.diariasDe(j).n.arvores || 0) > n0) av.n++; else av.ruins.add(av.alvo.key);
     av.alvo = null; this.guardarAmiga();
   },
+  // Dias em que ninguém jogou (André 2026-11-21: "as árvores do mundo não estão aumentando"): o NPC só tem corpo com
+  // gente na sala, então nesses dias ele não plantava nem fazia diária. Ao voltar, cada dia inteiro que passou (até
+  // NPC_VIDA.offline.maxDias) conta como feito: planta as 4 árvores da diária nas áreas de plantio perto de onde mora
+  // (comprando a semente na Rosa, com a hora daquele dia, então já crescem), e recebe o prêmio dela e o da caça (o XP
+  // da caça já vem do offlineAmiga). Mesmas travas do jogador: quadrado livre, longe de árvore e pedra, limite do mundo.
+  diariasOfflineAmiga(j, desde) {
+    if (!Number.isFinite(desde) || !this.plantarArvore || !this.temDiarias?.(j)) return 0;
+    const hoje = diaDiarias(this.agoraMs()), D = DIARIAS.lista.find((x) => x.id === 'arvores'); if (!D) return 0;
+    const dias = []; let d = diaDiarias(desde);
+    for (let n = 0; d < hoje && n < 60; n++) { dias.push(d); d = new Date(Date.parse(d + 'T12:00:00Z') + 86400000).toISOString().slice(0, 10); }
+    const ult = dias.slice(-NPC_VIDA.offline.maxDias), st0 = j.prog.diarias;
+    let plantou = 0;
+    for (const dia of ult) {
+      const ja = st0?.d === dia ? st0 : null, falta = D.n - Math.min(D.n, ja?.n?.arvores || 0);
+      const pr = premioDiaria(j.prog.nivel), quando = Date.parse(dia + 'T18:00:00Z'), preco = this.precoSementeAmiga();
+      let n = 0;
+      for (const ruins = new Set(); n < falta && j.prog.ouro >= preco;) {
+        if (this.plantadasNasAreas() >= PLANTIO.maxMundo) break;
+        const q = this.quadradoPlantioAmiga(j, ruins); if (!q) break;
+        ruins.add(q.key);
+        if (this.pertoNaMata(q.x, q.z).some((o) => Math.hypot(o.x - q.x, o.z - q.z) < o.r + PLANTIO.folga)) continue;
+        const s = sorteia(NPC_VIDA.diaria.arvores), T = ARVORES_PLANTIO[s]; if (!T || T.grande) continue;
+        j.prog.ouro -= preco;
+        this.botarPlantada({ id: 'p' + this.plantioProx++, s, x: Math.round(q.x * 100) / 100, z: Math.round(q.z * 100) / 100, ry: Math.round(q.ry * 100) / 100, sc: Math.round(q.sc * (T.s || 1) * 100) / 100, dono: j.conta || j.id, nome: j.nome, quando });
+        n++;
+      }
+      plantou += n;
+      const recebe = (id) => !(ja?.r || []).includes(id);
+      if (n + (ja?.n?.arvores || 0) >= D.n && recebe('arvores')) { j.prog.ouro += pr.ouro; if (pr.xp) this.ganharXP(j, pr.xp); }
+      if (recebe('monstros')) { j.prog.ouro += pr.ouro; if (pr.xp) this.ganharXP(j, pr.xp); } // caçou nesse dia (o offline)
+    }
+    if (ult.length) this.evolucaoAmiga?.(j, 'diaria', `${ult.length} dia(s) sem ninguém: ${plantou} árvore(s) plantada(s)`);
+    return plantou;
+  },
   // diárias (shared/diarias.js): caçando, pescando e coletando sozinho elas contam; na vila recebe o que terminou
   diariasAmiga(j) {
     if (!j.semTeto || !this.temDiarias?.(j)) return 0;
@@ -1896,7 +2031,7 @@ export const Amiga = {
     if (r.assunto !== 'time' && this.apeloAmiga(a, j)) r = { ...r, assunto: 'time', fala: '' }; // pediu com jeito depois do não: ela reconsidera
     // livre: passa a acompanhar quem falou; com outro amigo: conversa, mas ação só depois (André 2026-11-10)
     const mesmoTime = !!(a.time && a.time === j.time) && ['time', 'vir'].includes(r.assunto); // no time de todos: "bora pro time" e "vem cá" valem
-    if (!this.trocarDonoAmiga(id) && !mesmoTime && ['time', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'vir', 'sim', 'nao', 'troca', 'presente', 'pedirItem', 'cacar', 'voltar', 'liderar'].includes(r.assunto)) return this.dizerAmiga(this.comOutroAmiga(), false, id);
+    if (!this.trocarDonoAmiga(id) && !mesmoTime && ['time', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'vir', 'sim', 'nao', 'troca', 'presente', 'pedirItem', 'cacar', 'voltar', 'liderar', 'ajudarMissao'].includes(r.assunto)) return this.dizerAmiga(this.comOutroAmiga(), false, id);
     const F = this.AMIGA.chat.falas, FA = this.AMIGA.falas, ia = a.ia, noTime = !!(a.time && a.time === j.time);
     const perto = Math.hypot(a.x - j.x, a.z - j.z) < 6;
     // André 2026-11-17: "vamos fazer alguma coisa, escolhe aí", ela escolhe, e ele "bora pra isso aí mesmo": o que ela
@@ -2002,6 +2137,12 @@ export const Amiga = {
       case 'nivel': { const S = this.saberAmiga(a, j); fala = `Tô nível ${a.prog.nivel}, de ${S.arma}. E você tá no ${j.prog.nivel}, né?`; break; }
       case 'ondeUpar': { const S = this.saberAmiga(a, j); fala = S.camposDele ? `Pro seu nível: ${S.camposDele.split('; ').slice(0, 2).map((x) => x.replace(/,.*$/, ')')).join(' ou ')}.` : 'Sei não, pergunta na vila!'; break; }
       case 'missao': { const S = this.saberAmiga(a, j); fala = S.missaoDele ? `Sua missão: ${S.missaoDele}.` : 'Acho que você já fez todas, monstro!'; break; }
+      case 'missaoDela': fala = this.falaMissaoDelaAmiga(a); break; // André 2026-11-21: a missão e as diárias dela
+      case 'ajudarMissao': { // André 2026-11-21: ele se oferece para ajudar na missão dela: ela leva ele até a etapa
+        const v = this.ajudaMissaoAmiga(a, j);
+        fala = v.fala; r = { ...r, fala: '' }; // a fala sai daqui (a da IA podia não bater com o que ela fez)
+        break;
+      }
       case 'amigo': { // "me adiciona?" pelo chat: o mesmo pedido de tocar nela (ela decide e avisa)
         this.pedidoAmizadeAmiga(id, true); return;
       }

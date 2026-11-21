@@ -9,7 +9,7 @@ for (const x of s.amigosIa) x.amigaEntrar('p', false);
 const G = s.amigosIa.filter((x) => RIVAIS.some((d) => d.id === x.AMIGA.id));
 ok(G.length === 3 && G.every((g) => g.amiga), 'os três da Geada entram no mundo');
 const ini = new Map(G.map((g) => [g.AMIGA.id, { nv: g.amiga.prog.nivel, ouro: g.amiga.prog.ouro }]));
-for (const g of G) { g.amiga.prog.xp = xpProximo(g.amiga.prog.nivel) - 30; g.amiga.ia.av = { fase: 'escolher' }; g.amiga.prog.dia = { h: 10, t: Date.now() }; } // perto de subir, já saindo para caçar
+for (const g of G) { g.amiga.prog.xp = xpProximo(g.amiga.prog.nivel) - 30; g.amiga.ia.av = { fase: 'escolher' }; g.amiga.prog.dia = { h: 10, t: Date.now() }; g.amiga.missaoDia = { dia: new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), seg: 1e9 }; g.amiga.ia.diariaFalhou = Infinity; } // aqui é a caça: missão da história (André 2026-11-21, a Geada também faz) e diárias já deram o tempo do dia // perto de subir, já saindo para caçar
 for (let i = 0; i < 25 * 60 * 10; i++) s.passo(0.1);
 for (const g of G) {
   const a = g.amiga, n = g.AMIGA.nome, i0 = ini.get(g.AMIGA.id);

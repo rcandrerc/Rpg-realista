@@ -3018,6 +3018,9 @@ export const AMIGA = {
       ondeUpar: ['onde upar', 'onde da pra upar', 'onde eu upo', 'onde upo', 'onde farmar', 'onde cacar', 'onde da pra cacar', 'onde eu caco', 'lugar pra upar', 'lugar bom pra upar'],
       nivel: ['seu nivel', 'que nivel voce', 'qual nivel voce', 'qual seu nivel', 'qual o seu nivel', 'que nivel vc', 'qual nivel vc', 'ce ta nivel', 'voce ta nivel', 'vc ta nivel', 'tu ta nivel'],
       missao: ['minha missao', 'qual missao', 'que missao', 'qual a missao', 'qual e a missao', 'missao agora'],
+      // André 2026-11-21: "se eu perguntar eles me falem qual missão estão fazendo e eu poder me oferecer pra ajudar"
+      missaoDela: ['sua missao', 'tua missao', 'missao sua', 'que missao voce', 'qual missao voce', 'que missao vc', 'qual missao vc', 'que missao ce', 'qual missao ce', 'que missao tu', 'qual missao tu', 'qual missao ta', 'que missao ta', 'fazendo qual missao', 'fazendo que missao', 'ta em missao', 'ta em qual missao', 'em que missao', 'em qual missao', 'ta de missao', 'suas diarias', 'sua diaria', 'tuas diarias', 'fez as diarias', 'fez a diaria', 'fez suas diarias', 'fez diaria', 'fez as missoes'],
+      ajudarMissao: ['ajudo na missao', 'ajudo na sua missao', 'ajudar na missao', 'ajudar na sua missao', 'ajudar voce na missao', 'ajudar vc na missao', 'te ajudar na missao', 'te ajudo na missao', 'ajudo com a missao', 'ajudar com a missao', 'ajudo com sua missao', 'ajudar com sua missao', 'ajudo com a sua missao', 'ajudar com a sua missao', 'ajudo nessa missao', 'ajudar nessa missao', 'ajudo na tua missao', 'vou com voce na missao', 'vou contigo na missao', 'vou com vc na missao', 'bora na sua missao', 'bora fazer sua missao', 'bora fazer a sua missao', 'vamos fazer sua missao', 'vamos fazer a sua missao', 'fazer sua missao junto', 'fazer sua missao comigo', 'quer ajuda na missao', 'quer ajuda com a missao', 'quer ajuda na sua missao', 'quer ajuda com a sua missao', 'quer ajuda com sua missao', 'precisa de ajuda na missao', 'precisa de ajuda com a missao'],
       equip: ['equipamento', 'equipamentos', 'equipada', 'usando', 'vestindo', 'armadura', 'sua roupa', 'seu peitoral', 'sua espada', 'seu capacete', 'suas botas'], // André 2026-11-10
       troca: ['troca', 'trocar', 'vende', 'vender', 'compra', 'comprar', 'item', 'tem '],
       // só valem com a janela de troca aberta (fase 3)
@@ -3732,7 +3735,7 @@ export const NPC_VIDA = {
   grind: { segPorDia: 1800 }, // André 2026-11-16: 30 min por dia (era 2 h)
   // missões da história de Cecília e Dario (André 2026-11-16): até segPorDia s por dia real fazendo missão (fora o grind);
   // chance: de cada saída, quantas viram missão; porEtapa: s trabalhando no lugar de cada etapa (sorteia de 60% a 140%)
-  missao: { segPorDia: 3600, chance: 0.5, porEtapa: 120, atrasado: { niveis: 10, x: 3 } }, // atrasado: a missão pede 10+ níveis a menos que o dele = 3x o tempo do dia (André 2026-11-17)
+  missao: { segPorDia: 3600, chance: 0.5, porEtapa: 120, atrasado: { niveis: 10, x: 3 }, junto: 0.4, juntoSeg: 1800 }, // junto: com alguém ajudando, cada etapa leva 40% do tempo; juntoSeg: quanto dura a ajuda (André 2026-11-21) // atrasado: a missão pede 10+ níveis a menos que o dele = 3x o tempo do dia (André 2026-11-17)
   // diárias da Cecília e do Dario (André 2026-11-17: "até pra gente ter gente pra reflorestar esse mapa"): chance de ir fazer
   // uma que falta ao escolher o que fazer; árvores que eles plantam (a primeira é a que compram na Rosa); raio m da casa
   diaria: { chance: 0.6, arvores: ['carvalho', 'pinheiro', 'betula'], raio: 600 },
