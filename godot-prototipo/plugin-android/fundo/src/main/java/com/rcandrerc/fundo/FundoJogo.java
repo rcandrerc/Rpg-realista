@@ -42,9 +42,21 @@ public class FundoJogo extends GodotPlugin {
         desligarServico();
     }
 
+    /**
+     * App fechando de vez (André 2026-11-21: "toda primeira abertura dá erro e fecha", POCO Android 16). Antes deste
+     * plugin o Android matava o processo do jogo no fundo sem cerimônia. Com o serviço segurando o processo vivo, quem
+     * fecha passou a ser o próprio Godot: depois deste aviso ele desliga o motor na linha de desenho
+     * (VkRenderer.onRenderThreadExiting -> GodotLib.ondestroy), e é ali que o libgodot_android.so cai. O Android mostra
+     * "fechou forçadamente" e o toque no ícone seguinte já pega o app no meio da queda.
+     * O progresso já foi gravado na pausa (main.gd, NOTIFICATION_APPLICATION_PAUSED), que sempre vem antes daqui.
+     * Então fecha o processo agora, do mesmo jeito que o Android fazia antes e que o próprio Godot faz no fim
+     * (ProcessPhoenix.forceQuit), sem passar pela descida do motor que cai.
+     */
     @Override
     public void onMainDestroy() {
         desligarServico();
+        Log.i(TAG, "jogo fechando: encerra o processo sem descer o motor");
+        android.os.Process.killProcess(android.os.Process.myPid());
     }
 
     @UsedByGodot
