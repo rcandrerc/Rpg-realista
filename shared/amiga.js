@@ -14,7 +14,7 @@
 //   A amizade é de cada um (j.amizades[conta]); j.amizade é a de quem ela acompanha agora.
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { DIARIAS, DUELO, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME } from './dados.js';
+import { DIARIAS, DUELO, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, semPalavrao, palavraoPesado, fatosSeguros, fatosPorConta } from './dados.js';
 import { CEREBRO, NPC_VIDA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota } from './rota.js';
@@ -188,7 +188,7 @@ export const Amiga = {
       // memória de cada pessoa (conta -> lista), dicas que viraram regra (conta -> { curaCedo: true }) e o que fazem juntos
       const porConta = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
       j.memorias = porConta(salvo.memorias); j.regras = porConta(salvo.regras); j.gostos = porConta(salvo.gostos);
-      j.fatos = porConta(salvo.fatos); j.semIa = porConta(salvo.semIa); j.conversasSalvas = porConta(salvo.conversas); // André 2026-11-17: fatos e a conversa recente
+      j.fatos = fatosPorConta(porConta(salvo.fatos)); j.semIa = porConta(salvo.semIa); j.conversasSalvas = porConta(salvo.conversas); // André 2026-11-17: fatos e a conversa recente; fatos sem onde mora, escola, idade, saúde (revisão 2026-11-19)
       j.registro = porConta(salvo.registro); // André 2026-11-18: a conversa do dia inteiro (hoje e ontem) para a ronda
       // dicas que viraram regra do cérebro (entrega 2, André 2026-11-11): valem para todo mundo; o banco é conferido de novo
       j.dicas = Array.isArray(salvo.dicas) ? salvo.dicas.map((d) => validarRegra(d, CEREBRO)).filter(Boolean).slice(-CEREBRO.dicas.max) : [];
@@ -1405,13 +1405,13 @@ export const Amiga = {
     const { lista, trocou } = juntarDica(a.dicas || [], r, CEREBRO.dicas.max);
     a.dicas = lista; a.ia.regrasOrd = null; // o cérebro pega a lista nova na próxima decisão
     this.guardarAmiga();
-    this.dizerAmiga((trocou ? CEREBRO.falas.trocou : CEREBRO.falas.aprendeu).replace('{regra}', r.texto), false, id);
+    this.dizerAmiga((trocou ? CEREBRO.falas.trocou : CEREBRO.falas.aprendeu).replace('{regra}', semPalavrao(r.texto)), false, id);
     return true;
   },
   comandoDicaAmiga(id, tipo, texto) {
     const a = this.amiga; if (!a) return;
     const l = a.dicas || [];
-    if (tipo === 'listar') return this.dizerAmiga(l.length ? CEREBRO.falas.lista.replace('{lista}', l.map((d, i) => `${i + 1}) ${d.texto}`).join('; ')) : CEREBRO.falas.nenhuma, false, id);
+    if (tipo === 'listar') return this.dizerAmiga(l.length ? CEREBRO.falas.lista.replace('{lista}', l.map((d, i) => `${i + 1}) ${palavraoPesado(d.texto) ? '...' : semPalavrao(d.texto)}`).join('; ')) : CEREBRO.falas.nenhuma, false, id);
     if (!l.length) return this.dizerAmiga(CEREBRO.falas.nenhuma, false, id);
     const t = normAmiga(texto), num = t.match(/\b(\d{1,2})\b/);
     if (/todas|tudo/.test(t)) a.dicas = [];
@@ -2126,7 +2126,7 @@ export const Amiga = {
       d.falas = 0;
       d.novas = 0; d.pensando = true;
       const dados = { amigo: this.AMIGA.id, nomeAmigo: this.AMIGA.nome, genero: this.AMIGA.genero || 'f', conta, nome: d.nome, memoria: [...(a.memorias?.[conta] || [])], fatos: [...(a.fatos?.[conta] || [])], regras: { ...(a.regras?.[conta] || {}) }, conversa: [...((a.ia.conversas || {})[conta] || [])] };
-      if (!this.aoDiarioAmiga || !IA_CONVERSA.ligada || (d.id != null && this.jogadores.has(d.id) && !this.iaAmiga(d.id))) { d.pensando = false; continue; } // sem chave: sem IA, sem diário. IA desligada (André 2026-11-18): nunca chama a IA, nem depois que a pessoa sai (revisão 2026-11-19)
+      if (!this.aoDiarioAmiga || !IA_CONVERSA.ligada || !IA_CONVERSA.quem.includes(this.AMIGA.id) || (d.id != null && this.jogadores.has(d.id) && !this.iaAmiga(d.id))) { d.pensando = false; continue; } // sem chave: sem IA, sem diário. IA desligada (André 2026-11-18): nunca chama a IA, nem depois que a pessoa sai; só a Cecília e o Dário usam IA (revisões 2026-11-19)
       this.aoDiarioAmiga(dados).then((r) => { d.pensando = false; if (r) this.anotarAmiga(conta, r); }, () => { d.pensando = false; });
     }
   },
@@ -2141,7 +2141,7 @@ export const Amiga = {
     if (Array.isArray(r.fatos)) {
       const F = this.AMIGA.fatos, l = ((a.fatos ||= {})[conta] ||= []), chave = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
       const tem = new Set(l.map(chave));
-      for (const t of r.fatos) { if (typeof t !== 'string') continue; const f = t.replace(/\s+/g, ' ').trim().slice(0, F.tamanho), k = chave(f); if (k.length < 4 || tem.has(k)) continue;
+      for (const t of r.fatos) { if (typeof t !== 'string') continue; const f = t.replace(/\s+/g, ' ').trim().slice(0, F.tamanho), k = chave(f); if (k.length < 4 || tem.has(k) || !fatosSeguros([f]).length) continue;
         // André 2026-11-17 (ronda): "ele está na missão desgrama" (gíria virou missão): fato de missão só com nome de missão de verdade
         if (/miss[aã]o|quest/i.test(f) && !HISTORIA.some((M) => k.includes(chave(M.nome)))) continue; tem.add(k); l.push(f); }
       if (l.length > F.max) l.splice(0, l.length - F.max);
