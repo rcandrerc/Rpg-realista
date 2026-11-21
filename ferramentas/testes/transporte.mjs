@@ -199,3 +199,25 @@ ok(s.foto().carga.veic.some((v) => v[0] === 'n') && s.foto().carga.veic.some((v)
   // já estava em terra (antes do conserto): volta para a água e o celular recebe a correção
   j.z = tz - 8; j.x = tx; s.eventos = []; s.tempo += 2; s.passoVeiculos();
   ok(lugarDoVeiculo('barquinho', j.x, j.z) && s.eventos.some((e) => e.t === 'corrigir' && e.para === 'P'), 'barquinho em terra voltou para a água'); }
+
+// André 2026-11-21: "quero que o mercante seja igual ao carrinho na bag": na água ou no leme ele fica travado na
+// mochila; usar o item de qualquer distância guarda (no leme, o herói fica nadando; os packs vão para a margem)
+{ const nv = j.prog.navio; j.veiculo = null; j.morto = false;
+  if (!nv.chao) { ir(bx, bz - 1); s.veiculo('P', { acao: 'colocar', k: 'navio', x: bx, z: bz, ry: 0 }); }
+  ok(nv.chao && j.prog.mochila.some((o) => o?.k === 'navio'), 'navio na água continua na mochila');
+  ok(s.carrinhoFora(j, { k: 'navio' }), 'o navio na água fica travado (não vende nem troca)');
+  nv.porao = [{ k: 'lenha', ox: 0, oz: 0, mo: 'm_lenha' }];
+  ir(bx + 300, bz + 300); s.eventos = [];
+  const i = j.prog.mochila.findIndex((o) => o?.k === 'navio');
+  s.veiculo('P', { acao: 'colocar', k: 'navio' });
+  ok(!nv.chao && !nv.porao.length && j.prog.mochila.filter((o) => o?.k === 'navio').length === 1, 'guardou o navio de longe pela mochila: ' + avisos().join(' | '));
+  ok(i >= 0 && !s.carrinhoFora(j, { k: 'navio' }), 'guardado: destravado');
+  // no leme: guarda e o herói fica na água
+  ir(bx, bz - 1); s.veiculo('P', { acao: 'colocar', k: 'navio', x: bx, z: bz, ry: 0 }); s.veiculo('P', { acao: 'subir', k: 'navio' });
+  ok(j.veiculo === 'navio' && j.prog.mochila.some((o) => o?.k === 'navio'), 'no leme, o navio continua na mochila');
+  s.eventos = []; s.veiculo('P', { acao: 'colocar', k: 'navio' });
+  ok(!j.veiculo && !nv.chao && s.eventos.some((e) => e.t === 'veiculo' && e.acao === 'desceu' && e.nado === 1), 'guardou do leme: desceu nadando');
+  // conta velha: navio na água fora da mochila volta para ela, travado
+  const k2 = j.prog.mochila.findIndex((o) => o?.k === 'navio'); j.prog.mochila[k2] = null; nv.chao = { x: bx, z: bz, ry: 0 };
+  s.voltarBarquinho(j);
+  ok(j.prog.mochila.some((o) => o?.k === 'navio') && nv.chao, 'conta velha: o navio da água aparece travado na mochila'); }

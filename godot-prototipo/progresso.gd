@@ -55,7 +55,25 @@ static var dirigindo_carrinho := false
 func carrinho_no_mundo() -> bool:
 	var c = prog.get("carrinho")
 	carrinho_fora = dirigindo_carrinho or (c is Dictionary and c.get("chao") is Dictionary)
+	navio_no_mundo()
 	return carrinho_fora
+# o navio também (André 2026-11-21: "igual ao carrinho na bag"): na água ou no leme fica travado na mochila, com o ícone
+# da seta de voltar; tocar nele guarda de qualquer distância
+static var navio_fora := false
+static var dirigindo_navio := false
+func navio_no_mundo() -> bool:
+	var n = prog.get("navio")
+	navio_fora = dirigindo_navio or (n is Dictionary and n.get("chao") is Dictionary)
+	return navio_fora
+# o veículo deste item está no mundo (carrinho ou navio)?
+func veiculo_no_mundo(it) -> bool:
+	if it == null:
+		return false
+	if it.k == "carrinho":
+		return carrinho_no_mundo()
+	if it.k == "navio":
+		return navio_no_mundo()
+	return false
 
 func definir(p: Dictionary) -> void:
 	prog = p
@@ -725,6 +743,8 @@ const COLHEITA := ["rabanete", "cenoura", "batata", "tomate", "milho", "abobora"
 static func icone_item(it) -> String:
 	if it.k == "carrinho" and carrinho_fora:
 		return "it_carrinho_fora" # no mundo: o mesmo carrinho com a seta de voltar (toque = guarda)
+	if it.k == "navio" and navio_fora:
+		return "it_navio_fora"
 	# pintado em icones/itens/<k>.png vem primeiro (minérios, barras, colheita, sementes... ganharam pintura própria em 2026-11-06)
 	if not (it.has("r") and int(it.r) >= (2 if it.k == "calca" else 1) and ResourceLoader.exists("res://icones/itens/%s_aco.png" % it.k)) \
 			and ResourceLoader.exists("res://icones/itens/%s.png" % it.k):
