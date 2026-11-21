@@ -1668,6 +1668,12 @@ for (const [k, R] of Object.entries(RECEITAS)) if (R.prof === 'coz') FOGAO.recei
 // Onde cada profissão de criação trabalha. André 2026-11-11: o NPC não cria mais; npc = de quem é a estação pública ao
 // lado (ESTACOES_PUBLICAS), onde = o texto do lugar. OFICINA_DISTANCIA ficou para o app (era a distância do NPC).
 export const OFICINA = { fer: { npc: 'ferreiro', onde: 'na bigorna ou no forninho da ferraria do Tomás' }, alf: { npc: 'comerciante', onde: 'na bancada ao lado da Rosa' }, coz: { npc: '', onde: 'no seu fogão' } };
+// tentou evoluir longe da estação (André 2026-11-21): avisa para ir até uma. O menu.gd do Godot mostra o mesmo texto
+// antes de mandar (aviso_evoluir_longe), e idioma_en.json tem a tradução
+export const AVISO_EVOLUIR = {
+  fer: 'Vá até uma bigorna para evoluir: a da ferraria da vila ou uma construída num terreno',
+  alf: 'Vá até uma bancada para evoluir: a da vila, ao lado da banca, ou uma construída num terreno',
+};
 export const OFICINA_DISTANCIA = 4.5;
 // chance de subir cada raridade e até qual (André 2026-11-06: era até 2 = Épico; agora até 4 = Mítico, que só sai criando).
 // Cada degrau é um sorteio: no Nv 20 da profissão, Épico 9%, Lendário 2,7%, Mítico 0,8%.

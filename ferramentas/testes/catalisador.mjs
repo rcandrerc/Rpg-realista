@@ -85,3 +85,13 @@ ok(CATALISADOR.arma.concat(CATALISADOR.armadura).every((k) => ITENS[k]?.mat), 'o
   ok(!j.fabrica, 'Mítica não evolui mais');
   Math.random = r0;
 }
+// longe da bigorna/bancada (André 2026-11-21): avisa para ir até uma, nada começa
+{
+  const { s, j, M, ev } = nova();
+  s.estacaoPerto = () => null;
+  M[0] = { k: 'espada', r: 0 }; M[1] = { k: 'calca', r: 0 };
+  s.item('C', { acao: 'evoluir', i: 0 });
+  ok(!j.fabrica && ev.some((e) => e.t === 'aviso' && /^Vá até uma bigorna para evoluir/.test(e.texto)), 'arma longe da bigorna: "Vá até uma bigorna"');
+  s.item('C', { acao: 'evoluir', i: 1 });
+  ok(!j.fabrica && ev.some((e) => e.t === 'aviso' && /^Vá até uma bancada para evoluir/.test(e.texto)), 'calça (Alfaiate) longe da bancada: "Vá até uma bancada"');
+}

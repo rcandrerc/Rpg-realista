@@ -3996,7 +3996,31 @@ func perguntar_evoluir(i: int) -> void:
 	# O texto acima fica guardado como dica (tooltip) da janela, nada some.
 	var corpo := corpo_evoluir(it, r, usa, falha, sorte, onde)
 	corpo.tooltip_text = txt
-	confirmar("Evoluir peça", "", "Evoluir", func(): acao_item({"acao": "evoluir", "i": i}), false, "", Callable(), corpo)
+	# André 2026-11-21: longe da bigorna/bancada avisa na hora para ir até uma (faixa vermelha no topo da janelinha e
+	# aviso no meio da tela). A janela abre igual para ver o que precisa; o servidor confere de novo.
+	var longe := aviso_evoluir_longe(prof)
+	if longe != "":
+		var fx := faixa_aviso("✖ " + longe, PIOR)
+		corpo.add_child(fx)
+		corpo.move_child(fx, 0)
+		_avisar_motivo(longe)
+	var mandar := func():
+		var ainda: String = aviso_evoluir_longe(prof)
+		if ainda != "": # continua longe: não manda, só repete o aviso
+			_avisar_motivo(ainda)
+			return
+		acao_item({"acao": "evoluir", "i": i})
+	confirmar("Evoluir peça", "", "Evoluir", mandar, false, "", Callable(), corpo)
+
+# "" = está perto da estação que evolui a peça (Ferreiro: bigorna; Alfaiate: bancada), a pública da vila ou uma de terreno.
+# Mesma conta do servidor (estacaoPerto) e mesmo texto (AVISO_EVOLUIR em shared/dados.js).
+func aviso_evoluir_longe(prof: String) -> String:
+	var cons = m.construcao
+	if cons == null or m.heroi == null: # sem como medir: o servidor decide
+		return ""
+	if prof == "fer":
+		return "" if cons.estacao_perto(["bigorna"]) else "Vá até uma bigorna para evoluir: a da ferraria da vila ou uma construída num terreno"
+	return "" if cons.estacao_perto(["bancada"]) else "Vá até uma bancada para evoluir: a da vila, ao lado da banca, ou uma construída num terreno"
 
 # conteúdo desenhado da janelinha de evoluir
 func corpo_evoluir(it, r: int, usa: Dictionary, falha: float, sorte: float, onde: String) -> Control:
