@@ -53,11 +53,14 @@ const xp0 = a.prog.xp;
   ok(bloqueia(), 'o NPC vê o muro entre ele e o alvo e contorna');
   function bloqueia() { const o = { x: A.x, z: A.z - 10 }, eu = { x: A.x, z: A.z - 4, y: a.y }; return !!s.bloqueioArena(eu, o); }
   Object.assign(a, { x: sx, z: sz, y: sy }); Object.assign(k, { x: kx, z: kz, y: ky }); }
+k.canal = { hid: 'bola_fogo', h: { mana: 0 }, x: k.x, z: k.z }; // cai no meio da Bola de Fogo (André 2026-11-21: bots parados minutos)
 k.vida = 5; s.ferir(k, 50, a, { q: 1 });
 ok(k.morto && M.placar.chama === 1 && M.stats.a.k === 1, 'zerou: cai e conta o abate');
 ok(evs((e) => e.t === 'pvp' && e.fase === 'abate').length >= 1, 'todos ficam sabendo do abate');
 correr(PVP.renascer + 0.2);
 ok(!k.morto && k.vida === k.vidaMax && Math.hypot(k.x - A.x, k.z - A.z) < A.r, 'levanta na base');
+ok(!k.canal, 'levanta sem a magia presa (senão o NPC fica parado para sempre)');
+{ const x0 = k.x, z0 = k.z; correr(3); ok(k.morto || Math.hypot(k.x - x0, k.z - z0) > 1, 'o NPC volta a andar depois de renascer'); }
 // fora da arena ninguém acerta quem está nela
 const b = s.adicionarJogador('b', 'Luísa', 'ruiva', { conta: 2 }); b.x = A.x; b.z = A.z + 30; b.prog.nivel = 50;
 const va = a.vida; s.ferir(a, 30, b, { q: 1 }); ok(a.vida === va, 'quem está fora não fere quem está na arena');
