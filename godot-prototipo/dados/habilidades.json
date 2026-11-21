@@ -3073,8 +3073,7 @@
    "prof": "coz",
    "faz": "carne_assada",
    "usa": {
-    "carne": 1,
-    "lenha": 1
+    "carne": 1
    },
    "vigor": 2,
    "nivel": 1
@@ -3094,8 +3093,7 @@
    "prof": "coz",
    "faz": "pao_milho",
    "usa": {
-    "milho": 2,
-    "lenha": 1
+    "milho": 2
    },
    "vigor": 3,
    "nivel": 2
@@ -3906,8 +3904,7 @@
     "nivel": 1,
     "vigor": 2,
     "ing": {
-     "carne": 1,
-     "lenha": 1
+     "carne": 1
     }
    },
    "sopa_legumes": {
@@ -3931,8 +3928,7 @@
     "nivel": 2,
     "vigor": 3,
     "ing": {
-     "milho": 2,
-     "lenha": 1
+     "milho": 2
     }
    },
    "ensopado": {
