@@ -3778,6 +3778,51 @@ export const ENCOMENDA = {
     motivos: { vigor: 'acabou meu vigor', hora: 'ficou tarde', mochila: 'a mochila encheu', acabou: 'acabou o recurso por lá', tempo: 'demorou demais', luta: 'tive que fugir de um mob' },
   },
 };
+// Pack com os bots (André 2026-11-21: "eu crafto um pack, ponho no chão e falo pega pack pra mim; posso pedir pra ajudar
+// a abastecer o navio/carrinho ou levar nas costas"). Só na pt dele (o bot anda junto). O pack é dele: na entrega, o
+// ouro, os pontos de Mercador e a missão vão pra ele. raio: m em volta dele onde o bot procura pack no chão; tempo: s
+// até o bot desistir de chegar (e dizer). palavras: o que ele pede em cada caso.
+export const PACK_BOT = {
+  raio: 15, tempo: 90,
+  palavras: {
+    carrinho: ['carrinho', 'carroca', 'carroça', 'carreta'],
+    navio: ['navio', 'porao', 'barco', 'nau'],
+    entregar: ['entrega', 'entregar', 'entregue', 'vende', 'vender'],
+    dar: ['me da', 'me de', 'me dar', 'me passa', 'me passar', 'passar o pack', 'dar o pack', 'passa o pack', 'me entrega', 'devolve', 'passa pra mim', 'me devolve'],
+    fazer: ['faz', 'faca', 'fazer', 'crafta', 'craftar', 'cria', 'criar', 'monta', 'montar', 'fabrica'],
+    largar: ['larga', 'largar', 'solta', 'soltar', 'poe no chao', 'deixa no chao', 'joga no chao'],
+  },
+  falas: {
+    semPt: 'Pra eu carregar pack com você, me chama pra pt primeiro.',
+    naoFaco: 'Fazer pack eu ainda não faço: você faz no mercador, larga no chão e me pede pra pegar que eu carrego.',
+    semPack: 'Não tô com pack nenhum nas costas.',
+    jaTenho: 'Já tô com um pack nas costas. Quer que eu ponha no carrinho, no navio, entregue ou te passe?',
+    semChao: 'Não vejo pack no chão perto de você. Larga ele aí do lado que eu pego.',
+    indoPegar: 'Beleza, vou pegar o pack.',
+    pegou: 'Peguei o {pack}! Tá nas minhas costas. Me fala se é pra pôr no carrinho, no navio ou entregar.',
+    sumiu: 'O pack não tá mais no chão, alguém pegou.',
+    semCarrinho: 'Seu carrinho não tá no chão (nem com você dirigindo). Coloca ele no chão que eu carrego.',
+    carrinhoCheio: 'Seu carrinho tá cheio ({n}/{cap}).',
+    indoCarrinho: 'Fechou, vou pôr no seu carrinho.',
+    noCarrinho: 'Pronto, pus o pack no seu carrinho ({n}/{cap}).',
+    semNavio: 'Seu navio não tá na água. Coloca ele que eu levo o pack pro porão.',
+    naviocheio: 'O porão do navio tá cheio.',
+    indoNavio: 'Bora, vou levar pro porão do navio.',
+    noNavio: 'Pronto, pack no porão do navio ({n}/{cap}).',
+    semMercador: 'Chega perto de um mercador de pack que eu entrego pra você.',
+    feitoAqui: 'Esse pack foi feito aqui. Tem que levar pra outro mercador, quanto mais longe, mais paga.',
+    daMissao: 'Esse pack é da sua missão: tem que levar até {npc}.',
+    indoEntregar: 'Vou entregar pro {npc}. O ouro é seu.',
+    entregou: 'Entreguei! +{ouro} de ouro foi pra você.',
+    costasCheias: 'Suas costas já tão com pack. Larga ou entrega o seu primeiro.',
+    indoDar: 'Vou te passar o pack.',
+    deu: 'Toma, o pack tá nas suas costas.',
+    largou: 'Larguei o pack aqui no chão.',
+    naoCheguei: 'Não consegui chegar lá ({onde}). Desisti, o pack continua nas minhas costas.',
+    naoChegueiPegar: 'Não consegui chegar no pack. Desisti.',
+    oQue: 'Tô com o {pack} nas costas. Quer que eu ponha no carrinho, no navio, entregue ou te passe?',
+  },
+};
 export const NPC_VIDA = {
   moradia: [
     { nivel: 1, nome: 'a vila', x: -3.5, z: -7, r: 9 },

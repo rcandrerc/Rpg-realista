@@ -18,13 +18,13 @@ import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME } fro
 import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO, VEICULOS } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota, terraId } from './rota.js';
-import { lugarDoVeiculo, fundoAgua, devolverBarquinho } from './transporte.js';
+import { lugarDoVeiculo, fundoAgua, devolverBarquinho, packValido, precoPack, mercadoK, mercadoConta, capacidadeCarrinho } from './transporte.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
 import { HISTORIA } from './dados.js';
 import { LOJA, precoLoja, PLANTIO, RECEITA_ESTACAO, CATALISADOR, LUGARES } from './dados.js';
 import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js';
 import { diaDiarias, premioDiaria } from './diarias.js';
-import { ARVORES_PLANTIO, ENCOMENDA, PROFISSOES, MINA } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
+import { ARVORES_PLANTIO, ENCOMENDA, PROFISSOES, MINA, PACK_BOT, PACKS, PACK_REGRAS } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
 import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera, QUEM_LIBERA, SEM_NEVOA } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
@@ -68,7 +68,7 @@ export function respostaEncomenda(texto) {
   return n || rec || qualquer ? { rec, n: n ? Math.min(E.max, n) : qualquer ? E.padrao : 0 } : null;
 }
 // ações em que o jogo faz de verdade o que ele pediu (a fala pode dizer que está indo/fazendo)
-const ACOES_DE_VERDADE = new Set(['time', 'vir', 'cacar', 'voltar', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'barco', 'ajudarMissao', 'liderar', 'troca', 'amigo', 'encomenda']);
+const ACOES_DE_VERDADE = new Set(['time', 'vir', 'cacar', 'voltar', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'barco', 'ajudarMissao', 'liderar', 'troca', 'amigo', 'encomenda', 'pack']);
 const PASSEIOS = [[-6, -10.5], [-8.6, -9.4], [-2.5, -6], [1, 0.5], [-4, 2], [-1, 12]]; // praça, Rosa, ferraria, entrada
 const REGA_MS = HORTA.rega * 3600000;
 
@@ -487,6 +487,7 @@ export const Amiga = {
     }
     if (ia.atividade && !(j.time && dono && j.time.membros.includes(dono.id))) this.fimAtividadeAmiga(j); // saiu do time: a coleta junto acaba (divide o que pegou)
     // no time do dono: segue, luta e cuida da vida (fase 2); saiu do time: volta para a vida dela
+    if (ia.packTarefa && this.passoPackAmiga(j, dt)) return; // levando o pack dele (André 2026-11-21)
     // encomenda na pt (André 2026-11-21: "mesmo em time, vai no spot mais próximo"): coleta sozinh@ e depois volta pro time
     if (j.time && ia.av?.encomenda && ia.encomenda && !ia.encomenda.pronta) { ia.noTime = true; return this.passoSozinhoAmiga(j, dt); }
     if (j.time && ia.av?.encomenda) ia.av = null; // terminou: o time traz de volta
@@ -1364,7 +1365,7 @@ export const Amiga = {
     let alvo = this.alvoAmiga(j, dono);
     if (!alvo && S?.chegou && d <= this.AMIGA.lidera.espera) alvo = this.alvoSozinhoAmiga(j, S.c); // no campo: ela puxa os monstros
     // montaria: monta quando o dono monta (e desce para lutar); levando, quem decide é a viagem dela
-    const monta = !!dono.montado && !alvo && !ia.atividade; // coletando: a pé
+    const monta = !!dono.montado && !alvo && !ia.atividade && !j.prog.pack; // coletando ou com pack nas costas: a pé
     if (!leva && !j.veiculo && monta !== !!j.montado) j.montado = monta ? (MONTARIAS[dono.montado] ? dono.montado : 'lobo') : null;
     // combate pelo cérebro por regras (André 2026-11-11, shared/cerebro.js + CEREBRO em dados.js): poção, Cura (nela e
     // em quem do time está mal), fugir sem poção, recuar do golpe carregado, proteger aliado, atacar de espada ou cajado
@@ -1619,7 +1620,7 @@ export const Amiga = {
     const funda = (x, z) => (noLago(x, z)?.fundo || 0) > V.agua, f = Math.min(V.frente, da);
     const agua = funda(j.x, j.z) || funda(j.x + dx / da * f, j.z + dz / da * f);
     if (agua) { v.seco = 0; if (j.montado) j.montado = null; }
-    else if (!j.montado && !j.veiculo) { v.seco += dt; if (v.seco >= V.seco && j.chao && !j.esc) j.montado = MONTARIAS[dono.montado] ? dono.montado : 'lobo'; }
+    else if (!j.montado && !j.veiculo && !j.prog.pack) { v.seco += dt; if (v.seco >= V.seco && j.chao && !j.esc) j.montado = MONTARIAS[dono.montado] ? dono.montado : 'lobo'; }
     // preso (árvore, pedra, gente): desvia de lado um pouco; no mesmo ponto 3 vezes, pula para o próximo
     v.t += dt;
     if (v.desvio > 0) v.desvio -= dt;
@@ -1736,6 +1737,7 @@ export const Amiga = {
     if (this.amiga?.troca) { if (tem('presente')) return 'presente'; if (tem('pedirItem')) return 'pedirItem'; } // janela de troca aberta (fase 3)
     else if (this.amiga && tem('pedirItem') && this.itensNoTextoAmiga(t).length) return 'pedirItem'; // "tem cenoura?" e ela tem: oferece
     if (ia?.atividade && tem('pararAtividade')) return 'pararAtividade';
+    if (this.amiga && / packs? /.test(t)) return 'pack'; // "pega o pack pra mim", "põe no carrinho" (André 2026-11-21)
     if (this.amiga && encomendaDoTexto(texto)) return 'encomenda'; // "minera ferro pra mim, eu compro" (André 2026-11-21)
     const pq = ia?.encPergunta; // ela perguntou "quantos?" e ele respondeu "20"
     if (pq && pq.ate > this.tempo && respostaEncomenda(texto)) return 'encomenda';
@@ -2126,7 +2128,7 @@ export const Amiga = {
     if (r.assunto !== 'time' && this.apeloAmiga(a, j)) r = { ...r, assunto: 'time', fala: '' }; // pediu com jeito depois do não: ela reconsidera
     // livre: passa a acompanhar quem falou; com outro amigo: conversa, mas ação só depois (André 2026-11-10)
     const mesmoTime = !!(a.time && a.time === j.time) && ['time', 'vir'].includes(r.assunto); // no time de todos: "bora pro time" e "vem cá" valem
-    if (!this.trocarDonoAmiga(id) && !mesmoTime && ['time', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'vir', 'sim', 'nao', 'troca', 'presente', 'pedirItem', 'cacar', 'voltar', 'liderar', 'ajudarMissao', 'encomenda'].includes(r.assunto)) return this.dizerAmiga(this.comOutroAmiga(), false, id);
+    if (!this.trocarDonoAmiga(id) && !mesmoTime && ['time', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'vir', 'sim', 'nao', 'troca', 'presente', 'pedirItem', 'cacar', 'voltar', 'liderar', 'ajudarMissao', 'encomenda', 'pack'].includes(r.assunto)) return this.dizerAmiga(this.comOutroAmiga(), false, id);
     const F = this.AMIGA.chat.falas, FA = this.AMIGA.falas, ia = a.ia, noTime = !!(a.time && a.time === j.time);
     const perto = Math.hypot(a.x - j.x, a.z - j.z) < 6;
     // André 2026-11-17: "vamos fazer alguma coisa, escolhe aí", ela escolhe, e ele "bora pra isso aí mesmo": o que ela
@@ -2245,6 +2247,11 @@ export const Amiga = {
       }
       case 'amigo': { // "me adiciona?" pelo chat: o mesmo pedido de tocar nela (ela decide e avisa)
         this.pedidoAmizadeAmiga(id, true); return;
+      }
+      case 'pack': { // André 2026-11-21: pega o pack do chão, carrinho, navio, entrega (ouro pra ele), passa ou larga
+        const ult = [...this.chatDeAmiga(j)].reverse().find((c) => c.de === 'ele');
+        fala = this.packAmiga(a, j, ult?.texto || ''); r = { ...r, fala: '' };
+        break;
       }
       case 'encomenda': { // André 2026-11-21: "minera ferro pra mim, eu compro": vai e coleta de verdade, ou diz por que não
         const ult = [...this.chatDeAmiga(j)].reverse().find((c) => c.de === 'ele');
@@ -2898,6 +2905,112 @@ export const Amiga = {
     } else ia.puxarT = 0;
   },
   // o lugar de coleta mais perto dela, perto do André: { id, x, z, perto, no | sx, sz }
+  // ---------- pack com o bot (André 2026-11-21: "pega pack pra mim... abastecer o navio/carrinho ou levar nas costas") ----------
+  // O pedido: confere de verdade e marca a tarefa (o passoPackAmiga anda até lá e faz). Só na pt dele. Devolve a fala.
+  packAmiga(a, j, texto) {
+    const P = PACK_BOT, F = P.falas, t = ' ' + normAmiga(texto) + ' ', tem = (k) => P.palavras[k].some((w) => t.includes(' ' + normAmiga(w) + ' '));
+    const nomePack = (pk) => (PACKS[pk?.k]?.nome || 'pack').toLowerCase();
+    if (tem('fazer') && !tem('carrinho') && !tem('navio')) return F.naoFaco; // honesto: o bot não faz pack
+    if (!(a.time && a.time === j.time)) return F.semPt;
+    if (a.morto) return this.AMIGA.falas.caiu;
+    const pk = a.prog.pack, nova = (tipo, extra = {}) => { a.ia.packTarefa = { tipo, para: j.id, conta: j.conta, ate: this.tempo + P.tempo, ...extra }; };
+    if (tem('largar')) {
+      if (!pk) return F.semPack;
+      this.packNoChao(pk, a.x - Math.sin(a.ry) * 0.7, a.z - Math.cos(a.ry) * 0.7); a.prog.pack = null; a.ia.packDe = null; a.ia.packTarefa = null; a.progSujo = true;
+      return F.largou;
+    }
+    if (tem('dar')) {
+      if (!pk) return F.semPack;
+      if (j.prog.pack) return F.costasCheias;
+      nova('dar'); return F.indoDar;
+    }
+    if (tem('carrinho')) {
+      if (!pk) return F.semPack;
+      const c = j.prog.carrinho, onde = c && !c.quebrado && (j.veiculo === 'carrinho' || c.chao);
+      if (!onde) return F.semCarrinho;
+      if (c.packs.length >= capacidadeCarrinho(c)) return F.carrinhoCheio.replace('{n}', c.packs.length).replace('{cap}', capacidadeCarrinho(c));
+      nova('carrinho'); return F.indoCarrinho;
+    }
+    if (tem('navio')) {
+      if (!pk) return F.semPack;
+      const n = j.prog.navio; if (!n || !(j.veiculo === 'navio' || n.chao)) return F.semNavio;
+      if ((n.porao || []).length >= VEICULOS.navio.porao) return F.naviocheio;
+      nova('navio'); return F.indoNavio;
+    }
+    if (tem('entregar')) {
+      if (!pk) return F.semPack;
+      let m = null, md = 40;
+      for (const o of this.mapa.npcs || []) if (o.funcao === 'pack') { const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < md) { md = d; m = o; } }
+      if (!m) return F.semMercador;
+      if (Math.hypot(m.x - pk.ox, m.z - pk.oz) < PACK_REGRAS.perto) return F.feitoAqui;
+      const dm = this.packDaMissao(j, pk.k, m.id); if (dm) return F.daMissao.replace('{npc}', this.nomeNpc ? this.nomeNpc(dm) : dm);
+      nova('entregar', { npc: m.id }); return F.indoEntregar.replace('{npc}', nomeLugarAmiga(String(m.nome || '').replace(/, mercador$/, '')));
+    }
+    // "pega o pack", "carrega o pack", "leva o pack": do chão perto dele
+    if (pk) return F.oQue.replace('{pack}', nomePack(pk));
+    let g = null, gd = P.raio;
+    for (const o of this.packsChao || []) { const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < gd) { gd = d; g = o; } }
+    if (!g) return F.semChao;
+    nova('pegar', { g: g.g }); return F.indoPegar;
+  },
+  // anda até o alvo da tarefa e faz de verdade; true = cuidou do passo
+  passoPackAmiga(j, dt) {
+    const ia = j.ia, T = ia.packTarefa, F = PACK_BOT.falas, dono = this.jogadores.get(T.para);
+    const fim = (fala) => { ia.packTarefa = null; this.pararAmiga(j); if (fala) this.dizerAmiga(fala, false, T.para); return true; };
+    if (!dono || dono.conta !== T.conta || j.morto) { ia.packTarefa = null; return false; }
+    if (j.trava > 0) { this.pararAmiga(j); return true; }
+    let alvo = null, alcance = 2;
+    if (T.tipo === 'pegar') { const g = (this.packsChao || []).find((o) => o.g === T.g); if (!g) return fim(F.sumiu); alvo = g; alcance = PACK_REGRAS.pegar; }
+    else if (!j.prog.pack) return fim(F.semPack);
+    else if (T.tipo === 'carrinho') { const c = dono.prog.carrinho; alvo = c && !c.quebrado ? (dono.veiculo === 'carrinho' ? dono : c.chao) : null; alcance = VEICULOS.carrinho.carregar - 1; if (!alvo) return fim(F.semCarrinho); }
+    else if (T.tipo === 'navio') { const n = dono.prog.navio; alvo = n ? (dono.veiculo === 'navio' ? dono : n.chao) : null; alcance = VEICULOS.navio.perto - 1; if (!alvo) return fim(F.semNavio); }
+    else if (T.tipo === 'entregar') { alvo = (this.mapa.npcs || []).find((o) => o.id === T.npc); alcance = PACK_REGRAS.falar - 0.5; }
+    else if (T.tipo === 'dar') { alvo = dono; alcance = 2.5; }
+    if (!alvo) return fim('');
+    const d = Math.hypot(alvo.x - j.x, alvo.z - j.z);
+    if (d > alcance) {
+      if (this.tempo > T.ate) return fim(T.tipo === 'pegar' ? F.naoChegueiPegar : F.naoCheguei.replace('{onde}', { carrinho: 'no carrinho', navio: 'perto do navio', entregar: 'no mercador', dar: 'perto de você' }[T.tipo]));
+      j.montado = null; this.irDireto(j, alvo.x, alvo.z, d > 5 && T.tipo === 'pegar'); return true;
+    }
+    const p = j.prog, nomePack = (pk) => (PACKS[pk?.k]?.nome || 'pack').toLowerCase();
+    if (T.tipo === 'pegar') {
+      if (p.pack) return fim(F.jaTenho);
+      const g = this.packsChao.find((o) => o.g === T.g); this.packsChao.splice(this.packsChao.indexOf(g), 1);
+      p.pack = packValido(g); j.montado = null; ia.packDe = T.conta; j.progSujo = true;
+      return fim(F.pegou.replace('{pack}', nomePack(p.pack)));
+    }
+    if (T.tipo === 'carrinho') {
+      const c = dono.prog.carrinho, cap = capacidadeCarrinho(c);
+      if (c.packs.length >= cap) return fim(F.carrinhoCheio.replace('{n}', c.packs.length).replace('{cap}', cap));
+      c.packs.push(p.pack); p.pack = null; ia.packDe = null; j.progSujo = true; dono.progSujo = true; this.avisarProg(dono);
+      return fim(F.noCarrinho.replace('{n}', c.packs.length).replace('{cap}', cap));
+    }
+    if (T.tipo === 'navio') {
+      const n = dono.prog.navio, cap = VEICULOS.navio.porao; n.porao ||= [];
+      if (n.porao.length >= cap) return fim(F.naviocheio);
+      n.porao.push(p.pack); p.pack = null; ia.packDe = null; j.progSujo = true; dono.progSujo = true; this.avisarProg(dono);
+      return fim(F.noNavio.replace('{n}', n.porao.length).replace('{cap}', cap));
+    }
+    if (T.tipo === 'dar') {
+      if (dono.prog.pack) return fim(F.costasCheias);
+      dono.prog.pack = p.pack; dono.montado = null; p.pack = null; ia.packDe = null; j.progSujo = true; dono.progSujo = true; this.avisarProg(dono);
+      return fim(F.deu);
+    }
+    if (T.tipo === 'entregar') { // o pack é dele: preço, mercado, pontos de Mercador e missão contam pra ele
+      const n = alvo, pk = p.pack, dp = dono.prog, agora = Date.now();
+      if (Math.hypot(n.x - pk.ox, n.z - pk.oz) < PACK_REGRAS.perto) return fim(F.feitoAqui);
+      const k = mercadoK(dp, n.id, pk.k, agora), preco = Math.max(1, Math.round(precoPack(pk, n, dp.prof.mer) * k * (1 + (this.vantagensDe?.(dono).pack || 0))));
+      p.pack = null; ia.packDe = null; j.progSujo = true;
+      mercadoConta(dp, n.id, pk.k, agora);
+      dp.ouro = (dp.ouro || 0) + preco; this.caixa?.(dono, 'pack', preco);
+      this.pontosProf(dono, 'mer', preco / 10);
+      this.evento({ t: 'pack', para: dono.id, acao: 'entregou', k: pk.k, ouro: preco, navio: (pk.nav || 0) >= PACK_REGRAS.navioMin });
+      this.historia(dono, 'pack', { k: pk.k, npc: n.id, de: 'costas' });
+      dono.progSujo = true; this.avisarProg(dono);
+      return fim(F.entregou.replace('{ouro}', preco));
+    }
+    return fim('');
+  },
   // ---------- encomenda pelo chat (André 2026-11-21: "minera um pouco de ferro pra mim, eu compro") ----------
   // o lugar com o recurso mais perto DELA (mesmo longe dele), fora de região que a história dela ainda não abriu
   lugarRecursoAmiga(j, R, menos = null) {
