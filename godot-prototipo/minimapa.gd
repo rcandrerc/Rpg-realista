@@ -58,7 +58,7 @@ var selecionado := "" # id do lugar escolhido na lista
 # começa fechada; tocar no título abre ou fecha. O que fica aberto vale até fechar o jogo.
 const SECOES := [
 	["vilas", "Vilas e cidades"], ["totens", "Totens"], ["caca", "Caçada"], ["boss", "Bosses"], ["dungeon", "Dungeons"],
-	["recursos", "Recursos"], ["oficinas", "Oficinas"], ["npcs", "NPCs"], ["mercadores", "Mercadores (entregas)"]]
+	["recursos", "Recursos"], ["pesca", "Pescaria"], ["oficinas", "Oficinas"], ["npcs", "NPCs"], ["mercadores", "Mercadores (entregas)"]]
 var abertas := {} # id da seção -> true quando aberta
 var _cache_lugares: Array = [] # _lugares() montada (refeita ao abrir o mapa e a cada 2 s com ele aberto)
 var _cache_t := -1.0
@@ -555,7 +555,9 @@ func _lugares() -> Array:
 		_cache_t = agora
 	return _cache_lugares
 
-const SECAO_DO_TIPO := {"casa": "vilas", "vila": "vilas", "totem": "totens", "caverna": "dungeon", "lago": "recursos", "mina": "recursos",
+const NOME_MINERIO := {"pedra": "Veio de pedra", "cobre": "Veio de cobre", "ferro": "Veio de ferro", "cristal": "Veio de cristal"}
+const NOME_COLETA := {"arvore": "Árvore (madeira)", "galho": "Galho no chão", "pedrinha": "Pedra solta"}
+const SECAO_DO_TIPO := {"coleta": "recursos", "casa": "vilas", "vila": "vilas", "totem": "totens", "caverna": "dungeon", "lago": "pesca", "mina": "recursos",
 	"oficina": "oficinas", "npc": "npcs", "mercador": "mercadores"}
 
 func _montar_lugares() -> Array:
@@ -633,13 +635,12 @@ func _lugares_base() -> Array:
 		var vt: String = m.boss_mundo.volta_texto(str(cc.boss)) if cc.has("boss") else "" # boss de mundo caído: quando volta
 		l.append({"id": str(cc.get("id", cc.nome)), "tipo": "caca", "cc": cc, "nome": ("Boss Nv %d  %s" if cc.has("boss") else "Nv %d  %s") % [int(cc.get("nivel", 1)), str(cc.get("nome", ""))] + ("  (%s)" % vt if vt != "" else ""),
 			"curto": "%s Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))], "x": float(cc.x), "z": float(cc.z), "r": float(cc.get("r", 12.0)) + 2.0})
-	# FASE 2: os veios pequenos espalhados entram só o mais perto de cada minério (a lista não fica comprida)
+	# Recursos (André 2026-11-21: "deixar só veio de ferro, veio de pedra, veio de cobre... só o nome; quando a gente
+	# clica, aparece ir para o mais próximo"): uma linha por minério, que leva ao veio mais perto (grande ou pequeno) que
+	# ainda tem minério. O id da linha é o do minério, então a escolha fica marcada mesmo quando o mais perto muda.
 	var perto := {}
 	var hp: Vector3 = m.heroi.position if m.heroi != null else Vector3.ZERO
 	for mn in m.mundo.get("mina", []):
-		if not mn.get("pequeno", false) and not mn.get("mundo", false): # os do mundo grande também: só o mais perto
-			l.append({"id": str(mn.get("id", mn.nome)), "tipo": "mina", "mn": mn, "nome": str(mn.get("nome", "Veio")), "curto": str(mn.get("nome", "Veio")), "x": float(mn.x), "z": float(mn.z), "r": float(mn.get("r", 4.0)) + 2.0})
-			continue
 		if m.trabalho and m.trabalho.zona_esgotada(str(mn.get("id", ""))):
 			continue # esgotado: o "mais perto" vai para o próximo que tem minério (André 2026-11-21)
 		var t := str(mn.get("tipo", ""))
@@ -649,7 +650,25 @@ func _lugares_base() -> Array:
 	for t in ["pedra", "cobre", "ferro", "cristal"]:
 		if perto.has(t):
 			var mn: Dictionary = perto[t][1]
-			l.append({"id": str(mn.id), "tipo": "mina", "mn": mn, "nome": "%s mais perto (%d m)" % [str(mn.nome), int(perto[t][0])], "curto": str(mn.nome), "x": float(mn.x), "z": float(mn.z), "r": float(mn.r) + 2.0})
+			l.append({"id": "mina_%s" % t, "tipo": "mina", "mn": mn, "mais_perto": true, "nome": NOME_MINERIO.get(t, "Veio"), "curto": str(mn.nome), "x": float(mn.x), "z": float(mn.z), "r": float(mn.r) + 2.0})
+	# os outros recursos (André 2026-11-21: "devia botar árvore e qualquer outro recurso"): árvore (lenha), galho e pedra
+	# soltos no chão. Mesma regra: uma linha por tipo, que leva ao mais perto que não está cortado ou pego.
+	if m.trabalho:
+		var mais := {}
+		for o in m.trabalho.coletaveis:
+			var tc := str(o.tipo)
+			if not NOME_COLETA.has(tc) or o.get("plantada", false) or m.trabalho.esgotado(o):
+				continue # a árvore plantada é do dono do terreno
+			if o.get("solto", false) and is_instance_valid(o.get("no")) and not (o.no as Node3D).visible:
+				continue # pego e ainda não voltou
+			var dc := Vector2(o.pos.x - hp.x, o.pos.z - hp.z).length()
+			if not mais.has(tc) or dc < float(mais[tc][0]):
+				mais[tc] = [dc, o]
+		for tc in ["arvore", "galho", "pedrinha"]:
+			if mais.has(tc):
+				var o: Dictionary = mais[tc][1]
+				l.append({"id": "coleta_%s" % tc, "tipo": "coleta", "coleta": tc, "mais_perto": true, "nome": NOME_COLETA[tc], "curto": NOME_COLETA[tc],
+					"x": float(o.pos.x), "z": float(o.pos.z), "r": maxf(float(o.r), 0.5) + 1.2})
 	return l
 
 # encostou num totem de teleporte (conversa.gd): o mapa abre mostrando todos os totens
@@ -1242,9 +1261,7 @@ func _desenhar_mapa() -> void:
 		if tm:
 			continue # no mapa do totem, nenhum nome
 		var miudo: bool = mn.get("pequeno", false) or mn.get("mundo", false)
-		# veio pequeno (FASE 2): são muitos, então o nome só aparece de perto (André 2026-11-21: cada spot tem nome no mapa)
-		if miudo and zoom < (2.6 if mn.get("mundo", false) else 1.6):
-			continue
+		# todos com o nome (André 2026-11-21: "quero que todos eles tenham nome no mapa"); afastado (longe), só o losango
 		_texto(c, q + Vector2(0, -16), str(mn.get("nome", "Veio")), 11 if miudo else 13, Color("f2b56b") if str(mn.get("tipo", "cobre")) == "cobre" else cm.lightened(0.35))
 	var cv := _caverna()
 	if not cv.is_empty() and filtro.ok("dungeon"):
@@ -1478,6 +1495,17 @@ func _linha_lugar(c: Control, l: Dictionary, x0: float, y: float, larg: float, t
 				_marca_caverna(c, qi, 7.0)
 			"mina":
 				c.draw_colored_polygon(PackedVector2Array([qi + Vector2(0, -7), qi + Vector2(6, 0), qi + Vector2(0, 7), qi + Vector2(-6, 0)]), COR_MINA.get(str(l.mn.get("tipo", "")), Color("d9822b")))
+			"coleta": # árvore: pinheirinho verde; galho: tora marrom; pedra solta: pedrinha cinza
+				match str(l.coleta):
+					"arvore":
+						c.draw_colored_polygon(PackedVector2Array([qi + Vector2(0, -8), qi + Vector2(6, 3), qi + Vector2(-6, 3)]), Color("4f9a4a"))
+						c.draw_rect(Rect2(qi + Vector2(-1.5, 3), Vector2(3, 4)), Color("7a5230"))
+					"galho":
+						c.draw_line(qi + Vector2(-7, 4), qi + Vector2(7, -3), Color("8a5a2b"), 4.0)
+						c.draw_line(qi + Vector2(-2, 2), qi + Vector2(-4, -4), Color("8a5a2b"), 2.0)
+					_:
+						c.draw_circle(qi + Vector2(0, 1), 5.5, Color("a39d92"))
+						c.draw_circle(qi + Vector2(-1.5, -0.5), 2.0, Color("c9c3b8"))
 			"casa": # o meu terreno: casinha de telhado vermelho
 				_marca_casa(c, qi + Vector2(0, 1), 6.5)
 			"totem":
@@ -1502,9 +1530,11 @@ func _linha_lugar(c: Control, l: Dictionary, x0: float, y: float, larg: float, t
 				c.draw_colored_polygon(PackedVector2Array([qi + Vector2(-7, -1), qi + Vector2(0, -8), qi + Vector2(7, -1)]), COR_OURO)
 				c.draw_rect(Rect2(qi + Vector2(-5, -1), Vector2(10, 7)), COR_OURO)
 		var nome: String = str(l.nome)
+		var ir: String = Idioma.frase("Ir ao mais próximo ›" if l.get("mais_perto", false) else "Ir para ›") # minério: o veio mais perto
+		var ir_w: float = fonte.get_string_size(ir, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 		if esc:
-			_texto(c, Vector2(lin.end.x - 8.0 - fonte.get_string_size("Ir para ›", HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x, y), "Ir para ›", 14, COR_OURO, false, 3)
-		var max_w: float = larg - 34.0 - (74.0 if esc else 0.0)
+			_texto(c, Vector2(lin.end.x - 8.0 - ir_w, y), ir, 14, COR_OURO, false, 3)
+		var max_w: float = larg - 34.0 - (ir_w + 16.0 if esc else 0.0)
 		while nome.length() > 4 and fonte.get_string_size(nome, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x > max_w:
 			nome = nome.substr(0, nome.length() - 2) + "…"
 		_texto(c, Vector2(x0 + 24.0, y), nome, 15, COR_OURO if esc else Color(1, 0.96, 0.88), false)
