@@ -15,6 +15,7 @@ ok(decide({ evento: 'schedule', mudou: ['shared/dados.js'], agora: t('2026-11-25
 ok(decide({ evento: 'schedule', mudou: ['shared/dados.js'], agora: t('2026-11-25T05:20:00-03:00') }).publicar, 'agendado atrasado (05:20): publica');
 ok(!decide({ evento: 'schedule', mudou: ['shared/dados.js'], agora: t('2026-12-22T13:40:00-03:00') }).publicar, '1ª semana do lançamento, 13:40: espera');
 ok(!decide({ evento: 'schedule', mudou: ['shared/dados.js'], agora: t('2026-12-20T00:40:00-03:00') }).publicar, 'bloqueio do lançamento: espera');
+ok(decide({ evento: 'push', mensagem: 'Merge pull request #9\n\nPreço [servidor urgente]', mudou: ['shared/dados.js'], agora: as9 }).publicar, '[servidor urgente] com shared/ às 09h: publica na hora');
 ok(decide({ evento: 'workflow_dispatch', forcar: true, mudou: ['shared/dados.js'], agora: as9 }).publicar, 'publicar agora (à mão): publica');
 ok(decide({ evento: 'push', mensagem: 'Conserto [furar bloqueio]', mudou: ['shared/dados.js'], agora: t('2026-12-19T20:30:00-03:00') }).publicar, '[furar bloqueio]: publica');
 ok(!decide({ evento: 'workflow_dispatch', mudou: ['shared/simulacao.js'], agora: as9 }).publicar, 'pages.yml chamado pelo apk.yml com shared/: espera');

@@ -18,6 +18,10 @@ on:
         description: 'Publicar agora mesmo com shared/ mudado (fora da janela: cliente e servidor podem ficar com regras diferentes até o servidor instalar)'
         type: boolean
         default: false
+      servidor_agora:
+        description: 'Servidor instala agora (André 2026-11-21): publica na hora e o pacote sai urgente; o servidor reinicia uma vez com a main mais nova, sem esperar 05h/14h'
+        type: boolean
+        default: false
       abrir_servidor:
         description: 'Publicar o servidor aberto uma vez (só para máquina nova da Oracle, que ainda não tem chave)'
         type: boolean
@@ -86,7 +90,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           EVENTO: ${{ github.event_name }}
-          FORCAR: ${{ inputs.publicar_agora && '1' || '0' }}
+          FORCAR: ${{ (inputs.publicar_agora || inputs.servidor_agora) && '1' || '0' }}
           ORACLE_URL: ${{ vars.ORACLE_URL }}
         run: node ferramentas/atualizacao/janela-publicar.mjs
 
@@ -113,6 +117,7 @@ jobs:
       - run: bash ferramentas/servidor/empacotar.sh # o servidor sai junto; a máquina da Oracle se atualiza a partir daqui
         env:
           ABRIR_SERVIDOR: ${{ inputs.abrir_servidor && '1' || '0' }}
+          URGENTE: ${{ inputs.servidor_agora && '1' || '' }} # servidor_agora: pacote urgente (instala na hora, menos no bloqueio do lançamento)
           CRIAR_CHAVE_ASSINATURA: ${{ inputs.criar_chave_assinatura && '1' || '0' }}
           GEMINI_CHAVE: ${{ secrets.GEMINI_CHAVE }} # IA da Cecília: os segredos vão só dentro do pacote trancado (nunca no site aberto)
           GROQ_CHAVE: ${{ secrets.GROQ_CHAVE }} # IA da Cecília (Groq, preferida quando existe)
