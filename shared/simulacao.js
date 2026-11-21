@@ -4079,7 +4079,11 @@ export class Simulacao {
       const m = (c.tipo !== 'jogador' && o.tipo !== 'jogador' ? 1.2 : 0.7) + (c.bm || o.bm ? COMBATE_BOSS.raio - 0.35 : 0); // monstro com monstro: ~0,6 m de raio cada; boss de mundo é largo
       if (d < m && d > 0) { c.x = o.x + dx / d * m; c.z = o.z + dz / d * m; }
     }
-    [c.x, c.z] = limitarAoMapa(this.mapa, c.x, c.z, 2.2); // dentro da vila, da passagem e da clareira de fora (shared/mapa.js)
+    // André 2026-11-21 ("cheguei no cais pra pôr o navio e eles voltaram pra cidade"): o bot que o servidor anda pode ficar
+    // onde o jogador pode (posicaoCliente): no cais, nadando no mar, de barco na água e no convés do navio; antes o
+    // limitarAoMapa jogava ele para a borda do mapa mais perto (a cidade)
+    const livre = c.tipo === 'jogador' && (naCais(this.mapa, c.x, c.z) || !!c.bordo || (c.veiculo && !!noLago(c.x, c.z)) || (!c.veiculo && marNadavel(c.x, c.z)));
+    if (!livre) [c.x, c.z] = limitarAoMapa(this.mapa, c.x, c.z, 2.2); // dentro da vila, da passagem e da clareira de fora (shared/mapa.js)
     if (c.bm) { const A = c.arena, d = Math.hypot(c.x - A.x, c.z - A.z); if (d > A.r) { c.x = A.x + (c.x - A.x) / d * A.r; c.z = A.z + (c.z - A.z) / d * A.r; } } // boss não sai da arena
     if (c.sub) this.prenderNaCaverna(c); // monstro da caverna fica no túnel
     else if (c.sp?.tunel) this.prenderNoTunel(c); // e o do covil das cavernas do mundo grande também

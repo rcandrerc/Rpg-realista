@@ -44,7 +44,7 @@ const b = s.adicionarJogador('B', 'Bot'); b.criando = false; b.morto = false; b.
 s.veiculo('P', { acao: 'subir', k: 'navio' });
 ok(j.veiculo === 'navio', 'pegou o leme de novo');
 j.x = cx + Math.sin(0.5) * leme; j.z = cz + Math.cos(0.5) * leme; j.ry = 0.5;
-b.x = cx + 40; b.z = cz; b.y = 0;
+b.x = cx + 70; b.z = cz; b.y = 0;
 ok(!s.bordoBot(b, j, 0.1) && !b.bordo, 'longe demais: não sobe');
 b.x = cx + 8; b.z = cz + 3;
 ok(s.bordoBot(b, j, 0.1) && b.bordo && Math.abs(b.y - CONVES) < 0.01 && s.aBordo(b.x, b.z, b.y), 'perto: o bot sobe e fica no convés');

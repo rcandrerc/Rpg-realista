@@ -17,7 +17,7 @@
 import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME } from './dados.js';
 import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO, VEICULOS } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
-import { planejarRota } from './rota.js';
+import { planejarRota, terraId } from './rota.js';
 import { lugarDoVeiculo, fundoAgua, devolverBarquinho } from './transporte.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
 import { HISTORIA } from './dados.js';
@@ -1295,6 +1295,7 @@ export const Amiga = {
       const dp = Math.hypot(E.x - j.x, E.z - j.z);
       return dp < 0.8 ? this.pararAmiga(j) : this.irDireto(j, E.x, E.z, dp > R.correr);
     }
+    if (!leva && this.travessiaAmiga(j, dono, d)) return; // navio, barquinho, cais e outra terra (André 2026-11-21)
     if (leva) ia.viagem = null; // levando: a viagem até o campo é outra (ia.viagemSeguida)
     else if (this.longeAmiga(j, dono, d, dt)) return;
     if (j.trava > 0) return this.pararAmiga(j);
@@ -1575,7 +1576,11 @@ export const Amiga = {
   barcoAmiga(j, dono, dt) {
     const ia = j.ia, B = this.AMIGA.barco || { olha: 1.8, perto: 2.5, preso: 4 };
     if (j.morto || j.esc || j.trava > 0 || this.tempo < (ia.barcoT || 0)) return;
-    const donoNaAgua = dono.veiculo === 'barquinho' || fundoAgua(dono.x, dono.z) > AGUA.peito - 0.3;
+    // outra terra (ia.outraTerra, travessiaAmiga): também vai de barquinho, mesmo com o dono já em terra do outro lado
+    // no navio (leme ou convés) não: o bot vem a pé ou nadando e sobe no navio (André 2026-11-21: "no leme do navio quero
+    // que eles venham comigo dentro do navio"; de barquinho, cada um no seu)
+    const noNavio = dono.veiculo === 'navio' || !!this.aBordo(dono.x, dono.z, dono.y);
+    const donoNaAgua = !noNavio && (dono.veiculo === 'barquinho' || fundoAgua(dono.x, dono.z) > AGUA.peito - 0.3 || !!ia.outraTerra);
     const dx = dono.x - j.x, dz = dono.z - j.z, d = Math.hypot(dx, dz) || 1;
     if (j.veiculo === 'barquinho') {
       ia.barcoPreso = j.bloqueado ? (ia.barcoPreso || 0) + dt : 0;
@@ -1596,6 +1601,33 @@ export const Amiga = {
     if (j.coleta) this.pararColeta(j, null);
     if (j.pesca) this.pararPesca(j, null);
     this.veiculo(j.id, { acao: 'colocar', k: 'barquinho' });
+  },
+  // ---------- travessia (André 2026-11-21: "estavam me seguindo; quando cheguei no cais pra pôr o navio, voltaram pra
+  // cidade"; "podem ir pra ilha e pro outro continente... de barquinho, claro"; "no leme do navio, eles sobem") ----------
+  // Com o dono no cais, na água, no navio ou em outra terra, a rota pelas estradas levava o bot de volta pela cidade ou
+  // travava ("só de barco"). Aqui ele vai reto até o dono: a pé até a beira, nadando até o navio (sobe a 60 m, bordoBot)
+  // ou de barquinho (barcoAmiga entra na água e desce na margem do outro lado). true = já cuidou do passo.
+  travessiaAmiga(j, dono, d) {
+    const ia = j.ia, T = this.AMIGA.travessia || { agua: 90, navio: 200 };
+    if (j.veiculo === 'barquinho') { // remando: reto até o dono (na margem, o barcoAmiga desce)
+      ia.viagem = null; j.montado = null; ia.outraTerra = false; // já no mar: desce na margem onde o dono está
+      if (d < (this.regraAmiga('seguir') ?? this.AMIGA.time.seguir) + 1) return this.pararAmiga(j), true;
+      return this.irDireto(j, dono.x, dono.z, true), true;
+    }
+    const nav = dono.veiculo === 'navio' || this.aBordo(dono.x, dono.z, dono.y);
+    // na água: nadando, de barquinho ou no mar (o cais fica sobre o mar); a beira do lago (pescando) não conta
+    const naAgua = !ia.atividade && (dono.veiculo === 'barquinho' || fundoAgua(dono.x, dono.z) > AGUA.peito - 0.3 || terraId(dono.x, dono.z) === 0);
+    const tj = terraId(j.x, j.z), td = terraId(dono.x, dono.z);
+    const outra = !nav && !naAgua && tj > 0 && td > 0 && tj !== td && contar(j.prog.mochila, 'barquinho') > 0;
+    ia.outraTerra = outra;
+    if (!(nav && d < T.navio) && !(naAgua && d < T.agua) && !outra) return false;
+    ia.viagem = null;
+    if (j.trava > 0) return this.pararAmiga(j), true;
+    if (j.coleta) this.pararColeta(j, null);
+    if (j.pesca) this.pararPesca(j, null);
+    if (fundoAgua(j.x, j.z) > 0.3) j.montado = null;
+    if (d < (this.regraAmiga('seguir') ?? this.AMIGA.time.seguir) + 0.8 && !nav) return this.pararAmiga(j), true;
+    return this.irDireto(j, dono.x, dono.z, true), true;
   },
   // pediu o barquinho pelo chat: faz de verdade (com o material da mochila) ou diz o que falta; a fala é sempre o que
   // aconteceu no jogo (a IA dizia "já fiz" e "tô de barco" sem ter feito)
