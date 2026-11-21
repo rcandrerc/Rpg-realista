@@ -41,6 +41,14 @@ const sorteia = (l) => {
   return l[i];
 };
 const normAmiga = (t) => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+// André 2026-11-21 ("não fala que tá fazendo do nada e fico esperando uma hora e nada acontece"): pedido de coisa do jogo
+// que o chat não faz (carrinho, construir, forjar, buscar item, a missão dele...) e a IA respondeu prometendo. Se a ação
+// que o jogo fez de verdade não é a prometida, a fala vira um "não consigo" sincero (respostaAmiga).
+const PEDIDO_FAZER = /\b(faz|faca|fazer|faria|cria|criar|crie|constroi|construir|construa|monta|montar|monte|forja|forjar|crafta|craftar|fabrica|fabricar|pega|pegar|busca|buscar|traz|trazer|traga|me da|me de|me manda|me envia|entrega|entregar|termina|terminar|completa|completar|conclui|concluir|junta|juntar|coleta|coletar|compra|comprar|vende|vender|planta|plantar|colhe|colher|ergue|levanta|forma|formar|prepara|preparar|cozinha|cozinhar|consegue|conseguiria|pode|poderia|da pra|tem como)\b/;
+const PROMESSA = /\b((to|tou|estou|ja to|ja estou) (fazendo|criando|construindo|montando|forjando|craftando|fabricando|terminando|juntando|coletando|buscando|pegando|preparando|cozinhando|formando|erguendo|plantando|colhendo|trabalhando nisso|indo fazer|indo buscar|indo pegar|providenciando|resolvendo)|(vou|ja vou|vou ja|eu vou|deixa que eu|ja ja eu|daqui a pouco eu|depois eu) (fazer|criar|construir|montar|forjar|craftar|fabricar|terminar|juntar|coletar|buscar|pegar|preparar|cozinhar|formar|erguer|plantar|colher|providenciar|resolver|te mandar|te dar|te entregar|mandar|entregar|comecar|começar|ja)|(ja )?(fiz|criei|construi|montei|forjei|crafte|crafitei|fabriquei|terminei|juntei|coletei|peguei|preparei|cozinhei|formei|ergui|plantei|colhi|te mandei|te dei|te entreguei|mandei pra voce|comecei)|deixa comigo|pode deixar|ja ta saindo|ta saindo|em andamento|ja ja fica pronto|ja ja ta pronto|fica pronto em|daqui a pouco fica)\b/;
+export function promessaSemAcaoAmiga(pedido, fala) { return PEDIDO_FAZER.test(normAmiga(pedido)) && PROMESSA.test(normAmiga(fala)); }
+// ações em que o jogo faz de verdade o que ele pediu (a fala pode dizer que está indo/fazendo)
+const ACOES_DE_VERDADE = new Set(['time', 'vir', 'cacar', 'voltar', 'pescar', 'minerar', 'lenha', 'pararAtividade', 'sairTime', 'barco', 'ajudarMissao', 'liderar', 'troca', 'amigo']);
 const PASSEIOS = [[-6, -10.5], [-8.6, -9.4], [-2.5, -6], [1, 0.5], [-4, 2], [-1, 12]]; // praça, Rosa, ferraria, entrada
 const REGA_MS = HORTA.rega * 3600000;
 
@@ -1668,7 +1676,7 @@ export const Amiga = {
     if (faltam.length) return `Ainda não dá pra fazer o barquinho: falta ${faltam.join(' e ')} (precisa de ${Object.entries(custo).map(([k, n]) => `${n} ${nome(k)}`).join(' e ')}).`;
     const prova = a.prog.mochila.map((o) => (o ? { ...o } : null));
     for (const [k, n] of Object.entries(custo)) tirar(prova, k, n);
-    if (!guardar(prova, { k: 'barquinho', n: 1 })) return 'Tenho o material, mas a mochila tá cheia. Vou abrir espaço e faço.';
+    if (!guardar(prova, { k: 'barquinho', n: 1 })) return 'Tenho o material, mas a mochila tá cheia: não deu pra fazer agora. Se abrir espaço, me pede de novo.';
     a.prog.mochila = prova; a.progSujo = true; this.avisarProg(a);
     return P.fez || 'Pronto, fiz o barquinho! Quando você entrar na água, eu vou de barco junto.';
   },
@@ -2175,8 +2183,9 @@ export const Amiga = {
         break;
       case 'nao': case 'naoAcao': ia.chamado = null; fala = sorteia(F.chamaRespostaNao); break; // naoAcao: "não vamos caçar" (André 2026-11-11)
       case 'ajuda':
-        if (!a.pedido && Math.random() < this.AMIGA.equipInteresse.pedir && this.pecaFracaAmiga()) { fala = this.pedeEquipAmiga(); break; } // às vezes é a peça mais fraca
-        if (!a.pedido && Math.random() < 0.7) { const p = sorteia(this.AMIGA.pedidos); a.pedido = { k: p.k, n: p.n }; this.guardarAmiga(); }
+        if (!a.pedido && Math.random() < this.AMIGA.equipInteresse.pedir && this.pecaFracaAmiga()) { fala = this.pedeEquipAmiga(); r = { ...r, fala: '' }; break; } // às vezes é a peça mais fraca
+        // pedido novo agora: a IA não sabia dele e podia pedir outra coisa; vale a fala do jogo (André 2026-11-21, bots sinceros)
+        if (!a.pedido && Math.random() < 0.7) { const p = sorteia(this.AMIGA.pedidos); a.pedido = { k: p.k, n: p.n }; this.guardarAmiga(); r = { ...r, fala: '' }; }
         fala = a.pedido ? sorteia(FA.pedido).replace('{item}', `${a.pedido.n} ${ITENS[a.pedido.k].nome.toLowerCase()}`) + ' Me entrega quando passar aqui!' : sorteia(FA.semPedido);
         break;
       case 'casa': { const L = this.loteDaAmiga(), pronta = L && this.AMIGA.casa.every((c) => L.pecas.some((o) => mesmaPeca(o, pecaDaCasa(L.def, c)))); fala = sorteia(pronta ? FA.pronta : FA.obra); break; }
@@ -2218,6 +2227,11 @@ export const Amiga = {
     const recusou = (r.assunto === 'time' && !(a.time && a.time === j.time) && !this.combinouAmiga(a)) || (r.assunto === 'vir' && !ia.vir && !perto && !noTime);
     // a IA já sabia que ia recusar (humor na ficha) e escreveu a recusa do jeito dela: vale a fala dela
     if (r.fala && (!recusou || r.iaAssunto === 'conversa' || r.iaAssunto === 'nao')) fala = r.fala;
+    // a IA prometeu fazer (ou disse que fez) algo que o jogo não fez: fala sincera no lugar (André 2026-11-21)
+    if (r.fala && fala === r.fala && !ACOES_DE_VERDADE.has(r.assunto)) {
+      const ult = [...this.chatDeAmiga(j)].reverse().find((c) => c.de === 'ele');
+      if (ult && promessaSemAcaoAmiga(ult.texto, fala)) fala = sorteia(F.naoConsigo || ['Isso eu não consigo fazer por aqui, foi mal.']);
+    }
     // o campo que ela ia levar está fechado para ele: avisa (se a IA já não avisou do jeito dela)
     if (ia.avisoFechado) { if (!/liber|n[eé]voa|miss[aã]o|n[aã]o d[aá] pra voc/i.test(fala)) fala = ia.avisoFechado; ia.avisoFechado = null; }
     this.dizerAmiga(fala, false, id);
