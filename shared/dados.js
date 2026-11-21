@@ -678,10 +678,30 @@ function naTerras(x, z, folga = 0) {
 // 2026-11-05 (André: "faz um de pedra maior que o de cobre e um de ferro menor, espaçados no mapa"): veio de pedra ao
 // norte da vila (Minerador Nv 1, pedras grandes) e veio de ferro a leste, perto dos lobos Nv 5 (Minerador Nv 5, pedras
 // menores e mais raras). Cada zona abre uma clareirinha na mata (sem árvore, mato nem pedra solta em r + 2,5 m).
+// Nome de cada spot de mineração (André 2026-11-21: "colocar nomes nos spots de mineração e exibi-los no mapa"): o
+// tipo do veio + o lugar ("Veio de cobre do Riacho"), um nome diferente para cada spot. Os do mundo grande levam o
+// nome do campo de caça de perto (os 2 ou 3 veios dele têm minérios diferentes, então o nome não repete) e os das
+// cavernas, o nome da gruta. O inglês fica em godot-prototipo/dados/idioma_en.json.
+export const NOME_VEIO = { pedra: 'Veio de pedra', cobre: 'Veio de cobre', ferro: 'Veio de ferro', cristal: 'Veio de cristal' };
+export const LUGAR_DO_VEIO = {
+  cobre1: 'da Clareira', pedra1: 'do Lajedo', ferro1: 'do Morro Vermelho',
+  pedra2: 'da Toca', pedra3: 'do Seixo', pedra4: 'do Penedo', pedra5: 'da Lapa', pedra6: 'do Cascalho',
+  cobre2: 'do Riacho', cobre3: 'da Encosta', cobre4: 'do Barranco', cobre5: 'da Raiz Torta',
+  ferro2: 'da Bigorna', ferro3: 'do Corvo', ferro4: 'da Ferrugem',
+  cristal1: 'do Luar', cristal2: 'da Geada', cristal3: 'do Eco',
+  pedra7: 'do Moinho', cobre6: 'da Raposa', pedra8: 'do Musgo', pedra9: 'da Coruja', cobre7: 'do Vau',
+  // mundo grande: pelo campo de caça de perto (LUGARES_MUNDO, perto)
+  c_v1: 'da Serra Cinzenta', c_v2: 'do Vale Frio', c_v3: 'do Espinheiro', c_v4: 'da Ribanceira', c_v5: 'do Rochedo Alto',
+  c_v6: 'do Despenhadeiro', c_v7: 'da Fenda', c_v8: 'do Pinheiral', c_v9: 'do Charco',
+  c_i1: 'da Duna', c_i2: 'da Maré Baixa', c_i3: 'do Coral', c_i4: 'da Gaivota',
+  c_a1: 'do Alvorecer', c_a2: 'da Brasa', c_a3: 'do Orvalho', c_a4: 'do Cometa', c_a5: 'da Estrela Cadente',
+  c_a6: 'do Relâmpago', c_a7: 'da Bruma', c_a8: 'do Trovão', c_a9: 'do Crepúsculo',
+};
+const nomeDoVeio = (tipo, lugar) => (LUGAR_DO_VEIO[lugar] ? `${NOME_VEIO[tipo]} ${LUGAR_DO_VEIO[lugar]}` : NOME_VEIO[tipo]);
 export const MINA = [
-  { id: 'cobre1', nome: 'Veio de cobre', tipo: 'cobre', x: 46, z: -15, r: 4.5, veios: 6, volta: 360 },
-  { id: 'pedra1', nome: 'Veio de pedra', tipo: 'pedra', x: 8, z: -48, r: 6.5, veios: 7, volta: 240 },
-  { id: 'ferro1', nome: 'Veio de ferro', tipo: 'ferro', x: 104, z: 8, r: 4, veios: 5, volta: 420 },
+  { id: 'cobre1', nome: nomeDoVeio('cobre', 'cobre1'), tipo: 'cobre', x: 46, z: -15, r: 4.5, veios: 6, volta: 360 },
+  { id: 'pedra1', nome: nomeDoVeio('pedra', 'pedra1'), tipo: 'pedra', x: 8, z: -48, r: 6.5, veios: 7, volta: 240 },
+  { id: 'ferro1', nome: nomeDoVeio('ferro', 'ferro1'), tipo: 'ferro', x: 104, z: 8, r: 4, veios: 5, volta: 420 },
   // FASE 2 (André 2026-11-08: "pequenos spots de minério bem diluídos e espalhados por todo o mapa... já preveja o
   // cristal"): veios pequenos (3 pedras) em chão plano, longe de árvore, estrada e campo de caça, para ter pedra e cobre
   // perto de qualquer canto, ferro do meio para a frente e cristal (Minerador Nv 8) perto dos campos mais altos.
@@ -691,7 +711,7 @@ export const MINA = [
     ['cobre5', 'cobre', -26, -40], ['ferro2', 'ferro', 130, 40], ['ferro3', 'ferro', 0, 138], ['ferro4', 'ferro', 190, 108],
     ['cristal1', 'cristal', 168, 84], ['cristal2', 'cristal', 96, 156], ['cristal3', 'cristal', 174, 172],
     ['pedra7', 'pedra', 170, 50], ['cobre6', 'cobre', 140, 90], ['pedra8', 'pedra', 120, 72], ['pedra9', 'pedra', 30, 190], ['cobre7', 'cobre', 62, 114]].map(([id, tipo, x, z]) => ({
-    id, nome: { pedra: 'Veio de pedra', cobre: 'Veio de cobre', ferro: 'Veio de ferro', cristal: 'Veio de cristal' }[tipo], tipo, x, z,
+    id, nome: nomeDoVeio(tipo, id), tipo, x, z,
     r: { pedra: 4.2, cobre: 3.4, ferro: 2.8, cristal: 3.4 }[tipo], veios: 3, volta: { pedra: 240, cobre: 360, ferro: 420, cristal: 480 }[tipo], pequeno: true })),
 ];
 // tamanho de cada pedra de veio (1 = a de cobre): a de pedra é maior, a de ferro menor. Vale para o desenho no Godot e
@@ -2006,10 +2026,10 @@ export const TUNEIS_MUNDO = []; // túneis das cavernas do mundo grande (shared/
   const REGIAO = { vael: 'Vael', ilha: 'Ilha do Meio', aurora: 'Aurora' };
   const NOME = { lobo: 'Lobos', golem: 'Golens', maw: 'Maws', imp: 'Imps', puglin: 'Puglins' };
   // os veios pequenos de cada campo (shared/mundo.js lugaresDeMina) entram nas zonas de mineração, depois das de hoje
-  const NOME_VEIO = { pedra: 'Veio de pedra', cobre: 'Veio de cobre', ferro: 'Veio de ferro', cristal: 'Veio de cristal' };
+  // NOME_VEIO e o lugar de cada spot (LUGAR_DO_VEIO) ficam junto de MINA, lá em cima
   const VOLTA_VEIO = { pedra: 240, cobre: 360, ferro: 420, cristal: 480 };
   for (const L of LUGARES_MUNDO.filter((l) => l.tipo === 'mina')) {
-    const z = { id: L.id, nome: NOME_VEIO[L.minerio], tipo: L.minerio, x: L.x, z: L.z, r: L.r, veios: 3, volta: VOLTA_VEIO[L.minerio], pequeno: true, mundo: true };
+    const z = { id: L.id, nome: nomeDoVeio(L.minerio, L.perto), tipo: L.minerio, x: L.x, z: L.z, r: L.r, veios: 3, volta: VOLTA_VEIO[L.minerio], pequeno: true, mundo: true };
     MINA.push(z); VEIOS.push(...veiosDaZona(z));
   }
   let n = 0;
@@ -2028,7 +2048,7 @@ export const TUNEIS_MUNDO = []; // túneis das cavernas do mundo grande (shared/
     CACA.push({ id: C.id, nome: `Covil da ${L.nome} (${REGIAO[L.terra]})`, nivel: L.nivel, bicho: 'golem', x: +p1.x.toFixed(2), z: +p1.z.toFixed(2), r: 6, tunel: C.id, mundo: true,
       n: 6, tipos: ['golem', 'golem', 'maw', 'maw', 'golem', 'warrok'], passo: 0.35, rapido: 0.4, normal: 2, longe: 5, corpo: 2.2, ate: 1 });
     const tipo = L.terra === 'vael' ? 'ferro' : 'cristal';
-    const z = { id: `m_${C.id}`, nome: `${NOME_VEIO[tipo]} da caverna`, tipo, x: +p2.x.toFixed(2), z: +p2.z.toFixed(2), r: 4.6, veios: 4, volta: VOLTA_VEIO[tipo], pequeno: true, mundo: true, tunel: C.id };
+    const z = { id: `m_${C.id}`, nome: `${NOME_VEIO[tipo]} da ${L.nome}`, tipo, x: +p2.x.toFixed(2), z: +p2.z.toFixed(2), r: 4.6, veios: 4, volta: VOLTA_VEIO[tipo], pequeno: true, mundo: true, tunel: C.id };
     MINA.push(z);
     VEIOS.push(...veiosDaZona(z).map((v) => ({ ...v, y: +noTunel(C, v.x, v.z).y.toFixed(3) })));
   }
