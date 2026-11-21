@@ -1,6 +1,6 @@
 // Janela de instalação do servidor (plano de lançamento v3): 05h–07h e 14h–15h de Brasília; 1ª semana do lançamento só
 // 05h–07h; 19/12 18h a 20/12 02h nada instala. Testa podeInstalar (server/atualizar.js).
-import { podeInstalar, proximoReinicio } from '../../server/atualizar.js';
+import { podeInstalar, proximoReinicio, instalaAgora } from '../../server/atualizar.js';
 import { REINICIO } from '../../shared/dados.js';
 
 let falhas = 0;
@@ -30,7 +30,16 @@ ok(iso(proximoReinicio(t('2026-11-25T20:00:00-03:00'), REINICIO.horarios)) === i
 ok(iso(proximoReinicio(t('2026-11-25T05:00:20-03:00'), REINICIO.horarios)) === iso(t('2026-11-25T14:00:00-03:00')), 'acabou de reiniciar às 05h: o próximo é 14h');
 ok(iso(proximoReinicio(t('2026-11-26T01:30:00-03:00'), REINICIO.horarios)) === iso(t('2026-11-26T05:00:00-03:00')), 'à 01h30 (UTC já é outro dia) o próximo é 05h');
 ok(podeInstalar(t('2026-11-25T04:59:00-03:00') + 65e3), 'reinício fixo às 04:59 pergunta adiantado e instala junto');
+// André 2026-11-21: publicar não reinicia; só o reinício fixo instala (urgente/furar continuam na hora)
+ok(!instalaAgora({ agora: t('2026-11-25T05:30:00-03:00') }), '05h30 pacote novo na conferida de 5 min: espera o reinício');
+ok(!instalaAgora({ agora: t('2026-11-25T14:20:00-03:00') }), '14h20 pacote novo na conferida de 5 min: espera o reinício');
+ok(instalaAgora({ agora: t('2026-11-25T04:59:00-03:00') + 65e3, doReinicio: true }), 'reinício fixo das 05h instala o que espera');
+ok(instalaAgora({ agora: t('2026-11-25T13:59:00-03:00') + 65e3, doReinicio: true }), 'reinício fixo das 14h instala o que espera');
+ok(!instalaAgora({ agora: t('2026-11-25T09:00:00-03:00'), doReinicio: true }), 'reinício fora da janela não instala');
+ok(instalaAgora({ agora: t('2026-11-25T21:00:00-03:00'), urgente: true }), '[servidor urgente] ainda instala na hora');
+ok(instalaAgora({ agora: t('2026-12-19T19:00:00-03:00'), furar: true }), '[furar bloqueio] ainda instala na hora');
 process.env.JANELA_LIVRE = '1';
+ok(instalaAgora({ agora: t('2026-11-25T09:10:00-03:00') }), 'JANELA_LIVRE=1 (teste local) instala sempre');
 ok(podeInstalar(t('2026-11-25T09:10:00-03:00')), 'JANELA_LIVRE=1 (teste local) instala sempre');
 if (falhas) { console.log(`${falhas} falha(s)`); process.exit(1); }
 console.log('janela do servidor: tudo certo');

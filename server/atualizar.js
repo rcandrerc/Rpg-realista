@@ -2,7 +2,8 @@
 // Na máquina da Oracle o próprio servidor cria um par de chaves na primeira vez. A chave pública sai em
 // /chave-do-servidor; o CI do GitHub tranca o pacote novo com ela (ferramentas/servidor/trancar.mjs) e publica
 // só o pacote trancado no Pages. Só esta máquina, que guarda a chave privada, consegue abrir.
-// A cada 5 minutos o servidor confere a versão; se mudou, abre o pacote, troca os arquivos e sai (o systemd liga de novo).
+// A cada 5 minutos o servidor confere a versão; se mudou, espera o reinício fixo e aí abre o pacote, troca os arquivos e
+// sai (o systemd liga de novo). Só [servidor urgente] / [furar bloqueio] instalam na hora (instalaAgora).
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -102,6 +103,16 @@ export function podeInstalar(agora = Date.now(), urgente = false, furar = false)
   return (semana ? JANELAS.slice(0, 1) : JANELAS).some(([de, ate]) => hora >= de && hora < ate);
 }
 
+// André 2026-11-21 ("só quero que reinicie a cada 4 ou 5 horas que for necessário para dar um reset"): pacote novo não
+// reinicia mais o servidor sozinho, nem dentro da janela. A conferida de 5 em 5 min só anota que há servidor novo
+// esperando; quem instala é o reinício fixo (REINICIO.horarios), que já ia reiniciar mesmo: um reinício só, com o
+// pacote mais novo daquele momento. Antes, cada publicação dentro da janela das 05h–07h reiniciava de novo.
+// [servidor urgente] e [furar bloqueio] continuam instalando na hora (conserto que não pode esperar).
+export function instalaAgora({ agora = Date.now(), doReinicio = false, urgente = false, furar = false } = {}) {
+  if (!doReinicio && !urgente && !furar && process.env.JANELA_LIVRE !== '1') return false;
+  return podeInstalar(agora, urgente, furar);
+}
+
 const BRASILIA_MS = -3 * 3600e3;
 // Próximo reinício fixo (REINICIO.horarios em shared/dados.js, horas de Brasília) depois de agora.
 export function proximoReinicio(agora = Date.now(), horarios = [5, 14]) {
@@ -135,8 +146,10 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
 
   let ocupado = false;
   let esperando = '';
-  // adiantar (ms): o reinício fixo pergunta um pouco antes da janela abrir (04:59 para o das 05h) e instala junto
-  const conferir = async ({ adiantar = 0 } = {}) => {
+  // adiantar (ms): o reinício fixo pergunta um pouco antes da janela abrir (04:59 para o das 05h) e instala junto.
+  // doReinicio: chamado pelo reinício fixo (server/index.js); só ele instala pacote comum (instalaAgora).
+  const conferir = async ({ adiantar = 0, doReinicio = false } = {}) => {
+    if (ocupado && doReinicio) for (let i = 0; ocupado && i < 60; i++) await new Promise((ok) => setTimeout(ok, 500)); // a conferida de 5 min estava no meio
     if (ocupado) return;
     ocupado = true;
     try {
@@ -151,8 +164,8 @@ export function ligarAtualizacaoTrancada(app, pasta, antesDeSair) {
       if (chaves.length && !assinaturaValida(pacote, chaves)) throw new Error(`pacote ${nova} sem assinatura válida (assinado_por=${pacote.assinado_por || 'ninguém'}): não instalo`);
       const emitido = chaves.length ? emitidoAceito(pacote, pasta) : null;
       if (chaves.length && !emitido) throw new Error(`pacote ${nova} mais velho que o último instalado (ou sem data): não instalo`);
-      if (!podeInstalar(Date.now() + adiantar, pacote.urgente === true, pacote.furar_bloqueio === true)) {
-        if (esperando !== nova) console.log(`Servidor novo ${nova} pronto; instala na próxima janela (05h–07h ou 14h–15h de Brasília).`);
+      if (!instalaAgora({ agora: Date.now() + adiantar, doReinicio, urgente: pacote.urgente === true, furar: pacote.furar_bloqueio === true })) {
+        if (esperando !== nova) console.log(`Servidor novo ${nova} pronto; instala no próximo reinício fixo (dentro da janela 05h–07h ou 14h–15h de Brasília).`);
         esperando = nova;
         return;
       }

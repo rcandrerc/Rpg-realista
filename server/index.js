@@ -795,8 +795,8 @@ const naOracle = ligarAtualizacaoTrancada(app, path.dirname(fileURLToPath(import
 
 // Reinício programado (REINICIO em shared/dados.js): só na máquina instalada, FIXO às 05h e 14h de Brasília. Avisa no
 // chat geral, depois a faixa na tela com a contagem, grava todo mundo e sai; o systemd (Restart=always) liga de novo. Com a
-// sala vazia, reinicia sem aviso. Antes, pergunta ao atualizador se há servidor novo esperando a janela: se houver, ele
-// instala e esse já é o reinício (um só). REINICIO_TESTE=N (minutos): reinicia N minutos depois de ligar (teste local).
+// sala vazia, reinicia sem aviso. Antes, pergunta ao atualizador se há servidor novo esperando: se houver, ele instala e
+// esse já é o reinício (um só). Desde 2026-11-21 (André) só este reinício instala pacote comum; publicar não reinicia. REINICIO_TESTE=N (minutos): reinicia N minutos depois de ligar (teste local).
 if (naOracle || process.env.REINICIO_TESTE) {
   const teste = Number(process.env.REINICIO_TESTE) || 0;
   const alvo = teste ? Date.now() + teste * 60e3 : proximoReinicio(Date.now(), REINICIO.horarios);
@@ -811,7 +811,7 @@ if (naOracle || process.env.REINICIO_TESTE) {
     }
     if (falta <= REINICIO.aviso && !avisados.has('fim')) {
       avisados.add('fim');
-      try { await naOracle?.conferir?.({ adiantar: (Math.max(0, falta) + 5) * 1000 }); } catch { /* sem pacote: só reinicia */ }
+      try { await naOracle?.conferir?.({ adiantar: (Math.max(0, falta) + 5) * 1000, doReinicio: true }); } catch { /* sem pacote: só reinicia */ }
       reiniciarComAviso('programado', Math.max(0, Math.round((alvo - Date.now()) / 1000)));
     }
   }, 5000);
