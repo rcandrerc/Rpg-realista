@@ -1785,7 +1785,9 @@ export const PESCA = {
   mar: { quantos: { comum: 8, raro: 4, epico: 2 }, de: 30, ate: 160, margem: 7, fundo: 1.5 },
 };
 // pedra e lenha também na Rosa, para quem quer construir sem minerar tudo (no Quimera a pedra sai das rochas do mapa)
-LOJA.push({ k: 'lenha', preco: 80 }, { k: 'pedra', preco: 80 }); // André 2026-11-17: "uns 80, se não ninguém corta ou cata pedra" (eram 3 e 4)
+// André 2026-11-17: "uns 80, se não ninguém corta ou cata pedra" (eram 3 e 4); 2026-11-21: compra só de emergência, 200-500 ouro
+// conforme o esforço do farm (lenha 200, pedra 300). A venda ao NPC continua 1 (sem exploit).
+LOJA.push({ k: 'lenha', preco: 200 }, { k: 'pedra', preco: 300 });
 // Botão "Organizar" da mochila e do baú (André 2026-11-07): junta as pilhas pela metade e põe em ordem de tipo (esta
 // lista), depois raridade (a melhor primeiro), reforço e nome. Equipamento segue a ordem dos lugares do corpo (LUGARES).
 export const ORGANIZAR = ['equip', 'consumivel', 'tomo', 'ferramenta', 'obra', 'semente', 'material', 'outro'];
@@ -3638,6 +3640,8 @@ export const DUPLAS_GUERRA = [
 // offline (André 2026-11-11, "ganham XP devagar e nunca passam do nível do jogador mais alto do servidor"): ao voltar
 // para o mundo, cada hora fora conta como horasPorDia/24 h jogadas; cada hora jogada dá porHora do XP do próximo nível,
 // dividido por (1 + nível/meio). No máximo maxDias dias.
+// André 2026-11-21: true = Cecília, Dario, Kira, Rufo e Lis caçam, coletam e andam sem a trava da névoa (zonaFechadaEm). Para voltar: false.
+export const NPC_SEM_NEVOA = true;
 export const NPC_VIDA = {
   moradia: [
     { nivel: 1, nome: 'a vila', x: -3.5, z: -7, r: 9 },
