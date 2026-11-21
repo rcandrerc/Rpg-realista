@@ -82,6 +82,26 @@ func _initialize() -> void:
 	await esperar(20)
 	print("depois da escada: y=", m.mov.y, " (convés ", float(m.terreno.agua.nivel) + float(m.transporte.V.navio.solido.conves), ") lado=", (Vector3(m.mov.x, 0, m.mov.z) - Vector3(x, 0, z)).dot(ld))
 	await foto("navio-jogo-4-escada")
+	# a escada da popa (André 2026-11-21): nadando atrás do navio, indo para a frente dele
+	var popa := Vector3(x, 0, z) + fr * (float(m.transporte.V.navio.solido.boca[0][0]) - 1.0)
+	m.mov.por_em(Vector3(popa.x, -2.0, popa.z), true)
+	m.heroi.position = m.mov.posicao()
+	await esperar(30)
+	t = 0
+	while t < 150 and m.mov.y < float(m.terreno.agua.nivel) + 0.5:
+		var cy2: float = m.cam.yaw if "yaw" in m.cam else 0.0
+		var r2 := fr.rotated(Vector3.UP, -cy2)
+		m.hud.mover = Vector2(r2.x, r2.z)
+		await esperar(1)
+		t += 1
+	m.hud.mover = Vector2.ZERO
+	await esperar(20)
+	print("depois da escada da popa: y=", m.mov.y, " frente=", (Vector3(m.mov.x, 0, m.mov.z) - Vector3(x, 0, z)).dot(fr))
+	m.cam.yaw = ry + PI + 0.35
+	m.cam.pitch = 0.3
+	m.cam.dist = 8.0
+	await esperar(40)
+	await foto("navio-jogo-4b-escada-popa")
 	# no leme
 	m.transporte.atualizar({"packs": [], "veic": [["n", eu, x, z, ry, 1, ["perola", "perola", "ervas", "obsid", "brasa", "perola", "ervas", "brasa", "obsid", "perola"], 0, 1]]})
 	m.transporte.evento({"acao": "subiu", "k": "navio", "x": x, "z": z, "ry": ry})
@@ -91,6 +111,22 @@ func _initialize() -> void:
 	m.cam.yaw = ry + PI + 0.5
 	await esperar(90)
 	await foto("navio-jogo-5-no-leme")
+	# zoom out pilotando (André 2026-11-21: "a câmera na distância máx ainda está muito próxima")
+	m.cam.zoom(10.0)
+	print("zoom máximo no leme: ", m.cam.dist)
+	await esperar(60)
+	await foto("navio-jogo-5b-zoom-leme")
+	# o navio travado na mochila, com o Guardar navio
+	var nm: int = m.P.prog.mochila.find(null)
+	m.P.prog.mochila[nm] = {"k": "navio", "n": 1}
+	m.P.prog.navio = {"porao": [], "chao": {"x": x, "z": z, "ry": ry}}
+	m.P.carrinho_no_mundo()
+	m.menu.sel_mochila = nm
+	m.menu.abrir("mochila")
+	await esperar(20)
+	await foto("navio-jogo-5c-mochila")
+	m.menu.fechar()
+	await esperar(5)
 	var pks := []
 	for k in ["perola", "perola", "ervas", "obsid", "brasa", "perola", "ervas", "brasa", "obsid", "perola"]:
 		pks.append({"k": k, "ox": 0, "oz": 0})

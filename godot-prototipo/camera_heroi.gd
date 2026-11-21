@@ -24,6 +24,13 @@ const DIST_MAX := 12.0 # m: zoom mais longe (pinça com dois dedos)
 # faixa do zoom de pinça (André 2026-11-03: estava grande demais; longe pesa no celular). A câmera começa em 5,2 m
 const ZOOM_PERTO := 3.6 # m: o mais perto que a pinça chega (parede e árvore ainda puxam até DIST_MIN)
 const ZOOM_LONGE := 8.0 # m: o mais longe que a pinça chega
+# pilotando o navio (André 2026-11-21: "a câmera na distância máx ainda está muito próxima"): a pinça e o atalho vão
+# até NAVIO_LONGE. Desceu do leme: a câmera volta sozinha para o limite de sempre
+const NAVIO_LONGE := 24.0
+func _no_leme() -> bool:
+	return m != null and m.mov != null and str(m.mov.veiculo.get("k", "")) == "navio"
+func _longe_max() -> float:
+	return NAVIO_LONGE if _no_leme() else ZOOM_LONGE
 const FOV_CORRIDA := 5.0 # graus a mais correndo
 const FOV_DASH := 9.0 # graus a mais no dash
 
@@ -135,7 +142,7 @@ func zoom(fator: float) -> void:
 	if foco_livre != null: # câmera flutuante do modo construção: afasta mais para ver o terreno inteiro
 		dist = clamp(dist * fator, max(DIST_MIN, ZOOM_PERTO), LIVRE_LONGE)
 		return
-	dist = clamp(dist * fator, max(DIST_MIN, ZOOM_PERTO), min(DIST_MAX, ZOOM_LONGE))
+	dist = clamp(dist * fator, max(DIST_MIN, ZOOM_PERTO), _longe_max() if _no_leme() else min(DIST_MAX, ZOOM_LONGE))
 
 # atalho do zoom (André 2026-11-12: "no combate quero afastar a tela ao máximo, rápido, com um toque só"): um toque
 # vai em ~0,3 s para o mais longe da pinça (ZOOM_LONGE); outro toque volta para onde estava. Só mexe na distância
@@ -149,7 +156,7 @@ var _rapido_t := 0.0 # s em que a câmera acompanha a distância nova sem a volt
 func longe() -> bool:
 	if _iso_ativa():
 		return dist_iso >= ISO_LONGE - 0.05
-	return (_dist_alvo if _dist_alvo >= 0.0 else dist) >= ZOOM_LONGE - 0.05
+	return (_dist_alvo if _dist_alvo >= 0.0 else dist) >= _longe_max() - 0.05
 
 func zoom_maximo() -> void:
 	if _conversando or _conv_k > 0.0 or foco_livre != null:
@@ -161,7 +168,7 @@ func zoom_maximo() -> void:
 	var perto_min: float = max(DIST_MIN, ZOOM_PERTO)
 	if not longe():
 		_dist_volta = _dist_alvo if _dist_alvo >= 0.0 else dist
-		_dist_alvo = ZOOM_LONGE
+		_dist_alvo = _longe_max()
 	else: # já está longe: volta (se chegou longe pela pinça, volta para a distância de começo)
 		_dist_alvo = clamp(_dist_volta, perto_min, ZOOM_LONGE)
 		if _dist_alvo >= ZOOM_LONGE - 0.05:
@@ -264,6 +271,10 @@ func atualizar(dt: float, giro: Vector2) -> void:
 		dist = lerp(float(_antes.dist), float(_conv.dist), s)
 		alvo = alvo.lerp(_conv.foco, s)
 		_vel_alvo = Vector3.ZERO
+	# saiu do leme com a câmera mais longe que o limite a pé: volta deslizando para ZOOM_LONGE
+	if _dist_alvo < 0.0 and dist > ZOOM_LONGE + 0.05 and foco_livre == null and not _conversando and _conv_k <= 0.0 and not _no_leme():
+		_dist_alvo = ZOOM_LONGE
+		_rapido_t = 0.6
 	# atalho do zoom: a distância desliza rápida até o alvo
 	if _dist_alvo >= 0.0:
 		dist = lerp(dist, _dist_alvo, 1.0 - exp(-ZOOM_RAPIDO * dt))

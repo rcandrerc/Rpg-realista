@@ -1039,6 +1039,7 @@ func passo_veiculo(dt: float, mx: float, mz: float) -> void:
 	else:
 		var B: Dictionary = V[k]
 		var fundo_min: float = float(B.fundo) * 0.5
+		var ry0 := ry
 		if k == "navio": # mgNvMv: empuxo pelo cosseno do ângulo, acelera 0,9 m/s²
 			var th := 0.0
 			if mag > 0.12:
@@ -1066,7 +1067,19 @@ func passo_veiculo(dt: float, mx: float, mz: float) -> void:
 		if nevoa and nevoa.fechado(nx, nz) and not nevoa.fechado(x, z): # de barco também não entra na névoa
 			nevoa.bateu(nx, nz)
 			L = {}
-		if not L.is_empty() and float(L.fundo) >= fundo_min:
+		var pode: bool = not L.is_empty() and float(L.fundo) >= fundo_min
+		if k == "navio": # André 2026-11-21 ("tá entrando muito na terra"): confere a proa, a popa e os lados, não só o leme
+			var antes := _navio_em_terra(x, z, ry0)
+			if ry != ry0 and _navio_em_terra(x, z, ry) > antes: # a curva jogava a proa na margem: não vira
+				ry = ry0
+				nx = x + sin(ry) * d
+				nz = z + cos(ry) * d
+				L = T.no_lago(nx, nz)
+				if nevoa and nevoa.fechado(nx, nz) and not nevoa.fechado(x, z):
+					L = {}
+			var depois := _navio_em_terra(nx, nz, ry)
+			pode = not L.is_empty() and (depois == 0 or depois < antes)
+		if pode:
 			x = nx
 			z = nz
 		else:
@@ -1085,6 +1098,24 @@ func passo_veiculo(dt: float, mx: float, mz: float) -> void:
 	anim = ""
 var _sem_comb_t := 0.0
 var _aviso_agua_t := 0.0
+
+# quantos pontos do casco do navio estão fora da água funda (0 = todo na água). (x, z) é o leme, V.navio.leme m atrás
+# do meio; a proa fica ~11 m à frente dele e antes só o leme era conferido, então a proa entrava na terra
+const _NAV_PONTOS := [[0.0, 6.0, 0.35], [0.0, 3.5, 0.35], [1.4, 0.0, 0.3], [-1.4, 0.0, 0.3], [1.2, -3.5, 0.3], [-1.2, -3.5, 0.3], [0.0, -6.0, 0.3]]
+func _navio_em_terra(px: float, pz: float, r: float) -> int:
+	var leme: float = float(jogo.P.dados.veiculos.navio.get("leme", 0.0))
+	var fx := sin(r)
+	var fz := cos(r)
+	var cx := px - fx * leme
+	var cz := pz - fz * leme
+	var n := 0
+	for p in _NAV_PONTOS:
+		var qx: float = cx + fx * float(p[1]) + fz * float(p[0])
+		var qz: float = cz + fz * float(p[1]) - fx * float(p[0])
+		var L: Dictionary = T.no_lago(qx, qz)
+		if L.is_empty() or float(L.fundo) < float(p[2]):
+			n += 1
+	return n
 
 # Volante dos veículos (André 2026-11-15: "dando 360 com barco/carrinho o controle buga, muda a direção"). O joystick
 # aponta para onde ir e o veículo vira pelo lado mais curto. Na volta inteira o alvo passa por trás do veículo

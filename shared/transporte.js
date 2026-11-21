@@ -324,10 +324,13 @@ export const Transporte = {
   },
   // ---------- veículos ----------
   // o carrinho está no mundo (no chão ou dirigindo): na mochila ele fica travado (não vende, não joga fora, não troca)
+  // André 2026-11-21: o navio também ("igual ao carrinho na bag"): na água ou no leme, fica travado na mochila
   carrinhoFora(j, it) {
+    if (it?.k === 'navio') return this.navioFora(j);
     if (it && it.k !== 'carrinho') return false;
     return !!(j.prog.carrinho?.chao || j.veiculo === 'carrinho');
   },
+  navioFora(j) { return !!(j.prog.navio?.chao || j.veiculo === 'navio'); },
   // m = { acao: 'colocar'|'subir'|'descer'|'guardar'|'abastecer'|'consertar'|'melhorar', k, x, z, ry }
   veiculo(id, m) {
     const j = this.jogadores.get(id); if (!j || j.morto || j.criando || !m) return;
@@ -337,6 +340,7 @@ export const Transporte = {
     if (m.acao === 'colocar') {
       const k = m.k; if (!V[k] || contar(p.mochila, k) < 1) return;
       if (k === 'carrinho' && this.carrinhoFora(j)) return this.veiculo(id, { acao: 'recolher' }); // o travado na mochila: volta
+      if (k === 'navio' && this.navioFora(j)) return this.veiculo(id, { acao: 'recolher_navio' });
       if (j.veiculo) return aviso('Desça primeiro');
       // sem lugar escolhido: o carrinho vai na frente do herói; barco e navio na água funda mais perto (até 6 m)
       const precisa = k === 'carrinho' ? null : V[k].fundo, q = num(m.x) && num(m.z) ? { x: m.x, z: m.z }
@@ -358,7 +362,7 @@ export const Transporte = {
         if (p.navio?.chao) return aviso('Você já tem um navio na água');
         if (fundoAgua(x, z) < V.navio.fundo) return aviso('Chegue na beira de água funda pra colocar o navio');
         p.navio ||= { porao: [], chao: null }; p.navio.chao = { x: r2(x), z: r2(z), ry: r2(ry) };
-        tirarVeiculo(p, 'navio'); aviso('Navio na água! Toque nele pra carregar, descarregar e zarpar.');
+        aviso('Navio na água! Toque nele pra carregar, descarregar e zarpar. Pra guardar, toque nele na mochila (de qualquer distância).');
       }
       return pronto();
     }
@@ -426,6 +430,24 @@ export const Transporte = {
       c.packs = []; c.chao = null;
       return pronto();
     }
+    // o navio travado na mochila (André 2026-11-21): tocar nele guarda de qualquer distância. No leme, o herói fica na
+    // água onde o navio estava. Os packs do porão vão para a margem mais perto do navio (como o carrinho deixa no chão).
+    if (m.acao === 'recolher_navio') {
+      const n = p.navio; if (!this.navioFora(j)) return;
+      if (contar(p.mochila, 'navio') < 1 && !guardarVeiculo(p, 'navio')) return aviso('Mochila cheia');
+      const meio = j.veiculo === 'navio' ? centroNavio(j) : n.chao;
+      if (j.veiculo === 'navio') {
+        j.veiculo = null; j.y = AGUA.nivel;
+        this.evento({ t: 'veiculo', para: id, acao: 'desceu', k: 'navio', x: r2(j.x), z: r2(j.z), nado: 1 });
+      }
+      if (n.porao.length) {
+        const q = acharPonto({ x: meio.x, z: meio.z, ry: 0 }, (a, b) => fundoAgua(a, b) <= 0.05, 40) || meio;
+        n.porao.forEach((pk, i) => this.packNoChao(pk, q.x + (i % 4 - 1.5) * 1.1, q.z + Math.floor(i / 4) * 0.9));
+      }
+      aviso(n.porao.length ? 'Navio de volta na mochila. Os packs do porão ficaram na margem mais perto dele.' : 'Navio de volta na mochila');
+      n.porao = []; n.chao = null;
+      return pronto();
+    }
     if (m.acao === 'guardar') {
       if (m.k === 'carrinho') {
         const c = p.carrinho; if (!c?.chao || Math.hypot(c.chao.x - j.x, c.chao.z - j.z) > C.perto + 0.5) return aviso('Chegue perto do carrinho');
@@ -435,7 +457,7 @@ export const Transporte = {
         c.packs = []; c.chao = null;
       } else if (m.k === 'navio') {
         const n = p.navio; if (!n?.chao || Math.hypot(n.chao.x - j.x, n.chao.z - j.z) > V.navio.perto + 0.5) return aviso('Chegue perto do navio e toque de novo');
-        if (!guardarVeiculo(p, 'navio')) return aviso('Mochila cheia');
+        if (contar(p.mochila, 'navio') < 1 && !guardarVeiculo(p, 'navio')) return aviso('Mochila cheia');
         n.porao.forEach((pk, i) => this.packNoChao(pk, j.x + (i % 4 - 1.5) * 1.1, j.z + Math.floor(i / 4) * 0.9));
         aviso(n.porao.length ? 'Navio de volta na mochila. Os packs ficaram na margem.' : 'Navio guardado na mochila');
         n.porao = []; n.chao = null;
@@ -550,7 +572,10 @@ export const Transporte = {
   },
   // barquinho que ficou fora da mochila cheia: volta assim que abrir um lugar (chamado a cada gravação)
   voltarBarquinho(j) {
-    const p = j.prog; if (p.barcoFora !== 1 || j.veiculo) return;
+    const p = j.prog;
+    // navio que foi para a água antes de ficar travado na mochila (André 2026-11-21): volta para ela, travado
+    if (this.navioFora(j) && contar(p.mochila, 'navio') < 1 && guardarVeiculo(p, 'navio')) { j.progSujo = true; this.avisarProg(j); }
+    if (p.barcoFora !== 1 || j.veiculo) return;
     if (guardarVeiculo(p, 'barquinho')) { delete p.barcoFora; j.progSujo = true; this.avisarProg(j); this.evento({ t: 'aviso', para: j.id, texto: 'O barquinho voltou para a mochila' }); }
   },
   // por que não pode teleportar / montar agora ('' = pode)

@@ -3607,6 +3607,8 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 		bs.add_child(bp)
 	elif it.k == "carrinho" and lugar == "": # Quimera: coloca no chão; no mundo, o mesmo botão traz de volta de onde estiver
 		bs.add_child(botao_acao("Guardar carrinho" if P.carrinho_no_mundo() else "Colocar no chão", {"acao": "usar", "i": i}))
+	elif it.k == "navio" and lugar == "" and P.navio_no_mundo(): # André 2026-11-21: igual ao carrinho
+		bs.add_child(botao_acao("Guardar navio", {"acao": "usar", "i": i}))
 	elif not P.eh_mat(it) and (it.k == "tomo" or (P.dados.itens.has(it.k) and P.dados.itens[it.k].has("usar"))):
 		bs.add_child(botao_acao("Usar", {"acao": "usar", "i": i}))
 	if P.eh_equip(it) and int(it.get("e", 0)) < P.reforco_max(it):
@@ -3616,7 +3618,7 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 		r1.custom_minimum_size = Vector2(140, 42)
 		bs.add_child(r1)
 	var trancado: bool = bool(it.get("cad", false))
-	if it.k == "carrinho" and P.carrinho_no_mundo():
+	if P.veiculo_no_mundo(it):
 		var nm2 := rotulo("No mundo: travado na mochila. Toque em Guardar pra ele voltar de qualquer distância.", 15, APAGADO)
 		nm2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		info.add_child(nm2)
@@ -3627,7 +3629,7 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 	cad.add_theme_constant_override("icon_max_width", 18)
 	cad.custom_minimum_size = Vector2(130, 42)
 	bs.add_child(cad)
-	if it.k == "carrinho" and P.carrinho_no_mundo():
+	if P.veiculo_no_mundo(it):
 		trancado = true # no mundo: não vende nem joga fora (o servidor também recusa)
 	if i >= 0 and not trancado and m.perto_de_quem_compra():
 		bs.add_child(botao_acao("Vender · %d" % P.preco_venda(it), {"acao": "vender", "i": i}, false))

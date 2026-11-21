@@ -628,10 +628,10 @@ func _materiais_navio() -> void:
 	_mt_cabo.albedo_color = Color(0.16, 0.13, 0.1)
 	_mt_cabo.roughness = 0.9
 	_mt_vidro = StandardMaterial3D.new()
-	_mt_vidro.albedo_color = Color(1.0, 0.78, 0.4)
-	_mt_vidro.emission_enabled = true
-	_mt_vidro.emission = Color(1.0, 0.66, 0.28)
-	_mt_vidro.emission_energy_multiplier = 0.9
+	# André 2026-11-21 ("tira essa luz traseira"): as janelas da popa são vidro escuro, sem luz
+	_mt_vidro.albedo_color = Color(0.1, 0.14, 0.18)
+	_mt_vidro.metallic = 0.3
+	_mt_vidro.roughness = 0.15
 	_mt_mastro = StandardMaterial3D.new() # mastros e paus lisos (o veio triplanar listrava os cilindros)
 	_mt_mastro.albedo_color = Color(0.4, 0.27, 0.17)
 	_mt_mastro.roughness = 0.75
@@ -997,12 +997,7 @@ func modelo_navio() -> Node3D:
 	_cil(roda, 0.08, 0.14, Vector3.ZERO, _mt_ouro, Vector3(PI * 0.5, 0, 0), 10)
 	_caixa(corpo, Vector3(0.34, 0.4, 0.3), lp + Vector3(0, 0.2, 0.75), _mt_madeira) # bitácula
 	_cil(corpo, 0.13, 0.14, lp + Vector3(0, 0.47, 0.75), _mt_ouro, Vector3.ZERO, 12)
-	# lampião na popa (poste e a lanterna acesa)
-	var pl := Vector3(0, float(_nav_secao(-NAV_L + 0.3)[1]), -NAV_L + 0.3)
-	_pau(corpo, pl, pl + Vector3(0, 1.1, -0.15), 0.035, 0.03, _mt_madeira_esc, 6)
-	_caixa(corpo, Vector3(0.2, 0.28, 0.2), pl + Vector3(0, 1.3, -0.18), _mt_vidro)
-	_caixa(corpo, Vector3(0.26, 0.05, 0.26), pl + Vector3(0, 1.46, -0.18), _mt_ouro)
-	_caixa(corpo, Vector3(0.26, 0.04, 0.26), pl + Vector3(0, 1.15, -0.18), _mt_ouro)
+	# André 2026-11-21: "tira essa luz traseira" (o lampião da popa saiu, remoção pedida por ele)
 	# no convés: escotilha do porão (grade), barris, rolos de cabo e malaguetas
 	_caixa(corpo, Vector3(1.3, 0.16, 1.0), D2 + Vector3(0, 0.08, -2.6), _mt_madeira_esc)
 	for i in 5:
@@ -1033,6 +1028,12 @@ func modelo_navio() -> Node3D:
 			_caixa(corpo, Vector3(0.05, 0.04, 0.5), Vector3(topo.x + lado * 0.02 * k, y, zc), _mt_madeira)
 		for dz in [-0.24, 0.24]:
 			_pau(corpo, topo + Vector3(0, 0, dz), Vector3(topo.x + lado * 0.1, NAV_AGUA - 0.1, zc + dz), 0.015, 0.015, _mt_corda, 4)
+	# André 2026-11-21: uma escada igual às dos lados no espelho de popa, entre as duas janelas
+	var tp := Vector3(0, float(_nav_secao(-NAV_L)[1]), -NAV_L - 0.08)
+	for k in 6:
+		_caixa(corpo, Vector3(0.5, 0.04, 0.05), Vector3(0, tp.y - 0.12 - float(k) * 0.24, tp.z - 0.02 * k), _mt_madeira)
+	for dx in [-0.24, 0.24]:
+		_pau(corpo, tp + Vector3(dx, 0, 0), Vector3(dx, NAV_AGUA - 0.1, tp.z - 0.1), 0.015, 0.015, _mt_corda, 4)
 	# os 16 lugares do porão no convés, entre os mastros (André 2026-11-21: "não vi os lugares pra guardar os packs, quero
 	# eles visualmente mostrados"): um estrado de madeira por lugar (4 x 4), com a borda de cabo em volta da área de
 	# carga e as argolas de amarrar. Vazio mostra o estrado; com pack, o caixote fica em cima dele.
@@ -1948,6 +1949,7 @@ func evento(ev: Dictionary) -> void:
 			m.mov.vz = 0.0
 			m.mov.veiculo = {"k": k, "v": 0.0}
 			m.P.dirigindo_carrinho = k == "carrinho"
+			m.P.dirigindo_navio = k == "navio"
 			m.P.carrinho_no_mundo()
 			m.mov.disparada = false
 			comb_local = float(m.P.prog.get("carrinho", {}).get("comb", 0)) if k == "carrinho" else -1.0
@@ -1957,11 +1959,17 @@ func evento(ev: Dictionary) -> void:
 		"desceu":
 			m.mov.veiculo = {}
 			m.P.dirigindo_carrinho = false
+			m.P.dirigindo_navio = false
 			m.P.carrinho_no_mundo()
 			m.mov.x = float(ev.x)
 			m.mov.z = float(ev.z)
 			if int(ev.get("leme", 0)) == 1: # largou o leme no meio da água: fica de pé no convés, atrás da roda
 				m.mov.y = float(m.terreno.agua.nivel) + float(V.navio.solido.conves)
+				m.mov.vy = 0.0
+				comb_local = -1.0
+				return
+			if int(ev.get("nado", 0)) == 1: # guardou o navio pela mochila no meio da água: fica nadando ali
+				m.mov.y = float(m.terreno.agua.nivel) - 1.0
 				m.mov.vy = 0.0
 				comb_local = -1.0
 				return
@@ -2179,6 +2187,12 @@ func _escada_navio() -> void:
 		var dz: float = m.mov.z - float(pt.z)
 		var lx: float = dx * float(pt.c) - dz * float(pt.s)
 		var lz: float = dx * float(pt.s) + dz * float(pt.c)
+		var popa: float = float(S.boca[0][0])
+		if absf(lx) < 0.6 and lz < popa and lz > popa - 1.5: # a escada da popa: nadando para a frente do navio
+			if Vector2(sin(m.mov.ry), cos(m.mov.ry)).dot(Vector2(float(pt.s), float(pt.c))) < 0.3:
+				continue
+			_subir_escada(pt, 0.0, popa + 0.45, deck)
+			return
 		if absf(lz - esc) > 0.7:
 			continue
 		var w := 1.6
@@ -2191,17 +2205,20 @@ func _escada_navio() -> void:
 		var para := Vector2(-signf(lx) * cos(float(pt.a)), signf(lx) * sin(float(pt.a))) # para dentro do navio (mundo)
 		if Vector2(sin(m.mov.ry), cos(m.mov.ry)).dot(para) < 0.3:
 			continue
-		var nlx: float = signf(lx) * (w - 0.55)
-		m.mov.x = float(pt.x) + nlx * float(pt.c) + esc * float(pt.s)
-		m.mov.z = float(pt.z) - nlx * float(pt.s) + esc * float(pt.c)
-		m.mov.y = deck
-		m.mov.vy = 0.0
-		m.mov.chao = true
-		m.mov.mergulho = 0.0
-		m.heroi.position = m.mov.posicao()
-		m.sons.tocar("pano", -6.0)
-		_escada_t = Time.get_ticks_msec() + 800
+		_subir_escada(pt, signf(lx) * (w - 0.55), esc, deck)
 		return
+
+# põe o herói de pé no convés em (lx, lz) do navio pt
+func _subir_escada(pt: Dictionary, nlx: float, nlz: float, deck: float) -> void:
+	m.mov.x = float(pt.x) + nlx * float(pt.c) + nlz * float(pt.s)
+	m.mov.z = float(pt.z) - nlx * float(pt.s) + nlz * float(pt.c)
+	m.mov.y = deck
+	m.mov.vy = 0.0
+	m.mov.chao = true
+	m.mov.mergulho = 0.0
+	m.heroi.position = m.mov.posicao()
+	m.sons.tocar("pano", -6.0)
+	_escada_t = Time.get_ticks_msec() + 800
 
 # Navio sólido (André 2026-11-21: "eu posso subir em cima dele. Outras pessoas podem subir e ir comigo"): as caixas
 # [xmin, xmax, zmin, zmax, topo] no espaço do nó do navio (a água fica em NAV_AGUA), da tabela de shared/dados.js
@@ -2239,7 +2256,10 @@ func caixas_navio(n_packs: int) -> Array:
 	var proa: Array = B[B.size() - 1]
 	var popa: Array = B[0]
 	l.append([-float(proa[1]) - 0.2, float(proa[1]) + 0.2, float(proa[0]), float(proa[0]) + 0.6, alto]) # proa fechada
-	l.append([-float(popa[1]) - 0.2, float(popa[1]) + 0.2, float(popa[0]) - 0.25, float(popa[0]), alto]) # espelho de popa
+	# espelho de popa, com o vão da escada de trás no meio (0,7 m) e o degrau na água
+	l.append([-float(popa[1]) - 0.2, -0.35, float(popa[0]) - 0.25, float(popa[0]), alto])
+	l.append([0.35, float(popa[1]) + 0.2, float(popa[0]) - 0.25, float(popa[0]), alto])
+	l.append([-0.35, 0.35, float(popa[0]) - 0.6, float(popa[0]) - 0.05, NAV_AGUA + 0.2])
 	for zm in [NAV_MASTRO_F, NAV_MASTRO_R]:
 		l.append([-0.2, 0.2, zm - 0.2, zm + 0.2, D + 11.0])
 	l.append([-0.32, 0.32, NAV_LEME.z - 0.3, NAV_LEME.z + 0.2, D + 1.55]) # roda do leme
