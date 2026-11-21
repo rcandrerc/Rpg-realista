@@ -25465,6 +25465,55 @@
     "guilda": "SS"
    }
   },
+  "gladiador": {
+   "nome": "Gladiador",
+   "r": 1,
+   "como": "Venceu 10 partidas na Arena",
+   "txt": "+2% defesa",
+   "b": {
+    "defesa": 0.02
+   },
+   "cond": {
+    "pvpV": 10
+   }
+  },
+  "arena_lamina": {
+   "nome": "Lâmina da Arena",
+   "r": 2,
+   "como": "Comprado na Loja da Arena",
+   "txt": "+3% dano",
+   "b": {
+    "dano": 0.03
+   },
+   "cond": {
+    "loja": "pvp"
+   }
+  },
+  "arena_muralha": {
+   "nome": "Muralha da Arena",
+   "r": 2,
+   "como": "Comprado na Loja da Arena",
+   "txt": "+3% defesa",
+   "b": {
+    "defesa": 0.03
+   },
+   "cond": {
+    "loja": "pvp"
+   }
+  },
+  "arena_lenda": {
+   "nome": "Lenda da Arena",
+   "r": 3,
+   "como": "Comprado na Loja da Arena",
+   "txt": "+3% dano, +3% crítico",
+   "b": {
+    "dano": 0.03,
+    "critico": 0.03
+   },
+   "cond": {
+    "loja": "pvp"
+   }
+  },
   "min10": {
    "nome": "Minerador Experiente",
    "r": 1,

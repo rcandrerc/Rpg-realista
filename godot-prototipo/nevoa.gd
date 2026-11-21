@@ -114,6 +114,8 @@ func _pol(Z: Dictionary) -> PackedVector2Array:
 func fechada_em(x: float, z: float) -> Dictionary:
 	if H.is_empty():
 		return {}
+	if m.arena_pvp and m.arena_pvp.livre_em(x, z): # na Arena PvP a névoa não vale (arena_pvp.gd, shared/arena.js)
+		return {}
 	for Z in H.get("zonas", []):
 		if not Z.get("selo", false) and not liberado(str(Z.id)) and na_zona(Z, x, z):
 			return Z

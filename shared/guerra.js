@@ -30,7 +30,7 @@ export const Guerra = {
   },
   // pode lutar agora (o que passoGuerra deixa em j.guerra)
   podeGuerra(j) {
-    return !j.morto && !j.criando && !(j.cenaAte > this.tempo) && (j.prog?.nivel | 0) > GUERRA.tregua && !this.naCaverna(j) && !this.zonaSeguraGuerra(j.x, j.z);
+    return !j.pvp && !j.morto && !j.criando && !(j.cenaAte > this.tempo) && (j.prog?.nivel | 0) > GUERRA.tregua && !this.naCaverna(j) && !this.zonaSeguraGuerra(j.x, j.z);
   },
   emGuerra(a, b) { return a !== b && a?.tipo === 'jogador' && b?.tipo === 'jogador' && !!a.guerra && !!b.guerra && this.racaDe(a) !== this.racaDe(b); },
   // a cada GUERRA.recheca s: quem pode lutar; o jogador de verdade fica sabendo quando entra ou sai da zona de guerra

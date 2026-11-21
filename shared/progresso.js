@@ -103,7 +103,8 @@ export function titulosNovos(p) {
     if (tem.has(id)) continue;
     const c = t.cond;
     if ((c.abates && (p.abates | 0) >= c.abates) || (c.prof && profNivel(p.prof?.[c.prof]) >= c.nv)
-      || (c.hist && h > HISTORIA.findIndex((M) => M.id === c.hist) && HISTORIA.some((M) => M.id === c.hist))) r.push(id);
+      || (c.hist && h > HISTORIA.findIndex((M) => M.id === c.hist) && HISTORIA.some((M) => M.id === c.hist))
+      || (c.pvpV && (p.pvp?.v | 0) >= c.pvpV)) r.push(id); // Arena PvP (André 2026-11-21): vitórias na arena
   }
   return r;
 }
@@ -607,6 +608,7 @@ export function progressoValido(p) {
   n.tit = titValido(p.tit);
   n.abates = int(p.abates, 0, 1e9, 0);
   { const d = placarDueloValido(p.duelos); if (d) n.duelos = d; } // placar de duelos (André 2026-11-17, shared/duelo.js)
+  { const a = pvpValido(p.pvp); if (a) n.pvp = a; } // Arena PvP (André 2026-11-21, shared/arena.js): Insígnias e placar
   if (typeof p.devPag === 'string' && p.devPag.length < 20) n.devPag = p.devPag; // páginas de teste já devolvidas (CONTA_TESTE)
   return n;
 }
@@ -625,4 +627,12 @@ export function placarDueloValido(o) {
   const n = (v) => (Number.isInteger(v) && v >= 0 && v <= 1e7 ? v : 0);
   const r = { v: n(o.v), d: n(o.d) };
   return r.v || r.d ? r : null;
+}
+
+// Arena PvP vinda da conta (prog.pvp, shared/arena.js): Insígnias (pts), vitórias, derrotas, empates, abates e quedas
+export function pvpValido(o) {
+  if (!o || typeof o !== 'object') return null;
+  const n = (v) => (Number.isInteger(v) && v >= 0 && v <= 1e9 ? v : 0);
+  const r = { pts: n(o.pts), v: n(o.v), d: n(o.d), e: n(o.e), k: n(o.k), m: n(o.m) };
+  return Object.values(r).some((v) => v) ? r : null;
 }

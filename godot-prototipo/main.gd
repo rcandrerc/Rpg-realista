@@ -51,6 +51,7 @@ const Conversa = preload("res://conversa.gd")
 const MissaoFala = preload("res://missao_fala.gd") # a fala da missão numa janela só dela (André 2026-11-18)
 const Troca = preload("res://troca.gd")
 const Duelo = preload("res://duelo.gd") # duelo (André 2026-11-17, shared/duelo.js)
+const ArenaPvp = preload("res://arena_pvp.gd") # Arena PvP 3x3 Geada x Chama (André 2026-11-21, shared/arena.js)
 const AlvoQuadro = preload("res://alvo_quadro.gd") # quadro do alvo (André 2026-11-17, como no Quimera)
 const LeilaoUi = preload("res://leilao_ui.gd") # Casa do Comércio: o leilão do Otávio no Rio Claro (história v2, Entrega 3)
 const Reforco = preload("res://reforco.gd")
@@ -163,6 +164,7 @@ var conversa # conversa.gd: botão Falar e janela do NPC (tocar no NPC vai até 
 var missao_fala # missao_fala.gd: o que o NPC conta da missão, fora da janela dele
 var troca # troca.gd: troca entre jogadores com cadeado (tocar noutro jogador, só online)
 var duelo # duelo.gd: duelo entre jogadores e com a Cecília/Dario (botão no cartão da troca)
+var arena_pvp # arena_pvp.gd: Arena PvP 3x3 Geada x Chama (botão PvP do menu do topo)
 var alvo_atual = null # quem a marca no chão aponta (monstro, chefe ou o outro do duelo)
 var alvo_quadro # alvo_quadro.gd: nome, nível e vida do alvo, à esquerda
 var leilao # leilao_ui.gd: a janela da Casa do Comércio (só online)
@@ -455,6 +457,8 @@ func _ready() -> void:
 	add_child(troca)
 	duelo = Duelo.new(self)
 	add_child(duelo)
+	arena_pvp = ArenaPvp.new(self)
+	add_child(arena_pvp)
 	alvo_quadro = AlvoQuadro.new(self)
 	add_child(alvo_quadro)
 	leilao = LeilaoUi.new(self)
@@ -2375,6 +2379,10 @@ func mais_perto(pos: Vector3, max_d: float):
 	var o = duelo.alvo() if duelo else null
 	if o != null and o.no.position.distance_to(pos) < md:
 		melhor = o
+		md = o.no.position.distance_to(pos)
+	var ar = arena_pvp.alvo(pos, md) if arena_pvp else null # Arena PvP (arena_pvp.gd): o mais perto do outro time
+	if ar != null:
+		melhor = ar
 	return melhor
 
 # hab: a skill que acertou (crítico pela Destreza e efeitos: atordoa, congela, lento, vulnerável), como Simulacao.ferir
