@@ -9,6 +9,8 @@ root, saiu (remoção aprovada pelo Presidente em 2026-11-19); numa máquina ant
 Ou seja: depois de instalada, todo merge na `main` chega no servidor sem mexer na máquina. Desde 2026-11-21 (André) o
 pacote novo **não reinicia** o servidor: ele espera e instala no próximo reinício fixo (05h ou 14h de Brasília), um
 reinício só, com o pacote mais novo daquele momento. Só `[servidor urgente]` e `[furar bloqueio]` instalam na hora.
+Para o servidor pegar a main agora (pedido do André): rode o pages.yml à mão com **Servidor instala agora**
+(`servidor_agora`), ou ponha `[servidor urgente]` no título do PR (publica na hora, mesmo com `shared/` mudado).
 
 ## Código do servidor trancado (André 2026-11-03)
 

@@ -14,6 +14,8 @@ const PAGES = 'https://rcandrerc.github.io/Rpg-realista/';
 export function decide({ evento, forcar, mensagem = '', mudou, agora = Date.now() }) {
   if (forcar) return { publicar: true, motivo: 'publicar agora (pedido à mão)' };
   if (mensagem.includes('[furar bloqueio]')) return { publicar: true, motivo: '[furar bloqueio]' };
+  // André 2026-11-21: conserto de servidor pedido "agora" não espera 04:40/13:40; o pacote sai urgente e instala na hora
+  if (mensagem.includes('[servidor urgente]')) return { publicar: true, motivo: '[servidor urgente]' };
   const shared = mudou === null || mudou.some((f) => f.startsWith('shared/'));
   // o agendado só existe para soltar o que esperava (shared/); sem isso não republica o site à toa (~690 MB)
   if (!shared && evento === 'schedule') return { publicar: false, motivo: 'agendado sem nada esperando' };
