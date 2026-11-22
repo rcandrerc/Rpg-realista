@@ -591,9 +591,24 @@ export const Amiga = {
   // vai até o ponto (estrada e lobo de longe, como quando vem até o dono); true = chegou
   irLongeAmiga(j, x, z, dt) {
     const d = Math.hypot(x - j.x, z - j.z);
+    if (this.marAmiga(j, x, z, dt)) return false;
     if (this.longeAmiga(j, { x, z, solo: true, montado: null }, d, dt)) return false;
     if (d > 2) { j.montado = null; this.irDireto(j, x, z, d > 5); return false; }
     this.pararAmiga(j); j.montado = null; return true;
+  },
+  // outra terra sozinho (André 2026-11-22: "quando chegar a hora eles vão pra ilha do meio e outro continente?"): o campo
+  // do nível (ou a vila, na volta) fica do outro lado do mar e ele tem o barquinho: vai reto até lá, entra no barco na
+  // beira (barcoAmiga), rema e desce na margem. true = cuidou do passo
+  marAmiga(j, x, z, dt) {
+    const tj = terraId(j.x, j.z), tx = terraId(x, z);
+    const remando = j.veiculo === 'barquinho';
+    if (!remando && !(tx > 0 && tj !== tx && contar(j.prog.mochila, 'barquinho') > 0)) return false;
+    if (remando && tx > 0 && tj === tx && Math.hypot(x - j.x, z - j.z) < 2) return false;
+    const ia = j.ia; ia.viagem = null; j.montado = null;
+    ia.outraTerra = !remando; // na terra: procura a água; remando: desce na primeira margem que der (a do outro lado)
+    this.barcoAmiga(j, { x, z, y: this.terreno.altura(x, z) }, dt);
+    this.irDireto(j, x, z, true);
+    return true;
   },
   // A rotina sozinho: escolher -> ir ao campo -> caçar -> voltar para a vila -> vender/consertar/poção -> descansar.
   // De noite fica na vila. Mochila cheia, sem poção ou fugindo: volta. Quem tem casa (Cecília, Dario) volta para ela.
@@ -638,7 +653,8 @@ export const Amiga = {
     if (av.coleta && (av.fase === 'ir' || av.fase === 'cacar')) return this.coletaSozinhoAmiga(j, av, noite, livres, voltar, dt);
     if (av.fase === 'ir' || av.fase === 'cacar') {
       const c = av.c;
-      if (ia.viagem?.bloqueio) { (av.fora ||= new Set()).add(c.id); ia.viagem = null; av.fase = 'escolher'; return; } // outra terra: outro campo
+      // outra terra: sem barquinho, faz um se tiver o material (e vai de barco); senão, outro campo
+      if (ia.viagem?.bloqueio) { if (!av.coleta && contar(j.prog.mochila, 'barquinho') < 1) this.barcoPedidoAmiga(j); if (contar(j.prog.mochila, 'barquinho') < 1) (av.fora ||= new Set()).add(c.id); ia.viagem = null; if (!contar(j.prog.mochila, 'barquinho')) av.fase = 'escolher'; return; }
       if (noite || livres < A.mochilaLivre || t >= av.ate || this.grindAcabouAmiga(j)) return voltar();
       if (av.fase === 'cacar' && dt > 0) { this.grindHojeAmiga(j); const m0 = Math.floor(j.grind.seg / 60); j.grind.seg += dt; if (Math.floor(j.grind.seg / 60) !== m0) this.guardarAmiga(); } // conta o grind sozinho (grava a cada minuto)
       const alvo = this.alvoSozinhoAmiga(j, c);
