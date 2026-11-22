@@ -106,7 +106,7 @@ ok(s2.lotes.get(L1.def.id)?.def.baseK === B.k && s2.lotes.get(L1.def.id).taxa ==
 s.passoClasNpc(); s.passoBasesNpc();
 const bg = s.basesCla.ngeada, bc = s.basesCla.nchama;
 ok(bg && territorioDe(bg.x, bg.z) === 'geada' && bc && territorioDe(bc.x, bc.z) === 'chama', 'clãs bot fundam a base no território da raça');
-ok(Object.values(s.basesCla).every((o) => Object.values(s.basesCla).every((q) => q === o || Math.hypot(o.x - q.x, o.z - q.z) >= CLA.base.distMin)), 'todas as bases a pelo menos 170 m umas das outras');
+ok(Object.values(s.basesCla).every((o) => Object.values(s.basesCla).every((q) => q === o || Math.hypot(o.x - q.x, o.z - q.z) >= CLA.base.distMin)), 'todas as bases a pelo menos a distância mínima umas das outras');
 ok(Object.values(bg.donos).length >= Math.min(bg.nv - 1, 3), 'os membros do clã bot ganham os lotes');
 
 // casa antiga devolvida (André 2026-11-22: "Tudo pode remover as casas")
