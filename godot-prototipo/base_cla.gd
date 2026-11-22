@@ -214,3 +214,157 @@ func _nome(txt: String, p: Vector3, cor: Color, tam: int) -> Label3D:
 	l.no_depth_test = false
 	l.visibility_range_end = VE_NOME if tam < 60 else 160.0
 	return l
+
+# ---------- escolher o lugar da base (André 2026-11-22: "a gente sai do menu e pode escolher exatamente onde a gente
+# quer posicionar") ----------
+# "Escolher o lugar da base" no painel do Clã fecha o menu e liga a prévia: o contorno da base no Nv 6 (o centro e os 6
+# lotes, o tamanho máximo, que é o que as regras conferem) anda junto com o herói, verde onde pode e vermelho onde não
+# pode (o servidor confere com as mesmas regras de fundar: shared/base.js verLugarBase). Embaixo, o motivo e os botões
+# "Fundar aqui" e "Cancelar".
+var posicionando := false
+var _prev: MultiMeshInstance3D
+var _prev_mat: StandardMaterial3D
+var _ui: CanvasLayer
+var _ui_txt: Label
+var _ui_ok: Button
+var _ver_t := 0.0
+var _ver_pos := Vector2(INF, INF)
+var _ver_ok := false
+var _ver_resp := Vector2(INF, INF)
+
+func comecar_escolha() -> void:
+	posicionando = true
+	_ver_pos = Vector2(INF, INF)
+	_ver_resp = Vector2(INF, INF)
+	_ver_ok = false
+	if _prev == null:
+		_prev = MultiMeshInstance3D.new()
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		var bx := BoxMesh.new()
+		bx.size = Vector3(2.05, 0.12, 0.35)
+		mm.mesh = bx
+		_prev.multimesh = mm
+		_prev_mat = StandardMaterial3D.new()
+		_prev_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_prev_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_prev.material_override = _prev_mat
+		_prev.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(_prev)
+	_prev.visible = true
+	if _ui == null:
+		_ui = CanvasLayer.new()
+		_ui.layer = 20
+		add_child(_ui)
+		var cx := PanelContainer.new()
+		cx.anchor_left = 0.5
+		cx.anchor_right = 0.5
+		cx.offset_left = -330
+		cx.offset_right = 330
+		cx.offset_top = 70
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.08, 0.06, 0.04, 0.85)
+		sb.set_corner_radius_all(12)
+		sb.set_content_margin_all(10)
+		cx.add_theme_stylebox_override("panel", sb)
+		_ui.add_child(cx)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 8)
+		cx.add_child(v)
+		_ui_txt = Label.new()
+		_ui_txt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_ui_txt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_ui_txt.add_theme_font_size_override("font_size", 18)
+		v.add_child(_ui_txt)
+		var h := HBoxContainer.new()
+		h.alignment = BoxContainer.ALIGNMENT_CENTER
+		h.add_theme_constant_override("separation", 14)
+		v.add_child(h)
+		_ui_ok = _botao("Fundar aqui", func(): m.rede("cla", {"acao": "base"}))
+		h.add_child(_ui_ok)
+		h.add_child(_botao("Cancelar", parar_escolha))
+	_ui.visible = true
+	_mostrar("Ande até onde quer a base. O contorno mostra o tamanho máximo (Nv 6).", Color(1, 0.95, 0.8), false)
+
+func _botao(t: String, fn: Callable) -> Button:
+	var b := Button.new()
+	b.text = Idioma.frase(t)
+	b.custom_minimum_size = Vector2(180, 54)
+	b.add_theme_font_size_override("font_size", 20)
+	b.pressed.connect(fn)
+	return b
+
+func parar_escolha() -> void:
+	posicionando = false
+	if _prev != null:
+		_prev.visible = false
+	if _ui != null:
+		_ui.visible = false
+
+func _mostrar(t: String, cor: Color, pode: bool) -> void:
+	_ui_txt.text = Idioma.frase(t)
+	_ui_txt.add_theme_color_override("font_color", cor)
+	_ui_ok.disabled = not pode
+
+# resposta do servidor (evento "baseVer")
+func ver_resposta(ev: Dictionary) -> void:
+	if not posicionando:
+		return
+	_ver_resp = Vector2(float(ev.get("x", 0)), float(ev.get("z", 0)))
+	_ver_ok = bool(ev.get("ok", false))
+	if _ver_ok:
+		_mostrar("Pode fundar aqui!", Color(0.55, 1.0, 0.6), true)
+	else:
+		_mostrar(str(ev.get("motivo", "Aqui não pode")), Color(1.0, 0.55, 0.45), false)
+	_cor_prev()
+
+func _cor_prev() -> void:
+	if _prev_mat == null:
+		return
+	var certo := _ver_resp.distance_to(_ver_pos) < 0.6
+	_prev_mat.albedo_color = Color(0.25, 1.0, 0.4, 0.85) if certo and _ver_ok else (Color(1.0, 0.3, 0.25, 0.85) if certo else Color(1.0, 0.9, 0.5, 0.7))
+
+func _process(dt: float) -> void:
+	if not posicionando:
+		return
+	if not meu.is_empty() or m.heroi == null:
+		parar_escolha()
+		return
+	var p := Vector2(roundf(m.heroi.position.x), roundf(m.heroi.position.z))
+	if p != _ver_pos:
+		_ver_pos = p
+		_desenhar_prev(p)
+		_cor_prev()
+		if _ui_ok:
+			_ui_ok.disabled = true
+	_ver_t -= dt
+	if _ver_t <= 0.0 and _ver_resp.distance_to(_ver_pos) > 0.6:
+		_ver_t = 0.5
+		m.rede("cla", {"acao": "baseVer"})
+
+# o contorno: o quadrado do centro no Nv 6 e os 6 lotes (as mesmas medidas de shared/base.js retangulosBase), em pedaços
+# de 2 m que acompanham o chão
+func _desenhar_prev(c: Vector2) -> void:
+	var D := m.mundo.get("claBase", {}) as Dictionary
+	var hc := float(D.get("centroMax", 34)) / 2.0
+	var hl := float(D.get("lote", 10)) / 2.0
+	var lugares: Array = D.get("lugares", [[26, 0], [-26, 0], [0, -26], [0, 26], [26, -26], [-26, 26]])
+	var rets: Array = [Rect2(c.x - hc, c.y - hc, hc * 2, hc * 2)]
+	for l in lugares:
+		rets.append(Rect2(c.x + float(l[0]) - hl, c.y + float(l[1]) - hl, hl * 2, hl * 2))
+	var ts: Array = []
+	for r in rets:
+		var cantos := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]
+		for i in 4:
+			var a: Vector2 = cantos[i]
+			var b: Vector2 = cantos[(i + 1) % 4]
+			var n := maxi(1, int(ceilf(a.distance_to(b) / 2.0)))
+			var ang := atan2(b.y - a.y, b.x - a.x)
+			for k in n:
+				var q := a.lerp(b, (k + 0.5) / n)
+				var t := Transform3D(Basis(Vector3.UP, -ang), Vector3(q.x, _chao(q.x, q.y) + 0.12, q.y))
+				ts.append(t)
+	var mm := _prev.multimesh
+	mm.instance_count = ts.size()
+	for i in ts.size():
+		mm.set_instance_transform(i, ts[i])

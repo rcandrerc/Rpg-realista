@@ -275,6 +275,13 @@ export const Base = {
     this.avisarBases();
     this.avisarProg(j);
   },
+  // a prévia (modo de escolher o lugar no app): pode fundar onde o líder está agora? (o mesmo motivoBase de fundarBase)
+  verLugarBase(j) {
+    if (!j.prog.cla) return;
+    const x = Math.round(j.x), z = Math.round(j.z), k = this.chaveBase(j);
+    const motivo = this.basesCla[k] ? 'O clã já tem base' : motivoBase(x, z, this.racaDe(j), Object.values(this.basesCla).filter((B) => B.k !== k));
+    this.evento({ t: 'baseVer', para: j.id, x, z, ok: !motivo, motivo: motivo || '' });
+  },
   // cria o lote i da base para a conta (só se ela ainda não tem terreno: um terreno por pessoa)
   loteDaBase(B, i, conta, nome) {
     if (this.loteDaConta(conta)) return null;

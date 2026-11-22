@@ -171,3 +171,18 @@ ok(Object.values(bg.donos).length >= Math.min(bg.nv - 1, 3), 'os membros do clã
   ok(!Lc || Lc.def.baseK === bc5.k, 'a Cecília só tem casa no lote dela da base');
   ok([...s5.lotes.values()].every((L) => !L.dono || L.def.baseK), 'nenhuma casa fora das bases');
 }
+
+// a prévia de escolher o lugar (André 2026-11-22: "pode escolher exatamente onde a gente quer posicionar")
+{
+  const s6 = new Simulacao(MAPA_CLAREIRA);
+  const d = s6.adicionarJogador('D', 'Davi', undefined, { conta: 6 }); d.criando = false; d.ciente = true;
+  s6.cla('D', { acao: 'fundar', nome: 'Previa' });
+  const T = TOTENS.lista[0]; d.x = T.x + 3; d.z = T.z; s6.eventos = [];
+  s6.cla('D', { acao: 'baseVer' });
+  let v = s6.eventos.find((e) => e.t === 'baseVer');
+  ok(v && !v.ok && /totem/.test(v.motivo) && !s6.baseDe(d), 'a prévia diz que perto do totem não pode e não funda');
+  const p = acharLugarBase(-6, 1, 'chama', []); d.x = p.x; d.z = p.z; s6.eventos = [];
+  s6.cla('D', { acao: 'baseVer' });
+  v = s6.eventos.find((e) => e.t === 'baseVer');
+  ok(v?.ok && v.x === p.x && !s6.baseDe(d), 'a prévia mostra verde onde pode, sem fundar');
+}

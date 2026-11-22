@@ -1154,6 +1154,9 @@ func evento(ev: Dictionary) -> void:
 				if m.lentidao: # terreno de alguém mudou e foi refeito aqui: vai para o registro das travadas
 					m.lentidao.ev("lote", t0)
 			return
+		"baseVer": # a prévia de escolher o lugar da base: pode ou não aqui (shared/base.js verLugarBase)
+			if m.base_cla:
+				m.base_cla.ver_resposta(ev)
 		"bases": # bases dos clãs (shared/base.js): todas, já desenhadas
 			if m.base_cla:
 				m.base_cla.do_servidor(ev)

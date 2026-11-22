@@ -175,6 +175,7 @@ export const Cla = {
       return this.avisarProg(j);
     }
     if (m.acao === 'base') return this.fundarBase(j, aviso); // funda a base do clã onde o líder está (shared/base.js)
+    if (m.acao === 'baseVer') return this.verLugarBase(j); // a prévia da base (André 2026-11-22: "pode escolher exatamente onde")
     if (m.acao === 'ver') return this.avisarProg(j);
   },
   // ---------- nível do clã (André 2026-11-22) ----------

@@ -1745,6 +1745,12 @@ func montar_diarias() -> void:
 var _cla_nome: LineEdit
 # Base do clã (André 2026-11-22, shared/base.js): sem base, o botão de fundar onde estou e a tabela dos níveis; com
 # base, onde fica, o nível, a taxa da semana (sai do cofre) e de quem é cada lote
+# fecha o menu e liga a prévia da base (base_cla.gd comecar_escolha)
+func _escolher_base() -> void:
+	fechar()
+	if m.base_cla:
+		m.base_cla.comecar_escolha()
+
 func _base_cla(C: Dictionary) -> void:
 	var cs := PanelContainer.new()
 	cs.add_theme_stylebox_override("panel", caixa(FUNDO2, OURO.darkened(0.35), 1, 10))
@@ -1770,8 +1776,8 @@ func _base_cla(C: Dictionary) -> void:
 	else:
 		vs.add_child(rotulo("Base do clã", 16, OURO_CLARO))
 		vs.add_child(rotulo("Vá até o lugar e funde a base onde você está. No meio fica o salão com o Baú do Clã; em volta, o seu lote e um lote para cada recruta. Sem aluguel: a taxa sai do cofre toda semana.", 12, APAGADO))
-		vs.add_child(rotulo("Não pode: perto de totem, vila, estrada, rio, cais, campo de caça, arena ou NPC; na água; em barranco; a menos de 170 m de outra base. Nas terras do começo, só no território da sua raça (Ilha do Meio e Aurora são livres).", 11, APAGADO))
-		var bf := botao("Fundar a base aqui", func(): m.rede("cla", {"acao": "base"}), 15, true)
+		vs.add_child(rotulo("Não pode: a menos de 20 m de totem e de NPC de missão, 10 m de vila, masmorra, arena e cais, 6 m de rio, 3 m de estrada e 100 m de outra base; na água; em chão muito torto. Nas terras do começo, só no território da sua raça (Ilha do Meio e Aurora são livres).", 11, APAGADO))
+		var bf := botao("Escolher o lugar da base", _escolher_base, 15, true)
 		bf.custom_minimum_size = Vector2(0, 44)
 		vs.add_child(bf)
 	var tab := []
@@ -1821,8 +1827,8 @@ func montar_cla() -> void:
 	conteudo.add_child(cab)
 	# sem base ainda (André 2026-11-22: "como é que eu faço para escolher o terreno?"): o botão logo no topo
 	if not (C.get("base") is Dictionary):
-		conteudo.add_child(rotulo("Seu clã ainda não tem base. Vá até o lugar que quiser (no território da sua raça, longe de vila, estrada, rio e de outras bases) e toque abaixo:", 13, OURO_CLARO))
-		var fb := botao("Fundar a base aqui", func(): m.rede("cla", {"acao": "base"}), 17, true)
+		conteudo.add_child(rotulo("Seu clã ainda não tem base. Toque abaixo, ande até o lugar e veja o contorno: verde pode, vermelho não.", 13, OURO_CLARO))
+		var fb := botao("Escolher o lugar da base", _escolher_base, 17, true)
 		fb.custom_minimum_size = Vector2(0, 50)
 		conteudo.add_child(fb)
 	# cofre: depositar e sacar
