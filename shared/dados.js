@@ -3324,7 +3324,14 @@ export const CLAS_NPC_REGRAS = { entre: 6, primeiro: 0.5, reserva: 300 }; // h r
 export const vagasClaNpc = (C) => Math.max(0, CLA.max - C.membros.filter((id) => id !== C.lider).length);
 export const CLAS_NPC = [
   { id: 'geada', n: 'Lobos da Geada', raca: 'geada', lider: 'gael', membros: ['kira', 'rufo', 'lis', 'gael'], falas: { f: 'kira', m: 'rufo' } },
+  // André 2026-11-22 ("eles vão ser clã, mesmo esquema... não somos aliados ainda, somos neutros"): a Chama bot, líder Dario
+  { id: 'chama', n: 'Guarda da Chama', raca: 'chama', lider: 'dario', membros: ['cecilia', 'dario', 'lia'], falas: { f: 'lia', m: 'dario' } },
 ];
+// Soldados, não amigos (André 2026-11-22: "remover esse esquema de amizade... eles parem de ficar mandando msg pra mim e só
+// me respondam o que é necessário; se eu puxar assunto eles desenvolvem"). Ligado: os bots não puxam assunto, não chamam, não
+// reagem sozinhos no chat; obedecem a quem é da raça deles (sem sorteio de vontade nem amizade); a IA responde curto.
+// O código da amizade fica (nada some): false volta tudo como era.
+export const NPC_SOLDADO = { ligado: true }; // os testes da amizade antiga desligam (ferramentas/testes/_amizade-antiga.mjs)
 export function defRecrutaNpc(m, C) {
   const f = m.g !== 'm', h = [...m.id].reduce((x, c) => (x * 31 + c.charCodeAt(0)) >>> 0, 7), r = (k) => ((h >> k) % 100) / 100;
   return mesclarAmigo(f ? AMIGA : DARIO, {

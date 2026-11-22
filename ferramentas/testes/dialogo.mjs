@@ -2,6 +2,7 @@
 // Uso: node ferramentas/testes/dialogo.mjs
 import fs from 'fs';
 import { Simulacao, MAPA_CLAREIRA, DIALOGO, REACOES } from '../../shared/index.js';
+import './_amizade-antiga.mjs'; // o jeito antigo (amizade e papo), sem o soldado de 2026-11-22
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA), j = s.adicionarJogador('andre', 'André', 'ruiva', { conta: 7 });
 for (const x of s.amigosIa) x.amigaEntrar?.('andre', true); s.passo(0.05);

@@ -2,6 +2,7 @@
 // não que ele aparecesse... se eles não quiserem, eles vivem a vida deles e eu chamo quando precisa".
 // Uso: node ferramentas/testes/amizade-conquistada.mjs
 import { Simulacao, MAPA_CLAREIRA, AMIGA, DARIO } from '../../shared/index.js';
+import './_amizade-antiga.mjs'; // o jeito antigo (amizade e papo), sem o soldado de 2026-11-22
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 const d = s.adicionarJogador('andre', 'André', 'ruiva', { conta: 7 });
