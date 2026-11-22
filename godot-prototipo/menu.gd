@@ -48,6 +48,7 @@ const MEDALHAO := 52.0
 const ABAS_PERSONAGEM := ["status", "habilidades", "profissoes", "titulos", "aparencia"]
 # André 2026-11-11: Missões saiu do menu do personagem e ganhou ícone no menu do topo (abre só ela)
 const ABAS_MISSOES := ["missoes", "diarias", "guilda"] # História e Diárias (André 2026-11-16); Guilda (2026-11-18)
+const ABAS_CLA := ["cla"] # clã e recrutas (André 2026-11-22), janela própria
 const ABAS_BOLSA := ["mochila", "criar", "recipedia", "loja"] # Recipedia: todas as receitas para consultar (André 2026-11-21)
 # submenus da aba Criar
 # "aqui" (André 2026-11-05: "unificar os menus"): o botão de ação da mesa abre esta mesma aba Criar no submenu do que
@@ -819,7 +820,7 @@ func montar_direita() -> Control:
 	col.add_theme_constant_override("separation", 8)
 	var abas := HBoxContainer.new()
 	abas.add_theme_constant_override("separation", 6)
-	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["titulos", "Títulos"], ["missoes", "História"], ["diarias", "Diárias"], ["guilda", "Guilda"], ["aparencia", "Aparência"],
+	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["titulos", "Títulos"], ["missoes", "História"], ["diarias", "Diárias"], ["guilda", "Guilda"], ["cla", "Clã"], ["aparencia", "Aparência"],
 			["mochila", "Mochila"], ["criar", "Criar"], ["recipedia", "Recipedia"], ["loja", "Loja"]]:
 		var b := botao(a[1], func(): trocar_aba(a[0]), 16)
 		b.custom_minimum_size = Vector2(126, 40)
@@ -923,7 +924,9 @@ func abrir(qual := "", sub := "") -> void:
 			_viu_diarias.call_deferred()
 		if qual == "guilda" and m.on(): # o "perto do mural" e os contratos do dia vêm do servidor na hora
 			m.rede("guilda", {"acao": "ver"})
-	elif aba in ABAS_BOLSA or aba in ABAS_MISSOES: # barra de vida: só o menu do personagem
+		if qual == "cla" and m.on(): # o "perto do Recrutador" e o cofre vêm do servidor na hora
+			m.rede("cla", {"acao": "ver"})
+	elif aba in ABAS_BOLSA or aba in ABAS_MISSOES or aba in ABAS_CLA: # barra de vida: só o menu do personagem
 		aba = "status"
 	sel_mochila = -1
 	sel_equip = ""
@@ -1040,7 +1043,7 @@ func atualizar() -> void:
 	mostrar_painel(null)
 	if aba == "loja" and not m.perto_da_loja():
 		aba = "mochila"
-	var grupo: Array = ABAS_BOLSA if aba in ABAS_BOLSA else (ABAS_MISSOES if aba in ABAS_MISSOES else ABAS_PERSONAGEM)
+	var grupo: Array = ABAS_BOLSA if aba in ABAS_BOLSA else (ABAS_MISSOES if aba in ABAS_MISSOES else (ABAS_CLA if aba in ABAS_CLA else ABAS_PERSONAGEM))
 	for k in botoes_aba:
 		_estilo_se_mudou(botoes_aba[k], k == aba)
 		botoes_aba[k].visible = k in grupo
@@ -1082,6 +1085,8 @@ func atualizar() -> void:
 		montar_diarias()
 	elif aba == "guilda":
 		montar_guilda()
+	elif aba == "cla":
+		montar_cla()
 	elif aba == "titulos":
 		montar_titulos()
 	elif aba == "profissoes":
@@ -1735,6 +1740,94 @@ func montar_diarias() -> void:
 	conteudo.add_child(pb)
 
 # o servidor respondeu o "Ir" de uma diária (evento diaria_ir): fecha o menu e vai pela estrada, como o Ir da missão
+# Clã e recrutas (André 2026-11-22; regras em shared/cla.js): sem clã, o nome para fundar; com clã, o cofre, a semana,
+# os membros (dispensar), os recursos nas bolsas dos recrutas, os 3 níveis do Recrutador e os últimos gastos.
+var _cla_nome: LineEdit
+func montar_cla() -> void:
+	var C: Dictionary = m.P.cla
+	if not m.on():
+		conteudo.add_child(rotulo("O clã só funciona online.", 14, APAGADO))
+		return
+	if C.is_empty():
+		conteudo.add_child(rotulo("Carregando o clã...", 14, APAGADO))
+		return
+	if int(C.get("sem", 0)) == 1:
+		conteudo.add_child(rotulo("Funde o seu clã", 20, OURO_CLARO))
+		conteudo.add_child(rotulo("Você será o líder. Depois, fale com o Recrutador (Clareira ou Juncal) para contratar soldados.", 14, TEXTO))
+		_cla_nome = LineEdit.new()
+		_cla_nome.placeholder_text = Idioma.frase("Nome do clã")
+		_cla_nome.max_length = 20
+		_cla_nome.custom_minimum_size = Vector2(0, 48)
+		_cla_nome.add_theme_font_size_override("font_size", 18)
+		conteudo.add_child(_cla_nome)
+		var bf := botao("Fundar clã", func(): m.rede("cla", {"acao": "fundar", "nome": _cla_nome.text.strip_edges()}), 17, true)
+		bf.custom_minimum_size = Vector2(0, 50)
+		conteudo.add_child(bf)
+		return
+	var cab := PanelContainer.new()
+	cab.add_theme_stylebox_override("panel", caixa(FUNDO2, OURO, 2, RAIO_JANELA))
+	var vc := VBoxContainer.new()
+	vc.add_theme_constant_override("separation", 4)
+	cab.add_child(vc)
+	vc.add_child(rotulo("Clã %s" % str(C.get("n", "")), 20, OURO_CLARO))
+	vc.add_child(rotulo("Líder: você · %d/%d recrutas" % [(C.get("m", []) as Array).size(), int(C.get("max", 5))], 13, TEXTO))
+	var falta := maxf(0.0, float(C.get("prox", 0)) - float(Time.get_ticks_msec() - m.P.cla_t))
+	var cofre := int(C.get("cofre", 0))
+	var semana := int(C.get("semana", 0))
+	vc.add_child(rotulo("Cofre: %d de ouro · Semana: %d de ouro" % [cofre, semana], 15, OURO))
+	vc.add_child(rotulo("Próxima cobrança em %d d %d h" % [int(falta / 86400000.0), int(fmod(falta, 86400000.0) / 3600000.0)], 12, Color(1.0, 0.55, 0.45) if cofre < semana else APAGADO))
+	conteudo.add_child(cab)
+	# cofre: depositar e sacar
+	var lc := HBoxContainer.new()
+	lc.add_theme_constant_override("separation", 6)
+	for v in C.get("dep", [100, 1000]):
+		lc.add_child(botao("+%d" % int(v), func(): m.rede("cla", {"acao": "depositar", "ouro": int(v)}), 14))
+	lc.add_child(botao("Sacar 100", func(): m.rede("cla", {"acao": "sacar", "ouro": 100}), 14))
+	conteudo.add_child(lc)
+	# membros
+	conteudo.add_child(rotulo("Membros", 17, OURO_CLARO))
+	var ms: Array = C.get("m", [])
+	if ms.is_empty():
+		conteudo.add_child(rotulo("Nenhum recruta ainda.", 13, APAGADO))
+	for r in ms:
+		var lm := HBoxContainer.new()
+		lm.add_theme_constant_override("separation", 8)
+		var info := rotulo("%s · %s Nv %d · %d/semana%s" % [str(r.nome), str(r.tier), int(r.nv), int(r.sem), "" if int(r.get("on", 0)) == 1 else " · fora"], 14, TEXTO)
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lm.add_child(info)
+		if r.has("dev"):
+			lm.add_child(rotulo("sem pagamento", 12, Color(1.0, 0.55, 0.45)))
+		var rid := str(r.id)
+		lm.add_child(botao("Dispensar", func(): m.rede("cla", {"acao": "dispensar", "id": rid}), 13))
+		conteudo.add_child(lm)
+	# recursos nas bolsas dos recrutas
+	var rec: Dictionary = C.get("rec", {})
+	if not rec.is_empty():
+		var partes := []
+		for k in rec:
+			partes.append("%s %d" % [str(m.P.nome_item({"k": str(k)})), int(rec[k])])
+		conteudo.add_child(rotulo("Recursos com os recrutas: " + ", ".join(partes), 13, TEXTO))
+	# Recrutador
+	conteudo.add_child(rotulo("Recrutar", 17, OURO_CLARO))
+	var perto: bool = C.get("perto", false) == true
+	if not perto:
+		conteudo.add_child(rotulo("Fale com o Recrutador (Sargento Bruno na Clareira, Sargenta Hela no Juncal).", 12, APAGADO))
+	var cheio := ms.size() >= int(C.get("max", 5))
+	for T in C.get("tiers", []):
+		var tid := str(T.id)
+		var bt := botao("%s Nv %d · %d de ouro · %d/semana" % [str(T.nome), int(T.nv), int(T.preco), int(T.sem)], func(): m.rede("cla", {"acao": "recrutar", "tier": tid}), 15, perto)
+		bt.custom_minimum_size = Vector2(0, 46)
+		bt.disabled = not perto or cheio or int(m.P.prog.get("ouro", 0)) < int(T.preco)
+		conteudo.add_child(bt)
+	conteudo.add_child(rotulo("Cada recruta depois do 3º deixa a semana toda 10% mais cara. 7 dias sem pagamento, ele vai embora.", 12, APAGADO))
+	# gastos
+	var log: Array = C.get("log", [])
+	if not log.is_empty():
+		conteudo.add_child(rotulo("Últimos gastos", 17, OURO_CLARO))
+		for L in log:
+			var v := int(L.get("v", 0))
+			conteudo.add_child(rotulo("%s%s" % [str(L.txt), "" if v == 0 else " (%+d)" % v], 12, VERDE_DIARIA if v > 0 else (Color(1.0, 0.7, 0.6) if v < 0 else APAGADO)))
+
 # Guilda dos Aventureiros (André 2026-11-18; regras em shared/guilda.js): o rank (F a SS), os pontos, a Prova e os
 # contratos do dia. Pega no mural ou com a Brenda (Rio Claro); "Ir" e "Receber" valem em qualquer lugar.
 const COR_RANK := {"F": Color(0.62, 0.62, 0.62), "E": Color(0.5, 0.72, 0.38), "D": Color(0.35, 0.66, 0.78), "C": Color(0.3, 0.45, 0.85),

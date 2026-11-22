@@ -1120,6 +1120,12 @@ export const MAPA_CLAREIRA = {
     { id: 'reset', nome: 'Mestre Ivo, o instrutor', x: 2.6, z: 4.6, ry: -2.4, visual: 'cabelo_m', escala: 1.0, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true, tinta: { cabelo: 0x2a2622, roupa: 0x3c4a5e, calca: 0x2b2a30 }, funcao: 'resetar', acoes: ['resetar'], falas: [
       'Quer recomeçar a build? Eu devolvo seus pontos de atributo. As skills ficam, porque sobem usando.',
     ] },
+    // Recrutador do clã (André 2026-11-22): vende recrutas (shared/cla.js); abre a aba Clã do menu
+    { id: 'recrutador', nome: 'Sargento Bruno, o recrutador', x: -12.6, z: -6.4, ry: 2.43, visual: 'cabelo_m', escala: 1.06, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada', tinta: { cabelo: 0x3a2a1e, roupa: 0x6e1e2a, calca: 0x2f2a24 }, funcao: 'recrutador', acoes: ['recrutar'], falas: [
+      'Todo líder precisa de soldados. Tenho recrutas para todo bolso.',
+      'Recruta novo sai barato. Veterano e elite custam mais, e a semana também.',
+      'Pague a semana em dia. Soldado sem soldo vai embora.',
+    ] },
     // Alquimista (André 2026-11-09): sintetiza catalisador da raridade de cima (CATALISADOR.sintese), na porta da casa3.
     { id: 'alquimista', nome: 'Mirela, a alquimista', x: 2.3, z: -12.4, ry: -1.7, visual: 'shibu', escala: 0.98, roupa: 'peitoral0,botas0,capa2', veste: { tunica: 0x3e2a5c, saia: 0x3e2a5c, ate: 'canela', faixa: 0xc9a23a, avental: 0x4a3626 }, tinta: { cabelo: 0x2f4a3c, roupa: 0x3e2a5c, calca: 0x2b2433 }, funcao: 'alquimia', acoes: ['alquimia'], falas: [
       'Dez selos fracos viram um forte, se o ouro ajudar. Alquimia é paciência e moeda.',
@@ -2427,6 +2433,9 @@ export const VILAS_MUNDO = [
           'O rio dá peixe, junco e notícia. Quase sempre nessa ordem.',
           'De noite uma luz roxa sai da gruta e vai para o mar. Ninguém aqui chega perto.',
           'Com três totens acesos você atravessa Vael inteiro num piscar de olhos.'] },
+      { id: 'v_recrutador_geada', nome: 'Sargenta Hela, a recrutadora', visual: 'shibu', onde: 'casa:0', escala: 1.04, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada',
+        tinta: { cabelo: 0xe9e4d8, roupa: 0x1c2a4a, calca: 0x2b2a30 }, funcao: 'recrutador', acoes: ['recrutar'], falas: [ // clã (André 2026-11-22, shared/cla.js)
+          'Quer soldados? A Geada não falta gente com fome de luta.', 'Recruta barato, veterano caro, elite do seu tamanho.', 'Soldado sem soldo vai embora. Pague a semana.'] },
       ferreiroDe('v_lia', 'Lia, a ferreira', 'shibu', { cabelo: 0x8a2a1e, roupa: 0x5a3a2a, calca: 0x2f2a24 }, { tunica: 0x7a5a3a, saia: 0x4a3626, ate: 'joelho', avental: 0x3a2a1e }, [
         'Ferro molhado enferruja. Aqui tudo leva graxa de peixe. Funciona, juro.',
         'A bigorna é de todos. Eu conserto e compro o que você não quiser.']),
@@ -3252,6 +3261,58 @@ export const AVENTUREIROS = AV.filter(([id]) => !AV_PROMOVIDOS.includes(id)).map
 }));
 // os amigos virtuais do jogo, na ordem (a Cecília é a própria Simulacao; os outros vêm em shared/amiga.js contextoDeAmigo)
 export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
+
+// ---------- Clã e recrutas (André 2026-11-22: "o jogo vai mudar") ----------
+// Todo jogador funda um clã e é o líder. O Recrutador (Clareira e Juncal) vende recrutas em 3 níveis; cada um custa
+// uma semana que sai do cofre do clã e sobe com o nível do recruta e com a quantidade. Regras em shared/cla.js.
+// tiers: preco = fixo + porNivel × nível do recruta; semana = fixo + porNivel × nível ATUAL do recruta (sobe com ele).
+// nivel: 'um' (Nv 1), 'metade' (metade do nível do líder), 'igual' (o nível do líder).
+export const CLA = {
+  nome: { min: 3, max: 20 },
+  max: 5, // recrutas no clã (fase 1; pesa no celular)
+  semana: 7 * 86400000, // ms
+  calote: 7 * 86400000, // sem pagamento por 7 dias: o recruta vai embora
+  extra: { de: 3, por: 0.10 }, // cada recruta depois do 3º: +10% na semana toda
+  perto: 5, // m do Recrutador para contratar
+  log: 20, // linhas do histórico de gastos
+  tiers: [
+    { id: 'recruta', nome: 'Recruta', nivel: 'um', preco: 150, porNivel: 0, semana: 22, semanaNivel: 3 },
+    { id: 'veterano', nome: 'Veterano', nivel: 'metade', preco: 0, porNivel: 40, semana: 0, semanaNivel: 6 },
+    { id: 'elite', nome: 'Elite', nivel: 'igual', preco: 0, porNivel: 80, semana: 0, semanaNivel: 12 },
+  ],
+  // o que aparece como recurso do clã (somado das bolsas dos recrutas)
+  recursos: ['minerio_ferro', 'minerio_cobre', 'cristal', 'pedra', 'lenha', 'peixe'],
+  // sorteio do recruta: nome, cara e jeito
+  nomes: {
+    f: ['Ana', 'Bruna', 'Clara', 'Dalva', 'Elisa', 'Flora', 'Greta', 'Hilda', 'Irene', 'Jade', 'Luna', 'Marta', 'Nina', 'Olga', 'Paula', 'Rita', 'Selma', 'Tânia', 'Vera', 'Zélia', 'Alma', 'Cora', 'Íris', 'Maia'],
+    m: ['Abel', 'Bento', 'Caio', 'Davi', 'Elias', 'Fábio', 'Gil', 'Hugo', 'Ivo', 'Joel', 'Lauro', 'Mauro', 'Nilo', 'Otto', 'Pedro', 'Raul', 'Saulo', 'Tito', 'Vítor', 'Zeca', 'Artur', 'Ciro', 'Enzo', 'Igor'],
+  },
+  sobrenomes: ['Brasa', 'Pedra', 'Vento', 'Lobo', 'Ferro', 'Corvo', 'Rocha', 'Orvalho', 'Espinho', 'Trovão', 'Cinza', 'Raposa', 'Falcão', 'Bravo', 'Serra', 'Neve', 'Fogo', 'Escudo', 'Lança', 'Machado'],
+  jeitos: ['disciplinado e leal, fala pouco e cumpre ordem', 'brincalhão, conta piada até no meio da luta', 'ambicioso, quer subir de posto no clã', 'medroso mas esforçado, treina escondido', 'rabugento, reclama de tudo mas nunca falha', 'curioso, pergunta de tudo sobre o mundo', 'orgulhoso, se acha o melhor soldado do clã', 'calmo e gentil, cuida dos feridos', 'competitivo, quer ganhar de todo mundo no treino', 'saudoso da vila natal, vive contando histórias de casa'],
+  gostos: ['cacar', 'cacar', 'minerar', 'lenha', 'pescar'],
+  cores: {
+    cabelo: [0xa8401c, 0x6b4429, 0x1c1a1f, 0xd9b36c, 0x9a9894, 0x3f7a4a, 0x2f4f9c, 0x9c1c24, 0x5b3a8a, 0xe9e4d8, 0xd9799a],
+    olhos: [0x3d8a4a, 0x6b3f22, 0x3a6fd0, 0xe0b030, 0x8a96a0, 0x7a4ac0, 0xc02a2a],
+    pele: [0xf3cdb0, 0xe2ad88, 0xc68a62, 0x996344, 0x6e4530, 0xffe6d6],
+    roupa: [0xa8322c, 0x6b4a2e, 0x4a5a32, 0x24345c, 0x7a7c80, 0x222226, 0x6e1e2a, 0x5a3a7a, 0x7aa6d0],
+    calca: [0x222226, 0x5a4632, 0x2a3a5a, 0x3c3a52, 0x4a5a32, 0xe8e2d4],
+  },
+  penteados: { f: [null, 'shino', 'vivi', 'vita', 'shibu', 'victoria'], m: [null, 'fumiriya'] },
+  altura: [0.93, 1.08],
+  deposito: [100, 1000, 10000], // botões do cofre (ouro)
+};
+// o recruta m do clã (shared/cla.js) vira um NPC igual aos aventureiros por dentro (cérebro, conversa, time, troca,
+// encomenda, barco...), com dono: só o líder conversa e manda nele, e ele só existe com o líder no jogo.
+export function defRecruta(m, lider, nomeCla, raca) {
+  const f = m.g !== 'm';
+  return mesclarAmigo(f ? AMIGA : DARIO, {
+    id: m.id, nome: m.nome, conta: 'r:' + m.id, papel: f ? 'a recruta' : 'o recruta', genero: f ? 'f' : 'm',
+    persona: `${f ? 'uma soldada' : 'um soldado'} do clã ${nomeCla} num RPG medieval de fantasia, contratado por quem fala com você (o líder do clã), a quem você trata como chefe com respeito e bom humor: ${m.jeito}`,
+    visual: f ? 'ruiva' : 'cabelo_m', aparencia: { ...m.ap }, terreno: null, nivelInicial: m.nv0, gosto: m.gosto,
+    puxaAssunto: false, naoInsiste: true, recomeco: null, recomecoJogo: null,
+    lider, recruta: true, cla: nomeCla, ...(raca && raca !== RACA_PADRAO ? { raca } : {}),
+  });
+}
 // Desculpas para sair quando a IA do dia acaba (André 2026-11-19: "50 desculpas para sair... engraçado e natural"; "algumas
 // sérias... a Cecília, a mais brincalhona... o Dário mais sério"). cheio: de saco cheio (amizade baixa ou ela vem de recusa).
 export const DESCULPAS_SAIR = {

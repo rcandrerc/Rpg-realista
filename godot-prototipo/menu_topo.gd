@@ -16,7 +16,7 @@ const MARGEM := Vector2(176, 70) # distância do canto de cima à direita: o men
 # André 2026-11-06: o martelo da construção sai de baixo (confundia com as skills) e vem para cá, do lado da mochila:
 # aceso no meu terreno, escuro fora dele
 # André 2026-11-11: "o menu de missões vai para aquela action bar" (antes era uma aba do menu do personagem)
-const ITENS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["missoes", "Missões", "topo_missoes"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["pvp", "PvP", "topo_pvp"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
+const ITENS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["missoes", "Missões", "topo_missoes"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["pvp", "PvP", "topo_pvp"], ["cla", "Clã", "eq_capa"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
 # André 2026-11-16: o ícone Conta saiu da barra ("menos poluído"); Trocar de conta, Sair da conta e Apagar personagem
 # ficam iguais, na aba Conta de Configurações (montar_config). abrir("conta") continua valendo e cai nessa aba.
 const TEMPO := 0.28 # segundos da animação de abrir e recolher (igual ao Quimera)
@@ -94,6 +94,8 @@ func _ready() -> void:
 			construir_btn = b
 		elif k == "pvp": # André 2026-11-21: Arena 3x3 Geada x Chama, Battle Royale (em breve) e a Loja da Arena (arena_pvp.gd)
 			b.pressed.connect(func(): m.arena_pvp.abrir())
+		elif k == "cla": # André 2026-11-22: painel do clã (membros, cofre, semana, recrutas; menu.gd montar_cla)
+			b.pressed.connect(func(): m.menu.abrir("cla"))
 		elif k == "missoes": # a lista das missões (menu.gd montar_missoes), sozinha, sem as abas do personagem
 			b.pressed.connect(func(): m.menu.abrir("missoes"))
 		elif k == "mochila": # André 2026-11-04: a bolsa (Mochila e Criar) sai do menu da barra de vida e ganha botão aqui
