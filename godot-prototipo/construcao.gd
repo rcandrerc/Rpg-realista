@@ -3118,6 +3118,8 @@ func tocou_tela(pos: Vector2) -> void:
 			_do_toque = false
 
 func _atualizar_mira() -> void:
+	if _area_a != null: # arrastando a área: o retângulo da prévia não pode ser apagado (mochila, servidor e quadro chamam daqui)
+		return
 	var p: Vector3 = mira
 	var L = lotes.get(meu)
 	if L == null and not na_area:
@@ -3537,11 +3539,17 @@ func _arrasto_area(pos: Vector2, fase_: int) -> void:
 		return
 	var R := _area_ret()
 	var n: int = int(R.size.x) * int(R.size.y)
-	var cor := Color(0.43, 1.0, 0.54, 0.35) if n <= AREA_MAX else Color(1, 0.35, 0.29, 0.35)
+	var cor := Color(0.43, 1.0, 0.54, 0.45) if n <= AREA_MAX else Color(1, 0.35, 0.29, 0.45)
 	var Qm := _area_lado()
 	var cx: float = (R.position.x + R.size.x / 2.0) * Qm
 	var cz: float = (R.position.y + R.size.y / 2.0) * Qm
-	_destaque_em(Vector3(cx, m.terreno.altura(cx, cz), cz), Vector3(R.size.x * Qm, 0.16, R.size.y * Qm), cor)
+	# a caixa da prévia fica acima do ponto mais alto da área (em ladeira ou terra arada ela sumia dentro do chão)
+	var topo: float = m.terreno.altura(cx, cz)
+	var x0: float = R.position.x * Qm
+	var z0: float = R.position.y * Qm
+	for pt in [Vector2(x0, z0), Vector2(x0 + R.size.x * Qm, z0), Vector2(x0, z0 + R.size.y * Qm), Vector2(x0 + R.size.x * Qm, z0 + R.size.y * Qm)]:
+		topo = maxf(topo, m.terreno.altura(pt.x, pt.y))
+	_destaque_em(Vector3(cx, topo, cz), Vector3(R.size.x * Qm, 0.3, R.size.y * Qm), cor)
 	txt_motivo.text = Idioma.frase("%d quadrados na área · solte para marcar" % n if n <= AREA_MAX else "Área grande demais (máximo %d quadrados)" % AREA_MAX)
 
 # retângulo em quadrados (posição e tamanho inteiros, no mínimo 1 x 1)
