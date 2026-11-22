@@ -11,7 +11,7 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { CLA, ENCOMENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, vagasClaNpc, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS, RACAS } from './dados.js';
+import { CLA, ENCOMENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, vagasClaNpc, almaDe, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS, RACAS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
 import { guardar, guardarQueCabe, xpProximo, contar, tirar, organizar } from './progresso.js';
 import { crescerPlanta } from './simulacao.js'; // só usadas em tempo de jogo (progresso.js também importa daqui)
@@ -45,6 +45,8 @@ export function claValido(c) {
       nv0: int(m.nv0, 1, 200, 1), nv: int(m.nv, 1, 200, 1), desde: int(m.desde, 0, 9e15, 0), ...(Number.isFinite(+m.dev) && +m.dev > 0 ? { dev: Math.round(+m.dev) } : {}), ...(funcaoValida(m.fn) ? { fn: funcaoValida(m.fn) } : {}) });
   }
   for (const L of Array.isArray(c.log) ? c.log.slice(-CLA.log) : []) if (L && typeof L.txt === 'string') out.log.push({ t: int(L.t, 0, 9e15, 0), txt: L.txt.slice(0, 80), v: int(L.v, -1e9, 1e9, 0) });
+  // nível do clã (vagas): clã de antes começa no nível que cabe quem ele já tem (nada some)
+  out.nv = Math.max(int(c.nv, 1, CLA.max, 1), Math.min(CLA.max, out.m.length), 1);
   return out;
 }
 export function nomeCla(n) {
@@ -91,13 +93,13 @@ export const Cla = {
     const nv = j.prog.nivel | 0;
     // status de cada um (André 2026-11-22: "eu consigo ver nível Hp mana e vigor"): vida, mana e vigor (0 a 100)
     const st = (o, prog) => ({ hp: Math.round(o.vida) | 0, hpM: Math.round(o.vidaMax) | 0, mp: Math.round(o.mana) | 0, mpM: Math.round(o.manaMax) | 0, vg: Math.floor(vigorDe(prog.vigor)), vgM: VIGOR.max, morto: o.morto ? 1 : 0 });
-    return { n: c.n, cofre: c.cofre, semana: semanaCla(c), prox: Math.max(0, c.sem - Date.now()), max: CLA.max, perto: this.pertoRecrutador(j),
+    return { n: c.n, cofre: c.cofre, semana: semanaCla(c), prox: Math.max(0, c.sem - Date.now()), max: c.nv || 1, nv: c.nv || 1, sobe: this.subirInfo(j), perto: this.pertoRecrutador(j),
       eu: { nome: j.nome, nv, ...st(j, j.prog) },
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, sem: semanaDe(tierDe(m.tier), a ? a.prog.nivel | 0 : m.nv), on: a ? 1 : 0, ...(m.dev ? { dev: m.dev } : {}), g: m.g,
         fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, j) } : {}) }; }),
       bauCla: temBau ? bau : null, plantas: Object.entries(PLANTAS).map(([k, P]) => ({ k, nome: P.nome })),
       funcoes: CLA.funcoes, recursos: Object.entries(ENCOMENDA.recursos).map(([k, R]) => ({ k, nome: R.nome })),
-      tiers: CLA.tiers.map((T) => { const n2 = nivelTier(T, nv); return { id: T.id, nome: T.nome, nv: n2, preco: precoTier(T, n2), sem: semanaDe(T, n2) }; }),
+      tiers: CLA.tiers.map((T) => { const n2 = nivelTier(T, nv); return { id: T.id, nome: T.nome, nv: n2, preco: precoTier(T, n2), sem: semanaDe(T, n2), claNv: T.claNv || 1 }; }),
       rec, log: c.log.slice(-10).reverse(), dep: CLA.deposito, clas: this.clasNpcInfo(j) };
   },
   // pedido do app: { acao: 'fundar' | 'recrutar' | 'dispensar' | 'depositar' | 'sacar' | 'ver' | 'funcao', nome, tier, id, ouro, fn }
@@ -108,7 +110,7 @@ export const Cla = {
     if (m.acao === 'fundar') {
       if (c) return aviso(`Você já lidera o clã ${c.n}`);
       const n = nomeCla(m.nome); if (!n) return aviso(`Nome do clã: de ${CLA.nome.min} a ${CLA.nome.max} letras`);
-      j.prog.cla = { n, c: agora, cofre: 0, sem: agora + CLA.semana, m: [], log: [] };
+      j.prog.cla = { n, c: agora, cofre: 0, sem: agora + CLA.semana, m: [], log: [], nv: 1 };
       this.logCla(j.prog.cla, `Clã ${n} fundado`);
       aviso(`Clã ${n} fundado! Você é o líder. Fale com o Recrutador para contratar soldados.`);
       return this.avisarProg(j);
@@ -118,7 +120,8 @@ export const Cla = {
     if (m.acao === 'recrutar') {
       const T = CLA.tiers.find((x) => x.id === m.tier); if (!T) return;
       if (!this.pertoRecrutador(j)) return aviso('Fale com o Recrutador (Clareira ou Juncal)');
-      if (c.m.length >= CLA.max) return aviso(`O clã já tem ${CLA.max} recrutas (o máximo por enquanto)`);
+      if (c.m.length >= (c.nv || 1)) return aviso(c.nv >= CLA.max ? `O clã já tem ${CLA.max} recrutas (o máximo)` : `Clã Nv ${c.nv}: ${c.nv} vaga${c.nv > 1 ? 's' : ''}. Melhore o clã para abrir outra`);
+      if ((T.claNv || 1) > (c.nv || 1)) return aviso(`${T.nome} só no clã Nv ${T.claNv}`);
       const r = sortearRecruta(Math.random, T, j.prog.nivel, agora), preco = precoTier(T, r.nv);
       if ((j.prog.ouro | 0) < preco) return aviso(`Falta ouro: ${T.nome} custa ${preco}`);
       j.prog.ouro -= preco;
@@ -157,7 +160,59 @@ export const Cla = {
       aviso(`${r.nome}: ${F.nome}${fn?.k === 'fazenda' ? (fn.s ? ` (plantar ${PLANTAS[fn.s].nome.toLowerCase()})` : ' (só colhe e rega)') : fn?.k === 'recurso' ? ` (${ENCOMENDA.recursos[fn.r].nome})` : fn?.k === 'proteger' ? ` ${fn.p === 'lider' ? 'você' : c.m.find((o) => o.id === fn.p).nome}` : ''}`);
       return this.avisarProg(j);
     }
+    if (m.acao === 'melhorar') {
+      const r = this.subirCla({ nv: c.nv || 1, nvLider: j.prog.nivel | 0, raca: this.racaDe(j), ouro: c.cofre, fontes: [this.bauDoCla({ conta: j.conta })?.itens, j.prog.mochila].filter(Boolean) });
+      if (r.falta) return aviso(r.falta);
+      c.cofre -= r.N.ouro; r.tirar();
+      const B = this.bauDoCla({ conta: j.conta }); if (B) this.mexeuBau(B);
+      c.nv = r.N.nv; j.progSujo = true;
+      this.logCla(c, `Clã subiu para o Nv ${c.nv}`, -r.N.ouro);
+      aviso(`Clã ${c.n} agora é Nv ${c.nv}: ${c.nv} vagas!`);
+      return this.avisarProg(j);
+    }
     if (m.acao === 'ver') return this.avisarProg(j);
+  },
+  // ---------- nível do clã (André 2026-11-22) ----------
+  // o bônus do nível do clã para quem está nele (líder, recruta, fixo ou líder de clã bot): +2% por nível acima do 1
+  nivelClaDe(j) {
+    if (!j) return 0;
+    if (!j.bot) return j.prog?.cla?.nv || 0;
+    const x = this.amigoIaDe?.(j); if (!x) return 0;
+    if (x.AMIGA.recruta && !x.AMIGA.clanpc) return [...this.jogadores.values()].find((o) => !o.bot && o.conta === x.AMIGA.lider)?.prog?.cla?.nv || 0;
+    const C = x.AMIGA.clanpc ? CLAS_NPC.find((o) => o.id === x.AMIGA.clanpc) : CLAS_NPC.find((o) => o.membros.includes(x.AMIGA.id));
+    return (C && this.clasNpc?.[C.id]?.nv) || 0;
+  },
+  bonusCla(j) { return Math.max(0, this.nivelClaDe(j) - 1) * CLA.bonusNivel; },
+  // confere o próximo nível: { N, falta: texto | null, tirar(): tira os materiais e as almas das fontes }
+  subirCla({ nv, nvLider, raca, ouro, fontes }) {
+    const N = CLA.niveis[nv + 1]; if (!N) return { falta: 'O clã já está no nível máximo' };
+    const alma = almaDe(raca), precisa = { ...N.mat, [alma]: N.alma }, tem = (k) => fontes.reduce((s, f) => s + contar(f, k), 0);
+    const falta = [];
+    if (nvLider < N.lider) falta.push(`líder Nv ${N.lider}`);
+    if (ouro < N.ouro) falta.push(`${N.ouro - ouro} de ouro no cofre`);
+    for (const [k, n] of Object.entries(precisa)) if (tem(k) < n) falta.push(`${n - tem(k)} ${ITENS[k]?.nome.toLowerCase() || k}`);
+    return { N, falta: falta.length ? `Para o clã Nv ${N.nv} falta: ${falta.join(', ')}` : null,
+      tirar: () => { for (const [k, n0] of Object.entries(precisa)) { let n = n0; for (const f of fontes) { const q = Math.min(n, contar(f, k)); if (q) { tirar(f, k, q); n -= q; } } } } };
+  },
+  // o que o painel mostra do próximo nível: pede e tem
+  subirInfo(j) {
+    const c = j.prog.cla, N = CLA.niveis[(c?.nv || 1) + 1]; if (!N) return null;
+    const alma = almaDe(this.racaDe(j)), fontes = [this.bauDoCla({ conta: j.conta })?.itens, j.prog.mochila].filter(Boolean), tem = (k) => fontes.reduce((s, f) => s + contar(f, k), 0);
+    const itens = Object.entries({ ...N.mat, [alma]: N.alma }).map(([k, n]) => ({ k, nome: ITENS[k]?.nome || k, n, tem: tem(k) }));
+    return { nv: N.nv, lider: N.lider, ouro: N.ouro, itens };
+  },
+  // derrubou alguém da outra raça (guerra.js morteGuerra): 1 Fragmento de Alma da raça de quem caiu. Jogador: na mochila;
+  // recruta de jogador: no Baú do Clã do líder; bot de clã (líder, fixo ou recruta): no Baú do Clã do clã bot
+  fragmentoGuerra(c, k) {
+    if (!c || !k || c === k) return;
+    const rc = this.racaDe(c), rk = this.racaDe(k); if (!rc || !rk || rc === rk) return;
+    const item = { k: 'alma_' + rc, n: 1 };
+    if (!k.bot) { if (guardarQueCabe(k.prog.mochila, item)) { this.evento({ t: 'aviso', para: k.id, texto: `+1 ${ITENS[item.k].nome}` }); k.progSujo = true; this.avisarProg(k); } return; }
+    const x = this.amigoIaDe(k); if (!x) return;
+    let K = null;
+    if (x.AMIGA.recruta) K = this.claDoRecruta(x);
+    else { const C = CLAS_NPC.find((o) => o.membros.includes(x.AMIGA.id)); if (C) K = { bot: true, C, E: this.clasNpc?.[C.id], conta: this.amigosIa.find((o) => o.AMIGA.id === C.lider)?.AMIGA.conta }; }
+    const B = this.bauDoCla(K); if (B && guardarQueCabe(B.itens, item)) this.mexeuBau(B);
   },
   // ---------- funções (André 2026-11-22) ----------
   // o que ele está fazendo agora (linha curta no painel)
@@ -246,7 +301,7 @@ export const Cla = {
     const B = this.bauDoCla(this.claDoRecruta(x)); if (!B) return 0;
     let n = 0;
     for (let i = 0; i < a.prog.mochila.length; i++) {
-      const o = a.prog.mochila[i]; if (!o || o.h || !(CLA.recursos.includes(o.k) || PLANTAS[o.k] || o.k === CLA.fora.peixe || ITENS[o.k]?.peixe)) continue;
+      const o = a.prog.mochila[i]; if (!o || o.h || !(CLA.recursos.includes(o.k) || PLANTAS[o.k] || o.k === CLA.fora.peixe || ITENS[o.k]?.peixe || o.k === 'couro' || o.k.startsWith('alma_'))) continue;
       const q = guardarQueCabe(B.itens, { ...o }); if (!q) continue;
       n += q; if (q >= (o.n || 1)) a.prog.mochila[i] = null; else o.n -= q;
     }
@@ -459,7 +514,8 @@ export const Cla = {
     for (const C of CLAS_NPC) {
       const e = est?.[C.id], v = claValido({ n: C.n, m: Array.isArray(e?.m) ? e.m : [], sem: e?.sem, cofre: 0 });
       const bau = Array.isArray(e?.bau) ? Array.from({ length: CLA.bauCla }, (_, i) => (e.bau[i] && typeof e.bau[i].k === 'string' && ITENS[e.bau[i].k] ? { k: e.bau[i].k, n: Math.max(1, e.bau[i].n | 0) } : null)) : null;
-      this.clasNpc[C.id] = { m: v?.m.slice(0, vagasClaNpc(C)) || [], prox: Number.isFinite(+e?.prox) ? +e.prox : Date.now() + CLAS_NPC_REGRAS.primeiro * 3600e3, sem: v?.sem || Date.now() + CLA.semana,
+      const fixos = C.membros.filter((id) => id !== C.lider).length, nvC = Math.max(1, Math.min(CLA.max, Math.max(e?.nv | 0, fixos + (v?.m.length || 0))));
+      this.clasNpc[C.id] = { nv: nvC, m: v?.m.slice(0, vagasClaNpc(C, nvC)) || [], prox: Number.isFinite(+e?.prox) ? +e.prox : Date.now() + CLAS_NPC_REGRAS.primeiro * 3600e3, sem: v?.sem || Date.now() + CLA.semana,
         ...(bau ? { bau } : {}), ...(Number.isFinite(+e?.visto) && +e.visto > 0 ? { visto: +e.visto } : {}) };
     }
     for (const C of CLAS_NPC) for (const m of this.clasNpc[C.id].m) this.criarRecrutaNpc(C, m, false);
@@ -506,10 +562,17 @@ export const Cla = {
         }
       }
       // liderança: contrata o melhor que o ouro paga (deixa a reserva)
-      if (agora >= E.prox && E.m.length < vagasClaNpc(C)) {
+      // liderança: clã cheio, sobe de nível quando dá (as mesmas regras do jogador; o ouro é o do líder, com a reserva)
+      if (E.m.length >= vagasClaNpc(C, E.nv) && CLA.niveis[(E.nv || 1) + 1]) {
+        this.fundirBauNpc(E);
+        const r = this.subirCla({ nv: E.nv || 1, nvLider: L.prog.nivel | 0, raca: C.raca, ouro: (L.prog.ouro | 0) - R.reserva, fontes: [E.bau || []] });
+        if (!r.falta) { L.prog.ouro -= r.N.ouro; r.tirar(); E.nv = r.N.nv; mudou = true;
+          for (const o of this.jogadores.values()) if (!o.bot) this.evento({ t: 'aviso', para: o.id, texto: `${C.n} subiu para o Nv ${E.nv}` }); }
+      }
+      if (agora >= E.prox && E.m.length < vagasClaNpc(C, E.nv)) {
         E.prox = agora + R.entre * 3600e3; mudou = true;
         const nv = L.prog.nivel | 0, livre = (L.prog.ouro | 0) - R.reserva;
-        const T = [...CLA.tiers].reverse().find((T) => precoTier(T, nivelTier(T, nv)) <= livre);
+        const T = [...CLA.tiers].reverse().find((T) => (T.claNv || 1) <= (E.nv || 1) && precoTier(T, nivelTier(T, nv)) <= livre);
         if (T) {
           const m = sortearRecruta(Math.random, T, nv, agora);
           m.fn = this.funcaoBotCla(E.m.length, temLote); // o líder já diz o que ele vai fazer
@@ -521,10 +584,16 @@ export const Cla = {
       if (mudou) this.salvarClasNpc();
     }
   },
+  // o líder bot faz o que o jogador faria na fornalha: 3 minérios de ferro viram 1 barra, 2 barras viram 1 de aço
+  fundirBauNpc(E) {
+    const b = E.bau; if (!b) return;
+    const f = Math.floor(contar(b, 'minerio_ferro') / 3); if (f) { tirar(b, 'minerio_ferro', f * 3); guardarQueCabe(b, { k: 'barra_ferro', n: f }); }
+    const a = Math.floor(Math.max(0, contar(b, 'barra_ferro') - 30) / 2); if (a) { tirar(b, 'barra_ferro', a * 2); guardarQueCabe(b, { k: 'barra_aco', n: a }); }
+  },
   // a função que o líder bot dá para o recruta i (como um jogador faria: metade caça, uns farmam, um guarda o líder e,
   // com terreno, um cuida da fazenda)
   funcaoBotCla(i, temLote) {
-    const L = [{ k: 'grind' }, { k: 'recurso', r: 'ferro' }, { k: 'proteger', p: 'lider' }, temLote ? { k: 'fazenda', s: 'cenoura' } : { k: 'recurso', r: 'lenha' }, { k: 'grind' }, { k: 'recurso', r: 'pedra' }];
+    const L = [{ k: 'grind' }, { k: 'recurso', r: 'ferro' }, { k: 'recurso', r: 'lenha' }, { k: 'proteger', p: 'lider' }, temLote ? { k: 'fazenda', s: 'cenoura' } : { k: 'recurso', r: 'pedra' }, { k: 'recurso', r: 'cristal' }];
     return L[i % L.length];
   },
   // os clãs bot que o app mostra no painel (o inimigo e o aliado)
@@ -532,7 +601,7 @@ export const Cla = {
     if (!this.clasNpc) this.carregarClasNpc(null);
     const nome = (id) => [...AMIGOS_VIRTUAIS, ...RIVAIS].find((d) => d.id === id)?.nome || id;
     // relação (André 2026-11-22): outra raça = inimigo; mesma raça = neutro (aliança fica para depois)
-    return CLAS_NPC.map((C) => ({ n: C.n, lider: nome(C.lider), inimigo: this.racaDe(j) !== C.raca ? 1 : 0, raca: RACAS[C.raca]?.nome || C.raca, recrutas: C.membros.filter((id) => id !== C.lider).length + this.clasNpc[C.id].m.length, // os fixos contam (André 2026-11-22)
+    return CLAS_NPC.map((C) => ({ n: C.n, nv: this.clasNpc[C.id].nv || 1, lider: nome(C.lider), inimigo: this.racaDe(j) !== C.raca ? 1 : 0, raca: RACAS[C.raca]?.nome || C.raca, recrutas: C.membros.filter((id) => id !== C.lider).length + this.clasNpc[C.id].m.length, // os fixos contam (André 2026-11-22)
       membros: [...C.membros.filter((id) => id !== C.lider).map(nome), ...this.clasNpc[C.id].m.map((m) => `${m.nome} (${tierDe(m.tier).nome} Nv ${m.nv}${m.fn ? ' · ' + (CLA.funcoes.find((F) => F.id === m.fn.k)?.nome || '') : ''})`)] }));
   },
 };

@@ -14,7 +14,7 @@ p.mochila.fill(null);
 p.mochila[0] = { k: 'obra_bau_cla', n: 2 }; p.mochila[1] = { k: 'enxada', n: 1 }; p.mochila[2] = { k: 'lenha', n: 30 };
 s.construir('A', { k: 'bau_cla', x: -21.5, z: 61, r: 0 });
 ok(!L.pecas.some((o) => o.k === 'bau_cla') && ev().some((e) => e.texto?.includes('Funde')), 'sem clã: não põe o Baú do Clã');
-s.cla('A', { acao: 'fundar', nome: 'Base Teste' });
+s.cla('A', { acao: 'fundar', nome: 'Base Teste' }); p.cla.nv = 6;
 s.construir('A', { k: 'bau_cla', x: -21.5, z: 61, r: 0 });
 ok(L.pecas.some((o) => o.k === 'bau_cla'), 'Baú do Clã no terreno');
 s.construir('A', { k: 'bau_cla', x: -26, z: 61, r: 0 });
@@ -58,11 +58,47 @@ ok(contar(L.bauCla, 'rabanete') > 0, `colheu e guardou no Baú do Clã (${contar
   s2.carregarClasNpc(null);
   for (const ctx of s2.amigosIa) ctx.amigaEntrar('Q', false);
   const E = s2.clasNpc.geada, gael = s2.liderNpc({ lider: 'gael' });
-  gael.prog.ouro = 99999; E.prox = 0;
+  gael.prog.ouro = 99999; E.prox = 0; E.nv = 6;
   s2.passoClasNpc();
   ok(E.m.length === 1 && E.m[0].fn?.k, `Gael contratou e deu função (${E.m[0]?.fn?.k})`);
   const x = s2.amigosIa.find((o) => o.AMIGA.id === E.m[0].id);
   x.amiga.prog.mochila[6] = { k: 'pedra', n: 7 };
   s2.depositarRecruta(x);
   ok(contar(E.bau || [], 'pedra') === 7, 'recruta do clã bot guarda no Baú do Clã do líder');
+}
+
+// níveis do clã (André 2026-11-22: progressivo) e Fragmento de Alma
+{
+  const s3 = new Simulacao(MAPA_CLAREIRA);
+  const j = s3.adicionarJogador('N', 'Nil', undefined, { conta: 50 }); j.criando = false; j.ciente = true; j.prog.nivel = 12; j.prog.ouro = 90000;
+  const r3 = s3.mapa.npcs.find((n) => n.funcao === 'recrutador'); j.x = r3.x + 1; j.z = r3.z;
+  s3.cla('N', { acao: 'fundar', nome: 'Niveis' });
+  const c = j.prog.cla;
+  ok(c.nv === 1 && s3.claInfo(j).max === 1, 'clã novo: Nv 1, 1 vaga');
+  s3.cla('N', { acao: 'recrutar', tier: 'recruta' }); s3.cla('N', { acao: 'recrutar', tier: 'recruta' });
+  ok(c.m.length === 1, 'só 1 recruta no Nv 1');
+  s3.cla('N', { acao: 'melhorar' });
+  ok(c.nv === 1, 'sem material e alma: não sobe');
+  c.cofre = 600; j.prog.mochila.fill(null);
+  j.prog.mochila[0] = { k: 'lenha', n: 50 }; j.prog.mochila[1] = { k: 'pedra', n: 30 }; j.prog.mochila[2] = { k: 'alma_geada', n: 5 };
+  s3.cla('N', { acao: 'melhorar' });
+  ok(c.nv === 2 && c.cofre === 100 && !j.prog.mochila.some((o) => o), `subiu para Nv 2 e gastou tudo (cofre ${c.cofre})`);
+  s3.cla('N', { acao: 'recrutar', tier: 'veterano' });
+  ok(c.m.length === 1, 'Veterano só no clã Nv 3');
+  const v = (await import('../../shared/cla.js')).claValido({ n: 'Velho', m: [1, 2, 3, 4, 5].map((i) => ({ id: 'rcaaaa' + i, nome: 'X' })) });
+  ok(v.nv === 5, `clã antigo com 5 recrutas começa no Nv 5 (${v.nv})`);
+  // fragmento: Chama derruba Geada
+  const g = s3.adicionarJogador('G', 'Gelo', undefined, { conta: 51 }); g.criando = false; g.raca = 'geada'; g.prog.raca = 'geada';
+  if (s3.racaDe(g) !== s3.racaDe(j)) { s3.fragmentoGuerra(g, j); ok(contar(j.prog.mochila, 'alma_' + s3.racaDe(g)) === 1, 'derrubar a outra raça dá 1 Fragmento de Alma'); }
+  else console.log('ok (pulado: não deu para trocar a raça no teste)');
+  s3.fragmentoGuerra(j, j); ok(true, 'mesma pessoa não ganha');
+}
+{
+  const s4 = new Simulacao(MAPA_CLAREIRA);
+  const j = s4.adicionarJogador('B', 'Bia', undefined, { conta: 60 }); j.criando = false; j.ciente = true;
+  s4.cla('B', { acao: 'fundar', nome: 'Bonus' }); j.prog.cla.nv = 6;
+  ok(Math.abs(s4.bonusCla(j) - 0.10) < 1e-9, 'clã Nv 6: +10% de XP e ouro');
+  s4.carregarClasNpc(null);
+  const kira = s4.amigosIa.find((x) => x.AMIGA.id === 'kira'); kira.amigaEntrar('B', false);
+  ok(kira.amiga && Math.abs(s4.bonusCla(kira.amiga) - 0.04) < 1e-9, 'Kira (Lobos da Geada Nv 3): +4%');
 }

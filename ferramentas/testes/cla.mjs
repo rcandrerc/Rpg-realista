@@ -17,7 +17,7 @@ ok(rec, `Recrutador na Clareira (${rec?.nome})`);
 ok(s.claInfo(j)?.sem === 1, 'sem clã: o app pede o nome');
 s.cla('A', { acao: 'fundar', nome: 'x' });
 ok(!p.cla, 'nome curto não vale');
-s.cla('A', { acao: 'fundar', nome: 'Lobos do Norte' });
+s.cla('A', { acao: 'fundar', nome: 'Lobos do Norte' }); p.cla.nv = 6; // vagas abertas (os níveis têm teste em cla-base.mjs)
 ok(p.cla?.n === 'Lobos do Norte' && s.claInfo(j).n === 'Lobos do Norte', 'clã fundado, líder é o jogador');
 const I = s.claInfo(j);
 ok(I.tiers.map((T) => T.nv).join(',') === '1,20,40', `níveis: recruta 1, veterano 20, elite 40 (${I.tiers.map((T) => T.nv)})`);
@@ -69,7 +69,7 @@ ok(true, 'simulação roda com os recrutas');
 
 // ---------- clã bot (fase 2): Gael lidera os Lobos da Geada e contrata sozinho ----------
 {
-  const { CLAS_NPC, CLAS_NPC_REGRAS } = await import('../../shared/dados.js');
+  const { CLAS_NPC, CLAS_NPC_REGRAS, vagasClaNpc } = await import('../../shared/dados.js');
   const s2 = new Simulacao(MAPA_CLAREIRA);
   const p2 = s2.adicionarJogador('P', 'Pedro', undefined, { conta: 11 }); p2.criando = false;
   let salvo = null; s2.aoClasNpc = (e) => { salvo = JSON.parse(JSON.stringify(e)); };
@@ -78,6 +78,8 @@ ok(true, 'simulação roda com os recrutas');
   const gael = s2.amigosIa.find((x) => x.AMIGA.id === 'gael').amiga;
   ok(!!gael, 'Gael no mundo');
   gael.prog.ouro = 50000;
+  ok(s2.clasNpc.geada.nv === 3 && vagasClaNpc(CLAS_NPC[0], 3) === 0, 'Lobos da Geada começam no Nv 3 (Kira, Rufo, Lis): sem vaga até subir');
+  s2.clasNpc.geada.nv = 6; // vagas abertas para testar a contratação
   s2.clasNpc.geada.prox = Date.now() - 1;
   s2.passoClasNpc();
   const E = s2.clasNpc.geada;
@@ -122,7 +124,7 @@ ok(true, 'simulação roda com os recrutas');
   const L = s4.adicionarJogador('L', 'Lia Líder', undefined, { conta: 20 }); L.criando = false; L.ciente = true;
   L.prog.nivel = 20; L.prog.ouro = 50000;
   const r4 = s4.mapa.npcs.find((n) => n.funcao === 'recrutador'); L.x = r4.x + 1; L.z = r4.z;
-  s4.cla('L', { acao: 'fundar', nome: 'Teste Painel' });
+  s4.cla('L', { acao: 'fundar', nome: 'Teste Painel' }); L.prog.cla.nv = 6;
   for (let i = 0; i < 3; i++) s4.cla('L', { acao: 'recrutar', tier: 'veterano' });
   const c = L.prog.cla, I = s4.claInfo(L);
   ok(I.eu && I.eu.nv === 20 && I.eu.hpM > 0 && I.eu.mpM > 0 && I.eu.vgM === 100, `painel mostra o líder (${JSON.stringify(I.eu)})`);
@@ -160,7 +162,7 @@ ok(true, 'simulação roda com os recrutas');
   const L = s5.adicionarJogador('L5', 'Chefe', undefined, { conta: 30 }); L.criando = false; L.ciente = true;
   L.prog.nivel = 20; L.prog.ouro = 50000;
   const r5 = s5.mapa.npcs.find((n) => n.funcao === 'recrutador'); L.x = r5.x + 1; L.z = r5.z;
-  s5.cla('L5', { acao: 'fundar', nome: 'Teste Ordem' });
+  s5.cla('L5', { acao: 'fundar', nome: 'Teste Ordem' }); L.prog.cla.nv = 6;
   s5.cla('L5', { acao: 'recrutar', tier: 'veterano' });
   const x = s5.recrutasNoMundo(L)[0], a = x.amiga, R = x.rotinaAmiga();
   const { naHoraDe } = await import('../../shared/amiga.js'), { horaDoJogo } = await import('../../shared/progresso.js');
@@ -176,7 +178,7 @@ ok(true, 'simulação roda com os recrutas');
   const s6 = new Simulacao(MAPA_CLAREIRA);
   const L = s6.adicionarJogador('L6', 'Chefe', undefined, { conta: 31 }); L.criando = false; L.ciente = true; L.prog.nivel = 20; L.prog.ouro = 50000;
   const r6 = s6.mapa.npcs.find((n) => n.funcao === 'recrutador'); L.x = r6.x + 1; L.z = r6.z;
-  s6.cla('L6', { acao: 'fundar', nome: 'Teste Troca' }); s6.cla('L6', { acao: 'recrutar', tier: 'recruta' });
+  s6.cla('L6', { acao: 'fundar', nome: 'Teste Troca' }); L.prog.cla.nv = 6; s6.cla('L6', { acao: 'recrutar', tier: 'recruta' });
   const x = s6.recrutasNoMundo(L)[0];
   ok(x.margemAmiga(x.amiga) === 0, 'soldado não cobra nada do líder');
 }
@@ -185,7 +187,7 @@ ok(true, 'simulação roda com os recrutas');
   const s7 = new Simulacao(MAPA_CLAREIRA);
   const L = s7.adicionarJogador('L7', 'Chefe', undefined, { conta: 32 }); L.criando = false; L.ciente = true; L.prog.nivel = 30; L.prog.ouro = 50000;
   const r7 = s7.mapa.npcs.find((n) => n.funcao === 'recrutador'); L.x = r7.x + 1; L.z = r7.z;
-  s7.cla('L7', { acao: 'fundar', nome: 'Teste Fora' }); s7.cla('L7', { acao: 'recrutar', tier: 'recruta' }); s7.cla('L7', { acao: 'recrutar', tier: 'recruta' });
+  s7.cla('L7', { acao: 'fundar', nome: 'Teste Fora' }); L.prog.cla.nv = 6; s7.cla('L7', { acao: 'recrutar', tier: 'recruta' }); s7.cla('L7', { acao: 'recrutar', tier: 'recruta' });
   const [g, f] = L.prog.cla.m;
   s7.cla('L7', { acao: 'funcao', id: g.id, fn: { k: 'grind' } }); s7.cla('L7', { acao: 'funcao', id: f.id, fn: { k: 'recurso', r: 'ferro' } });
   s7.sairRecrutas(L);

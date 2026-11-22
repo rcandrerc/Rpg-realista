@@ -3756,7 +3756,7 @@ export class Simulacao {
     const p = j.prog, ganhou = [];
     // filtro de coleta (André 2026-11-07): o que ele desmarcou na mochila fica no chão
     const por = (it) => { if (filtrado(p, it)) return; const q = guardarQueCabe(p.mochila, it); if (q) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); if (q < (it.n || 1)) this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
-    const ouro = Math.round((d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1))) * ECONOMIA.ouroMonstro * (1 + NIVEL_INIMIGO.ouro * Math.max(0, (c.nivel || 1) - 1)) * (1 + (bonusTitulo(p).ouro || 0)));
+    const ouro = Math.round((d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1))) * ECONOMIA.ouroMonstro * (1 + NIVEL_INIMIGO.ouro * Math.max(0, (c.nivel || 1) - 1)) * (1 + (bonusTitulo(p).ouro || 0) + this.bonusCla(j)));
     if (ouro) { p.ouro += ouro; this.caixa(j, 'monstro', ouro); }
     if (Math.random() < d.pocao) por({ k: 'pocao', n: 1 });
     if (Math.random() < d.mana) por({ k: 'pocao_mana', n: 1 });
@@ -4122,7 +4122,7 @@ export class Simulacao {
         const n = j.time ? doTime.get(j.time) : 1;
         const xp = Math.round(xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO) * (c.sp?.caverna ? this.dungeon?.def?.forte?.xp || 1 : 1) * (c.bm ? BOSSES_MUNDO[c.bm].xp : 1));
         const nerf = n > 1 ? fatorXpTime(j.prog.nivel, maiorDoTime.get(j.time)) : 1; // muito abaixo do mais alto do time: menos XP (TIME_XP)
-        const xpT = 1 + (bonusTitulo(j.prog).xp || 0); // título em uso: + XP dos monstros
+        const xpT = 1 + (bonusTitulo(j.prog).xp || 0) + this.bonusCla(j); // título em uso e nível do clã: + XP dos monstros
         this.ganharXP(j, Math.round((n > 1 ? Math.round(xp * (1 + TIME.bonus * (n - 1)) * nerf) : xp) * xpT)); this.soltarDrops(c, j);
         this.titulosDaVitoria(j, c); // títulos (André 2026-11-12): conta o monstro, boss de mundo e chefe da história
         this.contarHistoria(j, c); // missão principal (André 2026-11-10)
