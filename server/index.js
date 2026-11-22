@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, LEILAO_BOT, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
 import { Contas, verificadorGoogle, roboCel, roboCarga, ROBO } from './contas.js';
 import { Visao } from './visao.js';
 import { gerarCopia, limparSobrasCopia, chaveAssinaturaCopia, CHAVE_COPIA } from './copia-contas.js';
@@ -184,7 +184,7 @@ class SalaClareira extends Room {
         if (m.acao === 'comprar' && !/^casa\d+$/.test(String(m.id))) return;
         if (m.acao === 'anunciar') m = { ...m, preco: LEILAO.precoMax }; // ninguém compra o anúncio de teste
       }
-      this.sim.leilaoMsg(c.sessionId, m);
+      this.sim.leilaoMsg(c.sessionId, m, { robo: !!c.auth?.robo });
     });
     // troca entre jogadores com cadeado (shared/simulacao.js troca): pedir, aceitar, pôr item e ouro, trancar e confirmar
     this.ouvir('troca', (c, m) => {
@@ -978,6 +978,8 @@ app.get('/npcs.json', async (req, res) => {
     l.push({ nome: D.nome, id: D.id, ...(D.raca ? { raca: D.raca } : {}), noMundo: !!v, nivel: p.nivel | 0, ouro: p.ouro | 0, ...(cracha ? { missao: h.p ?? null, etapa: h.e ?? null } : {}),
       cacaMinHoje: d.grind?.dia === dia ? Math.round((d.grind.seg || 0) / 60) : 0, missaoMinHoje: d.missaoDia?.dia === dia ? Math.round((d.missaoDia.seg || 0) / 60) : 0,
       salvoHa: d.t ? Math.round((Date.now() - d.t) / 60000) : null,
+      // leilão (André 2026-11-21: "se eu pedir um relatório, vou conseguir saber de cada personagem"): jeito, meta e poupança
+      leilao: { jeito: { ...LEILAO_BOT.jeitos.padrao, ...(LEILAO_BOT.jeitos[D.id] || {}) }, meta: (d.leilao || d.leilaoBot)?.meta || null, poupado: (d.leilao || d.leilaoBot)?.poupado | 0, negocios: Array.isArray((d.leilao || d.leilaoBot)?.log) ? (d.leilao || d.leilaoBot).log.slice(-12) : [] },
       ...(cracha ? { evolucao: Array.isArray(d.evolucao) ? d.evolucao.slice(-40) : [] } : {}), ...(v && cracha ? { x: Math.round(v.a.x), z: Math.round(v.a.z), morto: !!v.a.morto, preso: !!v.a.ia?.viagem?.bloqueio } : {}) });
   }
   res.json({ dia, npcs: l });
