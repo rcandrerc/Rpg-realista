@@ -267,12 +267,35 @@ func _ocupados() -> Dictionary:
 static func _meio(q: Vector2i) -> Vector2:
 	return Vector2(q.x * Q + Q * 0.5, q.y * Q + Q * 0.5)
 
+# onde fica o tronco no quadrado q (o mesmo sorteio de shared/plantio.js lugarNoQuadrado)
+func lugar(q: Vector2i, grande := false) -> Vector2:
+	var h: int = ((q.x * 73856093) ^ (q.y * 19349663)) & 0xFFFFFFFF
+	var solto := float(m.P.dados.get("plantio", {}).get("solto", 0.8))
+	var base := Q if grande else Q * 0.5
+	return Vector2(q.x * Q + base + (float(h & 255) / 255.0 * 2.0 - 1.0) * solto, q.y * Q + base + (float((h >> 8) & 255) / 255.0 * 2.0 - 1.0) * solto)
+
+# árvore nativa ou pedra perto demais do tronco deste quadrado? O servidor recusa ("Perto demais de outra árvore ou pedra"),
+# então o quadrado não pode aparecer livre nem ser escolhido (André 2026-11-22)
+func perto_de_nativa(q: Vector2i, grande := false) -> bool:
+	if m.mov == null:
+		return false
+	var folga := float(m.P.dados.get("plantio", {}).get("folga", 1.6))
+	var l := lugar(q, grande)
+	for o in m.mov.perto_na_mata(l.x, l.y):
+		if Vector2(float(o.x) - l.x, float(o.z) - l.y).length() < float(o.r) + folga:
+			return true
+	return false
+
+func _semente_grande() -> bool:
+	return bool(tipos().get(semente, {}).get("grande", false))
+
 func _area_mais_perto(hp: Vector2):
 	var oc := _ocupados()
 	var melhor = null
 	var md := INF
+	var grande := _semente_grande()
 	for q in quadrados():
-		if oc.has(q):
+		if oc.has(q) or perto_de_nativa(q, grande):
 			continue
 		var d := _meio(q).distance_squared_to(hp)
 		if d < md:
@@ -385,6 +408,7 @@ func _refazer_marcas() -> void:
 	_centro_marcas = hp
 	var oc := _ocupados()
 	var qs := quadrados()
+	var grande := _semente_grande()
 	var n := int(ceil(RAIO_MODO / Q))
 	var c0 := Vector2i(floori(hp.x / Q), floori(hp.y / Q))
 	for di in range(-n, n + 1):
@@ -397,7 +421,7 @@ func _refazer_marcas() -> void:
 			var pm := PlaneMesh.new()
 			pm.size = Vector2(Q * 0.94, Q * 0.94)
 			mi.mesh = pm
-			mi.material_override = _mat_q("ocupado" if oc.has(q) else "livre")
+			mi.material_override = _mat_q("ocupado" if oc.has(q) or perto_de_nativa(q, grande) else "livre")
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			mi.position = Vector3(c.x, m.terreno.altura(c.x, c.y) + 0.06, c.y)
 			add_child(mi)
