@@ -60,7 +60,7 @@ func _refazer() -> void:
 
 func montar_janela(t) -> void:
 	t._cabeca("topo_pvp", "PvP")
-	t._texto("Arena 3x3 · Geada x Chama", Menu.OURO_CLARO, 20)
+	t._texto("%s · Geada x Chama" % _nome(), Menu.OURO_CLARO, 20)
 	t._texto("5 minutos. Vence o time que derrubar mais. Quem cai levanta na base em 5 s, sem perder XP nem equipamento. Faltando gente, os NPCs completam os times.", Menu.TEXTO, 15)
 	if not m.on():
 		t._texto("O PvP é online: entre com a conta para jogar.", Menu.APAGADO, 16)
@@ -80,7 +80,7 @@ func montar_janela(t) -> void:
 	else:
 		if info.get("partida", false):
 			t._texto("Tem uma partida rolando: entrando agora, você joga a próxima.", Menu.APAGADO, 15)
-		t._add(t._botao("Entrar na fila da Arena 3x3", func(): m.rede("pvp", {"acao": "fila"})))
+		t._add(t._botao("Entrar na fila da %s" % _nome(), func(): m.rede("pvp", {"acao": "fila"})))
 	var br: Button = t._botao("Battle Royale · em breve", func(): m.hud.aviso("Battle Royale: em breve"), false)
 	br.modulate = Color(1, 1, 1, 0.55)
 	t._add(br)
@@ -108,6 +108,11 @@ func montar_janela(t) -> void:
 		t.conteudo.add_child(linha)
 
 # ---------- eventos do servidor ----------
+# "Arena 4x4": o tamanho do time vem do servidor (PVP.time em shared/dados.js; André 2026-11-22: 4x4 agora, 5x5 depois)
+func _nome() -> String:
+	var n := int(info.get("tam", 4))
+	return "Arena %dx%d" % [n, n]
+
 func do_servidor(ev: Dictionary) -> void:
 	match str(ev.get("fase", "")):
 		"info":
@@ -161,7 +166,7 @@ func _inicio(ev: Dictionary) -> void:
 	if m.menu_topo and m.menu_topo.aberta == "pvp":
 		m.menu_topo.fechar()
 	if m.hud.festa:
-		m.hud.festa.anuncio("Arena 3x3", "Você é da %s" % NOME.get(meu_time, ""), "boss")
+		m.hud.festa.anuncio(_nome(), "Você é da %s" % NOME.get(meu_time, ""), "boss")
 	if m.sons:
 		m.sons.tocar("pano", -6.0)
 
