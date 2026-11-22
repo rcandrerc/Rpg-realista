@@ -3269,7 +3269,7 @@ export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
 // nivel: 'um' (Nv 1), 'metade' (metade do nível do líder), 'igual' (o nível do líder).
 export const CLA = {
   nome: { min: 3, max: 20 },
-  max: 5, // recrutas no clã (fase 1; pesa no celular)
+  max: 6, // recrutas no clã (André 2026-11-22: 6 por clã; era 5)
   semana: 7 * 86400000, // ms
   calote: 7 * 86400000, // sem pagamento por 7 dias: o recruta vai embora
   extra: { de: 3, por: 0.10 }, // cada recruta depois do 3º: +10% na semana toda

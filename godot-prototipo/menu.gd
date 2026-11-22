@@ -1770,7 +1770,7 @@ func montar_cla() -> void:
 	vc.add_theme_constant_override("separation", 4)
 	cab.add_child(vc)
 	vc.add_child(rotulo("Clã %s" % str(C.get("n", "")), 20, OURO_CLARO))
-	vc.add_child(rotulo("Líder: você · %d/%d recrutas" % [(C.get("m", []) as Array).size(), int(C.get("max", 5))], 13, TEXTO))
+	vc.add_child(rotulo("Líder: você · %d/%d recrutas" % [(C.get("m", []) as Array).size(), int(C.get("max", 6))], 13, TEXTO))
 	var falta := maxf(0.0, float(C.get("prox", 0)) - float(Time.get_ticks_msec() - m.P.cla_t))
 	var cofre := int(C.get("cofre", 0))
 	var semana := int(C.get("semana", 0))
@@ -1817,7 +1817,7 @@ func montar_cla() -> void:
 	var perto: bool = C.get("perto", false) == true
 	if not perto:
 		conteudo.add_child(rotulo("Fale com o Recrutador (Sargento Bruno na Clareira, Sargenta Hela no Juncal).", 12, APAGADO))
-	var cheio := ms.size() >= int(C.get("max", 5))
+	var cheio := ms.size() >= int(C.get("max", 6))
 	for T in C.get("tiers", []):
 		var tid := str(T.id)
 		var bt := botao("%s Nv %d · %d de ouro · %d/semana" % [str(T.nome), int(T.nv), int(T.preco), int(T.sem)], func(): m.rede("cla", {"acao": "recrutar", "tier": tid}), 15, perto)

@@ -47,8 +47,8 @@ export const semanaDe = (T, nvR) => T.semana + T.semanaNivel * nvR;
 const tierDe = (id) => CLA.tiers.find((T) => T.id === id) || CLA.tiers[0];
 // a semana do clã inteiro: a soma de cada um, +10% por recruta depois do 3º
 export function semanaCla(c) {
-  const soma = c.m.reduce((s, m) => s + semanaDe(tierDe(m.tier), m.nv), 0);
-  return Math.round(soma * (1 + Math.max(0, c.m.length - CLA.extra.de) * CLA.extra.por));
+  const fator = 1 + Math.max(0, c.m.length - CLA.extra.de) * CLA.extra.por; // igual à cobrança (cada um arredondado)
+  return c.m.reduce((s, m) => s + Math.round(semanaDe(tierDe(m.tier), m.nv) * fator), 0);
 }
 // recruta sorteado (rnd: () => 0..1)
 export function sortearRecruta(rnd, T, nvLider, agora) {
