@@ -23,6 +23,14 @@ var outros := {} # id -> {no, anim, alvo, ry, seq, barra, modo, uma_vez}
 var eu_guerra := false # Chama x Geada: eu estou na zona de guerra (acima da Trégua e fora da zona segura)
 var eu_raca := "" # "" = Chama
 var _alvos_guerra := {}
+# perigo (André 2026-11-22: "uma borda vermelha sinalizando perigo mesmo se eu estiver jogando sem som"): borda vermelha
+# pulsando na tela enquanto alguém da outra raça acima da Trégua estiver a até PERIGO_M m e eu na zona de guerra
+const PERIGO_M := 25.0 # GUERRA.alerta (shared/dados.js)
+const TREGUA_NV := 30 # GUERRA.tregua (shared/dados.js)
+var _perigo: ColorRect
+var _perigo_t := 0.0
+var _perigo_on := false
+var _perigo_a := 0.0
 var corpos := {} # id do servidor -> Node3D (para números de dano e efeitos)
 var de_servidor := {} # nome da animação no servidor -> nome no Godot
 var para_servidor := {} # o contrário
@@ -1773,6 +1781,7 @@ func _process(dt: float) -> void:
 func _process_parte(dt: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	_passo(dt)
+	_passo_perigo(dt)
 	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
 
 func _passo(dt: float) -> void:
@@ -2258,6 +2267,48 @@ func _pesca_fim(o: Dictionary) -> void:
 # Chama x Geada (André 2026-11-22: "apareceu um geada na minha frente... mas não consegui atacar"): o mais perto da outra
 # raça que pode ser atacado agora (os dois na zona de guerra, ele vivo e sem a proteção da queda), como o adversário do
 # duelo e o outro time da arena. Quem acerta e quanto tira é o servidor (shared/guerra.js).
+func _passo_perigo(dt: float) -> void:
+	_perigo_t -= dt
+	if _perigo_t <= 0.0: # procura 4 vezes por segundo
+		_perigo_t = 0.25
+		_perigo_on = false
+		if ligado and eu_guerra and m.heroi != null:
+			var eu: Vector3 = m.heroi.position
+			for id in outros:
+				var o = outros[id]
+				if str(o.get("raca", "")) == eu_raca or o.get("morto_srv", false) or int(o.get("nivel", 0)) <= TREGUA_NV:
+					continue
+				if is_instance_valid(o.no) and o.no.visible and o.no.position.distance_to(eu) <= PERIGO_M:
+					_perigo_on = true
+					break
+	_perigo_a = move_toward(_perigo_a, 1.0 if _perigo_on else 0.0, dt * 3.0)
+	if _perigo_a <= 0.0:
+		if _perigo != null:
+			_perigo.visible = false
+		return
+	if _perigo == null:
+		var camada := CanvasLayer.new()
+		camada.layer = 5
+		add_child(camada)
+		_perigo = ColorRect.new()
+		_perigo.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_perigo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sm := ShaderMaterial.new()
+		sm.shader = Shader.new()
+		sm.shader.code = """shader_type canvas_item;
+uniform float forca = 1.0;
+void fragment() {
+	vec2 d = min(UV, 1.0 - UV); // distância até a borda mais perto (fração da tela)
+	float b = min(d.x * 1.6, d.y); // a tela é larga: a borda dos lados fica da mesma grossura
+	float pulso = 0.6 + 0.4 * sin(TIME * 6.0);
+	float a = (1.0 - smoothstep(0.0, 0.09, b)) * pulso * forca;
+	COLOR = vec4(0.9, 0.05, 0.03, a * 0.75);
+}"""
+		_perigo.material = sm
+		camada.add_child(_perigo)
+	_perigo.visible = true
+	(_perigo.material as ShaderMaterial).set_shader_parameter("forca", _perigo_a)
+
 func alvo_guerra(pos: Vector3, max_d: float, filtro := Callable()):
 	if not eu_guerra:
 		return null
