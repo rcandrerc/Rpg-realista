@@ -1437,7 +1437,8 @@ export const PVP = {
   nomeMoeda: 'Insígnias da Arena',
   moeda: { vitoria: 30, derrota: 12, empate: 20, abate: 2, abateMax: 20, minimo: 60 },
   times: { chama: { nome: 'Chama', cor: 'ff9a3c' }, geada: { nome: 'Geada', cor: '8fd0ff' } },
-  // NPCs que completam cada time, na ordem de preferência (Chama: depois deles, qualquer aventureiro que estiver online)
+  // os clãs de cada raça (referência). Desde 2026-11-22 (André: "se eu estiver em time vai meu time, se não vai sorteio entre
+  // os bots") quem completa os times é sorteado entre todos os bots da raça (shared/arena.js comecarPvp)
   npcs: { chama: ['cecilia', 'dario', 'lia'], geada: ['kira', 'rufo', 'lis', 'gael'] },
   travar: 0.5, // atordoar/congelar de jogador em jogador vale essa fração do tempo (igual ao duelo)
 };
