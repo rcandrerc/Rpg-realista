@@ -64,7 +64,9 @@ export const Guerra = {
       if (j.bot || j.morto || j.criando || !j.guerra) continue;
       const A = (j.alertaGuerra ||= {});
       for (const o of this.jogadores.values()) {
-        if (!this.emGuerra(o, j, true) || o.morto || o.criando) continue;
+        // o outro pode estar dentro da vila (André 2026-11-22: "o Rufo estava na vila e eu passei fora, não acionou
+        // alarme"): avisa de quem é da outra raça e passou da Trégua, mesmo na zona segura dele
+        if (o === j || o.tipo !== 'jogador' || !this.outraRaca(o, j) || (o.prog?.nivel | 0) <= W.tregua || o.morto || o.criando || o.pvp || this.naCaverna(o)) continue;
         const d = dist(o, j); if (d > W.alerta) continue;
         const k = o.conta || o.id; if (this.tempo < (A[k] ?? -1e9) + W.alertaEntre) continue;
         A[k] = this.tempo;

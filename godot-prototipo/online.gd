@@ -20,6 +20,9 @@ var amiga_ids: Array = [] # todos os amigos virtuais com quem posso conversar: C
 var amiga_papeis := {} # id -> "a guerreira" / "o guerreiro" (o título na janela de conversa)
 var amiga_segue := {} # id -> true: dá para seguir (botão Seguir no cartão; só a Cecília, AMIGA.seguivel)
 var outros := {} # id -> {no, anim, alvo, ry, seq, barra, modo, uma_vez}
+var eu_guerra := false # Chama x Geada: eu estou na zona de guerra (acima da Trégua e fora da zona segura)
+var eu_raca := "" # "" = Chama
+var _alvos_guerra := {}
 var corpos := {} # id do servidor -> Node3D (para números de dano e efeitos)
 var de_servidor := {} # nome da animação no servidor -> nome no Godot
 var para_servidor := {} # o contrário
@@ -696,6 +699,8 @@ func _soltar_capa() -> void:
 var _montado_dif := 0.0 # segundos (contados pelas fotos) com o app e o servidor discordando da montaria
 func meu(j: Dictionary) -> void:
 	var h: Dictionary = m.h
+	eu_guerra = int(j.get("guerra", 0)) == 1
+	eu_raca = str(j.get("raca", ""))
 	if j.has("caverna"): # Caverna da Montanha: o selo deixa passar quem usou o passe (o servidor é quem sabe)
 		m.mov.selo_aberto = j.caverna == true
 	var ap_txt := JSON.stringify(j.get("aparencia"))
@@ -829,6 +834,9 @@ func outro(j: Dictionary) -> void:
 		o.bot = true # a Cecília: não pede troca nem amizade (troca.gd)
 	# Chama x Geada (André 2026-11-18): a raça vem só para quem não é da Chama (Kira, Rufo e Lis na fase 1). O nome fica da
 	# cor da raça e a capa ganha as cores dela (RACAS em shared/dados.js); a Chama continua com o visual de sempre
+	o.guerra = int(j.get("guerra", 0)) == 1 # na zona de guerra agora (o servidor decide; alvo_guerra)
+	o.prot = int(j.get("prot", 0)) == 1 # protegido depois de cair (2 min)
+	o.morto_srv = bool(j.get("morto", false))
 	var raca := str(j.get("raca", ""))
 	if raca != str(o.get("raca", "")):
 		o.raca = raca
@@ -2246,3 +2254,27 @@ func _pesca_fim(o: Dictionary) -> void:
 		p.vara.queue_free()
 	o.modo = "" # a espada ou o cajado volta para a mão na próxima foto
 	o.seq = -1
+
+# Chama x Geada (André 2026-11-22: "apareceu um geada na minha frente... mas não consegui atacar"): o mais perto da outra
+# raça que pode ser atacado agora (os dois na zona de guerra, ele vivo e sem a proteção da queda), como o adversário do
+# duelo e o outro time da arena. Quem acerta e quanto tira é o servidor (shared/guerra.js).
+func alvo_guerra(pos: Vector3, max_d: float, filtro := Callable()):
+	if not eu_guerra:
+		return null
+	var melhor = null
+	var md := max_d
+	for id in outros:
+		var o: Dictionary = outros[id]
+		if str(o.get("raca", "")) == eu_raca or not o.get("guerra", false) or o.get("prot", false) or o.get("morto_srv", false):
+			continue
+		if not is_instance_valid(o.get("no")) or not o.no.visible:
+			continue
+		var d: float = o.no.position.distance_to(pos)
+		if d >= md or (filtro.is_valid() and not filtro.call(o.no.position)):
+			continue
+		if not _alvos_guerra.has(id) or _alvos_guerra[id].no != o.no:
+			_alvos_guerra[id] = {"no": o.no, "estado": "vivo", "duelo": true, "id": id}
+		_alvos_guerra[id].estado = "vivo"
+		md = d
+		melhor = _alvos_guerra[id]
+	return melhor

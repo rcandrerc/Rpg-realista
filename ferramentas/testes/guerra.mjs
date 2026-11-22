@@ -135,3 +135,16 @@ ok(Object.keys(FALAS_GUERRA).every((k) => ['kira', 'rufo', 'lis', 'gael', 'dario
   for (let i = 0; i < 20 * 6; i++) s3.passo(0.05); s3.guerraT = 0; s3.passo(0.05); s3.ferir(a, 1e6, k3);
   ok(anuncios.length === 1, 'o segundo em menos de 10 min não vai para o Geral');
 }
+// alerta com o inimigo dentro da vila (André 2026-11-22: "o Rufo estava na vila e eu passei fora, não acionou alarme")
+{
+  const s4 = new Simulacao(MAPA_CLAREIRA);
+  const a = s4.adicionarJogador('a4', 'Ana', 'ruiva', {}); a.conta = 'c4';
+  for (const x of s4.amigosIa) x.amigaEntrar('a4');
+  const r4 = s4.amigoIaDe('rufo').amiga; const C4 = RACAS.geada.casa;
+  a.prog.nivel = 40; s4.aplicarStatus(a); a.vida = a.vidaMax;
+  Object.assign(r4, { x: C4.x + 10, z: C4.z }); Object.assign(a, { x: C4.x + 28, z: C4.z, y: s4.terreno.altura(C4.x + 28, C4.z) });
+  const ev = []; const e0 = s4.evento.bind(s4); s4.evento = (e) => { ev.push(e); return e0(e); };
+  s4.guerraT = 0; s4.passo(0.05);
+  ok(a.guerra && s4.zonaSeguraGuerra(r4.x, r4.z), 'Ana fora da vila (guerra), Rufo dentro (seguro)');
+  ok(ev.some((e) => e.t === 'aviso' && e.para === 'a4' && /Rufo/.test(e.texto)), 'o alerta de 25 m dispara mesmo com o Rufo dentro da vila');
+}
