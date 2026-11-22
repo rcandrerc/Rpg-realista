@@ -21,6 +21,7 @@ import { LeilaoBots } from './leilao-bots.js'; // os bots no leilão (André 202
 import { Kit, pedidosDaEtapa, soNoMar, gMissao } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
 import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (André 2026-11-16)
 import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
+import { Cla } from './cla.js'; // clã e recrutas (André 2026-11-22)
 import { Guilda } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11-18)
 import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
 import { Guerra } from './guerra.js'; // Chama x Geada (André 2026-11-18)
@@ -975,7 +976,7 @@ export class Simulacao {
   // Manda para o próprio jogador o progresso e os números do herói (o menu do personagem mostra)
   avisarProg(j) {
     const st = Object.fromEntries(Object.entries(j.st).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4]));
-    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), di: j.bot ? null : this.diariasInfo(j), gu: j.bot ? null : this.guildaInfo(j), ...(j.testador && CONTA_TESTE.nivel ? { teste: true } : {}), ...(j.testador && CONTA_TESTE.missoes ? { testeMissoes: true } : {}) }); // hi: a etapa da história (app)
+    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), di: j.bot ? null : this.diariasInfo(j), gu: j.bot ? null : this.guildaInfo(j), cl: j.bot ? null : this.claInfo(j), ...(j.testador && CONTA_TESTE.nivel ? { teste: true } : {}), ...(j.testador && CONTA_TESTE.missoes ? { testeMissoes: true } : {}) }); // hi: a etapa da história (app)
     j.progSujo = true;
   }
   // O servidor grava na conta quem mudou (index.js chama de tempos em tempos e quando o jogador sai)
@@ -4394,6 +4395,7 @@ export class Simulacao {
       }
     }
     this.passoGuerra(); this.passoDuplasGuerra(); // Chama x Geada (shared/guerra.js): quem pode lutar agora e as falas de quem avistou alguém
+    if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); } // a semana do clã (shared/cla.js)
     for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
     for (const j of this.jogadores.values()) this.passoJogador(j, dt);
     this.passoTrocas();
@@ -4893,6 +4895,7 @@ Object.assign(Simulacao.prototype, Amiga);
 Object.assign(Simulacao.prototype, Kit);
 Object.assign(Simulacao.prototype, Plantio); // árvores plantadas (André 2026-11-16)
 Object.assign(Simulacao.prototype, Diarias); // missões diárias (André 2026-11-16)
+Object.assign(Simulacao.prototype, Cla); // clã e recrutas (André 2026-11-22, shared/cla.js)
 Object.assign(Simulacao.prototype, Guilda); // Guilda dos Aventureiros: contratos e ranks F a SS (André 2026-11-18)
 Object.assign(Simulacao.prototype, Economia); // livro-caixa da economia (André 2026-11-16)
 Object.assign(Simulacao.prototype, Duelo); // duelo (André 2026-11-17)

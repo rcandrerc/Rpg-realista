@@ -19,6 +19,8 @@ var diarias: Dictionary = {} # missões diárias (André 2026-11-16): o resumo d
 var diarias_t := 0 # Time.get_ticks_msec() de quando chegou (o relógio "Novas em" conta daí)
 var guilda: Dictionary = {} # Guilda dos Aventureiros (André 2026-11-18): o resumo do servidor (shared/guilda.js guildaInfo)
 var guilda_t := 0
+var cla: Dictionary = {} # clã e recrutas (André 2026-11-22): o resumo do servidor (shared/cla.js claInfo); {sem: 1} = sem clã
+var cla_t := 0
 var hist_info: Dictionary = {} # história v2 (André 2026-11-11): a etapa da vez que o servidor manda (texto, NPC, alvo do Ir)
 var relogio := 0.0 # ms: relógio do servidor - relógio do celular (o vigor enche pelo relógio do servidor)
 
@@ -138,6 +140,9 @@ func do_servidor(ev: Dictionary) -> void:
 	if ev.has("gu"):
 		guilda = ev.gu if ev.gu is Dictionary else {}
 		guilda_t = Time.get_ticks_msec()
+	if ev.has("cl"):
+		cla = ev.cl if ev.cl is Dictionary else {}
+		cla_t = Time.get_ticks_msec()
 	carrinho_no_mundo()
 	teste = bool(ev.get("teste", false))
 	teste_missoes = bool(ev.get("testeMissoes", false))

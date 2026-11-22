@@ -160,6 +160,7 @@ export const Amiga = {
   // fala: quem entrou pode conversar com ele (chave de IA ou conta de teste). André 2026-11-11 ("quero que eles andem
   // sozinhos"): o NPC fica no mundo para todo mundo da sala; só quem pode conversar vira o "dono" que ele acompanha.
   amigaEntrar(donoId, fala = true) {
+    if (this.AMIGA.recruta && this.jogadores.get(donoId)?.conta !== this.AMIGA.lider) return; // recruta do clã (shared/cla.js): só com o líder
     if (fala) (this.amigaFalam ||= new Set()).add(donoId); else this.amigaFalam ||= new Set();
     if (!this.amiga && this.iaForaAmiga()) { this.amigaFora ||= { t: this.tempo }; return; } // deslogado até a IA voltar
     if (!this.amiga) {
@@ -263,9 +264,9 @@ export const Amiga = {
   // André 2026-11-14 ("qualquer um pode interagir, só que o único que tem resposta de IA sou eu"): todo jogador da sala
   // conversa (respostas prontas, das regras), chama para o time e troca. A resposta da IA é só de quem tem a chave
   // (amigaFalam: quem colou a chave Groq e as contas de teste), ver iaAmiga e server/index.js falarComAmigoIa.
-  podeAmiga(id) { const j = id != null && this.jogadores.get(id); return !!this.amiga && !!j && !j.bot; },
+  podeAmiga(id) { const j = id != null && this.jogadores.get(id); return !!this.amiga && !!j && !j.bot && (!this.AMIGA.recruta || j.conta === this.AMIGA.lider); }, // recruta: só o líder
   // André 2026-11-19: a IA vale para todo jogador (sem precisar de chave própria), só nos da Chama (a Geada é só código)
-  iaAmiga(id) { return IA_CONVERSA.ligada && !!this.amiga && IA_CONVERSA.quem.includes(this.AMIGA.id) && id != null && this.podeAmiga(id); },
+  iaAmiga(id) { return IA_CONVERSA.ligada && !!this.amiga && (IA_CONVERSA.quem.includes(this.AMIGA.id) || !!this.AMIGA.recruta) && id != null && this.podeAmiga(id); },
   // ocupada com quem ela acompanha agora: no time dele, coletando junto, trocando ou indo até ele
   ocupadaAmiga() {
     const a = this.amiga, dono = this.jogadores.get(this.amigaDono); if (!a || !dono) return false;
@@ -357,8 +358,18 @@ export const Amiga = {
   },
   avisarVirtuaisAmiga() { for (const o of this.jogadores.values()) if (!o.bot && o.amigos) this.enviarAmigos(o); },
   // o dono saiu: ela guarda o que tem e sai junto (parada, sem gastar servidor)
-  amigaSair(donoId) {
+  amigaSair(donoId, forcar = false) {
     if (!this.amiga) return;
+    if (this.AMIGA.recruta) { // recruta do clã (shared/cla.js): sai junto com o líder (ou dispensado), nunca fica sem ele
+      if (!forcar && this.jogadores.get(donoId)?.conta !== this.AMIGA.lider) return;
+      this.amigaFalam?.clear();
+      if (this.amiga.ia?.atividade) this.fimAtividadeAmiga(this.amiga, false);
+      if (this.amiga.time) this.sairDoTime(this.amiga, `${this.AMIGA.nome} saiu do jogo`);
+      this.guardarAmiga();
+      this.jogadores.delete(this.amiga.id);
+      this.amiga = null; this.amigaDono = null;
+      return;
+    }
     { const sai = this.jogadores.get(donoId); if (sai) this.diarioAmiga(sai.conta); } // quem saiu: o diário da conversa de hoje
     if (donoId != null) this.amigaFalam?.delete(donoId);
     // André 2026-11-11: ele vive no mundo enquanto tiver gente na sala (com ou sem chave); só sai com o último jogador

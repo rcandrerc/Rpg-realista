@@ -60,6 +60,7 @@ static var _foi_trocado := false # saiu porque a conta entrou em outro aparelho 
 static var _conta_antes := {} # nome da conta para o botão "Entrar como…" mesmo com o servidor fora
 var _build_ok := false
 var _pronto := false
+var _cla_pedido := false # já abriu a janela do nome do clã nesta sessão
 var _nome_recusado := "" # nome que o servidor recusou no criador (já é de outra conta)
 var _erro_nome := ""
 var _ap_mandar = null # aparência do criador esperando para ir ao servidor (no máximo 4 por segundo)
@@ -1111,6 +1112,10 @@ func evento(ev: Dictionary) -> void:
 	match t:
 		"prog": # nível, XP, atributos e skills da conta (o menu do personagem mostra)
 			m.P.do_servidor(ev)
+			# clã (André 2026-11-22): conta sem clã abre a aba Clã uma vez para escolher o nome (depois do criador)
+			if not _cla_pedido and int(m.P.cla.get("sem", 0)) == 1 and m.menu and not (m.criador and m.criador.aberto()):
+				_cla_pedido = true
+				m.menu.abrir("cla")
 			if m.troca:
 				m.troca.progresso_mudou() # a mochila da janela de troca mostra o que sobrou
 			if m.leilao:

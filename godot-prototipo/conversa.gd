@@ -26,7 +26,8 @@ const ACOES := {
 	"pack": ["Packs (fazer e entregar)", "it_pack"], # mercadores de pack (FASE 1, transporte.gd)
 	"alquimia": ["Sintetizar catalisador", "it_selo_epico"], # Mirela, a alquimista (André 2026-11-09)
 	"leilao": ["Leilão (comprar e vender)", "negociar"], # Otávio, na Casa do Comércio do Rio Claro (história v2, Entrega 3)
-	"guilda": ["Contratos da Guilda", "it_tomo"], # Brenda, Guilda dos Aventureiros no Rio Claro (André 2026-11-18)
+	"guilda": ["Contratos da Guilda", "it_tomo"],
+	"recrutar": ["Recrutar soldados", "eq_capa"], # Recrutador do clã (André 2026-11-22, shared/cla.js) # Brenda, Guilda dos Aventureiros no Rio Claro (André 2026-11-18)
 	# Cecília, a amiga (shared/amiga.js, André 2026-11-09): o servidor decide o que ela responde
 	"amiga_casa": ["Como vai a casa?", "lote"],
 	"amiga_ajuda": ["Precisa de ajuda?", "falar"],
@@ -662,6 +663,9 @@ func escolher(a: String) -> void:
 		"guilda": # Brenda: a aba Guilda da janela de Missões (contratos, rank e Prova)
 			fechar()
 			m.menu.abrir("guilda")
+		"recrutar": # Recrutador: a aba Clã com os 3 níveis de recruta (perto dele dá para contratar)
+			fechar()
+			m.menu.abrir("cla")
 		"conversar":
 			if m.on():
 				m.rede("falar", {"npc": n.id, "conversa": true})

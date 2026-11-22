@@ -175,6 +175,8 @@ class SalaClareira extends Room {
     this.ouvir('barra_vista', (c) => this.sim.verBarra(c.sessionId)); // abriu a aba Habilidades (missão "Confira sua barra")
     this.ouvir('diaria', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12 && (m.id == null || (typeof m.id === 'string' && m.id.length < 16))) this.sim.diaria(c.sessionId, { acao: m.acao, id: m.id }); }); // missões diárias (aba Diárias)
     this.ouvir('guilda', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12 && (m.id == null || (typeof m.id === 'string' && m.id.length < 8))) this.sim.guilda(c.sessionId, { acao: m.acao, id: m.id }); }); // Guilda dos Aventureiros (mural e aba Guilda)
+    // clã e recrutas (André 2026-11-22, shared/cla.js): fundar, recrutar, dispensar, cofre
+    this.ouvir('cla', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) this.sim.cla(c.sessionId, { acao: m.acao, nome: typeof m.nome === 'string' ? m.nome.slice(0, 40) : null, tier: typeof m.tier === 'string' ? m.tier.slice(0, 12) : null, id: typeof m.id === 'string' ? m.id.slice(0, 20) : null, ouro: Number(m.ouro) || 0 }); });
     this.ouvir('item', (c, m) => this.sim.item(c.sessionId, m)); // mochila: equipar, tirar, usar, comprar, vender
     this.ouvir('leilao', (c, m) => { // Casa do Comércio (Otávio, Rio Claro)
       // robô de testes (André 2026-11-16: "conserta os dois robôs"): faz a missão do leilão sem mexer na economia de
@@ -524,6 +526,9 @@ class SalaClareira extends Room {
       }
       ctx.amigaEntrar(client.sessionId, fala);
     }
+    // os recrutas do clã de quem entrou (shared/cla.js): o save fica na tabela mundo, como o dos aventureiros
+    if (contas) this.sim.lerNpc ||= (id) => contas.lerMundo('npc:' + id);
+    { const j = this.sim.jogadores.get(client.sessionId); if (j && !j.bot) { this.sim.cobrarCla(j); this.sim.entrarRecrutas(j); } }
     this.sim.enviarLotes(client.sessionId);
   }
 
@@ -553,6 +558,7 @@ class SalaClareira extends Room {
     { const jj = this.sim.jogadores.get(client.sessionId); if (jj) this.sim.saiuComVeiculo(jj); } // dirigindo: o veículo fica onde ele parou
     { const jj = this.sim.jogadores.get(client.sessionId); if (jj && client.auth?.id != null && !client.userData?.substituido) { saidas.set(client.auth.id, ultimaNoticia(this.sim, jj)); montSaida.set(client.auth.id, infoSaida(this.sim, jj)); } } // queda: a hora da última notícia
     this.salvarProgressos(); // grava antes de tirar o herói do mundo
+    { const jj = this.sim.jogadores.get(client.sessionId); if (jj) this.sim.sairRecrutas(jj); } // os recrutas do clã saem junto com o líder (shared/cla.js)
     for (const ctx of this.sim.amigosIa) ctx.amigaSair(client.sessionId); // NPCs: quem saiu deixa de ser acompanhado; o último da sala leva todos junto
     this.salvarProgressos();
     this.sim.removerJogador(client.sessionId);
