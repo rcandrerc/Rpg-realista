@@ -3309,6 +3309,10 @@ export const CLA = {
   ],
   farmar: 40, // quanto ele junta por viagem (o máximo da encomenda); acabou, vai de novo
   protegeRaio: 9, // m em volta de quem ele protege: monstro ou inimigo ali dentro, ele ataca
+  // com o líder fora do jogo (André 2026-11-22: "eqt estou offline ele faz oq eu mandei?"): a sala fecha sem ninguém,
+  // então quando ele volta o servidor conta o tempo fora (até max) e dá o resultado da função: Grind = XP (nivelHora
+  // níveis por hora, nunca passa do nível do líder); Farmar = o que o vigor pagaria (o vigor enche no tempo fora)
+  fora: { minimo: 5 * 60e3, max: 12 * 3600e3, nivelHora: 0.25, peixe: 'tilapia' },
 };
 // o recruta m do clã (shared/cla.js) vira um NPC igual aos aventureiros por dentro (cérebro, conversa, time, troca,
 // encomenda, barco...), com dono: só o líder conversa e manda nele, e ele só existe com o líder no jogo.

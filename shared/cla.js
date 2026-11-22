@@ -11,8 +11,9 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { CLA, ENCOMENDA, VIGOR, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, vagasClaNpc, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS, RACAS } from './dados.js';
+import { CLA, ENCOMENDA, VIGOR, COLETA, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, vagasClaNpc, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS, RACAS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
+import { guardar, xpProximo } from './progresso.js'; // só usadas em tempo de jogo (progresso.js também importa daqui)
 
 const sorteia = (l, r) => l[Math.floor(r() * l.length)];
 const int = (v, a, b, d) => (Number.isFinite(+v) ? Math.max(a, Math.min(b, Math.round(+v))) : d);
@@ -31,7 +32,7 @@ const cor = (v) => (Number.isInteger(v) && v >= 0 && v <= 0xffffff ? v : 0x88888
 export function claValido(c) {
   if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
   const n = nomeCla(c.n); if (!n) return null;
-  const P = CLA.penteados, out = { n, c: int(c.c, 0, 9e15, Date.now()), cofre: int(c.cofre, 0, 1e9, 0), sem: int(c.sem, 0, 9e15, 0), m: [], log: [] };
+  const P = CLA.penteados, out = { ...(Number.isFinite(+c.saiu) && +c.saiu > 0 ? { saiu: Math.round(+c.saiu) } : {}), n, c: int(c.c, 0, 9e15, Date.now()), cofre: int(c.cofre, 0, 1e9, 0), sem: int(c.sem, 0, 9e15, 0), m: [], log: [] };
   for (const m of Array.isArray(c.m) ? c.m.slice(0, CLA.max) : []) {
     if (!m || typeof m.id !== 'string' || !/^rc[a-z0-9]{4,16}$/.test(m.id) || out.m.some((o) => o.id === m.id)) continue;
     const g = m.g === 'm' ? 'm' : 'f', ap = m.ap && typeof m.ap === 'object' ? m.ap : {};
@@ -253,7 +254,38 @@ export const Cla = {
       const ang = Math.random() * Math.PI * 2, x = j.x + Math.sin(ang) * 2.5, z = j.z + Math.cos(ang) * 2.5;
       Object.assign(a, { x, z, y: this.terreno.altura(x, z), chao: true });
     }
+    this.foraRecrutas(j);
     this.aplicarFuncoes(j); // a função que ficou escolhida no painel
+  },
+  // o tempo que o líder ficou fora: cada recruta entrega o que a função dele daria (CLA.fora)
+  foraRecrutas(j) {
+    const c = j.prog.cla, F = CLA.fora; if (!c?.saiu) return;
+    const ms = Math.min(F.max, Date.now() - c.saiu); delete c.saiu; j.progSujo = true;
+    if (!(ms >= F.minimo)) return;
+    const h = ms / 3600e3, feitos = [];
+    for (const x of this.recrutasNoMundo(j)) {
+      const a = x.amiga, m = a && c.m.find((o) => o.id === x.AMIGA.id); if (!m?.fn || m.dev) continue; // devendo não trabalha
+      if (m.fn.k === 'grind') {
+        const teto = Math.max(1, j.prog.nivel | 0), antes = a.prog.nivel | 0; if (antes >= teto) continue;
+        let n = F.nivelHora * h, xp = 0, nv = antes, resto = a.prog.xp | 0;
+        while (n > 0 && nv < teto) { const prox = xpProximo(nv), falta = prox - resto, q = Math.min(n, falta / prox); xp += Math.round(q * prox); n -= q; resto = 0; nv++; }
+        if (xp > 0) { this.ganharXP(a, xp); if ((a.prog.nivel | 0) > teto) a.prog.nivel = teto; m.nv = a.prog.nivel | 0; feitos.push(`${m.nome} caçou e foi do Nv ${antes} ao ${a.prog.nivel}`); }
+      } else if (m.fn.k === 'recurso') {
+        const R = ENCOMENDA.recursos[m.fn.r]; if (!R) continue;
+        const C = R.no && COLETA[R.no], item = R.item === 'peixe' ? F.peixe : R.item;
+        const custo = C ? C.vigor / (C.da[R.item] || 1) : 1; // vigor por unidade
+        const vg = vigorDe(a.prog.vigor) + (h * 3600 / VIGOR.enche) * VIGOR.max; // o que tinha + o que encheu fora
+        let n = Math.floor(vg / custo), dado = 0;
+        for (let passo = 50; n > 0 && passo >= 1; passo = Math.floor(passo / 2)) while (n >= passo && guardar(a.prog.mochila, { k: item, n: passo })) { n -= passo; dado += passo; }
+        a.prog.vigor = { v: Math.max(0, Math.min(VIGOR.max, vg - dado * custo)), t: Date.now() };
+        if (dado) feitos.push(`${m.nome} juntou ${dado} de ${R.nome}`); else feitos.push(`${m.nome} não juntou nada (bolsa cheia)`);
+      }
+      x.guardarAmiga?.();
+    }
+    if (!feitos.length) return;
+    const horas = h >= 1 ? `${Math.floor(h)} h` : `${Math.round(h * 60)} min`;
+    for (const f of feitos) this.logCla(c, `Fora (${horas}): ${f}`);
+    this.evento({ t: 'aviso', para: j.id, texto: `Enquanto você esteve fora (${horas}): ${feitos.join('; ')}` });
   },
   // tira o corpo de um recruta (dispensado ou foi embora)
   tirarRecruta(rid, j) {
@@ -265,6 +297,7 @@ export const Cla = {
   },
   // o líder saiu: os recrutas dele guardam tudo e saem junto
   sairRecrutas(j) {
+    if (j?.prog?.cla) { j.prog.cla.saiu = Date.now(); j.progSujo = true; } // a conta do tempo fora (foraRecrutas)
     for (const ctx of this.recrutasNoMundo(j)) ctx.amigaSair(j.id, true);
     this.amigosIa = this.amigosIa.filter((x) => !(x.AMIGA.recruta && !x.AMIGA.clanpc && x.AMIGA.lider === j.conta));
   },
