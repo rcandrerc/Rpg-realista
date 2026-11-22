@@ -3450,7 +3450,9 @@ var _area_a = null # Vector2i do primeiro canto
 var _area_b = null
 
 func _area_ok() -> bool:
-	return modo_area and ativo and aba == "fazenda" and plano != null and plano.planeja(sel)
+	# André 2026-11-22: sem botões Marcar/Área; na Fazenda, com arar/plantar/regar/colher/muda escolhido, o dedo no chão
+	# sempre arrasta a área (toque simples marca ou desmarca um quadrado). A câmera gira em outras abas ou com Desfazer.
+	return ativo and aba == "fazenda" and plano != null and plano.planeja(sel)
 
 func alternar_area() -> void:
 	modo_area = not modo_area
@@ -3509,6 +3511,24 @@ func _aplicar_area() -> void:
 	var L = lotes.get(meu)
 	if L == null:
 		L = {}
+	if R.size.x == 1 and R.size.y == 1: # toque simples: marca ou desmarca um quadrado, como antes
+		var d1: Dictionary
+		var mot1 := ""
+		if sel == "arvore":
+			d1 = {"acao": "arvore", "c": "a:%d,%d" % [R.position.x, R.position.y], "s": arvore, "i": R.position.x, "k": R.position.y, "area": na_area}
+			mot1 = motivo_arvore(R.position, arvore, na_area)
+		else:
+			d1 = {"acao": sel, "c": "%d,%d" % [R.position.x, R.position.y]}
+			if sel == "plantar":
+				d1.s = semente
+			mot1 = motivo_fazenda(L, sel, R.position.x, R.position.y, semente) if not L.is_empty() else "Só dá para plantar dentro do seu terreno"
+		mot1 = plano.motivo_marcar(L, d1, mot1)
+		if mot1 != "":
+			m.hud.aviso(mot1)
+			m.sons.tocar("dash", -12.0)
+		else:
+			plano.alternar(d1)
+		return
 	var novos := 0
 	var ja := 0
 	var fora := 0
@@ -5149,8 +5169,9 @@ func _montar_itens() -> void:
 	var n_plano: int = plano.quantos() if plano else 0
 	if aba == "fazenda" and plano and plano.planeja(sel):
 		b_ok.text = "Marcar"
+	b_ok.visible = not (aba == "fazenda" and plano != null and plano.planeja(sel)) # só Salvar e Limpar
 	if b_area:
-		b_area.visible = aba == "fazenda" and plano != null and plano.planeja(sel)
+		b_area.visible = false # o arrasto agora é sempre de área (ver _area_ok)
 		b_area.set_meta("pt", "Área: ligada" if _area_ok() else "Área")
 		b_area.text = Idioma.frase(str(b_area.get_meta("pt")))
 		Menu.estilo_botao(b_area, _area_ok())

@@ -102,7 +102,7 @@ func dica(dados: Dictionary) -> String:
 	var ja = fila.get(dados.c)
 	if ja != null and ja.acao == dados.acao:
 		return "Marcado: toque de novo para desmarcar"
-	return "Toque para marcar · %d marcados · depois toque em Salvar" % fila.size()
+	return "Arraste para marcar uma área · %d marcados · depois toque em Salvar" % fila.size()
 
 # o quadrado já está marcado com esta mesma ação?
 func marcado(dados: Dictionary) -> bool:
