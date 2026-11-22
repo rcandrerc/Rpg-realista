@@ -1807,6 +1807,11 @@ func montar_cla() -> void:
 		for k in rec:
 			partes.append("%s %d" % [str(m.P.nome_item({"k": str(k)})), int(rec[k])])
 		conteudo.add_child(rotulo("Recursos com os recrutas: " + ", ".join(partes), 13, TEXTO))
+	# os clãs bot (André 2026-11-22): o inimigo (Lobos da Geada, do Gael) e quem mais existir
+	for K in C.get("clas", []):
+		var ini := int(K.get("inimigo", 0)) == 1
+		conteudo.add_child(rotulo("%s %s · líder %s" % ["Inimigo:" if ini else "Aliado:", str(K.n), str(K.lider)], 16, Color(1.0, 0.55, 0.45) if ini else VERDE_DIARIA))
+		conteudo.add_child(rotulo(", ".join(PackedStringArray(K.get("membros", []))), 12, APAGADO))
 	# Recrutador
 	conteudo.add_child(rotulo("Recrutar", 17, OURO_CLARO))
 	var perto: bool = C.get("perto", false) == true

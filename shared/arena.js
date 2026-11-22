@@ -148,7 +148,7 @@ export const Arena = {
     const livre = (ctx) => { const a = ctx?.amiga; return a && !a.morto && !a.pvp && !a.duelo && !a.troca && !a.veiculo && !a.criando && !this.naCaverna(a) ? a : null; };
     for (const t of ['chama', 'geada']) {
       const lista = PVP.npcs[t].map((id) => this.amigosIa.find((c) => c.AMIGA?.id === id));
-      if (t === 'chama') lista.push(...this.amigosIa.filter((c) => c.AMIGA && !c.AMIGA.raca && !PVP.npcs.chama.includes(c.AMIGA.id))); // depois, qualquer aventureiro
+      if (t === 'chama') lista.push(...this.amigosIa.filter((c) => c.AMIGA && !c.AMIGA.raca && !c.AMIGA.recruta && !PVP.npcs.chama.includes(c.AMIGA.id))); // depois, qualquer aventureiro
       for (const ctx of lista) { if (times[t].length >= PVP.time) break; const a = livre(ctx); if (a && !times.chama.includes(a) && !times.geada.includes(a)) times[t].push(a); }
     }
     if (!times.chama.length || !times.geada.length) {

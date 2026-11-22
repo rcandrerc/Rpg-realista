@@ -11,7 +11,7 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { CLA, defRecruta, nomeValido } from './dados.js';
+import { CLA, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
 
 const sorteia = (l, r) => l[Math.floor(r() * l.length)];
@@ -65,7 +65,7 @@ export const Cla = {
   pertoRecrutador(j) { return (this.mapa.npcs || []).some((n) => n.funcao === 'recrutador' && Math.hypot(n.x - j.x, n.z - j.z) < CLA.perto); },
   logCla(c, txt, v = 0) { c.log.push({ t: Date.now(), txt, v }); if (c.log.length > CLA.log) c.log.splice(0, c.log.length - CLA.log); },
   // o contexto (NPC) de cada recruta deste líder que está no mundo
-  recrutasNoMundo(j) { return (this.amigosIa || []).filter((x) => x.AMIGA.recruta && x.AMIGA.lider === j.conta); },
+  recrutasNoMundo(j) { return (this.amigosIa || []).filter((x) => x.AMIGA.recruta && !x.AMIGA.clanpc && x.AMIGA.lider === j.conta); },
   // o que o app desenha (vai junto do progresso: "cl")
   claInfo(j) {
     if (!j || j.bot || !j.conta) return null;
@@ -77,7 +77,7 @@ export const Cla = {
     return { n: c.n, cofre: c.cofre, semana: semanaCla(c), prox: Math.max(0, c.sem - Date.now()), max: CLA.max, perto: this.pertoRecrutador(j),
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, sem: semanaDe(tierDe(m.tier), a ? a.prog.nivel | 0 : m.nv), on: a ? 1 : 0, ...(m.dev ? { dev: m.dev } : {}), g: m.g }; }),
       tiers: CLA.tiers.map((T) => { const n2 = nivelTier(T, nv); return { id: T.id, nome: T.nome, nv: n2, preco: precoTier(T, n2), sem: semanaDe(T, n2) }; }),
-      rec, log: c.log.slice(-10).reverse(), dep: CLA.deposito };
+      rec, log: c.log.slice(-10).reverse(), dep: CLA.deposito, clas: this.clasNpcInfo(j) };
   },
   // pedido do app: { acao: 'fundar' | 'recrutar' | 'dispensar' | 'depositar' | 'sacar' | 'ver', nome, tier, id, ouro }
   cla(id, m) {
@@ -178,12 +178,74 @@ export const Cla = {
   tirarRecruta(rid, j) {
     const i = this.amigosIa.findIndex((x) => x.AMIGA.id === rid); if (i < 0) return;
     const ctx = this.amigosIa[i];
-    if (ctx.amiga) { ctx.amigaSair(j?.id, true); }
+    if (ctx.amiga && ctx.AMIGA.clanpc) { ctx.guardarAmiga(); if (ctx.amiga.time) this.sairDoTime(ctx.amiga, `${ctx.AMIGA.nome} saiu do jogo`); this.jogadores.delete(ctx.amiga.id); ctx.amiga = null; ctx.amigaDono = null; }
+    else if (ctx.amiga) ctx.amigaSair(j?.id, true);
     this.amigosIa.splice(i, 1);
   },
   // o líder saiu: os recrutas dele guardam tudo e saem junto
   sairRecrutas(j) {
     for (const ctx of this.recrutasNoMundo(j)) ctx.amigaSair(j.id, true);
-    this.amigosIa = this.amigosIa.filter((x) => !(x.AMIGA.recruta && x.AMIGA.lider === j.conta));
+    this.amigosIa = this.amigosIa.filter((x) => !(x.AMIGA.recruta && !x.AMIGA.clanpc && x.AMIGA.lider === j.conta));
+  },
+
+  // ---------- clãs bot (André 2026-11-22: Kira, Rufo, Lis e Gael são o clã inimigo; nada de gente solta) ----------
+  // estado: this.clasNpc = { [id]: { m: [membros sorteados como os do jogador], prox: ms (próxima contratação), sem: ms } }
+  carregarClasNpc(est) {
+    this.clasNpc = {};
+    for (const C of CLAS_NPC) {
+      const e = est?.[C.id], v = claValido({ n: C.n, m: Array.isArray(e?.m) ? e.m : [], sem: e?.sem, cofre: 0 });
+      this.clasNpc[C.id] = { m: v?.m.slice(0, CLAS_NPC_REGRAS.max) || [], prox: Number.isFinite(+e?.prox) ? +e.prox : Date.now() + CLAS_NPC_REGRAS.primeiro * 3600e3, sem: v?.sem || Date.now() + CLA.semana };
+    }
+    for (const C of CLAS_NPC) for (const m of this.clasNpc[C.id].m) this.criarRecrutaNpc(C, m, false);
+  },
+  salvarClasNpc() { if (this.aoClasNpc) this.aoClasNpc(this.clasNpc); },
+  criarRecrutaNpc(C, m, entrar) {
+    if (this.amigosIa.some((x) => x.AMIGA.id === m.id)) return null;
+    if (this.lerNpc && !this.npcSalvos?.has(m.id)) this.carregarNpc(m.id, this.lerNpc(m.id));
+    const ctx = contextoDeAmigo(this, defRecrutaNpc(m, C));
+    this.amigosIa.push(ctx);
+    if (entrar) { const o = [...this.jogadores.values()].find((x) => !x.bot); if (o) ctx.amigaEntrar(o.id, false); }
+    return ctx;
+  },
+  liderNpc(C) { return this.amigosIa.find((x) => x.AMIGA.id === C.lider)?.amiga || null; },
+  // a cada minuto (passo): o líder contrata quando pode e paga a semana
+  passoClasNpc() {
+    if (!this.clasNpc) this.carregarClasNpc(null);
+    if (![...this.jogadores.values()].some((o) => !o.bot)) return; // sem ninguém no mundo, o líder não tem corpo
+    const agora = Date.now(), R = CLAS_NPC_REGRAS;
+    for (const C of CLAS_NPC) {
+      const E = this.clasNpc[C.id], L = this.liderNpc(C); if (!L) continue;
+      let mudou = false;
+      for (const x of this.amigosIa) { const m = x.AMIGA.clanpc === C.id && x.amiga && E.m.find((o) => o.id === x.AMIGA.id); if (m && m.nv !== (x.amiga.prog.nivel | 0)) { m.nv = x.amiga.prog.nivel | 0; mudou = true; } }
+      // a semana: sai do ouro do líder; sem ouro, o mais caro vai embora
+      for (let k = 0; E.sem <= agora && k < 60; k++) {
+        E.sem += CLA.semana; mudou = true;
+        const fator = 1 + Math.max(0, E.m.length - CLA.extra.de) * CLA.extra.por;
+        for (const m of [...E.m].sort((a, b) => semanaDe(tierDe(a.tier), a.nv) - semanaDe(tierDe(b.tier), b.nv))) {
+          const v = Math.round(semanaDe(tierDe(m.tier), m.nv) * fator);
+          if ((L.prog.ouro | 0) >= v) L.prog.ouro -= v; else { E.m.splice(E.m.indexOf(m), 1); this.tirarRecruta(m.id, null); }
+        }
+      }
+      // liderança: contrata o melhor que o ouro paga (deixa a reserva)
+      if (agora >= E.prox && E.m.length < R.max) {
+        E.prox = agora + R.entre * 3600e3; mudou = true;
+        const nv = L.prog.nivel | 0, livre = (L.prog.ouro | 0) - R.reserva;
+        const T = [...CLA.tiers].reverse().find((T) => precoTier(T, nivelTier(T, nv)) <= livre);
+        if (T) {
+          const m = sortearRecruta(Math.random, T, nv, agora);
+          L.prog.ouro -= precoTier(T, m.nv); E.m.push(m);
+          this.criarRecrutaNpc(C, m, true);
+          for (const o of this.jogadores.values()) if (!o.bot && this.racaDe(o) !== C.raca) this.evento({ t: 'aviso', para: o.id, texto: `${this.amigosIa.find((x) => x.AMIGA.id === C.lider)?.AMIGA.nome || 'O líder'} recrutou ${m.nome} para os ${C.n}` });
+        }
+      }
+      if (mudou) this.salvarClasNpc();
+    }
+  },
+  // os clãs bot que o app mostra no painel (o inimigo e o aliado)
+  clasNpcInfo(j) {
+    if (!this.clasNpc) this.carregarClasNpc(null);
+    const nome = (id) => [...AMIGOS_VIRTUAIS, ...RIVAIS].find((d) => d.id === id)?.nome || id;
+    return CLAS_NPC.map((C) => ({ n: C.n, lider: nome(C.lider), inimigo: this.racaDe(j) !== C.raca ? 1 : 0,
+      membros: [...C.membros.filter((id) => id !== C.lider).map(nome), ...this.clasNpc[C.id].m.map((m) => `${m.nome} (${tierDe(m.tier).nome} Nv ${m.nv})`)] }));
   },
 };

@@ -66,3 +66,31 @@ s.entrarRecrutas(j);
 ok(s.recrutasNoMundo(j).filter((x) => x.amiga).length === p.cla.m.length, 'voltam quando o líder entra');
 for (let i = 0; i < 200; i++) s.passo(0.05);
 ok(true, 'simulação roda com os recrutas');
+
+// ---------- clã bot (fase 2): Gael lidera os Lobos da Geada e contrata sozinho ----------
+{
+  const { CLAS_NPC, CLAS_NPC_REGRAS } = await import('../../shared/dados.js');
+  const s2 = new Simulacao(MAPA_CLAREIRA);
+  const p2 = s2.adicionarJogador('P', 'Pedro', undefined, { conta: 11 }); p2.criando = false;
+  let salvo = null; s2.aoClasNpc = (e) => { salvo = JSON.parse(JSON.stringify(e)); };
+  s2.carregarClasNpc(null);
+  for (const ctx of s2.amigosIa) ctx.amigaEntrar('P', false);
+  const gael = s2.amigosIa.find((x) => x.AMIGA.id === 'gael').amiga;
+  ok(!!gael, 'Gael no mundo');
+  gael.prog.ouro = 50000;
+  s2.clasNpc.geada.prox = Date.now() - 1;
+  s2.passoClasNpc();
+  const E = s2.clasNpc.geada;
+  ok(E.m.length === 1 && E.m[0].tier === 'elite', `Gael contratou uma elite (${E.m[0]?.nome})`);
+  const rc = s2.amigosIa.find((x) => x.AMIGA.id === E.m[0].id);
+  ok(rc?.amiga && rc.AMIGA.raca === 'geada' && rc.AMIGA.guerra && s2.outraRaca(p2, rc.amiga), 'o recruta é da Geada, com jeito de guerra');
+  ok(salvo?.geada?.m?.length === 1, 'o estado do clã bot vai para o banco');
+  ok(E.prox > Date.now() + (CLAS_NPC_REGRAS.entre - 0.1) * 3600e3, 'a próxima contratação é daqui a horas');
+  gael.prog.ouro = 0; E.sem = Date.now() - 1; s2.passoClasNpc();
+  ok(E.m.length === 0 && !s2.amigosIa.some((x) => x.AMIGA.id === rc.AMIGA.id), 'sem ouro para a semana: o recruta vai embora');
+  const inf = s2.clasNpcInfo(p2);
+  ok(inf[0].n === CLAS_NPC[0].n && inf[0].inimigo === 1 && inf[0].membros.includes('Kira'), 'o painel mostra os Lobos da Geada como inimigos');
+  ok(!s2.botsDeGuerraLivres('chama').some((x) => x.AMIGA.recruta), 'recruta do jogador não sai em ronda');
+  for (let i = 0; i < 100; i++) s2.passo(0.05);
+  ok(true, 'simulação roda com o clã bot');
+}
