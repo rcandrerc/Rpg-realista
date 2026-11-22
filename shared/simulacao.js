@@ -4094,7 +4094,7 @@ export class Simulacao {
         const n = T ? this.ladoDoTotem(T) : cama ? { x: cama.x + ((cama.r & 1) ? 0 : 1.5), z: cama.z + ((cama.r & 1) ? 1.5 : 0) } : casaRaca ? { x: casaRaca.x + 3, z: casaRaca.z + 3 } : this.mapa.nascimento;
         Object.assign(c, { morto: false, vida: c.vidaMax, mana: c.manaMax ?? HEROI.mana, x: n.x, z: n.z, y: T || casaRaca ? this.terreno.altura(n.x, n.z) : 0, vy: 0, chao: true, trava: 0, acao: null });
         // André 2026-11-21: GUERRA.protecao s protegido da outra raça depois de levantar (atacar acaba com ela)
-        const prot = (c.prog?.nivel | 0) > GUERRA.tregua; if (prot) c.protGuerraAte = this.tempo + GUERRA.protecao;
+        const prot = (c.prog?.nivel | 0) > GUERRA.tregua && GUERRA.protecao > 0; if (prot) c.protGuerraAte = this.tempo + GUERRA.protecao;
         this.evento({ t: 'aviso', para: c.id, texto: 'Você se levanta de novo' + textoPenalidade(pen) + (prot ? ` · ${Math.round(GUERRA.protecao / 60)} min protegido da outra raça` : '') });
       });
     } else {

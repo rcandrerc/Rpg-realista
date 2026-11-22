@@ -42,7 +42,7 @@ ok(mem && mem.v === 1 && !(mem.poupa > Date.now()), 'a Kira lembra que derrubou,
 ok(s.eventos.slice(ev0).some((e) => e.t === 'chat' && e.canal === 'local' && e.c === 'a:kira'), 'a Kira fala (no Local) quando derruba');
 // cérebro: Rufo (coragem alta) ataca quem chega perto no campo
 for (let i = 0; i < 20 * 6; i++) s.passo(0.05); // André renasce
-ok(!d.morto && s.protegido(d) && d.protGuerraAte - s.tempo > GUERRA.protecao - 10, 'levantou com 2 min de proteção da outra raça');
+ok(!d.morto && !s.protegido(d), 'levantou sem proteção (André 2026-11-22: renasce no totem ou na vila; saiu, pode ser atacado)');
 d.protGuerraAte = 0;
 nivel(d, 42); por(d, v5.x, v5.z); por(rufo, v5.x + 8, v5.z); por(kira, C.x, C.z); por(lis, C.x + 2, C.z);
 rufo.ia.guerra = null; rufo.ia.falaGuerraT = -1e9; rufo.vida = rufo.vidaMax;

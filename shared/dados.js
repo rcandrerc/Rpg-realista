@@ -3604,7 +3604,8 @@ export const GUERRA = { radar: { mostra: 300, recarga: 1800, presente: 3 }, // P
   // - vidaFoge: com menos que isso de vida o bot olha o inimigo: com menos vida (proporção) que ele, tenta terminar; com
   //   mais que inimigoFoge, foge; entre os dois, continua.
   // - montaria: s sem poder montar depois de bater ou apanhar de alguém da outra raça; apanhar montado derruba do lobo.
-  agro: 25, alerta: 25, alertaEntre: 30, protecao: 120, poupaFraco: false, vidaFoge: 0.3, inimigoFoge: 0.4, montaria: 10,
+  agro: 25, alerta: 25, alertaEntre: 30, protecao: 0, // protecao 0 (André 2026-11-22: "quero tirar a proteção de 2 minutos... renasce no totem ou vila, saiu já pode ser atacado")
+  poupaFraco: false, vidaFoge: 0.3, inimigoFoge: 0.4, montaria: 10,
   mercador: 12, cais: 30,
   // emboscada (André 2026-11-21): viagem com pack (costas, carrinho ou navio) fora da zona segura tem chance de cair numa
   // emboscada da outra raça, no máximo uma a cada entre s por jogador, depois de atraso s de viagem. Vêm quantos bots
