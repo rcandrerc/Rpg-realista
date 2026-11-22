@@ -27,8 +27,8 @@ const M = s.partidaPvp;
 ok(!!M && a.pvp?.M === M, 'depois da espera a partida começa');
 const vidaAntes = a.pvp.de.vida; a.pvp.de.vida = Math.round(a.vidaMax * 0.6);
 const chama = M.ids.filter((id) => s.jogadores.get(id).pvp.time === 'chama'), geada = M.ids.filter((id) => s.jogadores.get(id).pvp.time === 'geada');
-ok(chama.length === 3 && geada.length === 3, `NPCs completam 3x3 (${chama.length}x${geada.length})`);
-ok(geada.every((id) => ['kira', 'rufo', 'lis'].includes(s.amigoIaDe(s.jogadores.get(id))?.AMIGA.id)), 'Kira, Rufo e Lis na Geada');
+ok(chama.length === 4 && geada.length === 4, `NPCs completam 4x4 (${chama.length}x${geada.length})`);
+ok(geada.every((id) => ['kira', 'rufo', 'lis', 'gael'].includes(s.amigoIaDe(s.jogadores.get(id))?.AMIGA.id)), 'Kira, Rufo, Lis e Gael na Geada');
 ok(Math.hypot(a.x - A.x, a.z - A.z) < A.r && a.vida === a.vidaMax, 'foi para a arena com a vida cheia');
 ok(evs((e) => e.t === 'corrigir' && e.para === 'a').length > 0, 'o celular recebe o lugar novo');
 const k = s.jogadores.get(geada[0]);
@@ -71,7 +71,7 @@ if (a.morto) correr(PVP.renascer + 0.2); a.x = A.x + A.r + 5; a.z = A.z; s.passo
 // o fim
 vistos = []; for (let t = 0; t < PVP.duracao + 5 && M.fase !== 'fim'; t += 0.05) vistos.push(...s.passo(0.05));
 const fim = evs((e) => e.t === 'pvp' && e.para === 'a' && e.fase === 'fim')[0];
-ok(fim && fim.stats.length === 6 && fim.placar.chama >= 1, 'no fim a janela traz os abates de cada um e o placar');
+ok(fim && fim.stats.length === 8 && fim.placar.chama >= 1, 'no fim a janela traz os abates de cada um e o placar');
 ok(fim && fim.ganhou > 0 && a.prog.pvp.pts === fim.ganhou, `ganhou Insígnias (${fim?.ganhou})`);
 ok(a.prog.xp === xp0, 'a arena não dá nem tira XP');
 let vidaVolta = 0; for (let i = 0; i < 84; i++) { const p = !!a.pvp; vistos.push(...s.passo(0.05)); if (p && !a.pvp) vidaVolta = a.vida; }
