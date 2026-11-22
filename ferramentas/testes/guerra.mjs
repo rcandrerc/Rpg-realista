@@ -145,7 +145,7 @@ ok(Object.keys(FALAS_GUERRA).every((k) => ['kira', 'rufo', 'lis', 'gael', 'dario
   Object.assign(r4, { x: C4.x + 10, z: C4.z }); Object.assign(a, { x: C4.x + 28, z: C4.z, y: s4.terreno.altura(C4.x + 28, C4.z) });
   const ev = []; const e0 = s4.evento.bind(s4); s4.evento = (e) => { ev.push(e); return e0(e); };
   s4.guerraT = 0; s4.passo(0.05);
-  ok(a.guerra && s4.zonaSeguraGuerra(r4.x, r4.z), 'Ana fora da vila (guerra), Rufo dentro (seguro)');
+  ok(a.guerra && s4.zonaSeguraGuerra(r4.x, r4.z), 'Ana fora do totem (guerra), Rufo perto do totem do Juncal (seguro)');
   ok(ev.some((e) => e.t === 'aviso' && e.para === 'a4' && /Rufo/.test(e.texto)), 'o alerta de 25 m dispara mesmo com o Rufo dentro da vila');
 }
 // a foto por área de interesse leva raça, zona de guerra e proteção de quem está perto (André 2026-11-22: "continuo não

@@ -9,7 +9,7 @@
 //   morteGuerra (só desgaste, sem perder XP; fala de quem matou e de quem caiu; quem matou poupa por GUERRA.poupa s).
 // - guerraAmiga: o cérebro de guerra dos NPCs com jeito de guerra (AMIGA.guerra: Kira, Rufo, Lis e o Dario).
 // - falaGuerra: as falas por peças (FALAS_GUERRA), com memória de cada pessoa e sem repetir as últimas.
-import { GUERRA, RACAS, RACA_PADRAO, TOTENS, VILAS_MUNDO, vilaEm, FALAS_GUERRA, CHAT, ASSUNTOS_GUERRA, DUPLAS_GUERRA, PACKS, PACK_REGRAS, VEICULOS } from './dados.js';
+import { GUERRA, RACAS, RACA_PADRAO, TOTENS, FALAS_GUERRA, CHAT, ASSUNTOS_GUERRA, DUPLAS_GUERRA, PACKS, PACK_REGRAS, VEICULOS } from './dados.js';
 import { packValido, precoPack, centroNavio, lugarDoVeiculo, acharPonto, fundoAgua } from './transporte.js';
 import { AGUA } from './relevo.js';
 
@@ -21,15 +21,13 @@ export const Guerra = {
   racaDe(j) { return j?.raca || j?.prog?.raca || RACA_PADRAO; },
   outraRaca(a, b) { return !!a && !!b && this.racaDe(a) !== this.racaDe(b); },
   nomeRaca(j) { return RACAS[this.racaDe(j)]?.nome || ''; },
-  // zona segura da guerra: toda vila (mini vilas do mundo, terrenos, a vila do começo), GUERRA.totem m em volta de cada
-  // totem e todo campo de caça até o Nv GUERRA.campoAte (com GUERRA.campoFolga m de folga)
-  zonaSeguraGuerra(x, z) {
+  // zona segura da guerra (André 2026-11-22: "Remover as zonas de segurança da Villa somente área em volta do totem mesmo e
+  // terreno"): GUERRA.totem m em volta de cada totem, o terreno do próprio jogador (j), mercador de pack, cais e campo de
+  // caça até o Nv GUERRA.campoAte. Dentro das vilas (fora do totem) pode atacar e ser atacado
+  zonaSeguraGuerra(x, z, j = null) {
     const W = GUERRA;
     for (const t of TOTENS.lista) if (Math.abs(t.x - x) < W.totem && Math.abs(t.z - z) < W.totem && Math.hypot(t.x - x, t.z - z) < W.totem) return true;
-    for (const V of VILAS_MUNDO) if (Math.hypot(V.x - x, V.z - z) < (V.raio || 20) + W.vilaFolga) return true;
-    if (vilaEm(x, z)) return true;
-    // a vila do começo (Vila da Clareira: a praça e as casas em volta) também é vila (André 2026-11-21: "todas as vilas")
-    const P = this.mapa?.vila?.praca; if (P && Math.hypot(P.x - x, P.z - z) < 26) return true;
+    if (j?.conta) for (const L of this.lotes?.values?.() || []) { const d = L.def; if (L.dono === j.conta && d && x >= d.x0 && x <= d.x1 && z >= d.z0 && z <= d.z1) return true; }
     // mercador de pack e cais de embarque (André 2026-11-21): ponto de carga e descarga é seguro; saiu dali, é combate
     for (const n of this.mapa?.npcs || []) if (n.funcao === 'pack' && Math.abs(n.x - x) < W.mercador && Math.abs(n.z - z) < W.mercador && Math.hypot(n.x - x, n.z - z) < W.mercador) return true;
     for (const c of this.mapa?.cais || []) if (Math.hypot(c.x - x, c.z - z) < W.cais) return true;
@@ -38,7 +36,7 @@ export const Guerra = {
   },
   // pode lutar agora (o que passoGuerra deixa em j.guerra)
   podeGuerra(j) {
-    return !j.pvp && !j.morto && !j.criando && !(j.cenaAte > this.tempo) && (j.prog?.nivel | 0) > GUERRA.tregua && !this.naCaverna(j) && !this.zonaSeguraGuerra(j.x, j.z);
+    return !j.pvp && !j.morto && !j.criando && !(j.cenaAte > this.tempo) && (j.prog?.nivel | 0) > GUERRA.tregua && !this.naCaverna(j) && !this.zonaSeguraGuerra(j.x, j.z, j);
   },
   // protegido (GUERRA.protecao s depois de levantar da queda): ninguém ataca ele. eu = quem quer bater: a proteção dele
   // não impede (bater acaba com ela, em ferir)
@@ -328,9 +326,13 @@ export const Guerra = {
   passoEmboscadas() {
     const E = GUERRA.emboscada, t = this.tempo, agora = Date.now(), ultima = (this.emboscadaT ||= new Map());
     for (const j of this.jogadores.values()) {
-      if (j.bot || j.robo || j.criando || j.morto || (j.prog?.nivel | 0) <= GUERRA.tregua) continue;
+      if (j.bot || j.robo || j.criando || j.morto) continue;
       const carga = this.cargaGuerra(j);
-      if (!carga || !j.guerra) { j.embViagem = false; j.embQuando = null; continue; }
+      // André 2026-11-22 ("carrinho pode ser atacado"): o carrinho é alvo fora da zona segura mesmo com o dono no Nv 30 ou
+      // menos; o dono continua na Trégua (ninguém bate nele) e o pack nas costas dele também continua protegido
+      const tregua = (j.prog?.nivel | 0) <= GUERRA.tregua;
+      const alvo = tregua ? carga === 'carrinho' && !j.pvp && !this.naCaverna(j) && !this.zonaSeguraGuerra(j.x, j.z, j) : j.guerra;
+      if (!carga || !alvo) { j.embViagem = false; j.embQuando = null; continue; }
       if (!j.embViagem) {
         j.embViagem = true;
         if (agora >= (ultima.get(j.conta) || 0) && Math.random() < E.chance) j.embQuando = t + E.atraso[0] + Math.random() * (E.atraso[1] - E.atraso[0]);

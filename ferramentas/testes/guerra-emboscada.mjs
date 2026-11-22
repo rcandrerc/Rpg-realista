@@ -23,7 +23,14 @@ const merc = s.mapa.npcs.find((n) => n.funcao === 'pack' && n.id === 'm_couro');
 ok(s.zonaSeguraGuerra(merc.x + 8, merc.z) && !s.zonaSeguraGuerra(merc.x + 20, merc.z), 'mercador de pack: seguro a 8 m, guerra a 20 m');
 const cais = s.mapa.cais[0];
 ok(s.zonaSeguraGuerra(cais.x + 20, cais.z) && !s.zonaSeguraGuerra(cais.x + 45, cais.z), 'cais de embarque: seguro a 20 m, guerra a 45 m');
-ok(s.zonaSeguraGuerra(-6, -18) && s.zonaSeguraGuerra(TOTENS.lista[2].x + 20, TOTENS.lista[2].z), 'Vila da Clareira e totem são seguros');
+ok(s.zonaSeguraGuerra(-6, -18) && s.zonaSeguraGuerra(TOTENS.lista[2].x + 20, TOTENS.lista[2].z), 'perto do totem da Clareira e de outro totem é seguro');
+// André 2026-11-22: vila não é mais zona segura; só o totem (25 m) e o terreno do próprio jogador
+{ const T = TOTENS.lista.find((t) => t.id === 'rio_claro');
+  ok(!s.zonaSeguraGuerra(T.x + 45, T.z) && !s.zonaSeguraGuerra(-6, -40), 'dentro da vila (Rio Claro a 45 m do totem, Vila da Clareira longe da praça) é guerra');
+  s.lotes.set('t_teste', { def: { id: 't_teste', x0: 300, x1: 320, z0: 200, z1: 220 }, dono: 'c1', pecas: [], horta: {} });
+  const outro = { conta: 'c9' };
+  ok(s.zonaSeguraGuerra(310, 210, d) && !s.zonaSeguraGuerra(310, 210, outro) && !s.zonaSeguraGuerra(310, 210), 'terreno: seguro só para o dono');
+  s.lotes.delete('t_teste'); }
 ok(!s.zonaSeguraGuerra(v5.x, v5.z), 'campo Nv 45 é guerra');
 
 // ---------- agro a 25 m e alerta ----------
@@ -161,3 +168,21 @@ const p00 = ronda.map((b) => [b.x, b.z]);
 passos(30);
 ok(ronda.some((b, i) => Math.hypot(b.x - p00[i][0], b.z - p00[i][1]) > 20 || b.ia.guerra?.ronda?.i > 0), 'andando pela rota');
 ok(s.rondaT.geada > s.tempo + GUERRA.ronda.entre[0] - 40, 'a próxima ronda da Geada fica para daqui a 30-60 min');
+
+// ---------- André 2026-11-22: carrinho pode ser atacado mesmo com o dono no Nv 30 ou menos (o dono e o pack nas costas não) ----------
+{
+  const s5 = new Simulacao(MAPA_CLAREIRA);
+  const b = s5.adicionarJogador('bia', 'Bia', 'ruiva', {}); b.conta = 'c5'; b.prog.nivel = 12; s5.aplicarStatus(b);
+  const c5 = s5.cacas.find((c) => c.def.id === 'c_v5').def, bx = c5.x + 40, bz = c5.z;
+  Object.assign(b, { x: bx, z: bz, y: s5.terreno.altura(bx, bz) });
+  const ch = GUERRA.emboscada.chance; GUERRA.emboscada.chance = 1;
+  b.prog.pack = { k: 'couro', ox: 0, oz: 0, ra: 'chama' };
+  s5.passoEmboscadas(); ok(!b.embQuando, 'Nv 12 com pack nas costas: sem emboscada');
+  b.prog.pack = null; b.embViagem = false;
+  b.prog.carrinho = { ...carrinhoValido({ vida: 2500, vm: 2500 }), lv: 2, comb: 5000, packs: [{ k: 'couro', ox: 0, oz: 0, ra: 'chama' }], chao: null }; b.veiculo = 'carrinho';
+  s5.passoEmboscadas(); ok(!!b.embQuando, 'Nv 12 dirigindo carrinho fora da zona segura: a emboscada vem');
+  ok(!s5.podeGuerra(b) && !s5.emGuerra(s5.amigoIaDe('kira').amiga, b), 'o dono Nv 12 continua na Trégua (ninguém bate nele)');
+  b.embViagem = false; b.embQuando = null; const T0 = TOTENS.lista[0]; Object.assign(b, { x: T0.x + 5, z: T0.z });
+  s5.passoEmboscadas(); ok(!b.embQuando, 'carrinho perto do totem (zona segura): sem emboscada');
+  GUERRA.emboscada.chance = ch;
+}
