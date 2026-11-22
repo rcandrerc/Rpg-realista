@@ -1775,6 +1775,19 @@ func _base_cla(C: Dictionary) -> void:
 		for l in B.get("lotes", []):
 			ls.append("%d: %s" % [int(l.i), str(l.dono) if str(l.dono) != "" else "livre"])
 		vs.add_child(rotulo("Lotes · " + ", ".join(PackedStringArray(ls)), 13, TEXTO))
+		# realocar (André 2026-11-22): a 1ª grátis; depois ouro do cofre e espera (shared/base.js moverBase)
+		var custo := int(B.get("mudar", 0))
+		var espera := int(B.get("mudarEm", 0))
+		var tm := "Mudar a base de lugar (grátis)" if custo == 0 else "Mudar a base de lugar (%d de ouro)" % custo
+		if espera > 0:
+			vs.add_child(rotulo("Pode mudar a base de novo em %s." % _tempo_cla(espera), 12, APAGADO))
+		else:
+			var bm := botao(tm, func():
+				fechar()
+				if m.minimapa:
+					m.minimapa.abrir_base(true), 14)
+			bm.custom_minimum_size = Vector2(0, 42)
+			vs.add_child(bm)
 	else:
 		vs.add_child(rotulo("Base do clã", 16, OURO_CLARO))
 		vs.add_child(rotulo("Vá até o lugar e funde a base onde você está. No meio fica o salão com o Baú do Clã; em volta, o seu lote e um lote para cada recruta. Sem aluguel: a taxa sai do cofre toda semana.", 12, APAGADO))

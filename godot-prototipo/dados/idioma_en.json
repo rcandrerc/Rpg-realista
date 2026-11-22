@@ -4266,5 +4266,10 @@
 "Base do clã: toque numa área verde para marcar o lugar": "Clan base: tap a green area to mark the spot",
 "Conferindo...": "Checking...",
 "Seu clã ainda não tem base. Toque abaixo: o mapa mostra em verde onde dá para fundar.": "Your clan has no base yet. Tap below: the map shows in green where you can found it.",
-"Essa região ainda está na névoa: abra ela pela história primeiro": "This region is still in the fog: unlock it through the story first"
+"Essa região ainda está na névoa: abra ela pela história primeiro": "This region is still in the fog: unlock it through the story first",
+"Mudar a base de lugar (grátis)": "Move the base (free)",
+"Mudar a base de lugar (%d de ouro)": "Move the base ({1} gold)",
+"Pode mudar a base de novo em %s.": "You can move the base again in {1}.",
+"Mudar para cá": "Move here",
+"Baú do Clã": "Clan Chest"
 }

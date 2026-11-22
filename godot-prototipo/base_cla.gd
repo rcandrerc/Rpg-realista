@@ -68,8 +68,12 @@ func _por_forja() -> void:
 	var C = m.get("construcao")
 	if C == null:
 		return
-	C.publicas = C.publicas.filter(func(p): return str(p.id) != "base_forja")
+	C.publicas = C.publicas.filter(func(p): return str(p.id) != "base_forja" and str(p.id) != "base_bau")
 	var B := minha()
+	# o Baú do Clã da porta do salão também é estação: o botão do baú vai até ele (até 2026-11-22: "Não achei caminho")
+	if not B.is_empty() and B.get("bau") is Dictionary:
+		C.publicas.append({"id": "base_bau", "k": "bau_cla", "x": float(B.bau.x), "z": float(B.bau.z), "ry": 0.0, "r": 0,
+			"nome": "Baú do Clã", "npc": "", "publica": true})
 	if not B.is_empty() and B.get("forja") is Dictionary:
 		C.publicas.append({"id": "base_forja", "k": "bigorna", "x": float(B.forja.x), "z": float(B.forja.z), "ry": 0.0, "r": 0,
 			"nome": "Forja do clã", "npc": "", "publica": true})
@@ -152,9 +156,15 @@ func _por_enfeites() -> void:
 		add_child(raiz)
 		_nos.append(raiz)
 		if C != null and B.get("bau") is Dictionary and C._modelos.has("bau_cla"):
-			var bau: Node3D = C._modelos["bau_cla"].duplicate()
+			var bau: Node3D = C._copia("bau_cla") # _copia: o modelo guardado é escondido (até 2026-11-22 o baú não aparecia)
 			bau.position = Vector3(float(B.bau.x), float(B.bau.y), float(B.bau.z))
 			raiz.add_child(bau)
+		# a bigorna embaixo do telheiro da forja (Nv 4+): a forja do clã serve de bigorna (André 2026-11-22: "mostra q tenho
+		# fornalha mas n aparece")
+		if C != null and B.get("forja") is Dictionary and C._modelos.has("bigorna"):
+			var bg: Node3D = C._copia("bigorna")
+			bg.position = Vector3(float(B.forja.x), _chao(float(B.forja.x), float(B.forja.z)), float(B.forja.z))
+			raiz.add_child(bg)
 		var cor := Color("8fd0ff") if str(B.get("raca", "")) == "geada" else Color("ff9a3c")
 		var hz := float(B.z) - float(B.get("centro", 14)) / 2.0 + 4.0
 		raiz.add_child(_nome("Clã %s · Nv %d" % [str(B.n), int(B.nv)], Vector3(float(B.x), _chao(float(B.x), hz) + 9.5, hz), cor, 64))

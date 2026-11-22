@@ -198,3 +198,26 @@ ok(Object.values(bg.donos).length >= Math.min(bg.nv - 1, 3), 'os membros do clã
   s7.cla('E', { acao: 'base', x: p.x, z: p.z });
   ok(s7.baseDe(e)?.x === p.x && s7.baseDe(e)?.z === p.z, 'funda no ponto marcado no mapa, longe do herói');
 }
+
+// realocar a base (André 2026-11-22): a 1ª grátis e leva o lote com as peças; a 2ª paga e espera
+{
+  const s8 = new Simulacao(MAPA_CLAREIRA), av = () => s8.eventos.filter((o) => o.t === 'aviso').map((o) => o.texto).join(' | ');
+  const f = s8.adicionarJogador('F', 'Fabi', undefined, { conta: 8 }); f.criando = false; f.ciente = true; f.prog.nivel = 40; f.prog.ouro = 1000;
+  s8.cla('F', { acao: 'fundar', nome: 'Muda' });
+  const p = acharLugarBase(-6, 1, 'chama', []);
+  s8.cla('F', { acao: 'base', x: p.x, z: p.z });
+  const L = s8.loteDe(f); f.x = (L.def.x0 + L.def.x1) / 2; f.z = (L.def.z0 + L.def.z1) / 2;
+  f.prog.mochila.fill(null); f.prog.mochila[0] = { k: 'obra_bau', n: 1 };
+  s8.construir('F', { k: 'bau', x: L.def.x0 + 2, z: L.def.z0 + 2, r: 0 });
+  const peca = L.pecas.find((o) => o.k === 'bau'), x0 = peca?.x;
+  const q = acharLugarBase(p.x + 160, p.z, 'chama', Object.values(s8.basesCla));
+  s8.eventos = []; s8.cla('F', { acao: 'mudarBase', x: q.x, z: q.z });
+  const B = s8.baseDe(f);
+  ok(B.x === q.x && B.z === q.z && peca && peca.x === x0 + (q.x - p.x), 'a 1ª mudança é grátis e o lote vai junto com as peças');
+  s8.eventos = []; s8.cla('F', { acao: 'mudarBase', x: p.x, z: p.z });
+  ok(/só pode mudar de novo/.test(av()) && B.x === q.x, 'a 2ª espera os dias');
+  B.mudouEm -= 8 * 86400000; f.prog.cla.cofre = 500; s8.eventos = []; s8.cla('F', { acao: 'mudarBase', x: p.x, z: p.z });
+  ok(/custa 10000/.test(av()) && B.x === q.x, 'depois dos dias: paga do cofre');
+  f.prog.cla.cofre = 12000; s8.cla('F', { acao: 'mudarBase', x: p.x, z: p.z });
+  ok(B.x === p.x && f.prog.cla.cofre === 2000, 'pagou e mudou');
+}
