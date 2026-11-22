@@ -552,6 +552,9 @@ func _toque_no_mapa(pos: Vector2) -> void:
 	if not totem_de.is_empty():
 		_toque_totem(lp, dentro)
 		return
+	if base_modo:
+		_toque_base(lp, dentro)
+		return
 	if dentro and icones.toque(lp): # abre e fecha a legenda
 		return
 	if _toque_lista(pos):
@@ -975,6 +978,8 @@ func fechar() -> void:
 	if mapa3d != null:
 		mapa3d.fechar()
 	aberto = false
+	base_modo = false
+	base_alvo = null
 	totem_de = {}
 	totem_alvo = ""
 	escuro.color.a = 0.82
@@ -1535,6 +1540,8 @@ func _desenhar_mapa() -> void:
 	var qh: Vector2 = em.call(hp.x, hp.z)
 	c.draw_circle(qh, 13.0, Color(1, 0.85, 0.4, 0.18))
 	_seta(c, qh, _frente_heroi(), 11.0, COR_OURO)
+	if base_modo:
+		_desenhar_base(c, tam, em)
 	if not totem_de.is_empty():
 		_desenhar_totens(c, tam, em)
 		return
@@ -1959,3 +1966,160 @@ func _desenhar_totens(c: Control, tam: Vector2, em: Callable) -> void:
 	sb.draw(c.get_canvas_item(), bt)
 	_texto(c, bt.position + Vector2(w * 0.5, 19.0), b1, 20, Color("9fe6ff") if falta <= 0 else Color(1, 0.8, 0.75), true, 4)
 	_texto(c, bt.position + Vector2(w * 0.5, 39.0), b2, 13, Color(1, 0.96, 0.88, 0.85) if falta <= 0 else Color(1, 0.62, 0.55), true, 3)
+
+# ---------- escolher o lugar da base do clã no mapa (André 2026-11-22: "qd clicar criar base abre o mapa áreas q da pra
+# por ficam meio verdinha e a gente só move a marca e escolhe... só em área q já foram desbloqueadas") ----------
+# O mapa 2D abre com os lugares que passam nas regras pintados de verde (claBase.ok do mundo.json, feito por
+# client/exportar-godot/mundo.mjs com shared/base.js motivoBase), tirando a névoa, o território da outra raça e o que
+# fica perto das bases que já existem. Tocar marca o lugar (gruda no verde mais perto); o servidor confere (baseVer) e o
+# contorno da base no Nv 6 fica verde ou vermelho com o motivo; "Fundar aqui" funda lá, mesmo longe do herói.
+var base_modo := false
+var base_alvo = null # Vector2 (metros) ou null
+var base_ok := false
+var base_resp = null # Vector2 da última resposta do servidor
+var base_motivo := ""
+var base_celulas := PackedVector2Array()
+var base_passo := 8.0
+var botao_fundar := Rect2()
+var botao_cancelar := Rect2()
+
+func abrir_base() -> void:
+	abrir()
+	if _em_3d():
+		mapa3d.fechar()
+		grande.visible = true
+	base_modo = true
+	base_alvo = null
+	base_resp = null
+	base_ok = false
+	base_motivo = ""
+	_celulas_base()
+	zoom = maxf(_z_min(), 1.0)
+	zoom_alvo = zoom
+	foco = _prender(Vector2(m.heroi.position.x, m.heroi.position.z), zoom)
+	foco_alvo = foco
+	_arrumar_grande()
+
+func _celulas_base() -> void:
+	base_celulas = PackedVector2Array()
+	var D: Dictionary = m.mundo.get("claBase", {})
+	base_passo = float(D.get("passo", 8))
+	var ok: Array = D.get("ok", [])
+	var minha := 1 if str(m.online.get("eu_raca") if m.online else "") == "geada" else 0
+	var dmin := float(D.get("distMin", 100))
+	var outras: Array = []
+	if m.base_cla:
+		for B in m.base_cla.bases:
+			outras.append(Vector2(float(B.x), float(B.z)))
+	var i := 0
+	while i + 2 < ok.size():
+		var p := Vector2(float(ok[i]), float(ok[i + 1]))
+		var t := int(ok[i + 2])
+		i += 3
+		if t != 2 and t != minha:
+			continue
+		if m.nevoa != null and m.nevoa.fechado(p.x, p.y):
+			continue
+		var perto := false
+		for o in outras:
+			if o.distance_to(p) < dmin:
+				perto = true
+				break
+		if not perto:
+			base_celulas.append(p)
+
+func _toque_base(lp: Vector2, dentro: bool) -> void:
+	if botao_cancelar.has_point(lp) or (dentro and botao_x.has_point(lp)):
+		fechar()
+		return
+	if base_ok and base_alvo != null and botao_fundar.has_point(lp):
+		m.rede("cla", {"acao": "base", "x": base_alvo.x, "z": base_alvo.y})
+		fechar()
+		return
+	if not dentro:
+		return
+	var w: Vector2 = _no_mundo(lp)
+	# gruda no verde mais perto (até 24 px na tela)
+	var melhor = null
+	var menor := 24.0 / _k()
+	for p in base_celulas:
+		var d := p.distance_to(w)
+		if d < menor:
+			menor = d
+			melhor = p
+	base_alvo = melhor if melhor != null else Vector2(roundf(w.x), roundf(w.y))
+	base_ok = false
+	base_motivo = ""
+	m.rede("cla", {"acao": "baseVer", "x": base_alvo.x, "z": base_alvo.y})
+	if m.sons:
+		m.sons.tocar("pano", -14.0)
+
+# resposta do servidor (online.gd "baseVer")
+func base_resposta(ev: Dictionary) -> void:
+	if not base_modo or base_alvo == null:
+		return
+	var p := Vector2(float(ev.get("x", 0)), float(ev.get("z", 0)))
+	if p.distance_to(base_alvo) > 0.6:
+		return
+	base_resp = p
+	base_ok = bool(ev.get("ok", false))
+	base_motivo = str(ev.get("motivo", ""))
+
+func _desenhar_base(c: Control, tam: Vector2, em: Callable) -> void:
+	var k := _k()
+	var lado := maxf(2.0, base_passo * k)
+	var verde := Color(0.3, 1.0, 0.45, 0.42)
+	for p in base_celulas:
+		var q: Vector2 = em.call(p.x, p.y)
+		if q.x < -lado or q.y < -lado or q.x > tam.x + lado or q.y > tam.y + lado:
+			continue
+		c.draw_rect(Rect2(q - Vector2(lado, lado) * 0.5, Vector2(lado, lado)), verde)
+	# título em cima
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.08, 0.06, 0.04, 0.9)
+	sb.border_color = Color("c9a35a")
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(14)
+	var tr := Rect2(Vector2(tam.x * 0.5 - 300.0, 52.0), Vector2(600.0, 40.0))
+	sb.draw(c.get_canvas_item(), tr)
+	_texto(c, tr.position + Vector2(300.0, 26.0), "Base do clã: toque numa área verde para marcar o lugar", 17, Color(1, 0.95, 0.85), true, 3)
+	botao_fundar = Rect2()
+	botao_cancelar = Rect2(Vector2(tam.x * 0.5 - 300.0, tam.y - 136.0), Vector2(160.0, 50.0))
+	_botao_mapa(c, botao_cancelar, "Cancelar", Color(1, 0.8, 0.75), Color(0.14, 0.07, 0.06, 0.95))
+	if base_alvo == null:
+		return
+	# o contorno da base no Nv 6 (o centro e os 6 lotes)
+	var D: Dictionary = m.mundo.get("claBase", {})
+	var hc := float(D.get("centroMax", 34)) / 2.0
+	var hl := float(D.get("lote", 10)) / 2.0
+	var certo: bool = base_resp != null and base_resp.distance_to(base_alvo) < 0.6
+	var cor := Color(0.3, 1.0, 0.45) if certo and base_ok else (Color(1.0, 0.35, 0.3) if certo else Color(1.0, 0.9, 0.5))
+	var a: Vector2 = base_alvo
+	var rets: Array = [Rect2(a.x - hc, a.y - hc, hc * 2.0, hc * 2.0)]
+	for l in D.get("lugares", [[26, 0], [-26, 0], [0, -26], [0, 26], [26, -26], [-26, 26]]):
+		rets.append(Rect2(a.x + float(l[0]) - hl, a.y + float(l[1]) - hl, hl * 2.0, hl * 2.0))
+	for r in rets:
+		var q0: Vector2 = em.call(r.position.x, r.position.y)
+		var q1: Vector2 = em.call(r.end.x, r.end.y)
+		c.draw_rect(Rect2(q0, q1 - q0), Color(0.05, 0.04, 0.03, 0.8), false, 4.0)
+		c.draw_rect(Rect2(q0, q1 - q0), cor, false, 2.0)
+	var qa: Vector2 = em.call(a.x, a.y)
+	_pino(c, qa, 1.0)
+	var txt := "Conferindo..." if not certo else ("Pode fundar aqui!" if base_ok else base_motivo)
+	var tb := Rect2(Vector2(tam.x * 0.5 - 300.0, 98.0), Vector2(600.0, 34.0))
+	sb.draw(c.get_canvas_item(), tb)
+	_texto(c, tb.position + Vector2(300.0, 23.0), txt, 15, cor, true, 3)
+	if certo and base_ok:
+		botao_fundar = Rect2(Vector2(tam.x * 0.5 + 100.0, tam.y - 136.0), Vector2(200.0, 50.0))
+		_botao_mapa(c, botao_fundar, "Fundar aqui", Color("9fffb0"), Color(0.05, 0.14, 0.07, 0.95))
+
+func _botao_mapa(c: Control, r: Rect2, t: String, cor: Color, fundo: Color) -> void:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = fundo
+	sb.border_color = cor
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(18)
+	sb.shadow_color = Color(0, 0, 0, 0.45)
+	sb.shadow_size = 6
+	sb.draw(c.get_canvas_item(), r)
+	_texto(c, r.get_center() + Vector2(0, 7.0), t, 19, cor, true, 3)

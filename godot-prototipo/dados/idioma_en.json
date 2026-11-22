@@ -4262,5 +4262,9 @@
 "Seu clã ainda não tem base. Toque abaixo, ande até o lugar e veja o contorno: verde pode, vermelho não.": "Your clan has no base yet. Tap below, walk to the spot and watch the outline: green is allowed, red is not.",
 "Não pode: a menos de 20 m de totem e de NPC de missão, 10 m de vila, masmorra, arena e cais, 6 m de rio, 3 m de estrada e 100 m de outra base; na água; em chão muito torto. Nas terras do começo, só no território da sua raça (Ilha do Meio e Aurora são livres).": "Not allowed: within 20 m of a totem or quest NPC, 10 m of a village, dungeon, arena or dock, 6 m of a river, 3 m of a road or 100 m of another base; on water; on very uneven ground. In the starting lands, only in your race's territory (Middle Isle and Aurora are free).",
 "Base do clã": "Clan base",
-"Vá até o lugar e funde a base onde você está. No meio fica o salão com o Baú do Clã; em volta, o seu lote e um lote para cada recruta. Sem aluguel: a taxa sai do cofre toda semana.": "Go to the spot and found the base where you stand. The hall with the Clan Chest sits in the middle; around it, your plot and one plot per recruit. No rent: the fee comes out of the treasury every week."
+"Vá até o lugar e funde a base onde você está. No meio fica o salão com o Baú do Clã; em volta, o seu lote e um lote para cada recruta. Sem aluguel: a taxa sai do cofre toda semana.": "Go to the spot and found the base where you stand. The hall with the Clan Chest sits in the middle; around it, your plot and one plot per recruit. No rent: the fee comes out of the treasury every week.",
+"Base do clã: toque numa área verde para marcar o lugar": "Clan base: tap a green area to mark the spot",
+"Conferindo...": "Checking...",
+"Seu clã ainda não tem base. Toque abaixo: o mapa mostra em verde onde dá para fundar.": "Your clan has no base yet. Tap below: the map shows in green where you can found it.",
+"Essa região ainda está na névoa: abra ela pela história primeiro": "This region is still in the fog: unlock it through the story first"
 }

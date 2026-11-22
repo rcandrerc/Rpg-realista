@@ -10,6 +10,7 @@
 // nomeDono, nv, taxa (ms: semanas pagas até aqui), c (ms) } }. k = 'j' + conta (jogador) ou 'n' + id (clã bot).
 import { CLA, TOTENS, VILAS_MUNDO, VILAS_TERRENO, VILA_LOTES, MAPA_CLAREIRA, AREAS_BASE, CLAS_NPC, RACAS, AMIGOS_VIRTUAIS, RIVAIS, precoTerreno, BAU, bauLugares, PLANTIO } from './dados.js';
 import { guardar } from './progresso.js';
+import { zonaFechadaEm } from './historia.js';
 import { areaPlantio } from './plantio.js';
 import { MODELOS_VILA, naPeca } from './vilas.js';
 import { LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, ARENAS_BOSS, ARENA_PVP, terraEm } from './mundo.js';
@@ -257,13 +258,15 @@ export const Base = {
     return true;
   },
   // ---------- fundar (pedido do painel do Clã: { acao: 'base' }) ----------
-  fundarBase(j, aviso) {
+  // onde: { x, z } escolhido no mapa (André 2026-11-22: "qd clicar criar base abre o mapa... a gente só move a marca e
+  // escolhe"; longe também, mas só onde a névoa já abriu); sem: onde o líder está
+  fundarBase(j, aviso, onde = null) {
     const c = j.prog.cla; if (!c) return aviso('Funde o seu clã primeiro');
     if (j.morto || j.criando) return;
     const k = this.chaveBase(j); if (!k) return;
     if (this.basesCla[k]) { const B = this.basesCla[k]; return aviso(`A base do clã ${c.n} já fica em ${B.x}, ${B.z}`); }
-    const x = Math.round(j.x), z = Math.round(j.z), raca = this.racaDe(j);
-    const motivo = motivoBase(x, z, raca, Object.values(this.basesCla)); if (motivo) return aviso(motivo);
+    const { x, z } = this.lugarPedidoBase(j, onde), raca = this.racaDe(j);
+    const motivo = this.motivoLugarBase(j, x, z, raca, Object.values(this.basesCla)); if (motivo) return aviso(motivo);
     const B = { k, x, z, raca, n: c.n, dono: j.conta, nomeDono: j.nome, nv: c.nv || 1, taxa: Date.now(), c: Date.now(), donos: {} };
     this.basesCla[k] = B;
     this.distribuirLotes(B, c.m.map((m) => ({ id: m.id, nome: m.nome })));
@@ -276,11 +279,19 @@ export const Base = {
     this.avisarProg(j);
   },
   // a prévia (modo de escolher o lugar no app): pode fundar onde o líder está agora? (o mesmo motivoBase de fundarBase)
-  verLugarBase(j) {
+  verLugarBase(j, onde = null) {
     if (!j.prog.cla) return;
-    const x = Math.round(j.x), z = Math.round(j.z), k = this.chaveBase(j);
-    const motivo = this.basesCla[k] ? 'O clã já tem base' : motivoBase(x, z, this.racaDe(j), Object.values(this.basesCla).filter((B) => B.k !== k));
+    const { x, z } = this.lugarPedidoBase(j, onde), k = this.chaveBase(j);
+    const motivo = this.basesCla[k] ? 'O clã já tem base' : this.motivoLugarBase(j, x, z, this.racaDe(j), Object.values(this.basesCla).filter((B) => B.k !== k));
     this.evento({ t: 'baseVer', para: j.id, x, z, ok: !motivo, motivo: motivo || '' });
+  },
+  lugarPedidoBase(j, onde) {
+    const ok = onde && Number.isFinite(+onde.x) && Number.isFinite(+onde.z) && Math.abs(+onde.x) < 5000 && Math.abs(+onde.z) < 5000;
+    return ok ? { x: Math.round(+onde.x), z: Math.round(+onde.z) } : { x: Math.round(j.x), z: Math.round(j.z) };
+  },
+  motivoLugarBase(j, x, z, raca, outras) {
+    if (zonaFechadaEm(j.prog, x, z)) return 'Essa região ainda está na névoa: abra ela pela história primeiro';
+    return motivoBase(x, z, raca, outras);
   },
   // cria o lote i da base para a conta (só se ela ainda não tem terreno: um terreno por pessoa)
   loteDaBase(B, i, conta, nome) {

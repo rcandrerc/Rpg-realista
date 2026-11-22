@@ -1748,7 +1748,9 @@ var _cla_nome: LineEdit
 # fecha o menu e liga a prévia da base (base_cla.gd comecar_escolha)
 func _escolher_base() -> void:
 	fechar()
-	if m.base_cla:
+	if m.minimapa: # o mapa com as áreas verdes (André 2026-11-22); a prévia andando (base_cla.gd) continua lá
+		m.minimapa.abrir_base()
+	elif m.base_cla:
 		m.base_cla.comecar_escolha()
 
 func _base_cla(C: Dictionary) -> void:
@@ -1827,7 +1829,7 @@ func montar_cla() -> void:
 	conteudo.add_child(cab)
 	# sem base ainda (André 2026-11-22: "como é que eu faço para escolher o terreno?"): o botão logo no topo
 	if not (C.get("base") is Dictionary):
-		conteudo.add_child(rotulo("Seu clã ainda não tem base. Toque abaixo, ande até o lugar e veja o contorno: verde pode, vermelho não.", 13, OURO_CLARO))
+		conteudo.add_child(rotulo("Seu clã ainda não tem base. Toque abaixo: o mapa mostra em verde onde dá para fundar.", 13, OURO_CLARO))
 		var fb := botao("Escolher o lugar da base", _escolher_base, 17, true)
 		fb.custom_minimum_size = Vector2(0, 50)
 		conteudo.add_child(fb)

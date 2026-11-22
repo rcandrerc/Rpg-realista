@@ -186,3 +186,15 @@ ok(Object.values(bg.donos).length >= Math.min(bg.nv - 1, 3), 'os membros do clã
   v = s6.eventos.find((e) => e.t === 'baseVer');
   ok(v?.ok && v.x === p.x && !s6.baseDe(d), 'a prévia mostra verde onde pode, sem fundar');
 }
+
+// escolher no mapa: funda longe do herói, no ponto marcado
+{
+  const s7 = new Simulacao(MAPA_CLAREIRA);
+  const e = s7.adicionarJogador('E', 'Eva', undefined, { conta: 7 }); e.criando = false; e.ciente = true;
+  s7.cla('E', { acao: 'fundar', nome: 'Longe' });
+  const p = acharLugarBase(-6, 1, 'chama', []); e.x = p.x + 300; e.z = p.z + 300; s7.eventos = [];
+  s7.cla('E', { acao: 'baseVer', x: p.x, z: p.z });
+  ok(s7.eventos.find((o) => o.t === 'baseVer')?.ok, 'a prévia confere o ponto marcado no mapa');
+  s7.cla('E', { acao: 'base', x: p.x, z: p.z });
+  ok(s7.baseDe(e)?.x === p.x && s7.baseDe(e)?.z === p.z, 'funda no ponto marcado no mapa, longe do herói');
+}
