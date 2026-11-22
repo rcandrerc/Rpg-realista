@@ -144,10 +144,31 @@ ok(true, 'simulação roda com os recrutas');
   const v4 = progressoValido(JSON.parse(JSON.stringify(L.prog)));
   ok(v4.cla.m[1].fn?.k === 'proteger' && v4.cla.m[2].fn?.k === 'grind', 'a conta guarda as funções');
   // o protetor anda até quem protege
-  const a2 = ctx(m2.id).amiga, a1 = ctx(m1.id).amiga; a1.x = a2.x + 15; a1.z = a2.z;
+  s4.cla('L', { acao: 'funcao', id: m2.id, fn: { k: 'proteger', p: 'lider' } });
+  const a2 = ctx(m2.id).amiga; L.x = a2.x + 15; L.z = a2.z;
   for (let i = 0; i < 40; i++) s4.passo(0.25);
-  ok(Math.hypot(a2.x - a1.x, a2.z - a1.z) < 13, `protetor vai até o protegido (${Math.hypot(a2.x - a1.x, a2.z - a1.z).toFixed(1)} m)`);
+  ok(Math.hypot(a2.x - L.x, a2.z - L.z) < 13, `protetor vai até quem protege (${Math.hypot(a2.x - L.x, a2.z - L.z).toFixed(1)} m)`);
+  s4.cla('L', { acao: 'funcao', id: m2.id, fn: { k: 'proteger', p: m1.id } });
   // outro jogador não manda no recruta
   const B = s4.adicionarJogador('B2', 'Outro', undefined, { conta: 21 }); B.criando = false;
   ok(ctx(m2.id).vontadeAmiga(a2, B).p === 0 && !ctx(m2.id).ehAmigoAmiga(B), 'recruta obedece só ao líder dele');
+}
+
+// soldado obedece sempre (André 2026-11-22): sem horário; só o vigor zerado recusa
+{
+  const s5 = new Simulacao(MAPA_CLAREIRA);
+  const L = s5.adicionarJogador('L5', 'Chefe', undefined, { conta: 30 }); L.criando = false; L.ciente = true;
+  L.prog.nivel = 20; L.prog.ouro = 50000;
+  const r5 = s5.mapa.npcs.find((n) => n.funcao === 'recrutador'); L.x = r5.x + 1; L.z = r5.z;
+  s5.cla('L5', { acao: 'fundar', nome: 'Teste Ordem' });
+  s5.cla('L5', { acao: 'recrutar', tier: 'veterano' });
+  const x = s5.recrutasNoMundo(L)[0], a = x.amiga, R = x.rotinaAmiga();
+  const { naHoraDe } = await import('../../shared/amiga.js'), { horaDoJogo } = await import('../../shared/progresso.js');
+  for (let i = 0; i < 96; i++) { a.prog.dia = i / 96; if (!naHoraDe(R, horaDoJogo(a.prog.dia))) break; }
+  a.ia.av = null;
+  const v = x.sairCacarAmiga(a, L);
+  ok(!naHoraDe(R, horaDoJogo(a.prog.dia)) && v.ok, `fora do horário dele (${horaDoJogo(a.prog.dia).toFixed(0)}h): vai upar mesmo assim`);
+  a.ia.av = null; a.prog.vigor = { v: 0, t: Date.now() };
+  const v2 = x.sairCacarAmiga(a, L);
+  ok(!v2.ok && v2.fala === 'Estou sem vigor, no momento não posso.', `sem vigor: única recusa (${v2.fala})`);
 }

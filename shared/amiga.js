@@ -33,6 +33,8 @@ import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.j
 const ULTIMA = new WeakMap();
 const FALOU_SOZINHA = new Map(); // jogador -> tempo da última fala por conta própria de qualquer NPC (vezDeFalarSozinha)
 const REAGIU = new Map(); // `${jogador}:${fato}` -> tempo: o primeiro NPC que reagiu a esse fato (reagirAmiga)
+// a única recusa do soldado (André 2026-11-22)
+const SEM_VIGOR = 'Estou sem vigor, no momento não posso.';
 const sorteia = (l) => {
   if (!Array.isArray(l) || l.length < 2) return Array.isArray(l) ? l[0] : l;
   const u = ULTIMA.get(l);
@@ -264,6 +266,8 @@ export const Amiga = {
   // André 2026-11-14 ("qualquer um pode interagir, só que o único que tem resposta de IA sou eu"): todo jogador da sala
   // conversa (respostas prontas, das regras), chama para o time e troca. A resposta da IA é só de quem tem a chave
   // (amigaFalam: quem colou a chave Groq e as contas de teste), ver iaAmiga e server/index.js falarComAmigoIa.
+  // recruta de jogador com o modo soldado: obedece sempre ao líder (André 2026-11-22)
+  soldadoAmiga() { return NPC_SOLDADO.ligado && !!this.AMIGA.recruta && !this.AMIGA.clanpc; },
   podeAmiga(id) { const j = id != null && this.jogadores.get(id); return !!this.amiga && !!j && !j.bot && (!this.AMIGA.recruta || !!this.AMIGA.clanpc || j.conta === this.AMIGA.lider); }, // recruta: só o líder
   // André 2026-11-19: a IA vale para todo jogador (sem precisar de chave própria), só nos da Chama (a Geada é só código)
   iaAmiga(id) { return IA_CONVERSA.ligada && !!this.amiga && (IA_CONVERSA.quem.includes(this.AMIGA.id) || (!!this.AMIGA.recruta && !this.AMIGA.clanpc)) && id != null && this.podeAmiga(id); },
@@ -631,7 +635,8 @@ export const Amiga = {
     if (!ia.av) { ia.av = ia.jaSaiu ? { fase: 'escolher' } : { fase: 'descansar', ate: t + ((hashNpc(this.AMIGA.id) >> 4) % 1000) / 1000 * 240 }; ia.jaSaiu = true; }
     const av = ia.av;
     if (j.trava > 0) return this.pararAmiga(j);
-    const noite = !naHoraDe(R, horaDoJogo(j.prog.dia)); // fora do horário dele (cada um tem o seu)
+    const sold = this.soldadoAmiga(); // soldado do jogador: sem horário nem limite de grind (André 2026-11-22)
+    const noite = !sold && !naHoraDe(R, horaDoJogo(j.prog.dia)); // fora do horário dele (cada um tem o seu)
     const livres = j.prog.mochila.filter((o) => !o).length, temPocao = j.prog.mochila.some((o) => o?.k === 'pocao');
     const voltar = () => { if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null); Object.assign(av, { fase: 'voltar', c: null, coleta: null }); ia.viagem = null; };
     if (av.fase === 'escolher') {
@@ -668,7 +673,7 @@ export const Amiga = {
       const c = av.c;
       // outra terra: sem barquinho, faz um se tiver o material (e vai de barco); senão, outro campo
       if (ia.viagem?.bloqueio) { if (!av.coleta && contar(j.prog.mochila, 'barquinho') < 1) this.barcoPedidoAmiga(j); if (contar(j.prog.mochila, 'barquinho') < 1) (av.fora ||= new Set()).add(c.id); ia.viagem = null; if (!contar(j.prog.mochila, 'barquinho')) av.fase = 'escolher'; return; }
-      if (noite || livres < A.mochilaLivre || t >= av.ate || this.grindAcabouAmiga(j)) return voltar();
+      if (noite || livres < A.mochilaLivre || t >= av.ate || (!sold && this.grindAcabouAmiga(j))) return voltar();
       if (av.fase === 'cacar' && dt > 0) { this.grindHojeAmiga(j); const m0 = Math.floor(j.grind.seg / 60); j.grind.seg += dt; if (Math.floor(j.grind.seg / 60) !== m0) this.guardarAmiga(); } // conta o grind sozinho (grava a cada minuto)
       const alvo = this.alvoSozinhoAmiga(j, c);
       if (av.fase === 'ir') {
@@ -1148,7 +1153,7 @@ export const Amiga = {
   // sorteio quando ele chama: o que ela fala e o que ela faz batem, e ela não muda de ideia a cada mensagem.
   decisaoTimeAmiga(a, j, guardar = false) {
     const ia = a.ia, h = ia.humor;
-    if (this.semIaAmiga(a, j)) return { ate: this.tempo + 300, conta: j.conta, aceita: false, motivo: 'ocupada' }; // a IA dela acabou hoje: "tô meio ocupada"
+    if (this.semIaAmiga(a, j) && !this.soldadoAmiga()) return { ate: this.tempo + 300, conta: j.conta, aceita: false, motivo: 'ocupada' }; // a IA dela acabou hoje: "tô meio ocupada"
     // um não dado vale enquanto durar a recusa; o sorteio contado à IA (guardar, de contextoAmiga) vale 'humor' s
     if (h && h.conta === j.conta && (h.recusa ? (ia.recusaAte || 0) > this.tempo : h.ate > this.tempo)) return h;
     const v = this.vontadeAmiga(a, j), novo = { ate: this.tempo + (this.AMIGA.time.humor ?? 90), conta: j.conta, aceita: Math.random() < v.p, motivo: v.motivo };
@@ -1929,6 +1934,9 @@ export const Amiga = {
     if (a.morto) return { ok: false, motivo: 'você caiu e está renascendo', fala: 'acabei de cair, tô renascendo' };
     if (a.time && a.time === j.time) return { ok: false, motivo: 'você está no time dele caçando junto', fala: 'tô no seu time, bora caçar junto' };
     if (a.ia.av && ['ir', 'cacar'].includes(a.ia.av.fase)) return { ok: false, motivo: 'você já está caçando', ja: true };
+    // soldado do clã (André 2026-11-22: "ele só obedece minhas regras e acabou. Só se ele tiver sem vigor"): sem horário,
+    // sem limite do dia, sem desculpa; só o vigor zerado
+    if (this.soldadoAmiga()) return vigorAgora(a.prog.vigor) < 1 ? { ok: false, motivo: 'você está sem vigor', fala: SEM_VIGOR, semVigor: true } : { ok: true };
     if (!naHoraDe(this.rotinaAmiga(), horaDoJogo(a.prog.dia))) { // André 2026-11-18 (ronda): "ainda é dia, temos que ficar até a noite" (inventou): o horário de verdade
       const R = this.rotinaAmiga(), hh = (h) => `${Math.floor(h)}h`;
       return { ok: false, motivo: `está fora do seu horário de caçar ${this.AMIGA.genero === "m" ? "sozinho" : "sozinha"} (você sai das ${hh(R.saiDe)} às ${hh(R.voltaDe)}; agora são ${hh(horaDoJogo(a.prog.dia))})`, fala: ehNoite(horaDoJogo(a.prog.dia)) ? 'de noite eu não saio, só quando amanhecer' : 'agora não é meu horário de sair, mais tarde eu vou' };
@@ -2267,7 +2275,7 @@ export const Amiga = {
         // encomenda pronta pra ele: vem sempre, com tempo de atravessar o mapa (André 2026-11-21)
         if (this.encomendaProntaAmiga(a, j)) { this.levarEncomendaAmiga(a, j); fala = 'Tô indo aí levar sua encomenda!'; r = { ...r, fala: '' }; break; }
         const pediu = chamado && chamado.quer !== 'time';
-        if (!pediu && Math.random() >= Math.min(0.95, this.vontadeAmiga(a, j).p + 0.2)) { fala = sorteia(F.naoVir); break; }
+        if (!pediu && !this.soldadoAmiga() && Math.random() >= Math.min(0.95, this.vontadeAmiga(a, j).p + 0.2)) { fala = sorteia(F.naoVir); break; }
         ia.vir = { ate: this.tempo + 120, longe: this.tempo + 4 }; ia.chamado = null; ia.conversaAte = 0;
         this.combinarAmiga(a); // topou vir: está disponível, então não recusa o time logo depois
         fala = sorteia(F.vir);
@@ -2318,7 +2326,8 @@ export const Amiga = {
       }
       case 'cacar': { // André 2026-11-16: "vai lá caçar sozinha" agora é feito de verdade
         const v = this.sairCacarAmiga(a, j, r.lugar);
-        if (!v.ok) { fala = v.ja ? 'Já tô caçando, kkk. Depois te conto!' : `Agora não dá, ${v.fala}.`; r = { ...r, fala: v.ja ? r.fala : '' }; }
+        if (!v.ok && v.semVigor) { fala = SEM_VIGOR; r = { ...r, fala: '' }; }
+        else if (!v.ok) { fala = v.ja ? 'Já tô caçando, kkk. Depois te conto!' : `Agora não dá, ${v.fala}.`; r = { ...r, fala: v.ja ? r.fala : '' }; }
         else if (v.forte) { fala = `${v.forte} é pesado pra mim ainda, vou na ${v.c?.nome || 'clareira do meu nível'}. Depois te conto!`; r = { ...r, fala: '' }; }
         else fala = v.c ? `Partiu ${v.c.nome}! Depois te conto.` : 'Partiu caçar! Depois te conto como foi.';
         break;
@@ -3133,11 +3142,11 @@ export const Amiga = {
     const R = E.recursos[pedido.rec], Ativ = this.AMIGA.atividades[R.coleta], base = { rec: pedido.rec, n: pedido.n, item: R.item };
     const diz = (f, x = {}) => this.falaEncAmiga(f, { ...base, tem: 0 }, a, x);
     if (a.morto) return F.caiu;
-    if (!naHoraDe(this.rotinaAmiga(), horaDoJogo(a.prog.dia))) return F.hora;
+    if (!this.soldadoAmiga() && !naHoraDe(this.rotinaAmiga(), horaDoJogo(a.prog.dia))) return F.hora;
     if (contar(a.prog.mochila, Ativ.ferramenta) <= 0) return diz(F.semFerramenta, { ferramenta: ITENS[Ativ.ferramenta]?.nome.toLowerCase() || Ativ.ferramenta });
     const K = R.no && COLETA[R.no];
     if (K && profNivel(a.prog.prof[K.prof]) < (K.nivel || 1)) return diz(F.nivel, { prof: PROFISSOES[K.prof]?.nome || K.prof, nivel: K.nivel, meu: profNivel(a.prog.prof[K.prof]) });
-    if (vigorAgora(a.prog.vigor) < 1) return diz(F.vigor);
+    if (vigorAgora(a.prog.vigor) < 1) return this.soldadoAmiga() ? SEM_VIGOR : diz(F.vigor);
     if (a.prog.mochila.filter((o) => !o).length < NPC_VIDA.aventura.mochilaLivre) return F.mochila;
     const c = this.lugarRecursoAmiga(a, R);
     if (!c) return diz(F.semLugar);
