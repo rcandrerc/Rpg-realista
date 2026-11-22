@@ -2813,7 +2813,7 @@ export const Amiga = {
     }
     const pede = Math.ceil(this.valorMesa(eu) * margem), traz = this.valorMesa(ele) - (ia.trocaPresente ? 0 : naoServe) + ele.ouro;
     // o ouro dela: paga pelo que ele trouxe (menos o que ele já deve pelo que pegou); presente = não paga nada
-    const ouro = ia.trocaPresente ? 0 : Math.max(0, Math.min(a.prog.ouro, Math.floor(traz - pede)));
+    const ouro = ia.trocaPresente || this.soldadoAmiga() ? 0 : Math.max(0, Math.min(a.prog.ouro, Math.floor(traz - pede)));
     if (eu.tranca && eu.ouro === ouro) {
       // já trancou: confirma quando ele também trancar
       if (ele.tranca && !eu.ok) {
@@ -2867,7 +2867,8 @@ export const Amiga = {
     a.ia.trocaT = this.tempo + this.AMIGA.troca.pensar;
     return F.pus.replace('{item}', texto2).replace('{preco}', preco);
   },
-  margemAmiga(a) { return Math.max(this.AMIGA.troca.margemMin, this.AMIGA.troca.margem - (a.amizade | 0) * this.AMIGA.troca.porAmizade); },
+  // soldado com o líder (André 2026-11-22: "ele n cobra mais, é só vigor mesmo"): não cobra nada; a semana do clã já paga
+  margemAmiga(a) { if (this.soldadoAmiga()) return 0; return Math.max(this.AMIGA.troca.margemMin, this.AMIGA.troca.margem - (a.amizade | 0) * this.AMIGA.troca.porAmizade); },
   // itens da mochila dela citados no texto (já normalizado com espaços nas pontas): "cenoura(s)", "tomo", "espada"
   itensNoTextoAmiga(t) {
     const p = this.amiga.prog.mochila, achados = [];
@@ -2886,6 +2887,8 @@ export const Amiga = {
     const sugerido = Math.max(0, pede - dele);
     let texto = '';
     if (pede) texto = `${this.AMIGA.nome} cobra ${pede} de ouro pelo que pôs na mesa` + (dele ? ` (seus itens valem ${dele} pra ela)` : '') + `. Ponha ${sugerido} de ouro.`;
+    else if (dele && this.soldadoAmiga()) texto = 'Soldado do clã: tudo de graça, ninguém paga nada.';
+    else if (!pede && this.soldadoAmiga() && eu.itens.length) texto = 'Soldado do clã: de graça.';
     else if (dele) texto = a.ia.trocaPresente ? 'Presente: ela não vai pagar nada.' : `${this.AMIGA.nome} paga ${Math.min(a.prog.ouro, dele)} de ouro pelo que você pôs.`;
     else texto = 'Peça no chat o que quer dela ("quero 3 cenouras") ou ponha o que tem pra ela.';
     return { sugerido, texto };

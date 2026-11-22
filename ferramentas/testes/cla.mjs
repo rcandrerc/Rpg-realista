@@ -172,3 +172,29 @@ ok(true, 'simulação roda com os recrutas');
   const v2 = x.sairCacarAmiga(a, L);
   ok(!v2.ok && v2.fala === 'Estou sem vigor, no momento não posso.', `sem vigor: única recusa (${v2.fala})`);
 }
+{
+  const s6 = new Simulacao(MAPA_CLAREIRA);
+  const L = s6.adicionarJogador('L6', 'Chefe', undefined, { conta: 31 }); L.criando = false; L.ciente = true; L.prog.nivel = 20; L.prog.ouro = 50000;
+  const r6 = s6.mapa.npcs.find((n) => n.funcao === 'recrutador'); L.x = r6.x + 1; L.z = r6.z;
+  s6.cla('L6', { acao: 'fundar', nome: 'Teste Troca' }); s6.cla('L6', { acao: 'recrutar', tier: 'recruta' });
+  const x = s6.recrutasNoMundo(L)[0];
+  ok(x.margemAmiga(x.amiga) === 0, 'soldado não cobra nada do líder');
+}
+// líder fora do jogo: a função continua (conta o tempo quando ele volta)
+{
+  const s7 = new Simulacao(MAPA_CLAREIRA);
+  const L = s7.adicionarJogador('L7', 'Chefe', undefined, { conta: 32 }); L.criando = false; L.ciente = true; L.prog.nivel = 30; L.prog.ouro = 50000;
+  const r7 = s7.mapa.npcs.find((n) => n.funcao === 'recrutador'); L.x = r7.x + 1; L.z = r7.z;
+  s7.cla('L7', { acao: 'fundar', nome: 'Teste Fora' }); s7.cla('L7', { acao: 'recrutar', tier: 'recruta' }); s7.cla('L7', { acao: 'recrutar', tier: 'recruta' });
+  const [g, f] = L.prog.cla.m;
+  s7.cla('L7', { acao: 'funcao', id: g.id, fn: { k: 'grind' } }); s7.cla('L7', { acao: 'funcao', id: f.id, fn: { k: 'recurso', r: 'ferro' } });
+  s7.sairRecrutas(L);
+  ok(L.prog.cla.saiu > 0 && !s7.recrutasNoMundo(L).length, 'saiu: anota a hora');
+  L.prog.cla.saiu -= 8 * 3600e3;
+  s7.entrarRecrutas(L);
+  const ag = s7.recrutasNoMundo(L).find((x) => x.AMIGA.id === g.id).amiga, af = s7.recrutasNoMundo(L).find((x) => x.AMIGA.id === f.id).amiga;
+  const ferro = af.prog.mochila.reduce((s, o) => s + (o?.k === 'minerio_ferro' ? o.n : 0), 0);
+  ok(ag.prog.nivel >= 2 && ag.prog.nivel <= 30, `8 h de grind fora: Nv ${ag.prog.nivel}`);
+  ok(ferro > 50, `8 h farmando ferro fora: ${ferro} minérios`);
+  ok(!L.prog.cla.saiu && L.prog.cla.log.some((x) => x.txt.startsWith('Fora')), 'o painel conta o que fizeram fora');
+}
