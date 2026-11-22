@@ -148,3 +148,19 @@ ok(Object.keys(FALAS_GUERRA).every((k) => ['kira', 'rufo', 'lis', 'gael', 'dario
   ok(a.guerra && s4.zonaSeguraGuerra(r4.x, r4.z), 'Ana fora da vila (guerra), Rufo dentro (seguro)');
   ok(ev.some((e) => e.t === 'aviso' && e.para === 'a4' && /Rufo/.test(e.texto)), 'o alerta de 25 m dispara mesmo com o Rufo dentro da vila');
 }
+// a foto por área de interesse leva raça, zona de guerra e proteção de quem está perto (André 2026-11-22: "continuo não
+// conseguindo atacar os Geada": server/visao.js não mandava guerra/prot/raca e o app nunca achava alvo)
+{
+  const { Visao } = await import('../../server/visao.js');
+  const s5 = new Simulacao(MAPA_CLAREIRA);
+  const a = s5.adicionarJogador('a5', 'Ana', 'ruiva', {}); a.conta = 'c5';
+  for (const x of s5.amigosIa) x.amigaEntrar('a5');
+  const k5 = s5.amigoIaDe('kira').amiga, v5b = s5.cacas.find((c) => c.def.id === 'c_v5').def;
+  a.prog.nivel = 40; s5.aplicarStatus(a); a.vida = a.vidaMax;
+  Object.assign(a, { x: v5b.x, z: v5b.z, y: s5.terreno.altura(v5b.x, v5b.z) }); Object.assign(k5, { x: v5b.x + 3, z: v5b.z, y: s5.terreno.altura(v5b.x + 3, v5b.z) });
+  s5.guerraT = 0; s5.passo(0.05);
+  const V = new Visao(), foto = s5.foto();
+  const sai = JSON.parse(V.paraJogador(V.preparar(foto, s5.eventos), 'a5'));
+  const kk = (sai.foto?.jogadores || []).find((o) => o.id === k5.id);
+  ok(kk && kk.raca === 'geada' && kk.guerra === 1 && kk.prot === 0, `o app recebe a Kira com raça, guerra e proteção: ${JSON.stringify(kk && { raca: kk.raca, guerra: kk.guerra, prot: kk.prot })}`);
+}
