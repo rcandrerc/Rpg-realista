@@ -3946,6 +3946,38 @@ export const NPC_VIDA = {
   coleta: { raio: 260, opcoes: 6, cada: 6 }, // até onde procura lugar de coleta a partir da vila; entre quantos sorteia; s entre buscas
 };
 
+// ---------- os bots no leilão (André 2026-11-21: "queria que eles participassem da Action House") ----------
+// Código em shared/leilao-bots.js; o preço de mercado e a inflação em shared/leilao.js. Cada bot olha o leilão do Otávio
+// olhadasDia vezes por dia do jogo, quando está na vila (de longe, como a venda na loja): retira o que vendeu, compra o que
+// precisa e anuncia o que sobra. Só anúncio: nada de troca entre eles.
+// Ouro em três partes (plano aprovado 2026-11-21): META = o preço de mercado da próxima grande melhoria (a peça mais fraca
+// do corpo uma raridade acima). POUPANÇA: a fração "poupa" de tudo o que ele ganha vai para ela e só sai para peça de
+// raridade maior. ESSENCIAL: essencial do ouro, para material de evoluir/reforçar e conserto. LIVRE: só o que passa de
+// livre x a meta, para consumível e item genérico. Meta acima de metaCara x o ouro todo: espera (ou evolui a peça na forja).
+// Comprar ou farmar: custo de farmar 1 unidade = (ouro que ganharia caçando por hora / unidades por hora) + vigor; compra se
+// o anúncio sai mais barato que isso (x compra), ou se está sem vigor (até semVigorX mais caro).
+// TABELA DE PERSONALIDADE (para o relatório de cada bot): poupa = parte da renda que vai para a poupança; ganancia = quanto
+// acima do mercado ele anuncia; compra = vontade de comprar em vez de farmar; farma = o quanto acha farmar barato; texto =
+// o jeito dele no comércio. O jeito de luta fica em CEREBRO.jeitos, o de guerra em AMIGA.guerra, o horário em NPC_VIDA.rotina.
+export const LEILAO_BOT = {
+  olhadasDia: [2, 3], horas: 24, maxAnuncios: 8, compraMax: 2,
+  acima: [0.05, 0.15], escasso: 1, // anuncia de 5% a 15% acima do mercado; com até "escasso" anúncio igual, vai no topo
+  caroDemais: 1.3, // não paga mais que 30% acima do preço de mercado
+  essencial: 0.1, livre: 1.5, metaMin: 300, metaCara: 3,
+  reserva: { padrao: 20, pedra: 50, lenha: 50, minerio_ferro: 30, minerio_cobre: 30, carvao: 30, cristal: 20 }, // estoque que guarda de cada material
+  farmar: { ouroHoraNivel: 30, unidadesHora: 60, vigorUnidade: 1, semVigor: 5, semVigorX: 2 },
+  jeitos: {
+    padrao: { poupa: 0.7, ganancia: 1, compra: 1, farma: 1, texto: 'Equilibrado: poupa 70% e anuncia no meio da faixa.' },
+    cecilia: { poupa: 0.6, ganancia: 0.9, compra: 1.3, farma: 0.8, texto: 'Compradora: poupa só 60%, prefere comprar a farmar e anuncia um pouco mais barato.' },
+    dario: { poupa: 0.8, ganancia: 1.3, compra: 0.8, farma: 1.3, texto: 'Ganancioso: poupa 80%, anuncia caro e prefere farmar a pagar.' },
+    lia: { poupa: 0.65, ganancia: 1.1, compra: 1.2, farma: 0.9, texto: 'Impaciente: compra na hora o que quer e não espera o preço cair.' },
+    kira: { poupa: 0.7, ganancia: 1, compra: 1, farma: 1.1, texto: 'Prática: compra o que serve para lutar e farma o resto.' },
+    rufo: { poupa: 0.6, ganancia: 1.25, compra: 1.1, farma: 0.9, texto: 'Encrenqueiro: gasta fácil e cobra caro de quem compra dele.' },
+    lis: { poupa: 0.75, ganancia: 1.1, compra: 0.9, farma: 1, texto: 'Estrategista: guarda bem e só compra quando o preço compensa.' },
+    gael: { poupa: 0.7, ganancia: 1.05, compra: 0.85, farma: 1.25, texto: 'Caçador: farma quase tudo sozinho e vende o que sobra da caça.' },
+  },
+};
+
 // Cérebro por regras dos NPCs (André 2026-11-11, estilo bots do WoW; motor em shared/cerebro.js). Por enquanto só no
 // combate da Cecília e do Dario no time. pensar: decisões por segundo. trocaMin: s entre trocas de arma. trocar/ficar:
 // nota do cajado para pegar / continuar com ele. longe: m do alvo que puxa para o cajado. magia: distância que quem está
