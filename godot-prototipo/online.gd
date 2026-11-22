@@ -942,6 +942,11 @@ func animar(o: Dictionary, c: Dictionary) -> void:
 	if acao is Dictionary and o.uma_vez > 0.0:
 		return
 	if c.get("morto", false):
+		# caiu: deitado na hora, mesmo se um "apanhar" passou por cima do tombo (André 2026-11-22: "continuam em pé lá
+		# por alguns segundos, isso confunde")
+		var am := animacao("morrer")
+		if an.has_animation(am) and an.current_animation != am and an.assigned_animation != am:
+			an.play(am, 0.05, 1.3)
 		return
 	o.uma_vez = 0.0
 	var nome := str(c.get("anim", "Idle"))
@@ -1253,6 +1258,8 @@ func evento(ev: Dictionary) -> void:
 				if eu or meu:
 					m.trabalho.combate()
 				var crit: bool = ev.get("crit", false) == true
+				if (meu and outros.has(str(ev.alvo))) or (eu and outros.has(str(ev.get("de", "")))):
+					m.pvp_ate = m.tempo + 8.0 # luta com jogador ou bot (guerra, duelo): sem congelada nem câmera lenta
 				if ev.has("dot"): # sangramento, veneno ou queimadura de skill de boss: só o número, na cor do efeito
 					fx.numero(no.position, ev.n, m.boss_mundo.cor_dot(str(ev.dot)), false)
 					return
