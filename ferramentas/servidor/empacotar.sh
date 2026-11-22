@@ -35,7 +35,8 @@ elif [ "$codigo" = 200 ] && grep -q 'BEGIN PUBLIC KEY' "$chave"; then
   trap 'rm -f "$saida/servidor.mjs" "$saida/package.json" "$saida/versao.txt"' ERR # falhou: código aberto nunca fica no dist
   node ferramentas/servidor/trancar.mjs "$chave" "$(cat "$saida/versao.txt")" "$saida/servidor.mjs" "$saida/package.json" "$saida/pacote.json"
   # [servidor urgente] no título do PR (vai na mensagem do merge): o servidor instala fora da janela de horário
-  if git log -1 --format=%B 2>/dev/null | grep -qF '[servidor urgente]'; then export URGENTE=1; echo "Pacote URGENTE: instala fora da janela."; fi
+  # André 2026-11-22: sem regra das 05h/14h. Todo pacote sai urgente e o servidor instala na hora ([servidor urgente] não é mais preciso).
+  export URGENTE=1; echo "Pacote URGENTE: instala na hora."
   if git log -1 --format=%B 2>/dev/null | grep -qF '[furar bloqueio]'; then export FURAR_BLOQUEIO=1; echo "Pacote FURA o bloqueio do lançamento."; fi
   node ferramentas/servidor/assinar.mjs "$saida/pacote.json" # só a máquina de builds da Oracle tem a chave (ver assinar.mjs)
   cp "$saida/versao.txt" "$saida/pacote-versao.txt"
