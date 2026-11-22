@@ -1409,16 +1409,16 @@ export const TROCA = { perto: 6, longe: 14, maxItens: 12, pedido: 30, entrePedid
 // npc: vontade da Cecília e do Dario (base + por ponto de amizade; menos cansado, de noite). humor: s que o sim/não vale.
 export const DUELO = { perto: 6, pedido: 15, entrePedidos: 4, contagem: 3, raio: 20, fim: 0.1, travar: 0.5,
   npc: { base: 0.65, porAmizade: 0.03, cansada: 0.45, noite: 0.2, min: 0.05, max: 0.95, humor: 90 } };
-// Arena PvP 3x3 Geada x Chama (André 2026-11-21), shared/arena.js. "o 3x3 dura 5 mins, o time que matar mais nesse tempo
+// Arena PvP Geada x Chama (André 2026-11-21; 4x4 desde 2026-11-22: "agora o 3x3 pode virar 4x4"), shared/arena.js. "o 3x3 dura 5 mins, o time que matar mais nesse tempo
 // vence, no final abre uma janela com a qtd de kills e quem venceu". Entra pelo menu do topo (botão PvP); o Battle Royale
 // fica "em breve". Para testar sozinho, os NPCs completam os times (Cecília, Dario e os aventureiros na Chama; Kira, Rufo e
 // Lis na Geada). Ninguém morre de verdade: quem cai levanta na base do time em renascer s, sem perder XP nem desgastar.
-// espera: s na fila antes de completar com NPCs (6 pessoas de verdade começam na hora); contagem: s antes de valer;
+// espera: s na fila antes de completar com NPCs (PVP.time * 2 pessoas de verdade começam na hora); contagem: s antes de valer;
 // duracao: s da partida; borda: m além do raio da arena que o servidor ainda aceita antes de puxar de volta.
 // moeda: Insígnias da Arena (prog.pvp.pts), ganhas no fim da partida (vitória, derrota, empate e cada abate, com teto).
 // minimo: quem ficou menos que isso da partida (s) não ganha nada (entrou e saiu). Valores para teste: o André ajusta.
 export const PVP = {
-  arena: ARENA_PVP, time: 3, espera: 15, contagem: 5, duracao: 300, renascer: 5, borda: 1.5, base: 15,
+  arena: ARENA_PVP, time: 4, espera: 15, contagem: 5, duracao: 300, renascer: 5, borda: 1.5, base: 15,
   nomeMoeda: 'Insígnias da Arena',
   moeda: { vitoria: 30, derrota: 12, empate: 20, abate: 2, abateMax: 20, minimo: 60 },
   times: { chama: { nome: 'Chama', cor: 'ff9a3c' }, geada: { nome: 'Geada', cor: '8fd0ff' } },

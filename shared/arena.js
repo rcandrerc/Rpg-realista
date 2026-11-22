@@ -56,7 +56,7 @@ export const Arena = {
       if (fila.some((f) => f.id === id)) return this.infoPvp(j);
       const mo = this.motivoSemPvp(j); if (mo) return aviso(mo);
       fila.push({ id, t: this.tempo });
-      aviso(this.partidaPvp ? 'Na fila da Arena: a partida de agora termina e a sua começa' : 'Na fila da Arena 3x3: procurando jogadores');
+      aviso(this.partidaPvp ? 'Na fila da Arena: a partida de agora termina e a sua começa' : `Na fila da Arena ${PVP.time}x${PVP.time}: procurando jogadores`);
       return this.avisarFilaPvp();
     }
     if (m.acao === 'sair') {
@@ -73,7 +73,7 @@ export const Arena = {
     const loja = LOJA_PVP.map((o) => ({ id: o.id, preco: o.preco, ...(o.t ? { t: o.t, nome: `Título: ${TITULOS[o.t]?.nome}`, txt: TITULOS[o.t]?.txt || '', tem: !!j.prog.tit?.tem?.includes(o.t) }
       : { k: o.k, n: o.n, nome: `${o.n}x ${nomeItem({ k: o.k, n: o.n })}`, txt: ITENS[o.k]?.desc || '' }) }));
     this.evento({ t: 'pvp', para: j.id, fase: 'info', pts: p.pts | 0, v: p.v | 0, d: p.d | 0, e: p.e | 0, k: p.k | 0, m: p.m | 0,
-      naFila: fila.some((f) => f.id === j.id), fila: fila.length, partida: !!this.partidaPvp, moeda: PVP.nomeMoeda, loja });
+      naFila: fila.some((f) => f.id === j.id), fila: fila.length, partida: !!this.partidaPvp, moeda: PVP.nomeMoeda, tam: PVP.time, loja });
   },
   avisarFilaPvp() {
     const fila = this.filaPvp || [];
@@ -135,7 +135,7 @@ export const Arena = {
     this.evento({ t: 'pvp', fase: 'pulo', id: j.id, x: r2(x), y: r2(y), z: r2(z) });
   },
   baseDoTime(time, i = 0) {
-    const A = PVP.arena, lado = time === 'chama' ? -1 : 1, dz = (i - 1) * 2.6;
+    const A = PVP.arena, lado = time === 'chama' ? -1 : 1, dz = (i - (PVP.time - 1) / 2) * 2; // lado a lado, centrados (4x4 desde 2026-11-22)
     return { x: A.x + lado * PVP.base, z: A.z + dz, ry: lado < 0 ? Math.PI / 2 : -Math.PI / 2 }; // de frente para o meio
   },
 
@@ -172,7 +172,7 @@ export const Arena = {
     });
     const A = PVP.arena, lista = M.ids.map((id) => ({ id, nome: M.stats[id].nome, time: M.stats[id].time }));
     for (const id of M.ids) this.evento({ t: 'pvp', para: id, fase: 'inicio', time: M.stats[id].time, arena: { x: A.x, z: A.z, r: A.r },
-      bases: { chama: this.baseDoTime('chama', 1), geada: this.baseDoTime('geada', 1) }, jogadores: lista, conta: PVP.contagem, dur: PVP.duracao });
+      bases: { chama: this.baseDoTime('chama', (PVP.time - 1) / 2), geada: this.baseDoTime('geada', (PVP.time - 1) / 2) }, jogadores: lista, conta: PVP.contagem, dur: PVP.duracao });
   },
 
   // ---------- luta ----------
@@ -192,7 +192,7 @@ export const Arena = {
   renascerPvp(j) {
     const M = j.pvp.M, i = M.ids.filter((id) => this.jogadores.get(id)?.pvp?.time === j.pvp.time).indexOf(j.id);
     Object.assign(j, { morto: false, vida: j.vidaMax, mana: j.manaMax ?? j.mana, trava: 0, acao: null, vuln: null, lentoH: null });
-    const b = this.baseDoTime(j.pvp.time, Math.max(0, i) % 3);
+    const b = this.baseDoTime(j.pvp.time, Math.max(0, i) % PVP.time);
     this.colocarPvp(j, b.x, b.z, b.ry);
   },
 
