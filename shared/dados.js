@@ -3531,6 +3531,7 @@ export const COMANDOS_TIME = {
 };
 export const REACOES = {
   entre: 40,
+  sozinha: { chanceVoltou: 0.3, global: 420 }, // André 2026-11-22: no login só 30% de chance de UM NPC cumprimentar; e 7 min entre falas por conta própria (voltou, puxar assunto, chamar) de todos os NPCs juntos
   cada: { subiu: 5, caiu: 30, voltou: 3600, euSubi: 5, vidaBaixa: 60, curou: 90, geada: 180, noite: 1800, dia: 1800, chefe: 120, quieto: 600, venceu: 120 },
   falas: {
     subiu: ['Nível {nv}! Boa, {nome}! Tá ficando brabo, hein.', 'Upou! Nível {nv}, que orgulho, kkk.', 'Eita, {nv} já? Daqui a pouco você me carrega.', 'Parabéns pelo {nv}! Bora comemorar matando mais mob.'],

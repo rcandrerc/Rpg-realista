@@ -31,6 +31,7 @@ import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.j
 
 // sorteia sem repetir a última da mesma lista (André 2026-11-15: as respostas prontas pareciam de robô)
 const ULTIMA = new WeakMap();
+const FALOU_SOZINHA = new Map(); // jogador -> tempo da última fala por conta própria de qualquer NPC (vezDeFalarSozinha)
 const REAGIU = new Map(); // `${jogador}:${fato}` -> tempo: o primeiro NPC que reagiu a esse fato (reagirAmiga)
 const sorteia = (l) => {
   if (!Array.isArray(l) || l.length < 2) return Array.isArray(l) ? l[0] : l;
@@ -2428,6 +2429,8 @@ export const Amiga = {
     const k = `${dono.id}:${ev}`, outro = REAGIU.get(k); // o outro NPC já reagiu a isso agorinha: deixa pra lá
     r.ult[ev] = t;
     if (outro != null && t - outro < 10 && t >= outro) return;
+    if (ev === 'voltou' && Math.random() >= (REACOES.sozinha?.chanceVoltou ?? 1)) return; // André 2026-11-22: com 4 por raça, todos mandavam "voltou" no login; agora sorteia (uma vez só por login, r.ult já marcou)
+    if (!['subiu', 'caiu'].includes(ev) && !this.vezDeFalarSozinha(dono)) return;
     REAGIU.set(k, t); r.t = t;
     if (noTime) ia.viaTime = t + 30; // no time: a fala vai para o chat do time
     this.dizerAmiga(sorteia(R.falas[ev]).replace('{nome}', dono.nome).replace('{nv}', String(ev === 'euSubi' ? meu : nv)), false, dono.id);
@@ -2556,6 +2559,7 @@ export const Amiga = {
     if (!this.ehAmigoAmiga(dono)) return; // só chama quem é amigo dela de verdade (André 2026-11-16)
     if (a.morto || a.time || ia.vir || (ia.chamado && ia.chamado.ate > this.tempo) || Math.hypot(a.x - dono.x, a.z - dono.z) < C.longe) return;
     if (dono.morto || dono.criando) return;
+    if (!this.vezDeFalarSozinha(dono)) return; // outro NPC falou há pouco (André 2026-11-22)
     const g = this.gostoTopoAmiga(dono), M = this.AMIGA.memoria;
     // André 2026-11-17 ("mais variado"): nunca a mesma chamada duas vezes seguidas
     // ronda 2026-11-18: o servidor reinicia com cada atualização e ia.ultimaChama se perdia; ela mandava "Bora caçar de novo?"
@@ -2591,6 +2595,14 @@ export const Amiga = {
   // no meio da conversa"; "não quero que ela fique me pentelhando toda hora") ----------
   // Só a Cecília (AMIGA.puxaAssunto), só com quem tem a IA e é amigo dela, sem ninguém falar há chat.puxar.quieto s, e no
   // máximo uma vez a cada chat.puxar.entre s. Depois de ele subir de nível ou cair, comenta disso (evento). true = puxou.
+  // André 2026-11-22 ("agora com 4 tá ficando chato qd eu logo todo mundo me mandando msg aleatória"): espera global entre as
+  // falas por conta própria (voltou, puxar assunto, chamar) de TODOS os NPCs para o mesmo jogador. REACOES.sozinha.global s.
+  vezDeFalarSozinha(dono, gravar = true) {
+    const G = REACOES.sozinha?.global ?? 0, t = this.tempo, u = FALOU_SOZINHA.get(dono.id);
+    if (u != null && t >= u && t - u < G) return false;
+    if (gravar) FALOU_SOZINHA.set(dono.id, t);
+    return true;
+  },
   puxarAssuntoAmiga(a, dono) {
     const P = this.AMIGA.chat.puxar, ia = a.ia; if (!this.AMIGA.puxaAssunto || !P || !this.aoPuxarAmiga || this.esperandoAmiga(a, dono)) return false;
     if (!this.iaAmiga(dono.id) || !this.ehAmigoAmiga(dono) || dono.criando || this.semIaAmiga(a, dono)) return false;
@@ -2606,6 +2618,7 @@ export const Amiga = {
     const ev = ia.evento && this.tempo >= ia.evento.t && this.tempo - (ia.puxou || -1e9) >= P.eventoMin ? ia.evento : null;
     if (ia.evento && this.tempo - ia.evento.t > 600) ia.evento = null; // velho: perdeu a graça
     if (!ev && (this.tempo < ia.puxaEm || quieto < P.quieto)) return false;
+    if (!this.vezDeFalarSozinha(dono)) { ia.puxaEm = this.tempo + 60; return false; } // outro NPC falou há pouco: tenta de novo daqui a 1 min
     ia.evento = null; ia.puxou = this.tempo; ia.puxaEm = this.tempo + sorte(P.entre);
     ia.chamaEm = Math.max(ia.chamaEm || 0, this.tempo + 600); // a chamada pronta não vem logo atrás
     ia.pensandoPuxar = true;
