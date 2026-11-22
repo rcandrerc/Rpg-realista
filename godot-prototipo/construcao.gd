@@ -28,6 +28,8 @@ const FazendaPlano = preload("res://fazenda_plano.gd")
 var plano # fazenda_plano.gd: marcar os canteiros e o herói faz tudo depois do Salvar (André 2026-11-07)
 var b_salvar: Button
 var b_limpar: Button
+var linha_girar: HBoxContainer # dois botões de girar a câmera na Fazenda (André 2026-11-22)
+var _girando := 0.0 # -1 / +1 enquanto um dos botões está apertado
 var b_area: Button # liga/desliga a seleção de área na fazenda
 
 var m # main.gd
@@ -2651,6 +2653,8 @@ func _process_parte(dt: float) -> void:
 		else:
 			_mover_mira(dt)
 			if ativo:
+				if _girando != 0.0 and aba == "fazenda":
+					m.hud.giro_cam.x += _girando * VEL_GIRO * dt # o mesmo giro do dedo na câmera (hud.giro_cam -> camera_heroi.gd)
 				if _area_a == null: # arrastando a área: o retângulo da prévia não pode ser apagado pela mira
 					_atualizar_mira()
 			else:
@@ -2885,6 +2889,7 @@ func sair() -> void:
 	ativo = false
 	modo_area = false
 	_area_a = null
+	_girando = 0.0
 	if na_area:
 		na_area = false
 		for k in _botoes_abas:
@@ -3450,6 +3455,7 @@ func arrasto(pos: Vector2, fase_: int) -> void:
 # Botão "Área" na aba Fazenda: ligado, o dedo na tela arrasta o retângulo (a câmera só gira com ele desligado). Ao soltar, cada
 # quadrado entra no plano pelas MESMAS regras do toque (sementes, vigor, água do regador, terra arada...); os que não dá
 # ficam de fora e o aviso diz quantos e por quê. Depois é só Salvar, como antes.
+const VEL_GIRO := 420.0 # px/s de giro da câmera com o botão apertado (como arrastar o dedo)
 const AREA_MAX := 400 # quadrados por retângulo (20 x 20 m)
 var modo_area := false
 var _area_a = null # Vector2i do primeiro canto
@@ -4113,6 +4119,17 @@ func _montar_tela() -> void:
 	b_limpar.visible = false
 	acoes.add_child(b_limpar)
 	acoes.move_child(b_limpar, 2)
+	linha_girar = HBoxContainer.new()
+	linha_girar.add_theme_constant_override("separation", 8)
+	linha_girar.visible = false
+	for g in [[-1.0, "◀ Girar"], [1.0, "Girar ▶"]]:
+		var bg := _botao(str(g[1]), func(): pass, false, 18)
+		bg.custom_minimum_size = Vector2(81, 50)
+		bg.button_down.connect(func(): _girando = float(g[0]))
+		bg.button_up.connect(func(): _girando = 0.0)
+		linha_girar.add_child(bg)
+	acoes.add_child(linha_girar)
+	acoes.move_child(linha_girar, 0)
 	b_area = _botao("Área", alternar_area, false, 18)
 	b_area.custom_minimum_size = Vector2(170, 46)
 	b_area.visible = false
@@ -5176,6 +5193,10 @@ func _montar_itens() -> void:
 	if aba == "fazenda" and plano and plano.planeja(sel):
 		b_ok.text = "Marcar"
 	b_ok.visible = not (aba == "fazenda" and plano != null and plano.planeja(sel)) # só Salvar e Limpar
+	if linha_girar:
+		linha_girar.visible = aba == "fazenda"
+		if not linha_girar.visible:
+			_girando = 0.0
 	if b_area:
 		b_area.visible = false # o arrasto agora é sempre de área (ver _area_ok)
 		b_area.set_meta("pt", "Área: ligada" if _area_ok() else "Área")
