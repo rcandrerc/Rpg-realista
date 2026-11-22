@@ -784,6 +784,22 @@
    "venda": 20,
    "desc": "Ferro com carvão, mais duro que o ferro. Vira armadura e lâmina melhores."
   },
+  "alma_geada": {
+   "nome": "Fragmento de Alma Geada",
+   "mat": true,
+   "pilha": 999,
+   "venda": 0,
+   "cor": "#7fd3ff",
+   "desc": "Só cai de quem é da Geada. A Chama usa para melhorar o clã."
+  },
+  "alma_chama": {
+   "nome": "Fragmento de Alma Chama",
+   "mat": true,
+   "pilha": 999,
+   "venda": 0,
+   "cor": "#ff8a4a",
+   "desc": "Só cai de quem é da Chama. A Geada usa para melhorar o clã."
+  },
   "couro": {
    "nome": "Couro",
    "mat": true,

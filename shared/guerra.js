@@ -196,6 +196,7 @@ export const Guerra = {
   },
   // a morte de guerra (simulacao.js morrer): quem matou e quem caiu falam e lembram; quem matou poupa por GUERRA.poupa s
   morteGuerra(c, k) {
+    this.fragmentoGuerra?.(c, k); // Fragmento de Alma da raça de quem caiu (níveis do clã, shared/cla.js)
     const ctxC = c.bot ? this.amigoIaDe(c) : null, ctxK = k?.bot ? this.amigoIaDe(k) : null;
     if (ctxK?.amiga) { const m = ctxK.memGuerra(k, c); m.v = (m.v | 0) + 1; m.poupa = Date.now() + GUERRA.poupa * 1000; if (k.ia?.guerra) k.ia.guerra.alvo = null; ctxK.falaGuerra('mata', c); }
     if (ctxC?.amiga && k) { const m = ctxC.memGuerra(c, k); m.d = (m.d | 0) + 1; if (c.ia) c.ia.falaGuerraT = -1e9; ctxC.falaGuerra('morre', k); }

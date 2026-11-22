@@ -1311,6 +1311,10 @@ export const ITENS = {
   pedra: { nome: 'Pedra', mat: true, pilha: 50, venda: 1, desc: 'Pedra comum. Sai dos veios de pedra (e, às vezes, junto quando você minera outro veio). Serve para construir e para afiar ferramentas.' },
   carvao: { nome: 'Carvão', mat: true, pilha: 50, venda: 2, desc: 'Lenha queimada na forja. Misturado ao ferro, vira aço.' },
   barra_aco: { nome: 'Barra de aço', mat: true, pilha: 50, venda: 20, desc: 'Ferro com carvão, mais duro que o ferro. Vira armadura e lâmina melhores.' },
+  // Fragmentos de Alma (André 2026-11-22: "só ganha matando geadas pra fazer upgrade do clã"): cai 1 de quem é da outra
+  // raça quando você (ou um recruta seu) derruba. A Chama precisa de Alma Geada; a Geada, de Alma Chama (CLA.niveis)
+  alma_geada: { nome: 'Fragmento de Alma Geada', mat: true, pilha: 999, venda: 0, cor: '#7fd3ff', desc: 'Só cai de quem é da Geada. A Chama usa para melhorar o clã.' },
+  alma_chama: { nome: 'Fragmento de Alma Chama', mat: true, pilha: 999, venda: 0, cor: '#ff8a4a', desc: 'Só cai de quem é da Chama. A Geada usa para melhorar o clã.' },
   couro: { nome: 'Couro', mat: true, pilha: 50, venda: 3, desc: 'Couro grosso dos Puglins. O alfaiate faz botas e reforços.' },
   tecido: { nome: 'Tecido', mat: true, pilha: 50, venda: 3, desc: 'Pano encantado que os Imps carregam. O alfaiate faz calças, shorts e capas. Também vai na camisa, nas botas e no colar, e para evoluir e reforçar o que não é arma.' },
   // dungeon da montanha (2026-11-06): o fragmento cai dos monstros; o Gaspar junta e faz o passe que abre o selo
@@ -3281,9 +3285,21 @@ export const CLA = {
   perto: 5, // m do Recrutador para contratar
   log: 20, // linhas do histórico de gastos
   tiers: [
-    { id: 'recruta', nome: 'Recruta', nivel: 'um', preco: 150, porNivel: 0, semana: 22, semanaNivel: 3 },
-    { id: 'veterano', nome: 'Veterano', nivel: 'metade', preco: 0, porNivel: 40, semana: 0, semanaNivel: 6 },
-    { id: 'elite', nome: 'Elite', nivel: 'igual', preco: 0, porNivel: 80, semana: 0, semanaNivel: 12 },
+    { id: 'recruta', nome: 'Recruta', nivel: 'um', preco: 150, porNivel: 0, semana: 22, semanaNivel: 3, claNv: 1 },
+    { id: 'veterano', nome: 'Veterano', nivel: 'metade', preco: 0, porNivel: 40, semana: 0, semanaNivel: 6, claNv: 3 },
+    { id: 'elite', nome: 'Elite', nivel: 'igual', preco: 0, porNivel: 80, semana: 0, semanaNivel: 12, claNv: 5 },
+  ],
+  // nível do clã (André 2026-11-22: "fosse uma coisa progressiva"): cada nível abre 1 vaga (o nível = as vagas, contando
+  // os membros fixos dos clãs bot). Para subir: o nível do líder, ouro do cofre (clã bot: do líder), materiais e
+  // Fragmentos de Alma da outra raça (do Baú do Clã ou da mochila do líder). Igual para todos os clãs.
+  niveis: [
+    null,
+    { nv: 1 },
+    { nv: 2, lider: 10, ouro: 500, mat: { lenha: 50, pedra: 30 }, alma: 5 },
+    { nv: 3, lider: 20, ouro: 1500, mat: { lenha: 80, barra_ferro: 30 }, alma: 15 },
+    { nv: 4, lider: 35, ouro: 4000, mat: { barra_aco: 30, couro: 20 }, alma: 40 },
+    { nv: 5, lider: 50, ouro: 10000, mat: { barra_aco: 40, cristal: 20 }, alma: 80 },
+    { nv: 6, lider: 70, ouro: 25000, mat: { barra_aco: 60, cristal: 40 }, alma: 150 },
   ],
   // o que aparece como recurso do clã (somado das bolsas dos recrutas)
   recursos: ['minerio_ferro', 'minerio_cobre', 'cristal', 'pedra', 'lenha', 'peixe'],
@@ -3312,6 +3328,7 @@ export const CLA = {
     { id: 'recurso', nome: 'Farmar recurso' }, { id: 'proteger', nome: 'Proteger' }, { id: 'fazenda', nome: 'Fazenda' },
   ],
   bauCla: 60, // lugares do Baú do Clã
+  bonusNivel: 0.02, // por nível do clã acima do 1: + XP e + ouro dos monstros para o líder e todos os membros (André 2026-11-22)
   // Fazenda (André 2026-11-22: "solicitar plante tal coisa"): cuida dos canteiros arados do terreno do líder (base do
   // clã). Colhe o que está maduro, rega o que está seco e planta a semente escolhida no painel. A semente sai do Baú do
   // Clã; sem ela, compra na Rosa com o cofre do clã. A colheita vai para o Baú do Clã (sem baú, fica na bolsa dele).
@@ -3343,7 +3360,10 @@ export function defRecruta(m, lider, nomeCla, raca) {
 // (ronda, emboscada, atacam a outra raça a 25 m) e as falas de um membro (falas). Estado na tabela mundo ('clas_npc').
 export const CLAS_NPC_REGRAS = { entre: 6, primeiro: 0.5, reserva: 300 }; // h reais entre contratações (a 1ª: primeiro h); ouro que o líder nunca gasta
 // limite (André 2026-11-22: "todos os clãs iguais"): CLA.max membros além do líder, contando os fixos (Kira, Rufo e Lis)
-export const vagasClaNpc = (C) => Math.max(0, CLA.max - C.membros.filter((id) => id !== C.lider).length);
+// André 2026-11-22 (níveis): as vagas são o nível do clã (E.nv), contando os fixos
+export const vagasClaNpc = (C, nv = CLA.max) => Math.max(0, Math.min(CLA.max, nv) - C.membros.filter((id) => id !== C.lider).length);
+// a alma que um clã da raça r precisa para subir de nível (a da outra raça)
+export const almaDe = (raca) => (raca === 'geada' ? 'alma_chama' : 'alma_geada');
 export const CLAS_NPC = [
   { id: 'geada', n: 'Lobos da Geada', raca: 'geada', lider: 'gael', membros: ['kira', 'rufo', 'lis', 'gael'], falas: { f: 'kira', m: 'rufo' } },
   // André 2026-11-22 ("eles vão ser clã, mesmo esquema... não somos aliados ainda, somos neutros"): a Chama bot, líder Dario

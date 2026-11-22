@@ -1770,7 +1770,7 @@ func montar_cla() -> void:
 	vc.add_theme_constant_override("separation", 4)
 	cab.add_child(vc)
 	vc.add_child(rotulo("Clã %s" % str(C.get("n", "")), 20, OURO_CLARO))
-	vc.add_child(rotulo("Líder: você · %d/%d recrutas" % [(C.get("m", []) as Array).size(), int(C.get("max", 6))], 13, TEXTO))
+	vc.add_child(rotulo("Clã Nv %d · Líder: você · %d/%d recrutas" % [int(C.get("nv", 1)), (C.get("m", []) as Array).size(), int(C.get("max", 6))], 13, TEXTO))
 	var falta := maxf(0.0, float(C.get("prox", 0)) - float(Time.get_ticks_msec() - m.P.cla_t))
 	var cofre := int(C.get("cofre", 0))
 	var semana := int(C.get("semana", 0))
@@ -1784,6 +1784,28 @@ func montar_cla() -> void:
 		lc.add_child(botao("+%d" % int(v), func(): m.rede("cla", {"acao": "depositar", "ouro": int(v)}), 14))
 	lc.add_child(botao("Sacar 100", func(): m.rede("cla", {"acao": "sacar", "ouro": 100}), 14))
 	conteudo.add_child(lc)
+	# nível do clã (André 2026-11-22: "fosse uma coisa progressiva"): o que o próximo pede e o que já tem
+	if C.get("sobe") is Dictionary:
+		var S: Dictionary = C.sobe
+		var cs := PanelContainer.new()
+		cs.add_theme_stylebox_override("panel", caixa(FUNDO2, OURO.darkened(0.35), 1, 10))
+		var vs := VBoxContainer.new()
+		vs.add_theme_constant_override("separation", 3)
+		cs.add_child(vs)
+		vs.add_child(rotulo("Melhorar para o clã Nv %d (%d vagas)" % [int(S.nv), int(S.nv)], 16, OURO_CLARO))
+		var nv_ok := int(m.P.prog.get("nivel", 1)) >= int(S.lider)
+		var ouro_ok := int(C.get("cofre", 0)) >= int(S.ouro)
+		var tudo := nv_ok and ouro_ok
+		vs.add_child(rotulo("Seu nível %d de %d · Cofre %d de %d de ouro" % [int(m.P.prog.get("nivel", 1)), int(S.lider), int(C.get("cofre", 0)), int(S.ouro)], 13, TEXTO if tudo else Color(1.0, 0.7, 0.6)))
+		for it in S.get("itens", []):
+			var ok := int(it.tem) >= int(it.n)
+			tudo = tudo and ok
+			vs.add_child(rotulo("%s: %d/%d" % [str(it.nome), mini(int(it.tem), int(it.n)), int(it.n)], 13, VERDE_DIARIA if ok else APAGADO))
+		vs.add_child(rotulo("Materiais e fragmentos saem do Baú do Clã ou da sua mochila. Fragmento de Alma: derrube quem é da outra raça.", 11, APAGADO))
+		var bm := botao("Melhorar clã", func(): m.rede("cla", {"acao": "melhorar"}), 15, tudo)
+		bm.custom_minimum_size = Vector2(0, 44)
+		vs.add_child(bm)
+		conteudo.add_child(cs)
 	# membros (André 2026-11-22: "apareça eu no painel... nível Hp mana e vigor... determinar funções")
 	conteudo.add_child(rotulo("Membros", 17, OURO_CLARO))
 	var ms: Array = C.get("m", [])
@@ -1813,7 +1835,7 @@ func montar_cla() -> void:
 	# os clãs bot (André 2026-11-22): o inimigo (Lobos da Geada, do Gael) e quem mais existir
 	for K in C.get("clas", []):
 		var ini := int(K.get("inimigo", 0)) == 1
-		conteudo.add_child(rotulo("%s %s (%s) · líder %s · %d recrutas" % ["Inimigo:" if ini else "Neutro:", str(K.n), str(K.get("raca", "")), str(K.lider), int(K.get("recrutas", 0))], 16, Color(1.0, 0.55, 0.45) if ini else APAGADO.lightened(0.2)))
+		conteudo.add_child(rotulo("%s %s Nv %d (%s) · líder %s · %d recrutas" % ["Inimigo:" if ini else "Neutro:", str(K.n), int(K.get("nv", 1)), str(K.get("raca", "")), str(K.lider), int(K.get("recrutas", 0))], 16, Color(1.0, 0.55, 0.45) if ini else APAGADO.lightened(0.2)))
 		conteudo.add_child(rotulo(", ".join(PackedStringArray(K.get("membros", []))), 12, APAGADO))
 	# Recrutador
 	conteudo.add_child(rotulo("Recrutar", 17, OURO_CLARO))
@@ -1825,7 +1847,10 @@ func montar_cla() -> void:
 		var tid := str(T.id)
 		var bt := botao("%s Nv %d · %d de ouro · %d/semana" % [str(T.nome), int(T.nv), int(T.preco), int(T.sem)], func(): m.rede("cla", {"acao": "recrutar", "tier": tid}), 15, perto)
 		bt.custom_minimum_size = Vector2(0, 46)
-		bt.disabled = not perto or cheio or int(m.P.prog.get("ouro", 0)) < int(T.preco)
+		var trava := int(T.get("claNv", 1)) > int(C.get("nv", 1))
+		if trava:
+			bt.text = "%s · só no clã Nv %d" % [str(T.nome), int(T.claNv)]
+		bt.disabled = not perto or cheio or trava or int(m.P.prog.get("ouro", 0)) < int(T.preco)
 		conteudo.add_child(bt)
 	conteudo.add_child(rotulo("Cada recruta depois do 3º deixa a semana toda 10% mais cara. 7 dias sem pagamento, ele vai embora.", 12, APAGADO))
 	# gastos
