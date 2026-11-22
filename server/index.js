@@ -157,6 +157,8 @@ class SalaClareira extends Room {
       // as casas de antes voltam para o dono, uma vez só (André 2026-11-22: "Tudo pode remover as casas")
       this.sim.carregarDevolucoes(contas.lerMundo('devolucoes')); this.sim.aoDevolucoes = (est) => contas.gravarMundo('devolucoes', est);
       if (!contas.lerMundo('reset_terrenos_v1')) { const n = this.sim.resetTerrenos(); for (const l of this.sim.lotesParaSalvar()) contas.salvarLote(l); contas.gravarMundo('reset_terrenos_v1', { t: Date.now(), n }); console.log(`base do clã: ${n} terrenos devolvidos`); }
+      // as casas dos bots também saem (André 2026-11-22: "Não vai existir mais casa de bot nenhum")
+      if (!contas.lerMundo('reset_terrenos_bots_v1')) { const n = this.sim.resetTerrenos(); for (const l of this.sim.lotesParaSalvar()) contas.salvarLote(l); for (const o of this.sim.npcsParaSalvar()) contas.gravarMundo('npc:' + o.id, o.dados); contas.gravarMundo('reset_terrenos_bots_v1', { t: Date.now(), n }); console.log(`base do clã: ${n} casas de bot tiradas`); }
     }
     if (contas) this.sim.carregarPlantio(contas.lerMundo('plantadas')); // árvores plantadas pelos jogadores (shared/plantio.js)
     if (contas) this.sim.carregarVeios(contas.lerMundo('veios')); // árvores cortadas e veios batidos: o tempo de voltar continua depois do reinício
@@ -528,8 +530,8 @@ class SalaClareira extends Room {
   entrarAmiga(client, fala = true) {
     for (const ctx of this.sim.amigosIa) { // a Cecília, o Dario e os 20 aventureiros (André 2026-11-11), cada um com o seu save
       if (contas && !ctx.amiga) {
-        if (ctx.AMIGA.terreno) { const l = contas.loteDoDono(ctx.AMIGA.conta); if (l) this.sim.carregarLotes([l]); }
-        else this.sim.carregarNpc(ctx.AMIGA.id, contas.lerMundo('npc:' + ctx.AMIGA.id)); // sem casa: o save fica na tabela mundo
+        if (ctx.AMIGA.terreno) { const l = contas.loteDoDono(ctx.AMIGA.conta); if (l) this.sim.carregarLotes([l]); } // o lote dele na base do clã
+        if (!this.sim.npcSalvos?.has(ctx.AMIGA.id)) this.sim.carregarNpc(ctx.AMIGA.id, contas.lerMundo('npc:' + ctx.AMIGA.id)); // o save fica na tabela mundo (todos, desde 2026-11-22)
       }
       ctx.amigaEntrar(client.sessionId, fala);
     }

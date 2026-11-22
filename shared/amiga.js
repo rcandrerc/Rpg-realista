@@ -167,7 +167,7 @@ export const Amiga = {
     if (!this.amiga && this.iaForaAmiga()) { this.amigaFora ||= { t: this.tempo }; return; } // deslogado até a IA voltar
     if (!this.amiga) {
       const L = this.loteDaAmiga(true);
-      let salvo = L?.amiga || (!this.AMIGA.terreno && this.npcSalvos?.get(this.AMIGA.id)) || {};
+      let salvo = this.npcSalvos?.get(this.AMIGA.id) || L?.amiga || {}; // André 2026-11-22: sem casa na vila; o save de todos fica na tabela mundo
       // recomeço (André 2026-11-11): tudo o que ela jogou volta ao zero (nível, peças, ouro, bolsa, amizades, diário);
       // o jeito dela (código) fica. O save antigo fica guardado em 'antes' para dar para voltar se ele pedir.
       let antes = salvo.antes || null;
@@ -410,33 +410,28 @@ export const Amiga = {
   ehAmiga(o) { return !!o?.bot; },
   // ---------- o terreno dela ----------
   // o terreno da Cecília; com criar, procura um lugar livre nas Terras da Estrada perto da entrada e reserva no banco
+  // André 2026-11-22 ("Não vai existir mais casa de bot nenhum... todo mundo vai ter uma base"): a casa da Cecília e do
+  // Dario fica no lote deles na base do clã (shared/base.js); sem base ainda, ficam sem casa (moram na vila).
   loteDaAmiga(criar = false) {
     if (!this.AMIGA.terreno) return null; // aventureiro sem casa (André 2026-11-11): mora na vila do nível dele
-    for (const L of this.lotes.values()) if (L.dono === this.AMIGA.conta) return L;
+    for (const L of this.lotes.values()) if (L.dono === this.AMIGA.conta && L.def.baseK) return L;
     if (!criar) return null;
-    const outros = [...this.lotes.values()].filter((L) => L.dono).map((L) => L.def);
-    const { w, d } = this.AMIGA.terreno, entrada = VILA_LOTES.estrada[VILA_LOTES.estrada.length - 1];
-    const lugares = [];
-    for (let x0 = -38; x0 <= 10; x0 += 2) for (let z0 = 48; z0 <= 130; z0 += 2) lugares.push({ x0, z0, x1: x0 + w, z1: z0 + d });
-    lugares.sort((a, b) => Math.hypot(a.x0 + w / 2 - entrada[0], a.z0 + d / 2 - entrada[1] - 6) - Math.hypot(b.x0 + w / 2 - entrada[0], b.z0 + d / 2 - entrada[1] - 6));
-    const R = lugares.find((R) => !motivoTerreno(R, outros));
-    if (!R) return null;
-    const lid = 't' + this.AMIGA.id;
-    if (this.aoComprarLote && !this.aoComprarLote(lid, this.AMIGA.conta, this.AMIGA.nome, R)) return null;
-    const L = { def: { id: lid, nome: 'Terreno', ...R }, dono: this.AMIGA.conta, nomeDono: this.AMIGA.nome, pecas: [], horta: {}, prox: 1, taxa: Date.now(), amiga: {} };
-    this.lotesSoltos.delete(lid);
-    this.lotes.set(lid, L);
-    this.avisarLote(L);
-    return L;
+    const id = this.AMIGA.id;
+    for (const B of Object.values(this.basesCla || {})) {
+      const i = B.dono === 'npc:' + id ? 1 : +(Object.keys(B.donos || {}).find((k) => B.donos[k].id === id) || 0);
+      if (!i) continue;
+      const L = this.loteDaBase?.(B, i, this.AMIGA.conta, this.AMIGA.nome);
+      if (L) this.avisarLote(L);
+      return L || null;
+    }
+    return null;
   },
   // guarda o progresso dela dentro do terreno (vai para o banco em lotesParaSalvar)
   guardarAmiga() {
-    const j = this.amiga, L = this.loteDaAmiga(); if (!j || (!L && this.AMIGA.terreno)) return;
+    const j = this.amiga; if (!j) return;
     const amizades = { ...(j.amizades || {}) }; if (j.donoConta) amizades[j.donoConta] = j.amizade | 0;
     const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, evolucao: j.evolucao || [], ...(this.AMIGA.terreno || this.AMIGA.rival ? { histReal: 1 } : {}), ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), guerra: j.guerraMem || {}, leilao: j.leilaoBot || null, memorias: j.memorias || {}, fatos: j.fatos || {}, semIa: j.semIa || {}, conversas: this.conversasParaSalvarAmiga(j), registro: j.registro || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(this.AMIGA.recomecoJogo ? { recomecoJogo: this.AMIGA.recomecoJogo } : {}), ...(j.amigaAntesJogo ? { antesJogo: j.amigaAntesJogo } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
-    if (!L) { (this.npcSalvos ||= new Map()).set(this.AMIGA.id, dados); (this.npcsMudados ||= new Set()).add(this.AMIGA.id); return; } // sem casa: tabela mundo do banco
-    L.amiga = dados;
-    this.lotesMudados.add(L.def.id);
+    (this.npcSalvos ||= new Map()).set(this.AMIGA.id, dados); (this.npcsMudados ||= new Set()).add(this.AMIGA.id); // tabela mundo do banco (todos, desde 2026-11-22)
   },
   // ---------- a cabeça dela (a cada passo da simulação) ----------
   // Em volta da cabeça: confere se o passo anterior saiu do lugar (André 2026-11-12: "ficam caminhando sem sair do lugar

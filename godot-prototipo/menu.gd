@@ -1819,6 +1819,12 @@ func montar_cla() -> void:
 	vc.add_child(rotulo("Cofre: %d de ouro · Semana: %d de ouro" % [cofre, semana], 15, OURO))
 	vc.add_child(rotulo("Próxima cobrança em %d d %d h" % [int(falta / 86400000.0), int(fmod(falta, 86400000.0) / 3600000.0)], 12, Color(1.0, 0.55, 0.45) if cofre < semana else APAGADO))
 	conteudo.add_child(cab)
+	# sem base ainda (André 2026-11-22: "como é que eu faço para escolher o terreno?"): o botão logo no topo
+	if not (C.get("base") is Dictionary):
+		conteudo.add_child(rotulo("Seu clã ainda não tem base. Vá até o lugar que quiser (no território da sua raça, longe de vila, estrada, rio e de outras bases) e toque abaixo:", 13, OURO_CLARO))
+		var fb := botao("Fundar a base aqui", func(): m.rede("cla", {"acao": "base"}), 17, true)
+		fb.custom_minimum_size = Vector2(0, 50)
+		conteudo.add_child(fb)
 	# cofre: depositar e sacar
 	var lc := HBoxContainer.new()
 	lc.add_theme_constant_override("separation", 6)
