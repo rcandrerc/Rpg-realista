@@ -3678,7 +3678,8 @@ export const GUERRA = { radar: { mostra: 300, recarga: 1800, presente: 3 }, // P
   resposta: [1.5, 3], dupla: [180, 360], duplaPerto: 10, feito: 600,
   semPontoQueda: 15, // voltou da queda longe de onde caiu: por s não fere a outra raça (Presidente 2026-11-19)
   // Regras novas do André (2026-11-21, "conflito no mapa"; mapa das zonas: /mnt/project-files/guerra-zonas/):
-  // - zona segura só nas vilas (vilaFolga), nos totens (totem m), no terreno do jogador (está dentro das vilas), em volta
+  // - André 2026-11-22: vila deixou de ser zona segura (vilaFolga ficou sem uso). Seguro: nos totens (totem m), no terreno
+  //   do próprio jogador, em volta
   //   de cada mercador de pack (mercador m: uns 3 ou 4 carrinhos abastecendo) e de cada cais de embarque (cais m: o navio
   //   mercante carrega e descarrega). Campo de caça não é mais seguro (campoAte 0); o mar aberto é combate.
   // - agro: m em que o bot ataca a outra raça; alerta: m em que o jogador é avisado (no máximo um aviso por pessoa a cada
