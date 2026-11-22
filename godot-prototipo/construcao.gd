@@ -2645,7 +2645,8 @@ func _process_parte(dt: float) -> void:
 		else:
 			_mover_mira(dt)
 			if ativo:
-				_atualizar_mira()
+				if _area_a == null: # arrastando a área: o retângulo da prévia não pode ser apagado pela mira
+					_atualizar_mira()
 			else:
 				_atualizar_compra()
 	# horta cresce sozinha: confere a fase de vez em quando
@@ -2877,6 +2878,7 @@ func sair() -> void:
 		return
 	ativo = false
 	modo_area = false
+	_area_a = null
 	if na_area:
 		na_area = false
 		for k in _botoes_abas:
@@ -3236,6 +3238,8 @@ func motivo_arvore(q: Vector2i, s: String, area: bool) -> String:
 		for dk in n:
 			if oc.has(q + Vector2i(di, dk)):
 				return "Já tem árvore nesse quadrado"
+	if m.plantio.perto_de_nativa(q, grande): # a mesma regra do servidor (shared/plantio.js)
+		return "Perto demais de outra árvore ou pedra"
 	if area:
 		var qs: Dictionary = m.plantio.quadrados()
 		var a = qs.get(q)
