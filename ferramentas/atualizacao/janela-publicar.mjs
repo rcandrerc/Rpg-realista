@@ -5,7 +5,6 @@
 // Grava publicar=true|false em $GITHUB_OUTPUT. Uso no CI: node ferramentas/atualizacao/janela-publicar.mjs
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { podeInstalar } from '../../server/atualizar.js';
 
 const BALDE = (process.env.ORACLE_URL || 'https://objectstorage.sa-saopaulo-1.oraclecloud.com/n/gri0v6lf72rz/b/Aethra-jofo/o/').replace(/\/?$/, '/');
 const PAGES = 'https://rcandrerc.github.io/Rpg-realista/';
@@ -20,10 +19,8 @@ export function decide({ evento, forcar, mensagem = '', mudou, agora = Date.now(
   // o agendado só existe para soltar o que esperava (shared/); sem isso não republica o site à toa (~690 MB)
   if (!shared && evento === 'schedule') return { publicar: false, motivo: 'agendado sem nada esperando' };
   if (!shared) return { publicar: true, motivo: 'nada em shared/ desde o que está no ar' };
-  // agendado: publica se o servidor vai poder instalar logo (janela abre em até ~25 min ou já está aberta)
-  if (evento === 'schedule' && (podeInstalar(agora) || podeInstalar(agora + 25 * 60e3)))
-    return { publicar: true, motivo: 'disparo agendado antes da janela' };
-  return { publicar: false, motivo: `${mudou === null ? 'não deu para saber o que mudou' : 'shared/ mudou'}: espera o disparo das 04:40 ou 13:40 de Brasília` };
+  // André 2026-11-22: sem espera de janela. Merge com shared/ publica na hora e o pacote do servidor sai urgente (instala na hora).
+  return { publicar: true, motivo: 'shared/ mudou: publica na hora (sem janela)' };
 }
 
 async function textoDe(url) {
