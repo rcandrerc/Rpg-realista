@@ -11,7 +11,7 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { CLA, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS } from './dados.js';
+import { CLA, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, vagasClaNpc, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
 
 const sorteia = (l, r) => l[Math.floor(r() * l.length)];
@@ -194,7 +194,7 @@ export const Cla = {
     this.clasNpc = {};
     for (const C of CLAS_NPC) {
       const e = est?.[C.id], v = claValido({ n: C.n, m: Array.isArray(e?.m) ? e.m : [], sem: e?.sem, cofre: 0 });
-      this.clasNpc[C.id] = { m: v?.m.slice(0, CLAS_NPC_REGRAS.max) || [], prox: Number.isFinite(+e?.prox) ? +e.prox : Date.now() + CLAS_NPC_REGRAS.primeiro * 3600e3, sem: v?.sem || Date.now() + CLA.semana };
+      this.clasNpc[C.id] = { m: v?.m.slice(0, vagasClaNpc(C)) || [], prox: Number.isFinite(+e?.prox) ? +e.prox : Date.now() + CLAS_NPC_REGRAS.primeiro * 3600e3, sem: v?.sem || Date.now() + CLA.semana };
     }
     for (const C of CLAS_NPC) for (const m of this.clasNpc[C.id].m) this.criarRecrutaNpc(C, m, false);
   },
@@ -227,7 +227,7 @@ export const Cla = {
         }
       }
       // liderança: contrata o melhor que o ouro paga (deixa a reserva)
-      if (agora >= E.prox && E.m.length < R.max) {
+      if (agora >= E.prox && E.m.length < vagasClaNpc(C)) {
         E.prox = agora + R.entre * 3600e3; mudou = true;
         const nv = L.prog.nivel | 0, livre = (L.prog.ouro | 0) - R.reserva;
         const T = [...CLA.tiers].reverse().find((T) => precoTier(T, nivelTier(T, nv)) <= livre);

@@ -3319,7 +3319,9 @@ export function defRecruta(m, lider, nomeCla, raca) {
 // CLAS_NPC_REGRAS.entre h, contrata um recruta do nível que o ouro dele paga (os mesmos CLA.tiers), até max. A semana sai
 // do ouro do líder; sem ouro, o recruta mais caro vai embora. Os recrutas são bots da raça do clã com jeito de guerra
 // (ronda, emboscada, atacam a outra raça a 25 m) e as falas de um membro (falas). Estado na tabela mundo ('clas_npc').
-export const CLAS_NPC_REGRAS = { entre: 6, primeiro: 0.5, max: 6, reserva: 300 }; // h reais entre contratações (a 1ª: primeiro h); ouro que o líder nunca gasta
+export const CLAS_NPC_REGRAS = { entre: 6, primeiro: 0.5, reserva: 300 }; // h reais entre contratações (a 1ª: primeiro h); ouro que o líder nunca gasta
+// limite (André 2026-11-22: "todos os clãs iguais"): CLA.max membros além do líder, contando os fixos (Kira, Rufo e Lis)
+export const vagasClaNpc = (C) => Math.max(0, CLA.max - C.membros.filter((id) => id !== C.lider).length);
 export const CLAS_NPC = [
   { id: 'geada', n: 'Lobos da Geada', raca: 'geada', lider: 'gael', membros: ['kira', 'rufo', 'lis', 'gael'], falas: { f: 'kira', m: 'rufo' } },
 ];

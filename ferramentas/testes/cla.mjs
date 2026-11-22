@@ -94,3 +94,7 @@ ok(true, 'simulação roda com os recrutas');
   for (let i = 0; i < 100; i++) s2.passo(0.05);
   ok(true, 'simulação roda com o clã bot');
 }
+{
+  const { CLAS_NPC, vagasClaNpc, CLA: C2 } = await import('../../shared/dados.js');
+  ok(vagasClaNpc(CLAS_NPC[0]) === 3 && C2.max === 6, 'todos os clãs iguais: Lobos da Geada = Kira, Rufo, Lis + 3 recrutas (6 além do líder)');
+}
