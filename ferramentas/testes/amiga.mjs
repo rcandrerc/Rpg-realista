@@ -149,8 +149,9 @@ ok(falas.length === 1 && falas[0].c === AMIGA.conta && falas[0].alvo === d.conta
   cp.mochila[3] = { k: 'pocao', n: 2 }; cp.mochila[4] = { k: 'cenoura', n: 5 };
   const ouroA = cp.ouro; s4.arrumarMochilaAmiga(c);
   const tem = (k) => cp.mochila.some((o) => o?.k === k);
-  ok(cp.equip.corpo?.r === 3 && !tem('peitoral') && !tem('cajado') && !tem('barra_ferro') && tem('pocao') && tem('cenoura') && cp.ouro > ouroA,
-    `arrumou: vestiu o peitoral melhor, vendeu cajado, peitoral velho e barras (+${cp.ouro - ouroA} de ouro), guardou poção e cenoura`);
+  // André 2026-11-21 (bots no leilão): material fica de reserva / para o leilão (shared/leilao-bots.js), não vai mais para a loja
+  ok(cp.equip.corpo?.r === 3 && !tem('peitoral') && !tem('cajado') && tem('barra_ferro') && tem('pocao') && tem('cenoura') && cp.ouro > ouroA,
+    `arrumou: vestiu o peitoral melhor, vendeu cajado e peitoral velho (+${cp.ouro - ouroA} de ouro), guardou poção, cenoura e as barras (reserva do leilão)`);
   // troca: o dono pede, abre na hora
   Object.assign(d, { x: c.x + 1.5, z: c.z, y: c.y });
   const esp = (t) => { for (let i = 0; i < t * 20; i++) s4.passo(0.05); };
@@ -176,7 +177,7 @@ ok(falas.length === 1 && falas[0].c === AMIGA.conta && falas[0].alvo === d.conta
   const amz = c.amizade | 0; chat('é presente'); esp(2);
   ok(c.troca.of[c.id].ouro === 0 && c.troca.of[c.id].tranca, '"é presente": ela tira o ouro');
   s4.troca('andre', { acao: 'trancar', v: true }); s4.troca('andre', { acao: 'confirmar' }); esp(2);
-  ok(!c.troca && contar(cp.mochila, 'barra_ferro') === 2 && c.amizade === amz + 1, 'presente recebido: amizade +1');
+  ok(!c.troca && contar(cp.mochila, 'barra_ferro') === 6 && c.amizade === amz + 1, 'presente recebido: amizade +1 (as 2 barras somam às 4 da reserva)');
   // fora da troca, de longe: "tem cenoura?" -> ela oferece com preço; ao abrir a troca já vai pra mesa e o preço sugerido aparece
   Object.assign(d, { x: c.x + 20, z: c.z }); fala.length = 0; c.ia.trocaT = null;
   ok(s4.assuntoAmiga('tem cenoura?') === 'pedirItem', '"tem cenoura?" vira pedido de item quando ela tem');

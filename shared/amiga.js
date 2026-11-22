@@ -237,6 +237,9 @@ export const Amiga = {
       if (this.AMIGA.raca) j.raca = this.AMIGA.raca; // Chama x Geada (shared/guerra.js): sem raça = Chama
       j.guerraMem = salvo.guerra && typeof salvo.guerra === 'object' && !Array.isArray(salvo.guerra) ? Object.fromEntries(Object.entries(salvo.guerra).slice(-300)) : {}; // quem ele já viu e o placar
       this.pocoesAmiga(j);
+      // o leilão (André 2026-11-21): poupança para a meta, o ouro visto na última olhada e os últimos negócios
+      const lbS = salvo.leilao && typeof salvo.leilao === 'object' && !Array.isArray(salvo.leilao) ? salvo.leilao : null;
+      j.leilaoBot = lbS ? { poupado: Math.max(0, +lbS.poupado || 0), visto: Number.isFinite(+lbS.visto) ? +lbS.visto : j.prog.ouro | 0, log: Array.isArray(lbS.log) ? lbS.log.slice(-12) : [], meta: lbS.meta || null, t: lbS.t || 0 } : null;
       // aparece na porta de casa (ou no canto do terreno, se a casa ainda não existe); sem casa, na vila do nível dele
       const def = L?.def, M = !def && this.moradiaAmiga(j), x = def ? def.x0 + this.AMIGA.porta[0] : M ? M.x : this.mapa.nascimento.x + 2, z = def ? def.z0 + this.AMIGA.porta[1] : M ? M.z : this.mapa.nascimento.z + 2;
       Object.assign(j, { x, z, y: this.terreno.altura(x, z), ry: Math.PI, chao: true });
@@ -410,7 +413,7 @@ export const Amiga = {
   guardarAmiga() {
     const j = this.amiga, L = this.loteDaAmiga(); if (!j || (!L && this.AMIGA.terreno)) return;
     const amizades = { ...(j.amizades || {}) }; if (j.donoConta) amizades[j.donoConta] = j.amizade | 0;
-    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, evolucao: j.evolucao || [], ...(this.AMIGA.terreno || this.AMIGA.rival ? { histReal: 1 } : {}), ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), guerra: j.guerraMem || {}, memorias: j.memorias || {}, fatos: j.fatos || {}, semIa: j.semIa || {}, conversas: this.conversasParaSalvarAmiga(j), registro: j.registro || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(this.AMIGA.recomecoJogo ? { recomecoJogo: this.AMIGA.recomecoJogo } : {}), ...(j.amigaAntesJogo ? { antesJogo: j.amigaAntesJogo } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
+    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, evolucao: j.evolucao || [], ...(this.AMIGA.terreno || this.AMIGA.rival ? { histReal: 1 } : {}), ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), guerra: j.guerraMem || {}, leilao: j.leilaoBot || null, memorias: j.memorias || {}, fatos: j.fatos || {}, semIa: j.semIa || {}, conversas: this.conversasParaSalvarAmiga(j), registro: j.registro || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(this.AMIGA.recomecoJogo ? { recomecoJogo: this.AMIGA.recomecoJogo } : {}), ...(j.amigaAntesJogo ? { antesJogo: j.amigaAntesJogo } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
     if (!L) { (this.npcSalvos ||= new Map()).set(this.AMIGA.id, dados); (this.npcsMudados ||= new Set()).add(this.AMIGA.id); return; } // sem casa: tabela mundo do banco
     L.amiga = dados;
     this.lotesMudados.add(L.def.id);
@@ -669,6 +672,7 @@ export const Amiga = {
       return;
     }
     if (av.fase === 'descansar') {
+      this.leilaoTalvezAmiga?.(j); // descansando na vila: olha o leilão se já deu a hora (André 2026-11-21)
       if (noite) av.ate = t + (av.espera ??= Math.random() * NPC_VIDA.esperaManha); // abriu o horário: ainda espera um tanto só dele
       if (t < av.ate || noite) { // passeia devagar pela vila, no canto dele (fora do horário fica por ali)
         // quem tem casa (Cecília, Dario) voltou para ela: passeia na frente da porta, não vai em linha reta até a vila
@@ -1002,7 +1006,7 @@ export const Amiga = {
   // shared/progresso.js, evoluir em comecarCatalisador): paga com o próprio ouro e guarda uma reserva para poção e conserto.
   reservaAmiga(j) {
     const preco = precoLoja(LOJA.find((o) => o.k === 'pocao'), j.prog.nivel) || 15;
-    return NPC_VIDA.reforco.reserva + preco * this.AMIGA.time.pocoes;
+    return NPC_VIDA.reforco.reserva + preco * this.AMIGA.time.pocoes + (j.leilaoBot?.poupado | 0); // a poupança da meta (leilão, André 2026-11-21) não vai para reforço
   },
   // tenta reforçar as peças do corpo (a de reforço mais baixo antes), até NPC_VIDA.reforco.tentativas por volta na vila.
   // Devolve quantas tentativas fez.
@@ -1815,7 +1819,7 @@ export const Amiga = {
         const h = this.decisaoTimeAmiga(a, j, true);
         return { aceita: h.aceita, motivo: h.motivo, recusou: (a.ia.recusaAte || 0) > this.tempo, min: Math.max(1, Math.ceil((Math.max(a.ia.recusaAte || 0, h.ate) - this.tempo) / 60)) };
       })(),
-      ouro: a.prog.ouro | 0,
+      ouro: a.prog.ouro | 0, leilao: this.fichaLeilaoAmiga?.(a) || null,
       mochila: Object.entries(a.prog.mochila.reduce((m, o) => { if (o) m[ITENS[o.k]?.nome || o.k] = (m[ITENS[o.k]?.nome || o.k] || 0) + (o.n || 1); return m; }, {})).slice(0, 8).map(([k, n]) => `${n} ${k}`).join(', '),
       conversa: this.chatDeAmiga(j).slice(-this.histAmiga()), // André 2026-11-13: com menos ela perdia o fio; 2026-11-17: 40 e salvas no banco
       memoria: (a.memorias?.[j.conta] || []).filter(lembrancaBoa).slice(0, this.AMIGA.memoria.max),
@@ -2671,7 +2675,11 @@ export const Amiga = {
       if (nota(it) > nota(p.equip[l])) this.item(j.id, { acao: 'equipar', i }); // a peça velha volta pra mochila e é vendida abaixo
     }
     const enc = j.ia?.encomenda, daEnc = (it) => enc && (enc.item === 'peixe' ? ITENS[it.k]?.peixe : it.k === enc.item); // encomenda: não vende
-    const guarda = (it) => daEnc(it) || it.cad || it.k === 'pocao' || it.k.startsWith('semente_') || this.AMIGA.plantas.includes(it.k) || this.AMIGA.pedidos.some((o) => o.k === it.k) || ITENS[it.k].comida;
+    // André 2026-11-21 (bots no leilão, shared/leilao-bots.js): antes da loja, olha o leilão (na hora dele) e guarda o que
+    // vale anunciar (peça Rara+, Tomo, material) enquanto houver espaço na mochila
+    this.leilaoTalvezAmiga?.(j);
+    const livresL = p.mochila.filter((o) => !o).length;
+    const guarda = (it) => daEnc(it) || it.cad || it.k === 'pocao' || it.k.startsWith('semente_') || this.AMIGA.plantas.includes(it.k) || this.AMIGA.pedidos.some((o) => o.k === it.k) || ITENS[it.k].comida || !!this.guardaLeilaoAmiga?.(j, it, livresL);
     let ouro = 0, vendeu = 0;
     for (let i = 0; i < p.mochila.length; i++) {
       const it = itemValido(p.mochila[i]); if (!it) continue;

@@ -39,7 +39,7 @@ ok(B.prog.ouro === 800 && contar(B.prog.mochila, 'barra_ferro') === 10, 'Beto co
 ok(e.some((x) => x.t === 'aviso' && x.para === 'A' && /Vendeu/.test(x.texto)), 'Ana recebe o aviso da venda');
 ok(s.leilao.caixa.c1.ouro === 200, 'primeira venda sem taxa: 200 de ouro guardados com o Otávio');
 s.leilaoMsg('A', { acao: 'retirar' });
-ok(A.prog.ouro === 1200 && s.leilao.caixa.c1.ouro === 0, 'Ana retirou o ouro');
+ok(A.prog.ouro === 1196 && s.leilao.caixa.c1.ouro === 0, 'Ana retirou o ouro (pagou 4 de taxa de anúncio: 2% de 200)');
 // a 4a venda paga 5%
 for (let k = 0; k < 3; k++) { A.prog.mochila[0] = { k: 'pedra', n: 1 }; s.leilaoMsg('A', { acao: 'anunciar', i: 0, preco: 100, horas: 24 }); }
 ev();

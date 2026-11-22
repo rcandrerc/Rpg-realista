@@ -358,6 +358,9 @@ func _vender() -> void:
 		var sem := int(estado.get("semTaxa", 0))
 		var taxa := int(round(float(estado.get("taxa", 0.05)) * 100.0))
 		d.add_child(Menu.rotulo(("Sem taxa nas próximas %d vendas." % sem) if sem > 0 else ("Na venda sai uma taxa de %d%%." % taxa), 13, Menu.VERDE if sem > 0 else Menu.APAGADO))
+		var taxa_an := float(estado.get("taxaAnuncio", 0.0))
+		if taxa_an > 0.0:
+			d.add_child(Menu.rotulo("Anunciar custa %d%% do preço (não volta)." % int(round(taxa_an * 100.0)), 13, Menu.APAGADO))
 		var an: Button = m.menu.botao("Anunciar", _anunciar, 16, true)
 		an.custom_minimum_size = Vector2(180, 42)
 		d.add_child(an)

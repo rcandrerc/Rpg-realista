@@ -17,6 +17,7 @@ import { Economia } from './economia.js';
 import { LUGARES_MUNDO } from './mundo.js'; // os cais: a pesca no mar nasce em volta deles (André 2026-11-13)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
 import { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js'; // a Casa do Comércio (história v2, Entrega 3)
+import { LeilaoBots } from './leilao-bots.js'; // os bots no leilão (André 2026-11-21)
 import { Kit, pedidosDaEtapa, soNoMar, gMissao } from './kit.js'; // missão nunca trava por falta de item (André 2026-11-12)
 import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (André 2026-11-16)
 import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
@@ -2955,7 +2956,7 @@ export class Simulacao {
   // (aoLeilao). Sem servidor (teste), cada simulação tem o seu. m = { acao: 'ver' | 'anunciar' | 'comprar' | 'cancelar' |
   // 'retirar', busca: { tipo, r, ordem, texto }, i (lugar na mochila), preco, horas, id (do anúncio) }
   pertoDoLeiloeiro(j) { return (this.mapa.npcs || []).some((n) => n.funcao === 'leilao' && dist(n, j) < LEILAO.distancia); }
-  leilaoMsg(id, m) {
+  leilaoMsg(id, m, opc = {}) { // opc.robo: o robô de testes do servidor (sem taxa de anúncio e fora da inflação)
     const j = this.jogadores.get(id); if (!j || j.criando || !m || typeof m !== 'object') return;
     const L = (this.leilao ||= new Leilao()), p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     if (!this.pertoDoLeiloeiro(j)) return aviso('O leilão é com o Otávio, na Casa do Comércio da Vila do Rio Claro');
@@ -2971,11 +2972,15 @@ export class Simulacao {
       // quantos da pilha vão à venda (André 2026-11-17: escolher Tudo ou um número); sem n vai a pilha inteira
       const tem = it.n || 1, n = it.n && Number.isInteger(m.n) && m.n > 0 ? Math.min(m.n, tem) : tem;
       const vai = it.n ? { ...it, n } : { ...it };
+      // taxa de anúncio (André 2026-11-21, bots no leilão): 2% do preço, paga na hora e não volta
+      const taxaA = opc.robo || !Number.isInteger(Number(m.preco)) || Number(m.preco) < 1 ? 0 : L.taxaAnuncio(Number(m.preco));
+      if (taxaA && p.ouro < taxaA) return aviso(`Anunciar custa ${taxaA} de ouro (taxa de ${Math.round(LEILAO.taxaAnuncio * 100)}%)`);
       const r = L.anunciar(j.conta, j.nome, vai, Number(m.preco), Number(m.horas));
       if (typeof r === 'string') return aviso(r);
+      if (taxaA) { p.ouro -= taxaA; this.caixa(j, 'leilaoTaxa', -taxaA); }
       if (n < tem) p.mochila[i] = { ...it, n: tem - n }; else p.mochila[i] = null;
       mudou = true;
-      aviso(`${nomeItem(vai)} à venda por ${r.preco} de ouro (${Number(m.horas)} h)`);
+      aviso(`${nomeItem(vai)} à venda por ${r.preco} de ouro (${Number(m.horas)} h)${taxaA ? `. Taxa de anúncio: ${taxaA}` : ''}`);
       this.historia(j, 'leilao', { de: 'anunciar' });
     } else if (m.acao === 'comprar' && typeof m.id === 'string') {
       const a = L.achar(m.id); if (!a) return aviso('Esse anúncio já saiu');
@@ -3001,10 +3006,11 @@ export class Simulacao {
       if (ouro || n) { mudou = true; aviso(`Retirou ${ouro ? ouro + ' de ouro' : ''}${ouro && n ? ' e ' : ''}${n ? n + (n === 1 ? ' item' : ' itens') : ''}${cx.itens.length ? ' (mochila cheia: o resto fica guardado)' : ''}`); this.historia(j, 'leilao', { de: 'retirar' }); }
       else aviso(cx.itens.length ? 'Mochila cheia' : 'Nada para retirar');
     }
-    if (mudou) { this.aoLeilao?.(L); this.avisarProg(j); }
     const cx = L.caixa[j.conta] || { ouro: 0, itens: [] };
+    if (!opc.robo && !j.robo) L.verOuro(j.conta, (p.ouro || 0) + (cx.ouro || 0)); // a inflação do leilão (shared/leilao.js)
+    if (mudou) { this.aoLeilao?.(L); this.avisarProg(j); }
     this.evento({ t: 'leilao', para: id, lista: L.buscar(busca, j.conta).map(anuncioParaApp), meus: L.meus(j.conta).map(anuncioParaApp),
-      caixa: { ouro: cx.ouro, itens: cx.itens }, semTaxa: L.semTaxaDe(j.conta), taxa: LEILAO.taxa, max: LEILAO.max, horas: LEILAO.horas, agora: Date.now() });
+      caixa: { ouro: cx.ouro, itens: cx.itens }, semTaxa: L.semTaxaDe(j.conta), taxa: LEILAO.taxa, taxaAnuncio: LEILAO.taxaAnuncio, max: LEILAO.max, horas: LEILAO.horas, agora: Date.now() });
   }
 
   // ---------- Vila dos Lotes: comprar lote, construir e horta (shared/dados.js VILA_LOTES, LOTE, CONSTRUCOES, PLANTAS) ----------
@@ -4873,6 +4879,7 @@ Object.assign(Simulacao.prototype, Economia); // livro-caixa da economia (André
 Object.assign(Simulacao.prototype, Duelo); // duelo (André 2026-11-17)
 Object.assign(Simulacao.prototype, Guerra); // Chama x Geada (André 2026-11-18, shared/guerra.js)
 Object.assign(Simulacao.prototype, Arena); // Arena PvP 3x3 Geada x Chama (André 2026-11-21, shared/arena.js)
+Object.assign(Simulacao.prototype, LeilaoBots); // os bots compram e vendem no leilão (André 2026-11-21, shared/leilao-bots.js)
 // o amigo virtual (contexto da Cecília ou do Dario) pelo corpo, pelo id ou pela conta; null = não é amigo virtual
 Simulacao.prototype.amigoIaDe = function (o) {
   if (!o) return null;
