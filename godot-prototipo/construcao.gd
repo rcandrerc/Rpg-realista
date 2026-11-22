@@ -223,6 +223,7 @@ func _carregar_modelos() -> void:
 	_modelos["fundacao"] = _modelo_fundacao()
 	_modelos["telhado"] = _modelo_telhado_um()
 	_modelos["bau"] = _modelo_gltf("res://construcao3d/Chest_Wood.gltf", 1.0)
+	_modelos["bau_cla"] = _modelo_bau_cla() # Baú do Clã (André 2026-11-22): o mesmo baú com ferragem e faixa vermelha do clã
 	_modelos["cama"] = _modelo_gltf("res://construcao3d/Bed_Twin1.gltf", 1.0)
 	_modelos["tocha"] = _modelo_tocha()
 	for k in _modelos:
@@ -303,10 +304,25 @@ static func _dentro_de_manter(n: Node, raiz: Node) -> bool:
 
 # de longe a peça não é desenhada (como a vila em main.gd alcance_da_vila): paredes, portas, janelas e fundação até
 # 100 m como as casas da vila; móveis 45 m (pequenos) ou 70 m. Perto (no terreno e na vila) nada muda.
+# Baú do Clã: o baú de madeira um pouco maior, com uma faixa de pano vermelho por cima (dá para ver qual é qual)
+func _modelo_bau_cla() -> Node3D:
+	var raiz := _modelo_gltf("res://construcao3d/Chest_Wood.gltf", 1.08)
+	var faixa := MeshInstance3D.new()
+	var bx := BoxMesh.new()
+	bx.size = Vector3(0.22, 0.04, 0.86)
+	faixa.mesh = bx
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.62, 0.12, 0.1)
+	mat.roughness = 0.85
+	faixa.material_override = mat
+	faixa.position = Vector3(0, 0.74, 0)
+	raiz.add_child(faixa)
+	return raiz
+
 static func _alcance_peca(raiz: Node3D, k: String) -> void:
 	# André 2026-11-07: apertado como a vila (era 120/90/60 m)
 	var longe := 100.0 if k in ["parede", "porta", "janela", "fundacao", "telhado"] else 70.0
-	if k in ["bau", "tocha", "bigorna"]:
+	if k in ["bau", "bau_cla", "tocha", "bigorna"]:
 		longe = 45.0
 	for mi: GeometryInstance3D in raiz.find_children("*", "GeometryInstance3D", true, false):
 		mi.visibility_range_end = longe
@@ -2715,7 +2731,7 @@ func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void
 		m.hud.icone_botao("bancada", "pf_" + prof)
 	elif not mesa_minha.is_empty():
 		m.hud.icone_botao("bancada", "pf_alf" if mesa_minha.k == "bancada" else "pf_coz" if mesa_minha.k == "fogao" else "pf_fer")
-	_mostrar_estacao("bau", ((no_meu and not _pecas_minhas(["bau"]).is_empty()) or _meu_bau_perto()) and vivo and not livre)
+	_mostrar_estacao("bau", ((no_meu and not _pecas_minhas(["bau", "bau_cla"]).is_empty()) or _meu_bau_perto()) and vivo and not livre)
 	# fornalha e fogão (2026-11-07) dividem o botão: o ícone é o da minha mais perto
 	var fornos_meus := _pecas_minhas(["fornalha", "fogao"])
 	_mostrar_estacao("forno", ((no_meu and not fornos_meus.is_empty()) or minha_fornalha_perto() != "") and vivo and not livre)
@@ -4284,7 +4300,7 @@ func _meu_bau_perto() -> bool:
 		return false
 	var hp: Vector3 = m.heroi.position
 	for p in lotes[meu].pecas:
-		if p.k == "bau" and Vector2(p.x - hp.x, p.z - hp.z).length() <= float(D.lote.estacaoDist) + 0.4 and sem_parede(Vector2(hp.x, hp.z), Vector2(p.x, p.z)):
+		if p.k in ["bau", "bau_cla"] and Vector2(p.x - hp.x, p.z - hp.z).length() <= float(D.lote.estacaoDist) + 0.4 and sem_parede(Vector2(hp.x, hp.z), Vector2(p.x, p.z)):
 			return true
 	return false
 
@@ -4296,14 +4312,25 @@ func _cama_perto() -> Dictionary:
 	return c
 
 var _bau_pedido := 0 # µs do toque em abrir o baú (o registro conta a espera pelo servidor)
+var bau_cla := false # a janela aberta é a do Baú do Clã (o servidor guarda separado do particular)
 func abrir_bau() -> void:
 	if not m.on():
 		return
 	_bau_pedido = Time.get_ticks_usec()
-	m.rede("bau", {"acao": "abrir"})
+	# o baú mais perto decide: o particular ou o do clã
+	var b := _mais_perta(_pecas_minhas(["bau", "bau_cla"]))
+	bau_cla = not b.is_empty() and str(b.k) == "bau_cla"
+	_rede_bau({"acao": "abrir"})
+
+# todo pedido do baú leva junto qual dos dois está aberto
+func _rede_bau(d: Dictionary) -> void:
+	if bau_cla:
+		d["cla"] = true
+	m.rede("bau", d)
 
 # o servidor mandou o baú (ao abrir, ou depois de guardar ou tirar)
 func do_bau(ev: Dictionary) -> void:
+	bau_cla = int(ev.get("cla", 0)) == 1
 	bau_itens = ev.get("itens", []) if ev.get("itens") is Array else []
 	bau_slots = int(ev.get("slots", bau_itens.size() if bau_itens.size() > 0 else 40))
 	bau_prox = ev.get("prox") if ev.get("prox") is Dictionary else null
@@ -4411,12 +4438,12 @@ func _montar_tela_bau() -> void:
 # Melhorar o baú (André 2026-11-07): o servidor confere o custo, tira da mochila e aumenta os lugares (shared/simulacao.js bau)
 func melhorar_bau() -> void:
 	if m.on():
-		m.rede("bau", {"acao": "melhorar"})
+		_rede_bau({"acao": "melhorar"})
 
 # botões Organizar da janela do baú: o servidor junta as pilhas e põe em ordem (organizar() em shared/progresso.js)
 func organizar_bau() -> void:
 	if m.on():
-		m.rede("bau", {"acao": "organizar"})
+		_rede_bau({"acao": "organizar"})
 
 func organizar_mochila_bau() -> void:
 	if m.on():
@@ -4433,7 +4460,7 @@ func _montar_bau() -> void:
 			partes.append(("%d de ouro" % int(bau_prox[k])) if k == "ouro" else ("%d %s" % [int(bau_prox[k]), m.P.nome_item({"k": k})]))
 		txt_melhorar.text = Idioma.frase("Para %d lugares:\n%s" % [bau_prox_slots, ", ".join(partes)])
 	else:
-		txt_melhorar.text = "Tamanho máximo"
+		txt_melhorar.text = "" if bau_cla else "Tamanho máximo"
 	bt_melhorar.visible = bau_prox != null
 	for i in bau_slots:
 		var it = bau_itens[i] if i < bau_itens.size() else null
@@ -4441,9 +4468,9 @@ func _montar_bau() -> void:
 			cheios += 1
 		var fn := func():
 			if not _bau_arrastou: # pilha: Tudo ou quantos (menu.gd pedir_qtd, André 2026-11-17)
-				m.menu.pedir_qtd(it, int(it.get("n", 1)), "Tirar", func(n: int): m.rede("bau", {"acao": "tirar", "i": i, "n": n}))
+				m.menu.pedir_qtd(it, int(it.get("n", 1)), "Tirar", func(n: int): _rede_bau({"acao": "tirar", "i": i, "n": n}))
 		grade_bau.add_child(m.menu.celula(it, false, fn if it != null else func(): pass, 56))
-	txt_bau.text = Idioma.frase("Baú · %d/%d" % [cheios, bau_slots])
+	txt_bau.text = Idioma.frase("%s · %d/%d" % ["Baú do Clã" if bau_cla else "Baú", cheios, bau_slots])
 	var moch: Array = m.P.prog.get("mochila", [])
 	for i in moch.size():
 		var it = moch[i]
@@ -4451,7 +4478,7 @@ func _montar_bau() -> void:
 			continue
 		var fn := func():
 			if not _bau_arrastou: # pilha: Tudo ou quantos (menu.gd pedir_qtd, André 2026-11-17)
-				m.menu.pedir_qtd(it, int(it.get("n", 1)), "Guardar", func(n: int): m.rede("bau", {"acao": "guardar", "i": i, "n": n}))
+				m.menu.pedir_qtd(it, int(it.get("n", 1)), "Guardar", func(n: int): _rede_bau({"acao": "guardar", "i": i, "n": n}))
 		grade_mochila.add_child(m.menu.celula(it, false, fn, 56))
 
 # ---------- tocar numa estação (André 2026-11-07): o herói vai andando até o lado dela e só aí abre ----------
@@ -4461,7 +4488,7 @@ func _montar_bau() -> void:
 const COLADO := 1.25 # m da borda da peça
 const GRADE_IR := 0.4 # m por quadrado da grade
 const FOLGA_IR := 0.3 # m de folga do corpo do herói para os sólidos
-const TIPOS_ESTACAO := {"bau": ["bau"], "forno": ["fornalha", "fogao"], "fornalha": ["fornalha"], "bancada": ["bancada", "bigorna"], "cama": ["cama"]}
+const TIPOS_ESTACAO := {"bau": ["bau", "bau_cla"], "forno": ["fornalha", "fogao"], "fornalha": ["fornalha"], "bancada": ["bancada", "bigorna"], "cama": ["cama"]}
 var _indo_estacao := {} # {"qual", "id"} enquanto anda até a estação
 
 func _circulos_peca(p) -> Array:
