@@ -112,7 +112,7 @@ const mundo = {
   // história v2, Entrega 3: as mini vilas do mundo grande (shared/vilas.js): casas, banca e enfeites que vilas_mundo.gd desenha
   // Aurora viva: a cidade de pedra branca (as peças vão junto com as casas; ruas e praça de calçada; acende: a missão
   // que acende as janelas, as torres e a Chama de Aethra). Rio Claro (2026-11-16): chão de tijolo (rio_chao) e rua mais larga
-  claBase: { pegada: CLA.base.pegada, bauPerto: CLA.base.bauPerto }, // base do clã (shared/base.js): o app só precisa disto
+  claBase: { pegada: CLA.base.pegada, bauPerto: CLA.base.bauPerto, lote: CLA.base.lote, lugares: CLA.base.lugares, centroMax: CLA.base.niveis[CLA.base.niveis.length - 1].centro }, // base do clã (shared/base.js): o app só precisa disto
   vilasMundo: VILAS_MUNDO.map((V) => ({ id: V.id, nome: V.nome, nivel: V.nivel, x: V.x, z: V.z, raio: V.raio, casas: V.casas, banca: V.banca, enfeites: V.enfeites,
     ...(V.cidade ? { cidade: { acende: V.cidade.acende, chao: V.cidade.chao || 'aurora_chao', praca: V.praca, ruas: V.ruas, largura: V.cidade.largura || CALCADA.largura, sobe: CALCADA.sobe, sobePraca: CALCADA.sobePraca } } : {}) })),
   cais: MAPA_CLAREIRA.cais || [], // FASE 3, Parte 7b: cais de madeira dos portos (andar.gd anda por cima; mundo_terreno.gd desenha)

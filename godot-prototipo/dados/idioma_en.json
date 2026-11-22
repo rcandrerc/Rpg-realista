@@ -1177,7 +1177,8 @@
 "Mana insuficiente": "Not enough mana",
 "Longe demais": "Too far",
 "Nenhum inimigo por perto": "No enemies nearby",
-"Alvo longe demais": "Target too far", "Sem visão do alvo": "No line of sight",
+"Alvo longe demais": "Target too far",
+"Sem visão do alvo": "No line of sight",
 "Escolha uma skill no menu do personagem": "Pick a skill in the character menu",
 "Cancelado": "Canceled",
 "Ajuste feito.\nAbra o jogo de novo.": "Settings applied.\nRestart the game.",
@@ -4252,5 +4253,14 @@
 "Use na mochila: por 5 minutos, todos da outra raça aparecem em vermelho no mapa e no minimapa. Gasta um por uso; recarga de 30 minutos.": "Use it from your inventory: for 5 minutes, everyone from the other race shows up in red on the map and minimap. Uses one per use; 30-minute cooldown.",
 "Pó de rastreio: pronto em {1}": "Tracking dust: ready in {1}",
 "Rastreio: {1} da outra raça no mapa por {2} min": "Tracking: {1} from the other race on the map for {2} min",
-"Rastreio: ninguém da outra raça no mundo agora (vale por {1} min)": "Tracking: nobody from the other race in the world right now (lasts {1} min)"
+"Rastreio: ninguém da outra raça no mundo agora (vale por {1} min)": "Tracking: nobody from the other race in the world right now (lasts {1} min)",
+"Escolher o lugar da base": "Choose the base location",
+"Fundar aqui": "Found here",
+"Pode fundar aqui!": "You can found it here!",
+"Aqui não pode": "Not allowed here",
+"Ande até onde quer a base. O contorno mostra o tamanho máximo (Nv 6).": "Walk to where you want the base. The outline shows its maximum size (Lv 6).",
+"Seu clã ainda não tem base. Toque abaixo, ande até o lugar e veja o contorno: verde pode, vermelho não.": "Your clan has no base yet. Tap below, walk to the spot and watch the outline: green is allowed, red is not.",
+"Não pode: a menos de 20 m de totem e de NPC de missão, 10 m de vila, masmorra, arena e cais, 6 m de rio, 3 m de estrada e 100 m de outra base; na água; em chão muito torto. Nas terras do começo, só no território da sua raça (Ilha do Meio e Aurora são livres).": "Not allowed: within 20 m of a totem or quest NPC, 10 m of a village, dungeon, arena or dock, 6 m of a river, 3 m of a road or 100 m of another base; on water; on very uneven ground. In the starting lands, only in your race's territory (Middle Isle and Aurora are free).",
+"Base do clã": "Clan base",
+"Vá até o lugar e funde a base onde você está. No meio fica o salão com o Baú do Clã; em volta, o seu lote e um lote para cada recruta. Sem aluguel: a taxa sai do cofre toda semana.": "Go to the spot and found the base where you stand. The hall with the Clan Chest sits in the middle; around it, your plot and one plot per recruit. No rent: the fee comes out of the treasury every week."
 }
