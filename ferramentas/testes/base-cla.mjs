@@ -221,3 +221,10 @@ ok(Object.values(bg.donos).length >= Math.min(bg.nv - 1, 3), 'os membros do clã
   f.prog.cla.cofre = 12000; s8.cla('F', { acao: 'mudarBase', x: p.x, z: p.z });
   ok(B.x === p.x && f.prog.cla.cofre === 2000, 'pagou e mudou');
 }
+
+// o servidor de verdade (server/index.js) passa x, z e mudar do mapa (até 2026-11-22 cortava e ficava "Conferindo...")
+{
+  const fs = await import('node:fs');
+  const src = fs.readFileSync(new URL('../../server/index.js', import.meta.url), 'utf8');
+  ok(/this\.ouvir\('cla'[^\n]*x: \+m\.x, z: \+m\.z[^\n]*mudar: m\.mudar === true/.test(src), 'o servidor repassa o ponto do mapa (x, z) e o mudar');
+}

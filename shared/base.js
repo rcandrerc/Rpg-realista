@@ -73,18 +73,26 @@ export function motivoBase(x, z, raca, outras = []) {
   if (!t) return 'Aqui é água: procure terra firme';
   if (t !== 'livre' && raca && t !== raca) return `Aqui é território da ${RACAS[t]?.nome || t}. Nas terras do começo, só no território da sua raça (Ilha do Meio e Aurora são livres)`;
   for (const o of outras) { const d = Math.hypot(o.x - x, o.z - z); if (d < P.distMin) return `Muito perto da base ${o.n ? 'do clã ' + o.n : 'de outro clã'} (${Math.round(d)} m; o mínimo é ${P.distMin} m)`; }
-  const { circ, linhas } = proibido();
-  for (const c of circ) if (Math.hypot(c.x - x, c.z - z) < c.r + P.pegada) return `Muito perto ${deLugar(c.nome)}`;
+  // a distância conta do desenho de verdade da base no Nv 6 (o centro e os 6 lotes), não de um círculo em volta dela
+  // (André 2026-11-22: "n existe lugar nenhum possível"): o vão entre os lotes pode chegar perto de estrada, rio etc.
+  const { circ, linhas } = proibido(), rets = retangulosBase(x, z);
+  const ateRet = (px, pz) => Math.min(...rets.map((R) => Math.hypot(Math.max(R.x0 - px, 0, px - R.x1), Math.max(R.z0 - pz, 0, pz - R.z1))));
+  for (const c of circ) if (Math.hypot(c.x - x, c.z - z) < c.r + P.pegada && ateRet(c.x, c.z) < c.r) return `Muito perto ${deLugar(c.nome)}`;
   for (const L of linhas) {
-    for (let i = 1; i < L.l.length; i++) if (distSeg(x, z, L.l[i - 1], L.l[i]) < L.r + P.pegada) return `Muito perto ${deLugar(L.nome)}`;
+    for (let i = 1; i < L.l.length; i++) {
+      const a = L.l[i - 1], b = L.l[i];
+      if (distSeg(x, z, a, b) >= L.r + P.pegada) continue;
+      const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 1.5));
+      for (let k = 0; k <= n; k++) if (ateRet(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n) < L.r) return `Muito perto ${deLugar(L.nome)}`;
+    }
   }
   // nada em cima: pedra grande, ruína ou área de plantio. As árvores nativas de dentro saem enquanto a base existir
   // (arvoresDaBase): a base é a clareira do clã
-  const rets = retangulosBase(x, z), dentro = (px, pz, f) => rets.some((R) => px > R.x0 - f && px < R.x1 + f && pz > R.z0 - f && pz < R.z1 + f);
+  const dentro = (px, pz, f) => rets.some((R) => px > R.x0 - f && px < R.x1 + f && pz > R.z0 - f && pz < R.z1 + f);
   for (const r of MAPA_CLAREIRA.rochas || []) if (dentro(r.x, r.z, 2 + 2 * (r.s || 1))) return 'Tem pedra grande no meio: procure outro lugar';
   for (const o of MAPA_CLAREIRA.cenario?.solidos || []) if (Math.abs(o.x - x) < P.pegada + 3 && Math.abs(o.z - z) < P.pegada + 3 && dentro(o.x, o.z, o.r + 0.5)) return 'Tem ruína ou pedra no meio: procure outro lugar';
-  const Q = PLANTIO.quadrado;
-  for (const R of rets) for (let i = Math.floor(R.x0 / Q); i <= Math.floor(R.x1 / Q); i++) for (let k = Math.floor(R.z0 / Q); k <= Math.floor(R.z1 / Q); k++) if (areaPlantio(i, k)) return 'Aqui é área de plantio: procure outro lugar';
+  // área de plantio pode (André 2026-11-22: "n existe lugar nenhum possível"): a base fica com o chão e ninguém
+  // planta dentro dela (shared/plantio.js)
   // chão: terra firme (sem lago nem mar) e sem barranco no centro e em cada lote
   const G = gradeDoMundo();
   for (const R of retangulosBase(x, z)) {

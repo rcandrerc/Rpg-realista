@@ -5,7 +5,7 @@
 // corta; a adulta qualquer um corta (no terreno, só o dono). Plantar já paga XP do herói e do Lenhador, então vale
 // a pena mesmo se outro colher. Cortou a árvore inteira: ela some e o quadrado fica livre de novo.
 // As regras ficam aqui e entram na Simulacao (Object.assign, como o transporte); os números e as áreas, em dados.js.
-import { ARVORES_PLANTIO as AP, PLANTIO, ITENS } from './dados.js';
+import { ARVORES_PLANTIO as AP, PLANTIO, ITENS, naBaseCla } from './dados.js';
 import { contar, tirar, gastarVigor, NIVEL_MAX } from './progresso.js';
 
 const r2 = (n) => Math.round(n * 100) / 100;
@@ -84,6 +84,7 @@ export const Plantio = {
       // terreno do jogador: só o dono planta (o quadrado inteiro dentro do terreno, sem peça nem horta em cima)
       const noLote = L && qs.every(([i, k]) => i * Q >= L.def.x0 && (i + 1) * Q <= L.def.x1 && k * Q >= L.def.z0 && (k + 1) * Q <= L.def.z1);
       const areas = qs.map(([i, k]) => areaPlantio(i, k));
+      if (!noLote && qs.some(([i, k]) => naBaseCla((i + 0.5) * Q, (k + 0.5) * Q))) return por('Aqui é a base de um clã: só dá para plantar no seu lote'); // André 2026-11-22: base pode ficar em área de plantio
       if (!noLote && !areas.every((a) => a && a === areas[0])) return por(grande ? 'A árvore antiga precisa de 2 x 2 quadrados livres da área de plantio' : 'Plante numa área de plantio (veja no mapa) ou no seu terreno');
       if (noLote) {
         const x0 = c.i * Q, z0 = c.k * Q, x1 = x0 + Q * (grande ? 2 : 1), z1 = z0 + Q * (grande ? 2 : 1);
