@@ -1181,7 +1181,7 @@ for (const E of ESTACOES_PUBLICAS) {
 // sai do próprio nome ("Tomás, o ferreiro" -> "Ferreiro"; já vem no masculino ou no feminino certo) ou de `cargo` na
 // ficha do NPC. O desenho de cada símbolo e a legenda do mapa ficam em godot-prototipo/icones_npc.gd.
 export const TITULO_FUNCAO = { pack: 'Mercador de pack', ferreiro: 'Ferreiro', habilidades: 'Ferreiro', loja: 'Comerciante', alquimia: 'Alquimista',
-  leilao: 'Leiloeiro', cura: 'Curandeira', passe: 'Guardião', resetar: 'Instrutor', missao: 'Líder da vila' };
+  leilao: 'Leiloeiro', cura: 'Curandeira', passe: 'Guardião', resetar: 'Instrutor', missao: 'Líder da vila', recrutador: 'Recrutador' };
 // símbolo de cada função (o NPC que só conversa e dá missão: 'chefe' se manda na vila, senão 'conversa')
 export const ICONE_FUNCAO = { ferreiro: 'ferreiro', habilidades: 'ferreiro', loja: 'loja', alquimia: 'alquimia', leilao: 'leilao', pack: 'pack',
   cura: 'cura', passe: 'passe', resetar: 'instrutor', missao: 'chefe' };
