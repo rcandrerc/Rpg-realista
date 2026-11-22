@@ -277,8 +277,17 @@ export function motivoHorta(L, i, k) {
   const R = [i, k, i + 1, k + 1];
   if (foraDoLote(R, L.def)) return 'Só dá para plantar dentro do seu terreno';
   for (const o of L.pecas) if (cruza(R, retPeca(o))) return 'Lugar ocupado';
+  // folga de 1 m da casa (André 2026-11-22: a textura da terra arada sobe pela parede): perto de parede, fundação ou telhado não ara.
+  // Horta que já existia fica. godot-prototipo/construcao.gd motivo_horta repete a conta.
+  for (const o of L.pecas) {
+    const t = CONSTRUCOES[o.k]?.tipo;
+    if (t !== 'borda' && t !== 'fundacao' && t !== 'telhado') continue;
+    const r = retPeca(o);
+    if (cruza(R, [r[0] - HORTA_FOLGA_CASA, r[1] - HORTA_FOLGA_CASA, r[2] + HORTA_FOLGA_CASA, r[3] + HORTA_FOLGA_CASA])) return 'Perto demais da casa: deixe 1 m de folga para arar';
+  }
   return '';
 }
+const HORTA_FOLGA_CASA = 1;
 
 // troca: o item sem a quantidade, em texto (para conferir se ainda é o mesmo) e de volta com n unidades
 const chaveItem = (it) => JSON.stringify({ ...it, n: undefined });
