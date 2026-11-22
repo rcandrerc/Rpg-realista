@@ -1982,13 +1982,15 @@ var base_celulas := PackedVector2Array()
 var base_passo := 8.0
 var botao_fundar := Rect2()
 var botao_cancelar := Rect2()
+var base_mudar := false # true: realocar a base que já existe (André 2026-11-22)
 
-func abrir_base() -> void:
+func abrir_base(mudar := false) -> void:
 	abrir()
 	if _em_3d():
 		mapa3d.fechar()
 		grande.visible = true
 	base_modo = true
+	base_mudar = mudar
 	base_alvo = null
 	base_resp = null
 	base_ok = false
@@ -2010,6 +2012,8 @@ func _celulas_base() -> void:
 	var outras: Array = []
 	if m.base_cla:
 		for B in m.base_cla.bases:
+			if base_mudar and str(B.k) == m.base_cla.meu:
+				continue # a minha não conta: é ela que vai mudar
 			outras.append(Vector2(float(B.x), float(B.z)))
 	var i := 0
 	while i + 2 < ok.size():
@@ -2033,7 +2037,7 @@ func _toque_base(lp: Vector2, dentro: bool) -> void:
 		fechar()
 		return
 	if base_ok and base_alvo != null and botao_fundar.has_point(lp):
-		m.rede("cla", {"acao": "base", "x": base_alvo.x, "z": base_alvo.y})
+		m.rede("cla", {"acao": "mudarBase" if base_mudar else "base", "x": base_alvo.x, "z": base_alvo.y})
 		fechar()
 		return
 	if not dentro:
@@ -2050,7 +2054,7 @@ func _toque_base(lp: Vector2, dentro: bool) -> void:
 	base_alvo = melhor if melhor != null else Vector2(roundf(w.x), roundf(w.y))
 	base_ok = false
 	base_motivo = ""
-	m.rede("cla", {"acao": "baseVer", "x": base_alvo.x, "z": base_alvo.y})
+	m.rede("cla", {"acao": "baseVer", "x": base_alvo.x, "z": base_alvo.y, "mudar": base_mudar})
 	if m.sons:
 		m.sons.tocar("pano", -14.0)
 
@@ -2111,7 +2115,7 @@ func _desenhar_base(c: Control, tam: Vector2, em: Callable) -> void:
 	_texto(c, tb.position + Vector2(300.0, 23.0), txt, 15, cor, true, 3)
 	if certo and base_ok:
 		botao_fundar = Rect2(Vector2(tam.x * 0.5 + 100.0, tam.y - 136.0), Vector2(200.0, 50.0))
-		_botao_mapa(c, botao_fundar, "Fundar aqui", Color("9fffb0"), Color(0.05, 0.14, 0.07, 0.95))
+		_botao_mapa(c, botao_fundar, "Mudar para cá" if base_mudar else "Fundar aqui", Color("9fffb0"), Color(0.05, 0.14, 0.07, 0.95))
 
 func _botao_mapa(c: Control, r: Rect2, t: String, cor: Color, fundo: Color) -> void:
 	var sb := StyleBoxFlat.new()

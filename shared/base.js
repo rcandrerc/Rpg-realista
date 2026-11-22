@@ -192,7 +192,7 @@ export const Base = {
     for (const [k, b] of Object.entries(est && typeof est === 'object' ? est : {})) {
       if (!b || !/^[jn][\w:.-]{1,40}$/.test(k) || !Number.isFinite(+b.x) || !Number.isFinite(+b.z)) continue;
       this.basesCla[k] = { k, x: Math.round(+b.x), z: Math.round(+b.z), raca: RACAS[b.raca] ? b.raca : 'chama', n: String(b.n || '').slice(0, 24), dono: String(b.dono || ''), nomeDono: String(b.nomeDono || '').slice(0, 24),
-        nv: Math.max(1, Math.min(CLA.max, b.nv | 0)), taxa: Number.isFinite(+b.taxa) ? +b.taxa : Date.now(), c: +b.c || Date.now(), donos: {}, ...(b.sorteou ? { sorteou: 1 } : {}) };
+        nv: Math.max(1, Math.min(CLA.max, b.nv | 0)), taxa: Number.isFinite(+b.taxa) ? +b.taxa : Date.now(), c: +b.c || Date.now(), donos: {}, ...(b.sorteou ? { sorteou: 1 } : {}), ...(b.mudou > 0 ? { mudou: b.mudou | 0, mudouEm: +b.mudouEm || 0 } : {}) };
       for (const [i, o] of Object.entries(b.donos && typeof b.donos === 'object' ? b.donos : {})) if (/^[2-9]$/.test(i) && o && typeof o.id === 'string') this.basesCla[k].donos[i] = { id: o.id.slice(0, 24), nome: String(o.nome || '').slice(0, 24) };
     }
     this.refazerBases();
@@ -282,8 +282,42 @@ export const Base = {
   verLugarBase(j, onde = null) {
     if (!j.prog.cla) return;
     const { x, z } = this.lugarPedidoBase(j, onde), k = this.chaveBase(j);
-    const motivo = this.basesCla[k] ? 'O clã já tem base' : this.motivoLugarBase(j, x, z, this.racaDe(j), Object.values(this.basesCla).filter((B) => B.k !== k));
+    const motivo = this.basesCla[k] && !onde?.mudar ? 'O clã já tem base' : this.motivoLugarBase(j, x, z, this.racaDe(j), Object.values(this.basesCla).filter((B) => B.k !== k));
     this.evento({ t: 'baseVer', para: j.id, x, z, ok: !motivo, motivo: motivo || '' });
+  },
+  // realocar a base (André 2026-11-22: "uma realocação free e as próximas uma boa quantia e cooldown pra ninguém ficar
+  // explorando"): a 1ª é grátis; depois CLA.base.mudar.ouro do cofre do clã e só a cada CLA.base.mudar.dias. Tudo vai
+  // junto: o salão, os lotes com as peças, a horta e os baús (só desloca; nada sai).
+  moverBase(j, aviso, onde) {
+    const c = j.prog.cla, B = this.baseDe(j); if (!c || !B) return aviso('O clã ainda não tem base');
+    if (j.morto || j.criando) return;
+    const M = B_().mudar, dia = 86400000, n = B.mudou | 0;
+    if (n > 0 && B.mudouEm && Date.now() - B.mudouEm < M.dias * dia) {
+      const falta = M.dias * dia - (Date.now() - B.mudouEm), d = Math.floor(falta / dia), h = Math.ceil((falta % dia) / 3600000);
+      return aviso(`A base só pode mudar de novo em ${d ? d + ' d ' : ''}${h} h`);
+    }
+    const { x, z } = this.lugarPedidoBase(j, onde);
+    if (x === B.x && z === B.z) return;
+    const motivo = this.motivoLugarBase(j, x, z, B.raca, Object.values(this.basesCla).filter((o) => o.k !== B.k)); if (motivo) return aviso(motivo);
+    const custo = n > 0 ? M.ouro : 0;
+    if (custo && (c.cofre | 0) < custo) return aviso(`Mudar a base custa ${custo} de ouro do cofre do clã (tem ${c.cofre | 0})`);
+    c.cofre = (c.cofre | 0) - custo;
+    const dx = x - B.x, dz = z - B.z;
+    for (const L of [...this.lotes.values()]) {
+      if (L.def.baseK !== B.k) continue;
+      L.def.x0 += dx; L.def.x1 += dx; L.def.z0 += dz; L.def.z1 += dz;
+      for (const p of L.pecas) { p.x += dx; p.z += dz; }
+      const h = {}; for (const [k, t] of Object.entries(L.horta || {})) { const [i, kk] = k.split(',').map(Number); h[`${i + dx},${kk + dz}`] = t; }
+      L.horta = h;
+      this.evento({ t: 'lote', lote: L.def.id, dono: null }); // o app tira do lugar velho e monta no novo
+      this.avisarLote(L);
+    }
+    B.x = x; B.z = z; B.mudou = n + 1; B.mudouEm = Date.now();
+    this.logCla(c, `Base mudou para ${x}, ${z}` + (custo ? ` (${custo} de ouro)` : ' (grátis)'), custo ? -custo : 0);
+    this.refazerSolidosLotes?.();
+    this.avisarBases();
+    aviso(`Base do clã mudou para ${x}, ${z}` + (custo ? `: ${custo} de ouro do cofre` : ': esta foi grátis') + `. A próxima custa ${M.ouro} de ouro e só depois de ${M.dias} dias`);
+    j.progSujo = true; this.avisarProg(j);
   },
   lugarPedidoBase(j, onde) {
     const ok = onde && Number.isFinite(+onde.x) && Number.isFinite(+onde.z) && Math.abs(+onde.x) < 5000 && Math.abs(+onde.z) < 5000;
@@ -337,7 +371,7 @@ export const Base = {
     const B = this.baseDe(j); if (!B) return null;
     const N = nivelBase(B.nv), D = this.basesDesenho?.[B.k], sem = this.semanasBase(B);
     return { x: B.x, z: B.z, nv: B.nv, tem: N.tem, taxa: N.taxa, atraso: sem, devendo: sem * N.taxa, trava: this.baseTravada(B) ? 1 : 0,
-      prox: Math.max(0, B.taxa + CLA.semana - Date.now()), centro: N.centro, raio: N.raio,
+      prox: Math.max(0, B.taxa + CLA.semana - Date.now()), centro: N.centro, raio: N.raio, mudar: (B.mudou | 0) ? B_().mudar.ouro : 0, mudarEm: (B.mudou | 0) && B.mudouEm ? Math.max(0, B.mudouEm + B_().mudar.dias * 86400000 - Date.now()) : 0,
       lotes: (D?.lotes || []).map((l) => ({ i: l.i, dono: l.i === 1 ? j.nome : B.donos?.[l.i]?.nome || '' })) };
   },
   // ---------- o Baú do Clã do salão e a forja ----------
