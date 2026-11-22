@@ -1394,6 +1394,9 @@ func _pessoas(c: Control, em: Callable) -> void:
 		var q: Vector2 = em.call(p.x, p.z)
 		if q == FORA:
 			continue
+		if p.inimigo: # outra raça: vermelho (minimapa.gd _ponto_inimigo)
+			mm._ponto_inimigo(c, q, 5.0, 0.5 + 0.5 * sin(Time.get_ticks_msec() / 180.0))
+			continue
 		c.draw_circle(q, 5.0, Color(0.05, 0.05, 0.1, 0.8))
 		c.draw_circle(q, 4.0, Color("6fb6ff"))
 	for p in mm._time():

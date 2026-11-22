@@ -446,6 +446,7 @@ export class Simulacao {
     if (testador && CONTA_TESTE.paginas) liberarPaginas(j.prog, MOCHILA_PAGINAS); // conta de teste do André: as 4 páginas da mochila liberadas
     else if (testador && j.prog.devPag !== CONTA_TESTE.devolver) { devolverPaginas(j.prog); j.prog.devPag = CONTA_TESTE.devolver; } // André 2026-11-11: compra como todo mundo
     j.testador = !!testador;
+    if (testador && j.prog.rgDado !== 1 && guardar(j.prog.mochila, { k: 'rastreio', n: GUERRA.radar.presente })) { j.prog.rgDado = 1; j.progSujo = true; } // Pó de rastreio de presente para testar (André 2026-11-22)
     if (robo) j.robo = true; // robô de testes (ferramentas/robo): não negocia, não compra terreno, não puxa o nível dos NPCs
     this.nascerOndeSaiu(j);
     this.conferirTitulos(j, true); // conta de antes dos títulos: já ganha os que o progresso merece (sem faixa)
@@ -1892,6 +1893,15 @@ export class Simulacao {
         this.evento({ t: 'radar', para: id, mostra: R.mostra });
         this.avisarProg(j); // a missão de pesca no mar: o Ir passa a levar ao spot
         return aviso(n ? `Radar: ${n} spots de pesca no mapa por ${Math.round(R.mostra / 60)} min` : 'Radar: nenhum spot de pesca agora. Tente daqui a pouco');
+      }
+      if (ITENS[it.k].usar?.radarGuerra) { // Pó de rastreio (André 2026-11-22): a outra raça no mapa por GUERRA.radar.mostra s
+        const R = GUERRA.radar, falta = ((p.rgCd || 0) - Date.now()) / 1000; // recarga em hora de verdade (gravada: sair e voltar não zera)
+        if (falta > 0) return aviso(`Pó de rastreio: pronto em ${falta >= 60 ? Math.ceil(falta / 60) + ' min' : Math.ceil(falta) + ' s'}`);
+        p.rgCd = Date.now() + R.recarga * 1000; j.radarGuerraAte = this.tempo + R.mostra;
+        if (--it.n <= 0) p.mochila[i] = null;
+        const n = [...this.jogadores.values()].filter((o) => o !== j && !o.criando && this.outraRaca(o, j)).length;
+        aviso(n ? `Rastreio: ${n} da outra raça no mapa por ${Math.round(R.mostra / 60)} min` : `Rastreio: ninguém da outra raça no mundo agora (vale por ${Math.round(R.mostra / 60)} min)`);
+        this.avisarProg(j); return;
       }
       // peça de construção, estação ou ferramenta não se "usa" (André 2026-11-07: tocar em Usar na bancada desconectava)
       if (it.k !== 'tomo' && !ITENS[it.k].usar) return aviso(ITENS[it.k].obra ? 'Coloque pelo modo construção (martelo) ou pelo botão Colocar' : 'Este item não se usa assim');
@@ -4864,7 +4874,7 @@ export class Simulacao {
         pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])), ...(j.bot ? { bot: 1 } : {}),
-        ...(this.racaDe(j) !== RACA_PADRAO ? { raca: this.racaDe(j) } : {}), guerra: j.guerra ? 1 : 0, prot: this.protegido(j) ? 1 : 0 })), // guerra/prot sempre (0 ou 1): a foto por área de interesse só manda o que mudou, e o app mira na outra raça por eles (André 2026-11-22) // Chama x Geada: a raça (só quem não é da Chama) e se está na zona de guerra // bot: a Cecília (só o dono conversa)
+        ...(this.racaDe(j) !== RACA_PADRAO ? { raca: this.racaDe(j) } : {}), guerra: j.guerra ? 1 : 0, prot: this.protegido(j) ? 1 : 0, ...(j.radarGuerraAte > this.tempo && !j.bot ? { rg: Math.ceil(j.radarGuerraAte - this.tempo) } : {}) })), // guerra/prot sempre (0 ou 1): a foto por área de interesse só manda o que mudou, e o app mira na outra raça por eles (André 2026-11-22) // Chama x Geada: a raça (só quem não é da Chama) e se está na zona de guerra // bot: a Cecília (só o dono conversa)
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ...(e.hc ? { hc: e.hc, esc: e.esc, cor: e.cor } : {}), ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
       // veios das zonas de mineração e árvores já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
       veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),

@@ -2029,6 +2029,11 @@ ITENS.navio = { nome: 'Navio mercante', pilha: 1, venda: 4000, ferramenta: 'navi
   desc: 'Leva 16 packs no porão (mais 1 nas costas). Na beira de água funda, use na mochila pra pôr na água; você pilota e ancora em qualquer margem. Fazer custa 40.000 de ouro e precisa Nv 60.' };
 // receitas (Quimera: na bancada). varios: dá para ter mais de um (o galão). nivel e ouro: o navio pede Nv 60 e 40.000.
 FERRAMENTAS_FAZENDA.galao = { custo: { carvao: 2, tecido: 1 }, bancada: true, para: 'abastecer', varios: true };
+// Pó de rastreio (André 2026-11-22: "uma skill ou ferramenta que eu conseguisse detectar os Geada no mapa... por 5 minutos...
+// a cada 30 minutos... podia ter um custo"): gasta um por uso; GUERRA.radar diz quanto tempo mostra e a recarga
+ITENS.rastreio = { nome: 'Pó de rastreio', pilha: 10, venda: 6, usar: { radarGuerra: true },
+  desc: 'Use na mochila: por 5 minutos, todos da outra raça aparecem em vermelho no mapa e no minimapa. Gasta um por uso; recarga de 30 minutos.' };
+FERRAMENTAS_FAZENDA.rastreio = { custo: { cristal: 2, carvao: 1 }, bancada: true, para: 'rastreio', varios: true };
 FERRAMENTAS_FAZENDA.carrinho = { custo: { lenha: 30, barra_ferro: 6, barra_cobre: 4, couro: 4 }, bancada: true, para: 'carrinho' };
 FERRAMENTAS_FAZENDA.barquinho = { custo: { lenha: 30, couro: 4 }, bancada: true, para: 'barquinho' };
 FERRAMENTAS_FAZENDA.navio = { custo: { lenha: 400, barra_ferro: 40, barra_cobre: 30, couro: 40 }, bancada: true, para: 'navio', nivel: 60, ouro: 40000 };
@@ -3581,7 +3586,8 @@ export const RACA_PADRAO = 'chama';
 // ouvir: m em volta de quem fala que ouve a fala. falaEntre: s entre duas falas do mesmo NPC. avistar: s antes de comentar
 // de novo a mesma pessoa. desisteVida: vida (0 a 1) em que ele larga a briga e foge. foge: s correndo para casa.
 // aviso: s mínimos entre dois avisos de "zona de guerra"/"zona segura" para o mesmo jogador.
-export const GUERRA = { tregua: 30, totem: 25, campoAte: 0, campoFolga: 6, vilaFolga: 4, recheca: 0.5, ve: 40, persegue: 60, poupa: 0, marca: 15,
+export const GUERRA = { radar: { mostra: 300, recarga: 1800, presente: 3 }, // Pó de rastreio (ITENS.rastreio): 5 min no mapa, 30 min de recarga, 3 de presente para a conta de teste do André
+  tregua: 30, totem: 25, campoAte: 0, campoFolga: 6, vilaFolga: 4, recheca: 0.5, ve: 40, persegue: 60, poupa: 0, marca: 15,
   ouvir: 26, falaEntre: 6, avistar: 120, desisteVida: 0.25, foge: 20, aviso: 20, lembrar: 30,
   // chat (André 2026-11-18): responder no Local (s de espera), conversa entre dois da mesma raça (a cada s, a até m, com
   // alguém de verdade perto), feito grande no Geral (no máximo um a cada s)

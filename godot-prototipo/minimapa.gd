@@ -1140,11 +1140,18 @@ func _desenhar_mini() -> void:
 			var q: Vector2 = meio + Vector2(float(t.x) - p.x, float(t.z) - p.z) * k
 			if q.distance_to(meio) < RAIO - 8.0:
 				_marca_totem(c, q, 6.0, m.totem.descoberto(str(t.id)))
+	var pulso := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 180.0)
 	for o in _outros():
-		var q: Vector2 = meio + Vector2(o.x - p.x, o.z - p.z) * k
-		if q.distance_to(meio) < RAIO - 4.0:
-			c.draw_circle(q, 4.0, Color(0.05, 0.05, 0.1, 0.8))
-			c.draw_circle(q, 3.0, Color("6fb6ff"))
+		var dq: Vector2 = Vector2(o.x - p.x, o.z - p.z) * k
+		if o.inimigo: # outra raça (André 2026-11-22: "o pontinho azul muito amigável"): vermelho pulsando; com o Pó de rastreio, na beirada quando longe
+			if dq.length() > RAIO - 6.0:
+				if not _rastreio():
+					continue
+				dq = dq.normalized() * (RAIO - 6.0)
+			_ponto_inimigo(c, meio + dq, 4.0, pulso)
+		elif dq.length() < RAIO - 4.0:
+			c.draw_circle(meio + dq, 4.0, Color(0.05, 0.05, 0.1, 0.8))
+			c.draw_circle(meio + dq, 3.0, Color("6fb6ff"))
 	icones.desenhar_mini(c, meio, p, k, RAIO) # NPCs: o símbolo da função (ferreiro, alquimista, mercador de pack...)
 	var casa := _minha_casa()
 	if not casa.is_empty(): # o meu terreno: a casinha, na beirada quando está longe (aponta o caminho de casa)
@@ -1376,23 +1383,37 @@ func _ids_amigas() -> Array:
 func _outros() -> Array:
 	var l: Array = []
 	if m.online and m.online.get("ligado") and m.online.get("outros") is Dictionary:
+		var eu_raca: String = str(m.online.get("eu_raca"))
 		for id in m.online.outros:
 			var o = m.online.outros[id]
 			if str(id) in _ids_amigas(): # Cecília e Dario: só no time, com o símbolo de time (_time)
 				continue
 			if o is Dictionary and o.has("no") and is_instance_valid(o.no):
-				l.append(Vector2(o.no.position.x, o.no.position.z))
-		# área de interesse: quem está longe não vem na foto, mas vem na lista leve do mapa (a cada 0,5 s)
+				l.append({"x": o.no.position.x, "z": o.no.position.z, "inimigo": str(o.get("raca", "")) != eu_raca})
+		# área de interesse: quem está longe não vem na foto, mas vem na lista leve do mapa (a cada 0,5 s), com a raça no
+		# 4º lugar (só quem não é da Chama). A outra raça longe só aparece com o Pó de rastreio (André 2026-11-22)
 		var meu: String = str(m.online.get("meu_id"))
 		var lista = m.online.get("no_mapa")
+		var radar := _rastreio()
 		if lista is Array:
 			for p in lista:
 				if p is Array and p.size() >= 3 and str(p[0]) != meu and not m.online.outros.has(str(p[0])) and not str(p[0]) in _ids_amigas():
-					l.append(Vector2(float(p[1]), float(p[2])))
-	var r: Array = []
-	for v in l:
-		r.append({"x": v.x, "z": v.y})
-	return r
+					var ini: bool = (str(p[3]) if p.size() >= 4 else "") != eu_raca
+					if ini and not radar:
+						continue
+					l.append({"x": float(p[1]), "z": float(p[2]), "inimigo": ini})
+	return l
+
+# Pó de rastreio ligado (online.gd eu_rastreio, o servidor conta os 5 min)
+func _rastreio() -> bool:
+	return m.online != null and m.online.get("ligado") and int(m.online.get("eu_rastreio")) > 0
+
+# ponto da outra raça: miolo vermelho forte, borda escura e um anel pulsando em volta
+func _ponto_inimigo(c: Control, q: Vector2, r: float, pulso: float) -> void:
+	c.draw_circle(q, r + 3.0 + pulso * 3.0, Color(1.0, 0.12, 0.08, 0.18 + 0.17 * (1.0 - pulso)))
+	c.draw_circle(q, r + 1.2, Color(0.12, 0.0, 0.0, 0.9))
+	c.draw_circle(q, r, Color(1.0, 0.16, 0.1))
+	c.draw_circle(q + Vector2(-r * 0.3, -r * 0.3), r * 0.35, Color(1.0, 0.7, 0.6, 0.8))
 
 # mapa completo (dentro da janela recortada): nomes, jogadores, rota, herói, pino, X e os botões − e +
 func _desenhar_mapa() -> void:
@@ -1486,8 +1507,12 @@ func _desenhar_mapa() -> void:
 			_texto(c, q + Vector2(0, 22), "%s  Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))], 14, Color(1, 0.96, 0.88))
 	if not tm and filtro.ok("npcs"):
 		icones.desenhar_mapa(c, em, _k(), longe, fonte, tam) # NPCs: o símbolo da função e, de perto, nome e título
+	var pulso_g := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 180.0)
 	for p in _outros():
 		var q: Vector2 = em.call(p.x, p.z)
+		if p.inimigo: # outra raça: vermelho (longe, só com o Pó de rastreio; _outros)
+			_ponto_inimigo(c, q, 5.0, pulso_g)
+			continue
 		c.draw_circle(q, 5.0, Color(0.05, 0.05, 0.1, 0.8))
 		c.draw_circle(q, 4.0, Color("6fb6ff"))
 	for p in _time():
