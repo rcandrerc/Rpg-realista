@@ -2,7 +2,7 @@
 // começo ao fim por um herói novo, as etapas, os chefes com nome, as pistas, a noite, o barquinho, os presentes, os
 // cartões de capítulo, os rumores e a conta da história antiga migrando. Uso: node ferramentas/testes/historia.mjs
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, CAPITULOS, CHEFES_HISTORIA, CACA, ITENS, CENAS, xpProximo } from '../../shared/index.js';
-import { TOTENS, TUNEIS_MUNDO } from '../../shared/dados.js';
+import { TOTENS, TUNEIS_MUNDO, VEICULOS } from '../../shared/dados.js';
 import { noTunel } from '../../shared/caverna.js';
 import { progressoValido, contar, guardar } from '../../shared/progresso.js';
 import { etapasDe, liberado, zonaFechadaEm, histValida, historiaParaApp } from '../../shared/historia.js';
@@ -275,7 +275,7 @@ s.historia(j, 'criar', { k: 'galao', n: 4 }); s.historia(j, 'veiculo', { k: 'aba
 s.historia(j, 'pack_fez', { k: 'metal' }); s.historia(j, 'pack_fez', { k: 'metal' });
 s.historia(j, 'pack', { k: 'metal', npc: 'm_peixe', de: 'costas' }); ok(h().n === 0, 'pack nas costas não vale (é de carrinho)');
 s.historia(j, 'pack', { k: 'metal', npc: 'm_peixe', de: 'carrinho' }); s.historia(j, 'pack', { k: 'metal', npc: 'm_peixe', de: 'carrinho' });
-p.carrinho = { lv: 2, vida: 400, comb: 0, packs: [] }; correr(0.6); ok(etapa().ev === 'falar', 'carrinho já no Nv 2');
+p.carrinho = { lv: 2, vida: VEICULOS.carrinho.vida, comb: 0, packs: [] }; correr(0.6); ok(etapa().ev === 'falar', 'carrinho já no Nv 2');
 falar('m_metal'); fim('b5');
 subir(25); falar('lider'); ok(missao() === 'b6', 'Aldo: os batedores');
 for (const [x, z] of etapa().pontos) { ok(!zonaFechadaEm(p, x, z) && !noLago(x, z), `batedor em (${x}, ${z}) fora da névoa e da água`); ir(x, z); correr(0.6); }
@@ -338,7 +338,7 @@ falar('v_otavio'); fim('c2');
 subir(35); falar('m_abobora'); ok(missao() === 'c3' && contar(p.mochila, 'semente_abobora') >= 2, 'Abel deu as sementes');
 for (const [k, n] of [['abobora', 4], ['milho', 4], ['rabanete', 6]]) for (let q = 0; q < n; q++) s.historia(j, 'plantar', { k }); // "Plante 4 sementes de abóbora"...
 s.historia(j, 'criar', { k: 'pao_milho', n: 2 }); s.historia(j, 'pack_fez', { k: 'abobora' }); s.historia(j, 'pack_fez', { k: 'abobora' });
-p.carrinho = { lv: 3, vida: 600, comb: 0, packs: [] }; correr(0.6); ok(etapa().ev === 'pack', 'carrinho já no Nv 3');
+p.carrinho = { lv: 3, vida: VEICULOS.carrinho.vida, comb: 0, packs: [] }; correr(0.6); ok(etapa().ev === 'pack', 'carrinho já no Nv 3');
 entregar('abobora', 'm_pedra', 'costas'); ok(h().n === 0, 'pack nas costas não vale');
 entregar('abobora', 'm_pedra', 'carrinho', 2); falar('m_abobora'); fim('c3');
 subir(36); falar('v_heitor'); ok(missao() === 'c4', 'Heitor: o rio cinza');
