@@ -1743,6 +1743,48 @@ func montar_diarias() -> void:
 # Clã e recrutas (André 2026-11-22; regras em shared/cla.js): sem clã, o nome para fundar; com clã, o cofre, a semana,
 # os membros (dispensar), os recursos nas bolsas dos recrutas, os 3 níveis do Recrutador e os últimos gastos.
 var _cla_nome: LineEdit
+# Base do clã (André 2026-11-22, shared/base.js): sem base, o botão de fundar onde estou e a tabela dos níveis; com
+# base, onde fica, o nível, a taxa da semana (sai do cofre) e de quem é cada lote
+func _base_cla(C: Dictionary) -> void:
+	var cs := PanelContainer.new()
+	cs.add_theme_stylebox_override("panel", caixa(FUNDO2, OURO.darkened(0.35), 1, 10))
+	var vs := VBoxContainer.new()
+	vs.add_theme_constant_override("separation", 3)
+	cs.add_child(vs)
+	var B = C.get("base")
+	if B is Dictionary:
+		vs.add_child(rotulo("Base do clã · Nv %d" % int(B.nv), 16, OURO_CLARO))
+		var h: Vector3 = m.heroi.position if m.heroi != null else Vector3.ZERO
+		var dist := Vector2(float(B.x) - h.x, float(B.z) - h.z).length()
+		vs.add_child(rotulo("%s · centro de %d m · área de %d m · %s" % [str(B.tem), int(B.centro), int(B.raio), "você está nela" if dist < float(B.raio) else "a %d m daqui" % int(dist)], 13, TEXTO))
+		if int(B.get("trava", 0)) == 1:
+			vs.add_child(rotulo("Taxa atrasada: %d de ouro. Deposite no cofre: até pagar, não dá para construir nem abrir o Baú do Clã." % int(B.devendo), 13, Color(1.0, 0.6, 0.5)))
+		elif int(B.get("atraso", 0)) > 0:
+			vs.add_child(rotulo("Taxa da semana: %d de ouro (atrasada: deposite no cofre)" % int(B.taxa), 13, Color(1.0, 0.8, 0.5)))
+		else:
+			vs.add_child(rotulo("Taxa: %d de ouro por semana, sai do cofre. Próxima em %s." % [int(B.taxa), _tempo_cla(int(B.get("prox", 0)))], 13, TEXTO))
+		var ls := []
+		for l in B.get("lotes", []):
+			ls.append("%d: %s" % [int(l.i), str(l.dono) if str(l.dono) != "" else "livre"])
+		vs.add_child(rotulo("Lotes · " + ", ".join(PackedStringArray(ls)), 13, TEXTO))
+	else:
+		vs.add_child(rotulo("Base do clã", 16, OURO_CLARO))
+		vs.add_child(rotulo("Vá até o lugar e funde a base onde você está. No meio fica o salão com o Baú do Clã; em volta, o seu lote e um lote para cada recruta. Sem aluguel: a taxa sai do cofre toda semana.", 12, APAGADO))
+		vs.add_child(rotulo("Não pode: perto de totem, vila, estrada, rio, cais, campo de caça, arena ou NPC; na água; em barranco; a menos de 170 m de outra base. Nas terras do começo, só no território da sua raça (Ilha do Meio e Aurora são livres).", 11, APAGADO))
+		var bf := botao("Fundar a base aqui", func(): m.rede("cla", {"acao": "base"}), 15, true)
+		bf.custom_minimum_size = Vector2(0, 44)
+		vs.add_child(bf)
+	var tab := []
+	for N in C.get("baseNiveis", []):
+		tab.append("Nv %d: centro %d m, %d lote%s, %d/semana, %s" % [int(N.nv), int(N.centro), int(N.lotes), "s" if int(N.lotes) > 1 else "", int(N.taxa), str(N.tem).to_lower()])
+	if not tab.is_empty():
+		vs.add_child(rotulo("\n".join(PackedStringArray(tab)), 11, APAGADO))
+	conteudo.add_child(cs)
+
+func _tempo_cla(ms: int) -> String:
+	var hs := int(ms / 3600000)
+	return "%d dia%s" % [int(hs / 24), "s" if int(hs / 24) != 1 else ""] if hs >= 24 else "%d h" % maxi(1, hs)
+
 func montar_cla() -> void:
 	var C: Dictionary = m.P.cla
 	if not m.on():
@@ -1806,6 +1848,7 @@ func montar_cla() -> void:
 		bm.custom_minimum_size = Vector2(0, 44)
 		vs.add_child(bm)
 		conteudo.add_child(cs)
+	_base_cla(C)
 	# membros (André 2026-11-22: "apareça eu no painel... nível Hp mana e vigor... determinar funções")
 	conteudo.add_child(rotulo("Membros", 17, OURO_CLARO))
 	var ms: Array = C.get("m", [])
@@ -1831,7 +1874,7 @@ func montar_cla() -> void:
 			pb.append("%s %d" % [str(m.P.nome_item({"k": str(k)})), int(bc[k])])
 		conteudo.add_child(rotulo("Baú do Clã: " + (", ".join(pb) if not pb.is_empty() else "vazio"), 13, TEXTO))
 	else:
-		conteudo.add_child(rotulo("Sem Baú do Clã: crie na construção (aba Móveis) e coloque no seu terreno. É a base do clã.", 12, APAGADO))
+		conteudo.add_child(rotulo("Sem Baú do Clã: funde a base do clã (o salão tem um na porta) ou crie um na construção (aba Móveis).", 12, APAGADO))
 	# os clãs bot (André 2026-11-22): o inimigo (Lobos da Geada, do Gael) e quem mais existir
 	for K in C.get("clas", []):
 		var ini := int(K.get("inimigo", 0)) == 1

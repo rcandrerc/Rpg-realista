@@ -1,0 +1,158 @@
+// Base do clã no mapa (André 2026-11-22, shared/base.js): fundar onde o líder está, onde não pode (totem, território
+// da outra raça, perto de outra base), o lote 1 do líder, os lotes dos recrutas, a taxa do cofre, a trava, o Baú do
+// Clã do salão, a forja (Nv 4) e as bases dos clãs bot.
+// Uso: node ferramentas/testes/base-cla.mjs
+import { Simulacao, MAPA_CLAREIRA, CLA, TOTENS, contar } from '../../shared/index.js';
+import { motivoBase, acharLugarBase, montarBase, territorioDe } from '../../shared/base.js';
+import './_tudo-aberto.mjs';
+const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
+const s = new Simulacao(MAPA_CLAREIRA);
+const ev = () => { const e = s.eventos; s.eventos = []; return e; };
+const avisos = () => ev().filter((e) => e.t === 'aviso').map((e) => e.texto).join(' | ');
+
+// lugares (os mesmos que o clã bot acharia)
+const pc = acharLugarBase(-6, 1, 'chama', []), pg = acharLugarBase(546, 43, 'geada', [{ ...pc, n: 'x' }]);
+ok(pc && territorioDe(pc.x, pc.z) === 'chama' && pg && territorioDe(pg.x, pg.z) === 'geada', 'acha lugar no território de cada raça');
+const T = TOTENS.lista[0];
+ok(/totem/.test(motivoBase(T.x + 20, T.z, 'chama', [])), 'perto de totem não pode');
+ok(/território/.test(motivoBase(pg.x, pg.z, 'chama', [])), 'chama não funda no território da Geada');
+ok(/Muito perto da base/.test(motivoBase(pc.x + 60, pc.z, 'chama', [{ x: pc.x, z: pc.z, n: 'Lobos' }])), 'perto de outra base não pode (qualquer clã)');
+
+const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 });
+a.criando = false; a.ciente = true; a.prog.ouro = 90000; a.prog.nivel = 40;
+a.x = pc.x; a.z = pc.z;
+s.cla('A', { acao: 'base' });
+ok(/Funde o seu clã/.test(avisos()), 'sem clã não funda base');
+s.cla('A', { acao: 'fundar', nome: 'Ruivas' });
+const p = a.prog, c = p.cla;
+// dois recrutas antes da base (sorteio dos lotes)
+const r = s.mapa.npcs.find((n) => n.funcao === 'recrutador');
+c.nv = 3; a.x = r.x + 1; a.z = r.z;
+s.cla('A', { acao: 'recrutar', tier: 'recruta' }); s.cla('A', { acao: 'recrutar', tier: 'recruta' }); ev();
+a.x = T.x + 10; a.z = T.z;
+s.cla('A', { acao: 'base' });
+ok(/totem/.test(avisos()) && !s.baseDe(a), 'fundar perto do totem: recusa e diz por quê');
+a.x = pc.x; a.z = pc.z;
+s.cla('A', { acao: 'base' });
+const B = s.baseDe(a);
+ok(B && B.x === pc.x && B.nv === 3, 'base fundada onde o líder está, no nível do clã');
+const L1 = s.loteDe(a);
+ok(L1?.def.baseK === B.k && L1.def.x1 - L1.def.x0 === CLA.base.lote, 'o lote 1 (10 x 10) é do líder');
+ok(new Set(Object.values(B.donos).map((o) => o.id)).size === 2 && Object.keys(B.donos).every((i) => +i >= 2 && +i <= 3), 'os 2 recrutas sorteados nos lotes 2 e 3');
+const e1 = ev(), eb = e1.find((e) => e.t === 'bases' && e.para === 'A');
+ok(eb?.meu === B.k && eb.lista.some((o) => o.k === B.k && o.pecas.length && o.sol.length && o.lotes.length === 3), 'o app recebe a base desenhada (peças, sólidos, 3 lotes)');
+ok(eb.lista.find((o) => o.k === B.k).lotes.find((l) => l[0] === 1)[5] === 'Ana', 'o lote 1 mostra o nome do líder');
+ok(s.terreno.solidos.some((o) => o.casa && Math.hypot(o.x - B.x, o.z - B.z) < 20), 'o salão é sólido no servidor');
+// construir no lote da base: o chão é o relevo (não 0)
+p.mochila.fill(null); p.mochila[0] = { k: 'obra_bau', n: 1 };
+a.x = (L1.def.x0 + L1.def.x1) / 2; a.z = (L1.def.z0 + L1.def.z1) / 2;
+s.construir('A', { k: 'bau', x: L1.def.x0 + 2, z: L1.def.z0 + 2, r: 0 });
+ok(L1.pecas.some((o) => o.k === 'bau'), 'constrói no lote da base');
+// segunda base: não
+s.cla('A', { acao: 'base' });
+ok(/já fica/.test(avisos()), 'uma base por clã');
+// comprar terreno nas vilas: com o servidor, só na base
+s.soBaseCla = true;
+const b2 = s.adicionarJogador('B', 'Bia', undefined, { conta: 2 }); b2.criando = false; b2.prog.ouro = 9000; b2.x = -24; b2.z = 59;
+s.comprarLote('B', { x0: -28, z0: 55, x1: -20, z1: 63 });
+ok(!s.loteDe(b2) && /base do seu clã/.test(avisos()), 'terreno novo só na base do clã');
+s.soBaseCla = false;
+
+// novo recruta pega o próximo lote; dispensado, o lote fica livre
+c.nv = 4; s.baseDoClaMudou(a);
+a.x = r.x + 1; a.z = r.z;
+s.cla('A', { acao: 'recrutar', tier: 'recruta' });
+const novo = c.m[2];
+ok(B.nv === 4 && B.donos[4]?.id === novo.id, 'recruta novo pega o lote 4 (o próximo que abriu)');
+s.cla('A', { acao: 'dispensar', id: novo.id });
+ok(!B.donos[4], 'dispensado: o lote dele fica livre');
+
+// taxa: sai do cofre; sem ouro, trava o lote e o Baú do Clã
+c.cofre = 10000; B.taxa = Date.now() - 2.5 * CLA.semana;
+s.cobrarCla(a);
+ok(s.semanasBase(B) === 0 && c.cofre === 10000 - 2 * CLA.base.niveis[4].taxa, 'a taxa de 2 semanas saiu do cofre');
+c.cofre = 0; B.taxa = Date.now() - 2.5 * CLA.semana; s.cobrarCla(a); ev();
+p.mochila[1] = { k: 'obra_bau', n: 1 };
+a.x = (L1.def.x0 + L1.def.x1) / 2; a.z = (L1.def.z0 + L1.def.z1) / 2;
+s.construir('A', { k: 'bau', x: L1.def.x0 + 6, z: L1.def.z0 + 6, r: 0 });
+ok(L1.pecas.filter((o) => o.k === 'bau').length === 1 && /Taxa do clã atrasada/.test(avisos()), 'taxa atrasada 2 semanas: não constrói');
+const D = s.basesDesenho[B.k];
+a.x = D.bau.x; a.z = D.bau.z + 1;
+s.bau('A', { acao: 'abrir', cla: true });
+ok(/Taxa do clã atrasada/.test(avisos()), 'taxa atrasada: o Baú do Clã trava');
+s.cla('A', { acao: 'depositar', ouro: 10000 });
+s.bau('A', { acao: 'abrir', cla: true });
+ok(s.semanasBase(B) === 0 && ev().some((e) => e.t === 'bau' && e.cla === 1), 'depositou: pagou a taxa e o Baú do Clã do salão abre');
+ok(s.claInfo(a).base?.nv === 4 && s.claInfo(a).baseNiveis.length === 6, 'o painel mostra a base e a tabela dos níveis');
+
+// forja (Nv 4): serve de bigorna para o clã
+a.x = D.forja.x; a.z = D.forja.z;
+ok(s.forjaBasePerto(a)?.k === 'bigorna', 'a forja da base serve de bigorna');
+
+// Nv 6: castelo, 4 torres, portão; o desenho cabe no centro
+const D6 = montarBase({ x: B.x, z: B.z, nv: 6 });
+ok(D6.pecas.some((o) => o.m === 'aurora_paco') && D6.pecas.filter((o) => o.m === 'aurora_torre').length === 3 && D6.pecas.some((o) => o.m === 'aurora_portao') && D6.lotes.length === 6, 'Nv 6: castelo, 3 torres, forja, portão e 6 lotes');
+ok(D6.pecas.every((o) => Math.abs(o.x - B.x) <= 18 && Math.abs(o.z - B.z) <= 18), 'tudo do centro cabe no quadrado de 34 m');
+
+// salvar e carregar
+const salvo = JSON.parse(JSON.stringify(s.basesCla));
+const s2 = new Simulacao(MAPA_CLAREIRA); s2.carregarBases(salvo);
+ok(s2.basesCla[B.k]?.x === B.x && Object.keys(s2.basesCla[B.k].donos).length === Object.keys(B.donos).length, 'a base volta do banco com os donos dos lotes');
+const ls = s.lotesParaSalvar().find((o) => o.id === L1.def.id);
+s2.carregarLotes([ls]);
+ok(s2.lotes.get(L1.def.id)?.def.baseK === B.k && s2.lotes.get(L1.def.id).taxa == null, 'o lote da base volta do banco sem aluguel');
+
+// clãs bot: fundam a base sozinhos, no território deles, longe das outras
+s.passoClasNpc(); s.passoBasesNpc();
+const bg = s.basesCla.ngeada, bc = s.basesCla.nchama;
+ok(bg && territorioDe(bg.x, bg.z) === 'geada' && bc && territorioDe(bc.x, bc.z) === 'chama', 'clãs bot fundam a base no território da raça');
+ok(Object.values(s.basesCla).every((o) => Object.values(s.basesCla).every((q) => q === o || Math.hypot(o.x - q.x, o.z - q.z) >= CLA.base.distMin)), 'todas as bases a pelo menos 170 m umas das outras');
+ok(Object.values(bg.donos).length >= Math.min(bg.nv - 1, 3), 'os membros do clã bot ganham os lotes');
+
+// casa antiga devolvida (André 2026-11-22: "Tudo pode remover as casas")
+{
+  const s3 = new Simulacao(MAPA_CLAREIRA), e3 = () => { const e = s3.eventos; s3.eventos = []; return e; };
+  const c3 = s3.adicionarJogador('C', 'Cris', undefined, { conta: 3 });
+  c3.criando = false; c3.ciente = true; c3.prog.ouro = 5000; c3.prog.nivel = 40; c3.x = -24; c3.z = 59;
+  s3.comprarLote('C', { x0: -28, z0: 55, x1: -20, z1: 63 });
+  const Lv = s3.loteDe(c3), ouro0 = c3.prog.ouro;
+  c3.prog.mochila.fill(null); c3.prog.mochila[0] = { k: 'obra_bau', n: 1 };
+  s3.construir('C', { k: 'bau', x: -26.5, z: 57, r: 0 });
+  Lv.bau = Array(40).fill(null); Lv.bau[0] = { k: 'lenha', n: 25 };
+  e3();
+  const n = s3.resetTerrenos();
+  ok(n === 1 && !s3.loteDe(c3), 'a casa antiga sai do mapa');
+  ok(c3.prog.ouro === ouro0 + 64 * 4 && contar(c3.prog.mochila, 'obra_bau') === 1, 'o dono recebe o preço do terreno e as peças na mochila');
+  ok(s3.devolucoes[c3.conta]?.bau?.some((o) => o.k === 'lenha'), 'o baú espera o lote da base');
+  s3.cla('C', { acao: 'fundar', nome: 'Volta' });
+  const p3 = acharLugarBase(-6, 1, 'chama', []); c3.x = p3.x; c3.z = p3.z;
+  s3.cla('C', { acao: 'base' });
+  ok(contar(s3.loteDe(c3)?.bau || [], 'lenha') === 25 && !s3.devolucoes[c3.conta], 'fundou a base: o baú antigo está no lote 1');
+}
+
+// os prédios do centro não se cruzam (tamanho de cada modelo, com beiral) em nenhum nível
+{
+  const larg = { pedra_6x6: [8.3, 8.1], sobrado_6x6: [8.3, 8.1], aurora_pousada: [10, 14.2], aurora_paco: [10, 15.8], aurora_torre: [5.7, 5.5], forja: [5.6, 5.7] };
+  let bate = '';
+  for (let nv = 1; nv <= 6; nv++) {
+    const P = montarBase({ x: 0, z: 0, nv }).pecas.filter((o) => larg[o.m]);
+    for (let i = 0; i < P.length; i++) for (let k = i + 1; k < P.length; k++) {
+      const [a, b] = [P[i], P[k]], [wa, da] = larg[a.m], [wb, db] = larg[b.m];
+      if (Math.abs(a.x - b.x) < (wa + wb) / 2 && Math.abs(a.z - b.z) < (da + db) / 2) bate += ` Nv${nv}:${a.m}x${b.m}`;
+    }
+  }
+  ok(!bate, 'os prédios do centro não se cruzam' + bate);
+}
+
+// as árvores da mata de dentro da base saem da coleta e da batida
+{
+  const s4 = new Simulacao(MAPA_CLAREIRA);
+  let alvo = null;
+  for (const t of MAPA_CLAREIRA.mata) { if (Math.abs(t.x) < 300 && !motivoBase(Math.round(t.x - 26), Math.round(t.z), 'chama', [])) { alvo = { x: Math.round(t.x - 26), z: Math.round(t.z) }; break; } }
+  ok(!!alvo, 'achou um lugar com árvore dentro');
+  s4.carregarBases({ jteste: { x: alvo.x, z: alvo.z, raca: 'chama', n: 'T', dono: 't', nv: 1 } });
+  const arv = s4.basesDesenho.jteste.arvores;
+  ok(arv.length > 0 && arv.every(([id]) => !s4.coletaveis.has(id)), 'as árvores de dentro saem da coleta');
+  ok(arv.every(([, x, z]) => !s4.pertoNaMata(x, z).some((a) => a.x === x && a.z === z)), 'e da batida');
+  ok(s4.dadosBase(s4.basesCla.jteste).arvores.length === arv.length, 'o app recebe quais árvores saíram');
+}

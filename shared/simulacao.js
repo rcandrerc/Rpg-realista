@@ -22,6 +22,7 @@ import { Kit, pedidosDaEtapa, soNoMar, gMissao } from './kit.js'; // missão nun
 import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (André 2026-11-16)
 import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
 import { Cla } from './cla.js'; // clã e recrutas (André 2026-11-22)
+import { Base } from './base.js'; // base do clã (André 2026-11-22)
 import { Guilda } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11-18)
 import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
 import { Guerra } from './guerra.js'; // Chama x Geada (André 2026-11-18)
@@ -391,6 +392,7 @@ export class Simulacao {
     this.lotes = new Map((mapa.lotes || []).map((l) => [l.id, { def: l, dono: null, nomeDono: '', pecas: [], horta: {}, prox: 1 }]));
     this.lotesMudados = new Set();
     this.lotesSoltos = new Set(); // vendidos de volta para o jogo (lotesParaSalvar grava sem dono)
+    this.basesCla = {}; this.basesDesenho = {}; this.solidosBase = []; // bases dos clãs (shared/base.js; o servidor carrega com carregarBases)
   }
   // árvores da mata nas 9 casas da grade em volta de (x, z)
   pertoNaMata(x, z) {
@@ -3041,6 +3043,7 @@ export class Simulacao {
     const k = RECEITA_ESTACAO(R);
     // as públicas da vila (bigorna e forninho da ferraria, bancada da Rosa): qualquer um usa
     for (const E of this.mapa.estacoes || []) if (E.k === k && dist(E, j) <= LOTE.estacaoDist + 0.6) return E;
+    if (k === 'bigorna') { const F = this.forjaBasePerto?.(j); if (F) return F; } // a forja da base do clã (Nv 4+)
     // fornalha e fogão (André 2026-11-07): só os do próprio terreno, porque o dono deixa coisa dentro; bancada e bigorna valem em qualquer terreno
     for (const L of this.lotes.values()) for (const p of L.pecas) if (p.k === k && ((k !== 'fornalha' && k !== 'fogao') || (L.dono && L.dono === j.conta)) && dist(p, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, p)) return p;
     return null;
@@ -3063,6 +3066,8 @@ export class Simulacao {
     const meu = this.loteDe(j);
     if (meu && meu.nomeDono !== j.nome) { meu.nomeDono = j.nome; this.avisarLote(meu); }
     this.evento({ t: 'lotes', para: id, meu: meu ? meu.def.id : null, lista: [...this.lotes.values()].map((L) => this.dadosLote(L)) });
+    this.enviarBases(id); // as bases dos clãs (shared/base.js)
+    this.entregarDevolucao(j); // a casa antiga devolvida (shared/base.js)
   }
   // lotes guardados no servidor: [{ id, dono, nome, dados: { pecas, horta, prox } }]
   carregarLotes(lista) {
@@ -3073,7 +3078,7 @@ export class Simulacao {
       if (!s.dono) { if (L && !L.def.fixo) this.lotes.delete(s.id); else if (L) L.dono = null; continue; }
       if (!L) {
         const R = retTerreno(d.ret) || (LOTES_ANTIGOS[s.id] && { ...LOTES_ANTIGOS[s.id] }); if (!R) continue;
-        L = { def: { id: s.id, nome: 'Terreno', ...R }, dono: null, nomeDono: '', pecas: [], horta: {}, prox: 1 };
+        L = { def: { id: s.id, nome: 'Terreno', ...R, ...(typeof d.base === 'string' ? { baseK: d.base, nome: 'Lote da base' } : {}) }, dono: null, nomeDono: '', pecas: [], horta: {}, prox: 1 };
         this.lotes.set(s.id, L);
       }
       L.dono = s.dono || null; L.nomeDono = String(s.nome || '');
@@ -3090,7 +3095,8 @@ export class Simulacao {
       for (const [pid, f] of Object.entries(d.fornos && typeof d.fornos === 'object' ? d.fornos : {})) L.fornos[String(pid)] = fornoValido(f);
       // taxa semanal (2026-11-05): terreno de antes começa a contar agora (ninguém recebe conta atrasada)
       if (d.amiga && typeof d.amiga === 'object') L.amiga = d.amiga; // Cecília: o progresso dela vai junto com o terreno
-      if (Number(d.taxa) > 0) L.taxa = Number(d.taxa); else if (!L.taxa) { L.taxa = Date.now(); this.lotesMudados.add(L.def.id); }
+      if (L.def.baseK) L.taxa = null; // lote da base: sem aluguel (a taxa é do clã)
+      else if (Number(d.taxa) > 0) L.taxa = Number(d.taxa); else if (!L.taxa) { L.taxa = Date.now(); this.lotesMudados.add(L.def.id); }
     }
     this.refazerSolidosLotes();
   }
@@ -3105,7 +3111,7 @@ export class Simulacao {
     const l = [...this.lotesMudados].filter((id) => this.lotes.has(id)).map((id) => {
       const L = this.lotes.get(id);
       const { x0, z0, x1, z1 } = L.def;
-      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox, bau: L.bau || null, bauNv: L.bauNv || 0, ...(L.bauCla ? { bauCla: L.bauCla } : {}), fornos: L.fornos || {}, taxa: L.taxa || null, ...(L.amiga ? { amiga: L.amiga } : {}) } };
+      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox, bau: L.bau || null, bauNv: L.bauNv || 0, ...(L.bauCla ? { bauCla: L.bauCla } : {}), fornos: L.fornos || {}, taxa: L.taxa || null, ...(L.amiga ? { amiga: L.amiga } : {}), ...(L.def.baseK ? { base: L.def.baseK } : {}) } };
     });
     // terrenos vendidos de volta para o jogo: a linha fica sem dono (o chão volta a ser livre)
     for (const id of this.lotesSoltos) l.push({ id, dono: null, nome: '', dados: {} });
@@ -3122,7 +3128,7 @@ export class Simulacao {
     for (const L of this.lotes.values()) for (const p of L.pecas) this.obstaculos.push(...solidosPeca(p, CONSTRUCOES[p.k].alto ? piso(L, p) : null));
     this.refazerTampos();
     // casa: piso, paredes e telhado viram chão e parede de verdade (anda em cima, escala, fica em pé no telhado)
-    T.porCasasDosJogadores([...this.lotes.values()].flatMap((L) => (L.dono ? pecasCasaSolidas(L, chao) : [])));
+    T.porCasasDosJogadores([...[...this.lotes.values()].flatMap((L) => (L.dono ? pecasCasaSolidas(L, chao) : [])), ...(this.solidosBase || [])]); // + o salão, a torre e a paliçada das bases (shared/base.js)
   }
   // m = { x0, z0, x1, z1 }: o terreno que o jogador marcou (toque num canto e arraste). Paga por bloco (precoTerreno).
   // Confere o tamanho, a borda das terras, a estrada, os terrenos dos outros e o ouro; o banco confere de novo (outras salas).
@@ -3130,6 +3136,8 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     if (this.loteDe(j)) return aviso('Você já tem um terreno');
+    // base do clã (André 2026-11-22: "o aluguel n vai existir"): terreno novo só na base do clã (painel do Clã)
+    if (this.soBaseCla) return aviso('Terreno novo agora só na base do seu clã: abra o Clã e funde a base'); // o servidor liga (server/index.js)
     { const lib = motivoLibera(j.prog, 'terreno'); if (lib) return aviso(`Terreno: ${lib.toLowerCase()}`); } // progressão (André 2026-11-10)
     const R = retTerreno(m); if (!R) return;
     const motivo = motivoTerreno(R, [...this.lotes.values()].filter((L) => L.dono).map((L) => L.def)); if (motivo) return aviso(motivo);
@@ -3155,6 +3163,7 @@ export class Simulacao {
   // ---------- vender, mudar o tamanho e a taxa do correio (André 2026-11-05) ----------
   // conta do correio atrasada: com LOTE.taxaTrava contas sem pagar não dá para construir nem plantar (colher e regar dá)
   loteTravado(L, aviso) {
+    if (L.def.baseK) return this.loteBaseTravado(L, aviso); // lote da base: a taxa do clã (shared/base.js)
     const c = contaTerreno(L.def, L.taxa, Date.now(), L.pecas?.length);
     if (c.semanas < LOTE.taxaTrava) return false;
     aviso(`Conta do terreno atrasada (${c.valor} de ouro): pague no correio para construir e plantar`);
@@ -3166,6 +3175,7 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j || j.criando || j.morto) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const L = this.loteDe(j); if (!L) return aviso('Você não tem terreno');
+    if (L.def.baseK) return aviso('O lote da base é do clã: não se vende');
     if (distRet(L.def, j.x, j.z) > LOTE.alcance + 0.5) return aviso('Chegue perto do seu terreno');
     if (Object.values(L.horta).some((t) => t.c)) return aviso('Colha ou desfaça as plantas antes de vender');
     if ((L.bau || []).some(Boolean)) return aviso('Esvazie o baú antes de vender');
@@ -3196,6 +3206,7 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const L = this.loteDe(j); if (!L) return aviso('Você não tem terreno');
+    if (L.def.baseK) return aviso('O lote da base tem tamanho fixo');
     const R = retTerreno(m); if (!R) return;
     if (distRet(L.def, j.x, j.z) > LOTE.alcance + 0.5) return aviso('Chegue perto do seu terreno');
     const conta = contaTerreno(L.def, L.taxa, Date.now(), L.pecas?.length);
@@ -3222,6 +3233,7 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j || j.criando || j.morto) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const L = this.loteDe(j); if (!L) return;
+    if (L.def.baseK) return aviso('O lote da base não tem aluguel: a taxa do clã sai do cofre');
     if (distRet(L.def, j.x, j.z) > LOTE.alcance + 0.5) return aviso('Chegue perto do seu correio');
     const c = contaTerreno(L.def, L.taxa, Date.now(), L.pecas?.length);
     if (c.valor <= 0) return aviso('Nenhuma conta para pagar');
@@ -4902,6 +4914,7 @@ Object.assign(Simulacao.prototype, Kit);
 Object.assign(Simulacao.prototype, Plantio); // árvores plantadas (André 2026-11-16)
 Object.assign(Simulacao.prototype, Diarias); // missões diárias (André 2026-11-16)
 Object.assign(Simulacao.prototype, Cla); // clã e recrutas (André 2026-11-22, shared/cla.js)
+Object.assign(Simulacao.prototype, Base); // base do clã (André 2026-11-22, shared/base.js)
 Object.assign(Simulacao.prototype, Guilda); // Guilda dos Aventureiros: contratos e ranks F a SS (André 2026-11-18)
 Object.assign(Simulacao.prototype, Economia); // livro-caixa da economia (André 2026-11-16)
 Object.assign(Simulacao.prototype, Duelo); // duelo (André 2026-11-17)
