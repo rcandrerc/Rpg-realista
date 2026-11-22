@@ -79,8 +79,9 @@ export class Visao {
       }
       evs.push({ para: ev.para, x, z, s: JSON.stringify(ev) });
     }
+    // raça no 4º lugar (só quem não é da Chama): o app esconde a outra raça longe, menos com o Pó de rastreio (André 2026-11-22)
     const mapa = this.passos % VISAO.mapaCada === 1
-      ? JSON.stringify(foto.jogadores.filter((j) => !j.criando).map((j) => [j.id, r1(j.x), r1(j.z)]))
+      ? JSON.stringify(foto.jogadores.filter((j) => !j.criando).map((j) => (j.raca ? [j.id, r1(j.x), r1(j.z), j.raca] : [j.id, r1(j.x), r1(j.z)])))
       : null;
     // spots de pesca e carga (packs no chão, carrinhos e navios: FASE 1) vão iguais para todos
     // veios: com onde(), cada um leva o lugar e a chave (muda quando outro bate ou quando a hora de voltar muda)

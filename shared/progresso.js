@@ -609,6 +609,8 @@ export function progressoValido(p) {
   n.abates = int(p.abates, 0, 1e9, 0);
   { const d = placarDueloValido(p.duelos); if (d) n.duelos = d; } // placar de duelos (André 2026-11-17, shared/duelo.js)
   { const a = pvpValido(p.pvp); if (a) n.pvp = a; } // Arena PvP (André 2026-11-21, shared/arena.js): Insígnias e placar
+  if (Number.isFinite(p.rgCd) && p.rgCd > 0) n.rgCd = Math.round(p.rgCd); // Pó de rastreio: quando a recarga acaba (ms, hora de verdade)
+  if (p.rgDado === 1) n.rgDado = 1; // Pó de rastreio de presente já entregue (conta de teste do André)
   if (typeof p.devPag === 'string' && p.devPag.length < 20) n.devPag = p.devPag; // páginas de teste já devolvidas (CONTA_TESTE)
   return n;
 }

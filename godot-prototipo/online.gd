@@ -22,6 +22,7 @@ var amiga_segue := {} # id -> true: dá para seguir (botão Seguir no cartão; s
 var outros := {} # id -> {no, anim, alvo, ry, seq, barra, modo, uma_vez}
 var eu_guerra := false # Chama x Geada: eu estou na zona de guerra (acima da Trégua e fora da zona segura)
 var eu_raca := "" # "" = Chama
+var eu_rastreio := 0 # Pó de rastreio (André 2026-11-22): segundos em que a outra raça ainda aparece no mapa (0 = desligado)
 var _alvos_guerra := {}
 # perigo (André 2026-11-22: "uma borda vermelha sinalizando perigo mesmo se eu estiver jogando sem som"): borda vermelha
 # pulsando na tela enquanto alguém da outra raça acima da Trégua estiver a até PERIGO_M m e eu na zona de guerra
@@ -709,6 +710,7 @@ func meu(j: Dictionary) -> void:
 	var h: Dictionary = m.h
 	eu_guerra = int(j.get("guerra", 0)) == 1
 	eu_raca = str(j.get("raca", ""))
+	eu_rastreio = int(j.get("rg", 0))
 	if j.has("caverna"): # Caverna da Montanha: o selo deixa passar quem usou o passe (o servidor é quem sabe)
 		m.mov.selo_aberto = j.caverna == true
 	var ap_txt := JSON.stringify(j.get("aparencia"))

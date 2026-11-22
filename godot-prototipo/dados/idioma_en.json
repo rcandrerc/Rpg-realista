@@ -4247,5 +4247,10 @@
 "Nenhuma receita aqui.": "No recipes here.",
 "Em qualquer lugar (aba Criar)": "Anywhere (Craft tab)",
 "Feito por {1} · leve a outro mercador": "Made by {1} · take it to another merchant",
-"O que pede bancada, bigorna, fornalha ou fogão aparece só perto dela. Para ver tudo, abra a Recipedia.": "Anything that needs a workbench, anvil, furnace or stove only shows up next to it. To see everything, open the Recipedia."
+"O que pede bancada, bigorna, fornalha ou fogão aparece só perto dela. Para ver tudo, abra a Recipedia.": "Anything that needs a workbench, anvil, furnace or stove only shows up next to it. To see everything, open the Recipedia.",
+"Pó de rastreio": "Tracking Dust",
+"Use na mochila: por 5 minutos, todos da outra raça aparecem em vermelho no mapa e no minimapa. Gasta um por uso; recarga de 30 minutos.": "Use it from your inventory: for 5 minutes, everyone from the other race shows up in red on the map and minimap. Uses one per use; 30-minute cooldown.",
+"Pó de rastreio: pronto em {1}": "Tracking dust: ready in {1}",
+"Rastreio: {1} da outra raça no mapa por {2} min": "Tracking: {1} from the other race on the map for {2} min",
+"Rastreio: ninguém da outra raça no mundo agora (vale por {1} min)": "Tracking: nobody from the other race in the world right now (lasts {1} min)"
 }

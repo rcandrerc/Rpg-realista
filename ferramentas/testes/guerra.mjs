@@ -164,3 +164,32 @@ ok(Object.keys(FALAS_GUERRA).every((k) => ['kira', 'rufo', 'lis', 'gael', 'dario
   const kk = (sai.foto?.jogadores || []).find((o) => o.id === k5.id);
   ok(kk && kk.raca === 'geada' && kk.guerra === 1 && kk.prot === 0, `o app recebe a Kira com raça, guerra e proteção: ${JSON.stringify(kk && { raca: kk.raca, guerra: kk.guerra, prot: kk.prot })}`);
 }
+// Pó de rastreio (André 2026-11-22): gasta um, 5 min no mapa, 30 min de recarga gravada; 3 de presente na conta de teste
+{
+  const { Visao } = await import('../../server/visao.js');
+  const { contar } = await import('../../shared/progresso.js');
+  const s6 = new Simulacao(MAPA_CLAREIRA);
+  const a = s6.adicionarJogador('a6', 'Ana', 'ruiva', { testador: true }); a.conta = 'c6';
+  for (const x of s6.amigosIa) x.amigaEntrar('a6');
+  ok(contar(a.prog.mochila, 'rastreio') === GUERRA.radar.presente && a.prog.rgDado === 1, `conta de teste ganha ${GUERRA.radar.presente} Pós de rastreio`);
+  const b = s6.adicionarJogador('b6', 'Bia', 'ruiva', { testador: true, progresso: a.prog });
+  ok(contar(b.prog.mochila, 'rastreio') === GUERRA.radar.presente, 'o presente sai uma vez só');
+  s6.passo(0.05);
+  const i = a.prog.mochila.findIndex((o) => o?.k === 'rastreio');
+  const ev = []; const e0 = s6.evento.bind(s6); s6.evento = (e) => { ev.push(e); return e0(e); };
+  s6.item('a6', { acao: 'usar', i });
+  ok(contar(a.prog.mochila, 'rastreio') === GUERRA.radar.presente - 1 && a.radarGuerraAte > s6.tempo && a.prog.rgCd > Date.now() + 1700e3, 'usar gasta um e liga por 5 min');
+  ok(ev.some((e) => e.t === 'aviso' && e.para === 'a6' && /Rastreio: \d+ da outra raça/.test(e.texto)), `aviso: ${ev.find((e) => e.para === 'a6' && e.t === 'aviso')?.texto}`);
+  s6.passo(0.05);
+  const eu = s6.foto().jogadores.find((o) => o.id === 'a6');
+  ok(eu.rg > 290 && eu.rg <= 300, `a foto diz quanto falta (${eu.rg} s)`);
+  ev.length = 0; s6.item('a6', { acao: 'usar', i: a.prog.mochila.findIndex((o) => o?.k === 'rastreio') });
+  ok(contar(a.prog.mochila, 'rastreio') === GUERRA.radar.presente - 1 && ev.some((e) => e.t === 'aviso' && /pronto em 30 min/.test(e.texto)), 'na recarga não gasta e diz quanto falta');
+  const { progressoValido } = await import('../../shared/progresso.js');
+  ok(progressoValido(JSON.parse(JSON.stringify(a.prog))).rgCd === a.prog.rgCd, 'a recarga fica gravada (sair e voltar não zera)');
+  for (let k = 0; k < 20 * 301; k++) s6.tempo += 0.05;
+  ok(!s6.foto().jogadores.find((o) => o.id === 'a6').rg, 'depois de 5 min some');
+  const V = new Visao(); V.passos = 0; const sai = JSON.parse(V.paraJogador(V.preparar(s6.foto(), []), 'a6'));
+  const kira6 = s6.amigoIaDe('kira').amiga;
+  ok((sai.foto.mapa || []).some((l) => l[0] === kira6.id && l[3] === 'geada'), 'a lista do mapa leva a raça (o app esconde a outra raça longe sem o rastreio)');
+}

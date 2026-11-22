@@ -1348,6 +1348,15 @@
    },
    "desc": "Leva 16 packs no porão (mais 1 nas costas). Na beira de água funda, use na mochila pra pôr na água; você pilota e ancora em qualquer margem. Fazer custa 40.000 de ouro e precisa Nv 60."
   },
+  "rastreio": {
+   "nome": "Pó de rastreio",
+   "pilha": 10,
+   "venda": 6,
+   "usar": {
+    "radarGuerra": true
+   },
+   "desc": "Use na mochila: por 5 minutos, todos da outra raça aparecem em vermelho no mapa e no minimapa. Gasta um por uso; recarga de 30 minutos."
+  },
   "maca": {
    "nome": "Maçã",
    "pilha": 50,
@@ -3770,6 +3779,15 @@
    },
    "bancada": true,
    "para": "abastecer",
+   "varios": true
+  },
+  "rastreio": {
+   "custo": {
+    "cristal": 2,
+    "carvao": 1
+   },
+   "bancada": true,
+   "para": "rastreio",
    "varios": true
   },
   "carrinho": {
