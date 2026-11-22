@@ -1984,12 +1984,12 @@ export const PACK_REGRAS = {
 };
 // Veículos (Quimera): o carrinho anda a combustível na terra; o barquinho é a remo (leva só o pack das suas costas); o
 // navio mercante leva 16 no porão e mais 1 nas costas. Ficam na mochila; "Colocar" põe no chão (carrinho) ou na água.
-// Carrinho: vida 400, 2,8 m/s menos 0,05 por pack acima de 2, curva 2,4 rad/s, combustível: 1 galão = 160 m, tanque de
-// 8 galões (André 2026-11-09: um lugar só de combustível que empilha até 8). Leva 2 packs no Nv 1 e +2 por melhoria (até Nv 4 = 8 packs). Apanhando dentro dele: o carrinho leva 110% do
+// Carrinho: vida 2500 (André 2026-11-21, emboscadas; era 400), 2,8 m/s menos 0,05 por pack acima de 2, curva 2,4 rad/s, combustível: 1 galão = 160 m, tanque de
+// 50 galões (André 2026-11-09: um lugar só de combustível; 2026-11-21: de 8 para 50, cabe um pack inteiro de galão). Leva 2 packs no Nv 1 e +2 por melhoria (até Nv 4 = 8 packs). Apanhando dentro dele: o carrinho leva 110% do
 // golpe e você 20%. Vida zero = quebra e os packs caem no chão. Não entra na água.
 export const VEICULOS = {
-  carrinho: { nome: 'Carrinho de carga', vida: 400, vel: 2.8, perdePorPack: 0.05, packsLivres: 2, giro: 2.4, acelera: 1.3, freia: 3.5,
-    curvaFechada: 1.6, curvaK: 0.3, galao: 160, tanque: 8, capacidade: 2, nivelMax: 4,
+  carrinho: { nome: 'Carrinho de carga', vida: 2500, vel: 2.8, perdePorPack: 0.05, packsLivres: 2, giro: 2.4, acelera: 1.3, freia: 3.5,
+    curvaFechada: 1.6, curvaK: 0.3, galao: 160, tanque: 50, capacidade: 2, nivelMax: 4,
     melhorar: [null, null, { lenha: 40, barra_ferro: 8, barra_cobre: 6, couro: 6, ouro: 2000 }, { lenha: 60, barra_ferro: 14, barra_cobre: 10, couro: 10, ouro: 8000 },
       { lenha: 100, barra_ferro: 24, barra_cobre: 16, couro: 16, ouro: 25000 }],
     golpe: 1.1, heroi: 0.2, consertoQuebrado: { lenha: 8, barra_ferro: 1 }, consertoParcial: { lenha: 4 }, perto: 3.5, entregar: 12, carregar: 8 ,
@@ -2014,7 +2014,7 @@ export const VEICULOS = {
   // dentro da amurada (alta m acima do convés). escada: z do vão na amurada com a escada de corda de cada lado (sobe da
   // água). bordo: lugares no convés [x, z] onde os bots do time passeiam quando o dono está a bordo (perto: embarcam de
   // até perto m). Mesmos números no app (godot transporte.gd caixas_navio) e no servidor (shared/transporte.js).
-  navio: { nome: 'Navio mercante', vel: 4, acelera: 0.9, giro: 0.7, porao: 16, fundo: 1.6, ancorar: 1.6, perto: 18, cabe: 4.5, leme: -5.15,
+  navio: { nome: 'Navio mercante', vida: 6000, consertoQuebrado: { lenha: 30, barra_ferro: 4 }, consertoParcial: { lenha: 10 }, vel: 4, acelera: 0.9, giro: 0.7, porao: 16, fundo: 1.6, ancorar: 1.6, perto: 18, cabe: 4.5, leme: -5.15,
     solido: { conves: 0.9, alta: 0.85, escada: -2.0,
       boca: [[-6.3, 0.95], [-5, 1.22], [-4, 1.4], [-2, 1.58], [0, 1.62], [2, 1.54], [4, 1.2], [5, 0.9], [5.8, 0.5]],
       bordo: [[-0.9, -3.4], [0.9, -3.6], [-1.0, -0.2], [1.0, 0.2], [-0.8, 2.2], [0.8, 2.0], [-0.5, 3.9], [0.5, 4.3], [0, -2.0], [-1.1, -4.6]], perto: 30, pertoTime: 60 } },
@@ -3580,12 +3580,41 @@ export const RACA_PADRAO = 'chama';
 // ouvir: m em volta de quem fala que ouve a fala. falaEntre: s entre duas falas do mesmo NPC. avistar: s antes de comentar
 // de novo a mesma pessoa. desisteVida: vida (0 a 1) em que ele larga a briga e foge. foge: s correndo para casa.
 // aviso: s mínimos entre dois avisos de "zona de guerra"/"zona segura" para o mesmo jogador.
-export const GUERRA = { tregua: 30, totem: 25, campoAte: 30, campoFolga: 6, vilaFolga: 4, recheca: 0.5, ve: 40, persegue: 60, poupa: 300, marca: 15,
+export const GUERRA = { tregua: 30, totem: 25, campoAte: 0, campoFolga: 6, vilaFolga: 4, recheca: 0.5, ve: 40, persegue: 60, poupa: 0, marca: 15,
   ouvir: 26, falaEntre: 6, avistar: 120, desisteVida: 0.25, foge: 20, aviso: 20, lembrar: 30,
   // chat (André 2026-11-18): responder no Local (s de espera), conversa entre dois da mesma raça (a cada s, a até m, com
   // alguém de verdade perto), feito grande no Geral (no máximo um a cada s)
   resposta: [1.5, 3], dupla: [180, 360], duplaPerto: 10, feito: 600,
-  semPontoQueda: 15 }; // voltou da queda longe de onde caiu: por s não fere a outra raça (Presidente 2026-11-19)
+  semPontoQueda: 15, // voltou da queda longe de onde caiu: por s não fere a outra raça (Presidente 2026-11-19)
+  // Regras novas do André (2026-11-21, "conflito no mapa"; mapa das zonas: /mnt/project-files/guerra-zonas/):
+  // - zona segura só nas vilas (vilaFolga), nos totens (totem m), no terreno do jogador (está dentro das vilas), em volta
+  //   de cada mercador de pack (mercador m: uns 3 ou 4 carrinhos abastecendo) e de cada cais de embarque (cais m: o navio
+  //   mercante carrega e descarrega). Campo de caça não é mais seguro (campoAte 0); o mar aberto é combate.
+  // - agro: m em que o bot ataca a outra raça; alerta: m em que o jogador é avisado (no máximo um aviso por pessoa a cada
+  //   alertaEntre s). protecao: s protegido depois de levantar da queda (atacar alguém da outra raça acaba com ela).
+  // - poupaFraco false: sem limite de diferença de nível (a honra não poupa mais ninguém); poupa 0: sem trégua depois de
+  //   derrubar (quem fica ali é caçado; para escapar, foge).
+  // - vidaFoge: com menos que isso de vida o bot olha o inimigo: com menos vida (proporção) que ele, tenta terminar; com
+  //   mais que inimigoFoge, foge; entre os dois, continua.
+  // - montaria: s sem poder montar depois de bater ou apanhar de alguém da outra raça; apanhar montado derruba do lobo.
+  agro: 25, alerta: 25, alertaEntre: 30, protecao: 120, poupaFraco: false, vidaFoge: 0.3, inimigoFoge: 0.4, montaria: 10,
+  mercador: 12, cais: 30,
+  // emboscada (André 2026-11-21): viagem com pack (costas, carrinho ou navio) fora da zona segura tem chance de cair numa
+  // emboscada da outra raça, no máximo uma a cada entre s por jogador, depois de atraso s de viagem. Vêm quantos bots
+  // (de longe m; no navio sobem a bordo). Batem no carrinho/navio (golpe por golpeEntre s); quebrou, os packs caem e
+  // eles pegam e fogem para casa. Matar o dono não basta: se ele recupera os packs e chega na zona segura, nada se perde.
+  // saque: s para tirar um pack do porão do navio avariado. dura: s até eles desistirem. roubado: bônus de quem entrega
+  // pack roubado da outra raça.
+  emboscada: { chance: 0.22, entre: 1800, atraso: [20, 90], quantos: [2, 3], longe: 35, golpe: 40, golpeEntre: 0.9, saque: 3, dura: 300 },
+  roubado: 0.25,
+  // ronda (André 2026-11-21: "eu tô lá grindando no mapa e encontrar eles"): a cada entre s (sorteado) um grupo de até
+  // quantos bots de cada raça (os com jeito de guerra) sai de casa e passa pelos pontos da rota da raça, parando
+  // parada s em cada um (é ali que dá para topar com eles). Continente norte por enquanto; ilha e sul quando tiver mais NPC.
+  ronda: { entre: [1800, 3600], quantos: 3, parada: 45, dura: 1500,
+    rotas: {
+      geada: [[546, 43], [505, 175], [330, 300], [212, 292], [206, 134], [104, -30], [135, -255], [440, -215], [508, -126], [546, 43]],
+      chama: [[-6, 1], [104, -30], [206, 134], [330, 300], [505, 175], [690, -60], [440, -215], [135, -255], [-6, 1]],
+    } } };
 // Os três da Geada (fase 1, aprovados pelo André 2026-11-18; fotos em /mnt/project-files/racas-rivais/). Iguais aos
 // aventureiros por dentro (caçam, vendem, consertam, sobem de nível), moram no Juncal (casa da Geada) e caçam nos campos
 // do leste. guerra: coragem (ataca mesmo em desvantagem), honra (poupa quem é muito mais fraco), paciencia (espera a hora

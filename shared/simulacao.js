@@ -614,7 +614,7 @@ export class Simulacao {
     const l = (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando && !(o.bot && !o.time) && (o.tipo === 'jogador' ? this.naCaverna(o) : !!o.sub) === sub);
     if (c.tipo === 'jogador' && c.duelo?.luta) { const o = this.oponenteDuelo(c); if (o && !o.morto) l.push(o); } // duelo (shared/duelo.js): o outro vira alvo
     if (c.tipo === 'jogador' && c.pvp) { for (const o of this.inimigosArena(c)) if (!l.includes(o)) l.push(o); return l; } // Arena PvP (shared/arena.js): só o outro time; a guerra de fora não vale lá
-    if (c.tipo === 'jogador' && c.guerra && !(c.semGuerraAte > this.tempo)) for (const o of this.jogadores.values()) if (this.emGuerra(c, o) && this.naCaverna(o) === sub && !l.includes(o)) l.push(o); // Chama x Geada (shared/guerra.js): a outra raça fora da zona segura
+    if (c.tipo === 'jogador' && c.guerra && !(c.semGuerraAte > this.tempo)) for (const o of this.jogadores.values()) if (this.emGuerra(c, o, true) && this.naCaverna(o) === sub && !l.includes(o)) l.push(o); // Chama x Geada (shared/guerra.js): a outra raça fora da zona segura
     return l;
   }
   maisPerto(c, max = 22) {
@@ -688,6 +688,8 @@ export class Simulacao {
     if (j.pesca) this.pararPesca(j, 'Você recolheu a linha');
     if (!j.montado && this.motivoCarga(j)) return this.evento({ t: 'aviso', para: id, texto: j.prog.pack ? 'Com pack nas costas não dá pra montar. Use o carrinho!' : 'Desça primeiro' });
     if (!j.montado && !liberado(j.prog, 'lobo')) return this.evento({ t: 'aviso', para: id, texto: motivoLibera(j.prog, 'lobo') }); // progressão (André 2026-11-10)
+    // em combate com a outra raça (André 2026-11-21: "quase morrendo, monta na montaria e dispara"): GUERRA.montaria s sem montar
+    { const falta = (j.pvpT ?? -1e9) + GUERRA.montaria - this.tempo; if (!j.montado && falta > 0 && !j.pvp) return this.evento({ t: 'aviso', para: id, texto: `Em combate: espere ${Math.ceil(falta)} s pra montar` }); }
     j.montado = j.montado ? null : 'lobo';
     if (j.montado) this.historia(j, 'montar');
   }
@@ -3951,11 +3953,16 @@ export class Simulacao {
     // duelo); quem está na arena e quem está fora não se ferem
     const arena = alvo.tipo === 'jogador' && de?.tipo === 'jogador' && this.rivaisArena(alvo, de);
     if (!arena && alvo.tipo === 'jogador' && de?.tipo === 'jogador' && (alvo.pvp || de.pvp)) return;
-    const guerra = !arena && alvo.tipo === 'jogador' && de?.tipo === 'jogador' && this.emGuerra(alvo, de); // Chama x Geada (shared/guerra.js): de verdade, sem o "ninguém morre" do duelo
+    const guerra = !arena && alvo.tipo === 'jogador' && de?.tipo === 'jogador' && this.emGuerra(de, alvo, true); // Chama x Geada (shared/guerra.js): de verdade, sem o "ninguém morre" do duelo (quem bate pode estar protegido: bater acaba com a proteção)
     if (guerra && de.semGuerraAte > this.tempo) return; // voltou da queda longe de onde caiu: o teleporte não vale ponto (Presidente 2026-11-19)
     const duelo = alvo.tipo === 'jogador' && de?.tipo === 'jogador' && !guerra && !arena; // jogador em jogador: só no duelo (shared/duelo.js) ou na guerra
     if (duelo && !this.duelando(alvo, de)) return;
-    if (guerra) { alvo.pvpDe = de.id; alvo.pvpT = this.tempo; de.pvpAlvo = alvo.id; de.pvpT = this.tempo; }
+    if (guerra) {
+      alvo.pvpDe = de.id; alvo.pvpT = this.tempo; de.pvpAlvo = alvo.id; de.pvpT = this.tempo;
+      // André 2026-11-21: atacar acaba com a proteção da queda; apanhar montado derruba do lobo (GUERRA.montaria s sem montar)
+      if (this.protegido(de)) { de.protGuerraAte = 0; if (!de.bot) this.evento({ t: 'aviso', para: de.id, texto: 'Você atacou: acabou a proteção' }); }
+      if (alvo.montado) { alvo.montado = null; if (!alvo.bot) this.evento({ t: 'aviso', para: alvo.id, texto: 'Você caiu da montaria!' }); }
+    }
     if (de?.tipo === 'jogador' && alvo.tipo !== 'jogador' && this.mobFechadoPara(alvo, de)) return; // monstro de região fechada: a névoa protege (André 2026-11-11)
     let crit = false;
     if (h?.q && de?.st) { n *= 0.85 + Math.random() * 0.3; if (Math.random() < de.st.critico) { n = n * 2 + (de.st.danoCritico || 0); crit = true; } } // como no Quimera: ±15% e crítico ×2 (+ dano crítico do equipamento, André 2026-11-17)
@@ -4067,7 +4074,9 @@ export class Simulacao {
         const casaRaca = !T && !cama && RACAS[this.racaDe(c)]?.casa; // a Geada renasce no Juncal (Chama x Geada, André 2026-11-18)
         const n = T ? this.ladoDoTotem(T) : cama ? { x: cama.x + ((cama.r & 1) ? 0 : 1.5), z: cama.z + ((cama.r & 1) ? 1.5 : 0) } : casaRaca ? { x: casaRaca.x + 3, z: casaRaca.z + 3 } : this.mapa.nascimento;
         Object.assign(c, { morto: false, vida: c.vidaMax, mana: c.manaMax ?? HEROI.mana, x: n.x, z: n.z, y: T || casaRaca ? this.terreno.altura(n.x, n.z) : 0, vy: 0, chao: true, trava: 0, acao: null });
-        this.evento({ t: 'aviso', para: c.id, texto: 'Você se levanta de novo' + textoPenalidade(pen) });
+        // André 2026-11-21: GUERRA.protecao s protegido da outra raça depois de levantar (atacar acaba com ela)
+        const prot = (c.prog?.nivel | 0) > GUERRA.tregua; if (prot) c.protGuerraAte = this.tempo + GUERRA.protecao;
+        this.evento({ t: 'aviso', para: c.id, texto: 'Você se levanta de novo' + textoPenalidade(pen) + (prot ? ` · ${Math.round(GUERRA.protecao / 60)} min protegido da outra raça` : '') });
       });
     } else {
       this.contarMissao(c);
@@ -4428,7 +4437,7 @@ export class Simulacao {
       a.t -= dt; if (a.t <= 0) j.arrancada = null;
     } else if (m > 0.15) {
       const vv = this.velVeiculo(j); // no carrinho, barquinho ou navio: na velocidade dele (antes ia na do herói correndo)
-      const v = vv != null ? vv : mont ? mont.correr : correr ? HEROI.correr : HEROI.andar; // montado: o lobo vai sempre no galope (André 2026-11-07)
+      const v = vv != null ? vv : mont ? mont.correr : (correr ? HEROI.correr : HEROI.andar) * (j.bot && j.prog?.pack ? PACK_REGRAS.costas.vel : 1); // montado: o lobo vai sempre no galope (André 2026-11-07); bot com pack nas costas vai devagar como o jogador (André 2026-11-21, pack roubado)
       this.mover(j, mx * v * dt, mz * v * dt);
       const alvo = Math.atan2(mx, mz);
       j.ry += angDif(alvo, j.ry) * Math.min(1, dt * 12);

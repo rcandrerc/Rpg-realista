@@ -9,7 +9,7 @@
 // - j.prog.navio: { porao: [], chao: {x, z, ry} | null }. O barquinho não fica no mundo: desceu, volta para a mochila.
 // - j.veiculo: 'carrinho' | 'barquinho' | 'navio' | null (dirigindo agora; não vai para a conta).
 // - this.packsChao: packs largados no chão (qualquer um pega; somem depois de PACK_CHAO_DURA s).
-import { PACKS, PACK_REGRAS as PR, VEICULOS as V, ITENS, CACA, PROF_MAX, tempoCriar } from './dados.js';
+import { PACKS, PACK_REGRAS as PR, VEICULOS as V, ITENS, CACA, PROF_MAX, tempoCriar, GUERRA } from './dados.js';
 import { contar, tirar, guardar, gastarVigor, vigorAgora, profNivel } from './progresso.js';
 import { noLago, AGUA } from './relevo.js';
 import { motivoLibera, missaoAtual, etapasDe } from './historia.js'; // progressão (André 2026-11-10)
@@ -91,16 +91,20 @@ export function packValido(o) {
   const r = { k: o.k, ox: Math.round(o.ox), oz: Math.round(o.oz) };
   if (typeof o.mo === 'string' && o.mo.length < 24) r.mo = o.mo;
   if (num(o.nav) && o.nav > 0) r.nav = Math.round(o.nav);
+  if (o.ra === 'chama' || o.ra === 'geada') r.ra = o.ra;
+  if (o.rb === 1) r.rb = 1; // roubado da outra raça (GUERRA.roubado: paga mais)
   return r;
 }
 const lugarValido = (q) => (q && [q.x, q.z, q.ry].every((v) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) < 1e4) ? { x: r2(q.x), z: r2(q.z), ry: r2(q.ry) } : null);
-export const carrinhoNovo = () => ({ lv: 1, comb: 0, vida: V.carrinho.vida, quebrado: false, packs: [], chao: null });
+export const carrinhoNovo = () => ({ lv: 1, comb: 0, vida: V.carrinho.vida, vm: V.carrinho.vida, quebrado: false, packs: [], chao: null });
 export function carrinhoValido(c) {
   if (!c || typeof c !== 'object') return null;
   const C = V.carrinho, n = carrinhoNovo();
   n.lv = Math.min(C.nivelMax, Math.max(1, c.lv | 0 || 1));
   n.comb = Math.min(C.galao * C.tanque, Math.max(0, +c.comb || 0));
-  n.vida = Math.min(C.vida, Math.max(0, +c.vida || 0));
+  // vm: a vida máxima de quando gravou (André 2026-11-21: 400 -> 2500); mudou, a vida vai na mesma proporção
+  const vm = +c.vm > 0 ? +c.vm : 400;
+  n.vida = Math.min(C.vida, Math.max(0, Math.round((+c.vida || 0) * C.vida / vm)));
   n.quebrado = !!c.quebrado || n.vida <= 0;
   n.packs = (Array.isArray(c.packs) ? c.packs : []).map(packValido).filter(Boolean).slice(0, C.capacidade * C.nivelMax);
   n.chao = lugarValido(c.chao);
@@ -108,7 +112,8 @@ export function carrinhoValido(c) {
 }
 export function navioValido(c) {
   if (!c || typeof c !== 'object') return null;
-  return { porao: (Array.isArray(c.porao) ? c.porao : []).map(packValido).filter(Boolean).slice(0, V.navio.porao), chao: lugarValido(c.chao) };
+  const N = V.navio, vida = c.vida == null ? N.vida : Math.min(N.vida, Math.max(0, +c.vida || 0)); // casco (André 2026-11-21)
+  return { porao: (Array.isArray(c.porao) ? c.porao : []).map(packValido).filter(Boolean).slice(0, N.porao), chao: lugarValido(c.chao), vida, quebrado: !!c.quebrado || vida <= 0 };
 }
 export const capacidadeCarrinho = (c) => V.carrinho.capacidade * Math.min(V.carrinho.nivelMax, Math.max(1, c?.lv | 0 || 1));
 export const velCarrinho = (c) => V.carrinho.vel - V.carrinho.perdePorPack * Math.max(0, (c?.packs?.length || 0) - V.carrinho.packsLivres);
@@ -221,7 +226,7 @@ export const Transporte = {
     const id = j.id, p = j.prog, aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const r = this.conferirPack(j, npcId); if (r.motivo) return r.motivo;
     const { n, custo, cart } = r, P = PACKS[n.merch];
-    const novo = { k: n.merch, ox: Math.round(n.x), oz: Math.round(n.z), mo: n.id };
+    const novo = { k: n.merch, ox: Math.round(n.x), oz: Math.round(n.z), mo: n.id, ra: this.racaDe?.(j) || 'chama' }; // ra: a raça de quem fez (pack roubado, André 2026-11-21)
     gastarVigor(p, PR.vigor);
     for (const [k, q] of Object.entries(custo)) tirar(p.mochila, k, q);
     if (p.pack) { cart.packs.push(novo); aviso('Pack feito e colocado no carrinho!'); } else { p.pack = novo; j.montado = null; aviso(`${P.nome} nas costas! Leve pra outro mercador.`); }
@@ -267,14 +272,14 @@ export const Transporte = {
       const pk = lista ? lista[i] : p.pack; if (!pk) return;
       if (Math.hypot(n.x - pk.ox, n.z - pk.oz) < PR.perto) return aviso('Esse pack foi feito aqui. Leve pra outro mercador: quanto mais longe, mais paga!');
       { const dono = this.packDaMissao(j, pk.k, n.id); if (dono) return aviso(`Esse pack é da missão: leve até ${this.nomeNpc ? this.nomeNpc(dono) : dono}`); }
-      const k = mercadoK(p, n.id, pk.k, agora), preco = Math.max(1, Math.round(precoPack(pk, n, p.prof.mer) * k * (1 + (this.vantagensDe?.(j).pack || 0)))); // vantagem S da Guilda: +5%
+      const k = mercadoK(p, n.id, pk.k, agora), preco = Math.max(1, Math.round(precoPack(pk, n, p.prof.mer) * k * (1 + (this.vantagensDe?.(j).pack || 0)) * (pk.rb ? 1 + GUERRA.roubado : 1))); // vantagem S da Guilda: +5%; roubado: +25%
       if (lista) lista.splice(i, 1); else p.pack = null;
       mercadoConta(p, n.id, pk.k, agora);
       p.ouro = (p.ouro || 0) + preco; this.caixa?.(j, 'pack', preco);
       this.pontosProf(j, 'mer', preco / 10);
       this.evento({ t: 'pack', para: id, acao: 'entregou', k: pk.k, ouro: preco, navio: (pk.nav || 0) >= PR.navioMin });
       this.historia(j, 'pack', { k: pk.k, npc: n.id, de: m.de });
-      aviso(`Pack entregue! +${preco} de ouro` + ((pk.nav || 0) >= PR.navioMin ? ' (veio de navio!)' : '') + (k < 0.995 ? ` · mercado cheio: ${Math.round(k * 100)}%` : ''));
+      aviso(`Pack entregue! +${preco} de ouro` + (pk.rb ? ' (roubado: +25%)' : '') + ((pk.nav || 0) >= PR.navioMin ? ' (veio de navio!)' : '') + (k < 0.995 ? ` · mercado cheio: ${Math.round(k * 100)}%` : ''));
       return pronto();
     }
     if (m.acao === 'largar') {
@@ -289,7 +294,9 @@ export const Transporte = {
       const g = this.packsChao.find((o) => o.g === m.g); if (!g || Math.hypot(g.x - j.x, g.z - j.z) > PR.pegar + 0.5) return;
       this.packsChao.splice(this.packsChao.indexOf(g), 1);
       p.pack = packValido(g); j.montado = null;
-      aviso('Pegou: ' + PACKS[g.k].nome);
+      // pack da outra raça (caiu de um bot da emboscada ou de um inimigo): roubado, paga mais; o seu de volta não é
+      if (p.pack) { if ((g.ra || 'chama') !== (this.racaDe?.(j) || 'chama')) p.pack.rb = 1; else delete p.pack.rb; }
+      aviso('Pegou: ' + PACKS[g.k].nome + (p.pack?.rb ? ' (roubado: vale mais!)' : ''));
       return pronto();
     }
     // costas <-> carrinho <-> porão do navio
@@ -361,7 +368,7 @@ export const Transporte = {
       } else if (k === 'navio') {
         if (p.navio?.chao) return aviso('Você já tem um navio na água');
         if (fundoAgua(x, z) < V.navio.fundo) return aviso('Chegue na beira de água funda pra colocar o navio');
-        p.navio ||= { porao: [], chao: null }; p.navio.chao = { x: r2(x), z: r2(z), ry: r2(ry) };
+        p.navio ||= { porao: [], chao: null, vida: V.navio.vida, quebrado: false }; p.navio.chao = { x: r2(x), z: r2(z), ry: r2(ry) };
         aviso('Navio na água! Toque nele pra carregar, descarregar e zarpar. Pra guardar, toque nele na mochila (de qualquer distância).');
       }
       return pronto();
@@ -375,6 +382,7 @@ export const Transporte = {
         if (c.comb <= 0) aviso('Sem combustível! Abasteça (toque no carrinho).');
       } else if (m.k === 'navio') {
         const n = p.navio; if (!n?.chao || Math.hypot(n.chao.x - j.x, n.chao.z - j.z) > V.navio.perto + 0.5) return aviso('Chegue perto do navio e toque de novo');
+        if (n.quebrado) return aviso('O navio está avariado. Conserte antes de zarpar (toque no navio).');
         if (p.carrinho?.chao && Math.hypot(p.carrinho.chao.x - j.x, p.carrinho.chao.z - j.z) < 25) {
           if (p.carrinho.packs.length) return aviso(`Tire os packs do carrinho antes (o porão tem ${V.navio.porao - n.porao.length} lugares livres).`);
           if (contar(p.mochila, 'carrinho') > 0 || guardar(p.mochila, { k: 'carrinho', n: 1 })) { p.carrinho.chao = null; aviso('Carrinho guardado na mochila: ele vai junto.'); }
@@ -418,6 +426,8 @@ export const Transporte = {
     }
     // recolher (Quimera, André 2026-11-09): tocar no carrinho travado na mochila traz ele de volta de qualquer distância;
     // dirigindo, você desce. Os packs que estavam nele ficam no chão onde ele estava.
+    if (['recolher', 'recolher_navio', 'guardar'].includes(m.acao) && j.embAte > this.tempo && this.emboscadaAtiva?.(j)) return aviso('Em emboscada! Não dá pra guardar agora: defenda a carga ou fuja.');
+    if (m.acao === 'consertar_navio') return this.consertarNavio(j);
     if (m.acao === 'recolher') {
       const c = p.carrinho; if (!this.carrinhoFora(j)) return;
       if (contar(p.mochila, 'carrinho') < 1 && !guardar(p.mochila, { k: 'carrinho', n: 1 })) return aviso('Mochila cheia');
@@ -481,6 +491,7 @@ export const Transporte = {
     }
     if (m.acao === 'consertar') {
       if (c.vida >= C.vida && !c.quebrado) return;
+      if (this.emCombateGuerra?.(j, c)) return aviso('Em combate não dá pra consertar. Afaste os inimigos primeiro.');
       const custo = c.quebrado ? C.consertoQuebrado : C.consertoParcial;
       const falta = Object.entries(custo).filter(([k, q]) => contar(p.mochila, k) < q);
       if (falta.length) return aviso('Pra consertar: ' + Object.entries(custo).map(([k, q]) => `${q} ${ITENS[k].nome}`).join(' + '));
@@ -533,12 +544,42 @@ export const Transporte = {
     return Math.max(1, Math.round(n * C.heroi));
   },
   quebrarCarrinho(j) {
-    const c = j.prog.carrinho;
-    c.quebrado = true; c.vida = 0; c.chao = { x: r2(j.x), z: r2(j.z), ry: r2(j.ry) };
-    c.packs.forEach((pk, i) => this.packNoChao(pk, j.x + (i % 2 ? 1 : -1) * 1.2, j.z + 0.8 + Math.floor(i / 2) * 0.7));
-    c.packs = []; j.veiculo = null;
-    this.evento({ t: 'veiculo', para: j.id, acao: 'quebrou', x: r2(j.x), z: r2(j.z) });
+    const c = j.prog.carrinho, q = j.veiculo === 'carrinho' || !c.chao ? j : c.chao; // parado (emboscada): quebra onde está
+    c.quebrado = true; c.vida = 0; c.chao = { x: r2(q.x), z: r2(q.z), ry: r2(q.ry || 0) };
+    c.packs.forEach((pk, i) => this.packNoChao(pk, q.x + (i % 2 ? 1 : -1) * 1.2, q.z + 0.8 + Math.floor(i / 2) * 0.7));
+    c.packs = []; if (j.veiculo === 'carrinho') j.veiculo = null;
+    this.evento({ t: 'veiculo', para: j.id, acao: 'quebrou', x: r2(q.x), z: r2(q.z) });
     this.evento({ t: 'aviso', para: j.id, texto: 'O carrinho quebrou! Os packs caíram no chão. Toque nele pra consertar (8 lenha + 1 barra de ferro).' });
+    j.progSujo = true; this.avisarProg(j);
+  },
+  // ---------- emboscada (André 2026-11-21, shared/guerra.js): bots batem no carrinho ou no navio ----------
+  // n de dano no veículo k de j (parado ou com ele dirigindo); zerou, quebra (carrinho) ou fica avariado (navio)
+  danoVeiculo(j, k, n, de = null) {
+    const v = k === 'navio' ? j.prog.navio : j.prog.carrinho; if (!v || v.quebrado) return;
+    const max = k === 'navio' ? V.navio.vida : V.carrinho.vida;
+    v.vida = Math.max(0, Math.min(max, v.vida ?? max) - Math.round(n)); v.danoT = this.tempo; j.progSujo = true;
+    this.evento({ t: 'veiculo', para: j.id, acao: 'dano', k, n: Math.round(n), vida: Math.round(v.vida), max });
+    if (v.vida > 0) { if (((this._avisoVeic ||= new Map()).get(j.id) || 0) < this.tempo) { this._avisoVeic.set(j.id, this.tempo + 8); this.avisarProg(j); } return; }
+    if (k === 'carrinho') return this.quebrarCarrinho(j);
+    // navio avariado: fica parado onde está (quem estava no leme fica no convés) até consertar
+    v.quebrado = true;
+    if (j.veiculo === 'navio') {
+      v.chao = centroNavio(j); j.veiculo = null; j.y = AGUA.nivel + V.navio.solido.conves;
+      this.evento({ t: 'veiculo', para: j.id, acao: 'desceu', k: 'navio', x: r2(j.x), z: r2(j.z), leme: 1 });
+    }
+    this.evento({ t: 'aviso', para: j.id, texto: `O navio foi avariado${de ? ' por ' + de.nome : ''}! Eles vão saquear o porão. Conserte (toque no navio) pra navegar de novo.` });
+    this.avisarProg(j);
+  },
+  // conserto do casco (perto do navio, fora de combate): avariado = consertoQuebrado; só arranhado = consertoParcial
+  consertarNavio(j) {
+    const p = j.prog, n = p.navio, N = V.navio, aviso = (texto) => this.evento({ t: 'aviso', para: j.id, texto });
+    const q = n && (n.chao || (j.veiculo === 'navio' ? centroNavio(j) : null)); if (!q || Math.hypot(q.x - j.x, q.z - j.z) > N.perto + 0.5) return aviso('Chegue perto do navio');
+    if ((n.vida ?? N.vida) >= N.vida && !n.quebrado) return;
+    if (this.emCombateGuerra?.(j, n)) return aviso('Em combate não dá pra consertar. Afaste os inimigos primeiro.');
+    const custo = n.quebrado ? N.consertoQuebrado : N.consertoParcial;
+    if (Object.entries(custo).some(([k, x]) => contar(p.mochila, k) < x)) return aviso('Pra consertar o navio: ' + Object.entries(custo).map(([k, x]) => `${x} ${ITENS[k].nome}`).join(' + '));
+    for (const [k, x] of Object.entries(custo)) tirar(p.mochila, k, x);
+    n.quebrado = false; n.vida = N.vida; aviso('Navio consertado!');
     j.progSujo = true; this.avisarProg(j);
   },
   // morreu: o pack das costas cai; o veículo fica onde estava (o barquinho volta para a mochila)

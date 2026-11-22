@@ -9,9 +9,12 @@
 //   morteGuerra (só desgaste, sem perder XP; fala de quem matou e de quem caiu; quem matou poupa por GUERRA.poupa s).
 // - guerraAmiga: o cérebro de guerra dos NPCs com jeito de guerra (AMIGA.guerra: Kira, Rufo, Lis e o Dario).
 // - falaGuerra: as falas por peças (FALAS_GUERRA), com memória de cada pessoa e sem repetir as últimas.
-import { GUERRA, RACAS, RACA_PADRAO, TOTENS, VILAS_MUNDO, vilaEm, FALAS_GUERRA, CHAT, ASSUNTOS_GUERRA, DUPLAS_GUERRA } from './dados.js';
+import { GUERRA, RACAS, RACA_PADRAO, TOTENS, VILAS_MUNDO, vilaEm, FALAS_GUERRA, CHAT, ASSUNTOS_GUERRA, DUPLAS_GUERRA, PACKS, PACK_REGRAS, VEICULOS } from './dados.js';
+import { packValido, precoPack, centroNavio, lugarDoVeiculo, acharPonto, fundoAgua } from './transporte.js';
+import { AGUA } from './relevo.js';
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const hashId = (id) => { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 const sorteia = (l) => l[Math.floor(Math.random() * l.length)];
 
 export const Guerra = {
@@ -25,6 +28,11 @@ export const Guerra = {
     for (const t of TOTENS.lista) if (Math.abs(t.x - x) < W.totem && Math.abs(t.z - z) < W.totem && Math.hypot(t.x - x, t.z - z) < W.totem) return true;
     for (const V of VILAS_MUNDO) if (Math.hypot(V.x - x, V.z - z) < (V.raio || 20) + W.vilaFolga) return true;
     if (vilaEm(x, z)) return true;
+    // a vila do começo (Vila da Clareira: a praça e as casas em volta) também é vila (André 2026-11-21: "todas as vilas")
+    const P = this.mapa?.vila?.praca; if (P && Math.hypot(P.x - x, P.z - z) < 26) return true;
+    // mercador de pack e cais de embarque (André 2026-11-21): ponto de carga e descarga é seguro; saiu dali, é combate
+    for (const n of this.mapa?.npcs || []) if (n.funcao === 'pack' && Math.abs(n.x - x) < W.mercador && Math.abs(n.z - z) < W.mercador && Math.hypot(n.x - x, n.z - z) < W.mercador) return true;
+    for (const c of this.mapa?.cais || []) if (Math.hypot(c.x - x, c.z - z) < W.cais) return true;
     for (const c of this.cacas || []) { const d = c.def; if ((d.nivel || 1) <= W.campoAte && Math.hypot(d.x - x, d.z - z) < (d.r || 12) + W.campoFolga) return true; }
     return false;
   },
@@ -32,7 +40,10 @@ export const Guerra = {
   podeGuerra(j) {
     return !j.pvp && !j.morto && !j.criando && !(j.cenaAte > this.tempo) && (j.prog?.nivel | 0) > GUERRA.tregua && !this.naCaverna(j) && !this.zonaSeguraGuerra(j.x, j.z);
   },
-  emGuerra(a, b) { return a !== b && a?.tipo === 'jogador' && b?.tipo === 'jogador' && !!a.guerra && !!b.guerra && this.racaDe(a) !== this.racaDe(b); },
+  // protegido (GUERRA.protecao s depois de levantar da queda): ninguém ataca ele. eu = quem quer bater: a proteção dele
+  // não impede (bater acaba com ela, em ferir)
+  protegido(a) { return a?.protGuerraAte > this.tempo; },
+  emGuerra(a, b, eu = false) { return a !== b && a?.tipo === 'jogador' && b?.tipo === 'jogador' && !!a.guerra && !!b.guerra && this.racaDe(a) !== this.racaDe(b) && (eu || !this.protegido(a)) && !this.protegido(b); },
   // a cada GUERRA.recheca s: quem pode lutar; o jogador de verdade fica sabendo quando entra ou sai da zona de guerra
   // (só quem passou da Trégua e no máximo uma vez a cada GUERRA.aviso s)
   passoGuerra() {
@@ -47,6 +58,20 @@ export const Guerra = {
       j.guerraAvisoT = this.tempo; j.guerraAvisado = j.guerra;
       this.evento({ t: 'aviso', para: j.id, texto: j.guerra ? 'Zona de guerra: a outra raça pode atacar' : 'Zona segura' });
     }
+    // alerta (André 2026-11-21: "se deu 20 ou 25 metros de uma raça oposta, acende um alerta para o jogador"): a até
+    // GUERRA.alerta m, no máximo um aviso por pessoa a cada GUERRA.alertaEntre s
+    for (const j of this.jogadores.values()) {
+      if (j.bot || j.morto || j.criando || !j.guerra) continue;
+      const A = (j.alertaGuerra ||= {});
+      for (const o of this.jogadores.values()) {
+        if (!this.emGuerra(o, j, true) || o.morto || o.criando) continue;
+        const d = dist(o, j); if (d > W.alerta) continue;
+        const k = o.conta || o.id; if (this.tempo < (A[k] ?? -1e9) + W.alertaEntre) continue;
+        A[k] = this.tempo;
+        this.evento({ t: 'aviso', para: j.id, texto: `⚠ ${o.nome} (${this.nomeRaca(o)}) a ${Math.round(d)} m!` });
+      }
+    }
+    this.passoEmboscadas(); this.passoRondas();
     // os NPCs com falas de guerra comentam quem da outra raça apareceu perto (também no time do André)
     for (const ctx of this.amigosIa) {
       const a = ctx.amiga; if (!a || a.morto || !FALAS_GUERRA[ctx.AMIGA.id]) continue;
@@ -187,11 +212,15 @@ export const Guerra = {
   guerraAmiga(j, dt) {
     const G = this.AMIGA.guerra, W = GUERRA, t = this.tempo; if (!G || j.time || j.troca || j.duelo || j.morto) return false;
     const g = (j.ia.guerra ||= { alvo: null, t: 0, de: null, foge: 0 });
+    if (!j.prog.pack) j.ia.packRoubo = null;
+    if (j.ia.packRoubo) return this.levarRoubadoAmiga(j, dt); // pegou um pack na emboscada: foge para casa com ele
     if (g.foge > t) { // fugindo para casa (ou para a vila dele)
       const M = this.moradiaAmiga(j);
       if (!j.guerra || this.irLongeAmiga(j, M.x, M.z, dt)) g.foge = 0;
+      if (this.emCombateGuerra(j)) j.montado = null; // a mesma regra do jogador: em combate, nada de lobo (GUERRA.montaria s)
       return g.foge > t;
     }
+    if (g.emb && this.passoEmboscadaAmiga(j, g, dt)) return true; // emboscada (André 2026-11-21)
     if (t >= g.t) {
       g.t = t + W.recheca;
       let alvo = g.alvo && this.jogadores.get(g.alvo);
@@ -208,8 +237,10 @@ export const Guerra = {
           const e = o.pvpDe && this.jogadores.get(o.pvpDe);
           if (e && t - o.pvpT < 3 && this.emGuerra(j, e) && dist(e, j) < W.ve) { alvo = e; this.falaGuerra('ajuda', e); break; }
         }
+        // André 2026-11-21: viu alguém da outra raça a até GUERRA.agro m, parte pro ataque (sem esperar, sem poupar fraco;
+        // GUERRA.poupaFraco liga de novo a honra de poupar quem é 10+ níveis mais fraco)
         if (!alvo) {
-          let melhor = null, md = W.ve;
+          let melhor = null, md = W.agro;
           for (const o of this.jogadores.values()) {
             if (!this.emGuerra(j, o)) continue;
             const d = dist(o, j); if (d >= md) continue;
@@ -218,23 +249,16 @@ export const Guerra = {
           }
           if (melhor) {
             const o = melhor, m = this.memGuerra(j, o), dif = (o.prog.nivel | 0) - nv;
-            if (dif <= -10 && Math.random() < G.honra) { m.poupa = agora + 120000; this.falaGuerra('poupa', o); }
-            else {
-              const deles = [...this.jogadores.values()].filter((x) => !x.morto && x.guerra && this.racaDe(x) === this.racaDe(o) && dist(x, o) < 15).length;
-              const vantagem = (aliados.filter((x) => dist(x, j) < 15).length + 1) / Math.max(1, deles) * Math.max(0.3, 1 - dif * 0.06) * (j.vida / j.vidaMax);
-              const quer = vantagem * (0.5 + G.coragem) >= 1;
-              const espera = G.paciencia > 0.5 && md > W.ve * (1 - G.paciencia) && !(t - (o.pvpT ?? -1e9) < 3) && !(o.combateAte > t);
-              if (quer && !espera) { alvo = o; this.falaGuerra('ataca', o); }
-              else if (!quer && md < 14 && Math.hypot(o.entrada?.mx || 0, o.entrada?.mz || 0) > 0.1) { g.foge = t + W.foge; this.falaGuerra('foge', o); this.pararColetaGuerra(j); return true; }
-            }
+            if (W.poupaFraco && dif <= -10 && Math.random() < G.honra) { m.poupa = agora + 120000; this.falaGuerra('poupa', o); }
+            else { alvo = o; this.falaGuerra('ataca', o); }
           }
         }
         if (alvo) { g.alvo = alvo.id; g.de = { x: j.x, z: j.z }; }
       }
     }
     const alvo = g.alvo && this.jogadores.get(g.alvo);
-    if (!alvo) return false;
-    if (j.vida / j.vidaMax < W.desisteVida && !j.prog.mochila.some((o) => o?.k === 'pocao')) { g.alvo = null; g.foge = t + W.foge; this.falaGuerra('foge', alvo); return true; }
+    if (!alvo) return this.passoRondaAmiga(j, dt); // sem briga: a ronda da raça (se ele foi chamado)
+    if (this.fogeOuTerminaAmiga(j, alvo)) { g.alvo = null; g.foge = t + W.foge; this.falaGuerra('foge', alvo); this.pararColetaGuerra(j); return true; }
     this.pararColetaGuerra(j);
     j.montado = null;
     if (this.cerebroAmiga(j, j, alvo)) return true;
@@ -242,5 +266,221 @@ export const Guerra = {
     this.irDireto(j, alvo.x, alvo.z, true);
     return true;
   },
+  // André 2026-11-21: com menos de GUERRA.vidaFoge de vida o bot olha o inimigo. Ele com menos vida (proporção) que eu:
+  // tento terminar. Ele com mais de GUERRA.inimigoFoge: fujo. Entre os dois: continuo. true = foge
+  fogeOuTerminaAmiga(j, e) {
+    const W = GUERRA, eu = j.vida / (j.vidaMax || 1); if (eu >= W.vidaFoge) return false;
+    const ele = e ? e.vida / (e.vidaMax || 1) : 1;
+    if (ele < eu) return false;
+    return ele > W.inimigoFoge;
+  },
+  // ---------- ronda (André 2026-11-21: "uma rota que eles fazem... para existir a possibilidade de encontro") ----------
+  // A cada GUERRA.ronda.entre s (sorteado), cada raça manda um grupo de até ronda.quantos bots com jeito de guerra (os que
+  // estão livres: fora de time, troca, duelo, arena e tarefa) pela rota dela (ronda.rotas): de ponto em ponto, parando
+  // ronda.parada s em cada um. No caminho vale tudo da guerra (veem a outra raça a GUERRA.agro m e atacam). Acabou a rota
+  // ou ronda.dura s, cada um volta à vida normal. Vale para qualquer bot novo com AMIGA.guerra e raça.
+  passoRondas() {
+    const R = GUERRA.ronda, t = this.tempo; if (!R) return;
+    const T = (this.rondaT ||= {});
+    for (const raca of Object.keys(R.rotas)) {
+      if (T[raca] == null) { T[raca] = t + R.entre[0] * 0.25 + Math.random() * (R.entre[1] - R.entre[0]) * 0.5; continue; } // a primeira sai mais cedo
+      if (t < T[raca]) continue;
+      T[raca] = t + R.entre[0] + Math.random() * (R.entre[1] - R.entre[0]);
+      if (![...this.jogadores.values()].some((o) => !o.bot && !o.criando)) continue; // ninguém de verdade no mundo: nem sai
+      const livres = this.botsDeGuerraLivres(raca).sort(() => Math.random() - 0.5).slice(0, R.quantos);
+      if (!livres.length) continue;
+      const id = 'r' + Math.round(t);
+      for (const ctx of livres) Object.assign(ctx.amiga.ia.guerra ||= { alvo: null, t: 0, de: null, foge: 0 }, { ronda: { id, i: 0, ate: t + R.dura, para: 0, rota: R.rotas[raca] } });
+    }
+  },
+  // os bots com jeito de guerra dessa raça que podem sair agora (ronda e emboscada)
+  botsDeGuerraLivres(raca) {
+    return (this.amigosIa || []).filter((ctx) => {
+      const a = ctx.amiga; if (!a || !ctx.AMIGA.guerra || a.morto || a.criando || this.racaDe(a) !== raca) return false;
+      return !a.time && !a.troca && !a.duelo && !a.pvp && !a.ia?.packTarefa && !a.ia?.encomenda && !a.ia?.packRoubo && !a.ia?.guerra?.emb && !a.ia?.guerra?.ronda && (a.prog?.nivel | 0) > GUERRA.tregua;
+    });
+  },
+  passoRondaAmiga(j, dt) {
+    const g = j.ia.guerra, r = g?.ronda; if (!r) return false;
+    const t = this.tempo;
+    if (t > r.ate || r.i >= r.rota.length) { g.ronda = null; j.ia.av = null; return false; }
+    if (r.i === 0 && Math.hypot(r.rota[0][0] - j.x, r.rota[0][1] - j.z) < 30) r.i = 1; // já está em casa (o ponto 0): segue
+    const [x, z] = r.rota[r.i];
+    if (r.para) { if (t >= r.para) { r.para = 0; r.i++; } else { this.pararAmiga(j); j.montado = null; } return true; }
+    // perto do ponto (o grupo se espalha um pouco): para e olha em volta
+    if (Math.hypot(x - j.x, z - j.z) < 8 || this.irLongeAmiga(j, x + (hashId(j.id) % 7) - 3, z + ((hashId(j.id) >> 3) % 7) - 3, dt)) { if (r.i >= r.rota.length - 1) { r.i++; return true; } r.para = t + GUERRA.ronda.parada * (0.7 + Math.random() * 0.6); this.pararAmiga(j); }
+    return true;
+  },
+  // ---------- emboscada (André 2026-11-21) ----------
+  // o que o jogador leva agora: 'navio' (no leme com o porão), 'carrinho' (dirigindo com packs) ou 'costas'; null = nada
+  cargaGuerra(j) {
+    const p = j.prog;
+    if (j.veiculo === 'navio' && p.navio?.porao?.length) return 'navio';
+    if (j.veiculo === 'carrinho' && p.carrinho?.packs?.length) return 'carrinho';
+    if (p.pack) return 'costas';
+    return null;
+  },
+  // A cada passoGuerra: quem saiu da zona segura levando pack sorteia uma vez por viagem (GUERRA.emboscada.chance). Deu:
+  // depois de atraso s de viagem (se ainda leva o pack fora da zona segura) chegam os bots da outra raça. No máximo uma a
+  // cada emboscada.entre s por jogador (vale a conta, para sair e entrar não zerar).
+  passoEmboscadas() {
+    const E = GUERRA.emboscada, t = this.tempo, agora = Date.now(), ultima = (this.emboscadaT ||= new Map());
+    for (const j of this.jogadores.values()) {
+      if (j.bot || j.robo || j.criando || j.morto || (j.prog?.nivel | 0) <= GUERRA.tregua) continue;
+      const carga = this.cargaGuerra(j);
+      if (!carga || !j.guerra) { j.embViagem = false; j.embQuando = null; continue; }
+      if (!j.embViagem) {
+        j.embViagem = true;
+        if (agora >= (ultima.get(j.conta) || 0) && Math.random() < E.chance) j.embQuando = t + E.atraso[0] + Math.random() * (E.atraso[1] - E.atraso[0]);
+      }
+      if (j.embQuando && t >= j.embQuando) { j.embQuando = null; if (this.iniciarEmboscada(j, carga)) ultima.set(j.conta, agora + E.entre * 1000); }
+    }
+  },
+  iniciarEmboscada(j, carga) {
+    const E = GUERRA.emboscada, t = this.tempo;
+    const outra = Object.keys(RACAS).find((r) => r !== this.racaDe(j)); if (!outra) return false;
+    const n = E.quantos[0] + Math.floor(Math.random() * (E.quantos[1] - E.quantos[0] + 1));
+    const bots = this.botsDeGuerraLivres(outra).sort(() => Math.random() - 0.5).slice(0, n);
+    if (!bots.length) return false;
+    const S = VEICULOS.navio.solido;
+    bots.forEach((ctx, i) => {
+      const a = ctx.amiga, g = (a.ia.guerra ||= { alvo: null, t: 0, de: null, foge: 0 });
+      let q = null, lx = 0, lz = 0;
+      if (carga === 'navio') { const b = S.bordo[(i * 3 + 1) % S.bordo.length]; lx = b[0]; lz = b[1]; } // sobem pela escada de corda
+      else { // de longe (E.longe m), em terra, fora da zona segura; de preferência de lado ou de trás
+        for (let k = 0; k < 24 && !q; k++) {
+          const ang = (j.ry || 0) + Math.PI + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.35 + i * 0.6;
+          const x = j.x + Math.sin(ang) * E.longe, z = j.z + Math.cos(ang) * E.longe;
+          if (lugarDoVeiculo('carrinho', x, z) && fundoAgua(x, z) <= 0.05 && !this.zonaSeguraGuerra(x, z) && this.terreno.altura(x, z) < j.y + 6) q = { x, z };
+        }
+        if (!q) return;
+        Object.assign(a, { x: q.x, z: q.z, y: this.terreno.altura(q.x, q.z), vy: 0, chao: true });
+      }
+      if (a.coleta) this.pararColeta(a, null); if (a.pesca) this.pararPesca(a, null);
+      a.montado = null; a.bordo = null; a.ia.av = null; a.ia.viagem = null; a.ia.atividade = null;
+      Object.assign(g, { alvo: null, foge: 0, ronda: null, emb: { dono: j.id, conta: j.conta, k: carga, ate: t + E.dura, x: j.x, z: j.z, lx, lz, golpeT: t + 1 + Math.random(), saque: 0 } });
+      this.corrigir?.(a);
+    });
+    const vieram = bots.filter((ctx) => ctx.amiga.ia.guerra.emb?.dono === j.id);
+    if (!vieram.length) return false;
+    j.embAte = t + E.dura;
+    const nomes = vieram.map((x) => x.AMIGA.nome), lista = nomes.length > 1 ? nomes.slice(0, -1).join(', ') + ' e ' + nomes[nomes.length - 1] : nomes[0];
+    const oQue = carga === 'navio' ? 'abordaram seu navio' : carga === 'carrinho' ? 'vão atrás do seu carrinho' : 'vão atrás do seu pack';
+    this.evento({ t: 'aviso', para: j.id, texto: `⚔ Emboscada! ${lista} (${RACAS[outra].nome}) ${oQue}!` });
+    const ctx0 = vieram[0]; ctx0.falaGuerra?.('ataca', j);
+    return true;
+  },
+  // onde está o veículo do dono da emboscada agora: { x, z, ry, k, v (o prog dele) } ou null (guardado, sumiu)
+  veiculoDaEmboscada(dono, k) {
+    if (!dono) return null;
+    if (k === 'navio') { const n = dono.prog.navio; if (!n) return null; const q = dono.veiculo === 'navio' ? centroNavio(dono) : n.chao; return q ? { ...q, k, v: n } : null; }
+    if (k === 'carrinho') { const c = dono.prog.carrinho; if (!c) return null; const q = dono.veiculo === 'carrinho' ? dono : c.chao; return q ? { x: q.x, z: q.z, ry: q.ry || 0, k, v: c } : null; }
+    return null;
+  },
+  // um bot da emboscada: bate no carrinho/navio até quebrar, pega os packs que caíram e foge; quem bate nele de perto
+  // apanha de volta. true = cuidou do passo
+  passoEmboscadaAmiga(j, g, dt) {
+    const E = g.emb, W = GUERRA, t = this.tempo, dono = this.jogadores.get(E.dono);
+    const fim = () => { g.emb = null; j.bordo = null; j.ia.av = null; return false; };
+    if (t > E.ate || !dono || dono.conta !== E.conta) return fim();
+    if (this.fogeOuTerminaAmiga(j, dono)) { this.falaGuerra('foge', dono); fim(); g.foge = t + W.foge; this.pularDoNavioAmiga(j); return true; }
+    const veic = this.veiculoDaEmboscada(dono, E.k);
+    if (veic) { E.x = veic.x; E.z = veic.z; }
+    else if (!dono.morto && E.k === 'costas') { E.x = dono.x; E.z = dono.z; }
+    // no navio: fica no convés (anda com ele) batendo no casco; avariado, tira um pack do porão (E.saque s) e pula no mar
+    if (E.k === 'navio') {
+      if (!veic) return fim();
+      const n = veic.v;
+      this.noConvesAmiga(j, veic, E, dt);
+      if (!n.quebrado) { this.golpeEmboscadaAmiga(j, E, veic, dono); return true; }
+      if (!n.porao.length || j.prog.pack) { this.pularDoNavioAmiga(j); return fim(); }
+      if ((E.saque += dt) >= W.emboscada.saque) {
+        const pk = n.porao.pop(); dono.progSujo = true; this.avisarProg?.(dono);
+        this.pegarRoubadoAmiga(j, pk, dono);
+        this.pularDoNavioAmiga(j);
+        return fim() || true;
+      }
+      return true;
+    }
+    // em terra: pack no chão perto (caiu do carrinho quebrado ou de quem morreu)? pega e foge
+    if (!j.prog.pack) {
+      let pg = null, pd = 22;
+      for (const o of this.packsChao || []) { const d = Math.hypot(o.x - E.x, o.z - E.z); if (d < pd) { pd = d; pg = o; } }
+      if (pg) {
+        const d = Math.hypot(pg.x - j.x, pg.z - j.z);
+        if (d > PACK_REGRAS.pegar - 0.3) { j.montado = null; this.irDireto(j, pg.x, pg.z, true); return true; }
+        this.packsChao.splice(this.packsChao.indexOf(pg), 1);
+        this.pegarRoubadoAmiga(j, pg, dono);
+        return fim() || true;
+      }
+    }
+    // o dono bateu nele agora há pouco e está perto: apanha de volta (a briga normal)
+    const bateu = j.pvpDe === dono.id && t - (j.pvpT ?? -1e9) < 3 && !dono.morto && this.emGuerra(j, dono) && dist(dono, j) < 6;
+    if ((bateu || E.k === 'costas' || (veic && veic.v.quebrado)) && !dono.morto && this.emGuerra(j, dono)) {
+      j.montado = null;
+      if (this.cerebroAmiga(j, j, dono)) return true;
+      this.irDireto(j, dono.x, dono.z, true); return true;
+    }
+    if (veic && !veic.v.quebrado) {
+      const d = Math.hypot(veic.x - j.x, veic.z - j.z);
+      if (d > 2.4) { j.montado = null; this.irDireto(j, veic.x, veic.z, true); return true; }
+      this.pararAmiga(j); this.golpeEmboscadaAmiga(j, E, veic, dono); return true;
+    }
+    // nada mais para pegar e o dono longe (ou protegido, ou na zona segura): desiste
+    return fim();
+  },
+  // um golpe no veículo a cada emboscada.golpeEntre s (a animação do golpe de espada, virado para ele)
+  golpeEmboscadaAmiga(j, E, veic, dono) {
+    const W = GUERRA.emboscada, t = this.tempo;
+    if (t < E.golpeT || j.trava > 0) return;
+    E.golpeT = t + W.golpeEntre * (0.85 + Math.random() * 0.3);
+    j.ry = Math.atan2(veic.x - j.x, veic.z - j.z);
+    this.usarHabilidade(j.id, 0);
+    this.danoVeiculo(dono, veic.k, W.golpe, j);
+  },
+  // bot no convés do navio da emboscada: anda até o meio (perto do porão) e fica de frente para ele
+  noConvesAmiga(j, veic, E, dt) {
+    const S = VEICULOS.navio.solido, alvo = [E.lx > 0 ? 0.5 : -0.5, 0.4], dx = alvo[0] - E.lx, dz = alvo[1] - E.lz, d = Math.hypot(dx, dz), passo = Math.min(d, 2.2 * dt);
+    if (d > 0.05) { E.lx += dx / d * passo; E.lz += dz / d * passo; }
+    const s = Math.sin(veic.ry || 0), c = Math.cos(veic.ry || 0);
+    j.x = veic.x + E.lx * c + E.lz * s; j.z = veic.z - E.lx * s + E.lz * c;
+    j.y = AGUA.nivel + S.conves; j.vy = 0; j.chao = true; j.montado = null;
+    j.entrada = { mx: 0, mz: 0, correr: false }; j.bordoT = this.tempo; j.emboscadaNavio = true;
+    j.bordo = { dono: E.dono, lx: E.lx, lz: E.lz, i: 0, troca: Infinity, emb: 1 }; // a física deixa o navio levar ele (simulacao.js passoJogador)
+    if (d > 0.05) { j.ry = (veic.ry || 0) + Math.atan2(dx, dz); j.anim = 'Run'; }
+  },
+  // sai do convés: "pula no mar" e aparece nadando na terra firme mais perto (até 120 m), de onde foge para casa
+  pularDoNavioAmiga(j) {
+    if (!j.emboscadaNavio) return;
+    j.emboscadaNavio = false; j.bordo = null;
+    const q = acharPonto({ x: j.x, z: j.z, ry: j.ry || 0 }, (a, b) => fundoAgua(a, b) <= 0.05 && lugarDoVeiculo('carrinho', a, b), 120);
+    if (q) Object.assign(j, { x: q.x, z: q.z, y: this.terreno.altura(q.x, q.z), vy: 0, chao: true });
+    this.corrigir?.(j);
+  },
+  // pegou um pack da outra raça: vai nas costas e é roubado (vale o bônus de quem entregar)
+  pegarRoubadoAmiga(j, pk, dono) {
+    const p = packValido(pk); if (!p) return;
+    if (this.racaDe(j) !== (pk.ra || RACA_PADRAO)) p.rb = 1;
+    j.prog.pack = p; j.montado = null; j.ia.packRoubo = { de: dono?.conta || null, nome: dono?.nome || '' }; j.progSujo = true;
+    if (dono) this.evento({ t: 'aviso', para: dono.id, texto: `${j.nome} pegou um ${(PACKS[p.k]?.nome || 'pack').toLowerCase()} e está fugindo! Derrube antes que chegue em casa.` });
+    this.falaGuerra('mata', dono);
+  },
+  // com o pack roubado nas costas: foge para casa (a pé, devagar); chegou, vende (com o bônus de roubado) e volta à vida
+  levarRoubadoAmiga(j, dt) {
+    const M = this.moradiaAmiga(j), pk = j.prog.pack; if (!pk) { j.ia.packRoubo = null; return false; }
+    j.montado = null;
+    if (Math.hypot(M.x - j.x, M.z - j.z) > 6 && !this.irLongeAmiga(j, M.x, M.z, dt)) return true;
+    const preco = Math.max(1, Math.round(precoPack(pk, M) * (pk.rb ? 1 + GUERRA.roubado : 1)));
+    j.prog.ouro = (j.prog.ouro || 0) + preco; j.prog.pack = null;
+    const R = j.ia.packRoubo; j.ia.packRoubo = null; j.progSujo = true;
+    const vitima = R?.de && [...this.jogadores.values()].find((o) => o.conta === R.de);
+    if (vitima) this.evento({ t: 'aviso', para: vitima.id, texto: `${j.nome} chegou em casa com o seu pack. Perdeu esse.` });
+    this.pararAmiga(j);
+    return true;
+  },
+  // algum bot da emboscada ainda atrás de j?
+  emboscadaAtiva(j) { return (this.amigosIa || []).some((x) => x.amiga && !x.amiga.morto && x.amiga.ia?.guerra?.emb?.dono === j.id); },
+  // brigou com a outra raça ou o veículo v apanhou há menos de GUERRA.montaria s (conserto espera)
+  emCombateGuerra(j, v = null) { const t = this.tempo, W = GUERRA.montaria; return t - (j.pvpT ?? -1e9) < W || (v?.danoT != null && t - v.danoT < W); },
   pararColetaGuerra(j) { if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null); },
 };

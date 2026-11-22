@@ -4574,7 +4574,7 @@
  "veiculos": {
   "carrinho": {
    "nome": "Carrinho de carga",
-   "vida": 400,
+   "vida": 2500,
    "vel": 2.8,
    "perdePorPack": 0.05,
    "packsLivres": 2,
@@ -4584,7 +4584,7 @@
    "curvaFechada": 1.6,
    "curvaK": 0.3,
    "galao": 160,
-   "tanque": 8,
+   "tanque": 50,
    "capacidade": 2,
    "nivelMax": 4,
    "melhorar": [
@@ -4709,6 +4709,14 @@
   },
   "navio": {
    "nome": "Navio mercante",
+   "vida": 6000,
+   "consertoQuebrado": {
+    "lenha": 30,
+    "barra_ferro": 4
+   },
+   "consertoParcial": {
+    "lenha": 10
+   },
    "vel": 4,
    "acelera": 0.9,
    "giro": 0.7,
