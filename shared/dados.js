@@ -1388,12 +1388,13 @@ export const CONJUNTO_CRITICO = [
   { 2: { vida: 35, mana: 35 }, 4: { critico: 0.035, danoK: 0.07, danoCritico: 12 }, 6: { critico: 0.035, danoK: 0.07, danoCritico: 22 } },
   { 2: { vida: 50, mana: 50 }, 4: { critico: 0.05, danoK: 0.1, danoCritico: 18 }, 6: { critico: 0.05, danoK: 0.1, danoCritico: 30 } },
 ];
-// Loja da Rosa (a comerciante): poções e as peças Comum e Rara (3x o que ela paga)
+// Loja da Rosa (a comerciante): poções e só as peças Comum (Rara em diante: leilão ou upgrade)
 // André 2026-11-16 (estudo da economia: tudo custava menos que poucos minutos de caça): poção 15 e 18 viram
 // preco + porNivel x nível de quem compra (precoLoja); peça Comum 60 -> 150 e Rara 240 -> 900.
 export const LOJA = [
   { k: 'pocao', preco: 20, porNivel: 2 }, { k: 'pocao_mana', preco: 24, porNivel: 2.4 },
-  ...['chapeu', 'peitoral', 'calca', 'short', 'botas', 'capa', 'colar', 'espada', 'cajado'].flatMap((k) => [{ k, r: 0, preco: 150 }, { k, r: 1, preco: 900 }]),
+  ...['chapeu', 'peitoral', 'calca', 'short', 'botas', 'capa', 'colar', 'espada', 'cajado'].flatMap((k) => [{ k, r: 0, preco: 150 }]),
+  // André 2026-11-22 (remoção aprovada): NPC só vende equipamento Comum; Rara em diante vem de outro jogador (leilão) ou de upgrade.
 ];
 // preço de um item da loja para quem está no nível nv (antes do desconto do Mercador)
 export const precoLoja = (o, nv = 1) => Math.round((o?.preco || 0) + (o?.porNivel || 0) * Math.max(1, nv | 0));

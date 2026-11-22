@@ -1634,19 +1634,9 @@
    "preco": 150
   },
   {
-   "k": "chapeu",
-   "r": 1,
-   "preco": 900
-  },
-  {
    "k": "peitoral",
    "r": 0,
    "preco": 150
-  },
-  {
-   "k": "peitoral",
-   "r": 1,
-   "preco": 900
   },
   {
    "k": "calca",
@@ -1654,19 +1644,9 @@
    "preco": 150
   },
   {
-   "k": "calca",
-   "r": 1,
-   "preco": 900
-  },
-  {
    "k": "short",
    "r": 0,
    "preco": 150
-  },
-  {
-   "k": "short",
-   "r": 1,
-   "preco": 900
   },
   {
    "k": "botas",
@@ -1674,19 +1654,9 @@
    "preco": 150
   },
   {
-   "k": "botas",
-   "r": 1,
-   "preco": 900
-  },
-  {
    "k": "capa",
    "r": 0,
    "preco": 150
-  },
-  {
-   "k": "capa",
-   "r": 1,
-   "preco": 900
   },
   {
    "k": "colar",
@@ -1694,29 +1664,14 @@
    "preco": 150
   },
   {
-   "k": "colar",
-   "r": 1,
-   "preco": 900
-  },
-  {
    "k": "espada",
    "r": 0,
    "preco": 150
   },
   {
-   "k": "espada",
-   "r": 1,
-   "preco": 900
-  },
-  {
    "k": "cajado",
    "r": 0,
    "preco": 150
-  },
-  {
-   "k": "cajado",
-   "r": 1,
-   "preco": 900
   },
   {
    "k": "semente_rabanete",
