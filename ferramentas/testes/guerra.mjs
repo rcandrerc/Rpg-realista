@@ -1,5 +1,5 @@
 // Chama x Geada (André 2026-11-18, fase 1): a Geada (Kira, Rufo, Lis) mora no Juncal, a mesma raça não se ataca, a outra
-// raça sim fora da zona segura e acima da Trégua (Nv 30); morte de guerra só desgasta; falas por peças com memória.
+// raça sim fora da zona segura e acima da Trégua (Nv 30); morte de guerra não tira XP nem desgasta (2026-11-22); falas por peças com memória.
 // Uso: node ferramentas/testes/guerra.mjs
 import { Simulacao, MAPA_CLAREIRA, GUERRA, RIVAIS, FALAS_GUERRA, TOTENS, RACAS } from '../../shared/index.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
@@ -36,7 +36,7 @@ const v1 = d.vida; s.ferir(d, 50, kira); ok(d.vida === v1, 'na Trégua o golpe n
 nivel(d, 40); d.prog.xp = 1000; d.prog.equip.corpo = { k: 'peitoral', r: 1 }; s.guerraT = 0; s.passo(0.05);
 const ev0 = s.eventos.length;
 s.ferir(d, 1e6, kira);
-ok(d.morto && d.prog.xp === 1000 && d.prog.equip.corpo.d < 100, `morte de guerra: XP igual (${d.prog.xp}), equipamento desgastou (${d.prog.equip.corpo.d})`);
+ok(d.morto && d.prog.xp === 1000 && (d.prog.equip.corpo.d ?? 100) === 100, `morte de guerra: XP igual (${d.prog.xp}), equipamento não desgasta (André 2026-11-22) (${d.prog.equip.corpo.d})`);
 const mem = kira.guerraMem[d.conta || d.nome || d.id];
 ok(mem && mem.v === 1 && !(mem.poupa > Date.now()), 'a Kira lembra que derrubou, sem trégua depois (André 2026-11-21: quem fica ali é caçado)');
 ok(s.eventos.slice(ev0).some((e) => e.t === 'chat' && e.canal === 'local' && e.c === 'a:kira'), 'a Kira fala (no Local) quando derruba');
@@ -50,7 +50,7 @@ for (let i = 0; i < 20 * 3; i++) { d.entrada = { mx: 0, mz: 0 }; s.passo(0.05); 
 ok(rufo.ia.guerra?.alvo === d.id, 'o Rufo parte para cima do André');
 ok(d.vida < d.vidaMax || Math.hypot(rufo.x - d.x, rufo.z - d.z) < (rufo.modo === 'Magia' ? 9 : 3), 'e chega ou bate (de espada colado; de cajado a até 9 m)');
 // André entra na zona segura (totem): o Rufo larga
-const T = TOTENS.lista.find((t) => t.id === 'juncos'); por(d, T.x + 5, T.z); por(rufo, T.x + 30, T.z);
+const T = TOTENS.lista.find((t) => t.id === 'juncos'); por(d, T.x + 3, T.z); por(rufo, T.x + 30, T.z);
 for (let i = 0; i < 20 * 2; i++) s.passo(0.05);
 ok(!d.guerra && rufo.ia.guerra?.alvo !== d.id, 'no totem o André fica em paz');
 // falas: peças, placeholders, sem repetir
