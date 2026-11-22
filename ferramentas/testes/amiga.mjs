@@ -15,7 +15,7 @@ s.adicionarJogador('andre', 'André', 'ruiva', {});
 s.adicionarJogador('outro', 'Outro', 'ruiva', {});
 s.amigaEntrar('andre');
 const a = s.amiga, L = s.loteDaAmiga();
-ok(a && a.bot && L && L.dono === AMIGA.conta, `ela entrou com terreno ${L?.def.x0},${L?.def.z0} a ${L?.def.x1},${L?.def.z1}`);
+ok(a && a.bot && !L, 'ela entrou sem casa na vila (André 2026-11-22: a casa dela fica no lote da base do clã)');
 ok(s.eventos.some((e) => e.t === 'amiga' && e.para === 'andre'), 'só o dono recebe o aviso de quem ela é');
 for (let i = 0; i < 20 * 900; i++) s.passo(0.05);
 ok(L.pecas.length === AMIGA.casa.length, `casa inteira: ${L.pecas.length} de ${AMIGA.casa.length} peças`);

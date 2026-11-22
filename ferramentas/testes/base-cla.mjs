@@ -156,3 +156,18 @@ ok(Object.values(bg.donos).length >= Math.min(bg.nv - 1, 3), 'os membros do clã
   ok(arv.every(([, x, z]) => !s4.pertoNaMata(x, z).some((a) => a.x === x && a.z === z)), 'e da batida');
   ok(s4.dadosBase(s4.basesCla.jteste).arvores.length === arv.length, 'o app recebe quais árvores saíram');
 }
+
+// as casas dos bots também saem (André 2026-11-22: "Não vai existir mais casa de bot nenhum"): o progresso fica e a casa
+// nasce no lote dele na base do clã bot
+{
+  const s5 = new Simulacao(MAPA_CLAREIRA);
+  const dario = s5.amigosIa.find((a) => a.AMIGA.id === 'dario'), ce = s5.amigosIa.find((a) => a.AMIGA.id === 'cecilia');
+  s5.lotes.set('tdario', { def: { id: 'tdario', nome: 'Terreno', x0: -30, z0: 60, x1: -20, z1: 70 }, dono: dario.AMIGA.conta, nomeDono: 'Dario', pecas: [], horta: {}, prox: 1, taxa: Date.now(), amiga: { prog: { nivel: 33 }, t: 1 } });
+  const n = s5.resetTerrenos();
+  ok(n === 1 && !s5.lotes.has('tdario') && s5.npcSalvos.get('dario')?.prog.nivel === 33, 'a casa do Dario na vila sai e o progresso dele fica');
+  s5.passoClasNpc(); s5.passoBasesNpc();
+  const Ld = dario.loteDaAmiga(), Lc = ce.loteDaAmiga(), bc5 = s5.basesCla.nchama;
+  ok(Ld?.def.baseK === bc5?.k && Ld.def.id.endsWith('_1'), 'o Dario (líder) ganha o lote 1 da base da Guarda da Chama');
+  ok(!Lc || Lc.def.baseK === bc5.k, 'a Cecília só tem casa no lote dela da base');
+  ok([...s5.lotes.values()].every((L) => !L.dono || L.def.baseK), 'nenhuma casa fora das bases');
+}

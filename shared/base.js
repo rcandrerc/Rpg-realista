@@ -335,16 +335,25 @@ export const Base = {
   // Cada terreno de jogador fora da base sai do mapa. O dono recebe o preço do terreno em ouro e as peças na mochila
   // (obra_ de cada uma) e o que estava na fornalha; o baú particular, o Baú do Clã e o nível do baú passam para o lote 1
   // da base dele quando ela existir (até lá ficam guardados). Quem está fora do jogo recebe ao entrar (tabela mundo
-  // 'devolucoes'). Os terrenos dos bots (Cecília, Dario) ficam como estão.
+  // 'devolucoes'). Os terrenos dos bots (Cecília, Dario) também saem (André 2026-11-22: "Não vai existir mais casa de bot
+  // nenhum... todo mundo vai ter uma base"): o progresso deles (L.amiga) vai para a tabela mundo e a casa nasce de novo
+  // no lote deles na base do clã bot.
   resetTerrenos() {
     const bots = new Set([...AMIGOS_VIRTUAIS, ...RIVAIS].map((d) => d.conta).filter(Boolean));
     let n = 0;
     for (const L of [...this.lotes.values()]) {
-      if (!L.dono || L.def.baseK || bots.has(L.dono) || /^[ar]:/.test(String(L.dono))) continue;
+      if (!L.dono || L.def.baseK) continue;
+      if (bots.has(L.dono) || /^[ar]:/.test(String(L.dono))) { this.soltarLoteBot(L); n++; continue; }
       this.devolverTerreno(L); n++;
     }
     if (n) this.refazerSolidosLotes();
     return n;
+  },
+  soltarLoteBot(L) {
+    const d = [...AMIGOS_VIRTUAIS, ...RIVAIS].find((o) => o.conta === L.dono);
+    if (d && L.amiga?.prog) { (this.npcSalvos ||= new Map()).set(d.id, L.amiga); (this.npcsMudados ||= new Set()).add(d.id); }
+    this.lotes.delete(L.def.id); this.lotesMudados.delete(L.def.id); this.lotesSoltos.add(L.def.id);
+    this.evento({ t: 'lote', lote: L.def.id, dono: null });
   },
   devolverTerreno(L) {
     const conta = L.dono, D = (this.devolucoes ||= {})[conta] ||= { ouro: 0, itens: [] };
@@ -407,6 +416,8 @@ export const Base = {
       const L = this.liderNpc?.(C);
       if (L && this.pagarBase(B, (v) => { if ((L.prog.ouro | 0) < v) return false; L.prog.ouro -= v; return true; })) mudou = true;
     }
+    // a casa da Cecília e do Dario no lote deles da base (cria o lote quando a base e o lugar dele existem)
     if (mudou) this.avisarBases();
+    for (const a of this.amigosIa || []) if (a.AMIGA.terreno && !a.loteDaAmiga()) a.loteDaAmiga(true);
   },
 };
