@@ -11,6 +11,19 @@ import { TUNEIS_MUNDO, VILAS_MUNDO, cargoNpc, iconeNpc, TITULOS, tituloAtivo, RA
 import { CALCADA } from '../../shared/vilas.js';
 import zlib from 'node:zlib';
 import { gerarLonge, copasDeFora, LONGE } from './longe.mjs';
+import { motivoBase, territorioDe } from '../../shared/base.js';
+// onde dá para fundar a base do clã (André 2026-11-22: "qd clicar criar base abre o mapa áreas q da pra por ficam meio
+// verdinha"): cada ponto de 8 em 8 m que passa em todas as regras de shared/base.js motivoBase, menos a distância das
+// bases que já existem (o app tira na hora) e a névoa (o app tira). ok = [x, z, t, ...], t: 0 Chama, 1 Geada, 2 livre.
+// Mudou uma regra em CLA.base: rode este arquivo de novo (o servidor confere de verdade ao fundar).
+function lugaresDeBase() {
+  const passo = 8, ok = [], T = { chama: 0, geada: 1, livre: 2 };
+  for (let x = -560; x <= 960; x += passo) for (let z = -520; z <= 1520; z += passo) {
+    const t = territorioDe(x, z); if (!t) continue;
+    if (!motivoBase(x, z, null, [])) ok.push(x, z, T[t]);
+  }
+  return { passo, ok };
+}
 import { gerarMascaraMundo } from './mascara_mundo.mjs';
 import { RAIZ } from '@rpg/shared';
 import { montarMundo, MUNDO, TERRAS, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO } from '../../shared/mundo.js';
@@ -112,7 +125,7 @@ const mundo = {
   // história v2, Entrega 3: as mini vilas do mundo grande (shared/vilas.js): casas, banca e enfeites que vilas_mundo.gd desenha
   // Aurora viva: a cidade de pedra branca (as peças vão junto com as casas; ruas e praça de calçada; acende: a missão
   // que acende as janelas, as torres e a Chama de Aethra). Rio Claro (2026-11-16): chão de tijolo (rio_chao) e rua mais larga
-  claBase: { pegada: CLA.base.pegada, bauPerto: CLA.base.bauPerto, lote: CLA.base.lote, lugares: CLA.base.lugares, centroMax: CLA.base.niveis[CLA.base.niveis.length - 1].centro }, // base do clã (shared/base.js): o app só precisa disto
+  claBase: { pegada: CLA.base.pegada, bauPerto: CLA.base.bauPerto, lote: CLA.base.lote, lugares: CLA.base.lugares, centroMax: CLA.base.niveis[CLA.base.niveis.length - 1].centro, distMin: CLA.base.distMin, ...lugaresDeBase() }, // base do clã (shared/base.js): o app só precisa disto
   vilasMundo: VILAS_MUNDO.map((V) => ({ id: V.id, nome: V.nome, nivel: V.nivel, x: V.x, z: V.z, raio: V.raio, casas: V.casas, banca: V.banca, enfeites: V.enfeites,
     ...(V.cidade ? { cidade: { acende: V.cidade.acende, chao: V.cidade.chao || 'aurora_chao', praca: V.praca, ruas: V.ruas, largura: V.cidade.largura || CALCADA.largura, sobe: CALCADA.sobe, sobePraca: CALCADA.sobePraca } } : {}) })),
   cais: MAPA_CLAREIRA.cais || [], // FASE 3, Parte 7b: cais de madeira dos portos (andar.gd anda por cima; mundo_terreno.gd desenha)

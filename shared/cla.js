@@ -174,8 +174,8 @@ export const Cla = {
       this.baseDoClaMudou(j); // a base cresce junto (shared/base.js)
       return this.avisarProg(j);
     }
-    if (m.acao === 'base') return this.fundarBase(j, aviso); // funda a base do clã onde o líder está (shared/base.js)
-    if (m.acao === 'baseVer') return this.verLugarBase(j); // a prévia da base (André 2026-11-22: "pode escolher exatamente onde")
+    if (m.acao === 'base') return this.fundarBase(j, aviso, m.x != null ? { x: m.x, z: m.z } : null); // funda a base do clã onde o líder está (shared/base.js)
+    if (m.acao === 'baseVer') return this.verLugarBase(j, m.x != null ? { x: m.x, z: m.z } : null); // a prévia da base (André 2026-11-22: "pode escolher exatamente onde")
     if (m.acao === 'ver') return this.avisarProg(j);
   },
   // ---------- nível do clã (André 2026-11-22) ----------

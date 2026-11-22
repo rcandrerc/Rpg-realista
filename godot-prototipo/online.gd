@@ -1157,6 +1157,8 @@ func evento(ev: Dictionary) -> void:
 		"baseVer": # a prévia de escolher o lugar da base: pode ou não aqui (shared/base.js verLugarBase)
 			if m.base_cla:
 				m.base_cla.ver_resposta(ev)
+			if m.minimapa:
+				m.minimapa.base_resposta(ev)
 		"bases": # bases dos clãs (shared/base.js): todas, já desenhadas
 			if m.base_cla:
 				m.base_cla.do_servidor(ev)
