@@ -295,7 +295,7 @@ const chaveItem = (it) => JSON.stringify({ ...it, n: undefined });
 function itemDaChave(chave, n) { const it = JSON.parse(chave); return ehEquip(it.k) ? it : { ...it, n }; }
 
 // o que a morte custou, para o aviso de quando levanta (MORTE)
-export const textoPenalidade = (pen) => (pen.ouro ? `. Perdeu ${pen.ouro} de ouro` : '') + (pen.xp ? `. Perdeu ${pen.xp} de XP` : '') + '. O equipamento desgastou'
+export const textoPenalidade = (pen) => (pen.ouro ? `. Perdeu ${pen.ouro} de ouro` : '') + (pen.xp ? `. Perdeu ${pen.xp} de XP` : '') + (pen.semDesgaste ? '. Morte na guerra: o equipamento não desgasta' : '. O equipamento desgastou')
   + (pen.quebrou.length ? `; quebrou: ${pen.quebrou.join(', ')} (o Tomás conserta)` : '');
 
 // FASE 3, Parte 7b: em cima de um cais de madeira (mapa.cais) também se anda, mesmo por cima do mar
@@ -4088,7 +4088,7 @@ export class Simulacao {
       // penalidade (André 2026-11-05, MORTE em shared/dados.js): perde XP (o ouro não, André 2026-11-18) e o equipamento desgasta
       // Chama x Geada (André 2026-11-18): morte de guerra (golpe da outra raça nos últimos GUERRA.marca s) só desgasta
       const matou = c.pvpDe && this.tempo - (c.pvpT ?? -1e9) <= GUERRA.marca ? this.jogadores.get(c.pvpDe) : null;
-      const pen = penalidadeMorte(c.prog, { semXp: !!matou });
+      const pen = penalidadeMorte(c.prog, { semXp: !!matou, semDesgaste: !!matou }); // André 2026-11-22: guerra não desgasta o equipamento
       if (matou && de === matou) this.morteGuerra(c, matou); // anúncio e memória do NPC só quando foi ele que derrubou (revisão 2026-11-19); o XP segue a regra dos 15 s
       c.pvpDe = null; c.progSujo = true; if (pen?.ouro) this.caixa(c, 'morte', -pen.ouro);
       this.aplicarStatus(c); this.avisarProg(c);

@@ -339,13 +339,16 @@ export function consertarPecas(p, lista, desconto = 0) {
 }
 // caiu: perde XP (ouro só se MORTE.ouro > 0; 0 desde André 2026-11-18) e cada peça do corpo desgasta. Devolve { ouro, quebrou: [nomes das que chegaram a 0] }
 // semXp: morte na guerra Chama x Geada (André 2026-11-18): só o desgaste, o XP fica
-export function penalidadeMorte(p, { semXp = false } = {}) {
+// semDesgaste: morte na guerra também não desgasta (André 2026-11-22: "no PvP o equipamento não deveria quebrar, senão
+// vai sair muito caro"); morte para monstro segue igual
+export function penalidadeMorte(p, { semXp = false, semDesgaste = false } = {}) {
   const ouro = semXp ? 0 : Math.floor((p.ouro || 0) * MORTE.ouro);
   p.ouro = (p.ouro || 0) - ouro;
   // André 2026-11-11: "5% da XP atual, do nível atual": só do que já juntou neste nível, então nunca desce de nível
   const xp = semXp ? 0 : Math.floor(Math.max(0, p.xp || 0) * (MORTE.xp || 0));
   p.xp = Math.max(0, (p.xp || 0) - xp);
   const quebrou = [];
+  if (semDesgaste) return { ouro, xp, quebrou, semDesgaste: true };
   for (const l of LUGARES) {
     const it = p.equip?.[l]; if (!it || !ehEquip(it.k)) continue;
     const antes = durab(it);
