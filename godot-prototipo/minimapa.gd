@@ -36,6 +36,8 @@ var mapa_hoje: TextureRect # o desenho de hoje no mapa completo, no quadrado del
 var mini: Control
 var mapa_mini: TextureRect
 var marcas: Control
+var zona: Control # Chama x Geada (André 2026-11-22): bandeirinhas cruzadas na zona segura, espadas cruzadas na zona de guerra
+var zona_guerra := -1 # o que está desenhado agora: -1 escondido, 0 seguro, 1 guerra
 var grande: Control
 var mapa_grande: TextureRect
 var marcas_grande: Control # lista da direita (Lugares) e a legenda
@@ -279,6 +281,13 @@ void fragment() {
 	marcas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	marcas.draw.connect(_desenhar_mini)
 	mini.add_child(marcas)
+	zona = Control.new()
+	zona.size = Vector2(34, 34)
+	zona.position = Vector2(RAIO, RAIO) + Vector2(-1, 1).normalized() * RAIO - Vector2(17, 17) # na moldura, embaixo à esquerda
+	zona.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	zona.visible = false
+	zona.draw.connect(_desenhar_zona)
+	mini.add_child(zona)
 	# mapa completo (tela inteira)
 	grande = Control.new()
 	grande.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1008,6 +1017,12 @@ func _process_parte(_dt: float) -> void:
 		(mapa_mini.material as ShaderMaterial).set_shader_parameter("alcance", Vector2.ONE * ALCANCE * 2.0 / mundo_r.size)
 		if Engine.get_process_frames() % 3 == 0: # FPS (auditoria 2026-11-11): marcas do minimapa 20 vezes por segundo
 			marcas.queue_redraw()
+		var on = m.online
+		var g := (1 if on.eu_guerra else 0) if on != null and on.ligado else -1
+		if g != zona_guerra:
+			zona_guerra = g
+			zona.visible = g >= 0
+			zona.queue_redraw()
 	if aberto and not _em_3d():
 		var dt: float = get_process_delta_time()
 		var a: float = 1.0 - exp(-12.0 * dt) # zoom dos botões e ida até o lugar da lista, suave
@@ -1076,6 +1091,33 @@ func _marca_boss(c: Control, pos: Vector2, cc: Dictionary, r: float, com_texto: 
 		c.draw_line(pos + Vector2(a * 0.55 * sgn, a * 0.35), pos + Vector2(a * 0.95 * sgn, a * 0.05), Color(1, 0.95, 0.85), max(1.5, r * 0.16))
 	if com_texto and not vivo:
 		_texto(c, pos + Vector2(0, r * 1.9), m.boss_mundo.volta_texto(id), int(max(11.0, r * 1.15)), Color(0.92, 0.9, 0.86), true, 2)
+
+# selo da zona (Chama x Geada): fundo redondo com borda; seguro = duas bandeirinhas cruzadas (verde),
+# guerra = duas espadas cruzadas (vermelho). Quem está na Trégua (Nv 30 ou menos) está sempre seguro.
+func _desenhar_zona() -> void:
+	var c := zona
+	var o := c.size * 0.5
+	var guerra := zona_guerra == 1
+	c.draw_circle(o, 16.0, Color(0.05, 0.05, 0.06, 0.85))
+	c.draw_arc(o, 15.5, 0.0, TAU, 32, Color("c94a3a") if guerra else Color("6fbf5a"), 2.0, true)
+	for lado in [-1.0, 1.0]:
+		var base := o + Vector2(lado * 7.0, 9.0) # cabo/mastro embaixo, de um lado
+		var ponta := o + Vector2(-lado * 7.0, -9.0) # cruza no meio e sobe para o outro lado
+		var dir := (ponta - base).normalized()
+		var n := Vector2(-dir.y, dir.x)
+		if guerra:
+			var guarda := base + dir * 5.0
+			c.draw_line(base, guarda, Color("6b4a2b"), 2.5, true) # cabo
+			c.draw_circle(base, 1.6, Color("d9b45a")) # pomo
+			c.draw_line(guarda - n * 4.0, guarda + n * 4.0, Color("d9b45a"), 2.0, true) # guarda
+			c.draw_colored_polygon(PackedVector2Array([guarda - n * 1.6, guarda + n * 1.6, ponta + n * 0.4 - dir * 2.5, ponta, ponta - n * 0.4 - dir * 2.5]), Color("dfe6ee")) # lâmina
+		else:
+			c.draw_line(base, ponta, Color("8a6a44"), 1.8, true) # mastro
+			var pano := Color("6fbf5a") if lado < 0 else Color("e8e2cc")
+			var a := ponta - dir * 1.0
+			var b := ponta - dir * 7.0
+			var bico := (a + b) * 0.5 + Vector2(-lado, 0.0) * 8.0
+			c.draw_colored_polygon(PackedVector2Array([a, bico, b]), pano)
 
 func _desenhar_mini() -> void:
 	var c := marcas

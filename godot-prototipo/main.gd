@@ -2384,6 +2384,11 @@ func mais_perto(pos: Vector3, max_d: float, visao := false):
 	var ar = (arena_pvp.alvo(pos, md, func(p: Vector3): return visao_livre(pos, p)) if visao else arena_pvp.alvo(pos, md)) if arena_pvp else null # Arena PvP (arena_pvp.gd): o mais perto do outro time
 	if ar != null:
 		melhor = ar
+		md = ar.no.position.distance_to(pos)
+	# Chama x Geada: o mais perto da outra raça na zona de guerra também é alvo (online.gd alvo_guerra)
+	var gu = (online.alvo_guerra(pos, md, func(p: Vector3): return visao_livre(pos, p)) if visao else online.alvo_guerra(pos, md)) if online and online.ligado else null
+	if gu != null:
+		melhor = gu
 	return melhor
 
 # hab: a skill que acertou (crítico pela Destreza e efeitos: atordoa, congela, lento, vulnerável), como Simulacao.ferir

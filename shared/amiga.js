@@ -203,6 +203,9 @@ export const Amiga = {
         const n = Math.max(1, Math.min(this.AMIGA.nivelInicial, this.AMIGA.rival ? Infinity : this.nivelTetoNpc ?? Infinity)); // a Geada começa acima da Trégua
         j.prog.pontos += (n - j.prog.nivel) * PONTOS_POR_NIVEL; j.prog.nivel = n; j.prog.xp = 0; j.prog.ouro += 25 * n;
       }
+      // a Geada (rival) nunca fica abaixo do nível com que foi criada (André 2026-11-22: o Gael veio do save de aventureiro no
+      // Nv 20, preso ao teto do servidor; o nível dele é o 44 da lista)
+      if (this.AMIGA.rival && (j.prog.nivel | 0) < this.AMIGA.nivelInicial) { const n = this.AMIGA.nivelInicial; j.prog.pontos += (n - j.prog.nivel) * PONTOS_POR_NIVEL; j.prog.nivel = n; j.prog.xp = 0; }
       if (!j.prog.equip.cajado) j.prog.equip.cajado = { k: 'cajado', r: this.AMIGA.justa.raridade }; // espada E cajado, como todo herói
       for (const b of ['espada', 'cajado']) j.prog.barras[b] = barraValida(CEREBRO.barras[b], b) || j.prog.barras[b]; // as skills novas, como o jogador
       const ferr = this.AMIGA.atividades?.[this.AMIGA.gosto]?.ferramenta; // quem gosta de pescar/minerar/lenha já tem a ferramenta

@@ -4855,7 +4855,7 @@ export class Simulacao {
         pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])), ...(j.bot ? { bot: 1 } : {}),
-        ...(this.racaDe(j) !== RACA_PADRAO ? { raca: this.racaDe(j) } : {}), ...(j.guerra ? { guerra: 1 } : {}) })), // Chama x Geada: a raça (só quem não é da Chama) e se está na zona de guerra // bot: a Cecília (só o dono conversa)
+        ...(this.racaDe(j) !== RACA_PADRAO ? { raca: this.racaDe(j) } : {}), guerra: j.guerra ? 1 : 0, prot: this.protegido(j) ? 1 : 0 })), // guerra/prot sempre (0 ou 1): a foto por área de interesse só manda o que mudou, e o app mira na outra raça por eles (André 2026-11-22) // Chama x Geada: a raça (só quem não é da Chama) e se está na zona de guerra // bot: a Cecília (só o dono conversa)
       inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ...(e.hc ? { hc: e.hc, esc: e.esc, cor: e.cor } : {}), ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
       // veios das zonas de mineração e árvores já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
       veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),
