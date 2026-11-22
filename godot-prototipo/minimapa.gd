@@ -2086,9 +2086,9 @@ func _desenhar_base(c: Control, tam: Vector2, em: Callable) -> void:
 	sb.set_corner_radius_all(14)
 	var tr := Rect2(Vector2(tam.x * 0.5 - 300.0, 52.0), Vector2(600.0, 40.0))
 	sb.draw(c.get_canvas_item(), tr)
-	_texto(c, tr.position + Vector2(300.0, 26.0), "Base do clã: toque numa área verde para marcar o lugar", 17, Color(1, 0.95, 0.85), true, 3)
+	_texto(c, tr.position + Vector2(300.0, 26.0), "Verde = onde pode ficar o MEIO da base (a base inteira já cabe). Toque para marcar", 17, Color(1, 0.95, 0.85), true, 3)
 	botao_fundar = Rect2()
-	botao_cancelar = Rect2(Vector2(tam.x * 0.5 - 300.0, tam.y - 136.0), Vector2(160.0, 50.0))
+	botao_cancelar = Rect2(Vector2(tam.x * 0.5 - 210.0, 140.0), Vector2(200.0, 50.0)) # em cima, longe da legenda e do zoom
 	_botao_mapa(c, botao_cancelar, "Cancelar", Color(1, 0.8, 0.75), Color(0.14, 0.07, 0.06, 0.95))
 	if base_alvo == null:
 		return
@@ -2114,7 +2114,7 @@ func _desenhar_base(c: Control, tam: Vector2, em: Callable) -> void:
 	sb.draw(c.get_canvas_item(), tb)
 	_texto(c, tb.position + Vector2(300.0, 23.0), txt, 15, cor, true, 3)
 	if certo and base_ok:
-		botao_fundar = Rect2(Vector2(tam.x * 0.5 + 100.0, tam.y - 136.0), Vector2(200.0, 50.0))
+		botao_fundar = Rect2(Vector2(tam.x * 0.5 + 10.0, 140.0), Vector2(200.0, 50.0))
 		_botao_mapa(c, botao_fundar, "Mudar para cá" if base_mudar else "Fundar aqui", Color("9fffb0"), Color(0.05, 0.14, 0.07, 0.95))
 
 func _botao_mapa(c: Control, r: Rect2, t: String, cor: Color, fundo: Color) -> void:

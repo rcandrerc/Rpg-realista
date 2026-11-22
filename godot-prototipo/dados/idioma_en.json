@@ -4271,5 +4271,7 @@
 "Mudar a base de lugar (%d de ouro)": "Move the base ({1} gold)",
 "Pode mudar a base de novo em %s.": "You can move the base again in {1}.",
 "Mudar para cá": "Move here",
-"Baú do Clã": "Clan Chest"
+"Baú do Clã": "Clan Chest",
+"Verde = onde pode ficar o MEIO da base (a base inteira já cabe). Toque para marcar": "Green = where the CENTER of the base can go (the whole base already fits). Tap to mark",
+"Aqui é a base de um clã: só dá para plantar no seu lote": "This is a clan base: you can only plant on your own plot"
 }
