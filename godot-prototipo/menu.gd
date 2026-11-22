@@ -1784,22 +1784,16 @@ func montar_cla() -> void:
 		lc.add_child(botao("+%d" % int(v), func(): m.rede("cla", {"acao": "depositar", "ouro": int(v)}), 14))
 	lc.add_child(botao("Sacar 100", func(): m.rede("cla", {"acao": "sacar", "ouro": 100}), 14))
 	conteudo.add_child(lc)
-	# membros
+	# membros (André 2026-11-22: "apareça eu no painel... nível Hp mana e vigor... determinar funções")
 	conteudo.add_child(rotulo("Membros", 17, OURO_CLARO))
 	var ms: Array = C.get("m", [])
+	if C.has("eu"):
+		conteudo.add_child(_cartao_cla(C.eu, "Líder · Nv %d" % int(C.eu.get("nv", 1)), null, ms, C))
 	if ms.is_empty():
 		conteudo.add_child(rotulo("Nenhum recruta ainda.", 13, APAGADO))
 	for r in ms:
-		var lm := HBoxContainer.new()
-		lm.add_theme_constant_override("separation", 8)
-		var info := rotulo("%s · %s Nv %d · %d/semana%s" % [str(r.nome), str(r.tier), int(r.nv), int(r.sem), "" if int(r.get("on", 0)) == 1 else " · fora"], 14, TEXTO)
-		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lm.add_child(info)
-		if r.has("dev"):
-			lm.add_child(rotulo("sem pagamento", 12, Color(1.0, 0.55, 0.45)))
-		var rid := str(r.id)
-		lm.add_child(botao("Dispensar", func(): m.rede("cla", {"acao": "dispensar", "id": rid}), 13))
-		conteudo.add_child(lm)
+		conteudo.add_child(_cartao_cla(r, "%s Nv %d · %d/semana" % [str(r.tier), int(r.nv), int(r.sem)], r, ms, C))
+	_cla_vivo()
 	# recursos nas bolsas dos recrutas
 	var rec: Dictionary = C.get("rec", {})
 	if not rec.is_empty():
@@ -1832,6 +1826,96 @@ func montar_cla() -> void:
 		for L in log:
 			var v := int(L.get("v", 0))
 			conteudo.add_child(rotulo("%s%s" % [str(L.txt), "" if v == 0 else " (%+d)" % v], 12, VERDE_DIARIA if v > 0 else (Color(1.0, 0.7, 0.6) if v < 0 else APAGADO)))
+
+# cartão de um membro do clã: nome, barras de HP, mana e vigor, o que está fazendo e a função (recruta)
+func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Control:
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", caixa(FUNDO2, OURO.darkened(0.35), 1, 10))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	card.add_child(v)
+	var on := r == null or int(r.get("on", 0)) == 1
+	var topo := HBoxContainer.new()
+	topo.add_theme_constant_override("separation", 8)
+	var nome := rotulo(str(d.get("nome", "")) + ("" if r != null else " (você)"), 16, OURO_CLARO)
+	nome.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	topo.add_child(nome)
+	topo.add_child(rotulo(sub, 12, TEXTO))
+	v.add_child(topo)
+	if on and d.has("hpM"):
+		for b in [["HP", "hp", "hpM", Color(0.8, 0.25, 0.22)], ["Mana", "mp", "mpM", Color(0.3, 0.5, 0.9)], ["Vigor", "vg", "vgM", Color(0.85, 0.7, 0.25)]]:
+			var lb := HBoxContainer.new()
+			lb.add_theme_constant_override("separation", 6)
+			var t := rotulo(b[0], 12, APAGADO)
+			t.custom_minimum_size = Vector2(46, 0)
+			lb.add_child(t)
+			var mx := maxf(1.0, float(d.get(b[2], 1)))
+			var barra := barra_prog(float(d.get(b[1], 0)) / mx, b[3], 10.0)
+			barra.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			lb.add_child(barra)
+			var n := rotulo("%d/%d" % [int(d.get(b[1], 0)), int(mx)], 12, TEXTO)
+			n.custom_minimum_size = Vector2(70, 0)
+			lb.add_child(n)
+			v.add_child(lb)
+	elif not on:
+		v.add_child(rotulo("Fora do mundo", 12, APAGADO))
+	if r == null:
+		return card
+	if r.has("fz"):
+		v.add_child(rotulo("Agora: %s" % str(r.fz), 12, APAGADO.lightened(0.25)))
+	if r.has("dev"):
+		v.add_child(rotulo("Sem pagamento", 12, Color(1.0, 0.55, 0.45)))
+	var rid := str(r.id)
+	var fn: Dictionary = r.get("fn", {"k": "livre"})
+	var k := str(fn.get("k", "livre"))
+	var lf := HFlowContainer.new()
+	lf.add_theme_constant_override("h_separation", 6)
+	lf.add_theme_constant_override("v_separation", 6)
+	for F in C.get("funcoes", []):
+		var fid := str(F.id)
+		var pedido := {"k": fid}
+		if fid == "recurso":
+			pedido.r = str(fn.get("r", "ferro")) if k == "recurso" else "ferro"
+		elif fid == "proteger":
+			pedido.p = str(fn.get("p", "lider")) if k == "proteger" else "lider"
+		lf.add_child(botao(str(F.nome), func(): m.rede("cla", {"acao": "funcao", "id": rid, "fn": pedido}), 13, fid == k))
+	v.add_child(lf)
+	if k == "recurso":
+		var lr := HFlowContainer.new()
+		lr.add_theme_constant_override("h_separation", 6)
+		lr.add_theme_constant_override("v_separation", 6)
+		for R in C.get("recursos", []):
+			var rk := str(R.k)
+			lr.add_child(botao(str(R.nome).capitalize(), func(): m.rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "recurso", "r": rk}}), 12, rk == str(fn.get("r", ""))))
+		v.add_child(lr)
+	elif k == "proteger":
+		var lp := HFlowContainer.new()
+		lp.add_theme_constant_override("h_separation", 6)
+		lp.add_theme_constant_override("v_separation", 6)
+		var alvos := [["lider", "Você"]]
+		for o in ms:
+			if str(o.id) != rid:
+				alvos.append([str(o.id), str(o.nome)])
+		for A in alvos:
+			var pid: String = A[0]
+			lp.add_child(botao(A[1], func(): m.rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "proteger", "p": pid}}), 12, pid == str(fn.get("p", ""))))
+		v.add_child(lp)
+	var ld := HBoxContainer.new()
+	ld.alignment = BoxContainer.ALIGNMENT_END
+	ld.add_child(botao("Dispensar", func(): m.rede("cla", {"acao": "dispensar", "id": rid}), 12))
+	v.add_child(ld)
+	return card
+
+# com a aba Clã aberta, pede o painel de novo a cada 3 s (HP, mana e vigor andando)
+var _cla_timer := false
+func _cla_vivo() -> void:
+	if _cla_timer:
+		return
+	_cla_timer = true
+	get_tree().create_timer(3.0).timeout.connect(func():
+		_cla_timer = false
+		if aberto() and aba == "cla" and m.on():
+			m.rede("cla", {"acao": "ver"}))
 
 # Guilda dos Aventureiros (André 2026-11-18; regras em shared/guilda.js): o rank (F a SS), os pontos, a Prova e os
 # contratos do dia. Pega no mural ou com a Brenda (Rio Claro); "Ir" e "Receber" valem em qualquer lugar.
