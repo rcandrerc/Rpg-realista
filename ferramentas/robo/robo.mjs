@@ -265,7 +265,11 @@ function cacar(agora) {
     // ronda 2026-11-17: no Nv 47 (h11) o robô passou 2 turnos sem XP indo para o campo Nv 42, que está na névoa, e para o
     // covil da gruta. Só campo aberto e fora das grutas
     const bons = CACA.filter((c) => !c.boss && (c.nivel || 1) <= nv && (c.nivel || 1) >= nv - 6 && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && !(/\(Ilha/.test(c.nome || '') && !/\(Ilha/.test(campoCaca?.nome || '') && Math.hypot(eu.x - c.x, eu.z - c.z) > 120) && !(prog && zonaFechadaEm(prog, c.x, c.z))).sort((a, b) => d2(eu, a) - d2(eu, b));
-    campoCaca = bons[Math.floor(Math.random() * Math.min(3, bons.length))] || CACA[0]; campoT = agora;
+    // André 2026-11-22 ("vira e mexe vejo meu robô nível 60 grindando em mob nível 1"): no Nv 54+ não há campo do nível
+    // no continente (o mais forte é o Nv 48; os do Nv 52+ ficam na Ilha e em Aurora) e a lista vazia caía no CACA[0], o
+    // campo Nv 1. Agora, sem campo na faixa, vai ao mais forte aberto que ele alcança (mesma terra, sem covil nem boss)
+    const alcanca = CACA.filter((c) => !c.boss && (c.nivel || 1) <= nv && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && !(/\(Ilha|\(Aurora/.test(c.nome || '') && Math.hypot(eu.x - c.x, eu.z - c.z) > 120) && !(prog && zonaFechadaEm(prog, c.x, c.z))).sort((a, b) => (b.nivel || 1) - (a.nivel || 1));
+    campoCaca = bons[Math.floor(Math.random() * Math.min(3, bons.length))] || alcanca[Math.floor(Math.random() * Math.min(2, alcanca.length))] || CACA[0]; campoT = agora;
   }
   if (irPara(campoCaca.x + (Math.random() - 0.5) * 6, campoCaca.z + (Math.random() - 0.5) * 6, 4)) parar();
 }
