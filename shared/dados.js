@@ -3311,6 +3311,27 @@ export function defRecruta(m, lider, nomeCla, raca) {
     visual: f ? 'ruiva' : 'cabelo_m', aparencia: { ...m.ap }, terreno: null, nivelInicial: m.nv0, gosto: m.gosto,
     puxaAssunto: false, naoInsiste: true, recomeco: null, recomecoJogo: null,
     lider, recruta: true, cla: nomeCla, ...(raca && raca !== RACA_PADRAO ? { raca } : {}),
+    guerra: { coragem: 0.7, honra: 0.6, paciencia: 0.5 }, // soldado: defende o líder da outra raça (ronda e emboscada, não: fica com ele)
+  });
+}
+// ---------- Clãs bot (André 2026-11-22: "não gente solta... pode até ter 2, 3 clãs inimigos depois") ----------
+// Cada clã bot tem um líder (um dos bots de hoje), os membros fixos e cresce sozinho: o líder junta ouro e, a cada
+// CLAS_NPC_REGRAS.entre h, contrata um recruta do nível que o ouro dele paga (os mesmos CLA.tiers), até max. A semana sai
+// do ouro do líder; sem ouro, o recruta mais caro vai embora. Os recrutas são bots da raça do clã com jeito de guerra
+// (ronda, emboscada, atacam a outra raça a 25 m) e as falas de um membro (falas). Estado na tabela mundo ('clas_npc').
+export const CLAS_NPC_REGRAS = { entre: 6, primeiro: 0.5, max: 6, reserva: 300 }; // h reais entre contratações (a 1ª: primeiro h); ouro que o líder nunca gasta
+export const CLAS_NPC = [
+  { id: 'geada', n: 'Lobos da Geada', raca: 'geada', lider: 'gael', membros: ['kira', 'rufo', 'lis', 'gael'], falas: { f: 'kira', m: 'rufo' } },
+];
+export function defRecrutaNpc(m, C) {
+  const f = m.g !== 'm', h = [...m.id].reduce((x, c) => (x * 31 + c.charCodeAt(0)) >>> 0, 7), r = (k) => ((h >> k) % 100) / 100;
+  return mesclarAmigo(f ? AMIGA : DARIO, {
+    id: m.id, nome: m.nome, conta: 'r:' + m.id, papel: f ? `a soldada dos ${C.n}` : `o soldado dos ${C.n}`, genero: f ? 'f' : 'm',
+    persona: `${f ? 'uma soldada' : 'um soldado'} do clã ${C.n}: ${m.jeito}`, visual: f ? 'ruiva' : 'cabelo_m', aparencia: { ...m.ap },
+    raca: C.raca, rival: true, terreno: null, gosto: m.gosto, lar: RACAS[C.raca]?.casa, nivelInicial: m.nv0,
+    puxaAssunto: false, naoInsiste: false, seguivel: false, convida: false, recomeco: null, recomecoJogo: null,
+    recruta: true, clanpc: C.id, lider: 'npc:' + C.lider, cla: C.n, falas: C.falas[f ? 'f' : 'm'],
+    guerra: { coragem: 0.5 + r(1) * 0.45, honra: 0.2 + r(5) * 0.7, paciencia: 0.2 + r(9) * 0.7 },
   });
 }
 // Desculpas para sair quando a IA do dia acaba (André 2026-11-19: "50 desculpas para sair... engraçado e natural"; "algumas
