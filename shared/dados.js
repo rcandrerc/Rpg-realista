@@ -3748,13 +3748,15 @@ export const RACA_PADRAO = 'chama';
 // de novo a mesma pessoa. desisteVida: vida (0 a 1) em que ele larga a briga e foge. foge: s correndo para casa.
 // aviso: s mínimos entre dois avisos de "zona de guerra"/"zona segura" para o mesmo jogador.
 export const GUERRA = { radar: { mostra: 300, recarga: 1800, presente: 3 }, // Pó de rastreio (ITENS.rastreio): 5 min no mapa, 30 min de recarga, 3 de presente para a conta de teste do André
-  tregua: 30, totem: 25, campoAte: 0, campoFolga: 6, vilaFolga: 4, recheca: 0.5, ve: 40, persegue: 60, poupa: 0, marca: 15,
+  tregua: 30, totem: 5, campoAte: 0, campoFolga: 6, vilaFolga: 4, recheca: 0.5, ve: 40, persegue: 60, poupa: 0, marca: 15,
   ouvir: 26, falaEntre: 6, avistar: 120, desisteVida: 0.25, foge: 20, aviso: 20, lembrar: 30,
   // chat (André 2026-11-18): responder no Local (s de espera), conversa entre dois da mesma raça (a cada s, a até m, com
   // alguém de verdade perto), feito grande no Geral (no máximo um a cada s)
   resposta: [1.5, 3], dupla: [180, 360], duplaPerto: 10, feito: 600,
   semPontoQueda: 15, // voltou da queda longe de onde caiu: por s não fere a outra raça (Presidente 2026-11-19)
   // Regras novas do André (2026-11-21, "conflito no mapa"; mapa das zonas: /mnt/project-files/guerra-zonas/):
+  // - André 2026-11-22 (tarde): totem 25 → 5 m e mercador 12 → 8 m (o carrinho cabe e carrega a até carrinho.carregar 8 m) ("25 metros é praticamente a vila toda"; o totem é só pra não
+  //   renascer apanhando). Cais fica 30 m ("vai ter que ser um pouco maior porque o mercante é gigante")
   // - André 2026-11-22: vila deixou de ser zona segura (vilaFolga ficou sem uso). Seguro: nos totens (totem m), no terreno
   //   do próprio jogador, em volta
   //   de cada mercador de pack (mercador m: uns 3 ou 4 carrinhos abastecendo) e de cada cais de embarque (cais m: o navio
@@ -3768,7 +3770,7 @@ export const GUERRA = { radar: { mostra: 300, recarga: 1800, presente: 3 }, // P
   // - montaria: s sem poder montar depois de bater ou apanhar de alguém da outra raça; apanhar montado derruba do lobo.
   agro: 25, alerta: 25, alertaEntre: 30, protecao: 0, // protecao 0 (André 2026-11-22: "quero tirar a proteção de 2 minutos... renasce no totem ou vila, saiu já pode ser atacado")
   poupaFraco: false, vidaFoge: 0.3, inimigoFoge: 0.4, montaria: 10,
-  mercador: 12, cais: 30,
+  mercador: 8, cais: 30,
   // emboscada (André 2026-11-21): viagem com pack (costas, carrinho ou navio) fora da zona segura tem chance de cair numa
   // emboscada da outra raça, no máximo uma a cada entre s por jogador, depois de atraso s de viagem. Vêm quantos bots
   // (de longe m; no navio sobem a bordo). Batem no carrinho/navio (golpe por golpeEntre s); quebrou, os packs caem e

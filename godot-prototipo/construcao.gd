@@ -3118,16 +3118,25 @@ func tocou_tela(pos: Vector2) -> void:
 			_do_toque = false
 
 func _atualizar_mira() -> void:
+	if _area_a != null: # arrastando a área: o retângulo da prévia não pode ser apagado (mochila, servidor e quadro chamam daqui)
+		return
 	var p: Vector3 = mira
 	var L = lotes.get(meu)
 	if L == null and not na_area:
 		sair()
 		return
 	alvo = {"ok": false, "motivo": ""}
-	if na_area:
+	if na_area and sel != "cortar":
 		sel = "arvore"
 	if aba == "fazenda" or aba == "terreno" or sel == "desmontar":
 		_mostrar_fantasma("")
+	if sel == "cortar" and aba == "fazenda": # colher árvore: só por área (arrastar), a mira não marca nada
+		_destaque_em(null)
+		alvo = {"ok": false, "motivo": "Arraste sobre as árvores adultas que quer cortar · %d marcados · depois toque em Salvar" % (plano.quantos() if plano else 0)}
+		txt_motivo.text = Idioma.frase(alvo.motivo)
+		txt_motivo.add_theme_color_override("font_color", Color("b8f0a0"))
+		b_ok.disabled = true
+		return
 	if aba == "terreno":
 		# mudar o tamanho ou vender: o botão abre a tela de marcar ou a pergunta (não depende da mira)
 		_destaque_em(null)
@@ -3288,6 +3297,18 @@ func motivo_arvore(q: Vector2i, s: String, area: bool) -> String:
 		var ab: PackedStringArray = str(h).split(",")
 		if R.has_point(Vector2(float(ab[0]) + 0.5, float(ab[1]) + 0.5)):
 			return "Tem horta nesse quadrado"
+	return ""
+
+# por que não dá para cortar a árvore plantada id ('' = dá). Usado na seleção de área e no plano (fazenda_plano.gd)
+func motivo_cortar(id: String) -> String:
+	if m.plantio == null or not m.plantio.arvores.has(id):
+		return "Essa árvore já foi cortada"
+	var a: Dictionary = m.plantio.arvores[id]
+	if int(a.fase) < 2:
+		return "Ainda está crescendo: só corta adulta"
+	var C: Dictionary = m.P.dados.coleta.arvore
+	if m.P.vigor() < float(m.P.custo_vigor(str(C.prof), float(C.vigor))):
+		return "Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)"
 	return ""
 
 # por que a ação da fazenda não pode ser feita no quadrado (i, j) ('' = pode). Usado na mira e no plano (fazenda_plano.gd)
@@ -3518,11 +3539,17 @@ func _arrasto_area(pos: Vector2, fase_: int) -> void:
 		return
 	var R := _area_ret()
 	var n: int = int(R.size.x) * int(R.size.y)
-	var cor := Color(0.43, 1.0, 0.54, 0.35) if n <= AREA_MAX else Color(1, 0.35, 0.29, 0.35)
+	var cor := Color(0.43, 1.0, 0.54, 0.45) if n <= AREA_MAX else Color(1, 0.35, 0.29, 0.45)
 	var Qm := _area_lado()
 	var cx: float = (R.position.x + R.size.x / 2.0) * Qm
 	var cz: float = (R.position.y + R.size.y / 2.0) * Qm
-	_destaque_em(Vector3(cx, m.terreno.altura(cx, cz), cz), Vector3(R.size.x * Qm, 0.16, R.size.y * Qm), cor)
+	# a caixa da prévia fica acima do ponto mais alto da área (em ladeira ou terra arada ela sumia dentro do chão)
+	var topo: float = m.terreno.altura(cx, cz)
+	var x0: float = R.position.x * Qm
+	var z0: float = R.position.y * Qm
+	for pt in [Vector2(x0, z0), Vector2(x0 + R.size.x * Qm, z0), Vector2(x0, z0 + R.size.y * Qm), Vector2(x0 + R.size.x * Qm, z0 + R.size.y * Qm)]:
+		topo = maxf(topo, m.terreno.altura(pt.x, pt.y))
+	_destaque_em(Vector3(cx, topo, cz), Vector3(R.size.x * Qm, 0.3, R.size.y * Qm), cor)
 	txt_motivo.text = Idioma.frase("%d quadrados na área · solte para marcar" % n if n <= AREA_MAX else "Área grande demais (máximo %d quadrados)" % AREA_MAX)
 
 # retângulo em quadrados (posição e tamanho inteiros, no mínimo 1 x 1)
@@ -3530,6 +3557,57 @@ func _area_ret() -> Rect2i:
 	var x0: int = mini(_area_a.x, _area_b.x)
 	var z0: int = mini(_area_a.y, _area_b.y)
 	return Rect2i(x0, z0, absi(_area_a.x - _area_b.x) + 1, absi(_area_a.y - _area_b.y) + 1)
+
+# colher árvore por área: toda árvore plantada adulta com o tronco dentro do retângulo (mais 0,75 m de folga, para um toque
+# simples pegar a árvore do quadrado) entra no plano; árvore já marcada num toque simples é desmarcada
+func _aplicar_area_cortar(R: Rect2i, L) -> void:
+	if m.plantio == null:
+		return
+	var rf := Rect2(Vector2(R.position), Vector2(R.size)).grow(0.75)
+	var ids: Array = []
+	for id in m.plantio.arvores:
+		var o: Dictionary = m.plantio.arvores[id].o
+		if rf.has_point(Vector2(o.pos.x, o.pos.z)):
+			ids.append(str(id))
+	var tap: bool = R.size.x == 1 and R.size.y == 1
+	var novos := 0
+	var ja := 0
+	var fora := 0
+	var parou := ""
+	var ult := ""
+	for id in ids:
+		var o: Dictionary = m.plantio.arvores[id].o
+		var dados := {"acao": "cortar", "c": "c:" + id, "id": id, "x": o.pos.x, "z": o.pos.z}
+		if plano.marcado(dados):
+			if tap:
+				plano.alternar(dados)
+				return
+			ja += 1
+			continue
+		var mot := motivo_cortar(id)
+		if mot == "":
+			mot = plano.motivo_marcar(L if L != null else {}, dados, "")
+		if mot != "":
+			ult = mot
+			if mot.begins_with("Sem vigor"):
+				parou = mot
+				break
+			fora += 1
+			continue
+		plano.marcar(dados)
+		novos += 1
+	m.sons.tocar("passo", -10.0)
+	if ids.is_empty():
+		m.hud.aviso("Nenhuma árvore plantada nessa área")
+		return
+	var txt := "%d árvores marcadas" % novos
+	if ja > 0:
+		txt += " (%d já estavam)" % ja
+	if parou != "":
+		txt += " · parou: " + parou
+	elif fora > 0:
+		txt += " · %d de fora: %s" % [fora, ult.to_lower()]
+	m.hud.aviso(txt)
 
 func _aplicar_area() -> void:
 	var R := _area_ret()
@@ -3539,6 +3617,9 @@ func _aplicar_area() -> void:
 	var L = lotes.get(meu)
 	if L == null:
 		L = {}
+	if sel == "cortar":
+		_aplicar_area_cortar(R, L)
+		return
 	if R.size.x == 1 and R.size.y == 1: # toque simples: marca ou desmarca um quadrado, como antes
 		var d1: Dictionary
 		var mot1 := ""
@@ -5118,7 +5199,7 @@ func _nome_slot(k: String) -> String:
 	if D.construcoes.has(k): # nome comprido ("Fundação de pedra"): só a primeira palavra cabe no quadrado
 		var nome := str(D.construcoes[k].nome)
 		return nome.split(" ")[0] if nome.length() > 11 else nome
-	return {"desmontar": "Desmontar", "arar": "Arar", "regar": "Regar", "colher": "Colher", "tirar": "Desfazer", "mudar": "Tamanho", "vender": "Vender"}.get(k, "")
+	return {"desmontar": "Desmontar", "arar": "Arar", "regar": "Regar", "colher": "Colher", "cortar": "Cortar", "tirar": "Desfazer", "mudar": "Tamanho", "vender": "Vender"}.get(k, "")
 
 # quantas peças dá para fazer com o que tenho na mochila
 func _quantas(custo: Dictionary) -> int:
@@ -5145,7 +5226,10 @@ func _montar_itens() -> void:
 			if n_a > 0 or arvore == k:
 				alguma = true
 				linha_itens.add_child(_slot("arvore:" + k, "it_semente_" + k, str(n_a), arvore == k, n_a > 0, Color(str(TA[k].get("copa", "#7aa04a"))).lightened(0.15)))
-		if alguma:
+		linha_itens.add_child(_slot("cortar", "it_lenha", "", sel == "cortar", true))
+		if sel == "cortar":
+			nome = "Colher árvore: arraste sobre as árvores adultas que você plantou"
+		elif alguma:
 			nome = "Plantar %s (%d sementes · a Rosa vende)" % [str(TA.get(arvore, {}).get("nome", "")).to_lower(), m.P.contar("semente_" + arvore)]
 		else:
 			nome = "Sem semente de árvore (a Rosa vende)"
@@ -5197,8 +5281,9 @@ func _montar_itens() -> void:
 					linha_itens.add_child(_slot("arvore:" + k, "it_semente_" + k, str(n_a), sel == "arvore" and arvore == k, n_a > 0, Color(str(TA[k].get("copa", "#7aa04a"))).lightened(0.15)))
 		linha_itens.add_child(_slot("regar", "cs_regar", "", sel == "regar", m.P.contar("regador") > 0))
 		linha_itens.add_child(_slot("colher", "it_colheita", "", sel == "colher", true))
+		linha_itens.add_child(_slot("cortar", "it_lenha", "", sel == "cortar", true))
 		linha_itens.add_child(_slot("tirar", "desfazer", "", sel == "tirar", true))
-		nome = {"arar": "Arar a terra", "regar": "Regar (a terra fica molhada %d h)" % int(D.horta.rega), "colher": "Colher", "tirar": "Desfazer a terra arada"}.get(sel, "")
+		nome = {"arar": "Arar a terra", "regar": "Regar (a terra fica molhada %d h)" % int(D.horta.rega), "colher": "Colher", "cortar": "Colher árvore: arraste sobre as árvores adultas que você plantou", "tirar": "Desfazer a terra arada"}.get(sel, "")
 		if sel == "plantar":
 			nome = "Plantar %s (%d sementes · a Rosa vende)" % [str(D.plantas[semente].nome).to_lower(), m.P.contar("semente_" + semente)]
 		elif sel == "arvore" and m.plantio:

@@ -14,7 +14,7 @@ const C = RACAS.geada.casa;
 ok([kira, rufo, lis].every((o) => Math.hypot(o.x - C.x, o.z - C.z) < 20), 'aparecem no Juncal');
 ok(!s.eventos.some((e) => e.t === 'amiga' && ['kira', 'rufo', 'lis'].includes(e.id)), 'não viram amigo virtual (nada de evento "amiga")');
 // zona segura
-ok(s.zonaSeguraGuerra(TOTENS.lista[1].x + 20, TOTENS.lista[1].z), 'totem: 20 m é seguro');
+ok(s.zonaSeguraGuerra(TOTENS.lista[1].x + 4, TOTENS.lista[1].z) && !s.zonaSeguraGuerra(TOTENS.lista[1].x + 8, TOTENS.lista[1].z), 'totem: 4 m é seguro, 8 m é guerra (André 2026-11-22: 5 m)');
 const v5 = s.cacas.find((c) => c.def.id === 'c_v5').def, caca5 = s.cacas.find((c) => c.def.id === 'caca5').def;
 ok(!s.zonaSeguraGuerra(v5.x, v5.z), 'campo Nv 45 (c_v5) é zona de guerra');
 ok(!s.zonaSeguraGuerra(caca5.x, caca5.z), 'campo Nv 10 não é mais seguro (André 2026-11-21: só vila, totem, terreno, mercador e cais)');
@@ -142,7 +142,7 @@ ok(Object.keys(FALAS_GUERRA).every((k) => ['kira', 'rufo', 'lis', 'gael', 'dario
   for (const x of s4.amigosIa) x.amigaEntrar('a4');
   const r4 = s4.amigoIaDe('rufo').amiga; const C4 = RACAS.geada.casa;
   a.prog.nivel = 40; s4.aplicarStatus(a); a.vida = a.vidaMax;
-  Object.assign(r4, { x: C4.x + 10, z: C4.z }); Object.assign(a, { x: C4.x + 28, z: C4.z, y: s4.terreno.altura(C4.x + 28, C4.z) });
+  Object.assign(r4, { x: C4.x + 3, z: C4.z }); Object.assign(a, { x: C4.x + 28, z: C4.z, y: s4.terreno.altura(C4.x + 28, C4.z) });
   const ev = []; const e0 = s4.evento.bind(s4); s4.evento = (e) => { ev.push(e); return e0(e); };
   s4.guerraT = 0; s4.passo(0.05);
   ok(a.guerra && s4.zonaSeguraGuerra(r4.x, r4.z), 'Ana fora do totem (guerra), Rufo perto do totem do Juncal (seguro)');

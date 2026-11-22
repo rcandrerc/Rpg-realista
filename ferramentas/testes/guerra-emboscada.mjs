@@ -20,10 +20,10 @@ const longe = (j) => por(j, RACAS.geada.casa.x, RACAS.geada.casa.z); // no Junca
 
 // ---------- zonas seguras ----------
 const merc = s.mapa.npcs.find((n) => n.funcao === 'pack' && n.id === 'm_couro');
-ok(s.zonaSeguraGuerra(merc.x + 8, merc.z) && !s.zonaSeguraGuerra(merc.x + 20, merc.z), 'mercador de pack: seguro a 8 m, guerra a 20 m');
+ok(s.zonaSeguraGuerra(merc.x + 7, merc.z) && !s.zonaSeguraGuerra(merc.x + 10, merc.z), 'mercador de pack: seguro a 7 m (cabe o carrinho), guerra a 10 m');
 const cais = s.mapa.cais[0];
 ok(s.zonaSeguraGuerra(cais.x + 20, cais.z) && !s.zonaSeguraGuerra(cais.x + 45, cais.z), 'cais de embarque: seguro a 20 m, guerra a 45 m');
-ok(s.zonaSeguraGuerra(-6, -18) && s.zonaSeguraGuerra(TOTENS.lista[2].x + 20, TOTENS.lista[2].z), 'perto do totem da Clareira e de outro totem é seguro');
+ok(s.zonaSeguraGuerra(-6, -2) && !s.zonaSeguraGuerra(-6, -10) && s.zonaSeguraGuerra(TOTENS.lista[2].x + 4, TOTENS.lista[2].z) && !s.zonaSeguraGuerra(TOTENS.lista[2].x + 8, TOTENS.lista[2].z), 'perto do totem da Clareira e de outro totem é seguro');
 // André 2026-11-22: vila não é mais zona segura; só o totem (25 m) e o terreno do próprio jogador
 { const T = TOTENS.lista.find((t) => t.id === 'rio_claro');
   ok(!s.zonaSeguraGuerra(T.x + 45, T.z) && !s.zonaSeguraGuerra(-6, -40), 'dentro da vila (Rio Claro a 45 m do totem, Vila da Clareira longe da praça) é guerra');
@@ -182,7 +182,7 @@ ok(s.rondaT.geada > s.tempo + GUERRA.ronda.entre[0] - 40, 'a próxima ronda da G
   b.prog.carrinho = { ...carrinhoValido({ vida: 2500, vm: 2500 }), lv: 2, comb: 5000, packs: [{ k: 'couro', ox: 0, oz: 0, ra: 'chama' }], chao: null }; b.veiculo = 'carrinho';
   s5.passoEmboscadas(); ok(!!b.embQuando, 'Nv 12 dirigindo carrinho fora da zona segura: a emboscada vem');
   ok(!s5.podeGuerra(b) && !s5.emGuerra(s5.amigoIaDe('kira').amiga, b), 'o dono Nv 12 continua na Trégua (ninguém bate nele)');
-  b.embViagem = false; b.embQuando = null; const T0 = TOTENS.lista[0]; Object.assign(b, { x: T0.x + 5, z: T0.z });
+  b.embViagem = false; b.embQuando = null; const T0 = TOTENS.lista[0]; Object.assign(b, { x: T0.x + 3, z: T0.z });
   s5.passoEmboscadas(); ok(!b.embQuando, 'carrinho perto do totem (zona segura): sem emboscada');
   GUERRA.emboscada.chance = ch;
 }
