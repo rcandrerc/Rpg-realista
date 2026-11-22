@@ -2365,6 +2365,12 @@ func motivo_horta(L: Dictionary, i: int, j: int) -> String:
 	for o in L.pecas:
 		if _cruza(R, ret_peca(o.k, o.x, o.z, o.r)):
 			return "Lugar ocupado"
+	# folga de 1 m da casa (André 2026-11-22: a terra arada subia pela parede); o servidor confere igual (motivoHorta)
+	for o in L.pecas:
+		var t := tipo_peca(o.k)
+		if t == "borda" or t == "fundacao" or t == "telhado":
+			if _cruza(R, ret_peca(o.k, o.x, o.z, o.r).grow(1.0)):
+				return "Perto demais da casa: deixe 1 m de folga para arar"
 	return ""
 
 # lote em que o ponto está (ou null)
