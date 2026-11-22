@@ -126,7 +126,8 @@ func _por_solidos() -> void:
 	T.casas.append_array(_sol)
 	T.solidos_mudaram()
 
-# cada base vira uma vila no vilas_mundo.gd (casas = prédios; o resto = enfeites)
+# cada base vira uma vila no vilas_mundo.gd (casas = prédios; o resto = enfeites). O id leva o lugar: a base que muda de
+# lugar (André 2026-11-22: "mudei a base e ela n foi") é outra vila, e a velha sai
 func _por_vilas() -> void:
 	var V = m.get("vilas_mundo")
 	if V == null:
@@ -140,7 +141,7 @@ func _por_vilas() -> void:
 				casas.append(p)
 			else:
 				enfeites.append(p)
-		lista.append({"id": "base_%s_%d" % [str(B.k), int(B.nv)], "x": float(B.x), "z": float(B.z), "casas": casas, "enfeites": enfeites})
+		lista.append({"id": "base_%s_%d_%d_%d" % [str(B.k), int(B.nv), int(B.x), int(B.z)], "x": float(B.x), "z": float(B.z), "casas": casas, "enfeites": enfeites})
 	V.por_bases(lista)
 
 # o Baú do Clã na porta do salão, as estacas nos cantos dos lotes e os nomes (clã em cima do salão, dono em cada lote)
