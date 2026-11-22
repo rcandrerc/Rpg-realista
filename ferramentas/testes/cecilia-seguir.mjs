@@ -5,6 +5,7 @@
 import { Simulacao, MAPA_CLAREIRA, AMIGA, DARIO } from '../../shared/index.js';
 import { readFileSync } from 'node:fs';
 import { register } from 'node:module';
+import './_amizade-antiga.mjs'; // o jeito antigo (amizade e papo), sem o soldado de 2026-11-22
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(s, c, n) { return s === '@rpg/shared' ? { url: ${JSON.stringify(new URL('../../shared/index.js', import.meta.url).href)}, shortCircuit: true } : n(s, c); }`));
 const { puxarAssunto, temasPuxar, TEMAS_SEM_REPETIR, mensagensConversa } = await import('../../server/ia-amiga.js');
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };

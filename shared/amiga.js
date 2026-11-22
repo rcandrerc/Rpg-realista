@@ -14,7 +14,7 @@
 //   A amizade é de cada um (j.amizades[conta]); j.amizade é a de quem ela acompanha agora.
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME } from './dados.js';
+import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, NPC_SOLDADO } from './dados.js';
 import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO, VEICULOS } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota, terraId } from './rota.js';
@@ -285,7 +285,7 @@ export const Amiga = {
   // não quiserem, eles vivem a vida deles e eu chamo quando precisa". Ela só entra na lista (Amigos virtuais, com o ♥ da
   // amizade) depois que a pessoa pede (tocando nela ou pela busca do nome) e ela aceita. Pode recusar: ocupada (caçando
   // longe, lutando, com outra pessoa) diz para pedir depois; sem conhecer a pessoa, às vezes quer conversar antes.
-  ehAmigoAmiga(j) { return !!(j && this.amiga?.amigosDe?.[j.conta]); },
+  ehAmigoAmiga(j) { if (NPC_SOLDADO.ligado && j && !j.bot && this.amiga) return !this.outraRaca(j, this.amiga); return !!(j && this.amiga?.amigosDe?.[j.conta]); }, // soldado: todo mundo da raça dele
   pedidoAmizadeAmiga(id, viaChat = false) {
     const a = this.amiga, j = this.jogadores.get(id), P = this.AMIGA.amigoLista; if (!a || !j || j.bot || !j.conta) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto }), nome = this.AMIGA.nome;
@@ -1122,6 +1122,7 @@ export const Amiga = {
   },
   // vontade de entrar no time (0 a 1) e o motivo mais forte contra. Regras com sorteio, sem IA paga.
   vontadeAmiga(a, dono) {
+    if (NPC_SOLDADO.ligado) return { p: 1, motivo: 'vontade' }; // soldado obedece (André 2026-11-22)
     const R = this.AMIGA.time, A = this.AMIGA, contra = [];
     // André 2026-11-16: amizade até 4 = base (60%), de 4 a 10 sobe até 100%; cada 5 níveis ACIMA de quem chama tira 5%
     const amz = this.amizadeAmiga(dono), b = A.amizadeBase ?? 4, topo = A.amizade?.max || 10;
@@ -2575,6 +2576,7 @@ export const Amiga = {
       if (T) for (const x of this.amigosIa) if (x !== this && x.amiga && x.amiga.time === T && x.podeAmiga(quem.id)) { const h = x.chatDeAmiga(quem); h.push({ de: 'outro', nome: this.AMIGA.nome, texto }); if (h.length > x.histAmiga()) h.shift(); }
       if (this.aoChatAmiga) this.aoChatAmiga(msg); else this.receberChat(msg);
     }
+    if (NPC_SOLDADO.ligado) return; // soldado não puxa assunto, não chama e não reage sozinho (André 2026-11-22)
     this.reagirAmiga(a, dono); // fala sozinho com as falas prontas (André 2026-11-19, sem IA)
     if (this.esperandoAmiga(a, dono)) return; // puxou conversa e ele não respondeu: fica quieta (naoInsiste)
     if (this.puxarAssuntoAmiga(a, dono)) return;

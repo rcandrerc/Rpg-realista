@@ -98,3 +98,20 @@ ok(true, 'simulação roda com os recrutas');
   const { CLAS_NPC, vagasClaNpc, CLA: C2 } = await import('../../shared/dados.js');
   ok(vagasClaNpc(CLAS_NPC[0]) === 3 && C2.max === 6, 'todos os clãs iguais: Lobos da Geada = Kira, Rufo, Lis + 3 recrutas (6 além do líder)');
 }
+{
+  const { CLAS_NPC, vagasClaNpc, NPC_SOLDADO } = await import('../../shared/dados.js');
+  const ch = CLAS_NPC.find((C) => C.id === 'chama');
+  ok(ch && ch.lider === 'dario' && vagasClaNpc(ch) === 4, 'Guarda da Chama: Dario líder, Cecília e Lia + até 4 recrutas');
+  const s3 = new Simulacao(MAPA_CLAREIRA);
+  const q = s3.adicionarJogador('Q', 'Quim', undefined, { conta: 12 }); q.criando = false;
+  s3.carregarClasNpc(null);
+  const I3 = s3.clasNpcInfo(q);
+  ok(I3.find((K) => K.n === 'Guarda da Chama').inimigo === 0 && I3.find((K) => K.n === 'Lobos da Geada').inimigo === 1, 'mesma raça = neutro, outra = inimigo');
+  for (const ctx of s3.amigosIa) ctx.amigaEntrar('Q', false);
+  const dario = s3.amigosIa.find((x) => x.AMIGA.id === 'dario');
+  ok(NPC_SOLDADO.ligado && dario.ehAmigoAmiga(q) && dario.vontadeAmiga(dario.amiga, q).p === 1, 'soldado: obedece sem amizade');
+  s3.eventos = [];
+  for (let i = 0; i < 2400; i++) s3.passo(0.25);
+  const papo = s3.eventos.filter((e) => e.t === 'chat' && e.para === 'Q' || (e.t === 'fala' && e.para === 'Q'));
+  ok(papo.length === 0, `soldado não manda mensagem sozinho em 10 min (${papo.length})`);
+}
