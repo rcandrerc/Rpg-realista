@@ -13,7 +13,7 @@ const Menu = preload("res://menu.gd")
 # Mudas de árvore (André 2026-11-17: "se quiser plantar várias sementes de árvore pode setar e depois salva e ele sai
 # plantando tudo como as sementes normais"): ação "arvore", quadrado de 4 m (chave "a:i,k"), no terreno ou na área de
 # plantio; no fim manda "plantarArvore" no quadrado exato (q:1).
-const ACOES := ["arar", "plantar", "regar", "colher", "arvore", "cortar"] # cortar = colher árvore plantada (André 2026-11-22)
+const ACOES := ["arar", "plantar", "regar", "colher", "cortar", "arvore"] # cortar = colher árvore plantada (André 2026-11-22)
 const DUR := {"arar": 1.6, "plantar": 1.2, "regar": 1.4, "colher": 1.2, "arvore": 1.4, "cortar": 0.0} # s de cada tarefa (cortar: o tempo é o do machado, ver _estado "cortando")
 const LONGE := {"arar": 1.0, "plantar": 0.6, "regar": 0.75, "colher": 0.6, "arvore": 1.0, "cortar": 1.0} # m do herói até o meio do quadrado
 const COR := {"arar": Color(0.86, 0.66, 0.38), "plantar": Color(0.45, 0.9, 0.42), "regar": Color(0.4, 0.72, 1.0), "colher": Color(1.0, 0.84, 0.35), "arvore": Color(0.55, 0.85, 0.4), "cortar": Color(0.9, 0.6, 0.3)}
