@@ -119,6 +119,11 @@ func alternar(dados: Dictionary) -> void:
 		m.sons.tocar("passo", -10.0)
 	_refazer_marca(str(dados.c))
 
+# marca sem som nem checagem (a seleção de área já checou; construcao.gd _aplicar_area)
+func marcar(dados: Dictionary) -> void:
+	fila[dados.c] = dados.duplicate()
+	_refazer_marca(str(dados.c))
+
 func limpar() -> void:
 	parar()
 	fila.clear()

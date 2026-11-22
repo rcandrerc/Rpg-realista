@@ -28,6 +28,7 @@ const FazendaPlano = preload("res://fazenda_plano.gd")
 var plano # fazenda_plano.gd: marcar os canteiros e o herói faz tudo depois do Salvar (André 2026-11-07)
 var b_salvar: Button
 var b_limpar: Button
+var b_area: Button # liga/desliga a seleção de área na fazenda
 
 var m # main.gd
 var D: Dictionary # m.P.dados
@@ -2608,7 +2609,7 @@ func _process_parte(dt: float) -> void:
 	var vivo: bool = m.h.morto <= 0.0
 	var livre := ativo or comprando
 	m.hud.modo_construcao = livre
-	m.hud.arrastar_terreno = comprando
+	m.hud.arrastar_terreno = comprando or _area_ok()
 	# FASE 3: as terras de agora são a vila onde o herói está (fora da compra; comprando, ficam as mesmas)
 	if not livre and not vilas.is_empty():
 		var vh := vila_em(hp.x, hp.z)
@@ -2875,6 +2876,7 @@ func sair() -> void:
 	if not ativo:
 		return
 	ativo = false
+	modo_area = false
 	if na_area:
 		na_area = false
 		for k in _botoes_abas:
@@ -3403,6 +3405,9 @@ func sair_compra() -> void:
 
 # fase 0 = encostou o dedo (primeiro canto), 1 = arrastando, 2 = soltou
 func arrasto(pos: Vector2, fase_: int) -> void:
+	if _area_ok():
+		_arrasto_area(pos, fase_)
+		return
 	if not comprando or (fase_ == 0 and cobre(pos)):
 		return
 	var p = _chao_na_tela(pos)
@@ -3430,6 +3435,123 @@ func arrasto(pos: Vector2, fase_: int) -> void:
 	_canto_b = c
 	_ret = _ima({"x0": mini(_canto_a.x, _canto_b.x), "z0": mini(_canto_a.y, _canto_b.y), "x1": maxi(_canto_a.x, _canto_b.x) + 1, "z1": maxi(_canto_a.y, _canto_b.y) + 1})
 	_atualizar_compra()
+
+# ---------- selecionar área na fazenda (André 2026-11-22): arrastar um retângulo marca todos os quadrados de uma vez ----------
+# Botão "Área" na aba Fazenda: ligado, o dedo na tela arrasta o retângulo (a câmera só gira com ele desligado). Ao soltar, cada
+# quadrado entra no plano pelas MESMAS regras do toque (sementes, vigor, água do regador, terra arada...); os que não dá
+# ficam de fora e o aviso diz quantos e por quê. Depois é só Salvar, como antes.
+const AREA_MAX := 400 # quadrados por retângulo (20 x 20 m)
+var modo_area := false
+var _area_a = null # Vector2i do primeiro canto
+var _area_b = null
+
+func _area_ok() -> bool:
+	return modo_area and ativo and aba == "fazenda" and plano != null and plano.planeja(sel)
+
+func alternar_area() -> void:
+	modo_area = not modo_area
+	_area_a = null
+	_area_b = null
+	if not modo_area:
+		_atualizar_mira()
+	else:
+		_destaque_em(null)
+		m.hud.aviso("Área ligada: arraste o dedo no chão para marcar vários quadrados. Desligue para girar a câmera")
+	_montar_itens()
+
+func _area_lado() -> float:
+	return (m.plantio.Q if m.plantio else 4.0) if sel == "arvore" else 1.0
+
+func _arrasto_area(pos: Vector2, fase_: int) -> void:
+	if fase_ == 0 and cobre(pos):
+		return
+	var p = _chao_na_tela(pos)
+	if p == null:
+		if fase_ == 2:
+			_area_a = null
+		return
+	var Q := _area_lado()
+	var c := Vector2i(floori(p.x / Q), floori(p.z / Q))
+	if fase_ == 0 or _area_a == null:
+		_area_a = c
+	_area_b = c
+	if fase_ == 2:
+		_aplicar_area()
+		_area_a = null
+		_area_b = null
+		_montar_itens()
+		_atualizar_mira()
+		return
+	var R := _area_ret()
+	var n: int = int(R.size.x) * int(R.size.y)
+	var cor := Color(0.43, 1.0, 0.54, 0.35) if n <= AREA_MAX else Color(1, 0.35, 0.29, 0.35)
+	var Qm := _area_lado()
+	var cx: float = (R.position.x + R.size.x / 2.0) * Qm
+	var cz: float = (R.position.y + R.size.y / 2.0) * Qm
+	_destaque_em(Vector3(cx, m.terreno.altura(cx, cz), cz), Vector3(R.size.x * Qm, 0.16, R.size.y * Qm), cor)
+	txt_motivo.text = Idioma.frase("%d quadrados na área · solte para marcar" % n if n <= AREA_MAX else "Área grande demais (máximo %d quadrados)" % AREA_MAX)
+
+# retângulo em quadrados (posição e tamanho inteiros, no mínimo 1 x 1)
+func _area_ret() -> Rect2i:
+	var x0: int = mini(_area_a.x, _area_b.x)
+	var z0: int = mini(_area_a.y, _area_b.y)
+	return Rect2i(x0, z0, absi(_area_a.x - _area_b.x) + 1, absi(_area_a.y - _area_b.y) + 1)
+
+func _aplicar_area() -> void:
+	var R := _area_ret()
+	if R.size.x * R.size.y > AREA_MAX:
+		m.hud.aviso("Área grande demais: no máximo %d quadrados de uma vez" % AREA_MAX)
+		return
+	var L = lotes.get(meu)
+	if L == null:
+		L = {}
+	var novos := 0
+	var ja := 0
+	var fora := 0
+	var motivos := {} # motivo -> quantos
+	var parou := ""
+	for i in range(R.position.x, R.end.x):
+		for j in range(R.position.y, R.end.y):
+			var dados: Dictionary
+			var mot := ""
+			if sel == "arvore":
+				dados = {"acao": "arvore", "c": "a:%d,%d" % [i, j], "s": arvore, "i": i, "k": j, "area": na_area}
+				mot = motivo_arvore(Vector2i(i, j), arvore, na_area)
+			else:
+				dados = {"acao": sel, "c": "%d,%d" % [i, j]}
+				if sel == "plantar":
+					dados.s = semente
+				mot = motivo_fazenda(L, sel, i, j, semente) if not L.is_empty() else "Só dá para plantar dentro do seu terreno"
+			if plano.marcado(dados):
+				ja += 1
+				continue
+			mot = plano.motivo_marcar(L, dados, mot)
+			if mot != "":
+				if mot.begins_with("Sem vigor") or mot.begins_with("As sementes") or mot.begins_with("A água do regador"):
+					parou = mot # acabou o recurso: nada mais cabe no plano
+					break
+				motivos[mot] = int(motivos.get(mot, 0)) + 1
+				fora += 1
+				continue
+			plano.marcar(dados)
+			novos += 1
+		if parou != "":
+			break
+	m.sons.tocar("passo", -10.0)
+	var txt := "%d marcados" % novos
+	if ja > 0:
+		txt += " (%d já estavam)" % ja
+	if parou != "":
+		txt += " · parou: " + parou
+	elif fora > 0:
+		var top := ""
+		var mx := 0
+		for k in motivos:
+			if int(motivos[k]) > mx:
+				mx = int(motivos[k])
+				top = k
+		txt += " · %d de fora: %s" % [fora, top.to_lower()]
+	m.hud.aviso(txt)
 
 # ---------- mudar o tamanho do meu terreno (aba Terreno do modo construção): a mesma tela da compra ----------
 func perguntar_mudar() -> void:
@@ -3817,6 +3939,8 @@ static func _igual_ret(a: Dictionary, b: Dictionary) -> bool:
 # o hud pergunta: este dedo marca/arrasta o terreno (true) ou é da câmera (false)?
 # Sem nada marcado: marca. Com o terreno marcado: só o canto dourado arrasta; o resto gira a câmera (o + e o - são toque).
 func pega_arrasto(pos: Vector2) -> bool:
+	if _area_ok(): # modo Área da fazenda: o dedo arrasta o retângulo (a câmera só gira com o modo desligado)
+		return true
 	if not comprando:
 		return false
 	if _ret.is_empty():
@@ -3959,6 +4083,11 @@ func _montar_tela() -> void:
 	b_limpar.visible = false
 	acoes.add_child(b_limpar)
 	acoes.move_child(b_limpar, 2)
+	b_area = _botao("Área", alternar_area, false, 18)
+	b_area.custom_minimum_size = Vector2(170, 46)
+	b_area.visible = false
+	acoes.add_child(b_area)
+	acoes.move_child(b_area, 3)
 	linha_andares = HBoxContainer.new()
 	linha_andares.add_theme_constant_override("separation", 8)
 	acoes.add_child(linha_andares)
@@ -5016,6 +5145,11 @@ func _montar_itens() -> void:
 	var n_plano: int = plano.quantos() if plano else 0
 	if aba == "fazenda" and plano and plano.planeja(sel):
 		b_ok.text = "Marcar"
+	if b_area:
+		b_area.visible = aba == "fazenda" and plano != null and plano.planeja(sel)
+		b_area.set_meta("pt", "Área: ligada" if _area_ok() else "Área")
+		b_area.text = Idioma.frase(str(b_area.get_meta("pt")))
+		Menu.estilo_botao(b_area, _area_ok())
 	if b_salvar:
 		b_salvar.visible = aba == "fazenda" and n_plano > 0
 		b_salvar.set_meta("pt", "Salvar (%d)" % n_plano) # o guia das missões acha o botão pelo texto em português
