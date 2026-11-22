@@ -1252,6 +1252,13 @@
    "obra": "bau",
    "desc": "Guarda até 40 pilhas de itens. Todos os seus baús guardam as mesmas coisas. Toque nele para abrir. Coloque no seu terreno pelo modo construção (martelo)."
   },
+  "obra_bau_cla": {
+   "nome": "Baú do Clã",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "bau_cla",
+   "desc": "Um por clã, no terreno do líder. Os recrutas guardam aqui o que farmam e colhem. Toque nele para abrir. Coloque no seu terreno pelo modo construção (martelo)."
+  },
   "obra_cama": {
    "nome": "Cama",
    "pilha": 20,
@@ -3538,6 +3545,32 @@
    "bancada": true,
    "alto": 0.69,
    "desc": "Guarda até 40 pilhas de itens. Todos os seus baús guardam as mesmas coisas. Toque nele para abrir."
+  },
+  "bau_cla": {
+   "nome": "Baú do Clã",
+   "tipo": "movel",
+   "aba": "moveis",
+   "w": 1.3,
+   "d": 0.8,
+   "circulos": [
+    [
+     -0.3,
+     0,
+     0.38
+    ],
+    [
+     0.3,
+     0,
+     0.38
+    ]
+   ],
+   "custo": {
+    "lenha": 20,
+    "barra_ferro": 2
+   },
+   "bancada": true,
+   "alto": 0.69,
+   "desc": "Um por clã, no terreno do líder. Os recrutas guardam aqui o que farmam e colhem. Toque nele para abrir."
   },
   "cama": {
    "nome": "Cama",

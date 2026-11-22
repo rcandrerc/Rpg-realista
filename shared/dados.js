@@ -863,6 +863,10 @@ Object.assign(CONSTRUCOES, {
     desc: 'Vai em cima da fundação, com parede em volta. Vários juntos formam um telhado inclinado. Some quando você entra.' },
   bau: { nome: 'Baú', tipo: 'movel', aba: 'moveis', w: 1.3, d: 0.8, circulos: [[-0.3, 0, 0.38], [0.3, 0, 0.38]], custo: { lenha: 10 }, bancada: true, alto: 0.69,
     desc: 'Guarda até 40 pilhas de itens. Todos os seus baús guardam as mesmas coisas. Toque nele para abrir.' },
+  // base do clã (André 2026-11-22): o terreno do líder é a base; o Baú do Clã (um por clã) é onde os recrutas deixam o
+  // que juntam. O baú particular continua só do dono.
+  bau_cla: { nome: 'Baú do Clã', tipo: 'movel', aba: 'moveis', w: 1.3, d: 0.8, circulos: [[-0.3, 0, 0.38], [0.3, 0, 0.38]], custo: { lenha: 20, barra_ferro: 2 }, bancada: true, alto: 0.69,
+    desc: 'Um por clã, no terreno do líder. Os recrutas guardam aqui o que farmam e colhem. Toque nele para abrir.' },
   cama: { nome: 'Cama', tipo: 'movel', aba: 'moveis', w: 1.9, d: 2.4, circulos: [[0, -0.6, 0.6], [0, 0.6, 0.6]], custo: { lenha: 8, couro: 3 }, bancada: true, alto: 0.6,
     desc: 'Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias e +40 de vigor (a cada 6 h).' },
   tocha: { nome: 'Tocha', tipo: 'movel', aba: 'moveis', w: 0.4, d: 0.4, circulos: [[0, 0, 0.15]], custo: { lenha: 2, carvao: 1 }, bancada: false,
@@ -3305,8 +3309,13 @@ export const CLA = {
   // proteger um membro, me seguir etc"). recurso: as chaves de ENCOMENDA.recursos; proteger: o líder ou outro recruta.
   funcoes: [
     { id: 'livre', nome: 'Livre' }, { id: 'seguir', nome: 'Me seguir' }, { id: 'grind', nome: 'Grind' },
-    { id: 'recurso', nome: 'Farmar recurso' }, { id: 'proteger', nome: 'Proteger' },
+    { id: 'recurso', nome: 'Farmar recurso' }, { id: 'proteger', nome: 'Proteger' }, { id: 'fazenda', nome: 'Fazenda' },
   ],
+  bauCla: 60, // lugares do Baú do Clã
+  // Fazenda (André 2026-11-22: "solicitar plante tal coisa"): cuida dos canteiros arados do terreno do líder (base do
+  // clã). Colhe o que está maduro, rega o que está seco e planta a semente escolhida no painel. A semente sai do Baú do
+  // Clã; sem ela, compra na Rosa com o cofre do clã. A colheita vai para o Baú do Clã (sem baú, fica na bolsa dele).
+  fazenda: { passo: 1.6, perto: 1.4 },
   farmar: 40, // quanto ele junta por viagem (o máximo da encomenda); acabou, vai de novo
   protegeRaio: 9, // m em volta de quem ele protege: monstro ou inimigo ali dentro, ele ataca
   // com o líder fora do jogo (André 2026-11-22: "eqt estou offline ele faz oq eu mandei?"): a sala fecha sem ninguém,

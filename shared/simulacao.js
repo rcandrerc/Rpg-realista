@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos } from './progresso.js';
-import { LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado } from './dados.js';
+import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
 import { Transporte, carrinhoNovo, topoCarrinho, lugarDoVeiculo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
@@ -3084,6 +3084,7 @@ export class Simulacao {
       L.prox = Math.max(1, d.prox | 0, ...L.pecas.map((p) => (+String(p.id).slice(1) || 0) + 1));
       L.bauNv = Math.max(0, Math.min(BAU.niveis.length - 1, d.bauNv | 0)); // baú melhorado (André 2026-11-07): 0 = 40, 1 = 60, 2 = 80
       L.bau = Array.isArray(d.bau) ? Array.from({ length: bauLugares(L.bauNv) }, (_, i) => (d.bau[i] ? itemValido(d.bau[i]) || null : null)) : null;
+      L.bauCla = Array.isArray(d.bauCla) ? Array.from({ length: CLA.bauCla }, (_, i) => (d.bauCla[i] ? itemValido(d.bauCla[i]) || null : null)) : null; // Baú do Clã (shared/cla.js)
       // fornalhas (2026-11-07): o que está dentro de cada uma, pelo id da peça
       L.fornos = {};
       for (const [pid, f] of Object.entries(d.fornos && typeof d.fornos === 'object' ? d.fornos : {})) L.fornos[String(pid)] = fornoValido(f);
@@ -3104,7 +3105,7 @@ export class Simulacao {
     const l = [...this.lotesMudados].filter((id) => this.lotes.has(id)).map((id) => {
       const L = this.lotes.get(id);
       const { x0, z0, x1, z1 } = L.def;
-      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox, bau: L.bau || null, bauNv: L.bauNv || 0, fornos: L.fornos || {}, taxa: L.taxa || null, ...(L.amiga ? { amiga: L.amiga } : {}) } };
+      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox, bau: L.bau || null, bauNv: L.bauNv || 0, ...(L.bauCla ? { bauCla: L.bauCla } : {}), fornos: L.fornos || {}, taxa: L.taxa || null, ...(L.amiga ? { amiga: L.amiga } : {}) } };
     });
     // terrenos vendidos de volta para o jogo: a linha fica sem dono (o chão volta a ser livre)
     for (const id of this.lotesSoltos) l.push({ id, dono: null, nome: '', dados: {} });
@@ -3260,6 +3261,10 @@ export class Simulacao {
     if (L.pecas.length >= maxP) return aviso(`Limite de ${maxP} peças no terreno: desmonte uma para pôr outra`);
     const p = { id: 'p' + L.prox, k: m.k, x, z, r, lote: L.def.id };
     const motivo = motivoPeca(L, p, j); if (motivo) return aviso(motivo);
+    if (m.k === 'bau_cla') { // um por clã, no terreno do líder (André 2026-11-22)
+      if (!j.prog.cla) return aviso('Funde o seu clã primeiro (aba Clã)');
+      if (L.pecas.some((o) => o.k === 'bau_cla')) return aviso('O seu clã já tem um Baú do Clã');
+    }
     // 2026-11-04: a peça é um item (cria-se antes, como no Quimera: fabricar); colocar gasta um
     if (contar(j.prog.mochila, 'obra_' + m.k) < 1) return aviso(`Crie ${C.nome.toLowerCase()} primeiro (botão Criar no modo construção)`);
     tirar(j.prog.mochila, 'obra_' + m.k, 1);
@@ -3514,6 +3519,7 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j || !m || j.morto || j.criando) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const L = this.loteDe(j); if (!L) return;
+    if (m.cla) return this.bauCla(j, L, m, aviso); // Baú do Clã (shared/cla.js)
     if (!L.pecas.some((o) => o.k === 'bau' && dist(o, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, o))) return aviso('Chegue perto do seu baú');
     if (!Array.isArray(L.bau)) L.bau = Array(bauLugares(L.bauNv)).fill(null);
     const p = j.prog, i = m.i | 0;

@@ -1801,6 +1801,15 @@ func montar_cla() -> void:
 		for k in rec:
 			partes.append("%s %d" % [str(m.P.nome_item({"k": str(k)})), int(rec[k])])
 		conteudo.add_child(rotulo("Recursos com os recrutas: " + ", ".join(partes), 13, TEXTO))
+	# Baú do Clã (base no seu terreno, André 2026-11-22)
+	if C.get("bauCla") is Dictionary:
+		var bc: Dictionary = C.bauCla
+		var pb := []
+		for k in bc:
+			pb.append("%s %d" % [str(m.P.nome_item({"k": str(k)})), int(bc[k])])
+		conteudo.add_child(rotulo("Baú do Clã: " + (", ".join(pb) if not pb.is_empty() else "vazio"), 13, TEXTO))
+	else:
+		conteudo.add_child(rotulo("Sem Baú do Clã: crie na construção (aba Móveis) e coloque no seu terreno. É a base do clã.", 12, APAGADO))
 	# os clãs bot (André 2026-11-22): o inimigo (Lobos da Geada, do Gael) e quem mais existir
 	for K in C.get("clas", []):
 		var ini := int(K.get("inimigo", 0)) == 1
@@ -1878,6 +1887,8 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 			pedido.r = str(fn.get("r", "ferro")) if k == "recurso" else "ferro"
 		elif fid == "proteger":
 			pedido.p = str(fn.get("p", "lider")) if k == "proteger" else "lider"
+		elif fid == "fazenda":
+			pedido.s = str(fn.get("s", "cenoura")) if k == "fazenda" else "cenoura"
 		lf.add_child(botao(str(F.nome), func(): m.rede("cla", {"acao": "funcao", "id": rid, "fn": pedido}), 13, fid == k))
 	v.add_child(lf)
 	if k == "recurso":
@@ -1900,6 +1911,14 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 			var pid: String = A[0]
 			lp.add_child(botao(A[1], func(): m.rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "proteger", "p": pid}}), 12, pid == str(fn.get("p", ""))))
 		v.add_child(lp)
+	if k == "fazenda": # o que plantar nos canteiros da base (André 2026-11-22: "solicitar plante tal coisa")
+		var lpl := HFlowContainer.new()
+		lpl.add_theme_constant_override("h_separation", 6)
+		lpl.add_theme_constant_override("v_separation", 6)
+		for P in C.get("plantas", []):
+			var sk := str(P.k)
+			lpl.add_child(botao(str(P.nome), func(): m.rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "fazenda", "s": sk}}), 12, sk == str(fn.get("s", ""))))
+		v.add_child(lpl)
 	var ld := HBoxContainer.new()
 	ld.alignment = BoxContainer.ALIGNMENT_END
 	ld.add_child(botao("Dispensar", func(): m.rede("cla", {"acao": "dispensar", "id": rid}), 12))

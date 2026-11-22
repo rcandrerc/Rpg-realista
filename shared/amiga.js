@@ -490,6 +490,7 @@ export const Amiga = {
     if (j.duelo) return this.passoDueloAmiga(j); // duelando (shared/duelo.js): só luta contra quem chamou
     if (this.guerraAmiga(j, dt)) return; // Chama x Geada (shared/guerra.js): atacar, ajudar, fugir ou poupar a outra raça
     if (this.protegerAmiga(j, dt)) return; // função "Proteger" do painel do clã (shared/cla.js)
+    if (this.AMIGA.recruta && this.passoFazendaRecruta(this, j, dt)) return; // função "Fazenda": canteiros da base do clã
     // subiu de nível: os pontos vão pelo jeito dele (André 2026-11-11): quem gosta de cajado põe em Inteligência, o resto
     // em Força, e todos em Vitalidade (antes era só metade Força e metade Vitalidade)
     if (j.prog.pontos > 0) this.pontosAmiga(j);
@@ -1351,7 +1352,7 @@ export const Amiga = {
   // que chegar perto dele. No time, quem manda é o time.
   protegerAmiga(j, dt) {
     const fn = j.ia.funcao; if (!fn || fn.k !== 'proteger' || !this.AMIGA.recruta || (j.time && j.time.membros.length > 1)) return false;
-    const lider = [...this.jogadores.values()].find((o) => !o.bot && o.conta === this.AMIGA.lider); if (!lider) return false;
+    const lider = this.corpoLiderDe(this); if (!lider) return false; // jogador ou líder bot (todos os clãs iguais)
     const P = fn.p === 'lider' ? lider : this.amigosIa.find((x) => x.AMIGA.id === fn.p)?.amiga;
     if (!P || P === j || P.morto) return false;
     if (j.trava > 0) { this.pararAmiga(j); return true; }
