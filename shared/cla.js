@@ -479,7 +479,8 @@ export const Cla = {
     if (!feitos.length) return;
     const horas = h >= 1 ? `${Math.floor(h)} h` : `${Math.round(h * 60)} min`;
     for (const f of feitos) this.logCla(c, `Fora (${horas}): ${f}`);
-    this.evento({ t: 'aviso', para: j.id, texto: `Enquanto você esteve fora (${horas}): ${feitos.join('; ')}` });
+    // um recruta por linha (André 2026-11-22: "podia descrever por coluna... Gael fez isso, João fez tal"); o aviso (hud.gd) quebra no \n
+    this.evento({ t: 'aviso', para: j.id, texto: `Enquanto você esteve fora (${horas}):\n${feitos.join('\n')}` });
   },
   // o que um recruta fez em h horas fora (grind: XP até o nível do líder; farm: o que o vigor paga, direto no Baú do
   // Clã; fazenda: os canteiros crescem sozinhos e ele colhe e replanta quando o líder volta). Texto ou null.
@@ -490,7 +491,7 @@ export const Cla = {
       const teto = Math.max(1, nvLider), antes = a.prog.nivel | 0; if (antes >= teto) return null;
       let n = F.nivelHora * h, xp = 0, nv = antes, resto = a.prog.xp | 0;
       while (n > 0 && nv < teto) { const prox = xpProximo(nv), falta = prox - resto, q = Math.min(n, falta / prox); xp += Math.round(q * prox); n -= q; resto = 0; nv++; }
-      if (xp > 0) { this.ganharXP(a, xp); if ((a.prog.nivel | 0) > teto) a.prog.nivel = teto; m.nv = a.prog.nivel | 0; txt = `${m.nome} caçou e foi do Nv ${antes} ao ${a.prog.nivel}`; }
+      if (xp > 0) { this.ganharXP(a, xp); if ((a.prog.nivel | 0) > teto) a.prog.nivel = teto; m.nv = a.prog.nivel | 0; txt = `${m.nome}: caçou e foi do Nv ${antes} ao ${a.prog.nivel}`; }
     } else if (m.fn.k === 'recurso') {
       const R = ENCOMENDA.recursos[m.fn.r]; if (!R) return null;
       const C = R.no && COLETA[R.no], item = R.item === 'peixe' ? F.peixe : R.item;
@@ -501,7 +502,7 @@ export const Cla = {
       for (let passo = 50; n > 0 && passo >= 1; passo = Math.floor(passo / 2)) while (n >= passo && guardar(onde, { k: item, n: passo })) { n -= passo; dado += passo; }
       a.prog.vigor = { v: Math.max(0, Math.min(VIGOR.max, vg - dado * custo)), t: Date.now() };
       if (B && dado) this.mexeuBau(B);
-      txt = dado ? `${m.nome} juntou ${dado} de ${R.nome}${B ? ' (no Baú do Clã)' : ''}` : `${m.nome} não juntou nada (${B ? 'Baú do Clã' : 'bolsa'} cheio)`;
+      txt = dado ? `${m.nome}: juntou ${dado} de ${R.nome}${B ? ' (no Baú do Clã)' : ''}` : `${m.nome}: não juntou nada (${B ? 'Baú do Clã' : 'bolsa'} cheio)`;
     }
     x.guardarAmiga?.();
     return txt;

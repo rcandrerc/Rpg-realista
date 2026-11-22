@@ -255,7 +255,7 @@ func aviso(t: String) -> void:
 		return
 	aviso_txt = Idioma.frase(t) # inglês (idioma.gd): o aviso chega em português do servidor ou do jogo
 	# o tempo de ler (Mestra Moldura, conselho 2026-11-13): 2,2 s nos curtos; cerca de 15 letras por segundo nos longos
-	_aviso_t = clampf(1.0 + t.length() / 15.0, 2.2, 8.0)
+	_aviso_t = clampf(1.0 + t.length() / 15.0, 2.2, 12.0 if "\n" in t else 8.0) # várias linhas (resumo dos recrutas): mais tempo
 
 func _centro(b: Dictionary) -> Vector2:
 	if b.get("mini", false): # colado no minimapa (atalho do zoom)
@@ -720,12 +720,20 @@ func _desenhar() -> void:
 func _desenhar_avisos() -> void:
 	var f := ThemeDB.fallback_font
 	if _aviso_t > 0:
-		var w := f.get_string_size(aviso_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
+		# várias linhas (André 2026-11-22: o resumo dos recrutas "numa linha só, n consigo ver na tela toda"): uma embaixo
+		# da outra, cada uma centralizada, com o fundo escuro atrás de todas
+		var linhas := aviso_txt.split("\n")
+		var w := 0.0
+		for l in linhas:
+			w = maxf(w, f.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x)
 		var a: float = clamp(_aviso_t, 0.0, 1.0)
 		# fundo escuro atrás do texto: por cima da mochila aberta ele precisa ler contra os quadros do menu
-		_avisos.draw_rect(Rect2((_avisos.size.x - w) * 0.5 - 14.0, 150.0 - 26.0, w + 28.0, 36.0), Color(0.05, 0.04, 0.03, 0.6 * a))
-		_avisos.draw_string_outline(f, Vector2((_avisos.size.x - w) * 0.5, 150), aviso_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, 5, Color(0, 0, 0, 0.6 * a))
-		_avisos.draw_string(f, Vector2((_avisos.size.x - w) * 0.5, 150), aviso_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 0.92, 0.7, a))
+		_avisos.draw_rect(Rect2((_avisos.size.x - w) * 0.5 - 14.0, 150.0 - 26.0, w + 28.0, 36.0 + 28.0 * (linhas.size() - 1)), Color(0.05, 0.04, 0.03, 0.6 * a))
+		for i in linhas.size():
+			var wl := f.get_string_size(linhas[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
+			var y := 150.0 + 28.0 * i
+			_avisos.draw_string_outline(f, Vector2((_avisos.size.x - wl) * 0.5, y), linhas[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 22, 5, Color(0, 0, 0, 0.6 * a))
+			_avisos.draw_string(f, Vector2((_avisos.size.x - wl) * 0.5, y), linhas[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 0.92, 0.7, a))
 	if _destaque_t > 0:
 		var tam := 40
 		var wd := f.get_string_size(destaque_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, tam).x
