@@ -96,6 +96,31 @@ func _process_parte(dt: float) -> void:
 		_pedido = true
 		ResourceLoader.load_threaded_request(ARQUIVO)
 
+# bases dos clãs (base_cla.gd, André 2026-11-22): cada uma entra como mais uma vila (o id muda com o nível, então a
+# base que cresceu é montada de novo). As que sumiram ou mudaram saem da cena.
+func por_bases(lista: Array) -> void:
+	var ids := {}
+	for B in lista:
+		ids[str(B.id)] = true
+	var fica: Array = []
+	for V in vilas:
+		var id := str(V.id)
+		if id.begins_with("base_") and not ids.has(id):
+			if montadas.has(id):
+				montadas[id].queue_free()
+				montadas.erase(id)
+			continue
+		if not id.begins_with("base_") or ids.has(id):
+			fica.append(V)
+	var tem := {}
+	for V in fica:
+		tem[str(V.id)] = true
+	for B in lista:
+		if not tem.has(str(B.id)):
+			fica.append(B)
+	vilas = fica
+	_espera = 0.0
+
 # tem vila perto do herói que ainda não nasceu (a capa da entrada espera: main.gd montando)
 func pendente() -> bool:
 	if vilas.is_empty() or m.heroi == null:

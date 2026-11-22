@@ -2790,7 +2790,10 @@ export function vilaEm(x, z) {
   return null;
 }
 // o chão de um terreno: 0 no mapa de hoje (como sempre foi); nas vilas do mundo grande, o platô
-export const chaoDaVila = (x, z) => (vilaEm(x, z)?.mundo ? Math.max(0, alturaMontanha(x, z)) : 0);
+// Base do clã (shared/base.js): as áreas das bases que existem agora (x, z, r). Lá o chão é o relevo de verdade
+export const AREAS_BASE = [];
+export const naBaseCla = (x, z) => AREAS_BASE.some((a) => Math.abs(a.x - x) < a.r && Math.abs(a.z - z) < a.r);
+export const chaoDaVila = (x, z) => (vilaEm(x, z)?.mundo || naBaseCla(x, z) ? Math.max(0, alturaMontanha(x, z)) : 0);
 
 // FASE 3, Parte 7b: cais de madeira em cada porto do mundo grande (André 2026-11-08: barco e navio saem do cais). Sai da
 // praia para o lado mais fundo, 3 m de largura, com o tablado a 0,6 m (acima da água, o herói anda por cima).
@@ -3340,6 +3343,30 @@ export const CLA = {
   // então quando ele volta o servidor conta o tempo fora (até max) e dá o resultado da função: Grind = XP (nivelHora
   // níveis por hora, nunca passa do nível do líder); Farmar = o que o vigor pagaria (o vigor enche no tempo fora)
   fora: { minimo: 5 * 60e3, max: 12 * 3600e3, nivelHora: 0.25, peixe: 'tilapia' },
+  // Base do clã (André 2026-11-22: "já pode implantar o lance da base"; shared/base.js). Cada clã tem uma base no mapa:
+  // o líder funda onde está. No meio fica o centro (salão do clã, com o Baú do Clã); em volta, os lotes de 10 x 10 m.
+  // Sem aluguel: a taxa do clã sai do cofre toda semana (clã bot: do ouro do líder). O nível da base é o nível do clã.
+  // Atrasou trava semanas: não constrói nem abre o Baú do Clã até pagar (nada some).
+  // distMin: m entre os centros de duas bases quaisquer (mesma raça e bots também; conta a base no Nv 6: raio 65 + 40 de
+  // folga). pegada: m do centro até o fim do lote mais longe (as regras de "não pode" contam a base inteira).
+  // divisa: no Continente de Vael (terras do começo), x menor = Chama (Clareira), maior = Geada (Juncal). Ilha do Meio
+  // e Aurora (o continente novo): as duas raças (André 2026-11-22: "só o território da própria raça... lá poderia").
+  // lugares: centro dos lotes (x, z a partir do centro da base), na ordem em que abrem. desnivel: m de diferença máxima
+  // do chão dentro do centro (cada prédio tem o alicerce dele) e de cada lote.
+  base: {
+    distMin: 170, pegada: 44, totem: 60, vila: 30, lugar: 10, npc: 20, estrada: 3, rio: 6, desnivel: { centro: 5, lote: 3.5 }, lote: 10, divisa: 270,
+    taxaTrava: 2, bauPerto: 2.6, forjaPerto: 3.4,
+    lugares: [[26, 0], [-26, 0], [0, -26], [0, 26], [26, -26], [-26, 26]],
+    niveis: [
+      null,
+      { centro: 14, lotes: 1, raio: 32, taxa: 300, tem: 'Salão pequeno e Baú do Clã' },
+      { centro: 18, lotes: 2, raio: 36, taxa: 600, tem: 'Torre de vigia' },
+      { centro: 22, lotes: 3, raio: 40, taxa: 1200, tem: 'Paliçada de madeira' },
+      { centro: 26, lotes: 4, raio: 47, taxa: 2500, tem: 'Forja do clã' },
+      { centro: 30, lotes: 5, raio: 55, taxa: 5000, tem: 'Salão grande' },
+      { centro: 34, lotes: 6, raio: 65, taxa: 9000, tem: 'Castelo' },
+    ],
+  },
 };
 // o recruta m do clã (shared/cla.js) vira um NPC igual aos aventureiros por dentro (cérebro, conversa, time, troca,
 // encomenda, barco...), com dono: só o líder conversa e manda nele, e ele só existe com o líder no jogo.

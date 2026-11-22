@@ -88,7 +88,7 @@ export const Cla = {
     const rec = {};
     for (const a of vivos.values()) for (const it of a.prog.mochila || []) if (it && CLA.recursos.includes(it.k)) rec[it.k] = (rec[it.k] | 0) + (it.n | 0);
     // o Baú do Clã (base no seu terreno): o que tem dentro
-    const Lb = this.loteDaConta(j.conta), temBau = !!Lb?.pecas.some((o) => o.k === 'bau_cla'), bau = {};
+    const Lb = this.loteDaConta(j.conta), Bs = this.baseDe?.(j), temBau = !!Lb && (Lb.pecas.some((o) => o.k === 'bau_cla') || !!Bs), bau = {};
     if (temBau) for (const it of Lb.bauCla || []) if (it) bau[it.k] = (bau[it.k] | 0) + (it.n || 1);
     const nv = j.prog.nivel | 0;
     // status de cada um (André 2026-11-22: "eu consigo ver nível Hp mana e vigor"): vida, mana e vigor (0 a 100)
@@ -100,7 +100,8 @@ export const Cla = {
       bauCla: temBau ? bau : null, plantas: Object.entries(PLANTAS).map(([k, P]) => ({ k, nome: P.nome })),
       funcoes: CLA.funcoes, recursos: Object.entries(ENCOMENDA.recursos).map(([k, R]) => ({ k, nome: R.nome })),
       tiers: CLA.tiers.map((T) => { const n2 = nivelTier(T, nv); return { id: T.id, nome: T.nome, nv: n2, preco: precoTier(T, n2), sem: semanaDe(T, n2), claNv: T.claNv || 1 }; }),
-      rec, log: c.log.slice(-10).reverse(), dep: CLA.deposito, clas: this.clasNpcInfo(j) };
+      rec, log: c.log.slice(-10).reverse(), dep: CLA.deposito, clas: this.clasNpcInfo(j), base: this.baseInfo?.(j) || null,
+      baseNiveis: CLA.base.niveis.slice(1).map((N, i) => ({ nv: i + 1, centro: N.centro, lotes: N.lotes, raio: N.raio, taxa: N.taxa, tem: N.tem })) };
   },
   // pedido do app: { acao: 'fundar' | 'recrutar' | 'dispensar' | 'depositar' | 'sacar' | 'ver' | 'funcao', nome, tier, id, ouro, fn }
   cla(id, m) {
@@ -129,6 +130,7 @@ export const Cla = {
       this.logCla(c, `Contratou ${r.nome} (${T.nome} Nv ${r.nv})`, -preco);
       aviso(`${r.nome} entrou no clã! ${T.nome} Nv ${r.nv}. Semana: ${semanaDe(T, r.nv)} de ouro`);
       this.entrarRecrutas(j);
+      this.baseDoClaMudou(j); // o próximo lote livre da base é dele (shared/base.js)
       return this.avisarProg(j);
     }
     if (m.acao === 'dispensar') {
@@ -137,6 +139,7 @@ export const Cla = {
       this.tirarRecruta(r.id, j);
       this.logCla(c, `Dispensou ${r.nome}`);
       aviso(`${r.nome} saiu do clã`);
+      this.baseDoClaMudou(j);
       return this.avisarProg(j);
     }
     if (m.acao === 'depositar' || m.acao === 'sacar') {
@@ -168,8 +171,10 @@ export const Cla = {
       c.nv = r.N.nv; j.progSujo = true;
       this.logCla(c, `Clã subiu para o Nv ${c.nv}`, -r.N.ouro);
       aviso(`Clã ${c.n} agora é Nv ${c.nv}: ${c.nv} vagas!`);
+      this.baseDoClaMudou(j); // a base cresce junto (shared/base.js)
       return this.avisarProg(j);
     }
+    if (m.acao === 'base') return this.fundarBase(j, aviso); // funda a base do clã onde o líder está (shared/base.js)
     if (m.acao === 'ver') return this.avisarProg(j);
   },
   // ---------- nível do clã (André 2026-11-22) ----------
@@ -289,7 +294,8 @@ export const Cla = {
   bauDoCla(K) {
     if (!K) return null;
     const L = this.loteDaConta(K.conta);
-    if (L && L.pecas.some((o) => o.k === 'bau_cla')) { if (!Array.isArray(L.bauCla)) L.bauCla = Array(CLA.bauCla).fill(null); return { itens: L.bauCla, L }; }
+    if (L && (L.pecas.some((o) => o.k === 'bau_cla') || this.basesCla?.['j' + String(K.conta).replace(/[^\w]/g, '').slice(0, 30)])) { // a peça ou o baú do salão da base
+      if (!Array.isArray(L.bauCla)) L.bauCla = Array(CLA.bauCla).fill(null); return { itens: L.bauCla, L }; }
     if (K.bot && K.E) { if (!Array.isArray(K.E.bau)) K.E.bau = Array(CLA.bauCla).fill(null); return { itens: K.E.bau, E: K.E }; }
     return null;
   },
@@ -311,7 +317,8 @@ export const Cla = {
   // o líder abre o Baú do Clã (perto da peça no terreno dele): guardar, tirar e organizar, como o baú particular
   bauCla(j, L, m, aviso) {
     if (!j.prog.cla) return aviso('Funde o seu clã primeiro (aba Clã)');
-    if (!L.pecas.some((o) => o.k === 'bau_cla' && Math.hypot(o.x - j.x, o.z - j.z) <= 2.6)) return aviso('Chegue perto do Baú do Clã');
+    if (!L.pecas.some((o) => o.k === 'bau_cla' && Math.hypot(o.x - j.x, o.z - j.z) <= 2.6) && !this.pertoBauBase?.(j)) return aviso('Chegue perto do Baú do Clã');
+    const Bb = this.baseDe?.(j); if (Bb && this.baseTravada(Bb)) return aviso('Taxa do clã atrasada: deposite no cofre do clã para usar o Baú do Clã');
     if (!Array.isArray(L.bauCla)) L.bauCla = Array(CLA.bauCla).fill(null);
     const p = j.prog, i = m.i | 0;
     if (m.acao === 'guardar') {
@@ -422,6 +429,10 @@ export const Cla = {
       this.logCla(c, `${m.nome} foi embora sem pagamento`);
       this.evento({ t: 'aviso', para: j.id, texto: `${m.nome} foi embora do clã: 7 dias sem pagamento` });
     }
+    // a taxa da base (shared/base.js): sai do cofre a cada semana vencida
+    const B = this.baseDe?.(j);
+    if (B && this.pagarBase(B, (v) => { if (c.cofre < v) return false; c.cofre -= v; this.logCla(c, 'Taxa da base', -v); return true; })) mudou = true;
+    if (B) this.baseDoClaMudou(j);
     if (mudou) j.progSujo = true;
     this.aplicarFuncoes(j);
   },
@@ -433,6 +444,9 @@ export const Cla = {
       const v = Math.round(semanaDe(tierDe(m.tier), m.nv) * fator); if (c.cofre < v) continue;
       c.cofre -= v; delete m.dev; this.logCla(c, `Semana atrasada de ${m.nome}`, -v);
     }
+    // e a taxa da base atrasada (shared/base.js)
+    const B = this.baseDe?.(j);
+    if (B) this.pagarBase(B, (v) => { if (c.cofre < v) return false; c.cofre -= v; this.logCla(c, 'Taxa da base atrasada', -v); return true; });
   },
   // o líder entrou (ou contratou): os recrutas dele ganham corpo perto dele
   entrarRecrutas(j) {
@@ -583,6 +597,7 @@ export const Cla = {
       }
       if (mudou) this.salvarClasNpc();
     }
+    this.passoBasesNpc?.(); // as bases dos clãs bot (shared/base.js)
   },
   // o líder bot faz o que o jogador faria na fornalha: 3 minérios de ferro viram 1 barra, 2 barras viram 1 de aço
   fundirBauNpc(E) {

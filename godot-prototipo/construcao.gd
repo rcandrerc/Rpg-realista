@@ -951,7 +951,7 @@ func bordas_do_quadrado(x: float, z: float) -> Array:
 # chão sem as casas dos jogadores (pedras e casas da vila contam)
 func _chao(x: float, z: float) -> float:
 	var h := 0.0 # FASE 3: nas vilas do mundo grande o chão é o platô (shared/dados.js chaoDaVila); no mapa de hoje, 0
-	if vila_em(x, z).get("mundo", false):
+	if vila_em(x, z).get("mundo", false) or (m.base_cla != null and not m.base_cla.base_em(x, z).is_empty()): # base do clã: o relevo de verdade
 		h = maxf(0.0, m.terreno.relevo(x, z))
 	for r in m.terreno.solidos_em(x, z): # só os da casa de 4 m do ponto (FPS 2026-11-07)
 		if r.get("obra", false):
@@ -2731,7 +2731,7 @@ func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void
 		m.hud.icone_botao("bancada", "pf_" + prof)
 	elif not mesa_minha.is_empty():
 		m.hud.icone_botao("bancada", "pf_alf" if mesa_minha.k == "bancada" else "pf_coz" if mesa_minha.k == "fogao" else "pf_fer")
-	_mostrar_estacao("bau", ((no_meu and not _pecas_minhas(["bau", "bau_cla"]).is_empty()) or _meu_bau_perto()) and vivo and not livre)
+	_mostrar_estacao("bau", ((no_meu and not _pecas_minhas(["bau", "bau_cla"]).is_empty()) or _meu_bau_perto() or (m.base_cla != null and m.base_cla.bau_perto())) and vivo and not livre)
 	# fornalha e fogão (2026-11-07) dividem o botão: o ícone é o da minha mais perto
 	var fornos_meus := _pecas_minhas(["fornalha", "fogao"])
 	_mostrar_estacao("forno", ((no_meu and not fornos_meus.is_empty()) or minha_fornalha_perto() != "") and vivo and not livre)
@@ -4320,6 +4320,9 @@ func abrir_bau() -> void:
 	# o baú mais perto decide: o particular ou o do clã
 	var b := _mais_perta(_pecas_minhas(["bau", "bau_cla"]))
 	bau_cla = not b.is_empty() and str(b.k) == "bau_cla"
+	# o Baú do Clã do salão da base (base_cla.gd), se for o mais perto
+	if m.base_cla != null and m.base_cla.bau_perto() and (b.is_empty() or m.base_cla.dist_bau() < Vector2(float(b.x) - m.heroi.position.x, float(b.z) - m.heroi.position.z).length()):
+		bau_cla = true
 	_rede_bau({"acao": "abrir"})
 
 # todo pedido do baú leva junto qual dos dois está aberto

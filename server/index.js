@@ -152,6 +152,12 @@ class SalaClareira extends Room {
     if (contas && salas.size === 1) this.npcsForaDoMundo(true); // primeira sala aberta: os aventureiros fora do mundo evoluem pelo tempo vazio
     if (contas) { this.sim.carregarBosses(contas.lerMundo('bosses')); this.sim.aoBosses = (est) => contas.gravarMundo('bosses', est); }
     if (contas) { this.sim.carregarClasNpc(contas.lerMundo('clas_npc')); this.sim.aoClasNpc = (est) => contas.gravarMundo('clas_npc', est); } // clãs bot: os recrutas do Gael (shared/cla.js)
+    // bases dos clãs (André 2026-11-22, shared/base.js): todas as salas no mesmo registro; terreno novo só na base
+    if (contas) { this.sim.carregarBases(contas.lerMundo('bases_cla')); this.sim.aoBases = (est) => contas.gravarMundo('bases_cla', est); this.sim.soBaseCla = true;
+      // as casas de antes voltam para o dono, uma vez só (André 2026-11-22: "Tudo pode remover as casas")
+      this.sim.carregarDevolucoes(contas.lerMundo('devolucoes')); this.sim.aoDevolucoes = (est) => contas.gravarMundo('devolucoes', est);
+      if (!contas.lerMundo('reset_terrenos_v1')) { const n = this.sim.resetTerrenos(); for (const l of this.sim.lotesParaSalvar()) contas.salvarLote(l); contas.gravarMundo('reset_terrenos_v1', { t: Date.now(), n }); console.log(`base do clã: ${n} terrenos devolvidos`); }
+    }
     if (contas) this.sim.carregarPlantio(contas.lerMundo('plantadas')); // árvores plantadas pelos jogadores (shared/plantio.js)
     if (contas) this.sim.carregarVeios(contas.lerMundo('veios')); // árvores cortadas e veios batidos: o tempo de voltar continua depois do reinício
     // leilão: o mesmo em todas as salas; mudou, grava. Vendeu: avisa o dono, esteja em que sala estiver

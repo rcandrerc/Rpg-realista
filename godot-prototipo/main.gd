@@ -69,6 +69,7 @@ const Nevoa = preload("res://nevoa.gd") # névoa das zonas ainda fechadas (progr
 const Rota = preload("res://rota.gd")
 const Seguir = preload("res://seguir.gd") # botão Seguir da Cecília (André 2026-11-17)
 const Construcao = preload("res://construcao.gd")
+const BaseCla = preload("res://base_cla.gd") # base do clã no mapa (André 2026-11-22)
 const EditarHud = preload("res://editar_hud.gd")
 const RetratoHeroi = preload("res://retrato_heroi.gd")
 const Montaria = preload("res://montaria.gd")
@@ -185,6 +186,7 @@ var seguir # seguir.gd: o herói vai atrás da Cecília (botão Seguir no cartã
 var minimapa # minimapa.gd: minimapa no canto de cima à direita; tocar abre o mapa completo
 var voz # voz.gd: comando de voz no celular (Configurações > Comando de voz; André 2026-11-14)
 var construcao # construcao.gd: Vila dos Lotes (comprar lote, modo construção e horta, como no Quimera)
+var base_cla # base_cla.gd: as bases dos clãs (salão, torre, paliçada, lotes)
 var editar_hud # editar_hud.gd: segurar o painel de vida e mana abre o modo de editar a interface
 var retrato_heroi # retrato_heroi.gd: rosto do herói no painel
 var vibracao := true # Configurações: vibrar no golpe e no dano
@@ -532,6 +534,8 @@ func _ready() -> void:
 	volta.carregar() # entra de volta onde estava (online, a primeira foto do servidor manda o lugar da conta)
 	construcao = Construcao.new(self)
 	add_child(construcao)
+	base_cla = BaseCla.new(self)
+	add_child(base_cla)
 	hud.construcao = construcao
 	hud.tocou.connect(construcao.tocou_tela) # modo construção: tocar no chão leva a mira para lá
 	editar_hud = EditarHud.new(self) # por último: lê o layout guardado e passa para todos os elementos
