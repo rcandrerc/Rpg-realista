@@ -3354,7 +3354,7 @@ export const CLA = {
   // lugares: centro dos lotes (x, z a partir do centro da base), na ordem em que abrem. desnivel: m de diferença máxima
   // do chão dentro do centro (cada prédio tem o alicerce dele) e de cada lote.
   base: {
-    distMin: 100, pegada: 44, totem: 10, vila: 10, lugar: 5, npc: 10, estrada: 3, rio: 6, desnivel: { centro: 10, lote: 5 }, lote: 10, divisa: 270, // André 2026-11-22: entre bases 170→100 m, totem 60→10 m, vila 30→10, NPC 20→10, lugar 10→5 e desnível 5/3,5→10/5 m ("está muito difícil colocar")
+    distMin: 100, pegada: 44, totem: 20, vila: 10, lugar: 10, npc: 20, estrada: 6, rio: 6, desnivel: { centro: 8, lote: 5 }, lote: 10, divisa: 270, // André 2026-11-22 ("Totem 20 metros, outra base 100 metros, vila 10 metros, NPC e missão 20 metros, masmorra, arena, etc. 10 metros, estrada e rio 6 metros"); desnível 8/5 m
     taxaTrava: 2, bauPerto: 2.6, forjaPerto: 3.4,
     lugares: [[26, 0], [-26, 0], [0, -26], [0, 26], [26, -26], [-26, 26]],
     niveis: [
