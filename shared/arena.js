@@ -144,12 +144,24 @@ export const Arena = {
     const fila = this.filaPvp, times = { chama: [], geada: [] };
     const humanos = fila.splice(0, PVP.time * 2).map((f) => this.jogadores.get(f.id)).filter(Boolean);
     for (const j of humanos) { const r = this.racaDe(j) === 'geada' ? 'geada' : 'chama'; (times[r].length < PVP.time ? times[r] : times[OUTRO[r]]).push(j); }
-    // os NPCs completam (só quem está no mundo, livre)
-    const livre = (ctx) => { const a = ctx?.amiga; return a && !a.morto && !a.pvp && !a.duelo && !a.troca && !a.veiculo && !a.criando && !this.naCaverna(a) ? a : null; };
+    // quem pode entrar agora: no mundo, vivo e livre (nem em duelo, troca, barco, criando ou na caverna)
+    const livre = (a) => a && !a.morto && !a.pvp && !a.duelo && !a.troca && !a.veiculo && !a.criando && !this.naCaverna(a) ? a : null;
+    const usado = (a) => times.chama.includes(a) || times.geada.includes(a);
+    // André 2026-11-22: "se eu estiver em time vai meu time, se não vai sorteio entre os bots". Quem está num time leva os
+    // membros dele (jogadores, NPCs e recrutas) para o mesmo lado, até encher; as vagas que sobram são sorteadas
+    for (const j of humanos) {
+      const t = times.chama.includes(j) ? 'chama' : 'geada';
+      for (const id of j.time?.membros || []) {
+        if (times[t].length >= PVP.time) break;
+        const a = livre(this.jogadores.get(id));
+        if (a && a !== j && !usado(a) && !humanos.includes(a)) times[t].push(a);
+      }
+    }
+    // sorteio entre os bots da raça do lado (Geada: Lobos da Geada; Chama: Guarda da Chama, aventureiros e recrutas)
     for (const t of ['chama', 'geada']) {
-      const lista = PVP.npcs[t].map((id) => this.amigosIa.find((c) => c.AMIGA?.id === id));
-      if (t === 'chama') lista.push(...this.amigosIa.filter((c) => c.AMIGA && !c.AMIGA.raca && !c.AMIGA.recruta && !PVP.npcs.chama.includes(c.AMIGA.id))); // depois, qualquer aventureiro
-      for (const ctx of lista) { if (times[t].length >= PVP.time) break; const a = livre(ctx); if (a && !times.chama.includes(a) && !times.geada.includes(a)) times[t].push(a); }
+      const lista = this.amigosIa.map((c) => c.amiga).filter((a) => a && (this.racaDe(a) === 'geada') === (t === 'geada'));
+      for (let i = lista.length - 1; i > 0; i--) { const k = Math.floor(Math.random() * (i + 1)); [lista[i], lista[k]] = [lista[k], lista[i]]; }
+      for (const a of lista) { if (times[t].length >= PVP.time) break; if (livre(a) && !usado(a)) times[t].push(a); }
     }
     if (!times.chama.length || !times.geada.length) {
       for (const j of humanos) { fila.push({ id: j.id, t: this.tempo }); this.evento({ t: 'aviso', para: j.id, texto: 'Arena: faltou gente para os dois times, tentando de novo' }); }

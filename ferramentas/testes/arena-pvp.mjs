@@ -95,3 +95,26 @@ s.removerJogador('a'); ok(!a.pvp && Math.hypot(a.x - antes.x, a.z - antes.z) < 0
 correr(0.2); ok(s.partidaPvp && !s.partidaPvp.ids.includes('a'), 'a partida segue sem quem saiu');
 for (const id of [...s.partidaPvp.ids]) { const o = s.jogadores.get(id); if (o.pvp.time === 'chama') s.sairArena(o, 'saiu'); }
 correr(0.2); ok(s.partidaPvp?.fase === 'fim', 'sem ninguém de um time, a partida acaba');
+
+// times (André 2026-11-22: "se eu estiver em time vai meu time, se não vai sorteio entre os bots")
+{ const s2 = new Simulacao(MAPA_CLAREIRA);
+  const h = s2.adicionarJogador('h', 'Yukmei', 'ruiva', { conta: 9 });
+  for (const x of s2.amigosIa) x.amigaEntrar('h', true);
+  s2.passo(0.05);
+  const bots = (t) => s2.amigosIa.map((c) => c.amiga).filter((o) => o && (s2.racaDe(o) === 'geada') === (t === 'geada'));
+  const vistos2 = new Set(); let ok1 = true;
+  for (let n = 0; n < 8; n++) {
+    h.x = 0; h.z = 4; h.y = s2.terreno.altura(0, 4); h.combateAte = 0;
+    s2.arenaPvp('h', { acao: 'fila' }); for (let t = 0; t < PVP.espera + 0.3; t += 0.05) s2.passo(0.05);
+    const M2 = s2.partidaPvp; if (!M2) { ok1 = false; break; }
+    vistos2.add(M2.ids.filter((id) => s2.jogadores.get(id).pvp.time === 'chama').sort().join(','));
+    for (const id of [...M2.ids]) s2.sairArena(s2.jogadores.get(id), 'saiu'); for (let t = 0; t < 5; t += 0.05) s2.passo(0.05);
+  }
+  ok(ok1 && (bots('chama').length <= PVP.time || vistos2.size > 1), `sem time: os bots da Chama são sorteados (${vistos2.size} times diferentes em 8 partidas)`);
+  // no time: quem está no time do herói vai junto, do lado dele (bot da Geada não fica em time da Chama: guerra)
+  const amigo = bots('chama')[0];
+  const T = { lider: 'h', membros: ['h', amigo.id] }; h.time = T; amigo.time = T; (s2.times ||= new Set()).add(T);
+  h.x = 0; h.z = 4; h.y = s2.terreno.altura(0, 4); h.combateAte = 0;
+  s2.arenaPvp('h', { acao: 'fila' }); for (let t = 0; t < PVP.espera + 0.3; t += 0.05) s2.passo(0.05);
+  ok(s2.partidaPvp && amigo.pvp?.time === h.pvp?.time, `no time: ${amigo.nome} vai para o lado do herói`);
+  ok(s2.partidaPvp?.ids.length === PVP.time * 2 || bots('chama').length < PVP.time, `o resto é sorteado (${s2.partidaPvp?.ids.length} na arena)`); }
