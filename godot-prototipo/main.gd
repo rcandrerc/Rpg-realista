@@ -2547,7 +2547,16 @@ func tiro_basico(hab) -> bool:
 	return hab is Dictionary and str(hab.get("tipo", "")) == "basicoMagia"
 
 # tudo para por um instante (Engine.time_scale), como nos jogos de ação; volta pelo relógio de verdade
+# PvP (André 2026-11-22: "tô sentindo umas travadas no PvP 4x4"): na arena e lutando com jogador ou bot (guerra Geada x
+# Chama, duelo) o tempo não para nem desacelera: sem congelada do golpe e sem câmera lenta (esquiva, a própria morte).
+# Ficam o tranco da câmera, o flash, o som e a vibração. Fora disso, como sempre.
+var pvp_ate := 0.0 # m.tempo até quando ainda conta como luta com jogador (online.gd, evento "dano")
+func em_pvp() -> bool:
+	return tempo < pvp_ate or (arena_pvp != null and arena_pvp.ativo())
+
 func parar_golpe(seg: float) -> void:
+	if em_pvp():
+		return
 	_hitstop_ate = max(_hitstop_ate, Time.get_ticks_usec() / 1000000.0 + seg)
 	Engine.time_scale = 0.05
 
@@ -2804,6 +2813,8 @@ func _voltar_arvore(pos: Vector2) -> void:
 
 # câmera lenta curtinha (o tempo, não a câmera): k = velocidade (0,3 = 30%) por seg segundos de verdade
 func lenta(seg: float, k: float) -> void:
+	if em_pvp():
+		return
 	_lenta_ate = max(_lenta_ate, Time.get_ticks_usec() / 1000000.0 + seg)
 	_lenta_k = k
 	if Engine.time_scale > k:

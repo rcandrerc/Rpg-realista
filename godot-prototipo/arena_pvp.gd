@@ -27,6 +27,11 @@ var luta_em := 0.0 # m.tempo em que a luta começa
 var fim_em := 0.0 # m.tempo em que acaba
 var placar := {"chama": 0, "geada": 0}
 var caidos := {} # id -> m.tempo em que levanta
+# André 2026-11-22 ("você não sabe se morreu ou não... isso, morreu, sumiu"): quem cai na arena tomba na hora e some
+# num sopro de fumaça logo depois; volta a aparecer quando levanta na base (_pulo). id -> m.tempo em que some
+var _some := {}
+const SOME_EM := 0.75 # s de tombo antes de sumir
+var _sumidos := {} # id -> true: escondido agora (para mostrar de novo)
 var _alvos := {} # id -> o alvo do golpe (main.gd mais_perto): {no, estado, duelo, id}
 var _cor := {} # id -> cores de antes da barra e do nome
 var _enfeites: Array = [] # anel, chão das bases e luzes
@@ -178,6 +183,13 @@ func _abate(ev: Dictionary) -> void:
 	caidos[alvo] = m.tempo + float(ev.get("volta", 5))
 	if _alvos.has(alvo):
 		_alvos[alvo].estado = "morto" # o alvo travado solta (main.gd vivo)
+	var o = m.online.outros.get(alvo) if m.online else null
+	if o != null and is_instance_valid(o.no) and o.get("anim") != null: # tomba na hora, sem esperar a próxima foto
+		var a: String = m.online.animacao("mx_sword_and_shield_falling_back_death")
+		if o.anim.has_animation(a):
+			o.anim.play(a, 0.05, 1.5)
+			o.anim.seek(0.0, true)
+		_some[alvo] = m.tempo + SOME_EM
 	var de := str(ev.get("de", ""))
 	var meu: String = m.online.meu_id if m.online else ""
 	if de == meu:
@@ -207,6 +219,36 @@ func _pulo(ev: Dictionary) -> void:
 	if is_instance_valid(o.no):
 		o.no.position = para
 	caidos.erase(id)
+	_mostrar(id)
+
+func _mostrar(id: String) -> void:
+	_some.erase(id)
+	if not _sumidos.has(id):
+		return
+	_sumidos.erase(id)
+	var o = m.online.outros.get(id) if m.online else null
+	if o != null and is_instance_valid(o.no) and not o.get("sumiu", false):
+		o.no.visible = true
+		if m.fx:
+			m.fx.fumaca_chao(o.no.position.x, o.no.position.z, 0.7, 8, "d8d0c0", 0.6)
+
+# quem caiu e já tombou: some (e continua escondido mesmo se a área de interesse mexer nele) até levantar
+func _sumir_caidos() -> void:
+	for id in _some.keys():
+		if m.tempo < float(_some[id]):
+			continue
+		var o = m.online.outros.get(id) if m.online else null
+		if o == null or not is_instance_valid(o.no) or caidos.get(id, 0.0) <= m.tempo:
+			_mostrar(id)
+			continue
+		if o.no.visible:
+			if not _sumidos.has(id) and m.fx:
+				m.fx.fumaca_chao(o.no.position.x, o.no.position.z, 0.9, 12, "8a8496", 0.9)
+			o.no.visible = false
+		_sumidos[id] = true
+	for id in _sumidos.keys(): # levantou e o pulo não chegou: aparece de novo
+		if caidos.get(id, 0.0) <= m.tempo and not _some.has(id):
+			_mostrar(id)
 
 # ---------- o alvo do golpe (main.gd mais_perto) ----------
 # o mais perto do outro time, de pé, à vista (só na luta)
@@ -416,6 +458,7 @@ func _process(dt: float) -> void:
 		_grande.visible = true
 		_grande.add_theme_font_size_override("font_size", 26)
 		_grande.text = Idioma.frase("Levantando na base em %d s") % int(ceil(caidos[meu] - m.tempo))
+	_sumir_caidos()
 	_pintar_t -= dt
 	if _pintar_t <= 0.0: # quem chegou à vista depois (o corpo aparece quando entra na área de interesse)
 		_pintar_t = 1.0
@@ -531,6 +574,9 @@ func _pintar(liga: bool) -> void:
 
 func _limpar() -> void:
 	_pintar(false)
+	for id in _sumidos.keys():
+		_mostrar(id)
+	_some = {}
 	for a in _alvos.values():
 		a.estado = "morto"
 	_alvos = {}
