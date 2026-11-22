@@ -57,12 +57,13 @@ ok(!d.montado && evs.some((e) => e.para === d.id && /Em combate: espere \d+ s/.t
 passos(GUERRA.montaria + 0.5, () => { por(rufo, RACAS.geada.casa.x, RACAS.geada.casa.z); rufo.ia.guerra = null; d.entrada = { mx: 0, mz: 0 }; });
 s.montar(d.id); ok(d.montado === 'lobo', 'depois de 10 s monta de novo'); d.montado = null;
 
-// ---------- proteção de 2 min ----------
+// ---------- proteção depois de cair (desligada: GUERRA.protecao 0; a regra continua testada) ----------
 if (d.morto) passos(8);
 rufo.ia.guerra = null; nivel(rufo, 42); nivel(d, 45); d.protGuerraAte = 0; por(d, v5.x, v5.z); por(rufo, v5.x + 2, v5.z); s.guerraT = 0; s.passo(0.05);
 s.ferir(d, 1e7, rufo); ok(d.morto, 'André caiu');
 passos(8, () => { longe(rufo); rufo.ia.guerra = null; });
-ok(!d.morto && s.protegido(d), 'levantou protegido');
+ok(!d.morto && !s.protegido(d), 'levantou sem proteção (GUERRA.protecao 0, André 2026-11-22)');
+d.protGuerraAte = s.tempo + 120; // a regra da proteção continua no código (GUERRA.protecao > 0 liga de novo)
 por(d, v5.x, v5.z); por(rufo, v5.x + 2, v5.z); s.guerraT = 0; s.passo(0.05);
 const vp = d.vida; s.ferir(d, 50, rufo);
 ok(d.vida === vp && !s.inimigosDe(rufo).includes(d), 'protegido: o golpe da Geada não pega e ele não é alvo');
