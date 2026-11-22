@@ -13,12 +13,12 @@ const Menu = preload("res://menu.gd")
 # Mudas de árvore (André 2026-11-17: "se quiser plantar várias sementes de árvore pode setar e depois salva e ele sai
 # plantando tudo como as sementes normais"): ação "arvore", quadrado de 4 m (chave "a:i,k"), no terreno ou na área de
 # plantio; no fim manda "plantarArvore" no quadrado exato (q:1).
-const ACOES := ["arar", "plantar", "regar", "colher", "arvore"]
-const DUR := {"arar": 1.6, "plantar": 1.2, "regar": 1.4, "colher": 1.2, "arvore": 1.4} # s de cada tarefa
-const LONGE := {"arar": 1.0, "plantar": 0.6, "regar": 0.75, "colher": 0.6, "arvore": 1.0} # m do herói até o meio do quadrado
-const COR := {"arar": Color(0.86, 0.66, 0.38), "plantar": Color(0.45, 0.9, 0.42), "regar": Color(0.4, 0.72, 1.0), "colher": Color(1.0, 0.84, 0.35), "arvore": Color(0.55, 0.85, 0.4)}
+const ACOES := ["arar", "plantar", "regar", "colher", "arvore", "cortar"] # cortar = colher árvore plantada (André 2026-11-22)
+const DUR := {"arar": 1.6, "plantar": 1.2, "regar": 1.4, "colher": 1.2, "arvore": 1.4, "cortar": 0.0} # s de cada tarefa (cortar: o tempo é o do machado, ver _estado "cortando")
+const LONGE := {"arar": 1.0, "plantar": 0.6, "regar": 0.75, "colher": 0.6, "arvore": 1.0, "cortar": 1.0} # m do herói até o meio do quadrado
+const COR := {"arar": Color(0.86, 0.66, 0.38), "plantar": Color(0.45, 0.9, 0.42), "regar": Color(0.4, 0.72, 1.0), "colher": Color(1.0, 0.84, 0.35), "arvore": Color(0.55, 0.85, 0.4), "cortar": Color(0.9, 0.6, 0.3)}
 # cores da moldura de luz (marca_fazenda.gdshader): tons quentes e suaves, nada de verde-marca-texto
-const COR_MOLDURA := {"arar": Color(1.0, 0.78, 0.5), "plantar": Color(1.0, 0.9, 0.58), "regar": Color(0.62, 0.86, 1.0), "colher": Color(1.0, 0.8, 0.42), "arvore": Color(0.8, 1.0, 0.55)}
+const COR_MOLDURA := {"arar": Color(1.0, 0.78, 0.5), "plantar": Color(1.0, 0.9, 0.58), "regar": Color(0.62, 0.86, 1.0), "colher": Color(1.0, 0.8, 0.42), "arvore": Color(0.8, 1.0, 0.55), "cortar": Color(1.0, 0.7, 0.4)}
 const QA := 4.0 # m do quadrado das árvores (plantio.gd)
 const SHADER_MARCA := preload("res://marca_fazenda.gdshader")
 const TEMPO_IR := 6.0 # s para chegar a um quadrado; não chegou: pula (avisa)
@@ -28,6 +28,7 @@ var m # main.gd
 var fila := {} # "i,j" -> {"acao", "c", "s"?}
 var _marcas := {} # "i,j" -> Node3D (quadrado colorido no chão + ícone)
 var trabalhando := false
+var _tentou := 0.0 # s sem estar andando nem batendo na árvore (cortando)
 var _atual := {} # tarefa de agora
 var _estado := "" # "indo" ou "fazendo"
 var _t := 0.0
@@ -91,6 +92,8 @@ func _grande(d: Dictionary) -> bool:
 
 # meio do quadrado da tarefa (m): 1 m da horta ou 4 m da muda
 func _centro(d: Dictionary) -> Vector2:
+	if d.acao == "cortar":
+		return Vector2(float(d.x), float(d.z))
 	if d.acao == "arvore":
 		var n := 2.0 if _grande(d) else 1.0
 		return Vector2(float(d.i) + n * 0.5, float(d.k) + n * 0.5) * QA
@@ -152,7 +155,7 @@ func _mat_moldura(acao: String) -> ShaderMaterial:
 	return _mats[k]
 
 func _icone(acao: String, s: String) -> String:
-	return {"arar": "cs_arar", "plantar": "it_semente_" + s, "regar": "cs_regar", "colher": "it_colheita", "arvore": "it_semente_" + s}[acao]
+	return {"arar": "cs_arar", "plantar": "it_semente_" + s, "regar": "cs_regar", "colher": "it_colheita", "arvore": "it_semente_" + s, "cortar": "it_lenha"}[acao]
 
 func _refazer_marca(k: String) -> void:
 	if _marcas.has(k):
@@ -164,7 +167,7 @@ func _refazer_marca(k: String) -> void:
 	var cc := _centro(d)
 	var x := cc.x
 	var z := cc.y
-	var lado := (QA * (2.0 if _grande(d) else 1.0) - 0.3) if d.acao == "arvore" else 0.92
+	var lado := (QA * (2.0 if _grande(d) else 1.0) - 0.3) if d.acao == "arvore" else (1.8 if d.acao == "cortar" else 0.92)
 	var raiz := Node3D.new()
 	raiz.position = Vector3(x, m.terreno.altura(x, z) + 0.12, z)
 	add_child(raiz)
@@ -213,6 +216,8 @@ func comecar() -> void:
 func parar(aviso := "") -> void:
 	if not trabalhando:
 		return
+	if _estado == "cortando" and m.trabalho.coletando != null:
+		m.trabalho.parar(true)
 	trabalhando = false
 	_estado = ""
 	_atual = {}
@@ -259,13 +264,25 @@ func _proxima() -> void:
 				melhor = k
 		var d: Dictionary = fila[melhor]
 		var mot := ""
-		if d.acao == "arvore":
+		if d.acao == "cortar":
+			mot = c.motivo_cortar(str(d.id))
+		elif d.acao == "arvore":
 			mot = c.motivo_arvore(Vector2i(int(d.i), int(d.k)), str(d.s), bool(d.get("area", false)))
 		elif L == null:
 			mot = "Chegue no seu terreno para a horta"
 		else:
 			var ij2 := melhor.split(",")
 			mot = c.motivo_fazenda(L, d.acao, int(ij2[0]), int(ij2[1]), str(d.get("s", c.semente)))
+		if mot == "" and d.acao == "cortar":
+			# colher árvore: o herói anda até o tronco e bate com o machado pelo mesmo caminho do botão Coletar (trabalho.gd);
+			# a tarefa acaba quando a árvore cai (o servidor tira da lista) ou passa do tempo
+			_atual = d.duplicate()
+			_atual.pe = _centro(d)
+			_estado = "cortando"
+			_t = 0.0
+			_tentou = 0.0
+			m.trabalho.indo = {"o": m.plantio.arvores[str(d.id)].o, "ate": m.tempo + 8.0}
+			return
 		if mot == "":
 			_atual = d.duplicate()
 			_atual.pe = _alvo_pe(d)
@@ -300,6 +317,29 @@ func _process_parte(dt: float) -> void:
 		_proxima()
 		return
 	_t += dt
+	if _estado == "cortando":
+		var id := str(_atual.id)
+		if not m.plantio.arvores.has(id): # caiu
+			fila.erase(_atual.c)
+			_refazer_marca(_atual.c)
+			_estado = ""
+			return
+		var o: Dictionary = m.plantio.arvores[id].o
+		if m.trabalho.coletando == null and m.trabalho.indo == null:
+			_tentou += dt
+			if _tentou > 1.2 and _t < 20.0: # não começou (ainda longe ou o servidor negou): tenta de novo
+				_tentou = 0.0
+				m.trabalho.indo = {"o": o, "ate": m.tempo + 8.0}
+		else:
+			_tentou = 0.0
+		if _t > 30.0:
+			if m.trabalho.coletando != null:
+				m.trabalho.parar(true)
+			m.hud.aviso("Não deu para cortar essa árvore: pulei")
+			fila.erase(_atual.c)
+			_refazer_marca(_atual.c)
+			_estado = ""
+		return
 	if _estado == "indo":
 		if m.acao.size() > 0: # golpe, rolamento: espera
 			return
