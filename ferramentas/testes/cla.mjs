@@ -109,9 +109,45 @@ ok(true, 'simulação roda com os recrutas');
   ok(I3.find((K) => K.n === 'Guarda da Chama').inimigo === 0 && I3.find((K) => K.n === 'Lobos da Geada').inimigo === 1, 'mesma raça = neutro, outra = inimigo');
   for (const ctx of s3.amigosIa) ctx.amigaEntrar('Q', false);
   const dario = s3.amigosIa.find((x) => x.AMIGA.id === 'dario');
-  ok(NPC_SOLDADO.ligado && dario.ehAmigoAmiga(q) && dario.vontadeAmiga(dario.amiga, q).p === 1, 'soldado: obedece sem amizade');
+  ok(NPC_SOLDADO.ligado && dario.ehAmigoAmiga(q) && dario.vontadeAmiga(dario.amiga, q).p === 0, 'clã bot neutro conversa, mas não obedece a outro jogador');
   s3.eventos = [];
   for (let i = 0; i < 2400; i++) s3.passo(0.25);
   const papo = s3.eventos.filter((e) => e.t === 'chat' && e.para === 'Q' || (e.t === 'fala' && e.para === 'Q'));
   ok(papo.length === 0, `soldado não manda mensagem sozinho em 10 min (${papo.length})`);
+}
+
+// painel: status (vida, mana, vigor) e funções (André 2026-11-22)
+{
+  const s4 = new Simulacao(MAPA_CLAREIRA);
+  const L = s4.adicionarJogador('L', 'Lia Líder', undefined, { conta: 20 }); L.criando = false; L.ciente = true;
+  L.prog.nivel = 20; L.prog.ouro = 50000;
+  const r4 = s4.mapa.npcs.find((n) => n.funcao === 'recrutador'); L.x = r4.x + 1; L.z = r4.z;
+  s4.cla('L', { acao: 'fundar', nome: 'Teste Painel' });
+  for (let i = 0; i < 3; i++) s4.cla('L', { acao: 'recrutar', tier: 'veterano' });
+  const c = L.prog.cla, I = s4.claInfo(L);
+  ok(I.eu && I.eu.nv === 20 && I.eu.hpM > 0 && I.eu.mpM > 0 && I.eu.vgM === 100, `painel mostra o líder (${JSON.stringify(I.eu)})`);
+  ok(I.m.every((m) => m.on && m.hpM > 0 && m.mpM >= 0 && m.vg >= 0 && m.fn.k === 'livre' && m.fz), 'cada membro: nível, HP, mana, vigor, função e o que faz');
+  const [m1, m2, m3] = c.m, ctx = (id) => s4.recrutasNoMundo(L).find((x) => x.AMIGA.id === id);
+  s4.cla('L', { acao: 'funcao', id: m1.id, fn: { k: 'seguir' } });
+  ok(ctx(m1.id).amiga.time && ctx(m1.id).amiga.time === L.time, 'Me seguir: entra no time do líder');
+  s4.cla('L', { acao: 'funcao', id: m2.id, fn: { k: 'proteger', p: m1.id } });
+  ok(c.m[1].fn?.k === 'proteger' && ctx(m2.id).amiga.ia.funcao?.p === m1.id, 'Proteger outro membro');
+  s4.cla('L', { acao: 'funcao', id: m2.id, fn: { k: 'proteger', p: m2.id } });
+  ok(c.m[1].fn?.p === m1.id, 'não protege a si mesmo');
+  s4.cla('L', { acao: 'funcao', id: m3.id, fn: { k: 'recurso', r: 'ferro' } });
+  const a3 = ctx(m3.id).amiga;
+  ok(c.m[2].fn?.r === 'ferro' && (a3.ia.encomenda?.rec === 'ferro' || a3.ia.funcaoSt), `Farmar ferro: vai coletar ou diz por quê (${a3.ia.funcaoSt?.txt || 'coletando'})`);
+  s4.cla('L', { acao: 'funcao', id: m3.id, fn: { k: 'grind' } });
+  ok(c.m[2].fn?.k === 'grind' && (a3.ia.av || a3.ia.funcaoSt), `Grind: sai para caçar (${a3.ia.funcaoSt?.txt || a3.ia.av?.fase})`);
+  s4.cla('L', { acao: 'funcao', id: m1.id, fn: { k: 'livre' } });
+  ok(!c.m[0].fn && !ctx(m1.id).amiga.time, 'Livre: sai do time');
+  const v4 = progressoValido(JSON.parse(JSON.stringify(L.prog)));
+  ok(v4.cla.m[1].fn?.k === 'proteger' && v4.cla.m[2].fn?.k === 'grind', 'a conta guarda as funções');
+  // o protetor anda até quem protege
+  const a2 = ctx(m2.id).amiga, a1 = ctx(m1.id).amiga; a1.x = a2.x + 15; a1.z = a2.z;
+  for (let i = 0; i < 40; i++) s4.passo(0.25);
+  ok(Math.hypot(a2.x - a1.x, a2.z - a1.z) < 13, `protetor vai até o protegido (${Math.hypot(a2.x - a1.x, a2.z - a1.z).toFixed(1)} m)`);
+  // outro jogador não manda no recruta
+  const B = s4.adicionarJogador('B2', 'Outro', undefined, { conta: 21 }); B.criando = false;
+  ok(ctx(m2.id).vontadeAmiga(a2, B).p === 0 && !ctx(m2.id).ehAmigoAmiga(B), 'recruta obedece só ao líder dele');
 }

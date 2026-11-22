@@ -14,7 +14,7 @@
 //   A amizade é de cada um (j.amizades[conta]); j.amizade é a de quem ela acompanha agora.
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, NPC_SOLDADO } from './dados.js';
+import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, NPC_SOLDADO, CLA } from './dados.js';
 import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO, VEICULOS } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota, terraId } from './rota.js';
@@ -285,7 +285,8 @@ export const Amiga = {
   // não quiserem, eles vivem a vida deles e eu chamo quando precisa". Ela só entra na lista (Amigos virtuais, com o ♥ da
   // amizade) depois que a pessoa pede (tocando nela ou pela busca do nome) e ela aceita. Pode recusar: ocupada (caçando
   // longe, lutando, com outra pessoa) diz para pedir depois; sem conhecer a pessoa, às vezes quer conversar antes.
-  ehAmigoAmiga(j) { if (NPC_SOLDADO.ligado && j && !j.bot && this.amiga) return !this.outraRaca(j, this.amiga); return !!(j && this.amiga?.amigosDe?.[j.conta]); }, // soldado: todo mundo da raça dele
+  // soldado (André 2026-11-22): recruta do jogador só com o líder dele; os outros, todo mundo da raça (conversar)
+  ehAmigoAmiga(j) { if (NPC_SOLDADO.ligado && j && !j.bot && this.amiga) return this.AMIGA.recruta && !this.AMIGA.clanpc ? j.conta === this.AMIGA.lider : !this.outraRaca(j, this.amiga); return !!(j && this.amiga?.amigosDe?.[j.conta]); }, // soldado: todo mundo da raça dele
   pedidoAmizadeAmiga(id, viaChat = false) {
     const a = this.amiga, j = this.jogadores.get(id), P = this.AMIGA.amigoLista; if (!a || !j || j.bot || !j.conta) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto }), nome = this.AMIGA.nome;
@@ -484,6 +485,7 @@ export const Amiga = {
     ia.caiu = false;
     if (j.duelo) return this.passoDueloAmiga(j); // duelando (shared/duelo.js): só luta contra quem chamou
     if (this.guerraAmiga(j, dt)) return; // Chama x Geada (shared/guerra.js): atacar, ajudar, fugir ou poupar a outra raça
+    if (this.protegerAmiga(j, dt)) return; // função "Proteger" do painel do clã (shared/cla.js)
     // subiu de nível: os pontos vão pelo jeito dele (André 2026-11-11): quem gosta de cajado põe em Inteligência, o resto
     // em Força, e todos em Vitalidade (antes era só metade Força e metade Vitalidade)
     if (j.prog.pontos > 0) this.pontosAmiga(j);
@@ -1122,7 +1124,9 @@ export const Amiga = {
   },
   // vontade de entrar no time (0 a 1) e o motivo mais forte contra. Regras com sorteio, sem IA paga.
   vontadeAmiga(a, dono) {
-    if (NPC_SOLDADO.ligado) return { p: 1, motivo: 'vontade' }; // soldado obedece (André 2026-11-22)
+    // soldado obedece só ao líder do clã dele (André 2026-11-22). Clã bot (Guarda da Chama, Lobos da Geada) é neutro ou
+    // inimigo: não entra no time de jogador nenhum
+    if (NPC_SOLDADO.ligado) return this.AMIGA.recruta && !this.AMIGA.clanpc && dono?.conta === this.AMIGA.lider ? { p: 1, motivo: 'vontade' } : { p: 0, motivo: 'ocupada' };
     const R = this.AMIGA.time, A = this.AMIGA, contra = [];
     // André 2026-11-16: amizade até 4 = base (60%), de 4 a 10 sobe até 100%; cada 5 níveis ACIMA de quem chama tira 5%
     const amz = this.amizadeAmiga(dono), b = A.amizadeBase ?? 4, topo = A.amizade?.max || 10;
@@ -1337,6 +1341,24 @@ export const Amiga = {
       if (Math.hypot(j.x + ux * t - k.x, j.z + uz * t - k.z) < k.r + 0.45) { ate = t; achou = k; }
     }
     return achou;
+  },
+  // função "Proteger" (painel do clã, André 2026-11-22): fica perto de quem protege (o líder ou outro recruta) e ataca o
+  // que chegar perto dele. No time, quem manda é o time.
+  protegerAmiga(j, dt) {
+    const fn = j.ia.funcao; if (!fn || fn.k !== 'proteger' || !this.AMIGA.recruta || (j.time && j.time.membros.length > 1)) return false;
+    const lider = [...this.jogadores.values()].find((o) => !o.bot && o.conta === this.AMIGA.lider); if (!lider) return false;
+    const P = fn.p === 'lider' ? lider : this.amigosIa.find((x) => x.AMIGA.id === fn.p)?.amiga;
+    if (!P || P === j || P.morto) return false;
+    if (j.trava > 0) { this.pararAmiga(j); return true; }
+    const raio = CLA.protegeRaio, d = Math.hypot(P.x - j.x, P.z - j.z);
+    let alvo = null, md = Infinity;
+    for (const e of this.inimigosDe(j)) { if (e.morto || e.treino) continue; const de = Math.hypot(e.x - P.x, e.z - P.z); if (de < raio && de < md) { md = de; alvo = e; } }
+    if (alvo) { j.montado = null; if (this.cerebroAmiga(j, lider, alvo)) return true; }
+    if (d > 40) { this.irLongeAmiga(j, P.x, P.z, dt); return true; }
+    const ang = (P.ry || 0) + Math.PI - 0.7, px = P.x + Math.sin(ang) * 2.2, pz = P.z + Math.cos(ang) * 2.2, dp = Math.hypot(px - j.x, pz - j.z);
+    if (dp < 0.7) { this.pararAmiga(j); return true; }
+    this.irDireto(j, px, pz, dp > this.AMIGA.time.correr);
+    return true;
   },
   // o duelo acabou: para e volta para o que fazia (sem fala pronta)
   fimDueloAmiga(j) { this.pararAmiga(j); j.ia.cer = null; },

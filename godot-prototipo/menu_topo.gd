@@ -16,7 +16,7 @@ const MARGEM := Vector2(176, 70) # distância do canto de cima à direita: o men
 # André 2026-11-06: o martelo da construção sai de baixo (confundia com as skills) e vem para cá, do lado da mochila:
 # aceso no meu terreno, escuro fora dele
 # André 2026-11-11: "o menu de missões vai para aquela action bar" (antes era uma aba do menu do personagem)
-const ITENS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["missoes", "Missões", "topo_missoes"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["pvp", "PvP", "topo_pvp"], ["cla", "Clã", "eq_capa"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
+const ITENS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["missoes", "Missões", "topo_missoes"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["pvp", "PvP", "topo_pvp"], ["cla", "Clã", "topo_cla"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
 # André 2026-11-16: o ícone Conta saiu da barra ("menos poluído"); Trocar de conta, Sair da conta e Apagar personagem
 # ficam iguais, na aba Conta de Configurações (montar_config). abrir("conta") continua valendo e cai nessa aba.
 const TEMPO := 0.28 # segundos da animação de abrir e recolher (igual ao Quimera)

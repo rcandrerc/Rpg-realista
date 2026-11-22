@@ -11,11 +11,20 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { CLA, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, vagasClaNpc, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS, RACAS } from './dados.js';
+import { CLA, ENCOMENDA, VIGOR, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, vagasClaNpc, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS, RACAS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
 
 const sorteia = (l, r) => l[Math.floor(r() * l.length)];
 const int = (v, a, b, d) => (Number.isFinite(+v) ? Math.max(a, Math.min(b, Math.round(+v))) : d);
+// vigor de agora (igual ao vigorAgora de progresso.js; aqui sem importar para não dar laço)
+const vigorDe = (vg) => (vg ? Math.min(VIGOR.max, vg.v + (Math.max(0, Date.now() - vg.t) / 1000 / VIGOR.enche) * VIGOR.max) : VIGOR.max);
+// função do recruta (painel): { k, r?: recurso, p?: 'lider' | id de outro recruta }
+export function funcaoValida(fn) {
+  if (!fn || typeof fn !== 'object' || !CLA.funcoes.some((F) => F.id === fn.k) || fn.k === 'livre') return null;
+  if (fn.k === 'recurso') return Object.hasOwn(ENCOMENDA.recursos, fn.r) ? { k: 'recurso', r: fn.r } : null;
+  if (fn.k === 'proteger') return fn.p === 'lider' || (typeof fn.p === 'string' && /^rc[a-z0-9]{4,16}$/.test(fn.p)) ? { k: 'proteger', p: fn.p } : null;
+  return { k: fn.k };
+}
 const cor = (v) => (Number.isInteger(v) && v >= 0 && v <= 0xffffff ? v : 0x888888);
 
 // confere o que veio da conta (progressoValido)
@@ -30,7 +39,7 @@ export function claValido(c) {
       ap: { cabelo: cor(ap.cabelo), olhos: cor(ap.olhos), pele: cor(ap.pele), roupa: cor(ap.roupa), calca: cor(ap.calca),
         altura: Math.max(CLA.altura[0], Math.min(CLA.altura[1], +ap.altura || 1)), penteado: P[g].includes(ap.penteado) ? ap.penteado : null },
       jeito: CLA.jeitos.includes(m.jeito) ? m.jeito : CLA.jeitos[0], gosto: CLA.gostos.includes(m.gosto) ? m.gosto : 'cacar',
-      nv0: int(m.nv0, 1, 200, 1), nv: int(m.nv, 1, 200, 1), desde: int(m.desde, 0, 9e15, 0), ...(Number.isFinite(+m.dev) && +m.dev > 0 ? { dev: Math.round(+m.dev) } : {}) });
+      nv0: int(m.nv0, 1, 200, 1), nv: int(m.nv, 1, 200, 1), desde: int(m.desde, 0, 9e15, 0), ...(Number.isFinite(+m.dev) && +m.dev > 0 ? { dev: Math.round(+m.dev) } : {}), ...(funcaoValida(m.fn) ? { fn: funcaoValida(m.fn) } : {}) });
   }
   for (const L of Array.isArray(c.log) ? c.log.slice(-CLA.log) : []) if (L && typeof L.txt === 'string') out.log.push({ t: int(L.t, 0, 9e15, 0), txt: L.txt.slice(0, 80), v: int(L.v, -1e9, 1e9, 0) });
   return out;
@@ -74,12 +83,17 @@ export const Cla = {
     const rec = {};
     for (const a of vivos.values()) for (const it of a.prog.mochila || []) if (it && CLA.recursos.includes(it.k)) rec[it.k] = (rec[it.k] | 0) + (it.n | 0);
     const nv = j.prog.nivel | 0;
+    // status de cada um (André 2026-11-22: "eu consigo ver nível Hp mana e vigor"): vida, mana e vigor (0 a 100)
+    const st = (o, prog) => ({ hp: Math.round(o.vida) | 0, hpM: Math.round(o.vidaMax) | 0, mp: Math.round(o.mana) | 0, mpM: Math.round(o.manaMax) | 0, vg: Math.floor(vigorDe(prog.vigor)), vgM: VIGOR.max, morto: o.morto ? 1 : 0 });
     return { n: c.n, cofre: c.cofre, semana: semanaCla(c), prox: Math.max(0, c.sem - Date.now()), max: CLA.max, perto: this.pertoRecrutador(j),
-      m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, sem: semanaDe(tierDe(m.tier), a ? a.prog.nivel | 0 : m.nv), on: a ? 1 : 0, ...(m.dev ? { dev: m.dev } : {}), g: m.g }; }),
+      eu: { nome: j.nome, nv, ...st(j, j.prog) },
+      m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, sem: semanaDe(tierDe(m.tier), a ? a.prog.nivel | 0 : m.nv), on: a ? 1 : 0, ...(m.dev ? { dev: m.dev } : {}), g: m.g,
+        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, j) } : {}) }; }),
+      funcoes: CLA.funcoes, recursos: Object.entries(ENCOMENDA.recursos).map(([k, R]) => ({ k, nome: R.nome })),
       tiers: CLA.tiers.map((T) => { const n2 = nivelTier(T, nv); return { id: T.id, nome: T.nome, nv: n2, preco: precoTier(T, n2), sem: semanaDe(T, n2) }; }),
       rec, log: c.log.slice(-10).reverse(), dep: CLA.deposito, clas: this.clasNpcInfo(j) };
   },
-  // pedido do app: { acao: 'fundar' | 'recrutar' | 'dispensar' | 'depositar' | 'sacar' | 'ver', nome, tier, id, ouro }
+  // pedido do app: { acao: 'fundar' | 'recrutar' | 'dispensar' | 'depositar' | 'sacar' | 'ver' | 'funcao', nome, tier, id, ouro, fn }
   cla(id, m) {
     const j = this.jogadores.get(id); if (!j || j.bot || !j.conta || !m) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
@@ -124,7 +138,72 @@ export const Cla = {
       this.pagarDevendo(j);
       return this.avisarProg(j);
     }
+    if (m.acao === 'funcao') {
+      const r = c.m.find((o) => o.id === m.id); if (!r) return;
+      const fn = funcaoValida(m.fn);
+      if (fn?.k === 'proteger' && fn.p !== 'lider' && (fn.p === r.id || !c.m.some((o) => o.id === fn.p))) return aviso('Escolha você ou outro membro do clã');
+      if (fn) r.fn = fn; else delete r.fn;
+      j.progSujo = true;
+      const x = this.recrutasNoMundo(j).find((o) => o.AMIGA.id === r.id);
+      if (x?.amiga) this.aplicarFuncao(j, x, r, true);
+      const F = CLA.funcoes.find((o) => o.id === (fn?.k || 'livre'));
+      aviso(`${r.nome}: ${F.nome}${fn?.k === 'recurso' ? ` (${ENCOMENDA.recursos[fn.r].nome})` : fn?.k === 'proteger' ? ` ${fn.p === 'lider' ? 'você' : c.m.find((o) => o.id === fn.p).nome}` : ''}`);
+      return this.avisarProg(j);
+    }
     if (m.acao === 'ver') return this.avisarProg(j);
+  },
+  // ---------- funções (André 2026-11-22) ----------
+  // o que ele está fazendo agora (linha curta no painel)
+  fazendoRecruta(a, j) {
+    const ia = a.ia;
+    if (a.morto) return 'Caído';
+    if (ia.funcaoSt && ia.funcaoSt.ate > this.tempo) return ia.funcaoSt.txt;
+    if (a.time && a.time === j.time) return 'No seu time';
+    if (ia.funcao?.k === 'proteger') return 'Protegendo';
+    if (ia.encomenda && !ia.encomenda.pronta) return `Coletando ${ENCOMENDA.recursos[ia.encomenda.rec]?.nome || ''}`.trim();
+    if (ia.av) return ia.av.fase === 'voltar' ? 'Voltando' : ia.av.coleta ? 'Coletando' : 'Caçando';
+    return 'Parado';
+  },
+  // aplica a função de cada recruta no mundo (a cada minuto e ao entrar)
+  aplicarFuncoes(j) {
+    const c = j?.prog?.cla; if (!c) return;
+    for (const x of this.recrutasNoMundo(j)) { const m = x.amiga && c.m.find((o) => o.id === x.AMIGA.id); if (m) this.aplicarFuncao(j, x, m, false); }
+  },
+  // novo = acabou de trocar no painel: larga o que fazia antes
+  aplicarFuncao(j, x, m, novo) {
+    const a = x.amiga, ia = a.ia, fn = m.fn || { k: 'livre' }, noTime = !!(a.time && a.time === j.time);
+    const avisa = (txt) => { ia.funcaoSt = { txt, ate: this.tempo + 90 }; };
+    ia.funcao = fn.k === 'proteger' ? fn : null;
+    if (novo) {
+      ia.funcaoSt = null;
+      if (fn.k !== 'seguir' && noTime) x.sairTimeAmiga(j.id);
+      if (a.coleta) this.pararColeta(a, null); if (a.pesca) this.pararPesca(a, null);
+      if (ia.atividade) x.fimAtividadeAmiga(a, true);
+      if (ia.encomenda && !ia.encomenda.pronta) ia.encomenda = null;
+      ia.av = null; ia.viagem = null; ia.vir = null; ia.fase = 'pensar';
+    }
+    if (a.morto) return;
+    if (fn.k === 'seguir') {
+      if (a.time === j.time && a.time) return;
+      if (a.time) this.sairDoTime(a, `${x.AMIGA.nome} saiu do time`);
+      if (!x.entrarTimeAmiga(a, j)) avisa('Time cheio');
+      return;
+    }
+    if (a.time && a.time === j.time) return; // você pôs no time pela conversa: fica até tirar
+    if (fn.k === 'grind') {
+      if (ia.av && !ia.av.encomenda && ia.av.fase !== 'voltar') return;
+      const v = x.sairCacarAmiga(a, j);
+      if (!v.ok && !v.ja) avisa(v.fala ? v.fala[0].toUpperCase() + v.fala.slice(1) : 'Não consegue sair agora');
+      return;
+    }
+    if (fn.k === 'recurso') {
+      const R = ENCOMENDA.recursos[fn.r]; if (!R) return;
+      if (ia.encomenda && !ia.encomenda.pronta && ia.av?.encomenda) return;
+      if (ia.encomenda?.pronta) ia.encomenda = null; // o que juntou fica na bolsa dele (recursos do clã)
+      const verbo = R.coleta === 'pescar' ? 'pesca' : R.coleta === 'lenha' ? 'corta' : 'minera';
+      const fala = x.encomendaAmiga(a, j, `${verbo} ${CLA.farmar} ${R.palavras[0]} pra mim`);
+      if (!(ia.encomenda && !ia.encomenda.pronta)) avisa(String(fala || 'Não dá agora').replace(/^[^:]*: /, '').slice(0, 60));
+    }
   },
   // a semana: cobra cada semana vencida do cofre; sem dinheiro, o recruta fica devendo; 7 dias devendo, vai embora
   cobrarCla(j) {
@@ -148,6 +227,7 @@ export const Cla = {
       this.evento({ t: 'aviso', para: j.id, texto: `${m.nome} foi embora do clã: 7 dias sem pagamento` });
     }
     if (mudou) j.progSujo = true;
+    this.aplicarFuncoes(j);
   },
   // depósito novo: paga quem estava devendo (a semana inteira dele)
   pagarDevendo(j) {
@@ -173,6 +253,7 @@ export const Cla = {
       const ang = Math.random() * Math.PI * 2, x = j.x + Math.sin(ang) * 2.5, z = j.z + Math.cos(ang) * 2.5;
       Object.assign(a, { x, z, y: this.terreno.altura(x, z), chao: true });
     }
+    this.aplicarFuncoes(j); // a função que ficou escolhida no painel
   },
   // tira o corpo de um recruta (dispensado ou foi embora)
   tirarRecruta(rid, j) {

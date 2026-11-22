@@ -3300,6 +3300,14 @@ export const CLA = {
   penteados: { f: [null, 'shino', 'vivi', 'vita', 'shibu', 'victoria'], m: [null, 'fumiriya'] },
   altura: [0.93, 1.08],
   deposito: [100, 1000, 10000], // botões do cofre (ouro)
+  // função de cada recruta, escolhida no painel (André 2026-11-22: "determinar funções tipo grind, farmar recurso especifico,
+  // proteger um membro, me seguir etc"). recurso: as chaves de ENCOMENDA.recursos; proteger: o líder ou outro recruta.
+  funcoes: [
+    { id: 'livre', nome: 'Livre' }, { id: 'seguir', nome: 'Me seguir' }, { id: 'grind', nome: 'Grind' },
+    { id: 'recurso', nome: 'Farmar recurso' }, { id: 'proteger', nome: 'Proteger' },
+  ],
+  farmar: 40, // quanto ele junta por viagem (o máximo da encomenda); acabou, vai de novo
+  protegeRaio: 9, // m em volta de quem ele protege: monstro ou inimigo ali dentro, ele ataca
 };
 // o recruta m do clã (shared/cla.js) vira um NPC igual aos aventureiros por dentro (cérebro, conversa, time, troca,
 // encomenda, barco...), com dono: só o líder conversa e manda nele, e ele só existe com o líder no jogo.
