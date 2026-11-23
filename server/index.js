@@ -207,6 +207,7 @@ class SalaClareira extends Room {
     });
     // amigos (até 20, ficam na conta) e time (shared/simulacao.js amigo/time): pedir, aceitar, recusar, remover, convidar, sair
     const texto = (v) => (typeof v === 'string' ? v.slice(0, 32) : undefined);
+    this.ouvir('ficha', (c, m) => this.sim.fichaJogador(c.sessionId, m)); // a ficha do jogador, opcional (André 2026-11-23)
     this.ouvir('verEquip', (c, m) => { if (m && typeof m.com === 'string' && m.com.length < 40) this.sim.verEquip(c.sessionId, { com: m.com }); }); // ver o equipamento de quem está perto
     this.ouvir('amigo', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.amigo(c.sessionId, { acao: m.acao, com: texto(m.com), c: texto(m.c), nome: texto(m.nome) }); });
     this.ouvir('comando', (c, m) => { if (m && typeof m.c === 'string' && m.c.length < 10) this.sim.comandoTime(c.sessionId, { c: m.c, para: texto(m.para) }); }); // comando rápido do time (André 2026-11-19)

@@ -563,7 +563,7 @@ export const Amiga = {
   },
   // pontos de atributo pelo jeito (gosto pelo cajado): Força, Inteligência e Vitalidade na proporção dele
   pontosAmiga(j) {
-    const J = CEREBRO.jeitos[this.AMIGA.id] || CEREBRO.jeitos.padrao, peso = { for: Math.max(0.05, 1 - J.cajado), int: Math.max(0.05, J.cajado), vit: 0.8 };
+    const J = CEREBRO.jeitos[this.AMIGA.id] || this.AMIGA.luta || CEREBRO.jeitos.padrao, peso = { for: Math.max(0.05, 1 - J.cajado), int: Math.max(0.05, J.cajado), vit: 0.8 };
     for (let n = 0; j.prog.pontos > 0 && n < 400; n++) {
       const k = Object.keys(peso).reduce((m, k) => (j.prog.atr[k] / peso[k] < j.prog.atr[m] / peso[m] ? k : m), 'vit');
       const antes = j.prog.pontos; this.distribuirAtributo(j.id, k); if (j.prog.pontos === antes) break;
@@ -1294,7 +1294,7 @@ export const Amiga = {
     if (!D.luta || j.trava > 0) return this.pararAmiga(j);
     if (j.vida < j.vidaMax * 0.45 && this.habOkAmiga(j, 'cura_floresta')) { this.pararAmiga(j); return this.usarHabQ(j.id, 'cura_floresta'); }
     if (Math.hypot(j.x - D.x, j.z - D.z) > DUELO.raio - 3) return this.irDireto(j, D.x, D.z, true); // perto da borda: volta pro meio
-    const c = { s: { pertoDeMim: 1, agrupados: 0 }, jeito: CEREBRO.jeitos[this.AMIGA.id] || CEREBRO.jeitos.padrao };
+    const c = { s: { pertoDeMim: 1, agrupados: 0 }, jeito: CEREBRO.jeitos[this.AMIGA.id] || this.AMIGA.luta || CEREBRO.jeitos.padrao };
     this.atacarAmiga(j, o, c);
   },
   // Arena PvP 3x3 (André 2026-11-21, shared/arena.js): caída, espera levantar; na contagem, parada olhando para o meio;
@@ -1314,7 +1314,7 @@ export const Amiga = {
     const k = this.bloqueioArena(j, o);
     if (k) return this.contornarAmiga(j, o, k);
     j.ia.pvpLado = 0;
-    const c = { s: { pertoDeMim: l.filter((x) => Math.hypot(x.x - j.x, x.z - j.z) < 6).length, agrupados: 0 }, jeito: CEREBRO.jeitos[this.AMIGA.id] || CEREBRO.jeitos.padrao };
+    const c = { s: { pertoDeMim: l.filter((x) => Math.hypot(x.x - j.x, x.z - j.z) < 6).length, agrupados: 0 }, jeito: CEREBRO.jeitos[this.AMIGA.id] || this.AMIGA.luta || CEREBRO.jeitos.padrao };
     this.atacarAmiga(j, o, c);
   },
   // anda de lado do obstáculo k que tapa o alvo o, sempre pelo mesmo lado até a linha abrir (troca se ficar presa 4 s)
@@ -1510,7 +1510,7 @@ export const Amiga = {
   // O que ela enxerga agora (os sentidos que as regras de CEREBRO.regras leem). alvo = o monstro do alvoAmiga.
   sentidosAmiga(j, dono, alvo) {
     const C = CEREBRO, R = this.AMIGA.time, J = this.AMIGA.justa, ia = j.ia, t = this.tempo;
-    const jeito = C.jeitos[this.AMIGA.id] || C.jeitos.padrao;
+    const jeito = C.jeitos[this.AMIGA.id] || this.AMIGA.luta || C.jeitos.padrao // recruta: a ficha dele (FICHA_RECRUTA);
     const Li = j.licoes || {}; // o que aprendeu caindo: bebe, foge e recua mais cedo
     const s = limites(jeito, { pocao: Math.min(0.95, (this.regraAmiga('pocao') ?? R.pocao) + (Li.pocao || 0)), curaDono: this.regraAmiga('curaDono') ?? J.curaDono, curaVida: J.curaVida, fugir: Math.min(0.9, R.fugir + (Li.fugir || 0)) });
     s.limRecuar = Math.min(0.95, s.limRecuar + (Li.recuar || 0));
