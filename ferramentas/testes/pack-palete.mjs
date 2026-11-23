@@ -29,3 +29,15 @@ largar(801, 800); ok(!s.packsNoPalete('p2').length, 'palete fora da base do clã
 // palete sumiu: os de cima viram pack comum
 L.pecas = []; s.paleteT = 0; s.passoPacks();
 ok(s.packsChao.filter((o) => o.fica).length === 0 && s.packsChao.some((o) => o.fim < Infinity), 'palete sumiu: os packs viram comuns (30 min)');
+// André 2026-11-23: só o clã dono da base pega o pack do palete (líder e recrutas)
+{
+  const s3 = new Simulacao(MAPA_CLAREIRA); s3.basesCla = { jc1: { k: 'jc1', x: 400, z: 200 } };
+  s3.lotes.set('L1', { def: { id: 'L1', x0: 395, x1: 405, z0: 195, z1: 205 }, dono: 'c1', pecas: [{ id: 'p1', k: 'palete', x: 400, z: 200, r: 0 }] });
+  const dono = s3.adicionarJogador('a', 'Ana', 'ruiva', {}); dono.conta = 'c1';
+  const fora = s3.adicionarJogador('b', 'Bia', 'ruiva', {}); fora.conta = 'c2';
+  Object.assign(dono, { x: 401, z: 200, ry: 0 }); dono.prog.pack = { k: 'couro', ox: 0, oz: 0 }; s3.pack(dono.id, { acao: 'largar' });
+  const g = s3.packsChao[0].g;
+  Object.assign(fora, { x: 401, z: 200 }); s3.pack(fora.id, { acao: 'pegar', g });
+  ok(!fora.prog.pack && s3.packsChao.length === 1, 'quem é de fora não pega do palete');
+  s3.pack(dono.id, { acao: 'pegar', g }); ok(!!dono.prog.pack && !s3.packsChao.length, 'o dono da base pega');
+}

@@ -10,7 +10,7 @@
 // - j.veiculo: 'carrinho' | 'barquinho' | 'navio' | null (dirigindo agora; não vai para a conta).
 // - this.packsChao: packs largados no chão (qualquer um pega; somem depois de PACK_CHAO_DURA s). Os de cima de um palete
 //   na base do clã (fica = 1, pal = id da peça, sl = lugar) não somem e passam pelo reinício: packsBaseParaSalvar.
-import { PACKS, PACK_REGRAS as PR, VEICULOS as V, ITENS, CACA, PROF_MAX, tempoCriar, GUERRA, CLA, PALETE } from './dados.js';
+import { PACKS, PACK_REGRAS as PR, VEICULOS as V, ITENS, CACA, PROF_MAX, tempoCriar, GUERRA, CLA, PALETE, CLAS_NPC } from './dados.js';
 import { contar, tirar, guardar, gastarVigor, vigorAgora, profNivel } from './progresso.js';
 import { noLago, AGUA } from './relevo.js';
 import { motivoLibera, missaoAtual, etapasDe } from './historia.js'; // progressão (André 2026-11-10)
@@ -297,6 +297,7 @@ export const Transporte = {
       if (p.pack) return aviso('Suas costas já estão ocupadas');
       if (j.veiculo === 'carrinho') return aviso('Desça do carrinho primeiro');
       const g = this.packsChao.find((o) => o.g === m.g); if (!g || Math.hypot(g.x - j.x, g.z - j.z) > PR.pegar + 0.5) return;
+      if (!this.podePegarPack(j, g)) return aviso('Esse pack está no palete de outro clã: só o clã dono pega');
       this.packsChao.splice(this.packsChao.indexOf(g), 1);
       p.pack = packValido(g); j.montado = null;
       // pack da outra raça (caiu de um bot da emboscada ou de um inimigo): roubado, paga mais; o seu de volta não é
@@ -346,6 +347,18 @@ export const Transporte = {
     for (const B of Object.values(this.basesCla || {})) if (Math.abs(B.x - x) < R && Math.abs(B.z - z) < R && Math.hypot(B.x - x, B.z - z) < R) return B.k;
     return null;
   },
+  // a chave da base do clã de j ('j' + conta do líder ou 'n' + id do clã bot): o líder (jogador ou bot) e os recrutas
+  chaveClaDe(j) {
+    if (!j) return null;
+    if (!j.bot) return this.chaveBase?.(j) || null;
+    const x = (this.amigosIa || []).find((o) => o.amiga === j); if (!x) return null;
+    const A = x.AMIGA, C = CLAS_NPC.find((o) => o.lider === A.id || o.id === A.clanpc);
+    if (C) return 'n' + C.id;
+    if (A.recruta && A.lider != null) return 'j' + String(A.lider).replace(/[^\w]/g, '').slice(0, 30);
+    return null;
+  },
+  // André 2026-11-23: "só quem pode pegar os packs dentro da base são as pessoas do clã ... meus NPCs e eu"
+  podePegarPack(j, o) { return !o?.fica || (!!o.bk && this.chaveClaDe(j) === o.bk); },
   packsNaBase(bk) { let n = 0; for (const o of this.packsChao || []) if (o.fica && o.bk === bk) n++; return n; },
   packsNoPalete(id) { return (this.packsChao || []).filter((o) => o.fica && o.pal === id); },
   // os lugares de cima do palete P (girado por P.r), em coordenadas do mundo

@@ -410,7 +410,7 @@ export const Guerra = {
     // em terra: pack no chão perto (caiu do carrinho quebrado ou de quem morreu)? pega e foge
     if (!j.prog.pack) {
       let pg = null, pd = 22;
-      for (const o of this.packsChao || []) { const d = Math.hypot(o.x - E.x, o.z - E.z); if (d < pd) { pd = d; pg = o; } }
+      for (const o of this.packsChao || []) { if (o.fica) continue; const d = Math.hypot(o.x - E.x, o.z - E.z); if (d < pd) { pd = d; pg = o; } } // palete: só o clã dono
       if (pg) {
         const d = Math.hypot(pg.x - j.x, pg.z - j.z);
         if (d > PACK_REGRAS.pegar - 0.3) { j.montado = null; this.irDireto(j, pg.x, pg.z, true); return true; }
