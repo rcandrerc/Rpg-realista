@@ -4,7 +4,7 @@
 // Uso: node ferramentas/testes/aventureiros.mjs
 import { Simulacao, MAPA_CLAREIRA, AVENTUREIROS, AMIGOS_VIRTUAIS, CEREBRO, NPC_VIDA, CRIADOR, aparenciaValida, IA_CONVERSA } from '../../shared/index.js';
 IA_CONVERSA.ligada = true; // testa o sistema de IA guardado (desligado no jogo desde 2026-11-18)
-import { NPCS_NO_MUNDO, AV_PROMOVIDOS } from '../../shared/dados.js'; NPCS_NO_MUNDO.aventureiros = null; // aqui o teste usa os 20 (no jogo andam só os de NPCS_NO_MUNDO)
+import { NPCS_NO_MUNDO, AV_PROMOVIDOS, CLAS_NPC } from '../../shared/dados.js'; NPCS_NO_MUNDO.aventureiros = null; // aqui o teste usa os 20 (no jogo andam só os de NPCS_NO_MUNDO)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 
 ok(AVENTUREIROS.length === 18 && AV_PROMOVIDOS.length === 2 && AMIGOS_VIRTUAIS.length === 21, '18 aventureiros + Cecília, Dario e Lia (o Gael foi para a Geada)');
@@ -51,7 +51,8 @@ ok(ms < 8, `custo: ${ms.toFixed(2)} ms por passo com 22 NPCs (o servidor tem 50 
 for (const x of aventureiros) x.guardarAmiga();
 const salvos = s.npcsParaSalvar().filter((n) => !['kira', 'rufo', 'lis'].includes(n.id)); // a Geada salva junto (teste em guerra.mjs)
 ok(salvos.length === 18 && salvos.every((n) => n.dados.prog && n.dados.t), 'o progresso dos 18 vai para o banco (tabela mundo)');
-ok(!s.lotesParaSalvar().some((l) => l.dono?.startsWith('a:') && !['a:cecilia', 'a:dario', 'a:lia'].includes(l.dono)), 'nenhum terreno criado para aventureiro');
+// André 2026-11-23 (NPC_CASA_BASE): quem é de clã bot (Geada, Gael) também tem lote na base; aventureiro sem clã, não
+ok(!s.lotesParaSalvar().some((l) => l.dono?.startsWith('a:') && !['a:cecilia', 'a:dario', 'a:lia', ...CLAS_NPC.flatMap((C) => C.membros.map((id) => 'a:' + id))].includes(l.dono)), 'nenhum terreno criado para aventureiro');
 // todos saem com o último jogador
 for (const x of s.amigosIa) x.amigaSair('andre');
 ok(s.amigosIa.every((x) => !x.amiga), 'o último jogador saiu: todos saem (e param de gastar servidor)');
