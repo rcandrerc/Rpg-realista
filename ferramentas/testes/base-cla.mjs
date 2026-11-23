@@ -260,3 +260,17 @@ ok(Object.values(bg.donos).length >= Math.min(bg.nv - 1, 3), 'os membros do clã
   ok(D.forja.z - D.forja.fz > 3, 'a bigorna fica na frente do galpão, fora dele');
   s9.basesCla = {}; s9.refazerBases(); // devolve o chão para os outros testes
 }
+
+// a casinha do topo leva para a base (André 2026-11-23: "O botão casa agora vai pra a base")
+{
+  const s10 = new Simulacao(MAPA_CLAREIRA);
+  const h = s10.adicionarJogador('H', 'Hugo', undefined, { conta: 10 }); h.criando = false; h.ciente = true; h.chao = true;
+  s10.cla('H', { acao: 'fundar', nome: 'Casa' });
+  const p = acharLugarBase(-420, -330, 'chama', []);
+  s10.cla('H', { acao: 'base', x: p.x, z: p.z });
+  h.x = p.x + 200; h.z = p.z + 200;
+  s10.chegarNaVila(h);
+  const D = s10.basesDesenho[s10.baseDe(h).k];
+  ok(Math.hypot(h.x - D.bau.x, h.z - D.bau.z - 2.5) < 3, 'a casinha leva para a porta do salão da base');
+  s10.basesCla = {}; s10.refazerBases();
+}
