@@ -50,11 +50,11 @@ export function aplainar(G, ed, x, z, y, wmax) {
     if (o < 0.5 || (G.rio && G.rio[k] > 0)) continue;
     const px = G.x0 + i * G.passo, pz = G.z0 + j * G.passo, dx = Math.abs(px - x), dz = Math.abs(pz - z);
     const d = Math.hypot(Math.max(dx - T.meio, 0), Math.max(dz - T.meio, 0)), n = ruidoChao(px, pz);
-    if (d <= 0) { ed.set(k, y + n * (0.12 + 0.18 * Math.max(dx, dz) / T.meio)); continue; }
+    if (d <= 0) { ed.set(k, y); continue; } // dentro: plano de verdade (André 2026-11-23: a grama furava a terra arada); a ondinha fica na rampa
     const cur = ed.has(k) ? ed.get(k) : o, diff = cur - y, W = Math.min(wmax, Math.max(T.wMin, Math.min(T.wMax, Math.abs(diff) / T.rampa)));
     if (d >= W) continue;
     const s = sv(d / W);
-    ed.set(k, y + n * 0.3 * (1 - s) + diff * s);
+    ed.set(k, y + n * 0.3 * s * (1 - s) * 4 + diff * s); // ondinha só no meio da rampa (zero na beira do platô)
   }
 }
 
