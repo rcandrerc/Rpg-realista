@@ -3359,6 +3359,11 @@ export const CLA = {
   // entrega (André 2026-11-23): só o recurso pedido vai para o Baú do Clã, e ele leva andando (perto: m do baú para deixar)
   entrega: { perto: 2.4 },
   protegeRaio: 9, // m em volta de quem ele protege: monstro ou inimigo ali dentro, ele ataca
+  // Proteger carrinho / mercante (André 2026-11-23: "proteger meu carrinho... proteger meu mercante"; "se esse bicho se
+  // afastando, ele não correr atrás. A função dele é só defender"): raio = inimigo a até isso do carrinho, ele ataca sem
+  // esperar apanhar; coleira = o inimigo passou disso do carrinho, ele larga e volta (nunca persegue); roda = m do carrinho
+  // onde ele fica. No mercante ele sobe no convés e não sai do navio (não cai na água no trajeto): bate só no que alcança.
+  protegeVeiculo: { raio: 12, coleira: 15, roda: 3 },
   // com o líder fora do jogo (André 2026-11-22: "eqt estou offline ele faz oq eu mandei?"): a sala fecha sem ninguém,
   // então quando ele volta o servidor conta o tempo fora (até max) e dá o resultado da função: Grind = XP (nivelHora
   // níveis por hora, nunca passa do nível do líder); Farmar = o que o vigor pagaria (o vigor enche no tempo fora)

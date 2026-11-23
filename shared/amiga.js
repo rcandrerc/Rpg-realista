@@ -18,7 +18,7 @@ import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, NPC_
 import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, NPC_CASA_BASE, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO, VEICULOS } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota, terraId } from './rota.js';
-import { lugarDoVeiculo, fundoAgua, devolverBarquinho, packValido, precoPack, mercadoK, mercadoConta, capacidadeCarrinho } from './transporte.js';
+import { lugarDoVeiculo, fundoAgua, devolverBarquinho, centroNavio, packValido, precoPack, mercadoK, mercadoConta, capacidadeCarrinho } from './transporte.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
 import { HISTORIA } from './dados.js';
 import { LOJA, precoLoja, PLANTIO, RECEITA_ESTACAO, CATALISADOR, LUGARES } from './dados.js';
@@ -499,6 +499,7 @@ export const Amiga = {
     if (j.morto) { if (!ia.caiu) { ia.caiu = true; ia.caiuT = this.tempo; this.evolucaoAmiga(j, 'morreu', ia.av?.c?.nome || (j.time ? 'no time' : '')); const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); if (ia.encomenda && !ia.encomenda.pronta) this.fimEncomendaAmiga(j, 'luta'); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
     ia.caiu = false;
     if (j.duelo) return this.passoDueloAmiga(j); // duelando (shared/duelo.js): só luta contra quem chamou
+    if (this.protegerVeiculoAmiga(j, dt)) return; // "Proteger carrinho / mercante" (painel do clã): antes da guerra, para não perseguir
     if (this.guerraAmiga(j, dt)) return; // Chama x Geada (shared/guerra.js): atacar, ajudar, fugir ou poupar a outra raça
     if (this.protegerAmiga(j, dt)) return; // função "Proteger" do painel do clã (shared/cla.js)
     if (this.almaAmiga(j, dt)) return; // função "Farmar recurso: Fragmento de Alma": caça a outra raça
@@ -1421,8 +1422,8 @@ export const Amiga = {
   },
   // função "Proteger" (painel do clã, André 2026-11-22): fica perto de quem protege (o líder ou outro recruta) e ataca o
   // que chegar perto dele. No time, quem manda é o time.
-  protegerAmiga(j, dt) {
-    const fn = j.ia.funcao; if (!fn || fn.k !== 'proteger' || !(this.AMIGA.recruta || this.fixoClaNpc?.(this)) || (j.time && j.time.membros.length > 1)) return false;
+  protegerAmiga(j, dt, fn = j.ia.funcao) {
+    if (!fn || fn.k !== 'proteger' || !(this.AMIGA.recruta || this.fixoClaNpc?.(this)) || (j.time && j.time.membros.length > 1)) return false;
     const lider = this.corpoLiderDe(this); // jogador ou líder bot (todos os clãs iguais)
     // líder fora do jogo (André 2026-11-23: "a função que prevalece é a função que tiver marcada lá no clã"): quem protege
     // ou segue o líder espera ele onde está (se defende se atacarem); quem protege outro recruta continua protegendo
@@ -1444,6 +1445,81 @@ export const Amiga = {
     if (dp < 0.7) { this.pararAmiga(j); return true; }
     this.irDireto(j, px, pz, dp > this.AMIGA.time.correr);
     return true;
+  },
+  // "Proteger carrinho" / "Proteger mercante" (painel do clã, André 2026-11-23: "proteger meu carrinho... quando eu
+  // estiver fazendo viagem de mercante, ou quando eu estiver abastecendo mercante, proteger meu mercante"; "se esse bicho
+  // se afastando, ele não correr atrás. A função dele é só defender o mercante"). Acha sozinho o carrinho ou o navio do
+  // líder (no chão/água ou com ele dirigindo). Inimigo a até CLA.protegeVeiculo.raio m dele: ataca sem esperar apanhar;
+  // o inimigo passou da coleira: larga e volta (nunca persegue). Sem nada para bater, fica numa roda em volta do
+  // carrinho. No mercante ("ele não sai do mercante enquanto estiver protegendo"): sobe no convés e fica lá (o navio leva
+  // ele), batendo só no que alcança de lá. Carrinho ou navio fora do mundo: protege o líder até ele voltar.
+  protegerVeiculoAmiga(j, dt) {
+    const ia = j.ia, fn = ia.funcao, PV = CLA.protegeVeiculo;
+    const veic = fn?.k === 'proteger' && (fn.p === 'carrinho' || fn.p === 'mercante') && (this.AMIGA.recruta || this.fixoClaNpc?.(this)) && !(j.time && j.time.membros.length > 1) && !j.duelo;
+    if (!veic) { if (ia.pv) { ia.pv = null; this.descerConvesAmiga(j); } return false; }
+    ia.pv ||= { alvo: null, sem: false };
+    const lider = this.corpoLiderDe(this), p = lider?.prog;
+    let V = null;
+    if (p && fn.p === 'carrinho' && p.carrinho) V = lider.veiculo === 'carrinho' ? { x: lider.x, z: lider.z, ry: lider.ry || 0 } : p.carrinho.chao;
+    if (p && fn.p === 'mercante' && p.navio) V = lider.veiculo === 'navio' ? centroNavio(lider) : p.navio.chao;
+    if (!V) { ia.pv.sem = true; ia.pv.alvo = null; this.descerConvesAmiga(j, lider); return this.protegerAmiga(j, dt, { k: 'proteger', p: 'lider' }); }
+    ia.pv.sem = false;
+    // o alvo: o que já estava, enquanto não passar da coleira; senão o mais perto do carrinho dentro do raio
+    const doV = (e) => Math.hypot(e.x - V.x, e.z - V.z);
+    let alvo = ia.pv.alvo != null ? this.inimigosDe(j).find((e) => e.id === ia.pv.alvo && !e.morto) : null;
+    if (alvo && doV(alvo) > PV.coleira) alvo = null; // fugiu: larga, não corre atrás
+    if (!alvo) { let md = Infinity; for (const e of this.inimigosDe(j)) { if (e.morto || e.treino) continue; const de = doV(e); if (de < PV.raio && de < md) { md = de; alvo = e; } } }
+    if (ia.pv.alvo !== (alvo?.id ?? null)) ia.cer = null; // trocou (ou largou): pensa de novo
+    ia.pv.alvo = alvo?.id ?? null;
+    const h = [...String(j.id)].reduce((q, ch) => q + ch.charCodeAt(0), 0);
+    if (fn.p === 'mercante') return this.convesProtegerAmiga(j, V, lider, alvo, h, dt);
+    if (j.bordo?.pv) this.descerConvesAmiga(j, lider);
+    const dj = Math.hypot(V.x - j.x, V.z - j.z);
+    if (dj > 40) { ia.cer = null; this.irLongeAmiga(j, V.x, V.z, dt); return true; }
+    if (j.trava > 0) { this.pararAmiga(j); return true; }
+    // bate no alvo sem se afastar demais do carrinho (a coleira + o alcance da magia)
+    if (alvo && dj <= PV.coleira + CEREBRO.magia[2]) { j.montado = null; if (this.cerebroAmiga(j, lider || j, alvo)) return true; }
+    else if (alvo) ia.cer = null;
+    // a roda: cada recruta num lugar em volta do carrinho (gira junto com ele), olhando para fora
+    const ang = (V.ry || 0) + h * 2.39996, px = V.x + Math.sin(ang) * PV.roda, pz = V.z + Math.cos(ang) * PV.roda, dp = Math.hypot(px - j.x, pz - j.z);
+    j.montado = null;
+    if (dp < 0.7) { this.pararAmiga(j); j.ry = ang; return true; }
+    this.irDireto(j, px, pz, dp > this.AMIGA.time.correr * 0.5);
+    return true;
+  },
+  // no convés do mercante (protegendo): sobe (de até solido.pertoTime m, como o bot do time) e fica num lugar do convés;
+  // o navio leva ele. De lá, ataca o alvo se alcança; nunca desce para correr atrás.
+  convesProtegerAmiga(j, N, lider, alvo, h, dt) {
+    const ia = j.ia, S = VEICULOS.navio.solido;
+    if (!j.bordo?.pv) {
+      if (j.esc) return false;
+      if (Math.hypot(N.x - j.x, N.z - j.z) > (S.pertoTime || S.perto)) { ia.cer = null; this.irLongeAmiga(j, N.x, N.z, dt); return true; }
+      if (j.veiculo === 'barquinho') { j.veiculo = null; devolverBarquinho(j.prog); j.progSujo = true; }
+      if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null);
+      const i = h % S.bordo.length;
+      j.bordo = { pv: 1, dono: lider?.id ?? null, lx: S.bordo[i][0], lz: S.bordo[i][1], i, troca: Infinity };
+    }
+    const b = j.bordo, s = Math.sin(N.ry || 0), c = Math.cos(N.ry || 0);
+    const noLugar = () => {
+      j.x = N.x + b.lx * c + b.lz * s; j.z = N.z - b.lx * s + b.lz * c; j.y = AGUA.nivel + S.conves; j.vy = 0; j.chao = true;
+      j.montado = null; j.entrada = { mx: 0, mz: 0, correr: false }; j.bordoT = this.tempo; // a física deixa o navio levar ele (simulacao.js)
+    };
+    noLugar();
+    if (alvo && !(j.trava > 0)) this.cerebroAmiga(j, lider || j, alvo); // bate no que alcança; andar não anda (fica no lugar)
+    noLugar();
+    j.anim = 'Idle';
+    if (!alvo) j.ry = (N.ry || 0) + (b.i % 2 ? 1.2 : -1.2); // olha o mar
+    return true;
+  },
+  // saiu da função (ou o navio voltou para a mochila) com ele no convés: desce do lado do líder; sem líder, a física
+  // solta ele ali (nadando, como quem pula do navio)
+  descerConvesAmiga(j, lider = this.corpoLiderDe(this)) {
+    if (!j.bordo?.pv) return;
+    j.bordo = null;
+    if (lider && !lider.morto && !lider.veiculo) {
+      const a = [...String(j.id)].reduce((q, ch) => q + ch.charCodeAt(0), 0) * 1.7;
+      j.x = lider.x + Math.sin(a) * 1.2; j.z = lider.z + Math.cos(a) * 1.2; j.y = this.terreno.altura(j.x, j.z); j.vy = 0; j.chao = true;
+    }
   },
   // o duelo acabou: para e volta para o que fazia (sem fala pronta)
   fimDueloAmiga(j) { this.pararAmiga(j); j.ia.cer = null; },

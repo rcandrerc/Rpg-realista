@@ -2091,6 +2091,16 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		for A in alvos:
 			var pid: String = A[0]
 			lp.add_child(botao(A[1], func(): m.rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "proteger", "p": pid}}), 12, pid == str(fn.get("p", ""))))
+		# André 2026-11-23: proteger o carrinho ou o navio mercante (apagado quando não está no mundo; tocar diz o porquê)
+		var vc: Dictionary = C.get("veic", {})
+		for A in [["carrinho", "Carrinho", "Coloque o carrinho no mundo primeiro"], ["mercante", "Mercante", "Coloque o navio mercante na água primeiro"]]:
+			var vid: String = A[0]
+			var bv := botao(A[1], func(): m.rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "proteger", "p": vid}}), 12, vid == str(fn.get("p", "")))
+			if not int(vc.get(vid, 0)):
+				bv.disabled = true
+				var mot: String = A[2]
+				ao_tocar_travado(bv, func(): _avisar_motivo(mot))
+			lp.add_child(bv)
 		v.add_child(lp)
 	if k == "fazenda": # o que plantar nos canteiros da base (André 2026-11-22: "solicitar plante tal coisa")
 		var lpl := HFlowContainer.new()
