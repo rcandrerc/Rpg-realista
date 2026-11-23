@@ -2370,7 +2370,7 @@ export class Simulacao {
     }).sort((a, b) => (b.on === 1) - (a.on === 1) || (b.on > 0) - (a.on > 0) || a.nome.localeCompare(b.nome));
     // amigos virtuais (André 2026-11-09, como no Quimera): a Cecília aparece só para o dono, numa parte separada da lista
     // André 2026-11-16: só quem ela aceitou como amigo (pedido tocando nela ou pela busca); o ♥ e o selo de NPC ficam
-    const virtuais = this.amigosIa.flatMap((x) => { const a = x.amiga, D = x.AMIGA; if (a ? !x.ehAmigoAmiga(j) : !this.amigoIaSalvo?.(D, j.conta)) return []; return a ? [{ c: D.conta, nome: D.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: x.amizadeAmiga(j), ia: !IA_CONVERSA.ligada || x.iaAmiga(j.id) }] : this.iaPorChave ? [{ c: D.conta, nome: D.nome, id: null, on: 0, amizade: 0, ia: true }] : []; }); // IA desligada: sem o botão de ativar chave (André 2026-11-18) // todos veem; sem chave, o botão de ativar (André 2026-11-10)
+    const virtuais = this.amigosIa.flatMap((x) => { const a = x.amiga, D = x.AMIGA; if (!this.amigoBotOk(x, j)) return []; if (a ? !x.ehAmigoAmiga(j) : !this.amigoIaSalvo?.(D, j.conta)) return []; return a ? [{ c: D.conta, nome: D.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: x.amizadeAmiga(j), ia: !IA_CONVERSA.ligada || x.iaAmiga(j.id) }] : this.iaPorChave ? [{ c: D.conta, nome: D.nome, id: null, on: 0, amizade: 0, ia: true }] : []; }); // IA desligada: sem o botão de ativar chave (André 2026-11-18) // todos veem; sem chave, o botão de ativar (André 2026-11-10)
     const onde = (c) => (this.porConta(c) ? 1 : this.onlineFora?.(c) ? 2 : 0);
     const pedidos = [...(j.pedidosRec || [])].map(([c, nome]) => ({ c, nome: this.porConta(c)?.nome || nome, on: onde(c) })); // pedidos a distância esperando resposta
     this.evento({ t: 'amigos', para: j.id, lista, max: AMIGOS.max, virtuais, pedidos });
@@ -2395,7 +2395,7 @@ export class Simulacao {
     }
     { // os amigos virtuais (Cecília, Dario) aparecem na busca pelo nome, com o selo de NPC (André 2026-11-16)
       const tira = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR'), k = tira(termo);
-      for (const x of this.amigosIa) if (x.amiga && !this.outraRaca(j, x.amiga) && tira(x.AMIGA.nome).includes(k) && !achou.some((a) => a.c === x.AMIGA.conta)) achou.unshift({ c: x.AMIGA.conta, nome: x.AMIGA.nome, npc: 1 });
+      for (const x of this.amigosIa) if (x.amiga && !this.outraRaca(j, x.amiga) && this.amigoBotOk(x, j) && tira(x.AMIGA.nome).includes(k) && !achou.some((a) => a.c === x.AMIGA.conta)) achou.unshift({ c: x.AMIGA.conta, nome: x.AMIGA.nome, npc: 1 });
     }
     achou = achou.filter((a) => a.c !== j.conta).slice(0, AMIGOS.buscaMax);
     j.busca = new Map(achou.map((a) => [a.c, a.nome])); // só dá para pedir quem apareceu na busca
