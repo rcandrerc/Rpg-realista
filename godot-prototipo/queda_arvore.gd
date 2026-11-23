@@ -64,6 +64,12 @@ func tirar(id: String, x: float, z: float, partes = null) -> void:
 func _chave(x: float, z: float) -> Vector2i:
 	return Vector2i(roundi(x * 100.0), roundi(z * 100.0))
 
+# o chão embaixo do toco mudou (base nivelada): o toco desce ou sobe junto, senão fica flutuando
+func toco_acompanha(id: String, dy: float) -> void:
+	var info = _caidas.get(id)
+	if info != null and is_instance_valid(info.toco):
+		info.toco.position.y += dy
+
 func caida(id: String) -> bool:
 	return _caidas.has(id)
 
