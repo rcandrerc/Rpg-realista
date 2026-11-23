@@ -2384,11 +2384,6 @@ export class Simulacao {
     }
     achou = achou.filter((a) => a.c !== j.conta).slice(0, AMIGOS.buscaMax);
     j.busca = new Map(achou.map((a) => [a.c, a.nome])); // só dá para pedir quem apareceu na busca
-    // André 2026-11-23 (#828 tirou o chat e o time dos recrutas da lista): os recrutas dele vão à parte (recrutas), o app usa
-    // no painel do clã e no toque no mundo; a lista de amigos mostra só virtuais
-    const contasMeus = new Set(this.amigosIa.filter((x) => meu(x) && !this.amigoBotOk(x, j)).map((x) => x.AMIGA.conta));
-    const recrutas = virtuais.filter((v) => contasMeus.has(v.c));
-    for (let i = virtuais.length - 1; i >= 0; i--) if (contasMeus.has(virtuais[i].c)) virtuais.splice(i, 1);
     const onde = (c) => (this.porConta(c) ? 1 : this.onlineFora?.(c) ? 2 : 0);
     const npc = (c) => this.amigosIa.find((x) => x.amiga && x.AMIGA.conta === c);
     const lista = achou.map((a) => { const x = npc(a.c); return x ? { c: a.c, nome: a.nome, on: 1, npc: 1, amigo: x.ehAmigoAmiga(j), env: false, rec: false } : { c: a.c, nome: a.nome, on: onde(a.c), amigo: j.amigos.has(a.c), env: j.pedidosEnv.has(a.c), rec: j.pedidosRec.has(a.c) }; });
