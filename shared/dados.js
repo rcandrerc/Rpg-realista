@@ -3300,7 +3300,7 @@ export const CLA = {
   // queda de conexão ou servidor reiniciando no meio do caminho (André 2026-11-23: "no mar eles saem do meu time e somem do
   // mapa"): quem estava no time do líder e ele volta em até voltaTime s, volta para o time e do lado dele
   voltaTime: 600,
-  max: 6, // recrutas no clã (André 2026-11-22: 6 por clã; era 5)
+  max: 10, // recrutas no clã (André 2026-11-22: 6 por clã; era 5. André 2026-11-23: clã até o Nv 10, "vagas sobem": 10)
   // Missão do Clã: Escolta (André 2026-11-23, shared/missao-cla.js): levar os recrutas vivos até o totem mais perto a
   // pelo menos destMin m da base. entre: ms até abrir de novo; dura: s; abrir: m do Baú do Clã; perto: m do líder para
   // o recruta entrar; fugiu: m longe do líder e o recruta sai; chegou: m do totem; longe: m à frente onde a emboscada
@@ -3328,11 +3328,17 @@ export const CLA = {
   niveis: [
     null,
     { nv: 1 },
-    { nv: 2, lider: 10, ouro: 500, mat: { lenha: 50, pedra: 30 }, alma: 5 },
-    { nv: 3, lider: 20, ouro: 1500, mat: { lenha: 80, barra_ferro: 30 }, alma: 15 },
+    // André 2026-11-23: "2 e 3 n precisaria de alma geada mas recursos sim aí do 4 ao 10 a qtd de fragmento de alma
+    // de geada vai aumentando" (era alma 5 e 15). Do 7 ao 10: +1 vaga cada; a base para no Castelo (CLA.base.niveis).
+    { nv: 2, lider: 10, ouro: 500, mat: { lenha: 50, pedra: 30 }, alma: 0 },
+    { nv: 3, lider: 20, ouro: 1500, mat: { lenha: 80, barra_ferro: 30 }, alma: 0 },
     { nv: 4, lider: 35, ouro: 4000, mat: { barra_aco: 30, couro: 20 }, alma: 40 },
     { nv: 5, lider: 50, ouro: 10000, mat: { barra_aco: 40, cristal: 20 }, alma: 80 },
     { nv: 6, lider: 70, ouro: 25000, mat: { barra_aco: 60, cristal: 40 }, alma: 150 },
+    { nv: 7, lider: 80, ouro: 50000, mat: { barra_aco: 80, cristal: 60, couro: 40 }, alma: 250 },
+    { nv: 8, lider: 88, ouro: 90000, mat: { barra_aco: 100, cristal: 80, couro: 60 }, alma: 400 },
+    { nv: 9, lider: 94, ouro: 150000, mat: { barra_aco: 130, cristal: 100, couro: 80 }, alma: 600 },
+    { nv: 10, lider: 100, ouro: 250000, mat: { barra_aco: 160, cristal: 130, couro: 100 }, alma: 900 },
   ],
   // o que aparece como recurso do clã (somado das bolsas dos recrutas)
   recursos: ['minerio_ferro', 'minerio_cobre', 'cristal', 'pedra', 'lenha', 'peixe'],

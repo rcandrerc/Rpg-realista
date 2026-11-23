@@ -17,7 +17,7 @@ ok(rec, `Recrutador na Clareira (${rec?.nome})`);
 ok(s.claInfo(j)?.sem === 1, 'sem clã: o app pede o nome');
 s.cla('A', { acao: 'fundar', nome: 'x' });
 ok(!p.cla, 'nome curto não vale');
-s.cla('A', { acao: 'fundar', nome: 'Lobos do Norte' }); p.cla.nv = 6; // vagas abertas (os níveis têm teste em cla-base.mjs)
+s.cla('A', { acao: 'fundar', nome: 'Lobos do Norte' }); p.cla.nv = CLA.max; // vagas abertas (os níveis têm teste em cla-base.mjs)
 ok(p.cla?.n === 'Lobos do Norte' && s.claInfo(j).n === 'Lobos do Norte', 'clã fundado, líder é o jogador');
 const I = s.claInfo(j);
 ok(I.tiers.map((T) => T.nv).join(',') === '1,20,40', `níveis: recruta 1, veterano 20, elite 40 (${I.tiers.map((T) => T.nv)})`);
@@ -41,7 +41,7 @@ ctxs[0].amigaSair('B'); ok(!!ctxs[0].amiga, 'outro jogador sair não tira o recr
 s.removerJogador('B'); // daqui em diante a Ana está sozinha no servidor (com gente online os recrutas ficam: teste mais abaixo)
 
 // semana
-for (let i = 0; i < 4; i++) { s.cla('A', { acao: 'recrutar', tier: 'recruta' }); }
+for (let i = 0; i < CLA.max - 2; i++) { s.cla('A', { acao: 'recrutar', tier: 'recruta' }); }
 ok(p.cla.m.length === CLA.max, `no máximo ${CLA.max} recrutas`);
 const sem = semanaCla(p.cla);
 s.cla('A', { acao: 'depositar', ouro: sem + 10 });
@@ -186,12 +186,12 @@ ok(true, 'simulação roda com os recrutas');
 }
 {
   const { CLAS_NPC, vagasClaNpc, CLA: C2 } = await import('../../shared/dados.js');
-  ok(vagasClaNpc(CLAS_NPC[0]) === 3 && C2.max === 6, 'todos os clãs iguais: Lobos da Geada = Kira, Rufo, Lis + 3 recrutas (6 além do líder)');
+  ok(vagasClaNpc(CLAS_NPC[0]) === 7 && C2.max === 10, 'todos os clãs iguais: Lobos da Geada = Kira, Rufo, Lis + 7 recrutas (10 além do líder, clã Nv 10)');
 }
 {
   const { CLAS_NPC, vagasClaNpc, NPC_SOLDADO } = await import('../../shared/dados.js');
   const ch = CLAS_NPC.find((C) => C.id === 'chama');
-  ok(ch && ch.lider === 'dario' && vagasClaNpc(ch) === 4, 'Guarda da Chama: Dario líder, Cecília e Lia + até 4 recrutas');
+  ok(ch && ch.lider === 'dario' && vagasClaNpc(ch) === 8, 'Guarda da Chama: Dario líder, Cecília e Lia + até 8 recrutas');
   const s3 = new Simulacao(MAPA_CLAREIRA);
   const q = s3.adicionarJogador('Q', 'Quim', undefined, { conta: 12 }); q.criando = false;
   s3.carregarClasNpc(null);

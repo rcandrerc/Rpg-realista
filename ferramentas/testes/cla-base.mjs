@@ -85,9 +85,10 @@ ok(contar(L.bauCla, 'rabanete') > 0, `colheu e guardou no Baú do Clã (${contar
   s3.cla('N', { acao: 'melhorar' });
   ok(c.nv === 1, 'sem material e alma: não sobe');
   c.cofre = 600; j.prog.mochila.fill(null);
-  j.prog.mochila[0] = { k: 'lenha', n: 50 }; j.prog.mochila[1] = { k: 'pedra', n: 30 }; j.prog.mochila[2] = { k: 'alma_geada', n: 5 };
+  j.prog.mochila[0] = { k: 'lenha', n: 50 }; j.prog.mochila[1] = { k: 'pedra', n: 30 }; // Nv 2 e 3 sem alma (André 2026-11-23)
   s3.cla('N', { acao: 'melhorar' });
   ok(c.nv === 2 && c.cofre === 100 && !j.prog.mochila.some((o) => o), `subiu para Nv 2 e gastou tudo (cofre ${c.cofre})`);
+  ok(!s3.subirInfo(j).itens.some((i) => i.k.startsWith('alma_')), 'Nv 3 não pede Fragmento de Alma');
   s3.cla('N', { acao: 'recrutar', tier: 'veterano' });
   ok(c.m.length === 1, 'Veterano só no clã Nv 3');
   const v = (await import('../../shared/cla.js')).claValido({ n: 'Velho', m: [1, 2, 3, 4, 5].map((i) => ({ id: 'rcaaaa' + i, nome: 'X' })) });
