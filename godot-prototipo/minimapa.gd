@@ -1009,6 +1009,21 @@ func _abrir() -> void:
 		grande.visible = false
 		mapa3d.abrir()
 
+# "Ver no mapa" do painel do clã (André 2026-11-23): abre o mapa já no recruta, com a marca e o nome dele
+var nome_extra := ""
+var nome_extra_p = null
+func abrir_em(p: Vector2, nome: String) -> void:
+	abrir()
+	_marcar(p)
+	nome_extra = nome
+	nome_extra_p = marcado
+	foco_alvo = _prender(p, zoom)
+	foco = foco_alvo
+	if _em_3d():
+		mapa3d.foco_alvo = Vector3(p.x, 0, p.y)
+		mapa3d.foco = mapa3d.foco_alvo
+		mapa3d.marcas.queue_redraw()
+
 func _em_3d() -> bool:
 	return mapa3d != null and mapa3d.visible
 
@@ -1654,7 +1669,7 @@ func _desenhar_mapa() -> void:
 		var qm: Vector2 = em.call(marcado.x, marcado.y)
 		_pino(c, qm, 1.15)
 		var metros: float = m.rota.comprimento(previa) if m.rota else 0.0
-		var lugar := _clareira_em(marcado)
+		var lugar := nome_extra if nome_extra != "" and marcado == nome_extra_p else _clareira_em(marcado)
 		var t1 := "Ir para %s" % lugar if lugar != "" else "Ir para"
 		var t2 := "%d m pela estrada" % int(round(metros))
 		var w: float = max(fonte.get_string_size(t1, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x, fonte.get_string_size(t2, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x) + 36.0

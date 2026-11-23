@@ -101,7 +101,7 @@ export const Cla = {
     return { n: c.n, cofre: c.cofre, semana: semanaCla(c), prox: Math.max(0, c.sem - Date.now()), max: c.nv || 1, nv: c.nv || 1, sobe: this.subirInfo(j), perto: this.pertoRecrutador(j),
       eu: { nome: j.nome, nv, ...st(j, j.prog) },
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, sem: semanaDe(tierDe(m.tier), a ? a.prog.nivel | 0 : m.nv), on: a ? 1 : 0, ...(m.dev ? { dev: m.dev } : {}), g: m.g,
-        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, j) } : {}) }; }),
+        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, j), x: Math.round(a.x), z: Math.round(a.z) } : {}) }; }), // x, z: "Ver no mapa"
       bauCla: temBau ? bau : null, plantas: Object.entries(PLANTAS).map(([k, P]) => ({ k, nome: P.nome })),
       funcoes: CLA.funcoes, recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })),
       tiers: CLA.tiers.map((T) => { const n2 = nivelTier(T, nv); return { id: T.id, nome: T.nome, nv: n2, preco: precoTier(T, n2), sem: semanaDe(T, n2), claNv: T.claNv || 1 }; }),
@@ -134,9 +134,18 @@ export const Cla = {
       c.m.push(r);
       this.logCla(c, `Contratou ${r.nome} (${T.nome} Nv ${r.nv})`, -preco);
       aviso(`${r.nome} entrou no clã! ${T.nome} Nv ${r.nv}. Semana: ${semanaDe(T, r.nv)} de ouro`);
-      this.entrarRecrutas(j);
+      this.entrarRecrutas(j, r.id); // o novo aparece do lado do líder, no Recrutador
       this.baseDoClaMudou(j); // o próximo lote livre da base é dele (shared/base.js)
       return this.avisarProg(j);
+    }
+    // "Ver" no painel (André 2026-11-23: "não vou controlar eles, mas eu consigo ver"): a visão do servidor (server/visao.js)
+    // passa a ser em volta do recruta; id vazio volta para o herói
+    if (m.acao === 'espiar') {
+      if (!m.id) { j.espia = null; return; }
+      const x = c.m.some((o) => o.id === m.id) && this.recrutasNoMundo(j).find((o) => o.AMIGA.id === m.id);
+      if (!x?.amiga) return aviso('Esse recruta está fora do mundo agora');
+      j.espia = x.amiga.id;
+      return;
     }
     if (m.acao === 'dispensar') {
       const i = c.m.findIndex((o) => o.id === m.id); if (i < 0) return;
@@ -352,6 +361,7 @@ export const Cla = {
     if (n) a.ia.funcaoSt = { txt: `Deixou ${n} de ${a.ia.levar.nome} no Baú do Clã`, ate: this.tempo + 20 };
     else if (this.temLevar(a)) a.ia.funcaoSt = { txt: 'O Baú do Clã está cheio', ate: this.tempo + 90 };
     const mm = K.m?.find((o) => o.id === x.AMIGA.id); if (n && K.corpo && mm) this.aplicarFuncao(K.corpo, x, mm, false); // já volta a farmar
+    else if (n && !K.corpo && !K.bot && mm) this.funcaoSemLider(x, a, mm.fn || { k: 'livre' }, { id: null, conta: K.conta, bot: false, time: null, prog: { cla: { m: K.m } } }); // líder fora: também
     return true;
   },
   // deixa no Baú do Clã só o recurso pedido que ele carrega (chamado ao chegar no baú)
@@ -502,7 +512,7 @@ export const Cla = {
     if (B) this.pagarBase(B, (v) => { if (c.cofre < v) return false; c.cofre -= v; this.logCla(c, 'Taxa da base atrasada', -v); return true; });
   },
   // o líder entrou (ou contratou): os recrutas dele ganham corpo perto dele
-  entrarRecrutas(j) {
+  entrarRecrutas(j, contratado = null) {
     const c = j?.prog?.cla; if (!c || !j.conta) return;
     this.clasFora?.delete(j.conta);
     const novos = new Set(); // os que estavam fora do mundo (os que ficaram jogando de verdade não ganham o "tempo fora")
@@ -529,7 +539,7 @@ export const Cla = {
     }
     this.foraRecrutas(j, novos);
     this.aplicarFuncoes(j); // a função que ficou escolhida no painel
-    for (const x of this.recrutasNoMundo(j)) { const m = c.m.find((o) => o.id === x.AMIGA.id); if (m && x.amiga && novos.has(m.id)) this.lugarRecrutaAoEntrar(j, x, m); }
+    for (const x of this.recrutasNoMundo(j)) { const m = c.m.find((o) => o.id === x.AMIGA.id); if (m && x.amiga && novos.has(m.id) && m.id !== contratado) this.lugarRecrutaAoEntrar(j, x, m); }
   },
   // os recrutas de quem está fora do jogo (André 2026-11-23: "todos online, se tiver algum jogador online... sempre, sem
   // exceção"): com qualquer jogador no servidor eles ganham corpo e fazem a função; quando o servidor esvazia, saem
@@ -552,13 +562,39 @@ export const Cla = {
         this.amigosIa.push(ctx);
         a.amigosDe[conta] = 1;
         const fn = m.fn || { k: 'livre' };
-        a.ia.funcao = fn.k === 'fazenda' ? fn : null; // proteger/seguir o líder: ele não está, caça
-        a.ia.levar = fn.k === 'recurso' && RECURSOS_CLA[fn.r] ? { r: fn.r, item: RECURSOS_CLA[fn.r].item, nome: RECURSOS_CLA[fn.r].nome } : null;
-        const R = fn.k === 'recurso' ? RECURSOS_CLA[fn.r] : null;
-        if (R && R.coleta !== 'cacar') { // farmar: vai ao veio, árvore ou pesqueiro (e leva ao Baú do Clã quando enche)
-          const cc = ctx.lugarColetaAmiga?.(a, R.coleta); if (cc) a.ia.av = { fase: 'ir', c: cc, coleta: R.coleta, ate: this.tempo + 900 };
-        } else if (fn.k !== 'fazenda' && fn.k !== 'livre') { const v = ctx.sairCacarAmiga?.(a, L); if (v && !v.ok) a.ia.av = null; }
-        this.lugarRecrutaAoEntrar(L, ctx, { ...m, fn: fn.k === 'seguir' || fn.k === 'proteger' ? { k: 'grind' } : fn });
+        this.funcaoSemLider(ctx, a, fn, L);
+        this.lugarRecrutaAoEntrar(L, ctx, { ...m, fn: fn.k === 'seguir' || fn.k === 'proteger' ? { k: 'livre' } : fn }); // seguir/proteger: onde estava
+      }
+    }
+  },
+  // a função do painel com o líder fora do jogo (André 2026-11-23: "aquilo ali é literalmente o que ele vai fazer quando
+  // ele estiver no modo sozinho"). Livre: a vida dele (missões, plantar, grindar...). Grind/couro: caça. Farmar: vai ao
+  // veio, árvore ou pesqueiro e leva ao Baú do Clã. Fazenda: a horta da base. Proteger outro recruta: protege.
+  // Me seguir / Proteger você: espera o líder onde está, se defendendo (protegerAmiga). L = corpo do líder (ou de mentira).
+  funcaoSemLider(ctx, a, fn, L) {
+    const ia = a.ia; if (!ia) return;
+    if (ia.atividade) ctx.fimAtividadeAmiga?.(a, true);
+    Object.assign(ia, { vir: null, chamado: null, viagem: null, fase: 'pensar' });
+    if (ia.encomenda && !ia.encomenda.pronta) ia.encomenda = null;
+    ia.funcao = fn.k === 'fazenda' || fn.k === 'proteger' ? fn : fn.k === 'seguir' ? { k: 'proteger', p: 'lider' } : null;
+    ia.levar = fn.k === 'recurso' && RECURSOS_CLA[fn.r] ? { r: fn.r, item: RECURSOS_CLA[fn.r].item, nome: RECURSOS_CLA[fn.r].nome } : null;
+    if (!(ia.levar && this.levandoRecruta(a))) ia.av = null;
+    if (ia.av) return; // indo deixar no Baú do Clã: termina a entrega
+    const R = fn.k === 'recurso' ? RECURSOS_CLA[fn.r] : null;
+    if (R && R.coleta !== 'cacar') { const cc = ctx.lugarColetaAmiga?.(a, R.coleta); if (cc) ia.av = { fase: 'ir', c: cc, coleta: R.coleta, ate: this.tempo + 900 }; }
+    else if (fn.k === 'grind' || R) { const v = ctx.sairCacarAmiga?.(a, L); if (v && !v.ok) ia.av = null; }
+  },
+  // a cada minuto (como o aplicarFuncoes do cobrarCla com o líder no jogo): quem terminou a caçada ou a coleta volta
+  // para a função do painel
+  passoRecrutasSemLider() {
+    if (!this.clasFora?.size) return;
+    const online = new Set([...this.jogadores.values()].filter((o) => !o.bot).map((o) => o.conta));
+    for (const [conta, c] of this.clasFora) {
+      if (online.has(conta)) { this.clasFora.delete(conta); continue; }
+      const L = { id: null, conta, bot: false, time: null, prog: { cla: c } };
+      for (const x of this.recrutasNoMundo(L)) {
+        const a = x.amiga, m = a && c.m.find((o) => o.id === x.AMIGA.id); if (!m || a.morto || a.ia?.av || a.time) continue;
+        if (['grind', 'recurso'].includes(m.fn?.k)) this.funcaoSemLider(x, a, m.fn, L);
       }
     }
   },
@@ -654,11 +690,10 @@ export const Cla = {
         const a = ctx.amiga; if (!a) continue;
         if (a.time) this.sairDoTime(a, `${ctx.AMIGA.nome} saiu do time`);
         ctx.amigaFalam?.delete(j.id); ctx.amigaDono = null;
-        if (a.ia?.funcao?.k === 'proteger' && a.ia.funcao.p === 'lider') a.ia.funcao = null;
+        // volta para a função marcada no painel (André 2026-11-23: "eu dei time pra ele, vamos lá grindar... eu desloguei,
+        // ele volta pro que eu tinha pedido pra ele fazer"); a ordem de voz ou de time vale só com o líder no jogo
         const m = j.prog.cla.m.find((o) => o.id === ctx.AMIGA.id);
-        if (m?.fn?.k === 'seguir' || (m?.fn?.k === 'proteger' && m.fn.p === 'lider')) { // sem o líder: caça no campo dele
-          const v = ctx.sairCacarAmiga?.(a, j); if (v && !v.ok) a.ia.av = null;
-        }
+        if (m && !a.morto) this.funcaoSemLider(ctx, a, m.fn || { k: 'livre' }, j);
       }
       return;
     }

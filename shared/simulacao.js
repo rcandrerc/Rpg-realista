@@ -4370,7 +4370,7 @@ export class Simulacao {
     }
     this.passoMissoesCla(); // Escolta do Clã (shared/missao-cla.js)
     this.passoGuerra(); this.passoDuplasGuerra(); // Chama x Geada (shared/guerra.js): quem pode lutar agora e as falas de quem avistou alguém
-    if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); } // a semana do clã (shared/cla.js)
+    if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); this.passoRecrutasSemLider?.(); } // a semana do clã (shared/cla.js)
     for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
     for (const j of this.jogadores.values()) this.passoJogador(j, dt);
     this.passoTrocas();
@@ -4846,6 +4846,7 @@ export class Simulacao {
         roupa: roupa(j.prog.equip), // o que aparece no corpo para os outros: "peitoral3,capa1"
         ...(j.roupaFixa ? { roupa: roupa(j.roupaFixa) } : {}), // a Cecília: aparência fixa do look B (as peças de verdade são outras)
         semCapacete: !!j.prog.semCapacete,
+        ...(j.espia && this.jogadores.get(j.espia) ? { espia: j.espia } : {}), // "Ver" o recruta (shared/cla.js): a visão do servidor fica em volta dele
         tit: j.prog.tit?.uso || null, // título em uso (aparece em cima da cabeça para todos)
         ...(j.prog.guilda?.r >= 7 && this.vantagensDe(j).marca ? { gss: 1 } : {}), // vantagem SS da Guilda: "SS" no nome para todos
         pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem

@@ -2055,6 +2055,16 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		v.add_child(lpl)
 	var ld := HBoxContainer.new()
 	ld.alignment = BoxContainer.ALIGNMENT_END
+	ld.add_theme_constant_override("separation", 6)
+	if r.has("x"): # onde ele está (André 2026-11-23: "ver no mapa onde ele está" e "Ver" só olhando, sem controlar)
+		var rx := Vector2(float(r.x), float(r.z))
+		var rn := str(r.nome)
+		ld.add_child(botao("Ver no mapa", func():
+			fechar()
+			m.minimapa.abrir_em(rx, rn), 12))
+		ld.add_child(botao("Ver", func():
+			fechar()
+			m.espiar.comecar(rid, rn), 12))
 	ld.add_child(botao("Dispensar", func(): m.rede("cla", {"acao": "dispensar", "id": rid}), 12))
 	v.add_child(ld)
 	return card

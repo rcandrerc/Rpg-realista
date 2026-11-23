@@ -1351,14 +1351,22 @@ export const Amiga = {
   // que chegar perto dele. No time, quem manda é o time.
   protegerAmiga(j, dt) {
     const fn = j.ia.funcao; if (!fn || fn.k !== 'proteger' || !this.AMIGA.recruta || (j.time && j.time.membros.length > 1)) return false;
-    const lider = this.corpoLiderDe(this); if (!lider) return false; // jogador ou líder bot (todos os clãs iguais)
+    const lider = this.corpoLiderDe(this); // jogador ou líder bot (todos os clãs iguais)
+    // líder fora do jogo (André 2026-11-23: "a função que prevalece é a função que tiver marcada lá no clã"): quem protege
+    // ou segue o líder espera ele onde está (se defende se atacarem); quem protege outro recruta continua protegendo
+    if (!lider && fn.p === 'lider') {
+      let e0 = null, m0 = Infinity;
+      for (const e of this.inimigosDe(j)) { if (e.morto || e.treino) continue; const de = Math.hypot(e.x - j.x, e.z - j.z); if (de < CLA.protegeRaio && de < m0) { m0 = de; e0 = e; } }
+      if (e0 && j.trava <= 0 && this.cerebroAmiga(j, j, e0)) return true;
+      this.pararAmiga(j); return true;
+    }
     const P = fn.p === 'lider' ? lider : this.amigosIa.find((x) => x.AMIGA.id === fn.p)?.amiga;
     if (!P || P === j || P.morto) return false;
     if (j.trava > 0) { this.pararAmiga(j); return true; }
     const raio = CLA.protegeRaio, d = Math.hypot(P.x - j.x, P.z - j.z);
     let alvo = null, md = Infinity;
     for (const e of this.inimigosDe(j)) { if (e.morto || e.treino) continue; const de = Math.hypot(e.x - P.x, e.z - P.z); if (de < raio && de < md) { md = de; alvo = e; } }
-    if (alvo) { j.montado = null; if (this.cerebroAmiga(j, lider, alvo)) return true; }
+    if (alvo) { j.montado = null; if (this.cerebroAmiga(j, lider || P, alvo)) return true; }
     if (d > 40) { this.irLongeAmiga(j, P.x, P.z, dt); return true; }
     const ang = (P.ry || 0) + Math.PI - 0.7, px = P.x + Math.sin(ang) * 2.2, pz = P.z + Math.cos(ang) * 2.2, dp = Math.hypot(px - j.x, pz - j.z);
     if (dp < 0.7) { this.pararAmiga(j); return true; }
