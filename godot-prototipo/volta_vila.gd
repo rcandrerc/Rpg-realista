@@ -43,7 +43,14 @@ static func tempo_txt(s: float) -> String:
 	var n := int(ceil(s))
 	return "%d:%02d" % [n / 60, n % 60]
 
+# a casinha leva para a base do clã, quando tem (André 2026-11-23; servidor: Simulacao.destinoCasa)
+func tem_base() -> bool:
+	return m.base_cla != null and not m.base_cla.minha().is_empty() and m.base_cla.minha().get("bau") is Dictionary
+
 func na_vila() -> bool:
+	if tem_base():
+		var b: Dictionary = m.base_cla.minha().bau
+		return Vector2(m.heroi.position.x - float(b.x), m.heroi.position.z - float(b.z) - 2.5).length() < 6.0
 	return Vector2(m.heroi.position.x - D.NASCIMENTO.x, m.heroi.position.z - D.NASCIMENTO.z).length() < V.vila
 
 # ---------- casinha ----------
@@ -59,7 +66,7 @@ func pedir() -> void:
 		m.hud.aviso("Voltar para a vila: pronto em %s" % tempo_txt(f))
 		return
 	if na_vila():
-		m.hud.aviso("Você já está na vila")
+		m.hud.aviso("Você já está na base" if tem_base() else "Você já está na vila")
 		return
 	if m.mov.esc != null or not m.mov.chao:
 		m.hud.aviso("Fique no chão para voltar para a vila")
@@ -136,7 +143,9 @@ func pedir_guilda() -> void:
 func texto() -> String:
 	if ativo() and canal.has("guilda"):
 		return "Indo para a Guilda"
-	return "Viajando para %s" % canal.totem.nome if ativo() and canal.has("totem") else "Voltando para a vila"
+	if ativo() and canal.has("totem"):
+		return "Viajando para %s" % canal.totem.nome
+	return "Voltando para a base" if tem_base() else "Voltando para a vila"
 
 func cancelar(motivo := "Volta para a vila cancelada") -> void:
 	if not ativo():

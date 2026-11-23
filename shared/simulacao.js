@@ -523,8 +523,8 @@ export class Simulacao {
     if (this.motivoCarga(j)) return this.evento({ t: 'aviso', para: id, texto: this.motivoCarga(j) }); // pack não teleporta (Quimera)
     const V = VOLTA_VILA, falta = (j.prog.vilaAte || 0) - Date.now();
     if (falta > 0) return this.evento({ t: 'aviso', para: id, texto: `Voltar para a vila: pronto em ${Math.ceil(falta / 60000)} min` });
-    const n = this.mapa.nascimento;
-    if (Math.hypot(j.x - n.x, j.z - n.z) < V.vila) return this.evento({ t: 'aviso', para: id, texto: 'Você já está na vila' });
+    const n = this.destinoCasa(j);
+    if (Math.hypot(j.x - n.x, j.z - n.z) < (n.base ? 6 : V.vila)) return this.evento({ t: 'aviso', para: id, texto: n.base ? 'Você já está na base' : 'Você já está na vila' });
     if (j.esc || !j.chao) return;
     if (j.coleta) this.pararColeta(j);
     if (j.canal) this.cancelarCanal(j);
@@ -541,9 +541,15 @@ export class Simulacao {
     this.evento({ t: 'vila', id: j.id, fase: 'cancela' });
     if (motivo) this.evento({ t: 'aviso', para: j.id, texto: motivo });
   }
+  // para onde a casinha leva (André 2026-11-23: "O botão casa agora vai pra a base"): a frente do Baú do Clã, na porta do
+  // salão da base do clã; quem não tem base volta para a vila do começo, como sempre
+  destinoCasa(j) {
+    const B = this.baseDe?.(j), D = B && this.basesDesenho?.[B.k];
+    return D?.bau ? { x: D.bau.x, z: D.bau.z + 2.5, base: true } : this.mapa.nascimento;
+  }
   chegarNaVila(j) {
     j.vila = null;
-    const n = this.mapa.nascimento, x0 = j.x, z0 = j.z;
+    const n = this.destinoCasa(j), x0 = j.x, z0 = j.z;
     const x = n.x + (Math.random() - 0.5) * 3, z = n.z + (Math.random() - 0.5) * 3, y = this.terreno.altura(x, z);
     Object.assign(j, { x, y, z, vy: 0, chao: true, dash: null, arrancada: null, esc: null, trava: 0, acao: null });
     j.cliente = null; j.orcT = null; // a próxima posição do celular já é a da vila
