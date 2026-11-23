@@ -586,7 +586,7 @@ export function progressoValido(p) {
   // forninho público da ferraria (André 2026-11-11): o que cada um deixou dentro (a Simulacao confere com fornoValido)
   if (p.fornosPub && typeof p.fornosPub === 'object') {
     const F = {};
-    for (const E of ESTACOES_PUBLICAS) if (E.k === 'fornalha' && p.fornosPub[E.id] && typeof p.fornosPub[E.id] === 'object') F[E.id] = p.fornosPub[E.id];
+    for (const id of [...ESTACOES_PUBLICAS.filter((E) => E.k === 'fornalha').map((E) => E.id), 'base_fornalha']) if (p.fornosPub[id] && typeof p.fornosPub[id] === 'object') F[id] = p.fornosPub[id]; // base_fornalha: a da forja da base do clã
     if (Object.keys(F).length) n.fornosPub = F;
   }
   const filtro = filtroValido(p.filtro); if (filtro) n.filtro = filtro; // filtro de coleta da mochila

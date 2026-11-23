@@ -2750,7 +2750,9 @@ func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void
 	m.hud.mostrar_botao("estacoes", _alguma_estacao)
 	m.hud.ligar_botao("estacoes", not estacoes_recolhidas)
 	m.hud.mostrar_botao("encher", m.P.contar("regador") > 0 and agua_regador() < int(D.horta.get("agua", 20)) and perto_de_agua(hp) and vivo and not livre)
-	if painel_bau.visible and (not _meu_bau_perto() or not vivo or livre):
+	# o Baú do Clã do salão da base também segura a janela aberta (André 2026-11-23: "não estou conseguindo abrir meu baú":
+	# ela abria e fechava no mesmo quadro)
+	if painel_bau.visible and (not (_meu_bau_perto() or (bau_cla and m.base_cla != null and m.base_cla.bau_perto())) or not vivo or livre):
 		fechar_bau()
 	if painel_forno.visible and (minha_fornalha_perto() != forno_id or not vivo or livre):
 		fechar_forno()

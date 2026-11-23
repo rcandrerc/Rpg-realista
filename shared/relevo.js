@@ -197,6 +197,32 @@ export function marNadavel(x, z) {
   return mundoEm(x + p, z) < 0 || mundoEm(x - p, z) < 0 || mundoEm(x, z + p) < 0 || mundoEm(x, z - p) < 0;
 }
 
+// Chão nivelado das bases dos clãs (André 2026-11-23: "quando você puder colocar essa base, nivelar-se um pouco o
+// terreno"; shared/terrapleno.js): as bases mexem direto na grade do mundo (servidor e app iguais), e o que era antes
+// fica guardado aqui. Mudou a base de lugar: o chão velho volta como era.
+const CHAO_ORIG = new Map(); // k da grade -> altura de antes
+export const alturaOrigGrade = (k) => (CHAO_ORIG.has(k) ? CHAO_ORIG.get(k) : MUNDO_G.h[k]);
+// edits: Map k -> altura nova (ou null: tudo volta ao original)
+export function aplicarChaoBases(edits) {
+  const G = MUNDO_G; if (!G) return;
+  for (const [k, h] of CHAO_ORIG) G.h[k] = h;
+  CHAO_ORIG.clear();
+  if (edits) for (const [k, h] of edits) { CHAO_ORIG.set(k, G.h[k]); G.h[k] = h; }
+}
+// a grade do mundo de antes de qualquer base em (x, z) (sem o morro do mapa de hoje); 0 no mapa de hoje, < 0 no mar
+export function gradeOrigEm(x, z) {
+  const G = MUNDO_G; if (!G) return 0;
+  const fx = (x - G.x0) / G.passo, fz = (z - G.z0) / G.passo;
+  if (fx < 0 || fz < 0 || fx >= G.nx - 1 || fz >= G.nz - 1) return mundoEm(x, z);
+  const ix = Math.floor(fx), iz = Math.floor(fz), ax = fx - ix, az = fz - iz, k = iz * G.nx + ix, o = alturaOrigGrade;
+  return (o(k) * (1 - ax) + o(k + 1) * ax) * (1 - az) + (o(k + G.nx) * (1 - ax) + o(k + G.nx + 1) * ax) * az;
+}
+// a altura de antes de qualquer base (para escolher lugar e medir o desnível)
+export function alturaMontanhaOrig(x, z) {
+  if (!MUNDO_G || !CHAO_ORIG.size) return alturaMontanha(x, z);
+  return Math.max(0, gradeOrigEm(x, z)) + soMontanha(x, z);
+}
+
 export function alturaMontanha(x, z) {
   const w = MUNDO_G ? Math.max(0, mundoEm(x, z)) : 0;
   return w + soMontanha(x, z);

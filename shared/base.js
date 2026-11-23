@@ -14,7 +14,8 @@ import { zonaFechadaEm } from './historia.js';
 import { areaPlantio } from './plantio.js';
 import { MODELOS_VILA, naPeca } from './vilas.js';
 import { LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, ARENAS_BOSS, ARENA_PVP, terraEm } from './mundo.js';
-import { alturaMontanha, noLago, gradeDoMundo, AGUA } from './relevo.js';
+import { alturaMontanha, alturaMontanhaOrig, gradeOrigEm, noLago, gradeDoMundo, AGUA } from './relevo.js';
+import { nivelDaBase, caminhoDaBase, chaoDasBases, TERRAPLENO } from './terrapleno.js';
 
 const B_ = () => CLA.base;
 export const nivelBase = (nv) => B_().niveis[Math.max(1, Math.min(B_().niveis.length - 1, nv | 0))];
@@ -95,15 +96,20 @@ export function motivoBase(x, z, raca, outras = []) {
   // planta dentro dela (shared/plantio.js)
   // chão: terra firme (sem lago nem mar) e sem barranco no centro e em cada lote
   const G = gradeDoMundo();
+  // o chão da base é nivelado (shared/terrapleno.js), menos onde a grade do mundo não mexe (mapa de hoje, morro dele e
+  // a areia da beira): aí vale o desnível de antes (desnivelFixo)
+  let fixo = false;
+  for (let a = -TERRAPLENO.meio; a <= TERRAPLENO.meio && !fixo; a += 4) for (let b = -TERRAPLENO.meio; b <= TERRAPLENO.meio; b += 4) if (gradeOrigEm(x + a, z + b) < 0.6) { fixo = true; break; }
+  const lim = fixo ? P.desnivelFixo : P.desnivel;
   for (const R of retangulosBase(x, z)) {
     let lo = Infinity, hi = -Infinity;
     for (let a = R.x0; a <= R.x1 + 0.01; a += 2) for (let b = R.z0; b <= R.z1 + 0.01; b += 2) {
       if (noLago(a, b) || (G && !terraEm(G, a, b))) return 'Tem água no meio: procure outro lugar';
-      const h = alturaMontanha(a, b);
+      const h = alturaMontanhaOrig(a, b); // o chão de antes (o das bases é nivelado: shared/terrapleno.js)
       if (h < AGUA.nivel + 0.6) return 'Muito perto da água: procure outro lugar';
       if (h < lo) lo = h; if (h > hi) hi = h;
     }
-    if (hi - lo > (R.centro ? P.desnivel.centro : P.desnivel.lote)) return `Chão muito torto ${R.centro ? 'no centro' : 'num dos lotes'} (${(hi - lo).toFixed(1)} m de desnível): procure um lugar mais plano`;
+    if (hi - lo > (R.centro ? lim.centro : lim.lote)) return `Chão muito torto ${R.centro ? 'no centro' : 'num dos lotes'} (${(hi - lo).toFixed(1)} m de desnível): procure um lugar mais plano`;
   }
   return '';
 }
@@ -170,8 +176,11 @@ export function montarBase(B) {
   if (nv >= 2) { casa('aurora_torre', h - 3, h - 3); enfeite('mesa', -(h - 3.5), Math.min(h - 3.5, bz + 2)); } // torre de vigia no canto da frente (atrás não cabe com o salão)
   let forja = null;
   if (nv >= 4) {
+    // André 2026-11-23 ("a bigorna está dentro da casinha"; "o fogão sumiu de novo"): a fornalha fica no fundo do galpão
+    // e a bigorna na frente dele, do lado de fora (o galpão abre para +z)
     const c = casa('forja', -h + 3.2, -h + 3.2);
-    forja = { x: c.x, z: c.z };
+    forja = { x: c.x, z: r2(c.z + 3.3), fx: c.x, fz: r2(c.z - 0.7) };
+    caixa(forja.x, forja.z, 0, 0.45, 0.3, chao(forja.x, forja.z) + 0.8);
     enfeite('armas', -h + 6.4, -h + 2.2);
   }
   if (nv >= 6) { casa('aurora_torre', -(h - 3), h - 3); casa('aurora_torre', h - 3, -(h - 3)); } // castelo: mais duas torres (o canto de trás à esquerda é da forja)
@@ -200,7 +209,7 @@ export const Base = {
     for (const [k, b] of Object.entries(est && typeof est === 'object' ? est : {})) {
       if (!b || !/^[jn][\w:.-]{1,40}$/.test(k) || !Number.isFinite(+b.x) || !Number.isFinite(+b.z)) continue;
       this.basesCla[k] = { k, x: Math.round(+b.x), z: Math.round(+b.z), raca: RACAS[b.raca] ? b.raca : 'chama', n: String(b.n || '').slice(0, 24), dono: String(b.dono || ''), nomeDono: String(b.nomeDono || '').slice(0, 24),
-        nv: Math.max(1, Math.min(CLA.max, b.nv | 0)), taxa: Number.isFinite(+b.taxa) ? +b.taxa : Date.now(), c: +b.c || Date.now(), donos: {}, ...(b.sorteou ? { sorteou: 1 } : {}), ...(b.mudou > 0 ? { mudou: b.mudou | 0, mudouEm: +b.mudouEm || 0 } : {}) };
+        nv: Math.max(1, Math.min(CLA.max, b.nv | 0)), taxa: Number.isFinite(+b.taxa) ? +b.taxa : Date.now(), c: +b.c || Date.now(), donos: {}, ...(b.sorteou ? { sorteou: 1 } : {}), ...(b.mudou > 0 ? { mudou: b.mudou | 0, mudouEm: +b.mudouEm || 0 } : {}), ...(b.livres > 0 ? { livres: Math.min(20, b.livres | 0) } : {}) };
       for (const [i, o] of Object.entries(b.donos && typeof b.donos === 'object' ? b.donos : {})) if (/^[2-9]$/.test(i) && o && typeof o.id === 'string') this.basesCla[k].donos[i] = { id: o.id.slice(0, 24), nome: String(o.nome || '').slice(0, 24) };
     }
     this.refazerBases();
@@ -212,6 +221,7 @@ export const Base = {
     this.basesCla ||= {};
     AREAS_BASE.length = 0;
     this.basesDesenho = {};
+    this.refazerChaoBases();
     for (const B of Object.values(this.basesCla)) {
       const D = montarBase(B);
       this.basesDesenho[B.k] = D;
@@ -230,6 +240,22 @@ export const Base = {
       fora.set(id, o);
     }
   },
+  // o chão nivelado e a estrada de cada base (shared/terrapleno.js): guardado por lugar (a estrada só é procurada de novo
+  // quando a base nasce ou muda de lugar)
+  refazerChaoBases() {
+    const C = this.chaoBases ||= {}, lista = Object.values(this.basesCla);
+    for (const k of Object.keys(C)) if (!this.basesCla[k]) delete C[k];
+    for (const B of lista) {
+      const c = C[B.k]; if (c && c.x === B.x && c.z === B.z) continue;
+      const n = nivelDaBase(B, proibido().circ);
+      C[B.k] = { k: B.k, x: B.x, z: B.z, y: n ? n.y : null, wmax: n ? n.wmax : 0, estrada: null };
+    }
+    const todos = Object.values(C);
+    chaoDasBases(todos);
+    let novo = false;
+    for (const c of todos) if (c.estrada === null) { c.estrada = c.y == null ? [] : caminhoDaBase(c, c.y, lista.filter((o) => o.k !== c.k)); novo = true; }
+    if (novo) chaoDasBases(todos);
+  },
   chaveBase(j) { return j && !j.bot && j.conta ? 'j' + String(j.conta).replace(/[^\w]/g, '').slice(0, 30) : null; },
   baseDe(j) { const k = this.chaveBase(j); return (k && this.basesCla?.[k]) || null; },
   baseDoClaNpc(C) { return this.basesCla?.['n' + C.id] || null; },
@@ -237,7 +263,13 @@ export const Base = {
   dadosBase(B) {
     const D = this.basesDesenho?.[B.k] || montarBase(B), N = nivelBase(B.nv);
     return { k: B.k, n: B.n, raca: B.raca, x: B.x, z: B.z, nv: B.nv, lider: B.nomeDono, centro: D.centro, raio: D.raio, pecas: D.pecas, sol: D.sol, bau: D.bau, forja: D.forja,
-      lotes: D.lotes.map((l) => [l.i, l.x0, l.z0, l.x1, l.z1, l.i === 1 ? B.nomeDono : B.donos?.[l.i]?.nome || '']), arvores: D.arvores || [], taxa: N.taxa, atraso: this.semanasBase(B) };
+      lotes: D.lotes.map((l) => [l.i, l.x0, l.z0, l.x1, l.z1, l.i === 1 ? B.nomeDono : B.donos?.[l.i]?.nome || '']), arvores: D.arvores || [], taxa: N.taxa, atraso: this.semanasBase(B),
+      chao: this.chaoBase(B) };
+  },
+  // o chão da base para o app (a mesma conta: base_cla.gd _chao_das_bases): y do platô, wmax e a estrada [x, z, y, ...]
+  chaoBase(B) {
+    const c = this.chaoBases?.[B.k]; if (!c || c.y == null) return null;
+    return { y: c.y, wmax: c.wmax, estrada: (c.estrada || []).flat() };
   },
   enviarBases(id) {
     const j = this.jogadores.get(id); if (!j) return;
@@ -299,15 +331,15 @@ export const Base = {
   moverBase(j, aviso, onde) {
     const c = j.prog.cla, B = this.baseDe(j); if (!c || !B) return aviso('O clã ainda não tem base');
     if (j.morto || j.criando) return;
-    const M = B_().mudar, dia = 86400000, n = B.mudou | 0;
-    if (n > 0 && B.mudouEm && Date.now() - B.mudouEm < M.dias * dia) {
+    const M = B_().mudar, dia = 86400000, n = B.mudou | 0, livre = (B.livres | 0) > 0; // livres: mudanças grátis dadas à mão (André 2026-11-23, para testes: "só dessa vez")
+    if (n > 0 && !livre && B.mudouEm && Date.now() - B.mudouEm < M.dias * dia) {
       const falta = M.dias * dia - (Date.now() - B.mudouEm), d = Math.floor(falta / dia), h = Math.ceil((falta % dia) / 3600000);
       return aviso(`A base só pode mudar de novo em ${d ? d + ' d ' : ''}${h} h`);
     }
     const { x, z } = this.lugarPedidoBase(j, onde);
     if (x === B.x && z === B.z) return;
     const motivo = this.motivoLugarBase(j, x, z, B.raca, Object.values(this.basesCla).filter((o) => o.k !== B.k)); if (motivo) return aviso(motivo);
-    const custo = n > 0 ? M.ouro : 0;
+    const custo = n > 0 && !livre ? M.ouro : 0;
     if (custo && (c.cofre | 0) < custo) return aviso(`Mudar a base custa ${custo} de ouro do cofre do clã (tem ${c.cofre | 0})`);
     c.cofre = (c.cofre | 0) - custo;
     const dx = x - B.x, dz = z - B.z;
@@ -320,11 +352,13 @@ export const Base = {
       this.evento({ t: 'lote', lote: L.def.id, dono: null }); // o app tira do lugar velho e monta no novo
       this.avisarLote(L);
     }
-    B.x = x; B.z = z; B.mudou = n + 1; B.mudouEm = Date.now();
+    B.x = x; B.z = z;
+    if (n > 0 && livre) B.livres = (B.livres | 0) - 1; else { B.mudou = n + 1; B.mudouEm = Date.now(); }
+    if (!B.livres) delete B.livres;
     this.logCla(c, `Base mudou para ${x}, ${z}` + (custo ? ` (${custo} de ouro)` : ' (grátis)'), custo ? -custo : 0);
     this.refazerSolidosLotes?.();
     this.avisarBases();
-    aviso(`Base do clã mudou para ${x}, ${z}` + (custo ? `: ${custo} de ouro do cofre` : ': esta foi grátis') + `. A próxima custa ${M.ouro} de ouro e só depois de ${M.dias} dias`);
+    aviso(`Base do clã mudou para ${x}, ${z}` + (custo ? `: ${custo} de ouro do cofre` : ': esta foi grátis') + (B.livres > 0 ? `. Ainda tem ${B.livres} grátis` : `. A próxima custa ${M.ouro} de ouro e só depois de ${M.dias} dias`));
     j.progSujo = true; this.avisarProg(j);
   },
   lugarPedidoBase(j, onde) {
@@ -379,13 +413,17 @@ export const Base = {
     const B = this.baseDe(j); if (!B) return null;
     const N = nivelBase(B.nv), D = this.basesDesenho?.[B.k], sem = this.semanasBase(B);
     return { x: B.x, z: B.z, nv: B.nv, tem: N.tem, taxa: N.taxa, atraso: sem, devendo: sem * N.taxa, trava: this.baseTravada(B) ? 1 : 0,
-      prox: Math.max(0, B.taxa + CLA.semana - Date.now()), centro: N.centro, raio: N.raio, mudar: (B.mudou | 0) ? B_().mudar.ouro : 0, mudarEm: (B.mudou | 0) && B.mudouEm ? Math.max(0, B.mudouEm + B_().mudar.dias * 86400000 - Date.now()) : 0,
+      prox: Math.max(0, B.taxa + CLA.semana - Date.now()), centro: N.centro, raio: N.raio, mudar: (B.mudou | 0) && !(B.livres > 0) ? B_().mudar.ouro : 0, livres: B.livres | 0, mudarEm: (B.mudou | 0) && !(B.livres > 0) && B.mudouEm ? Math.max(0, B.mudouEm + B_().mudar.dias * 86400000 - Date.now()) : 0,
       lotes: (D?.lotes || []).map((l) => ({ i: l.i, dono: l.i === 1 ? j.nome : B.donos?.[l.i]?.nome || '' })) };
   },
   // ---------- o Baú do Clã do salão e a forja ----------
   pertoBauBase(j) {
     const B = this.baseDe(j), D = B && this.basesDesenho?.[B.k];
     return !!D && Math.hypot(D.bau.x - j.x, D.bau.z - j.z) <= B_().bauPerto;
+  },
+  fornalhaBasePerto(j) {
+    const B = this.baseDe(j), D = B && this.basesDesenho?.[B.k];
+    return D?.forja && Math.hypot(D.forja.fx - j.x, D.forja.fz - j.z) <= B_().forjaPerto ? { id: 'base_fornalha', k: 'fornalha', nome: 'Fornalha do clã', x: D.forja.fx, z: D.forja.fz, base: B.k } : null;
   },
   forjaBasePerto(j) {
     const B = this.baseDe(j), D = B && this.basesDesenho?.[B.k];

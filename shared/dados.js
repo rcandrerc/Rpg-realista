@@ -3354,7 +3354,9 @@ export const CLA = {
   // lugares: centro dos lotes (x, z a partir do centro da base), na ordem em que abrem. desnivel: m de diferença máxima
   // do chão dentro do centro (cada prédio tem o alicerce dele) e de cada lote.
   base: {
-    distMin: 100, pegada: 44, totem: 20, vila: 10, lugar: 10, npc: 20, estrada: 3, rio: 6, desnivel: { centro: 10, lote: 6 }, lote: 10, divisa: 270, mudar: { ouro: 10000, dias: 7 }, // mudar: realocar a base (André 2026-11-22: "uma realocação free e as próximas uma boa quantia e cooldown"); a 1ª é grátis
+    distMin: 100, pegada: 44, totem: 20, vila: 10, lugar: 10, npc: 20, estrada: 3, rio: 6, desnivel: { centro: 20, lote: 20 }, desnivelFixo: { centro: 10, lote: 6 }, lote: 10, divisa: 270, mudar: { ouro: 10000, dias: 7 }, // mudar: realocar a base (André 2026-11-22: "uma realocação free e as próximas uma boa quantia e cooldown"); a 1ª é grátis
+    // desnível (André 2026-11-23: "o que tá ferrando a construção são as áreas planas"): o chão da base é nivelado
+    // (shared/terrapleno.js), então vale até 20 m; onde a grade do mundo não mexe (mapa de hoje, beira), o de antes
     // André 2026-11-22 ("Totem 20 metros, outra base 100 metros, vila 10 metros, NPC e missão 20 metros, masmorra, arena, etc. 10 metros, estrada e rio 6 metros"; depois: "Estrada 3 m rio 6 m"); desnível 8/5 m
     taxaTrava: 2, bauPerto: 2.6, forjaPerto: 3.4,
     lugares: [[26, 0], [-26, 0], [0, -26], [0, 26], [26, -26], [-26, 26]],

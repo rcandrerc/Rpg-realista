@@ -3044,6 +3044,7 @@ export class Simulacao {
     // as públicas da vila (bigorna e forninho da ferraria, bancada da Rosa): qualquer um usa
     for (const E of this.mapa.estacoes || []) if (E.k === k && dist(E, j) <= LOTE.estacaoDist + 0.6) return E;
     if (k === 'bigorna') { const F = this.forjaBasePerto?.(j); if (F) return F; } // a forja da base do clã (Nv 4+)
+    if (k === 'fornalha') { const F = this.fornalhaBasePerto?.(j); if (F) return F; } // e a fornalha dela
     // fornalha e fogão (André 2026-11-07): só os do próprio terreno, porque o dono deixa coisa dentro; bancada e bigorna valem em qualquer terreno
     for (const L of this.lotes.values()) for (const p of L.pecas) if (p.k === k && ((k !== 'fornalha' && k !== 'fogao') || (L.dono && L.dono === j.conta)) && dist(p, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, p)) return p;
     return null;
@@ -3613,6 +3614,7 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j || !m || j.morto || j.criando) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     if ((this.mapa.estacoes || []).some((E) => E.k === 'fornalha' && E.id === String(m.p))) return this.fornoPublico(j, m);
+    if (String(m.p) === 'base_fornalha') { const E = this.fornalhaBasePerto?.(j); return E ? this.fornoDeTodos(j, m, E) : aviso('Chegue perto da fornalha da forja do clã'); } // a forja da base (Nv 4+): cada um com a sua carga
     const L = this.loteDe(j); if (!L) return aviso('Só dá para usar a fornalha e o fogão do seu terreno');
     const peca = L.pecas.find((o) => (o.k === 'fornalha' || o.k === 'fogao') && o.id === String(m.p));
     const fogao = !!peca && peca.k === 'fogao', C = fogao ? FOGAO : FORNALHA;
@@ -3626,8 +3628,10 @@ export class Simulacao {
     if (m.acao !== 'abrir') { this.aplicarStatus(j); this.avisarProg(j); }
   }
   // forninho público da ferraria (André 2026-11-11): a mesma fornalha, mas cada jogador tem a sua carga (prog.fornosPub)
-  fornoPublico(j, m) {
-    const E = this.mapa.estacoes.find((o) => o.id === String(m.p)), p = j.prog;
+  fornoPublico(j, m) { return this.fornoDeTodos(j, m, this.mapa.estacoes.find((o) => o.id === String(m.p))); }
+  // E: a estação (o forninho da ferraria ou a fornalha da forja da base do clã)
+  fornoDeTodos(j, m, E) {
+    const p = j.prog;
     if (dist(E, j) > LOTE.estacaoDist + 0.6) return this.evento({ t: 'aviso', para: j.id, texto: `Chegue perto do ${E.nome.toLowerCase()}` });
     if (!p.fornosPub || typeof p.fornosPub !== 'object') p.fornosPub = {};
     const F = p.fornosPub[E.id] = fornoValido(p.fornosPub[E.id]);
