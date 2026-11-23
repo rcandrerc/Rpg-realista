@@ -8,8 +8,8 @@ var shader: Shader
 var ruido: Texture2D
 var _postos: Array = []
 var _mats := {}
-var prefixo: String = {"2": "pecas2_r", "3": "pecas3_r", "ia": "ia_r", "robe": "robe_r"}.get(OS.get_environment("VERSAO"), "pecas_r")
-var v3: bool = prefixo == "pecas3_r" or prefixo == "ia_r" or prefixo == "robe_r" # ia_r: teste do caminho da IA (vestir_ia.py)
+var prefixo: String = {"2": "pecas2_r", "3": "pecas3_r", "ia": "ia_r", "robe": "robe_m_r" if OS.get_environment("CORPO") == "cabelo_m" else "robe_r"}.get(OS.get_environment("VERSAO"), "pecas_r")
+var v3: bool = prefixo == "pecas3_r" or prefixo == "ia_r" or prefixo.begins_with("robe") # ia_r: teste do caminho da IA (vestir_ia.py)
 
 # material -> [tipo, cor, cor2, luz, metal, aspereza, força]
 const M := {
@@ -78,6 +78,10 @@ const M := {
 	"prata_viva": [7, "c8f8ff", "000000", "a8f4ff", 0.0, 0.4, 1.6],
 	"pano_aurora": [2, "1d5a86", "8af0ff", "000000", 0.0, 0.8, 1.2],
 	"robe_azul": [2, "1f2f8a", "5a7aff", "000000", 0.0, 0.85, 1.0],
+	"robe_verde": [2, "1f4a2a", "6ac07a", "000000", 0.0, 0.85, 1.0],
+	"robe_roxo": [2, "3e1a6e", "b07aff", "000000", 0.0, 0.8, 1.0],
+	"cetim_preto": [2, "141216", "8a7aa0", "000000", 0.0, 0.4, 1.0],
+	"gema_verde": [3, "1a8a3a", "a0ffb0", "40e070", 0.0, 0.1, 1.8],
 	"robe_negro": [2, "1a1416", "ff5a20", "000000", 0.0, 0.8, 1.0],
 	"cetim_escuro": [2, "2a2a30", "8a8aa0", "000000", 0.0, 0.45, 1.0],
 	"ouro_velho": [1, "c8a050", "6a4a18", "000000", 1.0, 0.35, 1.0],
@@ -207,6 +211,8 @@ func vestir(heroi: Node3D, esq: Skeleton3D, espada: Node3D, r: int) -> void:
 		var osso := "J_Bip_C_UpperChest"
 		if nome.begins_with("quadril"):
 			osso = "J_Bip_C_Hips"
+		elif nome.begins_with("cabeca"):
+			osso = "J_Bip_C_Head" # capuz levantado (no lugar do capacete)
 		elif nome.begins_with("braco_e"):
 			osso = "J_Bip_L_LowerArm"
 		elif nome.begins_with("braco_d"):

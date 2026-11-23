@@ -29,6 +29,9 @@ func _initialize() -> void:
 		m.dia.ajustar(10.0)
 	await esperar(60)
 	await foto("jogo-" + modo)
+	if OS.get_environment("CORPO") != "":
+		m.trocar_corpo(OS.get_environment("CORPO"), false) # corpo masculino do criador (cabelo_m)
+		await esperar(30)
 	m.armar("Espada")
 	await esperar(5)
 	# um lugar aberto, sem a árvore atrás (só para a foto)

@@ -10,7 +10,7 @@
 # Rodar: blender -b -P ferramentas/equip-raridade/modelar3.py  (precisa de godot-prototipo/modelos/ruiva.glb)
 # Sai: pecas3_r0.glb ... pecas3_r4.glb. Eixos do Blender: Z para cima, frente do corpo em -Y, pose T.
 import bpy, bmesh, math, os, sys
-from mathutils import Vector
+from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -18,13 +18,60 @@ RUIVA = os.path.join(AQUI, '..', '..', 'godot-prototipo', 'modelos', 'ruiva.glb'
 SO = [int(x) for x in os.environ.get('SO', '0,1,2,3,4').split(',') if x != '']
 NOME_SAIDA = 'pecas3_r'
 
+# CORPO=m: corpo masculino do criador (cabelo_m). Ele é medido "entortado" para as medidas da Ruiva (alturas e largura
+# dos ombros nos mesmos lugares), a roupa sai com todo o código feito para ela e depois volta para as medidas dele.
+CORPO = os.environ.get('CORPO', 'f')
+MASC = CORPO == 'm'
+if MASC:
+    RUIVA = os.path.join(AQUI, '..', '..', 'godot-prototipo', 'modelos', 'cabelo_m.glb')
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=RUIVA)
 ARM = [o for o in bpy.data.objects if o.type == 'ARMATURE'][0]
+def osso_w(n):
+    return ARM.matrix_world @ ARM.data.bones[n].head_local
+def _linear(x, a, b):  # interpolação por trechos (a -> b), crescente
+    if x <= a[0]: return b[0] + (x - a[0]) * (b[1] - b[0]) / (a[1] - a[0])
+    for i in range(len(a) - 1):
+        if x <= a[i + 1]:
+            return b[i] + (x - a[i]) * (b[i + 1] - b[i]) / (a[i + 1] - a[i])
+    return b[-1] + (x - a[-1]) * (b[-1] - b[-2]) / (a[-1] - a[-2])
+if MASC:
+    _zm = [0.0, osso_w('J_Bip_L_Foot').z, osso_w('J_Bip_L_LowerLeg').z, osso_w('J_Bip_L_UpperLeg').z, osso_w('J_Bip_C_Chest').z,
+           osso_w('J_Bip_C_UpperChest').z, osso_w('J_Bip_L_UpperArm').z, osso_w('J_Bip_C_Neck').z, osso_w('J_Bip_C_Head').z, 2.0]
+    _zf = [0.0, 0.106, 0.535, 0.907, 1.11, 1.2167, 1.3087, 1.3478, 1.43, 1.9]
+    _xm = [0.0, abs(osso_w('J_Bip_L_UpperArm').x), abs(osso_w('J_Bip_L_LowerArm').x), abs(osso_w('J_Bip_L_Hand').x), 1.0]
+    _xf = [0.0, 0.1092, 0.3268, 0.5349, 0.92]
+    print('MASC z', [round(z, 3) for z in _zm], 'x', [round(x, 3) for x in _xm])
+    _rosto = [o for o in bpy.data.objects if o.type == 'MESH' and any('Face_00_SKIN' in m.name for m in o.data.materials)][0]
+    _vy = sum((_rosto.matrix_world @ v.co).y for v in _rosto.data.vertices) / len(_rosto.data.vertices)
+    GIRA = _vy > osso_w('J_Bip_C_Neck').y  # rosto para +Y: gira meia volta para ficar de frente para -Y como a Ruiva
+    print('GIRA', GIRA)
+def entortar(p):  # corpo dele -> medidas dela
+    if not MASC: return p.copy()
+    if GIRA: p = Vector((-p.x, -p.y, p.z))
+    s = 1 if p.x >= 0 else -1
+    return Vector((s * _linear(abs(p.x), _xm, _xf), p.y, _linear(p.z, _zm, _zf)))
+def desentortar(p):  # medidas dela -> corpo dele
+    if not MASC: return p.copy()
+    s = 1 if p.x >= 0 else -1
+    q = Vector((s * _linear(abs(p.x), _xf, _xm), p.y, _linear(p.z, _zf, _zm)))
+    return Vector((-q.x, -q.y, q.z)) if GIRA else q
 def malha_por_material(chave):
-    return [o for o in bpy.data.objects if o.type == 'MESH' and any(chave in m.name for m in o.data.materials)][0]
+    ms = [o for o in bpy.data.objects if o.type == 'MESH' and any(chave in m.name for m in o.data.materials)]
+    if len(ms) > 1:  # o corpo masculino vem em pedaços: junta numa malha só
+        for o in ms[1:]:
+            ms[0].data  # noqa
+        with bpy.context.temp_override(active_object=ms[0], selected_editable_objects=ms):
+            bpy.ops.object.join()
+    return ms[0]
 PELE = malha_por_material('Body_00_SKIN')
 SAIA = malha_por_material('Bottoms')
+if MASC:
+    for o in bpy.data.objects:
+        if o.type == 'MESH':
+            mw = o.matrix_world; mi = mw.inverted()
+            for v in o.data.vertices:
+                v.co = mi @ entortar(mw @ v.co)
 
 def fonte(o, filtro=None):
     # BVH do mundo + pesos por vértice (para copiar a pele)
@@ -110,6 +157,7 @@ def raio(bvh, c, d, longe=0.4):
     return (hit[0] - c).length if hit[0] else None
 
 def busto(z, a):
+    if MASC: return 0.0
     return 0.018 * math.exp(-((abs(a) - 0.42) / 0.4) ** 2 - ((z - 1.215) / 0.075) ** 2) if math.cos(a) > 0 else 0.0
 
 def p_tronco(z, a, folga, saia=False):
@@ -368,16 +416,54 @@ def pesar(o, f):
             if g not in grupos:
                 grupos[g] = o.vertex_groups.get(g) or o.vertex_groups.new(name=g)
             grupos[g].add([v.index], w / s, 'REPLACE')
-    o.parent = ARM
     a = o.modifiers.new('arm', 'ARMATURE')
     a.object = ARM
+
+def pesar_saia_longa(o, f=None):
+    # corpo masculino: a calça dele separa as pernas de uma vez e rasgava a saia longa no meio. Aqui o peso é suave:
+    # quadril em cima, as duas pernas misturadas no meio da frente e de trás, canela só perto da barra
+    mw = o.matrix_world
+    gs = {}
+    def g(n):
+        if n not in gs:
+            gs[n] = o.vertex_groups.get(n) or o.vertex_groups.new(name=n)
+        return gs[n]
+    for v in o.data.vertices:
+        p = mw @ v.co
+        perna = 0.85 * ss(0.98, 0.72, p.z)
+        canela = 0.45 * ss(0.55, 0.3, p.z)
+        esq = ss(-0.05, 0.05, p.x)
+        ws = {'J_Bip_C_Hips': 1 - perna}
+        for lado, k in (('L', esq), ('R', 1 - esq)):
+            ws['J_Bip_%s_UpperLeg' % lado] = perna * k * (1 - canela)
+            ws['J_Bip_%s_LowerLeg' % lado] = perna * k * canela
+        for n, w in ws.items():
+            if w > 0.001:
+                g(n).add([v.index], w, 'REPLACE')
+    a = o.modifiers.new('arm', 'ARMATURE')
+    a.object = ARM
+
+def no_esqueleto(o, pele=True):
+    # volta para as medidas do corpo e põe no espaço do esqueleto (o masculino vem girado no glb)
+    mw = o.matrix_world; ai = ARM.matrix_world.inverted()
+    for v in o.data.vertices:
+        v.co = ai @ desentortar(mw @ v.co)
+    o.matrix_world = Matrix()
+    if pele:
+        o.parent = ARM
+        o.matrix_parent_inverse = Matrix()
+        o.matrix_basis = Matrix()
 
 def exportar(r, pele, saia, duras):
     for o in pele:
         pesar(o, F_PELE)
     for o in saia:
-        pesar(o, F_SAIA)
+        (pesar_saia_longa if MASC else pesar)(o, F_SAIA)
     todos = pele + saia + duras
+    for o in pele + saia:
+        no_esqueleto(o)
+    for o in duras:
+        no_esqueleto(o, False)
     bpy.ops.object.select_all(action='DESELECT')
     ARM.select_set(True)
     for o in todos:
@@ -396,6 +482,10 @@ def exportar(r, pele, saia, duras):
 # ================= O SET =================
 OMBRO_E = Vector((0.109, 0.025, 1.309)); COTOVELO_E = Vector((0.327, 0.025, 1.309)); PUNHO_E = Vector((0.535, 0.025, 1.309))
 JOELHO_E = Vector((0.075, 0.009, 0.535)); TORNOZELO_E = Vector((0.075, 0.034, 0.106))
+if MASC:  # os ossos dele, já nas medidas dela
+    OMBRO_E, COTOVELO_E, PUNHO_E = (entortar(osso_w(n)) for n in ('J_Bip_L_UpperArm', 'J_Bip_L_LowerArm', 'J_Bip_L_Hand'))
+    JOELHO_E, TORNOZELO_E = entortar(osso_w('J_Bip_L_LowerLeg')), entortar(osso_w('J_Bip_L_Foot'))
+    print('OSSOS', OMBRO_E, PUNHO_E, JOELHO_E, TORNOZELO_E)
 def espelho(v): return Vector((-v.x, v.y, v.z))
 
 def set_roupa(r, c):
@@ -551,8 +641,8 @@ def set_roupa(r, c):
 
     # --- calça justa nas coxas (entra na bota) ---
     for lado in (1, -1):
-        A = Vector((lado * 0.075, 0.0, 0.907)) if True else None
-        B = Vector((lado * 0.075, 0.009, 0.535))
+        A = Vector((lado * JOELHO_E.x, 0.0, 0.907))
+        B = Vector((lado * JOELHO_E.x, JOELHO_E.y, JOELHO_E.z))
         cl, _, _ = manga('calca%d' % lado, A + Vector((0, 0, 0.03)), B, 0.0, 1.05, 0.004, c['calca'], N=10, M=14, longe=0.14, bvh=BVH_PERNA[lado], atras=lambda t: 0.006)
         pele.append(cl)
     # --- botas altas de couro com dobra no joelho ---
