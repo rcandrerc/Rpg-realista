@@ -20,6 +20,9 @@ uniform float brasa = 0.0;
 uniform float cadarco = 0.0;
 uniform float faixa = 0.0; // tiras (m entre elas na coordenada UV2.y); 0 = sem
 uniform float costura = 1.0;
+uniform float punho = 0.0; // manga do roupão: largura da barra na boca da manga (m ao longo do braço)
+instance uniform float punho_x = 9.0; // onde começa a boca da manga (x da pose de descanso)
+uniform float faixa_meio = 0.0; // roupão: faixa bordada no meio da frente (meia-largura, m)
 uniform float luz_ref = 2.83;
 
 varying vec4 v_pk; // posição + distância até a borda (um varying só: PowerVR, ver armadura_real.gdshader)
@@ -96,6 +99,17 @@ void fragment() {
 		float cruz = 1.0 - smoothstep(0.0012, 0.0024, abs(ax - 0.011 * abs(2.0 * t - 1.0)));
 		cruz *= step(ax, 0.0115);
 		cor = mix(cor, linha.rgb, cruz);
+	}
+	if (punho > 0.0) {
+		float bp = smoothstep(punho_x - punho - 0.001, punho_x - punho, abs(v_uv.x));
+		d = mix(d, max(0.0, abs(v_uv.x) - (punho_x - punho)), bp);
+		barra = max(barra, bp);
+	}
+	// faixa do meio da frente (roupão): conta como barra
+	if (faixa_meio > 0.0 && v_uv.z > 0.0) {
+		float fm = 1.0 - smoothstep(faixa_meio - 0.001, faixa_meio, abs(v_uv.x));
+		d = min(d, mix(1.0, faixa_meio - abs(v_uv.x), fm));
+		barra = max(barra, fm);
 	}
 	// barra da borda na cor de acento; fio escuro por dentro; bordado de losangos nos sets altos
 	vec3 cb = acento.rgb;
