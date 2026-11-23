@@ -183,6 +183,7 @@ export function montarBase(B) {
     const c = casa('forja', -h + 3.2, -h + 3.2);
     forja = { x: c.x, z: r2(c.z + 3.3), fx: c.x, fz: r2(c.z - 0.7) };
     caixa(forja.x, forja.z, 0, 0.45, 0.3, chao(forja.x, forja.z) + 0.8);
+    caixa(forja.fx, forja.fz, 0, 0.7, 0.6, chao(forja.fx, forja.fz) + 1.6); // a fornalha também é sólida (André 2026-11-23: "a fornalha não")
     enfeite('armas', -h + 6.4, -h + 2.2);
   }
   if (nv >= 6) { casa('aurora_torre', -(h - 3), h - 3); casa('aurora_torre', h - 3, -(h - 3)); } // castelo: mais duas torres (o canto de trás à esquerda é da forja)
