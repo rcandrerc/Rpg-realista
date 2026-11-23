@@ -475,6 +475,9 @@ func _chao_das_bases() -> void:
 	if m.mato != null and tem_area:
 		m.mato.refazer_area(area.position.x, area.position.y, area.end.x, area.end.y)
 	_desenhar_estradas(caminhos)
+	var C = m.get("construcao")
+	if C != null and tem_area and C.has_method("chao_mudou"):
+		C.chao_mudou(area) # terra arada e peças dos lotes descem ou sobem junto com o chão
 
 func _aplainar(g: Dictionary, h: PackedFloat32Array, ed: Dictionary, x: float, z: float, y: float, wmax: float) -> void:
 	var R: float = TP.meio + wmax
@@ -497,7 +500,7 @@ func _aplainar(g: Dictionary, h: PackedFloat32Array, ed: Dictionary, x: float, z
 			var d := Vector2(maxf(dx - TP.meio, 0.0), maxf(dz - TP.meio, 0.0)).length()
 			var n := ruido_chao(px, pz)
 			if d <= 0.0:
-				ed[k] = y + n * (0.12 + 0.18 * maxf(dx, dz) / TP.meio)
+				ed[k] = y # plano de verdade dentro (a grama furava a terra arada); a ondinha fica na rampa
 				continue
 			var cur: float = ed.get(k, o)
 			var diff := cur - y
@@ -505,7 +508,7 @@ func _aplainar(g: Dictionary, h: PackedFloat32Array, ed: Dictionary, x: float, z
 			if d >= W:
 				continue
 			var s := _sv(d / W)
-			ed[k] = y + n * 0.3 * (1.0 - s) + diff * s
+			ed[k] = y + n * 0.3 * s * (1.0 - s) * 4.0 + diff * s
 
 func _cortar(g: Dictionary, h: PackedFloat32Array, ed: Dictionary, pts: Array, centros: Array) -> void:
 	if pts.size() < 2:

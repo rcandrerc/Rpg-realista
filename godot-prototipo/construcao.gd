@@ -1575,6 +1575,20 @@ func _desenhar_fila_canteiros() -> void:
 	if m.lentidao and Time.get_ticks_usec() - t0 > 1000:
 		m.lentidao.ev("canteiros", t0)
 
+# o chão mudou de altura (base do clã nivelada, base_cla.gd; André 2026-11-23: "grama sobrepondo a terra arada"): a terra
+# arada e as peças dos lotes dentro da área vão para o chão novo
+func chao_mudou(area: Rect2) -> void:
+	for id in lotes:
+		var L: Dictionary = lotes[id]
+		for c in L.get("horta", {}):
+			var h: Dictionary = L.horta[c]
+			if h.has("no") and is_instance_valid(h.no) and area.has_point(Vector2(h.no.position.x, h.no.position.z)):
+				h.no.position.y = m.terreno.altura(h.i + 0.5, h.j + 0.5)
+				_desenhar_canteiro(h, true)
+		for p in L.get("pecas", []):
+			if p is Dictionary and p.has("no") and is_instance_valid(p.no) and area.has_point(Vector2(float(p.x), float(p.z))):
+				p.no.position.y = _y_peca(p)
+
 func _desenhar_canteiro(h: Dictionary, forcar := false) -> void:
 	var f := fase(_crescida(h)) if h.c != "" else -1
 	var mo := _molhada(h)
