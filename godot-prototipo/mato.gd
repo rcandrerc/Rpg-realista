@@ -379,6 +379,14 @@ func _no_lote(x: float, z: float) -> bool:
 		var d: Dictionary = L.def
 		if x >= float(d.x0) - 1.0 and x <= float(d.x1) + 1.0 and z >= float(d.z0) - 1.0 and z <= float(d.z1) + 1.0: # 1 m: a touceira não entra no lote
 			return true
+		# área comum da base do clã (André 2026-11-23: arar ali também): só em volta de cada canteiro, a grama do resto fica
+		if L.get("area") is Dictionary and not L.horta.is_empty():
+			var fi := floori(x)
+			var fj := floori(z)
+			for di in [-1, 0, 1]:
+				for dj in [-1, 0, 1]:
+					if L.horta.has("%d,%d" % [fi + di, fj + dj]):
+						return true
 	return false
 
 # 2026-11-10 (André: "perda de performance entrando na cidade"): antes qualquer peça ou planta nova em qualquer lote
@@ -398,6 +406,9 @@ func _conferir_lotes() -> void:
 		if antes == s or (antes == -1 and s == 0):
 			continue
 		var d: Dictionary = L.def
+		var ra: Dictionary = cons._ret_area(L.get("area")) # a área comum da base do clã também (canteiros ali)
+		if not ra.is_empty():
+			d = {"x0": minf(float(d.x0), float(ra.x0)), "z0": minf(float(d.z0), float(ra.z0)), "x1": maxf(float(d.x1), float(ra.x1)), "z1": maxf(float(d.z1), float(ra.z1))}
 		for j in range(floori((float(d.z0) - 1.0) / CEL), floori((float(d.z1) + 1.0) / CEL) + 1):
 			for i in range(floori((float(d.x0) - 1.0) / CEL), floori((float(d.x1) + 1.0) / CEL) + 1):
 				var k := Vector2i(i, j)

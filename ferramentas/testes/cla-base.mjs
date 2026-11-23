@@ -31,8 +31,12 @@ ok(salvo?.dados.bauCla?.some((o) => o?.k === 'lenha'), 'o Baú do Clã vai para 
 const r = s.mapa.npcs.find((n) => n.funcao === 'recrutador'); a.x = r.x + 1; a.z = r.z;
 s.cla('A', { acao: 'recrutar', tier: 'recruta' }); s.cla('A', { acao: 'recrutar', tier: 'recruta' });
 const [m1, m2] = p.cla.m, x1 = s.recrutasNoMundo(a).find((x) => x.AMIGA.id === m1.id), x2 = s.recrutasNoMundo(a).find((x) => x.AMIGA.id === m2.id);
-x1.amiga.prog.mochila[5] = { k: 'minerio_ferro', n: 12 };
+x1.amiga.prog.mochila[5] = { k: 'minerio_ferro', n: 12 }; x1.amiga.prog.mochila[6] = { k: 'couro', n: 3 };
 s.depositarRecruta(x1);
+ok(contar(L.bauCla, 'minerio_ferro') === 0, 'sem pedido: nada vai para o Baú do Clã (André 2026-11-23)');
+x1.amiga.ia.levar = { r: 'ferro', item: 'minerio_ferro', nome: 'minério de ferro' };
+s.depositarRecruta(x1);
+ok(contar(L.bauCla, 'couro') === 0 && contar(x1.amiga.prog.mochila, 'couro') === 3, 'só o recurso pedido vai (o couro fica na bolsa)');
 ok(contar(L.bauCla, 'minerio_ferro') === 12 && contar(x1.amiga.prog.mochila, 'minerio_ferro') === 0, 'recruta guarda o que farmou no Baú do Clã');
 ok(s.claInfo(a).bauCla?.minerio_ferro === 12, 'o painel mostra o Baú do Clã');
 
@@ -63,6 +67,7 @@ ok(contar(L.bauCla, 'rabanete') > 0, `colheu e guardou no Baú do Clã (${contar
   ok(E.m.length === 1 && E.m[0].fn?.k, `Gael contratou e deu função (${E.m[0]?.fn?.k})`);
   const x = s2.amigosIa.find((o) => o.AMIGA.id === E.m[0].id);
   x.amiga.prog.mochila[6] = { k: 'pedra', n: 7 };
+  x.amiga.ia.levar = { r: 'pedra', item: 'pedra', nome: 'pedra' };
   s2.depositarRecruta(x);
   ok(contar(E.bau || [], 'pedra') === 7, 'recruta do clã bot guarda no Baú do Clã do líder');
 }

@@ -3,7 +3,8 @@
 // Clã do salão, a forja (Nv 4) e as bases dos clãs bot.
 // Uso: node ferramentas/testes/base-cla.mjs
 import { Simulacao, MAPA_CLAREIRA, CLA, TOTENS, contar } from '../../shared/index.js';
-import { motivoPeca } from '../../shared/simulacao.js';
+import { motivoPeca, motivoHorta } from '../../shared/simulacao.js';
+const foraDoRet = (i, k, d) => i + 1 < d.x0 || i > d.x1 || k + 1 < d.z0 || k > d.z1;
 import { motivoBase, acharLugarBase, montarBase, territorioDe } from '../../shared/base.js';
 import './_tudo-aberto.mjs';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
@@ -312,4 +313,15 @@ ok(Object.values(bg.donos).length >= Math.min(bg.nv - 1, 3), 'os membros do clã
   ok(L2.pecas.length === n0 + 1 && /salão|portão|Baú/.test(s2.eventos.filter((e) => e.t === 'aviso').map((e) => e.texto).join()), 'na frente do Baú do Clã não pode');
   const dl = s2.dadosLote(L2);
   ok(dl.area?.ret?.length === 4 && dl.area.sol.length > 0, 'o app recebe a área da base');
+  // arar na área comum (André 2026-11-23: "por móveis, fundação e arar terreno na área comum do Clan")
+  let cel = null;
+  for (let i = Math.ceil(A.x0) + 1; i < A.x1 - 2 && !cel; i++) for (let k = Math.ceil(A.z0) + 1; k < A.z1 - 2; k++) {
+    if (Math.hypot(i - lugar.x, k - lugar.z) < 4 || (i > B2.x - 6 && i < B2.x + 6) || !foraDoRet(i, k, L2.def)) continue;
+    if (!motivoHorta(L2, i, k, A)) { cel = [i, k]; break; }
+  }
+  ok(!!cel, 'tem chão para arar na área comum');
+  l.prog.mochila[1] = { k: 'enxada', n: 1 }; l.prog.vigor = { v: 100, t: Date.now() }; l.x = cel[0] + 2; l.z = cel[1];
+  s2.horta('L', { acao: 'arar', c: cel.join(',') });
+  ok(!!L2.horta[cel.join(',')], 'arou na área comum da base');
+  ok(!!motivoHorta(L2, Math.round(B2.x), Math.round(B2.z), A), 'no salão não ara');
 }

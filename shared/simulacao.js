@@ -292,9 +292,10 @@ export function motivoDesmontar(L, p) {
   return '';
 }
 // por que não dá para arar o quadrado (i, k) de 1 m ('' = dá)
-export function motivoHorta(L, i, k) {
+export function motivoHorta(L, i, k, area = null) {
   const R = [i, k, i + 1, k + 1];
-  if (foraDoLote(R, L.def)) return 'Só dá para plantar dentro do seu terreno';
+  // área comum da base do clã também (André 2026-11-23: "por móveis, fundação e arar terreno na área comum do Clan")
+  if (foraDoLote(R, L.def) && !naAreaBase(R, area)) return area && !foraDoLote(R, area) ? 'Aí fica o salão, o portão ou o Baú do Clã' : 'Só dá para plantar dentro do seu terreno';
   for (const o of L.pecas) if (cruza(R, retPeca(o))) return 'Lugar ocupado';
   // folga de 1 m da casa (André 2026-11-22: a textura da terra arada sobe pela parede): perto de parede, fundação ou telhado não ara.
   // Horta que já existia fica. godot-prototipo/construcao.gd motivo_horta repete a conta.
@@ -3746,7 +3747,7 @@ export class Simulacao {
     if (m.acao === 'arar') {
       if (t) return aviso('Essa terra já está arada');
       if (contar(p.mochila, 'enxada') < 1) return aviso('Precisa de enxada (crie no modo construção, aba Fazenda)');
-      const motivo = motivoHorta(L, ci, cj, j); if (motivo) return aviso(motivo);
+      const motivo = motivoHorta(L, ci, cj, this.areaBase?.(L)); if (motivo) return aviso(motivo);
       if (!vigor()) return;
       L.horta[m.c] = { c: '', g: 0, w: 0, u: agora };
     } else if (m.acao === 'plantar') {

@@ -1849,6 +1849,9 @@ func _grama_sob_horta(_L = null) -> void:
 		var L: Dictionary = lotes[id]
 		var l: Dictionary = L.def
 		caixas.append(Rect2(float(l.x0) - 1.0, float(l.z0) - 1.0, float(l.x1) - float(l.x0) + 2.0, float(l.z1) - float(l.z0) + 2.0))
+		var ra := _ret_area(L.get("area"))
+		if not ra.is_empty(): # horta na área comum da base do clã
+			caixas.append(Rect2(float(ra.x0) - 1.0, float(ra.z0) - 1.0, float(ra.x1) - float(ra.x0) + 2.0, float(ra.z1) - float(ra.z0) + 2.0))
 		for c in L.horta:
 			celulas[Vector2i(L.horta[c].i, L.horta[c].j)] = true
 		for p in L.pecas:
@@ -2439,8 +2442,9 @@ func fabricou(ev: Dictionary) -> void:
 
 func motivo_horta(L: Dictionary, i: int, j: int) -> String:
 	var R := Rect2(i, j, 1, 1)
-	if _fora_do_lote(R, L.def):
-		return "Só dá para plantar dentro do seu terreno"
+	# área comum da base do clã também (André 2026-11-23); o servidor confere igual (motivoHorta)
+	if _fora_do_lote(R, L.def) and not _na_area_base(R, L.get("area")):
+		return "Aí fica o salão, o portão ou o Baú do Clã" if L.get("area") != null and not _fora_do_lote(R, _ret_area(L.area)) else "Só dá para plantar dentro do seu terreno"
 	for o in L.pecas:
 		if _cruza(R, ret_peca(o.k, o.x, o.z, o.r)):
 			return "Lugar ocupado"
