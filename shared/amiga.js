@@ -162,7 +162,7 @@ export const Amiga = {
   // fala: quem entrou pode conversar com ele (chave de IA ou conta de teste). André 2026-11-11 ("quero que eles andem
   // sozinhos"): o NPC fica no mundo para todo mundo da sala; só quem pode conversar vira o "dono" que ele acompanha.
   amigaEntrar(donoId, fala = true) {
-    if (this.AMIGA.recruta && !this.AMIGA.clanpc && this.jogadores.get(donoId)?.conta !== this.AMIGA.lider) return; // recruta do clã (shared/cla.js): só com o líder
+    if (this.AMIGA.recruta && !this.AMIGA.clanpc && !this.semLider && this.jogadores.get(donoId)?.conta !== this.AMIGA.lider) return; // recruta do clã (shared/cla.js): só com o líder (ou entrando sem ele: entrarRecrutasSemLider)
     if (fala) (this.amigaFalam ||= new Set()).add(donoId); else this.amigaFalam ||= new Set();
     if (!this.amiga && this.iaForaAmiga()) { this.amigaFora ||= { t: this.tempo }; return; } // deslogado até a IA voltar
     if (!this.amiga) {
@@ -253,6 +253,7 @@ export const Amiga = {
       this.amiga = j;
       this.amigaDono = null;
     }
+    if (this.semLider) { this.semLider = false; return; } // recruta com o líder fora: só ganha corpo (ninguém acompanha)
     // André 2026-11-15: com ou sem chave, todo mundo toca nele e vê Mensagem/Time (a chave só troca a resposta pela IA).
     // Acompanhar quem chegou na hora de entrar: só quem tem a chave (sem chave, passa a acompanhar quando falar com ele)
     const outra = this.outraRaca(this.jogadores.get(donoId), this.amiga); // Chama x Geada (André 2026-11-18): da outra raça é "monstro", da mesma é igual ao Dario
@@ -366,7 +367,9 @@ export const Amiga = {
   amigaSair(donoId, forcar = false) {
     if (!this.amiga) return;
     if (this.AMIGA.recruta && !this.AMIGA.clanpc) { // recruta do clã (shared/cla.js): sai junto com o líder (ou dispensado), nunca fica sem ele
-      if (!forcar && this.jogadores.get(donoId)?.conta !== this.AMIGA.lider) return;
+      // fica no mundo enquanto tiver jogador online, com ou sem o líder (André 2026-11-23: "todos iguais"); sai com o último
+      if (!forcar && [...this.jogadores.values()].some((o) => !o.bot && o.id !== donoId)) return;
+      if (!forcar) this.foraDesde = Date.now(); // ficou sem o líder e saiu com o servidor vazio: o tempo fora (shared/cla.js foraRecrutas) conta daqui
       this.amigaFalam?.clear();
       if (this.amiga.ia?.atividade) this.fimAtividadeAmiga(this.amiga, false);
       if (this.amiga.time) this.sairDoTime(this.amiga, `${this.AMIGA.nome} saiu do jogo`);

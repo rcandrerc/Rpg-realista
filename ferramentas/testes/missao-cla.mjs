@@ -82,11 +82,13 @@ ok(s.esperaMissaoCla(B) === 0, 'falhou: pode tentar de novo na hora');
   const R = s3.adicionarJogador('BR', 'Rufo', undefined, {}); R.bot = true; R.criando = false; R.prog.nivel = 10; R.x = B.x; R.z = B.z;
   const xp0 = R.prog.xp | 0, nv0 = R.prog.nivel, ouro0 = L.prog.ouro | 0;
   CLA.missao.botChega = 1;
+  s3.removerJogador('H'); // André 2026-11-23 ("todos iguais"): com qualquer jogador online ela é de verdade; contada só sem ninguém
   B.missaoOk = 0; s3.missaoClaNpc(C, L, [{ amiga: R }]);
-  ok(B.missaoEm > 0 && !s3.missoesCla.has(B.k) && ((R.prog.xp | 0) > xp0 || R.prog.nivel > nv0) && (L.prog.ouro | 0) > ouro0, 'clã bot longe dos jogadores: escolta contada, recruta ganha XP e o líder o ouro');
+  ok(B.missaoEm > 0 && !s3.missoesCla.has(B.k) && ((R.prog.xp | 0) > xp0 || R.prog.nivel > nv0) && (L.prog.ouro | 0) > ouro0, 'clã bot sem jogador no servidor: escolta contada, recruta ganha XP e o líder o ouro');
   const t = B.missaoEm; s3.missaoClaNpc(C, L, [{ amiga: R }]);
   ok(B.missaoEm === t, 'clã bot também espera 6 h');
-  B.missaoOk = 0; h.x = L.x + 20; h.z = L.z; const bau = s3.basesDesenho[B.k].bau; L.x = bau.x; L.z = bau.z + 1; R.x = L.x + 2; R.z = L.z;
+  const h2 = s3.adicionarJogador('H2', 'Hugo', undefined, { conta: 9 }); h2.criando = false; h2.x = 5000; h2.z = 5000; // longe, mas online
+  B.missaoOk = 0; const bau = s3.basesDesenho[B.k].bau; L.x = bau.x; L.z = bau.z + 1; R.x = L.x + 2; R.z = L.z;
   s3.missaoClaNpc(C, L, [{ amiga: R, AMIGA: {} }]);
-  ok(s3.missoesCla.has(B.k), 'clã bot perto de jogador: a escolta acontece de verdade');
+  ok(s3.missoesCla.has(B.k), 'clã bot com jogador online (mesmo longe): a escolta acontece de verdade');
 }

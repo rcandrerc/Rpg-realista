@@ -38,6 +38,7 @@ ok(elite.amiga.prog.nivel === 40, `elite no nível do líder (${elite.amiga.prog
 const b = s.adicionarJogador('B', 'Beto', undefined, { conta: 10 }); b.criando = false;
 ok(!elite.podeAmiga('B'), 'outro jogador não manda no recruta dos outros');
 ctxs[0].amigaSair('B'); ok(!!ctxs[0].amiga, 'outro jogador sair não tira o recruta');
+s.removerJogador('B'); // daqui em diante a Ana está sozinha no servidor (com gente online os recrutas ficam: teste mais abaixo)
 
 // semana
 for (let i = 0; i < 4; i++) { s.cla('A', { acao: 'recrutar', tier: 'recruta' }); }
@@ -84,6 +85,34 @@ ok(true, 'simulação roda com os recrutas');
   s.sairRecrutas(j); s.entrarRecrutas(j);
   const g = s.recrutasNoMundo(j).find((x) => x.AMIGA.id === m1.id), c = g.amiga.ia.av?.c;
   ok(c && Math.hypot(g.amiga.x - c.x, g.amiga.z - c.z) < 10, `Grind: já nasce no campo de caça (${c?.nome})`);
+}
+
+// ---------- todos iguais (André 2026-11-23): recrutas no mundo enquanto tiver qualquer jogador online ----------
+{
+  const s9 = new Simulacao(MAPA_CLAREIRA);
+  const A = s9.adicionarJogador('A', 'Ana', undefined, { conta: 9 }); A.criando = false; A.ciente = true; A.prog.nivel = 20; A.prog.ouro = 9000;
+  const B = s9.adicionarJogador('B', 'Beto', undefined, { conta: 10 }); B.criando = false;
+  s9.cla('A', { acao: 'fundar', nome: 'Lobos do Sul' }); A.prog.cla.nv = 6;
+  const rc = s9.mapa.npcs.find((n) => n.funcao === 'recrutador'); A.x = rc.x + 1; A.z = rc.z;
+  s9.cla('A', { acao: 'recrutar', tier: 'recruta' }); s9.cla('A', { acao: 'recrutar', tier: 'recruta' });
+  A.prog.cla.m[0].fn = { k: 'grind' }; A.prog.cla.m[1].fn = { k: 'seguir' }; s9.aplicarFuncoes(A);
+  const sair = (id) => { const jj = s9.jogadores.get(id); s9.sairRecrutas(jj); for (const ctx of s9.amigosIa) ctx.amigaSair(id); s9.removerJogador(id); };
+  const corpos = () => s9.amigosIa.filter((x) => x.AMIGA.recruta && !x.AMIGA.clanpc && x.amiga).length;
+  const claA = A.prog.cla;
+  sair('A');
+  ok(corpos() === 2, `líder saiu com o Beto online: os 2 recrutas ficam no mundo (${corpos()})`);
+  for (let i = 0; i < 100; i++) s9.passo(0.05);
+  ok(corpos() === 2, 'seguem jogando sem o líder');
+  sair('B');
+  ok(corpos() === 0 && s9.amigosIa.some((x) => x.AMIGA.recruta && x.foraDesde), 'servidor vazio: saem e viram simulação');
+  const B2 = s9.adicionarJogador('B2', 'Beto', undefined, { conta: 10 }); B2.criando = false;
+  s9.entrarRecrutasSemLider([{ conta: 9, cla: claA }], 'B2');
+  ok(corpos() === 2, `outro jogador entrou: os recrutas da Ana voltam ao mundo sem ela (${corpos()})`);
+  const A2 = s9.adicionarJogador('A2', 'Ana', undefined, { conta: 9, progresso: JSON.parse(JSON.stringify(A.prog)) }); A2.criando = false; A2.prog.cla = claA;
+  s9.entrarRecrutas(A2);
+  ok(corpos() === 2 && s9.recrutasNoMundo(A2).every((x) => x.amigaDono === 'A2'), 'a Ana entra: assume os mesmos corpos (nada duplica)');
+  for (let i = 0; i < 100; i++) s9.passo(0.05);
+  ok(true, 'simulação roda');
 }
 
 // ---------- clã bot (fase 2): Gael lidera os Lobos da Geada e contrata sozinho ----------

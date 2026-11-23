@@ -304,7 +304,7 @@ export const Cla = {
       return { bot: true, C, corpo: L?.amiga || null, conta: L?.AMIGA.conta, m: this.clasNpc?.[C.id]?.m || [], E: this.clasNpc?.[C.id] };
     }
     const j = [...this.jogadores.values()].find((o) => !o.bot && o.conta === A.lider);
-    return { bot: false, corpo: j || null, conta: A.lider, m: j?.prog?.cla?.m || [], c: j?.prog?.cla };
+    return { bot: false, corpo: j || null, conta: A.lider, m: j?.prog?.cla?.m || this.clasFora?.get(A.lider)?.m || [], c: j?.prog?.cla };
   },
   corpoLiderDe(x) { return this.claDoRecruta(x)?.corpo || null; },
   loteDaConta(conta) { if (conta == null) return null; for (const L of this.lotes.values()) if (L.dono === conta) return L; return null; },
@@ -504,10 +504,21 @@ export const Cla = {
   // o líder entrou (ou contratou): os recrutas dele ganham corpo perto dele
   entrarRecrutas(j) {
     const c = j?.prog?.cla; if (!c || !j.conta) return;
+    this.clasFora?.delete(j.conta);
+    const novos = new Set(); // os que estavam fora do mundo (os que ficaram jogando de verdade não ganham o "tempo fora")
     for (const m of c.m) {
-      if (this.amigosIa.some((x) => x.AMIGA.id === m.id)) continue;
+      const ja = this.amigosIa.find((x) => x.AMIGA.id === m.id);
+      if (ja?.amiga) { // ficou no mundo enquanto o líder estava fora (tinha gente online): volta a obedecer a ele
+        ja.amigaFalam ||= new Set(); ja.amigaFalam.add(j.id); ja.mudarDonoAmiga(j.id);
+        ja.amiga.amigosDe[j.conta] = 1; if ((ja.amiga.amizade | 0) < 60) ja.amiga.amizade = 60;
+        continue;
+      }
+      if (ja) this.amigosIa.splice(this.amigosIa.indexOf(ja), 1); // saiu quando o servidor esvaziou: corpo novo
+      novos.add(m.id);
+      const foraDesde = ja?.foraDesde;
       if (this.lerNpc && !this.npcSalvos?.has(m.id)) this.carregarNpc(m.id, this.lerNpc(m.id));
       const ctx = contextoDeAmigo(this, defRecruta(m, j.conta, c.n, this.racaDe(j)));
+      if (foraDesde) ctx.foraDesde = foraDesde;
       this.amigosIa.push(ctx);
       ctx.amigaEntrar(j.id, true);
       const a = ctx.amiga; if (!a) continue;
@@ -516,9 +527,40 @@ export const Cla = {
       const ang = Math.random() * Math.PI * 2, x = j.x + Math.sin(ang) * 2.5, z = j.z + Math.cos(ang) * 2.5;
       Object.assign(a, { x, z, y: this.terreno.altura(x, z), chao: true });
     }
-    this.foraRecrutas(j);
+    this.foraRecrutas(j, novos);
     this.aplicarFuncoes(j); // a função que ficou escolhida no painel
-    for (const x of this.recrutasNoMundo(j)) { const m = c.m.find((o) => o.id === x.AMIGA.id); if (m && x.amiga) this.lugarRecrutaAoEntrar(j, x, m); }
+    for (const x of this.recrutasNoMundo(j)) { const m = c.m.find((o) => o.id === x.AMIGA.id); if (m && x.amiga && novos.has(m.id)) this.lugarRecrutaAoEntrar(j, x, m); }
+  },
+  // os recrutas de quem está fora do jogo (André 2026-11-23: "todos online, se tiver algum jogador online... sempre, sem
+  // exceção"): com qualquer jogador no servidor eles ganham corpo e fazem a função; quando o servidor esvazia, saem
+  // (amigaSair) e viram simulação; o líder entrando assume os que já estão no mundo (entrarRecrutas). lista = [{ conta, cla, raca }]
+  entrarRecrutasSemLider(lista, quemId) {
+    const online = new Set([...this.jogadores.values()].filter((o) => !o.bot).map((o) => o.conta));
+    for (const { conta, cla: c, raca } of lista || []) {
+      if (conta == null || online.has(conta) || !c?.m?.length) continue;
+      this.clasFora ||= new Map(); if (!this.clasFora.has(conta)) this.clasFora.set(conta, c);
+      const L = { id: null, conta, bot: false, time: null, raca, prog: { cla: c, nivel: 1 }, x: 0, z: 0 }; // o líder de mentira (só para o lugar)
+      for (const m of c.m) {
+        if (m.dev) continue; // devendo não trabalha
+        const ja = this.amigosIa.find((x) => x.AMIGA.id === m.id); if (ja?.amiga) continue;
+        if (ja) this.amigosIa.splice(this.amigosIa.indexOf(ja), 1);
+        if (this.lerNpc && !this.npcSalvos?.has(m.id)) this.carregarNpc(m.id, this.lerNpc(m.id));
+        const ctx = contextoDeAmigo(this, defRecruta(m, conta, c.n, raca || this.racaDe(L)));
+        if (ja?.foraDesde) ctx.foraDesde = ja.foraDesde;
+        ctx.semLider = true; ctx.amigaEntrar(quemId, false); ctx.semLider = false;
+        const a = ctx.amiga; if (!a) continue;
+        this.amigosIa.push(ctx);
+        a.amigosDe[conta] = 1;
+        const fn = m.fn || { k: 'livre' };
+        a.ia.funcao = fn.k === 'fazenda' ? fn : null; // proteger/seguir o líder: ele não está, caça
+        a.ia.levar = fn.k === 'recurso' && RECURSOS_CLA[fn.r] ? { r: fn.r, item: RECURSOS_CLA[fn.r].item, nome: RECURSOS_CLA[fn.r].nome } : null;
+        const R = fn.k === 'recurso' ? RECURSOS_CLA[fn.r] : null;
+        if (R && R.coleta !== 'cacar') { // farmar: vai ao veio, árvore ou pesqueiro (e leva ao Baú do Clã quando enche)
+          const cc = ctx.lugarColetaAmiga?.(a, R.coleta); if (cc) a.ia.av = { fase: 'ir', c: cc, coleta: R.coleta, ate: this.tempo + 900 };
+        } else if (fn.k !== 'fazenda' && fn.k !== 'livre') { const v = ctx.sairCacarAmiga?.(a, L); if (v && !v.ok) a.ia.av = null; }
+        this.lugarRecrutaAoEntrar(L, ctx, { ...m, fn: fn.k === 'seguir' || fn.k === 'proteger' ? { k: 'grind' } : fn });
+      }
+    }
   },
   // onde o recruta aparece quando o líder entra (André 2026-11-23: "toda vez que eu logo, todos eles entram, ficam do meu
   // lado... queria que eles ficassem espalhados aí... continuassem fazendo o que estavam fazendo antes"): no trabalho da
@@ -545,20 +587,25 @@ export const Cla = {
     }
   },
   // o tempo que o líder ficou fora: cada recruta entrega o que a função dele daria (CLA.fora)
-  foraRecrutas(j) {
+  // André 2026-11-23 ("todos online, se tiver algum jogador online... quando todo mundo sai do servidor, eles viram
+  // simulação"): só conta o tempo em que o recruta ficou fora do mundo (desde que saiu: com o líder ou quando o servidor
+  // esvaziou). novos = ids que acabaram de ganhar corpo (sem a lista: todos, como antes).
+  foraRecrutas(j, novos = null) {
     const c = j.prog.cla, F = CLA.fora; if (!c?.saiu) return;
-    const ms = Math.min(F.max, Date.now() - c.saiu); delete c.saiu; j.progSujo = true;
-    if (!(ms >= F.minimo)) return;
-    const h = ms / 3600e3, feitos = [];
+    const saiu = c.saiu; delete c.saiu; j.progSujo = true;
+    const feitos = []; let hMax = 0;
     for (const x of this.recrutasNoMundo(j)) {
+      if (novos && !novos.has(x.AMIGA.id)) continue;
       const m = x.amiga && c.m.find((o) => o.id === x.AMIGA.id); if (!m?.fn || m.dev) continue; // devendo não trabalha
+      const t0 = Math.max(saiu, +x.foraDesde || 0), ms = Math.min(F.max, Date.now() - t0); if (!(ms >= F.minimo)) continue;
+      const h = ms / 3600e3; hMax = Math.max(hMax, h);
       const f = this.trabalhoFora(x, m, h, j.prog.nivel | 0); if (f) feitos.push(f);
     }
     if (!feitos.length) return;
-    const horas = h >= 1 ? `${Math.floor(h)} h` : `${Math.round(h * 60)} min`;
+    const horas = hMax >= 1 ? `${Math.floor(hMax)} h` : `${Math.round(hMax * 60)} min`;
     for (const f of feitos) this.logCla(c, `Fora (${horas}): ${f}`);
     // um recruta por linha (André 2026-11-22: "podia descrever por coluna... Gael fez isso, João fez tal"); o aviso (hud.gd) quebra no \n
-    this.evento({ t: 'aviso', para: j.id, texto: `Enquanto você esteve fora (${horas}):\n${feitos.join('\n')}` });
+    this.evento({ t: 'aviso', para: j.id, texto: `Enquanto você esteve fora:\n${feitos.join('\n')}` });
   },
   // o que um recruta fez em h horas fora (grind: XP até o nível do líder; farm: o que o vigor paga, direto no Baú do
   // Clã; fazenda: os canteiros crescem sozinhos e ele colhe e replanta quando o líder volta). Texto ou null.
@@ -598,6 +645,22 @@ export const Cla = {
     if (j?.prog?.cla) { // a conta do tempo fora (foraRecrutas) e onde cada recruta estava (lugarRecrutaAoEntrar)
       j.prog.cla.saiu = Date.now(); j.progSujo = true;
       for (const x of this.recrutasNoMundo(j)) { const a = x.amiga, m = a && j.prog.cla.m.find((o) => o.id === x.AMIGA.id); if (m && !a.morto) m.pos = { x: Math.round(a.x * 10) / 10, z: Math.round(a.z * 10) / 10 }; }
+    }
+    // tem outro jogador online: eles ficam no mundo de verdade, fazendo a função (André 2026-11-23: "todos iguais", como os
+    // recrutas dos clãs bot); saem só quando o servidor esvaziar (amigaSair do último jogador, shared/amiga.js)
+    if (j?.prog?.cla && [...this.jogadores.values()].some((o) => !o.bot && o.id !== j.id)) {
+      (this.clasFora ||= new Map()).set(j.conta, j.prog.cla); // a lista e as funções, para quem ficou (claDoRecruta)
+      for (const ctx of this.recrutasNoMundo(j)) {
+        const a = ctx.amiga; if (!a) continue;
+        if (a.time) this.sairDoTime(a, `${ctx.AMIGA.nome} saiu do time`);
+        ctx.amigaFalam?.delete(j.id); ctx.amigaDono = null;
+        if (a.ia?.funcao?.k === 'proteger' && a.ia.funcao.p === 'lider') a.ia.funcao = null;
+        const m = j.prog.cla.m.find((o) => o.id === ctx.AMIGA.id);
+        if (m?.fn?.k === 'seguir' || (m?.fn?.k === 'proteger' && m.fn.p === 'lider')) { // sem o líder: caça no campo dele
+          const v = ctx.sairCacarAmiga?.(a, j); if (v && !v.ok) a.ia.av = null;
+        }
+      }
+      return;
     }
     for (const ctx of this.recrutasNoMundo(j)) ctx.amigaSair(j.id, true);
     this.amigosIa = this.amigosIa.filter((x) => !(x.AMIGA.recruta && !x.AMIGA.clanpc && x.AMIGA.lider === j.conta));
