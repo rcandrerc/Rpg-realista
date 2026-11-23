@@ -295,6 +295,38 @@ func _desligar_nevoa() -> void:
 				astar.set_point_disabled(id, true)
 				_desligados.append(id)
 
+# Estradas das bases dos clãs (André 2026-11-23: "fica se batendo na cerca; queria que redirecionasse pra saída certinho;
+# pra entrar também ela vai pela entrada"): base_cla.gd manda, para cada base, a linha que sai da frente do Baú do Clã,
+# passa pelo portão da paliçada e segue a estrada da base até a estrada do mundo. Ela entra na rede como as outras (a
+# ponta de fora liga no ponto da rede mais perto), então o "Ir" de dentro sai pelo portão e o de fora entra por ele.
+var _bases := {} # chave da base -> PackedInt64Array dos pontos dela na rede
+func por_bases(linhas: Dictionary) -> void:
+	for k in _bases:
+		for id in _bases[k]:
+			if astar.has_point(id):
+				astar.remove_point(id)
+	_bases.clear()
+	for k in linhas:
+		var pts: Array = linhas[k]
+		if pts.size() < 2:
+			continue
+		var fim: Vector2 = pts[pts.size() - 1]
+		var liga := astar.get_closest_point(fim) if astar.get_point_count() > 0 else -1
+		var ids := PackedInt64Array()
+		for q in pts.size():
+			var a: Vector2 = pts[q]
+			if q > 0:
+				var b: Vector2 = pts[q - 1]
+				var n: int = maxi(1, ceili(b.distance_to(a) / PASSO))
+				for s in range(1, n):
+					ids.append(_novo(b.lerp(a, float(s) / n)))
+			ids.append(_novo(a))
+		for q in range(1, ids.size()):
+			astar.connect_points(ids[q - 1], ids[q])
+		if liga >= 0 and astar.get_point_position(liga).distance_to(fim) < 12.0:
+			astar.connect_points(ids[ids.size() - 1], liga)
+		_bases[k] = ids
+
 # rota pela estrada até o lugar (o último ponto é o lugar)
 func planejar(alvo: Vector2) -> PackedVector2Array:
 	alvo = ajustar(alvo)

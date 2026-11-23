@@ -397,12 +397,33 @@ func _desenhar_prev(c: Vector2) -> void:
 # O servidor manda o y do platô, até onde a rampa vai (wmax) e os pontos da estrada [x, z, y, ...]. Aqui a grade do
 # mundo (terreno.gd mundo_g.h) muda igual à do servidor: o chão volta ao de antes onde a base saiu, e os pedaços do chão,
 # o mato e as árvores em volta são refeitos. A estrada é uma faixa de terra batida em cima do chão.
-const TP := {"meio": 33.0, "rampa": 0.25, "wMin": 6.0, "wMax": 90.0, "larg": 3.5, "borda": 9.0}
+const TP := {"meio": 33.0, "rampa": 0.25, "wMin": 6.0, "wMax": 90.0, "larg": 5.6, "borda": 11.0} # larg 5,6: os 4 cantos da grade embaixo da estrada ficam no perfil (o chão desenhado não cobre a estrada)
 var _chao_sig := ""
 var _orig := {} # k da grade -> altura de antes
 var _estradas: Array = [] # MeshInstance3D das estradas
 var _na_estrada := {} # Vector2i(x / 2, z / 2) -> true (o mato não nasce na estrada)
 var _mat_estrada: ShaderMaterial
+var _ruas := {} # chave da base -> pontos da estrada (Vector3: x, y, z)
+
+# o "Ir" (rota.gd) entra e sai da base pelo portão: da frente do Baú do Clã, um pouco de lado (a fogueira fica no meio),
+# até o portão e daí pela estrada da base
+func _rede_rota() -> void:
+	var R = m.get("rota")
+	if R == null or not R.has_method("por_bases"):
+		return
+	var linhas := {}
+	for B in bases:
+		var pts: Array = _ruas.get(str(B.k), [])
+		if pts.is_empty() or not (B.get("bau") is Dictionary):
+			continue
+		var hc := float(B.get("centro", 14)) / 2.0
+		var bx := float(B.x)
+		var bz := float(B.z)
+		var l: Array = [Vector2(float(B.bau.x) + 1.6, float(B.bau.z) + 1.3), Vector2(bx + 1.6, bz + hc - 1.0), Vector2(bx + 1.0, bz + hc + 1.5)]
+		for p in pts:
+			l.append(Vector2(p.x, p.z))
+		linhas[str(B.k)] = l
+	R.por_bases(linhas)
 
 static func _sv(t: float) -> float:
 	var u := clampf(t, 0.0, 1.0)
@@ -443,6 +464,7 @@ func _chao_das_bases() -> void:
 		_aplainar(g, h, ed, float(b.x), float(b.z), float(b.y), float(b.wmax))
 	var centros: Array = lista.map(func(b): return Vector2(float(b.x), float(b.z)))
 	var caminhos: Array = []
+	_ruas.clear()
 	for b in lista:
 		var pts: Array = []
 		var e: Array = b.e
@@ -450,6 +472,7 @@ func _chao_das_bases() -> void:
 			pts.append(Vector3(float(e[i]), float(e[i + 2]), float(e[i + 1]))) # x, y, z
 		caminhos.append(pts)
 		_cortar(g, h, ed, pts, centros)
+		_ruas[str(b.k)] = pts
 	for k in ed:
 		_orig[k] = h[k]
 		mexidos[k] = true
@@ -475,6 +498,7 @@ func _chao_das_bases() -> void:
 	if m.mato != null and tem_area:
 		m.mato.refazer_area(area.position.x, area.position.y, area.end.x, area.end.y)
 	_desenhar_estradas(caminhos)
+	_rede_rota()
 	var C = m.get("construcao")
 	if C != null and tem_area and C.has_method("chao_mudou"):
 		C.chao_mudou(area) # terra arada e peças dos lotes descem ou sobem junto com o chão
@@ -584,6 +608,31 @@ func _arrumar_arvores(area: Rect2) -> void:
 				tr.origin.y = y
 				mm.set_instance_transform(c[parte][1], tr)
 
+# a altura do chão como o mundo_terreno.gd desenha (dois triângulos por quadrado de 4 m, com a diagonal dele): a estrada
+# fica sempre em cima do desenho (André 2026-11-23: "não tem estrada": a bilinear ficava embaixo dos triângulos)
+static func _altura_tri(g: Dictionary, x: float, z: float) -> float:
+	if g.is_empty():
+		return 0.0
+	var passo: float = g.passo
+	var nx: int = g.nx
+	var fx: float = (x - float(g.x0)) / passo
+	var fz: float = (z - float(g.z0)) / passo
+	if fx < 0.0 or fz < 0.0 or fx >= nx - 1 or fz >= int(g.nz) - 1:
+		return 0.0
+	var i := int(fx)
+	var j := int(fz)
+	var u := fx - i
+	var v := fz - j
+	var h: PackedFloat32Array = g.h
+	var ya: float = h[j * nx + i]
+	var yb: float = h[j * nx + i + 1]
+	var yc: float = h[(j + 1) * nx + i]
+	var yd: float = h[(j + 1) * nx + i + 1]
+	if absf(ya - yd) < absf(yb - yc): # diagonal a-d
+		return ya + (yb - ya) * u + (yd - yb) * v if u >= v else ya + (yd - yc) * u + (yc - ya) * v
+	# diagonal b-c
+	return ya + (yb - ya) * u + (yc - ya) * v if u + v <= 1.0 else yd + (yc - yd) * (1.0 - u) + (yb - yd) * (1.0 - v)
+
 # a estrada é do mato? (pontos a cada 2 m; a borda fica rala, não reta)
 func na_estrada(x: float, z: float, sorte := 0.5) -> bool:
 	if _na_estrada.is_empty():
@@ -622,8 +671,8 @@ func _desenhar_estradas(caminhos: Array) -> void:
 			for c in COL.size():
 				var pi3: Vector3 = pts[i]
 				var q: Vector2 = Vector2(pi3.x, pi3.z) + lado * float(COL[c])
-				var y: float = T.altura_montanha(q.x, q.y)
-				vs.append(Vector3(q.x, y + 0.07, q.y))
+				var y: float = maxf(T.altura_montanha(q.x, q.y), _altura_tri(T.mundo_g, q.x, q.y))
+				vs.append(Vector3(q.x, y + 0.08, q.y))
 				var gx: float = T.altura_montanha(q.x + 1.0, q.y) - T.altura_montanha(q.x - 1.0, q.y)
 				var gz: float = T.altura_montanha(q.x, q.y + 1.0) - T.altura_montanha(q.x, q.y - 1.0)
 				ns.append(Vector3(-gx, 2.0, -gz).normalized())
