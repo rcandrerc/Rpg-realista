@@ -65,7 +65,8 @@ static func valida(a, criador: Dictionary) -> Dictionary:
 			r.penteado = str(d.penteado)
 	# traje da armadura v5 (André 2026-11-23): "patrulha" ou "roupao"; null = moça patrulheira, rapaz de roupão
 	var tj := str(d.get("traje", ""))
-	r.traje = tj if tj in ["roupao", "patrulha"] else null
+	r.traje = tj if tj in ["roupao", "patrulha", "patrulheiro2", "roupao2"] else null
+	# "patrulheiro2" / "roupao2" = peças da thread de arte (equip2.gd), para o André comparar com a v5
 	return r
 
 # Pinta, estica e forma o rosto de um personagem (no = o que main.modelo devolveu)

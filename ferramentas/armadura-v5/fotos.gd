@@ -66,10 +66,32 @@ func _initialize() -> void:
 		rs.append(int(t))
 	var corpos := (OS.get_environment("FOTO_CORPO") if OS.get_environment("FOTO_CORPO") != "" else "ruiva,cabelo_m").split(",")
 	Armadura.roupao_fem = OS.get_environment("FOTO_ROUPAO_FEM") == "1"
+	Armadura.patrulheiro_m = OS.get_environment("FOTO_PATRULHEIRO_M") == "1" # rapaz de patrulheiro
 	var extra := OS.get_environment("FOTO_EXTRA") # "sem" = também sem capuz e sem capa
+	if OS.get_environment("FOTO_ARMAS") == "1": # espadas e cajados do Patrulheiro 2 / Roupão 2 (equip2.gd), raridade 0 a 4
+		var fila := []
+		for r in 5:
+			var e: Node3D = m.nova_arma("espada")
+			var cj: Node3D = m.nova_arma("cajado")
+			m.add_child(e)
+			m.add_child(cj)
+			Armadura.Equip2.armas(e, cj, "patrulheiro2", r, r)
+			e.global_position = base + Vector3(-0.9 + r * 0.48, 0.25, 0)
+			cj.global_position = base + Vector3(-1.14 + r * 0.48, 0.1, 0)
+			fila.append_array([e, cj])
+		vp.size = Vector2i(1600, 800) # foto larga só para a fila de armas
+		await esperar(6)
+		cam.global_position = base + Vector3(0, 0.95, 7.0)
+		cam.look_at(base + Vector3(0, 0.95, 0))
+		fundo.global_position = base + Vector3(0, 0, -12)
+		await esperar(2)
+		await foto("armas")
+		for n in fila:
+			n.queue_free()
+		vp.size = Vector2i(600, 1000)
 	for corpo in corpos:
 		var no: Node3D = m.modelo(corpo)
-		if OS.get_environment("FOTO_TRAJE") != "": # "patrulha" ou "roupao" (traje da Aparência)
+		if OS.get_environment("FOTO_TRAJE") != "": # "patrulha", "roupao", "patrulheiro2" ou "roupao2" (traje da Aparência)
 			no.set_meta("traje", OS.get_environment("FOTO_TRAJE"))
 		no.position = base
 		var c := no.position + Vector3(0, 0.88, 0)

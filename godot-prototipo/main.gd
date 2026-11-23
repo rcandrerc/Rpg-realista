@@ -1728,10 +1728,17 @@ func vestir_heroi() -> void:
 	for l in Armadura.LUGARES:
 		var it = eq.get(l)
 		k += (str(it.k) + str(int(it.r)) if it is Dictionary else "") + ","
+	# Patrulheiro 2 / Roupão 2 (equip2.gd): espada e cajado feitos à mão na raridade da arma equipada
+	var traje := str(heroi.get_meta("traje", ""))
+	var r_arma := func(l: String) -> int:
+		var it = eq.get(l)
+		return int(it.get("r", 0)) if it is Dictionary else -1
+	k += traje + str(r_arma.call("espada")) + str(r_arma.call("cajado"))
 	if k == _roupa:
 		return
 	_roupa = k
 	Armadura.vestir(heroi, eq)
+	Armadura.Equip2.armas(espada, cajado, traje, r_arma.call("espada"), r_arma.call("cajado"))
 
 # sentado no carrinho ou no barquinho (transporte.gd + sentar.gd): as mãos vão no volante ou no remo
 func sentado_veiculo() -> bool:

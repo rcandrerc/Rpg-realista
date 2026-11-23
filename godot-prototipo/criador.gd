@@ -393,7 +393,8 @@ func montar_painel() -> Control:
 	lista.add_child(Menu.rotulo("Traje", 15, OURO_CLARO))
 	trajes_fl = HFlowContainer.new()
 	trajes_fl.add_theme_constant_override("h_separation", 18)
-	for par in [["Patrulheira", "patrulha"], ["Roupão", "roupao"]]:
+	# André 2026-11-23: "Patrulheiro 2" e "Roupão 2" = as peças feitas à mão na thread de arte (equip2.gd), para comparar
+	for par in [["Patrulheira", "patrulha"], ["Roupão", "roupao"], ["Patrulheiro 2", "patrulheiro2"], ["Roupão 2", "roupao2"]]:
 		# como o "Ver equipado": a linha toda é o botão, com o quadradinho e o nome
 		var bt := Button.new()
 		bt.flat = true
