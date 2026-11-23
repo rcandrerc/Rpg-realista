@@ -1730,10 +1730,11 @@ func vestir_heroi() -> void:
 		k += (str(it.k) + str(int(it.r)) if it is Dictionary else "") + ","
 	# Patrulheiro 2 / Roupão 2 (equip2.gd): espada e cajado feitos à mão na raridade da arma equipada
 	var traje := str(heroi.get_meta("traje", ""))
+	var rv := int(heroi.get_meta("raridade_visual", -1)) # raridade do visual da Aparência (Armadura.visual)
 	var r_arma := func(l: String) -> int:
 		var it = eq.get(l)
-		return int(it.get("r", 0)) if it is Dictionary else -1
-	k += traje + str(r_arma.call("espada")) + str(r_arma.call("cajado"))
+		return (rv if rv >= 0 else int(it.get("r", 0))) if it is Dictionary else -1
+	k += traje + str(r_arma.call("espada")) + str(r_arma.call("cajado")) + "v" + str(rv)
 	if k == _roupa:
 		return
 	_roupa = k

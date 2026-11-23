@@ -109,6 +109,11 @@ var penteados_ui := [] # [botão, id do penteado ou null]
 # André 2026-11-23 (2): o rapaz também escolhe (Patrulheiro / Roupão)
 var trajes_fl: HFlowContainer
 var trajes_ui := [] # [quadradinho, traje, rótulo]
+# André 2026-11-23: "eu escolho o visual que vai ficar" (comum, raro, épico, lendário, mítico): a raridade em que
+# todas as peças vestidas aparecem, seja qual for a do item (aparencia.raridade, Armadura.visual). Junto com o Traje
+# acima, qualquer set (do irmão ou da thread de arte) em qualquer raridade. Só na Aparência (na conta nova não há peças)
+var raridade_ui := [] # [botão, raridade ou null]
+var linha_rar: Control
 var _boneco_de := "" # corpo que está no palco agora
 static var _rostos := {} # corpo -> ImageTexture do rosto (feito uma vez por partida)
 
@@ -430,6 +435,32 @@ func montar_painel() -> Control:
 		trajes_ui.append([q, tj, t])
 		trajes_fl.add_child(bt)
 	lista.add_child(trajes_fl)
+	var vr := VBoxContainer.new()
+	vr.add_child(Menu.rotulo("Raridade do visual", 15, OURO_CLARO))
+	var rfl := HFlowContainer.new()
+	rfl.add_theme_constant_override("h_separation", 6)
+	rfl.add_theme_constant_override("v_separation", 6)
+	var nomes_r := ["Comum", "Raro", "Épico", "Lendário", "Mítico"]
+	var rars: Array = m.P.dados.get("raridades", [])
+	for i in [-1, 0, 1, 2, 3, 4]:
+		var rv = null if i < 0 else i
+		var b := botao("Do item" if i < 0 else (str(rars[i].nome) if i < rars.size() else nomes_r[i]), false, func():
+			ap.raridade = rv
+			if not ver_equip: # a raridade só aparece com a armadura vestida
+				ver_equip = true
+				if q_equip:
+					q_equip.marcado = true
+					q_equip.queue_redraw()
+			mudou())
+		b.custom_minimum_size = Vector2(0, 36)
+		b.add_theme_font_size_override("font_size", 14)
+		if i >= 0 and i < rars.size() and str(rars[i].get("cor", "")).begins_with("#"):
+			b.add_theme_color_override("font_color", Color(str(rars[i].cor)))
+		raridade_ui.append([b, rv])
+		rfl.add_child(b)
+	vr.add_child(rfl)
+	linha_rar = vr
+	lista.add_child(vr)
 	for k in Aparencia.CORES:
 		var cab := HBoxContainer.new()
 		var rt := Menu.rotulo(NOMES[k], 15, OURO_CLARO)
@@ -783,6 +814,8 @@ func _abrir(inicial, ao_concluir: Callable, ao_mudar: Callable) -> void:
 	_texto_b_nome()
 	b_cancelar.visible = not _criacao
 	linha_equip.visible = not _criacao
+	if linha_rar:
+		linha_rar.visible = not _criacao
 	b_pronto.set_meta("pt", "Pronto" if _criacao else "Salvar") # o guia das missões acha o botão pelo texto em português
 	b_pronto.text = Idioma.frase(str(b_pronto.get_meta("pt")))
 	titulo.text = Idioma.frase("CRIAR PERSONAGEM" if _criacao else "APARÊNCIA")
@@ -957,6 +990,8 @@ func marcar() -> void:
 		par[0].queue_redraw()
 		if par[1] == "patrulha":
 			par[2].text = Idioma.frase("Patrulheiro" if masc else "Patrulheira")
+	for par in raridade_ui:
+		Menu.estilo_botao(par[0], par[1] == ap.get("raridade"))
 	for id in corpos_ui: # corpo escolhido: aro dourado grosso; os outros, aro fino apagado
 		var on: bool = id == corpo
 		var sa := StyleBoxFlat.new()
