@@ -2314,6 +2314,7 @@ func _process_parte(dt: float) -> void:
 			elif m.online and m.online.outros.has(v.dono):
 				sentados[str(v.dono)] = v
 	m.terreno.moveis = moveis_novos
+	_no_conves(dt)
 	if meu_k == "":
 		_escada_navio()
 	# o herói no veículo: sentado no banco do carrinho ou do barco (sentar.gd), de pé no leme do navio
@@ -3005,3 +3006,38 @@ func _costas(id: String, corpo: Node3D, pk, esq) -> void:
 			base = (esq as Skeleton3D).global_transform * peito - Vector3(0, 0.38, 0)
 	no.position = base + Vector3(-sin(ry) * atras, 0, -cos(ry) * atras)
 	no.rotation.y = ry
+
+# Recrutas e bots a bordo (André 2026-11-23: "meus parças ficam trêmulos no mercante andando no mar, caminhando e
+# parados"): o navio na tela anda com o herói (na hora) e o corpo dos outros vinha da posição do mundo do servidor
+# (atrasada e entre fotos); com o navio andando, um escorregava em cima do outro. Agora o servidor manda o lugar deles NO
+# navio (online.gd o.bd = [dono, lx, lz, giro]) e eles ficam presos no navio que está na tela, como o herói.
+func _no_conves(dt: float) -> void:
+	if m.online == null or not ("outros" in m.online):
+		return
+	var deck: float = float(m.terreno.agua.nivel) + float(V.navio.solido.conves)
+	for id in m.online.outros:
+		var o: Dictionary = m.online.outros[id]
+		var bd = o.get("bd")
+		if not (bd is Array) or (bd as Array).size() < 4:
+			o.erase("bd_l")
+			continue
+		var v: Dictionary = veic.get("n:" + str(bd[0]), {})
+		if v.is_empty() or o.get("no") == null:
+			continue
+		var nav: Node3D = v.no
+		var l := Vector2(float(bd[1]), float(bd[2]))
+		# o lugar no navio muda aos passinhos (20 fotos por segundo): desliza até ele; chegou agora ou pulou longe: vai direto
+		var lv = o.get("bd_l")
+		if not (lv is Vector2) or str(o.get("bd_n", "")) != str(bd[0]) or (lv as Vector2).distance_to(l) > 3.0:
+			lv = l
+		else:
+			lv = (lv as Vector2).lerp(l, minf(1.0, dt * 10.0))
+		o.bd_l = lv
+		o.bd_n = str(bd[0])
+		var ry: float = nav.rotation.y
+		var s := sin(ry)
+		var c := cos(ry)
+		var no: Node3D = o.no
+		no.position = Vector3(nav.position.x + lv.x * c + lv.y * s, deck, nav.position.z - lv.x * s + lv.y * c)
+		no.rotation.y = lerp_angle(no.rotation.y, ry + float(bd[3]), minf(1.0, dt * 15.0))
+

@@ -767,6 +767,16 @@ export const Transporte = {
     }
     return l;
   },
+  // bot a bordo de um navio (time, Proteger mercante, emboscada): o lugar dele NO navio vai na foto ([dono do navio, lx,
+  // lz, giro em relação ao navio]). André 2026-11-23 ("meus parças ficam trêmulos no mercante andando no mar"): o app
+  // desenhava o recruta pela posição do mundo (atrasada e entre fotos) e o navio pela do herói (na hora): com o navio
+  // andando, os dois não batiam e o recruta tremia. Com o lugar no navio, o app põe ele no navio que está na tela.
+  fotoBordo(j) {
+    const b = j.bordo; if (!b || b.dono == null || j.morto) return null;
+    const d = this.jogadores.get(b.dono), n = d?.prog?.navio; if (!n || !(n.chao || d.veiculo === 'navio')) return null;
+    const ry = n.chao ? n.chao.ry || 0 : d.ry || 0;
+    return [b.dono, r2(b.lx), r2(b.lz), r2((j.ry || 0) - ry)];
+  },
   // em pé no convés de algum navio (André 2026-11-21: "outras pessoas podem subir e ir comigo"): { n, lx, lz } ou null.
   // O navio é chão (o celular manda o herói na altura do convés, longe do fundo) e fica no mapa até no mar aberto.
   aBordo(x, z, y = null) {
