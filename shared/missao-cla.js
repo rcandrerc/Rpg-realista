@@ -32,7 +32,7 @@ export const MissaoCla = {
     const M = this.missaoDoMob(alvo); if (M && de && de.id === M.lider) alvo.provocaAte = this.tempo + M_().provoca;
   },
   // falta quanto para poder abrir de novo (ms, 0 = pode)
-  esperaMissaoCla(B) { return Math.max(0, (B?.missaoEm || 0) + M_().entre - Date.now()); },
+  esperaMissaoCla(B) { return Math.max(0, (B?.missaoOk || 0) + M_().entre - Date.now()); }, // só a escolta cumprida conta as 6 h (André 2026-11-23: falhou, tenta de novo na hora)
   // o que o painel do clã mostra
   missaoInfo(B) {
     if (!B) return null;
@@ -96,7 +96,7 @@ export const MissaoCla = {
         if (fundoAgua(x, z) <= 0.05) q = { x: r2(x), z: r2(z) };
       }
       if (!q) q = { x: r2(P.x + Math.sin(rumo) * Mc.longe), z: r2(P.z + Math.cos(rumo) * Mc.longe) };
-      const e = this.criarInimigo({ tipo, nivel: M.nv + (chefe ? Mc.chefe.nv : 0), x: q.x, z: q.z, missao: M.k });
+      const e = this.criarInimigo({ tipo, nivel: M.nv + (chefe ? Mc.chefe.nv : 0), x: q.x, z: q.z, missao: M.k, v: this.vagaMissao() });
       const f = chefe ? Mc.chefe : Mc;
       e.vidaMax = Math.round(e.vidaMax * f.vida); e.vida = e.vidaMax; e.dano = Math.round((e.dano || TIPOS_INIMIGO[tipo].dano) * f.dano);
       if (chefe) Object.assign(e, { nome: Mc.chefe.nome, esc: Mc.chefe.escala });
@@ -104,6 +104,13 @@ export const MissaoCla = {
     });
     M.emb++;
     this.avisoMissao(M, ult ? `Emboscada! ${Mc.chefe.nome} veio junto. Protejam os recrutas!` : `Emboscada ${M.emb} de ${Mc.emboscadas.length}! Protejam os recrutas!`);
+  },
+  // um lugar v livre para o monstro da emboscada (o app desenha por ele); todos ocupados: -1 (só no servidor)
+  vagaMissao() {
+    const v0 = this.vMissao ?? -1; if (v0 < 0) return -1;
+    const usados = new Set(this.inimigos.map((e) => e.v));
+    for (let v = v0; v < v0 + M_().vagas; v++) if (!usados.has(v)) return v;
+    return -1;
   },
   // o monstro da escolta caiu: o corpo some (não volta)
   mobMissaoMorreu(c) {
@@ -116,7 +123,8 @@ export const MissaoCla = {
     for (const e of M.mobs) { const i = this.inimigos.indexOf(e); if (i >= 0) this.inimigos.splice(i, 1); this.evento({ t: 'nevoa_some', x: r2(e.x), y: r2(e.y || 0), z: r2(e.z) }); }
     const L = this.jogadores.get(M.lider);
     if (L && !L.bot) this.evento({ t: 'missaoCla', para: L.id, fim: 1 });
-    if (!venceu) return this.avisoMissao(M, `Escolta do Clã falhou${porque ? ': ' + porque : ''}. A próxima abre em ${Math.round(Mc.entre / 3600e3)} h.`);
+    if (!venceu) return this.avisoMissao(M, `Escolta do Clã falhou${porque ? ': ' + porque : ''}. Pode tentar de novo agora, no Baú do Clã.`);
+    const Bk = this.basesCla?.[M.k]; if (Bk) { Bk.missaoOk = Date.now(); this.salvarBases?.(); }
     const nomes = [];
     for (const id of M.rec) {
       const a = this.jogadores.get(id); if (!a || a.morto) continue;

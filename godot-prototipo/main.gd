@@ -4671,7 +4671,7 @@ func criar_vaga(k: Dictionary, ci: int, i: int) -> void:
 
 # monta o modelo de uma vaga vazia do mundo grande no mesmo lugar da lista (inimigos[v])
 func materializar(e: Dictionary) -> void:
-	if not e.get("vazio", false):
+	if not e.get("vazio", false) or not e.has("_k"): # vaga da escolta: vestir_missao
 		return
 	var k: Dictionary = e._k
 	_criar_vaga(k, int(e.caca), int(e._i))
@@ -4690,7 +4690,7 @@ func materializar_perto(dt: float) -> void:
 	var hp := Vector2(heroi.position.x, heroi.position.z)
 	var n := 0
 	for e in inimigos:
-		if e.get("vazio", false) and hp.distance_to(Vector2(e.centro.x, e.centro.z)) < MUNDO_PERTO:
+		if e.get("vazio", false) and e.has("_k") and hp.distance_to(Vector2(e.centro.x, e.centro.z)) < MUNDO_PERTO:
 			materializar(e)
 			n += 1
 			# um corpo por vez, a cada 0,1 s (até 10 por segundo): montar um monstro (modelo, tinta, contorno, nome) leva
@@ -4861,6 +4861,50 @@ const ANIMS_TREINO := ["parada", "espada_parada", "andar", "corrida", "apanhar",
 func montar_treino() -> void:
 	for t in mundo.get("treino", []):
 		_a_criar.append(montar_um_treino.bind(t))
+	_a_criar.append(montar_vagas_missao)
+
+# Escolta do Clã (shared/missao-cla.js): lugares vazios na lista, no v que o servidor reservou (depois do espantalho).
+# O corpo nasce quando o monstro da emboscada chega na foto (vestir_missao). Até 2026-11-23 eles não tinham v e
+# ficavam invisíveis no app (André: "os meus bots... começam a atacar. Porém eu não vejo nada").
+func montar_vagas_missao() -> void:
+	var mv: Dictionary = mundo.get("missao_vagas", {})
+	if mv.is_empty():
+		return
+	if inimigos.size() != int(mv.v):
+		push_warning("vagas da escolta fora do lugar na lista: %d != %d" % [inimigos.size(), int(mv.v)])
+	for i in int(mv.n):
+		var no := Node3D.new()
+		no.visible = false
+		add_child(no)
+		inimigos.append({"no": no, "anim": null, "barra": null, "estado": "morto", "vida": 0.0, "vida_max": 1.0, "tipo": "",
+			"vazio": true, "missao_vaga": true, "centro": no.position, "alvo": no.position, "morreu": -999.0})
+
+# o monstro da emboscada chegou (ou trocou de bicho na mesma vaga): monta o corpo no lugar inimigos[v]
+func vestir_missao(v: int, c: Dictionary) -> void:
+	var e: Dictionary = inimigos[v]
+	var tipo := str(c.get("tipo", "puglin"))
+	var nv := int(c.get("nivel", 1))
+	var chefe := tipo == "warrok" # na escolta o Warrok é o chefe da última emboscada (CLA.missao.chefe no servidor)
+	var nome: String = ("Chefe da Emboscada" if chefe else NOME_TIPO.get(tipo, "Inimigo")) + "  Nv %d" % nv
+	var pos := Vector3(float(c.x), float(c.get("y", 0.0)), float(c.z))
+	var novo := criar_inimigo(MODELO_TIPO.get(tipo, "puglin"), pos, nome, 1.3 if chefe else 1.0)
+	inimigos.pop_back()
+	novo.tipo = tipo
+	novo.nivel = nv
+	novo.missao_vaga = true
+	novo.centro = pos
+	novo.vida_max = float(c.get("vidaMax", c.get("vida", 1.0)))
+	novo.vida = float(c.get("vida", novo.vida_max))
+	for l in novo.no.get_children():
+		if l is Label3D:
+			l.modulate = cor_nivel(nv)
+			break
+	if tipo == "lobo":
+		novo.alto = 1.45
+	e.no.queue_free()
+	e.clear()
+	e.merge(novo, true)
+	entrou_online(e)
 
 func montar_um_treino(t: Dictionary) -> void:
 	if inimigos.size() != int(t.v): # o v do servidor é a posição na lista (depois das vagas da caça)

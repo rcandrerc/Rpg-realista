@@ -1778,7 +1778,7 @@ func _escolta_cla(vs: VBoxContainer, Mi) -> void:
 	elif int(Mi.get("espera", 0)) > 0:
 		vs.add_child(rotulo("Próxima escolta em %s." % _tempo_cla(int(Mi.espera)), 12, APAGADO))
 	else:
-		vs.add_child(rotulo("Leve os recrutas vivos até o totem mais perto (300 m ou mais) em 10 min. No caminho vêm 4 emboscadas no seu nível, e os monstros vão primeiro nos recrutas: bata neles para segurar. Quem chegar ganha 1 nível de XP; o cofre ganha ouro e você, 1 Fragmento de Alma. Abra no Baú do Clã, com os recrutas perto. Uma a cada 6 h.", 12, APAGADO))
+		vs.add_child(rotulo("Leve os recrutas vivos até o totem mais perto (300 m ou mais) em 10 min. No caminho vêm 4 emboscadas no seu nível, e os monstros vão primeiro nos recrutas: bata neles para segurar. Quem chegar ganha 1 nível de XP; o cofre ganha ouro e você, 1 Fragmento de Alma. Abra no Baú do Clã, com os recrutas perto. Cumprida, a próxima abre em 6 h; se falhar, pode tentar de novo na hora.", 12, APAGADO))
 		var be := botao("Começar a escolta", func(): m.rede("cla", {"acao": "missao"}), 15, true)
 		be.custom_minimum_size = Vector2(0, 44)
 		vs.add_child(be)

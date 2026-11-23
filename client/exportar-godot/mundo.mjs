@@ -90,6 +90,8 @@ const mundo = {
   // espantalhos de treino: o v vem depois das vagas dos campos de caça (igual ao servidor)
   treino: (MAPA_CLAREIRA.treino || []).map((t, k) => ({ ...t, nome: TIPOS_INIMIGO[t.tipo].nome, vida: TIPOS_INIMIGO[t.tipo].vida, volta: TREINO.volta,
     v: MAPA_CLAREIRA.inimigos.length + (MAPA_CLAREIRA.caca || []).reduce((s, c) => s + c.tipos.length, 0) + k })),
+  // Escolta do Clã: os lugares dos monstros das emboscadas (main.gd montar_vagas_missao), logo depois do espantalho
+  missao_vagas: { v: sim.vMissao, n: CLA.missao.vagas },
   solidos, grades,
   // relevo (2026-11-05): lagos rasos e fundos e a grade de alturas da montanha (shared/relevo.js; terreno.gd repete a conta)
   longe: LONGE, copas_fora: copasDeFora(), // máscara do chão visto de longe (longe.mjs grava relevo/longe.png)

@@ -94,6 +94,20 @@ func do_aviso(t: String) -> bool:
 			nt = nt.substr(0, it)
 		_faixa({"tipo": "grande", "cab": "NOVO TÍTULO", "titulo": nt, "sub": sub_t, "cor": SISTEMA, "tit": Color("ffe7a8"), "dur": 3.0, "som": "festa_libera", "faiscas": 16})
 		return true
+	# Escolta do Clã (André 2026-11-23: "um aviso mais chamativo... que aparecesse e desaparecesse bem em frente"):
+	# emboscada é faixa grande vermelha no meio da tela, com som e tremida; falhar e cumprir também
+	if t.begins_with("Emboscada"):
+		var tit := t.get_slice("!", 0)
+		var chefe := t.contains("veio junto")
+		_faixa({"tipo": "grande", "cab": "ESCOLTA DO CLÃ", "titulo": ("EMBOSCADA FINAL!" if chefe else tit.to_upper() + "!"), "sub": t.substr(t.find("!") + 1).strip_edges(),
+			"cor": VERMELHO, "tit": Color("ffb3a6"), "dur": 3.0, "som": "festa_falha", "soco": 0.6})
+		return true
+	if t.begins_with("Escolta do Clã falhou"):
+		_faixa({"tipo": "grande", "cab": "ESCOLTA DO CLÃ", "titulo": "Falhou", "sub": t.substr(t.find(":") + 1).strip_edges() if t.contains(":") else "Pode tentar de novo agora", "cor": VERMELHO, "dur": 3.0, "som": "festa_falha"})
+		return true
+	if t.begins_with("Escolta do Clã cumprida"):
+		_faixa({"tipo": "grande", "cab": "ESCOLTA DO CLÃ", "titulo": "Cumprida!", "sub": t.substr(t.find("!") + 1).strip_edges(), "cor": SISTEMA, "tit": Color("ffe7a8"), "dur": 3.6, "som": "festa_libera", "faiscas": 16})
+		return true
 	if t.begins_with("Liberado: "):
 		liberado(t.substr(10))
 		return true
