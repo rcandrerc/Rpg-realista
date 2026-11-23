@@ -8,14 +8,17 @@ import { PESCA, HISTORIA } from '../../shared/dados.js';
 // estes testes são de pesca, estrada e time; a história dela (que agora começa do zero, André 2026-11-17) fica aberta aqui
 const historiaFeita = (c) => { c.prog.hist = { v: 2, p: HISTORIA.length, ac: false, e: 0, n: 0, m: 0 }; };
 import { noLago } from '../../shared/relevo.js';
-import './_amizade-antiga.mjs'; // o jeito antigo (amizade e papo), sem o soldado de 2026-11-22
+import './_amizade-antiga.mjs';
+import { loteNaBase } from './_lote-base.mjs'; // o jeito antigo (amizade e papo), sem o soldado de 2026-11-22
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 s.adicionarJogador('andre', 'André', 'ruiva', {});
 s.adicionarJogador('outro', 'Outro', 'ruiva', {});
 s.amigaEntrar('andre');
-const a = s.amiga, L = s.loteDaAmiga();
-ok(a && a.bot && !L, 'ela entrou sem casa na vila (André 2026-11-22: a casa dela fica no lote da base do clã)');
+const a = s.amiga, L0 = s.loteDaAmiga();
+ok(a && a.bot && !L0, 'ela entrou sem casa na vila (André 2026-11-22: a casa dela fica no lote da base do clã)');
+const L = loteNaBase(s); // a base da Guarda da Chama nasce: o lote dela fica lá
+ok(L?.def.baseK, 'o lote dela fica na base do clã');
 ok(s.eventos.some((e) => e.t === 'amiga' && e.para === 'andre'), 'só o dono recebe o aviso de quem ela é');
 for (let i = 0; i < 20 * 900; i++) s.passo(0.05);
 ok(L.pecas.length === AMIGA.casa.length, `casa inteira: ${L.pecas.length} de ${AMIGA.casa.length} peças`);
@@ -43,15 +46,15 @@ s.troca('outro', { acao: 'pedir', com: AMIGA.id });
 ok(a.pedidoTroca || a.troca || s.eventos.some((e) => (e.t === 'troca' || e.t === 'aviso' || e.t === 'fala') && e.para === 'outro'), 'o outro jogador pede troca e ela responde');
 // guarda no terreno e o terreno dela não conta na vaga das Terras
 s.guardarAmiga();
-const salvo = s.lotesParaSalvar().find((l) => l.id === L.def.id);
-ok(salvo?.dados?.amiga?.prog && salvo.dados.amiga.amizade === a.amizade, 'bolsa e amizade vão junto com o terreno');
+const salvo = s.lotesParaSalvar().find((l) => l.id === L.def.id), salvoNpc = s.npcsParaSalvar().find((o) => o.id === AMIGA.id);
+ok(salvoNpc?.dados?.prog && salvoNpc.dados.amizade === a.amizade, 'bolsa e amizade vão para a tabela mundo (André 2026-11-22: o save de todos fica lá)');
 s.amigaSair('outro'); s.removerJogador('outro'); // como o servidor: sai da sala depois
 ok(s.amiga === a, 'sair de outro jogador não tira ela');
 s.amigaSair('andre');
 ok(!s.amiga && !s.jogadores.has(AMIGA.id), 'sai junto com o dono');
 // volta com o que tinha
 const s2 = new Simulacao(MAPA_CLAREIRA);
-s2.carregarLotes([salvo]);
+s2.carregarLotes([salvo]); s2.carregarNpc(AMIGA.id, salvoNpc.dados);
 s2.adicionarJogador('andre', 'André', 'ruiva', {});
 s2.amigaEntrar('andre');
 ok(s2.loteDaAmiga()?.pecas.length === AMIGA.casa.length && s2.amiga.amizade === a.amizade, 'volta com a casa e a amizade');
@@ -284,7 +287,7 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   ok(s7.amiga === c && s7.amigaDono === 'irmao' && !c.time && c.amizade === 0, 'André saiu: ela fica com o irmão (amizade dele começa do zero)');
   c.amizade = 1;
   s7.guardarAmiga();
-  const sv = s7.loteDaAmiga().amiga;
+  const sv = s7.npcSalvos.get(AMIGA.id);
   ok(sv.amizades.c1 === 3 && sv.amizades.c2 === 1, `amizade separada por conta: ${JSON.stringify(sv.amizades)}`);
   s7.amigaSair('irmao'); s7.removerJogador('irmao');
   ok(s7.amiga === c && s7.amigaDono == null, 'o último com chave saiu: ela fica no mundo para quem está na sala, sem dono (André 2026-11-11)');
@@ -295,8 +298,8 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   const s8 = new Simulacao(MAPA_CLAREIRA);
   s8.adicionarJogador('irmao', 'Irmão', 'ruiva', { conta: 2 });
   s8.amigaEntrar('irmao');
-  s8.loteDaAmiga().amiga = {}; s8.amigaSair('irmao');
-  const L8 = s8.loteDaAmiga(); L8.amiga = { amizade: 7, recomeco: AMIGA.recomeco };
+  s8.amigaSair('irmao');
+  s8.carregarNpc(AMIGA.id, { amizade: 7, recomeco: AMIGA.recomeco }); // o save dela fica na tabela mundo (2026-11-22)
   s8.adicionarJogador('irmao2', 'Irmão', 'ruiva', { conta: 2 });
   s8.amigaEntrar('irmao2');
   ok(s8.amiga.amizade === 0, 'irmão começa do zero');
@@ -335,9 +338,9 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   s9.ouvirAmiga('andre', 'tenho que ir'); s9.ouvirAmiga('andre', 'tchau!');
   s9.amigaSair('andre');
   await new Promise((r) => setTimeout(r, 20));
-  ok(!s9.amiga && s9.loteDaAmiga().amiga.memorias.c1[0] === 'Ele saiu correndo hoje.', 'saiu: o diário vai para o terreno dela');
+  ok(!s9.amiga && s9.npcSalvos.get(AMIGA.id).memorias.c1[0] === 'Ele saiu correndo hoje.', 'saiu: o diário vai para o save dela (tabela mundo)');
   const s10 = new Simulacao(MAPA_CLAREIRA);
-  s10.carregarLotes([s9.lotesParaSalvar().find((l) => l.dados?.amiga)]);
+  s10.carregarNpc(AMIGA.id, s9.npcSalvos.get(AMIGA.id));
   s10.adicionarJogador('andre', 'André', 'ruiva', { conta: 1 });
   s10.amigaEntrar('andre');
   ok(s10.contextoAmiga('andre').memoria[0] === 'Ele saiu correndo hoje.' && s10.regraAmiga('seguir') === AMIGA.memoria.regras.pertinho.seguir, 'no outro dia ela lembra');
@@ -395,7 +398,8 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
       if (c.montado) montada += 0.05;
       perto = Math.hypot(c.x - d.x, c.z - d.z);
     }
-    if (lugar === 'c_i1') ok(perto > 300 && c.ia.viagem?.bloqueio && pulo < 0.6 && ditos.some((t) => AMIGA.chat.falas.outraTerra.includes(t)), 'ele em outra terra: ela não aparece lá, avisa que sem barco não chega e espera');
+    // André 2026-11-23 (#844, "eles precisam ir pro mar... nadando"): outra terra sem barco, vai até a praia e nada até ele
+    if (lugar === 'c_i1') ok((c.ia.viagem?.nado || perto <= 4) && pulo < 0.6 && ditos.some((t) => AMIGA.chat.falas.nado.includes(t)), `ele em outra terra: ela não aparece lá, avisa que vai nadando e vai (a ${perto.toFixed(0)} m de ${d0.toFixed(0)} m)`);
     else ok(perto <= 4 && pulo < 0.6 && montada > 10, `${modo === 'time' ? 'no time' : '"vem cá"'}: veio de lobo pela estrada ${Math.round(d0)} m sem se teletransportar (maior passo ${pulo.toFixed(2)} m, ${Math.round(montada)} s montada)`);
   }
 }
@@ -404,8 +408,9 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   const s9 = new Simulacao(MAPA_CLAREIRA);
   s9.adicionarJogador('andre', 'André', 'ruiva', { conta: 1, testador: true });
   s9.amigaEntrar('andre');
-  const L9 = s9.loteDaAmiga(), velho = { ...s9.amiga.prog, nivel: 44, ouro: 9999 };
-  s9.amigaSair('andre'); L9.amiga = { prog: velho, amizade: 9, amizades: { 1: 9 }, memorias: { 1: ['pescamos'] }, justa: 1 };
+  const velho = { ...s9.amiga.prog, nivel: 44, ouro: 9999 };
+  s9.amigaSair('andre'); s9.carregarNpc(AMIGA.id, { prog: velho, amizade: 9, amizades: { 1: 9 }, memorias: { 1: ['pescamos'] }, justa: 1 });
+  const L9 = { get amiga() { return s9.npcSalvos.get(AMIGA.id); } }; // o save dela (tabela mundo)
   s9.adicionarJogador('andre2', 'André', 'ruiva', { conta: 1, testador: true });
   s9.amigaEntrar('andre2');
   const a9 = s9.amiga;
@@ -414,7 +419,7 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
   ok(L9.amiga.recomeco === AMIGA.recomeco && L9.amiga.antes?.prog?.nivel === 44 && L9.amiga.antes.amizades?.[1] === 9, 'o save antigo fica em antes e o recomeço não repete');
   s9.amiga.prog.nivel = 3; s9.guardarAmiga(); s9.amigaSair('andre2');
   s9.adicionarJogador('andre3', 'André', 'ruiva', { conta: 1, testador: true }); s9.amigaEntrar('andre3');
-  ok(s9.amiga.prog.nivel === 3 && s9.loteDaAmiga().amiga.antes?.prog?.nivel === 44, 'depois do recomeço ela guarda o que joga de novo');
+  ok(s9.amiga.prog.nivel === 3 && L9.amiga.antes?.prog?.nivel === 44, 'depois do recomeço ela guarda o que joga de novo');
 }
 
 // ---------- missão que pede time: ela não nega (André 2026-11-14, "só na missão ela não nega") ----------
