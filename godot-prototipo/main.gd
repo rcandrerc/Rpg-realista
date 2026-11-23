@@ -2557,9 +2557,13 @@ func tiro_basico(hab) -> bool:
 var pvp_ate := 0.0 # m.tempo até quando ainda conta como luta com jogador (online.gd, evento "dano")
 func em_pvp() -> bool:
 	return tempo < pvp_ate or (arena_pvp != null and arena_pvp.ativo())
+# André 2026-11-23 ("quero remover esse slow motion quando eu tô grindando... o da esquiva na hora certa também, isso aí não
+# vai ter mais não"): nenhum lugar do jogo para ou desacelera o tempo (congelada do golpe, esquiva, último monstro, a própria
+# morte). O tranco da câmera, o flash, o som e a vibração ficam. Para voltar como era, troque para true.
+const TEMPO_LENTO := false
 
 func parar_golpe(seg: float) -> void:
-	if em_pvp():
+	if not TEMPO_LENTO or em_pvp():
 		return
 	_hitstop_ate = max(_hitstop_ate, Time.get_ticks_usec() / 1000000.0 + seg)
 	Engine.time_scale = 0.05
@@ -2817,7 +2821,7 @@ func _voltar_arvore(pos: Vector2) -> void:
 
 # câmera lenta curtinha (o tempo, não a câmera): k = velocidade (0,3 = 30%) por seg segundos de verdade
 func lenta(seg: float, k: float) -> void:
-	if em_pvp():
+	if not TEMPO_LENTO or em_pvp():
 		return
 	_lenta_ate = max(_lenta_ate, Time.get_ticks_usec() / 1000000.0 + seg)
 	_lenta_k = k
