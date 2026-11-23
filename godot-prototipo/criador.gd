@@ -108,7 +108,7 @@ var penteados_ui := [] # [botão, id do penteado ou null]
 # André 2026-11-23: traje da armadura v5, dois quadradinhos "Patrulheira/Patrulheiro" e "Roupão" (aparencia.traje);
 # rodada 2: o rapaz também escolhe (null = padrão do corpo: moça patrulheira, rapaz roupão)
 var trajes_fl: HFlowContainer
-var trajes_ui := [] # [quadradinho, é o roupão?, rótulo]
+var trajes_ui := [] # [quadradinho, qual (false patrulha, true roupão, ou "patrulheiro2"/"roupao2"), rótulo]
 var _boneco_de := "" # corpo que está no palco agora
 static var _rostos := {} # corpo -> ImageTexture do rosto (feito uma vez por partida)
 
@@ -393,7 +393,8 @@ func montar_painel() -> Control:
 	lista.add_child(Menu.rotulo("Traje", 15, OURO_CLARO))
 	trajes_fl = HFlowContainer.new()
 	trajes_fl.add_theme_constant_override("h_separation", 18)
-	for par in [["Patrulheira", false], ["Roupão", true]]:
+	# André 2026-11-23: "Patrulheiro 2" e "Roupão 2" = as peças feitas à mão na thread de arte (equip2.gd), para comparar
+	for par in [["Patrulheira", false], ["Roupão", true], ["Patrulheiro 2", "patrulheiro2"], ["Roupão 2", "roupao2"]]:
 		# como o "Ver equipado": a linha toda é o botão, com o quadradinho e o nome
 		var bt := Button.new()
 		bt.flat = true
@@ -415,12 +416,14 @@ func montar_painel() -> Control:
 		t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		h.add_child(t)
-		var de_roupao: bool = par[1]
+		var de_roupao = par[1]
 		bt.pressed.connect(func():
 			if _arrastou:
 				return
 			# grava só o que foge do padrão do corpo; o padrão fica null (moça patrulheira, rapaz roupão)
-			if _masculino():
+			if de_roupao is String:
+				ap.traje = de_roupao
+			elif _masculino():
 				ap.traje = null if de_roupao else "patrulheiro"
 			else:
 				ap.traje = "roupao" if de_roupao else null
@@ -936,10 +939,11 @@ func marcar() -> void:
 	var rapaz := boneco != null and _masculino()
 	var traje = ap.get("traje")
 	var eh_roupao: bool = traje == "roupao" or (rapaz and traje != "patrulheiro")
+	var t2: bool = traje in ["patrulheiro2", "roupao2"]
 	for par in trajes_ui:
-		par[0].marcado = par[1] == eh_roupao
+		par[0].marcado = par[1] == traje if (t2 or par[1] is String) else par[1] == eh_roupao
 		par[0].queue_redraw()
-		if not par[1]:
+		if par[1] is bool and not par[1]:
 			par[2].text = Idioma.frase("Patrulheiro" if rapaz else "Patrulheira")
 	for id in corpos_ui: # corpo escolhido: aro dourado grosso; os outros, aro fino apagado
 		var on: bool = id == corpo

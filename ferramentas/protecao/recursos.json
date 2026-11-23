@@ -296,7 +296,7 @@
     {"nome": "Cecília e Dario (IA) respondem em inglês com o jogo em English (André 2026-11-14)", "arquivo": "server/ia-amiga.js", "contem": ["ctx.idioma === 'en'"]},
     {"nome": "Quadradinho Ver equipado na Aparência: prévia com ou sem o equipamento (André 2026-11-16)", "arquivo": "godot-prototipo/criador.gd", "contem": ["func linha_ver_equip() -> Control:", "func vestir_previa() -> void:", "\"Ver equipado\""]},
     {"nome": "Traje Patrulheira / Roupão na Aparência e armadura v5 com capuz (André 2026-11-23)", "arquivo": "godot-prototipo/criador.gd", "contem": ["var trajes_ui := []", "[\"Roupão\", true]", "\"Patrulheiro\" if rapaz else \"Patrulheira\""]},
-    {"nome": "Traje do roupão e do patrulheiro aceito pelo servidor (André 2026-11-23)", "arquivo": "shared/dados.js", "contem": ["a.traje === 'roupao' || a.traje === 'patrulheiro'"]},
+    {"nome": "Traje do roupão e do patrulheiro aceito pelo servidor (André 2026-11-23)", "arquivo": "shared/dados.js", "contem": ["['roupao', 'patrulheiro', 'patrulheiro2', 'roupao2'].includes(a.traje)"]},
     {"nome": "Patrulheiro masculino com túnica (André 2026-11-23)", "arquivo": "godot-prototipo/armadura.gd", "contem": ["traje == \"patrulheiro\"", "túnica do patrulheiro no rapaz"]}
   ]
 }

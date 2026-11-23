@@ -94,6 +94,11 @@ static func _de_roupao(raiz: Node3D, esq: Skeleton3D) -> bool:
 	if traje == "patrulheiro" or patrulheiro_m:
 		return false
 	return _ref(esq).masc
+# "Patrulheiro 2" / "Roupão 2" (equip2.gd): as peças da thread de arte, ao lado das v5; "" quando o traje é outro
+const Equip2 := preload("res://equip2.gd")
+static func _traje2(raiz: Node3D) -> String:
+	var t := str(raiz.get_meta("traje", ""))
+	return t if LINHA_V5 and t in Equip2.TRAJES else ""
 static func _pecas_v5(k: String, r: int) -> Array:
 	match k:
 		# "@f" = só no corpo feminino (patrulheira); "@m" = só no masculino (roupão de mago, André 2026-11-23:
@@ -303,6 +308,8 @@ static func vestir(raiz: Node3D, equip) -> void:
 				chave += ":capa" # com capa o saiote perde as lâminas de trás (o pano cobre e elas furariam a capa)
 			if LINHA_V5 and _de_roupao(raiz, esq):
 				chave += ":roupao" # traje da Aparência: peças do roupão no lugar das da patrulheira
+			if _traje2(raiz) != "" and l != "capa":
+				chave += ":" + _traje2(raiz) # Patrulheiro 2 / Roupão 2 (equip2.gd)
 		var nome: String = "Armadura_" + str(l)
 		var velho := esq.get_node_or_null(nome)
 		if velho and velho.get_meta("chave", "") == chave:
@@ -323,6 +330,7 @@ static func vestir(raiz: Node3D, equip) -> void:
 	_sem_contorno_tronco(raiz, esq)
 	_roupa_base(raiz, esq) # antes do _uniforme: ele pinta o short de baixo na cor da calça quando há armadura
 	_uniforme(raiz, equip if equip is Dictionary else {})
+	_uniforme2(raiz, esq, equip if equip is Dictionary else {})
 	# v5: o capuz é folgado; o cabelo aperta só até a parede de dentro dele (no tamanho do capacete ficava careca)
 	_cabelo(raiz, esq.get_node_or_null("Armadura_cabeca") != null, LINHA_V5)
 	# armas nas costas passam por fora da capa
@@ -1331,6 +1339,43 @@ static func _uniforme(raiz: Node3D, equip: Dictionary) -> void:
 		var p = equip.get("corpo")
 		gravata.visible = false # André 2026-11-03: sem roupa padrão (antes sumia só com peitoral de aço)
 
+# Patrulheiro 2 / Roupão 2: a roupa do corpo fica por baixo das peças feitas à mão e some onde há peça (a blusa,
+# o tronco de pele e a saia/calça do VRoid furavam o pano); o sapato vira couro da bota. Volta tudo nos outros trajes.
+static func _uniforme2(raiz: Node3D, esq: Skeleton3D, equip: Dictionary) -> void:
+	var t2 := _traje2(raiz)
+	var tem := func(l: String) -> int:
+		var it = equip.get(l)
+		return clampi(int(it.get("r", 0)), 0, 4) if t2 != "" and it is Dictionary and PECAS.has(str(it.get("k", ""))) else -1
+	var r_c: int = tem.call("corpo")
+	var r_p: int = tem.call("pernas")
+	var r_b: int = tem.call("pes")
+	if r_c >= 0:
+		var blusa := _fonte(raiz, "Tops")
+		if blusa:
+			blusa.visible = false
+		var tronco: Node3D = esq.get_node_or_null("Tronco")
+		if tronco:
+			tronco.visible = false
+	var saia := _fonte(raiz, "Bottoms")
+	if saia and r_p >= 0 and saia.visible:
+		saia.visible = false
+		saia.set_meta("equip2_escondeu", true)
+	elif saia and r_p < 0 and saia.has_meta("equip2_escondeu"):
+		saia.visible = true # só devolve o que o Patrulheiro 2 / Roupão 2 escondeu
+		saia.remove_meta("equip2_escondeu")
+	if r_p >= 0:
+		var base: Node = esq.get_node_or_null("Roupa_base")
+		if base:
+			for mi in base.find_children("*", "MeshInstance3D", true, false):
+				mi.visible = false
+	var sapato := _fonte(raiz, "Shoes")
+	if sapato:
+		for sfc in sapato.get_surface_override_material_count():
+			if r_b >= 0:
+				sapato.set_surface_override_material(sfc, Equip2.material_sapato(r_b))
+			elif sapato.get_surface_override_material(sfc) in Equip2._mats.values():
+				sapato.set_surface_override_material(sfc, null)
+
 static func _material_tecido(r: int) -> Material:
 	var chave := "tecido:%d" % r
 	if not _materiais.has(chave):
@@ -1409,6 +1454,11 @@ static func _fonte(raiz: Node3D, trecho: String) -> MeshInstance3D:
 	return null
 
 static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int, tem_capa := false) -> void:
+	var t2 := _traje2(raiz)
+	# Patrulheiro 2 / Roupão 2: peças da thread de arte. O patrulheiro 2 não tem capuz próprio: usa o capuz da v5.
+	if t2 != "" and k in ["peitoral", "calca", "short", "botas"] or (t2 == "roupao2" and k == "chapeu"):
+		Equip2.montar(esq, no, k, r, t2, _ref(esq).masc)
+		return
 	for pm in pecas(k, r):
 		var parte: String = pm[0]
 		# v10 (André 2026-11-04): o saiote dá a volta inteira mesmo com capa (antes, com capa, ficava só a frente);

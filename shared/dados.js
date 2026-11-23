@@ -1255,7 +1255,8 @@ export function aparenciaValida(a) {
   r.penteado = Object.values(CRIADOR.penteados).some((l) => l.includes(a.penteado)) ? a.penteado : null;
   // traje da armadura (André 2026-11-23): null = padrão do corpo (moça patrulheira, rapaz roupão),
   // 'roupao' = roupão de mago, 'patrulheiro' = patrulheiro (o rapaz também escolhe, rodada 2)
-  r.traje = a.traje === 'roupao' || a.traje === 'patrulheiro' ? a.traje : null;
+  // 'patrulheiro2' / 'roupao2' = peças da thread de arte (equip2.gd), para o André comparar
+  r.traje = ['roupao', 'patrulheiro', 'patrulheiro2', 'roupao2'].includes(a.traje) ? a.traje : null;
   return r;
 }
 export const PERSONAGEM_PADRAO = 'ruiva';
