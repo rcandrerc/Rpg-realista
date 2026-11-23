@@ -12,6 +12,7 @@ const d = s.adicionarJogador('andre', 'André', 'ruiva', {}); d.conta = 'c1';
 for (const x of s.amigosIa) x.amigaEntrar('andre');
 const evs = []; { const ev = s.evento.bind(s); s.evento = (e) => { evs.push(e); return ev(e); }; } // s.eventos zera a cada passo
 const ctx = (id) => s.amigoIaDe(id), kira = ctx('kira').amiga, rufo = ctx('rufo').amiga, lis = ctx('lis').amiga;
+const geada = [kira, rufo, lis, ctx('gael').amiga].filter(Boolean); // o Gael (líder) também é da Geada desde 2026-11-22 e entra na emboscada
 const nivel = (j, n) => { j.prog.nivel = n; s.aplicarStatus(j); j.vida = j.vidaMax; };
 const por = (j, x, z) => Object.assign(j, { x, z, y: s.terreno.altura(x, z), vy: 0, chao: true });
 const passos = (seg, f) => { for (let i = 0; i < seg * 20; i++) { f?.(); s.passo(0.05); } };
@@ -34,7 +35,7 @@ ok(s.zonaSeguraGuerra(-6, -2) && !s.zonaSeguraGuerra(-6, -10) && s.zonaSeguraGue
 ok(!s.zonaSeguraGuerra(v5.x, v5.z), 'campo Nv 45 é guerra');
 
 // ---------- agro a 25 m e alerta ----------
-for (const b of [kira, rufo, lis]) { longe(b); b.ia.guerra = null; }
+for (const b of geada) { longe(b); b.ia.guerra = null; }
 nivel(d, 45); nivel(rufo, 42); por(d, v5.x, v5.z); por(rufo, v5.x + 32, v5.z);
 s.guerraT = 0; passos(1.5, () => { d.entrada = { mx: 0, mz: 0 }; });
 ok(rufo.ia.guerra?.alvo !== d.id, 'a 32 m o Rufo ainda não ataca');
@@ -89,7 +90,7 @@ ok(nav0.vida === 6000 && !nav0.quebrado, 'navio sem casco gravado nasce com 6000
 
 // ---------- emboscada no carrinho ----------
 const E = GUERRA.emboscada;
-for (const b of [kira, rufo, lis]) { longe(b); b.ia.guerra = null; nivel(b, 44); b.protGuerraAte = 0; }
+for (const b of geada) { longe(b); b.ia.guerra = null; nivel(b, 44); b.protGuerraAte = 0; }
 d.protGuerraAte = 0; nivel(d, 45);
 // um ponto de terra em guerra, longe de mercador/totem
 let px = v5.x + 40, pz = v5.z; ok(!s.zonaSeguraGuerra(px, pz) && lugarDoVeiculo('carrinho', px, pz), 'lugar da viagem: terra, zona de guerra');
@@ -99,7 +100,7 @@ s.guerraT = 0; s.passo(0.05);
 ok(s.cargaGuerra(d) === 'carrinho', 'dirigindo com packs: carga = carrinho');
 const ev1 = evs.length;
 ok(s.iniciarEmboscada(d, 'carrinho'), 'emboscada começou');
-const vieram = [kira, rufo, lis].filter((b) => b.ia.guerra?.emb?.dono === d.id);
+const vieram = geada.filter((b) => b.ia.guerra?.emb?.dono === d.id);
 ok(vieram.length >= 2 && vieram.every((b) => Math.hypot(b.x - d.x, b.z - d.z) > 25 && Math.hypot(b.x - d.x, b.z - d.z) < 45), `${vieram.length} bots chegaram de longe (~35 m)`);
 ok(evs.slice(ev1).some((e) => e.para === d.id && /Emboscada!/.test(e.texto || '')), 'aviso de emboscada pro André');
 ok(s.emboscadaAtiva(d), 'emboscada ativa');
@@ -111,7 +112,7 @@ const c = d.prog.carrinho; c.vida = 300;
 for (let i = 0; i < 20 * 40 && !c.quebrado; i++) { d.entrada = { mx: 0, mz: 0 }; d.vida = d.vidaMax; s.passo(0.05); }
 passos(6, () => { d.entrada = { mx: 0, mz: 0 }; });
 ok(c.quebrado, `quebraram o carrinho (vida ${c.vida})`);
-const ladroes = [kira, rufo, lis].filter((b) => b.prog.pack && b.ia.packRoubo);
+const ladroes = geada.filter((b) => b.prog.pack && b.ia.packRoubo);
 ok(ladroes.length >= 1 && ladroes.every((b) => b.prog.pack.rb === 1), `${ladroes.length} pegaram pack e é roubado pra eles`);
 ok(!s.packsChao.some((o) => Math.hypot(o.x - c.chao.x, o.z - c.chao.z) < 22) || ladroes.length === 2, 'os packs saíram do chão');
 // derrubar o ladrão: o pack cai; o André pega o dele de volta (não é roubado)
@@ -131,7 +132,7 @@ const p0 = precoPack(d.prog.pack, n2, d.prog.prof.mer), o0 = d.prog.ouro || 0;
 s.pack(d.id, { acao: 'entregar', npc: n2.id, de: 'costas' });
 const ganhou = (d.prog.ouro || 0) - o0;
 ok(ganhou >= Math.round(p0 * 1.2) && ganhou > 0, `entregou pack roubado com bônus: ${ganhou} (base ${p0})`);
-for (const b of [kira, rufo, lis]) { b.ia.guerra = null; b.ia.packRoubo = null; b.prog.pack = null; }
+for (const b of geada) { b.ia.guerra = null; b.ia.packRoubo = null; b.prog.pack = null; }
 passos(8);
 
 // ---------- emboscada no navio ----------
@@ -139,12 +140,12 @@ passos(8);
 let mar = null;
 for (let x = 300; x < 700 && !mar; x += 10) for (let z = 420; z < 520 && !mar; z += 10) if (fundoAgua(x, z) >= VEICULOS.navio.fundo && !s.zonaSeguraGuerra(x, z)) mar = { x, z };
 ok(mar, 'achou mar aberto (guerra)');
-for (const b of [kira, rufo, lis]) { if (b.morto) passos(8); longe(b); b.ia.guerra = null; b.protGuerraAte = 0; b.vida = b.vidaMax; }
+for (const b of geada) { if (b.morto) passos(8); longe(b); b.ia.guerra = null; b.protGuerraAte = 0; b.vida = b.vidaMax; }
 d.prog.pack = null; d.prog.navio = { ...navioValido({}), porao: [{ k: 'couro', ox: 0, oz: 0, ra: 'chama' }, { k: 'couro', ox: 0, oz: 0, ra: 'chama' }, { k: 'couro', ox: 0, oz: 0, ra: 'chama' }], chao: null };
 Object.assign(d, { x: mar.x, z: mar.z, y: 0, veiculo: 'navio', ry: 0 }); d.protGuerraAte = s.tempo + 1e6;
 s.guerraT = 0; s.passo(0.05);
 ok(s.cargaGuerra(d) === 'navio' && s.iniciarEmboscada(d, 'navio'), 'emboscada no navio');
-const abordo = [kira, rufo, lis].filter((b) => b.ia.guerra?.emb?.dono === d.id);
+const abordo = geada.filter((b) => b.ia.guerra?.emb?.dono === d.id);
 passos(1, () => { d.entrada = { mx: 0, mz: 0 }; });
 ok(abordo.every((b) => s.aBordo(b.x, b.z) && Math.abs(b.y - 0.9) < 1.5), 'subiram no convés');
 const n = d.prog.navio; n.vida = 200;
@@ -159,10 +160,10 @@ s.veiculo(d.id, { acao: 'consertar_navio' });
 ok(!n.quebrado && n.vida === 6000, 'consertou o navio (30 lenha + 4 barras de ferro)');
 
 // ---------- ronda ----------
-for (const b of [kira, rufo, lis]) { if (b.morto) passos(8); b.ia.guerra = null; b.ia.packRoubo = null; b.prog.pack = null; longe(b); }
+for (const b of geada) { if (b.morto) passos(8); b.ia.guerra = null; b.ia.packRoubo = null; b.prog.pack = null; longe(b); }
 d.veiculo = null; por(d, 0, 1);
 s.rondaT = { geada: s.tempo, chama: s.tempo + 1e6 }; s.passoRondas();
-const ronda = [kira, rufo, lis].filter((b) => b.ia.guerra?.ronda);
+const ronda = geada.filter((b) => b.ia.guerra?.ronda);
 ok(ronda.length >= 2, `${ronda.length} da Geada saíram de ronda`);
 const p00 = ronda.map((b) => [b.x, b.z]);
 passos(30);
