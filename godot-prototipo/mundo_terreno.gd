@@ -458,3 +458,37 @@ func _pontes() -> void:
 		mx.multimesh = mm
 		mx.visibility_range_end = 300.0
 		no.add_child(mx)
+
+# Chão nivelado das bases dos clãs (base_cla.gd _chao_das_bases, 2026-11-23): a grade mudou nesses pontos (k da grade);
+# os pedaços que encostam neles (e nos vizinhos, por causa da normal) são montados de novo.
+func refazer(mexidos: Dictionary) -> void:
+	var g: Dictionary = T.mundo_g
+	if g.is_empty() or mexidos.is_empty():
+		return
+	var nx: int = g.nx
+	var nz: int = g.nz
+	var ped := {}
+	for k in mexidos:
+		var i: int = int(k) % nx
+		var j: int = int(k) / nx
+		for di in [-1, 0, 1]:
+			for dj in [-1, 0, 1]:
+				var ii: int = clampi(i + di, 0, nx - 1)
+				var jj: int = clampi(j + dj, 0, nz - 1)
+				var pi: int = (ii / PEDACO) * PEDACO
+				var pj: int = (jj / PEDACO) * PEDACO
+				ped[Vector2i(pi, pj)] = true
+				if ii % PEDACO == 0 and ii > 0:
+					ped[Vector2i(pi - PEDACO, pj)] = true
+				if jj % PEDACO == 0 and jj > 0:
+					ped[Vector2i(pi, pj - PEDACO)] = true
+					if ii % PEDACO == 0 and ii > 0:
+						ped[Vector2i(pi - PEDACO, pj - PEDACO)] = true
+	for p in ped:
+		for nome in ["Chao_%d_%d", "ChaoLonge_%d_%d", "Mar_%d_%d"]:
+			var n := get_node_or_null(nome % [p.x, p.y])
+			if n != null:
+				remove_child(n)
+				n.queue_free()
+		if p.x < nx - 1 and p.y < nz - 1:
+			_pedaco(p.x, p.y)

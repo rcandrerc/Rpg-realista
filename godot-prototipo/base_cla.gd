@@ -19,6 +19,7 @@ func _init(principal) -> void:
 func do_servidor(ev: Dictionary) -> void:
 	bases = ev.get("lista", []) if ev.get("lista") is Array else []
 	meu = str(ev.get("meu", ""))
+	_chao_das_bases() # antes de tudo: as peças e as estacas ficam no chão novo
 	_por_solidos()
 	_por_vilas()
 	_por_enfeites()
@@ -68,7 +69,7 @@ func _por_forja() -> void:
 	var C = m.get("construcao")
 	if C == null:
 		return
-	C.publicas = C.publicas.filter(func(p): return str(p.id) != "base_forja" and str(p.id) != "base_bau")
+	C.publicas = C.publicas.filter(func(p): return not (str(p.id) in ["base_forja", "base_bau", "base_fornalha"]))
 	var B := minha()
 	# o Baú do Clã da porta do salão também é estação: o botão do baú vai até ele (até 2026-11-22: "Não achei caminho")
 	if not B.is_empty() and B.get("bau") is Dictionary:
@@ -77,6 +78,9 @@ func _por_forja() -> void:
 	if not B.is_empty() and B.get("forja") is Dictionary:
 		C.publicas.append({"id": "base_forja", "k": "bigorna", "x": float(B.forja.x), "z": float(B.forja.z), "ry": 0.0, "r": 0,
 			"nome": "Forja do clã", "npc": "", "publica": true})
+		if B.forja.has("fx"): # a fornalha no fundo do galpão (cada um com a sua carga, como o forninho da ferraria)
+			C.publicas.append({"id": "base_fornalha", "k": "fornalha", "x": float(B.forja.fx), "z": float(B.forja.fz), "ry": 0.0, "r": 0,
+				"nome": "Fornalha do clã", "npc": "", "publica": true})
 
 # a base em (x, z): a área dela (o chão de lá é o relevo, como nas vilas do mundo grande)
 func base_em(x: float, z: float) -> Dictionary:
@@ -166,6 +170,15 @@ func _por_enfeites() -> void:
 			var bg: Node3D = C._copia("bigorna")
 			bg.position = Vector3(float(B.forja.x), _chao(float(B.forja.x), float(B.forja.z)), float(B.forja.z))
 			raiz.add_child(bg)
+			# a fornalha no fundo do galpão (André 2026-11-23: "o fogão sumiu de novo"); a bigorna fica na frente, do lado de fora
+			if B.forja.has("fx") and C._modelos.has("fornalha"):
+				var fo: Node3D = C._copia("fornalha")
+				var piso := _chao(float(B.forja.fx), float(B.forja.fz))
+				for p in B.get("pecas", []):
+					if str(p.m) == "forja":
+						piso = float(p.y) + 0.03 # o piso de pedra do galpão (shared/base.js montarBase)
+				fo.position = Vector3(float(B.forja.fx), piso, float(B.forja.fz)) # a boca da fornalha olha para a frente (+z)
+				raiz.add_child(fo)
 		var cor := Color("8fd0ff") if str(B.get("raca", "")) == "geada" else Color("ff9a3c")
 		var hz := float(B.z) - float(B.get("centro", 14)) / 2.0 + 4.0
 		raiz.add_child(_nome("Clã %s · Nv %d" % [str(B.n), int(B.nv)], Vector3(float(B.x), _chao(float(B.x), hz) + 9.5, hz), cor, 64))
@@ -379,3 +392,260 @@ func _desenhar_prev(c: Vector2) -> void:
 	mm.instance_count = ts.size()
 	for i in ts.size():
 		mm.set_instance_transform(i, ts[i])
+
+# ---------- chão nivelado e estrada da base (André 2026-11-23; a mesma conta do servidor: shared/terrapleno.js) ----------
+# O servidor manda o y do platô, até onde a rampa vai (wmax) e os pontos da estrada [x, z, y, ...]. Aqui a grade do
+# mundo (terreno.gd mundo_g.h) muda igual à do servidor: o chão volta ao de antes onde a base saiu, e os pedaços do chão,
+# o mato e as árvores em volta são refeitos. A estrada é uma faixa de terra batida em cima do chão.
+const TP := {"meio": 33.0, "rampa": 0.25, "wMin": 6.0, "wMax": 90.0, "larg": 3.5, "borda": 9.0}
+var _chao_sig := ""
+var _orig := {} # k da grade -> altura de antes
+var _estradas: Array = [] # MeshInstance3D das estradas
+var _na_estrada := {} # Vector2i(x / 2, z / 2) -> true (o mato não nasce na estrada)
+var _mat_estrada: ShaderMaterial
+
+static func _sv(t: float) -> float:
+	var u := clampf(t, 0.0, 1.0)
+	return u * u * (3.0 - 2.0 * u)
+
+static func ruido_chao(x: float, z: float) -> float:
+	return 0.6 * sin(x * 0.21 + z * 0.13) + 0.4 * sin(z * 0.29 - x * 0.17)
+
+func _rio_em(g: Dictionary, k: int) -> bool:
+	var rio: String = g.get("rio", "")
+	return rio.length() > k and rio.unicode_at(k) > 48
+
+func _chao_das_bases() -> void:
+	var T = m.terreno
+	if T == null or T.mundo_g.is_empty():
+		return
+	var lista: Array = []
+	for B in bases:
+		var c = B.get("chao")
+		if c is Dictionary and c.get("y") != null:
+			lista.append({"k": str(B.k), "x": float(B.x), "z": float(B.z), "y": float(c.y), "wmax": float(c.get("wmax", 0.0)), "e": c.get("estrada", [])})
+	lista.sort_custom(func(a, b): return str(a.k) < str(b.k))
+	var sig := JSON.stringify(lista)
+	if sig == _chao_sig:
+		return
+	_chao_sig = sig
+	var g: Dictionary = T.mundo_g
+	var h: PackedFloat32Array = g.h
+	var mexidos := {}
+	for k in _orig: # o chão de antes volta
+		h[k] = _orig[k]
+		mexidos[k] = true
+	_orig.clear()
+	g.h = h
+	# as árvores da mata em volta guardam a altura de antes (para subir e descer junto com o chão)
+	var ed := {}
+	for b in lista:
+		_aplainar(g, h, ed, float(b.x), float(b.z), float(b.y), float(b.wmax))
+	var centros: Array = lista.map(func(b): return Vector2(float(b.x), float(b.z)))
+	var caminhos: Array = []
+	for b in lista:
+		var pts: Array = []
+		var e: Array = b.e
+		for i in range(0, e.size() - 2, 3):
+			pts.append(Vector3(float(e[i]), float(e[i + 2]), float(e[i + 1]))) # x, y, z
+		caminhos.append(pts)
+		_cortar(g, h, ed, pts, centros)
+	for k in ed:
+		_orig[k] = h[k]
+		mexidos[k] = true
+	var area := Rect2()
+	var tem_area := false
+	var nx: int = g.nx
+	for k in mexidos:
+		var p := Vector2(float(g.x0) + (int(k) % nx) * float(g.passo), float(g.z0) + (int(k) / nx) * float(g.passo))
+		if not tem_area:
+			area = Rect2(p, Vector2.ZERO)
+			tem_area = true
+		else:
+			area = area.expand(p)
+	area = area.grow(6.0)
+	_guardar_arvores(area)
+	for k in ed:
+		h[k] = ed[k]
+	g.h = h # PackedFloat32Array é valor: volta para o dicionário
+	_arrumar_arvores(area)
+	var MT = m.get_node_or_null("MundoGrande")
+	if MT != null and MT.has_method("refazer"):
+		MT.refazer(mexidos)
+	if m.mato != null and tem_area:
+		m.mato.refazer_area(area.position.x, area.position.y, area.end.x, area.end.y)
+	_desenhar_estradas(caminhos)
+
+func _aplainar(g: Dictionary, h: PackedFloat32Array, ed: Dictionary, x: float, z: float, y: float, wmax: float) -> void:
+	var R: float = TP.meio + wmax
+	var passo: float = g.passo
+	var nx: int = g.nx
+	var i0 := maxi(0, ceili((x - R - float(g.x0)) / passo))
+	var i1 := mini(nx - 1, floori((x + R - float(g.x0)) / passo))
+	var j0 := maxi(0, ceili((z - R - float(g.z0)) / passo))
+	var j1 := mini(int(g.nz) - 1, floori((z + R - float(g.z0)) / passo))
+	for j in range(j0, j1 + 1):
+		for i in range(i0, i1 + 1):
+			var k := j * nx + i
+			var o: float = h[k]
+			if o < 0.5 or _rio_em(g, k):
+				continue
+			var px: float = float(g.x0) + i * passo
+			var pz: float = float(g.z0) + j * passo
+			var dx := absf(px - x)
+			var dz := absf(pz - z)
+			var d := Vector2(maxf(dx - TP.meio, 0.0), maxf(dz - TP.meio, 0.0)).length()
+			var n := ruido_chao(px, pz)
+			if d <= 0.0:
+				ed[k] = y + n * (0.12 + 0.18 * maxf(dx, dz) / TP.meio)
+				continue
+			var cur: float = ed.get(k, o)
+			var diff := cur - y
+			var W := minf(wmax, maxf(TP.wMin, minf(TP.wMax, absf(diff) / TP.rampa)))
+			if d >= W:
+				continue
+			var s := _sv(d / W)
+			ed[k] = y + n * 0.3 * (1.0 - s) + diff * s
+
+func _cortar(g: Dictionary, h: PackedFloat32Array, ed: Dictionary, pts: Array, centros: Array) -> void:
+	if pts.size() < 2:
+		return
+	var passo: float = g.passo
+	var nx: int = g.nx
+	var nz: int = g.nz
+	# o segmento mais perto de cada ponto da grade (só olha a caixinha de cada segmento: leve no celular)
+	var melhor := {} # k -> [dist, y]
+	for s in range(1, pts.size()):
+		var a: Vector3 = pts[s - 1]
+		var b: Vector3 = pts[s]
+		var vx := b.x - a.x
+		var vz := b.z - a.z
+		var L := vx * vx + vz * vz
+		var i0 := maxi(0, ceili((minf(a.x, b.x) - TP.borda - float(g.x0)) / passo))
+		var i1 := mini(nx - 1, floori((maxf(a.x, b.x) + TP.borda - float(g.x0)) / passo))
+		var j0 := maxi(0, ceili((minf(a.z, b.z) - TP.borda - float(g.z0)) / passo))
+		var j1 := mini(nz - 1, floori((maxf(a.z, b.z) + TP.borda - float(g.z0)) / passo))
+		for j in range(j0, j1 + 1):
+			for i in range(i0, i1 + 1):
+				var px: float = float(g.x0) + i * passo
+				var pz: float = float(g.z0) + j * passo
+				var t := clampf(((px - a.x) * vx + (pz - a.z) * vz) / L, 0.0, 1.0) if L > 0.0 else 0.0
+				var dd := Vector2(px - a.x - t * vx, pz - a.z - t * vz).length()
+				var k := j * nx + i
+				if dd < TP.borda and (not melhor.has(k) or dd < float(melhor[k][0])):
+					melhor[k] = [dd, a.y + (b.y - a.y) * t]
+	for k in melhor:
+		var o: float = h[k]
+		if o < 0.5 or _rio_em(g, k):
+			continue
+		var px: float = float(g.x0) + (int(k) % nx) * passo
+		var pz: float = float(g.z0) + (int(k) / nx) * passo
+		var dentro := false
+		for c in centros:
+			if absf(px - c.x) <= TP.meio and absf(pz - c.y) <= TP.meio:
+				dentro = true
+				break
+		if dentro:
+			continue
+		var best: float = melhor[k][0]
+		var by: float = melhor[k][1]
+		var w := 1.0 if best <= TP.larg else 1.0 - _sv((best - TP.larg) / (TP.borda - TP.larg))
+		var cur: float = ed.get(k, o)
+		ed[k] = cur + (by - 0.05 - cur) * w
+
+# árvores da mata na área: a altura delas acompanha o chão (sobe ou desce o mesmo tanto)
+func _guardar_arvores(area: Rect2) -> void:
+	for p in m.arvores_mata:
+		if not area.has_point(p):
+			continue
+		var c: Dictionary = m.arvores_mata[p]
+		if not c.has("h0"):
+			c.h0 = m.terreno.altura_montanha(p.x, p.y)
+			c.y0 = c.t.origin.y
+
+func _arrumar_arvores(area: Rect2) -> void:
+	for p in m.arvores_mata:
+		if not area.has_point(p):
+			continue
+		var c: Dictionary = m.arvores_mata[p]
+		if not c.has("h0") or c.get("caida", false):
+			continue
+		var y: float = float(c.y0) + m.terreno.altura_montanha(p.x, p.y) - float(c.h0)
+		if is_equal_approx(y, c.t.origin.y):
+			continue
+		c.t.origin.y = y
+		for parte in ["tronco", "copa", "longe"]:
+			if c.has(parte):
+				var mm: MultiMesh = c[parte][0]
+				var tr: Transform3D = mm.get_instance_transform(c[parte][1])
+				tr.origin.y = y
+				mm.set_instance_transform(c[parte][1], tr)
+
+# a estrada é do mato? (pontos a cada 2 m; a borda fica rala, não reta)
+func na_estrada(x: float, z: float, sorte := 0.5) -> bool:
+	if _na_estrada.is_empty():
+		return false
+	return _na_estrada.has(Vector2i(floori(x / 2.0), floori(z / 2.0))) and sorte < 0.92
+
+func _desenhar_estradas(caminhos: Array) -> void:
+	for n in _estradas:
+		if is_instance_valid(n):
+			n.queue_free()
+	_estradas.clear()
+	_na_estrada.clear()
+	if _mat_estrada == null:
+		_mat_estrada = ShaderMaterial.new()
+		_mat_estrada.shader = load("res://estrada_base.gdshader")
+		_mat_estrada.set_shader_parameter("terra_tex", load("res://modelos/stony_dirt_path.jpg"))
+		_mat_estrada.render_priority = 1
+	var T = m.terreno
+	for pts in caminhos:
+		if pts.size() < 2:
+			continue
+		var vs := PackedVector3Array()
+		var ns := PackedVector3Array()
+		var uvs := PackedVector2Array()
+		var idx := PackedInt32Array()
+		const COL := [-2.7, -1.35, 0.0, 1.35, 2.7]
+		var dist := 0.0
+		for i in pts.size():
+			var a: Vector3 = pts[maxi(0, i - 1)]
+			var b: Vector3 = pts[mini(pts.size() - 1, i + 1)]
+			var dir := Vector2(b.x - a.x, b.z - a.z)
+			dir = dir.normalized() if dir.length() > 0.001 else Vector2(0, 1)
+			var lado := Vector2(-dir.y, dir.x)
+			if i > 0:
+				dist += Vector2(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z).length()
+			for c in COL.size():
+				var pi3: Vector3 = pts[i]
+				var q: Vector2 = Vector2(pi3.x, pi3.z) + lado * float(COL[c])
+				var y: float = T.altura_montanha(q.x, q.y)
+				vs.append(Vector3(q.x, y + 0.07, q.y))
+				var gx: float = T.altura_montanha(q.x + 1.0, q.y) - T.altura_montanha(q.x - 1.0, q.y)
+				var gz: float = T.altura_montanha(q.x, q.y + 1.0) - T.altura_montanha(q.x, q.y - 1.0)
+				ns.append(Vector3(-gx, 2.0, -gz).normalized())
+				uvs.append(Vector2(float(c) / (COL.size() - 1), dist))
+			for r in range(-1, 2):
+				for s in range(-1, 2):
+					_na_estrada[Vector2i(floori(pts[i].x / 2.0) + r, floori(pts[i].z / 2.0) + s)] = true
+		var w: int = COL.size()
+		for i in pts.size() - 1:
+			for c in w - 1:
+				var q: int = i * w + c
+				idx.append_array([q, q + w, q + 1, q + 1, q + w, q + w + 1])
+		var arr := []
+		arr.resize(Mesh.ARRAY_MAX)
+		arr[Mesh.ARRAY_VERTEX] = vs
+		arr[Mesh.ARRAY_NORMAL] = ns
+		arr[Mesh.ARRAY_TEX_UV] = uvs
+		arr[Mesh.ARRAY_INDEX] = idx
+		var mesh := ArrayMesh.new()
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		var mi := MeshInstance3D.new()
+		mi.name = "EstradaBase"
+		mi.mesh = mesh
+		mi.material_override = _mat_estrada
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.visibility_range_end = 500.0
+		add_child(mi)
+		_estradas.append(mi)

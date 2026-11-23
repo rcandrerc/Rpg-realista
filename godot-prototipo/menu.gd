@@ -1778,7 +1778,8 @@ func _base_cla(C: Dictionary) -> void:
 		# realocar (André 2026-11-22): a 1ª grátis; depois ouro do cofre e espera (shared/base.js moverBase)
 		var custo := int(B.get("mudar", 0))
 		var espera := int(B.get("mudarEm", 0))
-		var tm := "Mudar a base de lugar (grátis)" if custo == 0 else "Mudar a base de lugar (%d de ouro)" % custo
+		var livres := int(B.get("livres", 0))
+		var tm := ("Mudar a base de lugar (grátis, faltam %d)" % livres) if livres > 0 else "Mudar a base de lugar (grátis)" if custo == 0 else "Mudar a base de lugar (%d de ouro)" % custo
 		if espera > 0:
 			vs.add_child(rotulo("Pode mudar a base de novo em %s." % _tempo_cla(espera), 12, APAGADO))
 		else:
@@ -1791,7 +1792,7 @@ func _base_cla(C: Dictionary) -> void:
 	else:
 		vs.add_child(rotulo("Base do clã", 16, OURO_CLARO))
 		vs.add_child(rotulo("Vá até o lugar e funde a base onde você está. No meio fica o salão com o Baú do Clã; em volta, o seu lote e um lote para cada recruta. Sem aluguel: a taxa sai do cofre toda semana.", 12, APAGADO))
-		vs.add_child(rotulo("Não pode: a menos de 20 m de totem e de NPC de missão, 10 m de vila, masmorra, arena e cais, 6 m de rio, 3 m de estrada e 100 m de outra base; na água; em chão muito torto. Nas terras do começo, só no território da sua raça (Ilha do Meio e Aurora são livres).", 11, APAGADO))
+		vs.add_child(rotulo("Não pode: a menos de 20 m de totem e de NPC de missão, 10 m de vila, masmorra, arena e cais, 6 m de rio, 3 m de estrada e 100 m de outra base; na água; em morro de mais de 20 m de desnível. O chão da base é nivelado e ganha uma estrada até a estrada mais perto. Nas terras do começo, só no território da sua raça (Ilha do Meio e Aurora são livres).", 11, APAGADO))
 		var bf := botao("Escolher o lugar da base", _escolher_base, 15, true)
 		bf.custom_minimum_size = Vector2(0, 44)
 		vs.add_child(bf)

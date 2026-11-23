@@ -228,3 +228,35 @@ ok(Object.values(bg.donos).length >= Math.min(bg.nv - 1, 3), 'os membros do clã
   const src = fs.readFileSync(new URL('../../server/index.js', import.meta.url), 'utf8');
   ok(/this\.ouvir\('cla'[^\n]*x: \+m\.x, z: \+m\.z[^\n]*mudar: m\.mudar === true/.test(src), 'o servidor repassa o ponto do mapa (x, z) e o mudar');
 }
+
+// chão nivelado e estrada (André 2026-11-23: "nivelar-se um pouco o terreno"; "uma estrada criada automaticamente para
+// a estrada mais próxima"; "caso mude o lugar da base, o terreno volta a ser como era")
+{
+  const { alturaMontanha, alturaMontanhaOrig } = await import('../../shared/relevo.js');
+  const s9 = new Simulacao(MAPA_CLAREIRA);
+  const g = s9.adicionarJogador('G', 'Gabi', undefined, { conta: 9 }); g.criando = false; g.ciente = true; g.prog.nivel = 40;
+  s9.cla('G', { acao: 'fundar', nome: 'Plano' });
+  const p = acharLugarBase(-420, -330, 'chama', []); // nas terras do mundo grande (o mapa de hoje não nivela)
+  const antes = alturaMontanha(p.x + 20, p.z - 20);
+  s9.cla('G', { acao: 'base', x: p.x, z: p.z });
+  const C = s9.chaoBases[s9.baseDe(g).k];
+  let mx = 0; for (let dx = -30; dx <= 30; dx += 5) for (let dz = -30; dz <= 30; dz += 5) mx = Math.max(mx, Math.abs(alturaMontanha(p.x + dx, p.z + dz) - C.y));
+  ok(C.y != null && mx < 0.6, `o chão da base fica nivelado (desvio ${mx.toFixed(2)} m, com a ondinha)`);
+  ok(C.estrada.length > 3, `a base ganha estrada até a estrada mais perto (${C.estrada.length} pontos)`);
+  let sl = 0; for (let i = 1; i < C.estrada.length; i++) { const a = C.estrada[i - 1], b = C.estrada[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]); if (d > 0.5) sl = Math.max(sl, Math.abs(b[2] - a[2]) / d); }
+  ok(sl < 0.3, `a estrada não tem rampa de penhasco (${(sl * 100).toFixed(0)}% no pior trecho)`);
+  const d = s9.dadosBase(s9.baseDe(g));
+  ok(d.chao?.y === C.y && d.chao.estrada.length === C.estrada.length * 3, 'o app recebe o platô e a estrada');
+  // 6 mudanças grátis (André 2026-11-23, só para testes)
+  s9.baseDe(g).livres = 6; s9.baseDe(g).mudou = 1; s9.baseDe(g).mudouEm = Date.now(); g.prog.cla.cofre = 0;
+  const q = acharLugarBase(p.x + 160, p.z, 'chama', Object.values(s9.basesCla));
+  s9.cla('G', { acao: 'mudarBase', x: q.x, z: q.z });
+  ok(s9.baseDe(g).x === q.x && s9.baseDe(g).livres === 5, 'mudança grátis dada à mão: sem custo e sem espera');
+  ok(Math.abs(alturaMontanha(p.x + 20, p.z - 20) - antes) < 0.01 && Math.abs(alturaMontanhaOrig(p.x, p.z) - alturaMontanha(p.x, p.z)) < 0.01, 'a base saiu: o chão velho voltou como era');
+  // a fornalha da forja (Nv 4+)
+  s9.baseDe(g).nv = 4; s9.refazerBases(); const D = s9.basesDesenho[s9.baseDe(g).k];
+  g.x = D.forja.fx; g.z = D.forja.fz + 1; s9.eventos = []; s9.forno('G', { acao: 'abrir', p: 'base_fornalha' });
+  ok(s9.eventos.some((e) => e.t === 'forno' && e.p === 'base_fornalha'), 'a fornalha da forja do clã abre');
+  ok(D.forja.z - D.forja.fz > 3, 'a bigorna fica na frente do galpão, fora dele');
+  s9.basesCla = {}; s9.refazerBases(); // devolve o chão para os outros testes
+}

@@ -159,6 +159,9 @@ class SalaClareira extends Room {
       if (!contas.lerMundo('reset_terrenos_v1')) { const n = this.sim.resetTerrenos(); for (const l of this.sim.lotesParaSalvar()) contas.salvarLote(l); contas.gravarMundo('reset_terrenos_v1', { t: Date.now(), n }); console.log(`base do clã: ${n} terrenos devolvidos`); }
       // as casas dos bots também saem (André 2026-11-22: "Não vai existir mais casa de bot nenhum")
       if (!contas.lerMundo('reset_terrenos_bots_v1')) { const n = this.sim.resetTerrenos(); for (const l of this.sim.lotesParaSalvar()) contas.salvarLote(l); for (const o of this.sim.npcsParaSalvar()) contas.gravarMundo('npc:' + o.id, o.dados); contas.gravarMundo('reset_terrenos_bots_v1', { t: Date.now(), n }); console.log(`base do clã: ${n} casas de bot tiradas`); }
+      // 6 mudanças de lugar grátis, uma vez só, para o André testar o chão nivelado (André 2026-11-23: "me dá algumas
+      // mudanças free para eu fazer testes... Mas é só dessa vez"); a regra continua 1 grátis e depois paga
+      if (!contas.lerMundo('base_mudancas_teste_v1')) { let n = 0; for (const B of Object.values(this.sim.basesCla || {})) if (B.k[0] === 'j' && B.nomeDono === 'Yukmei') { B.livres = 6; n++; } if (n) this.sim.salvarBases(); contas.gravarMundo('base_mudancas_teste_v1', { t: Date.now(), n }); console.log(`base do clã: ${n} base(s) com 6 mudanças grátis`); }
     }
     if (contas) this.sim.carregarPlantio(contas.lerMundo('plantadas')); // árvores plantadas pelos jogadores (shared/plantio.js)
     if (contas) this.sim.carregarVeios(contas.lerMundo('veios')); // árvores cortadas e veios batidos: o tempo de voltar continua depois do reinício

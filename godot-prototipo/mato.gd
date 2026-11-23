@@ -334,6 +334,8 @@ func _chao_de_grama(x: float, z: float, sorte: float) -> float:
 				return NAN # rio e barranco
 	if not T.no_lago(x, z).is_empty():
 		return NAN
+	if m.base_cla != null and m.base_cla.na_estrada(x, z, sorte): # a estrada da base do clã (terra batida)
+		return NAN
 	var base: float = T.chao_relevo(x, z)
 	var h: float = T.altura(x, z)
 	if h > base + 0.05: # casa, pedra, móvel, cais...
@@ -491,6 +493,18 @@ func tirar_em(x0: float, z0: float, x1: float, z1: float) -> void:
 						mexeu = true
 				if mexeu:
 					mm.buffer = buf
+
+# o chão mudou de altura (base do clã nivelada, base_cla.gd): o mato desses quadrados é sorteado de novo (o velho fica
+# até o novo ficar pronto)
+func refazer_area(x0: float, z0: float, x1: float, z1: float) -> void:
+	for j in range(floori(z0 / CEL), floori(z1 / CEL) + 1):
+		for i in range(floori(x0 / CEL), floori(x1 / CEL) + 1):
+			var k := Vector2i(i, j)
+			_cache.erase(k)
+			if _vivos.has(k):
+				_refazer[k] = true
+	if m.heroi != null:
+		_refazer_fila(m.heroi.global_position)
 
 # troca de qualidade ou obstáculo novo: sorteia tudo de novo
 func _limpar(_x := false) -> void:
