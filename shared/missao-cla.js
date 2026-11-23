@@ -7,7 +7,7 @@
 // monstros no nível do líder que vão PRIMEIRO nos recrutas; o líder bate normal, e o monstro que ele acerta passa a ir
 // nele por provoca s (segurar o monstro). Recruta que cai sai sem prêmio; todos caídos ou o tempo acabou: falhou.
 // Chegou: cada recruta de pé ganha CLA.missao.xp do XP do nível dele (não importa quem matou), o cofre ganha ouro e o
-// líder ganha Fragmento de Alma. Igual para todos os clãs: a regra vale para o líder bot (iniciarMissaoCla).
+// líder ganha Fragmento de Alma. Igual para todos os clãs: o líder bot abre a escolta dele também (missaoClaNpc).
 import { CLA, TOTENS, TIPOS_INIMIGO, almaDe } from './dados.js';
 import { guardar, xpProximo } from './progresso.js';
 import { fundoAgua } from './transporte.js';
@@ -66,7 +66,7 @@ export const MissaoCla = {
     // os recrutas andam junto com o líder (jogador: entram no time dele; bot: protegem o líder)
     for (const x of ctxs) {
       const a = x.amiga; if (!a || !M.rec.has(a.id)) continue;
-      if (j.bot) a.ia.funcao = { k: 'proteger', p: 'lider' };
+      if (j.bot) { if (a.ia) a.ia.funcao = { k: 'proteger', p: 'lider' }; }
       else if (!(a.time && a.time === j.time)) { if (a.time) this.sairDoTime?.(a, ''); x.entrarTimeAmiga?.(a, j); }
     }
     this.avisoMissao(M, `Escolta do Clã: leve os recrutas vivos até ${dest.nome} (${Math.round(dest.d)} m) em ${Math.round(Mc.dura / 60)} min. Vai ter emboscada, e os monstros vão primeiro neles!`);
@@ -129,6 +129,28 @@ export const MissaoCla = {
     if (L) { const k = almaDe(this.racaDe?.(L)); if (guardar(L.prog.mochila, { k, n: Mc.alma })) alma = ` e ${Mc.alma} Fragmento de Alma para o líder`; L.progSujo = true; }
     this.avisoMissao(M, `Escolta do Clã cumprida! ${nomes.join(', ')} ganharam 1 nível de XP; +${ouro} de ouro no cofre${alma}.`);
     if (L && !L.bot) this.avisarProg(L);
+  },
+  // Clãs bot (regra do André: todo recurso de clã é igual para jogador e bot): a cada CLA.missao.entre o líder bot faz a
+  // escolta dele com os recrutas que estão no mundo. Perto de um jogador (botVista m) ela acontece de verdade, com as
+  // emboscadas (o líder e os recrutas lutam como sempre); longe de todo mundo, a viagem é contada (como o trabalho fora
+  // dos recrutas): cada recruta chega vivo com botChega de chance, e o prêmio é o mesmo do jogador.
+  missaoClaNpc(C, L, ctxs) {
+    const Mc = M_(), B = this.basesCla?.['n' + C.id];
+    if (!B || !L || L.morto || this.missoesCla?.has(B.k) || this.esperaMissaoCla(B) > 0 || this.baseTravada?.(B)) return;
+    const rec = ctxs.map((x) => x.amiga).filter((a) => a && !a.morto);
+    if (!rec.length) return;
+    const dest = this.destinoMissao(B); if (!dest) return;
+    const visto = [...this.jogadores.values()].some((o) => !o.bot && Math.hypot(o.x - L.x, o.z - L.z) < Mc.botVista);
+    if (visto) { // de verdade: o líder vai para o Baú do Clã e abre como um jogador
+      const bau = this.basesDesenho?.[B.k]?.bau || B;
+      if (Math.hypot(L.x - bau.x, L.z - bau.z) <= Mc.abrir) this.iniciarMissaoCla(L, () => {}, B, ctxs);
+      return;
+    }
+    this.missoesCla ||= new Map();
+    B.missaoEm = Date.now(); this.salvarBases?.();
+    const M = { k: B.k, lider: L.id, x0: B.x, z0: B.z, dest, nv: L.prog.nivel | 0, emb: Mc.emboscadas.length, rec: new Set(rec.filter(() => Math.random() < Mc.botChega).map((a) => a.id)), mobs: new Set(), ate: 0 };
+    this.missoesCla.set(B.k, M);
+    this.fimMissaoCla(M, M.rec.size > 0, 'nenhum recruta chegou');
   },
   // a cada passo (barato: quase sempre não tem missão)
   passoMissoesCla() {

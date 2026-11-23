@@ -25,6 +25,10 @@ func do_servidor(ev: Dictionary) -> void:
 	_por_enfeites()
 	_por_forja()
 	_tirar_arvores()
+	# a batida dos móveis dos lotes da base usa o chão da base (construcao.gd _chao: base_em); se os lotes chegaram antes
+	# das bases, ela ficou no chão 0 e o herói passava por cima (André 2026-11-23: "os móveis ficaram não sólidos")
+	if m.construcao != null and m.construcao.has_method("_refazer_solidos"):
+		m.construcao._refazer_solidos()
 
 # as árvores da mata que ficam dentro de uma base saem (o servidor também tira: shared/base.js arvoresDaBase): some o
 # desenho, a batida (andar.gd) e o "Cortar" (trabalho.gd). Bases não somem, então não precisa devolver.

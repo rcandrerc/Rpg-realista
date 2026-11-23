@@ -174,7 +174,10 @@ func _carregado() -> bool:
 		var l2: Array = []
 		for mi in r2.find_children("*", "MeshInstance3D", true, false):
 			if mi.mesh != null:
-				l2.append([mi.mesh, r2.global_transform.affine_inverse() * mi.global_transform])
+				# André 2026-11-23 (foto da base, v2975: "essa coisa meio dentro da terra"): a roda de pedra do
+				# stone_fire_pit tem a base 0,18 m abaixo da origem e afundava no chão; sobe igual ao fogão do lote
+				# (construcao.gd _modelo_fogao)
+				l2.append([mi.mesh, Transform3D(Basis(), Vector3(0, 0.18, 0)) * r2.global_transform.affine_inverse() * mi.global_transform])
 		malhas["fogueira"] = l2
 		r2.queue_free()
 	return true

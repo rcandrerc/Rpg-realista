@@ -569,6 +569,7 @@ export const Cla = {
       E.foraFeito = true;
       if (!E.visto || agora - E.visto > 600e3) { E.visto = agora; mudou = true; }
       for (const x of ctxs) { const m = E.m.find((o) => o.id === x.AMIGA.id); if (m) this.aplicarFuncao(L, x, m, false); }
+      this.missaoClaNpc?.(C, L, ctxs); // Escolta do Clã: o clã bot faz a dele também (shared/missao-cla.js)
       for (const x of this.amigosIa) { const m = x.AMIGA.clanpc === C.id && x.amiga && E.m.find((o) => o.id === x.AMIGA.id); if (m && m.nv !== (x.amiga.prog.nivel | 0)) { m.nv = x.amiga.prog.nivel | 0; mudou = true; } }
       // a semana: sai do ouro do líder; sem ouro, o mais caro vai embora
       for (let k = 0; E.sem <= agora && k < 60; k++) {
