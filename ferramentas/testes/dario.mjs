@@ -4,6 +4,8 @@
 import { Simulacao, MAPA_CLAREIRA, AMIGA, DARIO, TIME } from '../../shared/index.js';
 import { loteNaBase } from './_lote-base.mjs';
 import './_amizade-antiga.mjs'; // o time com a Cecília e o Dario é do jeito antigo (antes do soldado de 2026-11-22)
+import './_relogio-fixo.mjs'; // relógio e sorte fixos: o mesmo resultado em máquina rápida ou lenta (CI)
+import { CLAS_NPC_ORDENS } from '../../shared/dados.js'; CLAS_NPC_ORDENS.ligado = false; // aqui é a casa de cada um: sem as ordens do líder do clã (fazenda da base, André 2026-11-23)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 const d = s.adicionarJogador('andre', 'André', 'ruiva', {});
