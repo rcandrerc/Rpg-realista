@@ -128,7 +128,8 @@ static func _material_v5(tipo: String, r: int) -> Material:
 			c3 = pano.call(V5_CALCA[r])
 			modo = 1.0
 		"v5_manto", "v5_capuz":
-			c3 = pano.call(V5_MANTO[r] if tipo == "v5_manto" else V5_CAPA[r][0])
+			# o capuz usa o pano do manto (vestidos juntos parecem uma peça só); no Épico o capuz é azul e o manto preto, como no roupão
+			c3 = pano.call(V5_MANTO[r] if tipo == "v5_manto" or r != 2 else V5_CAPA[r][0])
 			modo = 1.0
 		"v5_luva", "v5_aba", "v5_alca", "v5_cinto":
 			c3 = [couro[0].darkened(0.15), couro[1].darkened(0.2), couro[2]]
@@ -275,8 +276,8 @@ static func vestir(raiz: Node3D, equip) -> void:
 	_sem_contorno_tronco(raiz, esq)
 	_roupa_base(raiz, esq) # antes do _uniforme: ele pinta o short de baixo na cor da calça quando há armadura
 	_uniforme(raiz, equip if equip is Dictionary else {})
-	# v5: o capuz é folgado; apertar o cabelo (como no capacete) deixava a testa careca dentro dele
-	_cabelo(raiz, esq.get_node_or_null("Armadura_cabeca") != null and not LINHA_V5)
+	# v5: o capuz é folgado; o cabelo aperta só até a parede de dentro dele (no tamanho do capacete ficava careca)
+	_cabelo(raiz, esq.get_node_or_null("Armadura_cabeca") != null, LINHA_V5)
 	# armas nas costas passam por fora da capa
 	var capa := esq.get_node_or_null("Armadura_capa") != null
 	for ba in esq.get_children():
@@ -3299,7 +3300,11 @@ static func _montar_capuz(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> 
 static func _borda_capuz(h: Cabeca, a: float) -> float:
 	var x := absf(wrapf(a, -PI, PI))
 	# frente: aba logo acima da testa; dos lados desce até abaixo do queixo; atrás cobre a nuca
-	return lerpf(h.testa + 0.012, h.nuca - 0.075, smoothstep(0.62, 1.15, x))
+	# André 2026-11-23: borda da frente em bico, como capuz de mago: desce em ponta no meio da testa e sobe em
+	# curva para os lados, antes de cair pelas bochechas
+	var bico := 0.026 * pow(1.0 - clampf(x / 0.5, 0.0, 1.0), 1.4)
+	var arco := 0.012 * sin(clampf((x - 0.12) / 0.55, 0.0, 1.0) * PI)
+	return lerpf(h.testa + 0.018 - bico + arco, h.nuca - 0.1, smoothstep(0.62, 1.15, x))
 
 static func _malha_capuz(h: Cabeca) -> ArrayMesh:
 	var NA := 64
@@ -3318,13 +3323,14 @@ static func _malha_capuz(h: Cabeca) -> ArrayMesh:
 			k = sqrt(maxf(0.0, 1.0 - pow((y - h.c.y) / (topo - h.c.y), 2.0)))
 		else:
 			# abaixo do meio da cabeça o pano cai reto e abre um pouco no pescoço (assenta nos ombros)
-			k = 1.0 - 0.1 * smoothstep(h.c.y, h.c.y - 0.08, y) + 0.22 * smoothstep(h.c.y - 0.1, h.c.y - 0.2, y)
+			k = 1.0 - 0.1 * smoothstep(h.c.y, h.c.y - 0.08, y) + 0.4 * smoothstep(h.c.y - 0.1, h.c.y - 0.24, y)
 		var q := Vector3(h.c.x + rx * k * sin(a), y, h.c.z + rz * k * cos(a))
-		# ponta para trás no alto (roupão de mago)
-		var atras := pow(maxf(0.0, -cos(a)), 3.0)
-		var alto := smoothstep(h.c.y + 0.02, topo, y)
-		q += Vector3(0, 0.025, -1.0).normalized() * 0.075 * atras * alto * alto
-		q.y -= 0.02 * atras * alto
+		# ponta alta de mago no cocuruto, caída para trás
+		var u := clampf((y - h.c.y) / (topo - h.c.y), 0.0, 1.0)
+		var w := pow(u, 2.2)
+		q = q.lerp(Vector3(h.c.x, q.y, h.c.z - 0.03), w * 0.35) # o alto afina
+		# a ponta sobe pouco e tomba para trás, como pano mole (roupão de mago)
+		q += Vector3(0, 0.07 * w - 0.03 * w * w * u, -0.17 * w * u)
 		return q
 	for j in NJ + 1:
 		var s := float(j) / NJ
@@ -3367,7 +3373,7 @@ static func _malha_capuz(h: Cabeca) -> ArrayMesh:
 
 # Com capacete o cabelo de cima é apertado para dentro do casco (técnica comum em jogo: "cabelo de capacete").
 # A franja abaixo da testa, o cabelo que cai pelos lados e o rabo de cavalo continuam como estão.
-static func _cabelo(raiz: Node3D, com_elmo: bool) -> void:
+static func _cabelo(raiz: Node3D, com_elmo: bool, capuz := false) -> void:
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
 		if not (mi.mesh is ArrayMesh) or mi.mesh.get_surface_count() == 0 or str(mi.name).begins_with("Armadura"):
 			continue
@@ -3385,9 +3391,18 @@ static func _cabelo(raiz: Node3D, com_elmo: bool) -> void:
 		# corpo que já ganhou LOD (lod_malha.gd) aperta a malha original: a mesma do boneco aquecido atrás da capa
 		# (aquecer.gd), senão cada penteado debaixo do capacete era refeito no quadro (~30 ms, 2026-11-13)
 		var fonte: Mesh = preload("res://lod_malha.gd").original(orig)
-		var chave := "cabelo:%d" % fonte.get_instance_id()
+		var chave := "cabelo%s:%d" % ["_capuz" if capuz else "", fonte.get_instance_id()]
 		if not _malhas.has(chave):
-			_malhas[chave] = _cabelo_apertado(fonte, _cabeca(raiz), _bind_cabeca(mi))
+			var h := _cabeca(raiz)
+			if capuz:
+				var hc := Cabeca.new()
+				hc.c = h.c
+				hc.raio = h.raio + Vector3(0.024, 0.012, 0.028)
+				hc.testa = h.testa
+				hc.bochecha = h.bochecha
+				hc.nuca = h.nuca - 0.03
+				h = hc
+			_malhas[chave] = _cabelo_apertado(fonte, h, _bind_cabeca(mi))
 		mi.mesh = _malhas[chave]
 
 static func _malha_cabelo(raiz: Node3D) -> Mesh:
