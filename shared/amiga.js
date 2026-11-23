@@ -3044,7 +3044,7 @@ export const Amiga = {
     // "pega o pack", "carrega o pack", "leva o pack": do chão perto dele
     if (pk) return F.oQue.replace('{pack}', nomePack(pk));
     let g = null, gd = P.raio;
-    for (const o of this.packsChao || []) { const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < gd) { gd = d; g = o; } }
+    for (const o of this.packsChao || []) { if (!this.podePegarPack(j, o)) continue; const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < gd) { gd = d; g = o; } }
     if (!g) return F.semChao;
     nova('pegar', { g: g.g }); return F.indoPegar;
   },
@@ -3055,7 +3055,7 @@ export const Amiga = {
     if (!dono || dono.conta !== T.conta || j.morto) { ia.packTarefa = null; return false; }
     if (j.trava > 0) { this.pararAmiga(j); return true; }
     let alvo = null, alcance = 2;
-    if (T.tipo === 'pegar') { const g = (this.packsChao || []).find((o) => o.g === T.g); if (!g) return fim(F.sumiu); alvo = g; alcance = PACK_REGRAS.pegar; }
+    if (T.tipo === 'pegar') { const g = (this.packsChao || []).find((o) => o.g === T.g && this.podePegarPack(j, o)); if (!g) return fim(F.sumiu); alvo = g; alcance = PACK_REGRAS.pegar; }
     else if (!j.prog.pack) return fim(F.semPack);
     else if (T.tipo === 'carrinho') { const c = dono.prog.carrinho; alvo = c && !c.quebrado ? (dono.veiculo === 'carrinho' ? dono : c.chao) : null; alcance = VEICULOS.carrinho.carregar - 1; if (!alvo) return fim(F.semCarrinho); }
     else if (T.tipo === 'navio') { const n = dono.prog.navio; alvo = n ? (dono.veiculo === 'navio' ? dono : n.chao) : null; alcance = VEICULOS.navio.perto - 1; if (!alvo) return fim(F.semNavio); }

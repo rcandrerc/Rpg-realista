@@ -464,7 +464,7 @@ export const Kit = {
     if (falta <= 0) return null;
     const r = (v) => Math.round(v * 100) / 100, nomePack = PACKS[k].nome;
     let g = null, md = 400; // o pack desse tipo largado no chão mais perto (até 400 m)
-    for (const o of this.packsChao || []) { if (!ok(o)) continue; const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < md) { md = d; g = o; } }
+    for (const o of this.packsChao || []) { if (!ok(o) || !this.podePegarPack(j, o)) continue; const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < md) { md = d; g = o; } }
     if (g && !p.pack) return { pre: 'ir', txt: `Pegue o ${nomePack} que ficou no chão`, alvo: { x: r(g.x), z: r(g.z), nome: 'o pack no chão', npc: '' }, guia: { ev: 'pos' } };
     const n = (this.mapa?.npcs || []).find((o) => o.merch === k);
     if (!n) return null;
