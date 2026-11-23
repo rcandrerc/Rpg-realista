@@ -1256,6 +1256,8 @@ export function aparenciaValida(a) {
   // traje da armadura (André 2026-11-23): 'patrulha' ou 'roupao'; null = moça patrulheira, rapaz de roupão
   r.traje = ['roupao', 'patrulha', 'patrulheiro2', 'roupao2'].includes(a.traje) ? a.traje : null;
   // 'patrulheiro2' / 'roupao2' = peças da thread de arte (equip2.gd), para o André comparar com a v5
+  // raridade do visual (André 2026-11-23): 0 Comum a 4 Mítico em todas as peças vestidas; null = a do item. Só aparência.
+  r.raridade = Number.isInteger(a.raridade) && a.raridade >= 0 && a.raridade <= 4 ? a.raridade : null;
   return r;
 }
 export const PERSONAGEM_PADRAO = 'ruiva';

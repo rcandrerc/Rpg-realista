@@ -67,6 +67,9 @@ static func valida(a, criador: Dictionary) -> Dictionary:
 	var tj := str(d.get("traje", ""))
 	r.traje = tj if tj in ["roupao", "patrulha", "patrulheiro2", "roupao2"] else null
 	# "patrulheiro2" / "roupao2" = peças da thread de arte (equip2.gd), para o André comparar com a v5
+	# raridade do visual (André 2026-11-23): 0 Comum a 4 Mítico; null = a raridade do item (Armadura.visual)
+	var rv = d.get("raridade")
+	r.raridade = int(rv) if rv != null and str(rv).is_valid_int() and int(rv) >= 0 and int(rv) <= 4 else null
 	return r
 
 # Pinta, estica e forma o rosto de um personagem (no = o que main.modelo devolveu)
@@ -75,8 +78,10 @@ static func aplicar(no: Node3D, ap, esperar := true) -> void:
 	var a: Dictionary = ap if ap is Dictionary else {}
 	# traje (patrulheira ou roupão): a armadura lê do corpo; se trocou e ele já está vestido, veste de novo
 	var traje := str(a.get("traje")) if a.get("traje") != null else ""
-	if str(no.get_meta("traje", "")) != traje:
+	var rv := int(a.get("raridade")) if a.get("raridade") != null else -1 # raridade do visual (Armadura.visual)
+	if str(no.get_meta("traje", "")) != traje or int(no.get_meta("raridade_visual", -1)) != rv:
 		no.set_meta("traje", traje)
+		no.set_meta("raridade_visual", rv)
 		if no.has_meta("equip_v5"):
 			load("res://armadura.gd").vestir(no, no.get_meta("equip_v5"))
 	# cor livre no pano da armadura v5 (André 2026-11-23): Roupa e Calça da Aparência; sem escolha = cor do set

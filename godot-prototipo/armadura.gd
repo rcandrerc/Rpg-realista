@@ -102,6 +102,21 @@ const Equip2 := preload("res://equip2.gd")
 static func _traje2(raiz: Node3D) -> String:
 	var t := str(raiz.get_meta("traje", ""))
 	return t if LINHA_V5 and t in Equip2.TRAJES else ""
+# Raridade do visual (André 2026-11-23: "eu escolho o visual que vai ficar"): na Aparência ele escolhe Comum a Mítico
+# e todas as peças vestidas aparecem nessa raridade, seja qual for a do item. -1 (ou sem escolha) = a raridade do item.
+# Só muda o que aparece: o item, os números e o que o servidor guarda continuam os mesmos.
+static func visual(raiz: Node3D, equip) -> Variant:
+	var rv := int(raiz.get_meta("raridade_visual", -1))
+	if rv < 0 or not equip is Dictionary:
+		return equip
+	var r := {}
+	for l in equip:
+		var it = equip[l]
+		if it is Dictionary:
+			it = it.duplicate()
+			it.r = clampi(rv, 0, 4)
+		r[l] = it
+	return r
 static func _pecas_v5(k: String, r: int) -> Array:
 	match k:
 		# "@f" = só no corpo feminino (patrulheira); "@m" = só no masculino (roupão de mago, André 2026-11-23:
@@ -296,6 +311,7 @@ static func vestir(raiz: Node3D, equip) -> void:
 	_orientar(esq)
 	_ombros_largos(esq)
 	raiz.set_meta("equip_v5", equip) # a Aparência veste de novo quando troca o traje (Aparencia.aplicar)
+	equip = visual(raiz, equip)
 	# André 2026-11-07: sem peitoral a blusa vira pele (top de biquíni na menina, peito nu no menino), então ela fica
 	# sempre justa como debaixo da armadura (antes, sem peitoral, era a camiseta branca larga)
 	_cintura(raiz, true, equip is Dictionary and equip.get("corpo") is Dictionary and PECAS.has(str(equip.corpo.get("k", ""))))
@@ -3237,6 +3253,7 @@ static func _montar_capa(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> v
 		mat.set_shader_parameter("grade", g)
 		mat.set_shader_parameter("pano", 1.0)
 		mi.material_override = mat
+		mi.set_meta("capa_pano", true) # tingir_v5 pinta este material no lugar (o PanoCapa move o pano por ele)
 		mi.extra_cull_margin = 1.5
 	# a malha foi feita no espaço do personagem em T; o osso em descanso leva para lá
 	mi.transform = esq.get_bone_global_rest(osso).affine_inverse() * _G()
@@ -3480,6 +3497,17 @@ static func tingir_v5(raiz: Node3D) -> void:
 	var cr = raiz.get_meta("cor_roupa", null)
 	var cc = raiz.get_meta("cor_calca", null)
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if mi.has_meta("capa_pano"):
+			# capa de pano: o PanoCapa guarda o material dela e mexe nele todo quadro (grade do balanço). Trocar por uma
+			# cópia deixava a capa dura (André 2026-11-23): pinta o mesmo material, só fora/dentro.
+			var cm := mi.material_override as ShaderMaterial
+			if cm:
+				if not mi.has_meta("capa_cor0"):
+					mi.set_meta("capa_cor0", [cm.get_shader_parameter("fora"), cm.get_shader_parameter("dentro")])
+				var c0: Array = mi.get_meta("capa_cor0")
+				cm.set_shader_parameter("fora", cr if cr != null else c0[0])
+				cm.set_shader_parameter("dentro", (cr as Color).darkened(0.45) if cr != null else c0[1])
+			continue
 		if mi.has_meta("equip2_nome"): # Patrulheiro 2 / Roupão 2: pano pintado em equip2.gd
 			Equip2.tingir(mi, cr, cc)
 			continue
