@@ -1320,6 +1320,9 @@ func evento(ev: Dictionary) -> void:
 			if m.cinematica:
 				m.cinematica.tocar(str(ev.get("id", "")))
 			return
+		"missaoCla": # Escolta do Clã: o contador da onda no alto da tela (shared/missao-cla.js placarMissao)
+			_placar_escolta(ev)
+			return
 		"nevoa_some": # chefe da história que para a luta e some (Kael): névoa no lugar e o corpo some na hora
 			var p := Vector3(float(ev.get("x", 0)), float(ev.get("y", 0)), float(ev.get("z", 0)))
 			if m.fx:
@@ -2354,3 +2357,41 @@ func alvo_guerra(pos: Vector3, max_d: float, filtro := Callable()):
 		md = d
 		melhor = _alvos_guerra[id]
 	return melhor
+
+# o placar da Escolta do Clã (André 2026-11-23: "apareceu um contador na tela... 0/12... só consigo ir pra segunda wave
+# quando ficar 12/12"): no alto, no meio, embaixo dos botões; some quando a escolta acaba
+var _placar: PanelContainer
+var _placar_txt: Label
+func _placar_escolta(ev: Dictionary) -> void:
+	if ev.has("fim") or not ev.has("n"):
+		if _placar:
+			_placar.visible = false
+		return
+	if _placar == null:
+		_placar = PanelContainer.new()
+		var st := StyleBoxFlat.new()
+		st.bg_color = Color(0.08, 0.05, 0.04, 0.82)
+		st.border_color = Color(1.0, 0.36, 0.28)
+		st.set_border_width_all(2)
+		st.set_corner_radius_all(10)
+		st.content_margin_left = 18
+		st.content_margin_right = 18
+		st.content_margin_top = 6
+		st.content_margin_bottom = 6
+		_placar.add_theme_stylebox_override("panel", st)
+		_placar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_placar.set_anchors_preset(Control.PRESET_CENTER_TOP)
+		_placar.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		_placar.offset_top = 132
+		_placar_txt = Label.new()
+		_placar_txt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_placar_txt.add_theme_font_size_override("font_size", 22)
+		_placar_txt.add_theme_color_override("font_color", Color("ffd9cf"))
+		_placar_txt.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+		_placar_txt.add_theme_constant_override("outline_size", 6)
+		_placar.add_child(_placar_txt)
+		m.hud.add_child(_placar)
+	var n := int(ev.n)
+	var mortos := mini(int(ev.mortos), n)
+	_placar_txt.text = Idioma.t("Emboscada %d de %d · %d/%d derrotados") % [int(ev.emb), int(ev.embs), mortos, n] if mortos < n else Idioma.t("Emboscada %d de %d vencida! Sigam para %s") % [int(ev.emb), int(ev.embs), str(ev.get("nome", "o totem"))]
+	_placar.visible = true

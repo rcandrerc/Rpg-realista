@@ -73,6 +73,12 @@ export const MissaoCla = {
     if (!j.bot) this.evento({ t: 'missaoCla', para: j.id, x: dest.x, z: dest.z, nome: dest.nome });
     return M;
   },
+  // o contador da onda na tela (André 2026-11-23: "apareceu um contador na tela... 0/12... 12/12"): para o líder e
+  // os jogadores da escolta, ao nascer a onda e a cada monstro que cai
+  placarMissao(M) {
+    const ev = { emb: M.emb, embs: M_().emboscadas.length, mortos: M.onda.mortos, n: M.onda.n, x: M.dest.x, z: M.dest.z, nome: M.dest.nome };
+    for (const id of [M.lider, ...M.rec]) { const o = this.jogadores.get(id); if (o && !o.bot) this.evento({ t: 'missaoCla', para: id, ...ev }); }
+  },
   avisoMissao(M, texto) {
     for (const id of [M.lider, ...M.rec]) { const o = this.jogadores.get(id); if (o && !o.bot) this.evento({ t: 'aviso', para: id, texto }); }
   },
@@ -103,6 +109,8 @@ export const MissaoCla = {
       M.mobs.add(e);
     });
     M.emb++;
+    M.onda = { n: M.mobs.size, mortos: 0 };
+    this.placarMissao(M);
     this.avisoMissao(M, ult ? `Emboscada! ${Mc.chefe.nome} veio junto. Protejam os recrutas!` : `Emboscada ${M.emb} de ${Mc.emboscadas.length}! Protejam os recrutas!`);
   },
   // um lugar v livre para o monstro da emboscada (o app desenha por ele); todos ocupados: -1 (só no servidor)
@@ -114,7 +122,7 @@ export const MissaoCla = {
   },
   // o monstro da escolta caiu: o corpo some (não volta)
   mobMissaoMorreu(c) {
-    const M = this.missaoDoMob(c); if (M) M.mobs.delete(c);
+    const M = this.missaoDoMob(c); if (M) { M.mobs.delete(c); if (M.onda) { M.onda.mortos++; this.placarMissao(M); } }
     this.depois(3, () => { const i = this.inimigos.indexOf(c); if (i >= 0) this.inimigos.splice(i, 1); });
   },
   fimMissaoCla(M, venceu, porque = '') {
