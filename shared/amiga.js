@@ -24,7 +24,7 @@ import { HISTORIA } from './dados.js';
 import { LOJA, precoLoja, PLANTIO, RECEITA_ESTACAO, CATALISADOR, LUGARES } from './dados.js';
 import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js';
 import { diaDiarias, premioDiaria } from './diarias.js';
-import { ARVORES_PLANTIO, ENCOMENDA, PROFISSOES, MINA, PACK_BOT, PACKS, PACK_REGRAS } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
+import { ARVORES_PLANTIO, ENCOMENDA, PROFISSOES, MINA, PACK_BOT, PACKS, PACK_REGRAS, GUERRA } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
 import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera, QUEM_LIBERA, SEM_NEVOA } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
@@ -488,6 +488,7 @@ export const Amiga = {
     if (j.duelo) return this.passoDueloAmiga(j); // duelando (shared/duelo.js): só luta contra quem chamou
     if (this.guerraAmiga(j, dt)) return; // Chama x Geada (shared/guerra.js): atacar, ajudar, fugir ou poupar a outra raça
     if (this.protegerAmiga(j, dt)) return; // função "Proteger" do painel do clã (shared/cla.js)
+    if (this.almaAmiga(j, dt)) return; // função "Farmar recurso: Fragmento de Alma": caça a outra raça
     if (this.AMIGA.recruta && this.passoFazendaRecruta(this, j, dt)) return; // função "Fazenda": canteiros da base do clã
     // subiu de nível: os pontos vão pelo jeito dele (André 2026-11-11): quem gosta de cajado põe em Inteligência, o resto
     // em Força, e todos em Vitalidade (antes era só metade Força e metade Vitalidade)
@@ -1346,6 +1347,28 @@ export const Amiga = {
       if (Math.hypot(j.x + ux * t - k.x, j.z + uz * t - k.z) < k.r + 0.45) { ate = t; achou = k; }
     }
     return achou;
+  },
+  // "Farmar recurso: Fragmento de Alma" (André 2026-11-23: "eles vão caçar geadas para matar"): o recruta caça quem é da
+  // outra raça (as regras da guerra: acima da Trégua, fora da zona segura); o fragmento vai direto ao Baú do Clã
+  // (fragmentoGuerra). Ninguém perto: anda pela rota da ronda da outra raça (onde ela costuma passar). No time, manda o time.
+  almaAmiga(j, dt) {
+    const fn = j.ia.funcao; if (!fn || fn.k !== 'alma' || !this.AMIGA.recruta || (j.time && j.time.membros.length > 1)) return false;
+    if (!j.guerra) return false; // na Trégua (Nv 30) ou na zona segura: segue a vida
+    const g = (j.ia.alma ||= { alvo: null, t: 0, i: 0 });
+    let alvo = g.alvo && this.jogadores.get(g.alvo);
+    if (alvo && (alvo.morto || !this.emGuerra(j, alvo, true))) { alvo = null; g.alvo = null; }
+    if (!alvo && this.tempo >= g.t) {
+      g.t = this.tempo + 2;
+      let md = 140;
+      for (const o of this.jogadores.values()) { if (!this.emGuerra(j, o, true)) continue; const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < md) { md = d; alvo = o; } }
+      g.alvo = alvo?.id || null;
+    }
+    if (alvo) { j.montado = null; if (this.cerebroAmiga(j, j, alvo)) return true; this.irDireto(j, alvo.x, alvo.z, true); return true; }
+    const rota = GUERRA.ronda?.rotas?.[this.racaDe(j) === 'geada' ? 'chama' : 'geada']; if (!rota?.length) return false;
+    const p = rota[g.i % rota.length];
+    if (Math.hypot(p[0] - j.x, p[1] - j.z) < 10) g.i++;
+    else this.irLongeAmiga(j, p[0], p[1], dt);
+    return true;
   },
   // função "Proteger" (painel do clã, André 2026-11-22): fica perto de quem protege (o líder ou outro recruta) e ataca o
   // que chegar perto dele. No time, quem manda é o time.

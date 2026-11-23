@@ -127,6 +127,34 @@ ok(true, 'simulação roda com os recrutas');
   }
 }
 
+// ---------- Fragmento de Alma (André 2026-11-23: "eles vão caçar geadas para matar") ----------
+{
+  const { RECURSOS_CLA } = await import('../../shared/cla.js');
+  ok(RECURSOS_CLA.alma?.coleta === 'guerra', 'Fragmento de Alma no Farmar recurso');
+  const s9 = new Simulacao(MAPA_CLAREIRA);
+  const L = s9.adicionarJogador('L9', 'Chefe', undefined, { conta: 41 }); L.criando = false; L.ciente = true; L.prog.nivel = 40; L.prog.ouro = 90000;
+  const r9 = s9.mapa.npcs.find((n) => n.funcao === 'recrutador'); L.x = r9.x + 1; L.z = r9.z;
+  s9.cla('L9', { acao: 'fundar', nome: 'Teste Alma' }); L.prog.cla.nv = 6; s9.cla('L9', { acao: 'recrutar', tier: 'recruta' });
+  const m = L.prog.cla.m[0], x = s9.recrutasNoMundo(L)[0], a = x.amiga;
+  s9.cla('L9', { acao: 'funcao', id: m.id, fn: { k: 'recurso', r: 'alma' } });
+  ok(a.ia.funcao?.k === 'alma' && !a.ia.levar, 'recruta com a função de caçar a outra raça');
+  const G = s9.adicionarJogador('G9', 'Inimigo', undefined, { conta: 42 }); G.criando = false; G.ciente = true; G.prog.nivel = 40;
+  G.raca = G.prog.raca = s9.racaDe(a) === 'geada' ? 'chama' : 'geada';
+  a.prog.nivel = 40; a.x = 0; a.z = 0; G.x = 12; G.z = 0; L.x = 300; L.z = 300; s9.guerraT = 0;
+  const d0 = Math.hypot(G.x - a.x, G.z - a.z);
+  for (let k = 0; k < 60; k++) s9.passo(0.1);
+  ok(a.guerra && (a.ia.alma?.alvo === G.id || a.ia.guerra?.alvo === G.id), `achou o inimigo (guerra ${!!a.guerra})`);
+  ok(Math.hypot(G.x - a.x, G.z - a.z) < d0 || G.vida < G.vidaMax, 'foi atrás dele');
+  ok(s9.fazendoRecruta?.(a)?.includes?.('raça') ?? true, 'status: caçando a outra raça');
+  a.ia.guerra = null; G.vida = G.vidaMax; G.x = a.x + 60; G.z = a.z; const d1 = 60;
+  for (let k = 0; k < 40; k++) s9.passo(0.1);
+  ok(a.ia.alma?.alvo === G.id || a.ia.guerra?.alvo === G.id, 'inimigo longe (60 m): vai buscar');
+  ok(Math.hypot(G.x - a.x, G.z - a.z) < d1 - 3, `aproximou (${Math.hypot(G.x - a.x, G.z - a.z).toFixed(1)} m)`);
+  s9.removerJogador('G9');
+  for (let k = 0; k < 40; k++) s9.passo(0.1);
+  ok(a.ia.funcao?.k === 'alma' && !a.ia.alma.alvo, 'sem inimigo: segue procurando (ronda da outra raça)');
+}
+
 // ---------- clã bot (fase 2): Gael lidera os Lobos da Geada e contrata sozinho ----------
 {
   const { CLAS_NPC, CLAS_NPC_REGRAS, vagasClaNpc } = await import('../../shared/dados.js');
