@@ -15,7 +15,7 @@
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
 import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, NPC_SOLDADO, CLA, CLAS_NPC_ORDENS } from './dados.js';
-import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO, VEICULOS } from './dados.js';
+import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, NPC_CASA_BASE, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO, VEICULOS } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota, terraId } from './rota.js';
 import { lugarDoVeiculo, fundoAgua, devolverBarquinho, centroNavio, packValido, precoPack, mercadoK, mercadoConta, capacidadeCarrinho } from './transporte.js';
@@ -76,9 +76,14 @@ const PASSEIOS = [[-6, -10.5], [-8.6, -9.4], [-2.5, -6], [1, 0.5], [-4, 2], [-1,
 const REGA_MS = HORTA.rega * 3600000;
 
 // peça da casa da lista AMIGA.casa no mundo (o terreno começa em x0, z0)
+// o canto da casa no lote, na grade da casa (CASA.grade): os lotes da base do clã nem sempre começam num número par e aí
+// fundação e parede não cabiam ("Fora da grade da casa"; André 2026-11-23: só saíam cama, baú e tocha). Arredonda para
+// baixo (até 2 m): a casa (2 a 8 m do canto) continua dentro do lote; lote que já começa na grade fica igual.
+export const casaX0 = (def) => Math.floor(def.x0 / CASA.grade + 1e-9) * CASA.grade;
+export const casaZ0 = (def) => Math.floor(def.z0 / CASA.grade + 1e-9) * CASA.grade;
 export function pecaDaCasa(def, c) {
   const [k, dx, dz, lado] = c, T = CONSTRUCOES[k]?.tipo;
-  let x = def.x0 + dx, z = def.z0 + dz, r = 0;
+  let x = casaX0(def) + dx, z = casaZ0(def) + dz, r = 0;
   if (T === 'borda') {
     const g = CASA.grade / 2;
     if (lado === 'n') z -= g; else if (lado === 's') z += g; else if (lado === 'o') { x -= g; r = 1; } else { x += g; r = 1; }
@@ -191,7 +196,9 @@ export const Amiga = {
       // como toda feita a cada entrada (bug: "como fizeram todas as missões?"). Save sem histReal: começa do zero uma vez.
       // André 2026-11-21 ("quero que eles façam... as missões de história principais"): a Geada (Kira, Rufo, Lis) também
       // faz a história de verdade, como a Cecília e o Dario; antes ela entrava com tudo feito. Começa do zero uma vez.
-      if (!this.AMIGA.terreno && !this.AMIGA.rival) j.prog.hist = { v: 2, p: HISTORIA.length, ac: false, e: 0, n: 0, m: 0 };
+      // André 2026-11-23 ("quero que todos eles façam missões diárias... casa, baú, no lote"): os recrutas (dele e dos clãs bot)
+      // também fazem a história de verdade (fazTarefasDef); começa do zero uma vez (histReal)
+      if (!this.fazTarefasDef()) j.prog.hist = { v: 2, p: HISTORIA.length, ac: false, e: 0, n: 0, m: 0 };
       else if (!salvo.histReal || !j.prog.hist) j.prog.hist = { v: 2, p: 0, ac: false, e: 0, n: 0, m: 0 };
       delete j.prog.pos;
       // a roupa dela (look B) na primeira vez; depois ela veste o que achar melhor (fase 3) e isso fica salvo
@@ -239,7 +246,8 @@ export const Amiga = {
       j.ia = { fase: 'pensar', ate: 0 };
       j.semTeto = !!this.AMIGA.terreno || !!this.AMIGA.rival; // Cecília e Dario sobem sem o teto do jogador mais alto (André 2026-11-16); a Geada também
       // André 2026-11-21: enquanto eles grindam, sem a trava da névoa (nada de missão para abrir); desligue em NPC_SEM_NEVOA (shared/dados.js)
-      if (NPC_SEM_NEVOA && j.semTeto) SEM_NEVOA.add(j.prog); else SEM_NEVOA.delete(j.prog);
+      j.tarefas = this.fazTarefasDef(); // missões da história e diárias (os recrutas também, André 2026-11-23); o teto de nível segue o semTeto
+      if (NPC_SEM_NEVOA && j.tarefas) SEM_NEVOA.add(j.prog); else SEM_NEVOA.delete(j.prog);
       if (j.semTeto) this.diariasOfflineAmiga(j, salvo.t); // os dias em que ninguém jogou: as diárias dele também (André 2026-11-21)
       if (this.AMIGA.raca) j.raca = this.AMIGA.raca; // Chama x Geada (shared/guerra.js): sem raça = Chama
       j.guerraMem = salvo.guerra && typeof salvo.guerra === 'object' && !Array.isArray(salvo.guerra) ? Object.fromEntries(Object.entries(salvo.guerra).slice(-300)) : {}; // quem ele já viu e o placar
@@ -248,7 +256,7 @@ export const Amiga = {
       const lbS = salvo.leilao && typeof salvo.leilao === 'object' && !Array.isArray(salvo.leilao) ? salvo.leilao : null;
       j.leilaoBot = lbS ? { poupado: Math.max(0, +lbS.poupado || 0), visto: Number.isFinite(+lbS.visto) ? +lbS.visto : j.prog.ouro | 0, log: Array.isArray(lbS.log) ? lbS.log.slice(-12) : [], meta: lbS.meta || null, t: lbS.t || 0 } : null;
       // aparece na porta de casa (ou no canto do terreno, se a casa ainda não existe); sem casa, na vila do nível dele
-      const def = L?.def, M = !def && this.moradiaAmiga(j), x = def ? def.x0 + this.AMIGA.porta[0] : M ? M.x : this.mapa.nascimento.x + 2, z = def ? def.z0 + this.AMIGA.porta[1] : M ? M.z : this.mapa.nascimento.z + 2;
+      const def = L?.def, M = !def && this.moradiaAmiga(j), x = def ? casaX0(def) + this.AMIGA.porta[0] : M ? M.x : this.mapa.nascimento.x + 2, z = def ? casaZ0(def) + this.AMIGA.porta[1] : M ? M.z : this.mapa.nascimento.z + 2;
       Object.assign(j, { x, z, y: this.terreno.altura(x, z), ry: Math.PI, chao: true });
       this.amiga = j;
       this.amigaDono = null;
@@ -417,7 +425,9 @@ export const Amiga = {
   // André 2026-11-22 ("Não vai existir mais casa de bot nenhum... todo mundo vai ter uma base"): a casa da Cecília e do
   // Dario fica no lote deles na base do clã (shared/base.js); sem base ainda, ficam sem casa (moram na vila).
   loteDaAmiga(criar = false) {
-    if (!this.AMIGA.terreno) return null; // aventureiro sem casa (André 2026-11-11): mora na vila do nível dele
+    // André 2026-11-23 ("quero que todos sejam"): todo bot com lote na base do clã (líder, membros, recrutas dele e dos
+    // clãs bot) constrói a casa e o baú lá, como a Cecília; o aventureiro sem clã continua sem casa (NPC_CASA_BASE)
+    if (!this.AMIGA.terreno && !(NPC_CASA_BASE.ligado && this.fazTarefasDef())) return null; // aventureiro sem casa (André 2026-11-11): mora na vila do nível dele
     for (const L of this.lotes.values()) if (L.dono === this.AMIGA.conta && L.def.baseK) return L;
     if (!criar) return null;
     const id = this.AMIGA.id;
@@ -430,11 +440,13 @@ export const Amiga = {
     }
     return null;
   },
+  // faz missão da história e diária (André 2026-11-16/21/23): quem tem casa (Cecília, Dario, Lia), a Geada e todo recruta
+  fazTarefasDef() { return !!(this.AMIGA.terreno || this.AMIGA.rival || (NPC_CASA_BASE.ligado && this.AMIGA.recruta)); },
   // guarda o progresso dela dentro do terreno (vai para o banco em lotesParaSalvar)
   guardarAmiga() {
     const j = this.amiga; if (!j) return;
     const amizades = { ...(j.amizades || {}) }; if (j.donoConta) amizades[j.donoConta] = j.amizade | 0;
-    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, evolucao: j.evolucao || [], ...(this.AMIGA.terreno || this.AMIGA.rival ? { histReal: 1 } : {}), ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), guerra: j.guerraMem || {}, leilao: j.leilaoBot || null, memorias: j.memorias || {}, fatos: j.fatos || {}, semIa: j.semIa || {}, conversas: this.conversasParaSalvarAmiga(j), registro: j.registro || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(this.AMIGA.recomecoJogo ? { recomecoJogo: this.AMIGA.recomecoJogo } : {}), ...(j.amigaAntesJogo ? { antesJogo: j.amigaAntesJogo } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
+    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, evolucao: j.evolucao || [], ...(this.fazTarefasDef() ? { histReal: 1 } : {}), ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), guerra: j.guerraMem || {}, leilao: j.leilaoBot || null, memorias: j.memorias || {}, fatos: j.fatos || {}, semIa: j.semIa || {}, conversas: this.conversasParaSalvarAmiga(j), registro: j.registro || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(this.AMIGA.recomecoJogo ? { recomecoJogo: this.AMIGA.recomecoJogo } : {}), ...(j.amigaAntesJogo ? { antesJogo: j.amigaAntesJogo } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
     (this.npcSalvos ||= new Map()).set(this.AMIGA.id, dados); (this.npcsMudados ||= new Set()).add(this.AMIGA.id); // tabela mundo do banco (todos, desde 2026-11-22)
   },
   // ---------- a cabeça dela (a cada passo da simulação) ----------
@@ -531,6 +543,10 @@ export const Amiga = {
     if (ia.fase === 'parada') { if (this.tempo >= ia.ate) ia.fase = 'pensar'; return; }
     if (this.tempo < ia.ate || !L) return;
     if (this.tempo >= (ia.arrumaT || 0)) { ia.arrumaT = this.tempo + this.AMIGA.mochila.arrumar; this.arrumarMochilaAmiga(j); }
+    // 0) móvel da casa que ficou fora do lugar (a casa andou para a grade, casaX0): leva para o lugar dele antes de
+    // construir, senão ele tranca a fundação e a parede. Nada some: a mesma peça (e o que tem no baú) só muda de lugar.
+    const mov = this.movelForaAmiga(L);
+    if (mov) return this.irTrabalhar(j, L, { x: mov.velho.x, z: mov.velho.z + 1.1 }, this.AMIGA.passo.obra, 'golpe1', 1.1, () => this.moverMovelAmiga(L, mov));
     // 1) a casa: a próxima peça que falta
     const falta = this.AMIGA.casa.map((c) => pecaDaCasa(L.def, c)).find((p) => !L.pecas.some((o) => mesmaPeca(o, p)) && !ia.pulas?.has(chavePeca(p)));
     if (falta) return this.irTrabalhar(j, L, this.ondeFicar(L, falta), this.AMIGA.passo.obra, 'golpe1', 1.1, () => this.colocarPeca(L, falta));
@@ -551,7 +567,7 @@ export const Amiga = {
     if (Math.random() < 0.5) {
       const [x, z] = sorteia(PASSEIOS);
       this.irPara(j, L, { x: x + Math.random() - 0.5, z: z + Math.random() - 0.5 }, () => { ia.fase = 'parada'; ia.ate = this.tempo + this.AMIGA.passo.passeio * (0.5 + Math.random()); });
-    } else this.irPara(j, L, { x: L.def.x0 + this.AMIGA.porta[0] + Math.random() * 2 - 1, z: L.def.z0 + this.AMIGA.porta[1] }, () => { ia.fase = 'parada'; ia.ate = this.tempo + this.AMIGA.passo.passeio; j.ry = 0; });
+    } else this.irPara(j, L, { x: casaX0(L.def) + this.AMIGA.porta[0] + Math.random() * 2 - 1, z: casaZ0(L.def) + this.AMIGA.porta[1] }, () => { ia.fase = 'parada'; ia.ate = this.tempo + this.AMIGA.passo.passeio; j.ry = 0; });
   },
   // ---------- vida própria (André 2026-11-11: "quero que eles andem sozinhos"; os 22 iguais) ----------
   // a vila onde ele mora agora (muda com o nível: NPC_VIDA.moradia); o ponto é espalhado por NPC para não juntar todos
@@ -584,7 +600,7 @@ export const Amiga = {
   campoAmiga(j, fora = null) {
     const A = NPC_VIDA.aventura, n = j.prog.nivel | 0;
     // André 2026-11-16: Cecília e Dario só caçam onde a história deles já abriu (como o jogador)
-    const ok = this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (c.nivel || 1) <= n + A.campoAcima - (j.licoes?.acima || 0) && !(fora && fora.has(c.id)) && !(j.semTeto && zonaFechadaEm(j.prog, c.x, c.z)));
+    const ok = this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (c.nivel || 1) <= n + A.campoAcima - (j.licoes?.acima || 0) && !(fora && fora.has(c.id)) && !(j.tarefas && zonaFechadaEm(j.prog, c.x, c.z)));
     ok.sort((a, b) => (b.nivel || 1) - (a.nivel || 1) || Math.hypot(a.x - j.x, a.z - j.z) - Math.hypot(b.x - j.x, b.z - j.z));
     // a Geada caça perto de casa (os campos do leste, em volta do Juncal); sem campo do nível por lá, vale o de sempre
     if (this.AMIGA.lar) { const C = this.AMIGA.lar, l = ok.filter((c) => Math.hypot(c.x - C.x, c.z - C.z) < 360); if (l.length) ok.splice(0, ok.length, ...l); }
@@ -643,6 +659,9 @@ export const Amiga = {
     const voltar = () => { if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null); Object.assign(av, { fase: 'voltar', c: null, coleta: null }); ia.viagem = null; };
     if (av.fase === 'escolher') {
       if (noite || livres < A.mochilaLivre) return voltar();
+      // a casa no lote da base ainda não está pronta (André 2026-11-23, NPC_CASA_BASE): primeiro vai construir, como um
+      // jogador; quem obedece o líder do clã quase nunca fica em casa à toa, então a casa vem antes da próxima saída
+      { const Lc = this.loteDaAmiga(); if (Lc && this.casaFaltaAmiga(j, Lc)) { ia.av = null; ia.fase = 'pensar'; ia.ate = 0; return; } }
       // André 2026-11-16: grind sozinho limitado por dia real; soldado do clã não tem limite (André 2026-11-22, como no 'ir'
       // logo abaixo). Antes ele passava dos 30 min, escolhia, voltava para a vila e ficava em volta dela o dia todo (23/11).
       const cansouGrind = !sold && this.grindAcabouAmiga(j);
@@ -696,7 +715,7 @@ export const Amiga = {
     if (av.fase === 'voltar') {
       if (ia.levar && this.levarBauRecruta?.(this, j, dt)) return; // recruta com recurso pedido: leva ao Baú do Clã (cla.js)
       const M = this.pontoVilaAmiga(j), L = this.loteDaAmiga();
-      const casa = L ? { x: L.def.x0 + this.AMIGA.porta[0], z: L.def.z0 + this.AMIGA.porta[1] } : M;
+      const casa = L ? { x: casaX0(L.def) + this.AMIGA.porta[0], z: casaZ0(L.def) + this.AMIGA.porta[1] } : M;
       const canto = L && Math.hypot(casa.x - j.x, casa.z - j.z) < 15 && this.contornoCasa(L, j, casa);
       if (canto) { j.montado = null; this.irDireto(j, canto.x, canto.z, false); return; } // atrás da casa: dá a volta
       if (!this.irLongeAmiga(j, casa.x, casa.z, dt)) return;
@@ -720,7 +739,7 @@ export const Amiga = {
       if (t < av.ate || noite) { // passeia devagar pela vila, no canto dele (fora do horário fica por ali)
         // quem tem casa (Cecília, Dario) voltou para ela: passeia na frente da porta, não vai em linha reta até a vila
         // atravessando a própria casa (era o "andando sem sair do lugar" atrás da casa)
-        const Lc = this.loteDaAmiga(), M = Lc ? { x: Lc.def.x0 + this.AMIGA.porta[0], z: Lc.def.z0 + this.AMIGA.porta[1] + 1.6, r: 2.5 } : this.pontoVilaAmiga(j);
+        const Lc = this.loteDaAmiga(), M = Lc ? { x: casaX0(Lc.def) + this.AMIGA.porta[0], z: casaZ0(Lc.def) + this.AMIGA.porta[1] + 1.6, r: 2.5 } : this.pontoVilaAmiga(j);
         if (!av.passeio || Math.hypot(av.passeio.x - j.x, av.passeio.z - j.z) < 1) {
           if (Math.random() < 0.02) { const a = Math.random() * Math.PI * 2, r = Math.random() * M.r * 0.6; av.passeio = { x: M.x + Math.cos(a) * r, z: M.z + Math.sin(a) * r }; }
           return this.pararAmiga(j);
@@ -750,7 +769,7 @@ export const Amiga = {
       const K = COLETA[no.tipo]; if (!K || K.mao) continue;
       if (tipo === 'lenha' ? no.tipo !== 'arvore' : K.prof !== 'min') continue;
       if (profNivel(j.prog.prof[K.prof]) < (K.nivel || 1) || this.cargas(j, no) <= 0) continue;
-      if (j.semTeto && zonaFechadaEm(j.prog, no.x, no.z)) continue; // região que a história dele ainda não abriu
+      if (j.tarefas && zonaFechadaEm(j.prog, no.x, no.z)) continue; // região que a história dele ainda não abriu
       if (Math.hypot(no.x - M.x, no.z - M.z) <= NC.raio) cand.push({ id: no.id, x: no.x, z: no.z, y: no.y ?? null });
     }
     if (!cand.length) return null;
@@ -793,8 +812,8 @@ export const Amiga = {
   pararAmiga(j) { j.entrada = { mx: 0, mz: 0, correr: false }; },
   // onde ela fica em pé para pôr a peça: do lado de dentro da casa (a parede da frente, pelo lado de fora)
   ondeFicar(L, p) {
-    const T = CONSTRUCOES[p.k].tipo, [a0, b0, a1, b1] = this.AMIGA.dentro, cx = L.def.x0 + (a0 + a1) / 2, cz = L.def.z0 + (b0 + b1) / 2;
-    if (T === 'fundacao' || T === 'telhado') return { x: p.x, z: L.def.z0 + this.AMIGA.porta[1] };
+    const T = CONSTRUCOES[p.k].tipo, [a0, b0, a1, b1] = this.AMIGA.dentro, cx = casaX0(L.def) + (a0 + a1) / 2, cz = casaZ0(L.def) + (b0 + b1) / 2;
+    if (T === 'fundacao' || T === 'telhado') return { x: p.x, z: casaZ0(L.def) + this.AMIGA.porta[1] };
     if (T === 'borda') {
       if (p.r & 1) return { x: p.x + Math.sign(cx - p.x) * 1.1, z: p.z };
       return p.z > cz ? { x: p.x, z: p.z + 1.2 } : { x: p.x, z: p.z + 1.1 };
@@ -815,7 +834,34 @@ export const Amiga = {
     this.refazerSolidosLotes();
     this.avisarLote(L);
     // ficou presa dentro de uma parede? sai para o lado de fora da porta
-    if (!this.livreParaHeroi(this.amiga, this.amiga.x, this.amiga.z)) Object.assign(this.amiga, { x: L.def.x0 + this.AMIGA.porta[0], z: L.def.z0 + this.AMIGA.porta[1] });
+    if (!this.livreParaHeroi(this.amiga, this.amiga.x, this.amiga.z)) Object.assign(this.amiga, { x: casaX0(L.def) + this.AMIGA.porta[0], z: casaZ0(L.def) + this.AMIGA.porta[1] });
+  },
+  // recruta do jogador com função no painel (grind, farmar, fazenda...): missão e diária só no modo livre (André 2026-11-23:
+  // "se ele tiver em alguma função específica, ele só vai fazer a missão quando tiver em modo livre"). Os clãs bot seguem
+  // como estão (o líder bot reparte as ordens)
+  modoLivreAmiga() {
+    if (!this.AMIGA.recruta || this.AMIGA.clanpc) return true;
+    const m = this.claDoRecruta?.(this)?.m?.find((o) => o.id === this.AMIGA.id);
+    return !m?.fn || m.fn.k === 'livre';
+  },
+  // falta alguma peça da casa (que ainda dá para pôr nesta sala) ou um móvel fora do lugar?
+  casaFaltaAmiga(j, L) {
+    return !!this.movelForaAmiga(L) || this.AMIGA.casa.some((c) => { const p = pecaDaCasa(L.def, c); return !L.pecas.some((o) => mesmaPeca(o, p)) && !j.ia.pulas?.has(chavePeca(p)); });
+  },
+  // o primeiro móvel da casa (cama, baú, tocha) sem peça no lugar dele, mas com uma igual fora de qualquer lugar da casa
+  movelForaAmiga(L) {
+    const alvos = this.AMIGA.casa.filter((c) => CONSTRUCOES[c[0]]?.tipo === 'movel').map((c) => pecaDaCasa(L.def, c));
+    for (const p of alvos) {
+      if (L.pecas.some((o) => mesmaPeca(o, p))) continue;
+      const velho = L.pecas.find((o) => o.k === p.k && !alvos.some((q) => mesmaPeca(o, q)));
+      if (velho) return { velho, p };
+    }
+    return null;
+  },
+  moverMovelAmiga(L, { velho, p }) {
+    if (!L.pecas.includes(velho)) return;
+    Object.assign(velho, { x: p.x, z: p.z, r: p.r });
+    this.refazerSolidosLotes(); this.avisarLote(L); this.lotesMudados?.add(L.def.id);
   },
   // arar, plantar, regar ou colher o canteiro c (sem enxada, regador nem vigor: ela é da casa)
   cuidarCanteiro(L, c) {
@@ -849,20 +895,20 @@ export const Amiga = {
     else if (!dentroTerras(j) && dentroTerras(alvo)) { rota.push(...estrada, { x: ruaX, z: alvo.z }); }
     // casa com parede na frente: entra e sai pela porta
     if (L && this.dentroDaCasa(L, j) !== this.dentroDaCasa(L, alvo) && L.pecas.some((p) => p.k === 'porta')) {
-      const [px, pz] = this.AMIGA.porta, porta = [{ x: L.def.x0 + px, z: L.def.z0 + pz }, { x: L.def.x0 + px, z: L.def.z0 + pz - 1.8 }];
+      const [px, pz] = this.AMIGA.porta, porta = [{ x: casaX0(L.def) + px, z: casaZ0(L.def) + pz }, { x: casaX0(L.def) + px, z: casaZ0(L.def) + pz - 1.8 }];
       if (this.dentroDaCasa(L, j)) rota.unshift(...porta.slice().reverse()); else rota.push(...porta);
     }
     rota.push(alvo);
     Object.assign(j.ia, { fase: 'andar', rota, chegou, preso: 0, longe: Infinity });
   },
-  dentroDaCasa(L, p) { const [a0, b0, a1, b1] = this.AMIGA.dentro; return p.x > L.def.x0 + a0 + 0.2 && p.x < L.def.x0 + a1 - 0.2 && p.z > L.def.z0 + b0 + 0.2 && p.z < L.def.z0 + b1 - 0.2; },
+  dentroDaCasa(L, p) { const [a0, b0, a1, b1] = this.AMIGA.dentro; return p.x > casaX0(L.def) + a0 + 0.2 && p.x < casaX0(L.def) + a1 - 0.2 && p.z > casaZ0(L.def) + b0 + 0.2 && p.z < casaZ0(L.def) + b1 - 0.2; },
   // De fora para fora, a linha reta passa pela casa (ela está atrás ou do lado): o canto por onde dá a volta, ou null.
   // Atrás: primeiro o canto de trás do lado mais perto, depois o da frente; dali a porta fica à vista (André 2026-11-12,
   // "ficam caminhando sem sair do lugar... batendo na parede lá da casa deles").
   contornoCasa(L, de, ate) {
     if (!L?.pecas.some((p) => p.k === 'parede')) return null;
     const [a0, b0, a1, b1] = this.AMIGA.dentro, M = 0.9, f = 0.3;
-    const X0 = L.def.x0 + a0, X1 = L.def.x0 + a1, Z0 = L.def.z0 + b0, Z1 = L.def.z0 + b1;
+    const X0 = casaX0(L.def) + a0, X1 = casaX0(L.def) + a1, Z0 = casaZ0(L.def) + b0, Z1 = casaZ0(L.def) + b1;
     const naCasa = (x, z) => x > X0 - f && x < X1 + f && z > Z0 - f && z < Z1 + f;
     if (naCasa(de.x, de.z) || naCasa(ate.x, ate.z)) return null; // entrar e sair é pela porta (irPara)
     let corta = false;
@@ -2026,8 +2072,8 @@ export const Amiga = {
       missaoDele: M ? `${M.nome}${E ? ` (agora: ${E.txt})` : ' (ainda não aceitou: fala com o NPC da missão)'}` : null,
       vida, pocoes: contar(a.prog.mochila, 'pocao'), arma: `espada e cajado (troca entre os dois na luta; agora: ${a.modo === 'Magia' ? 'cajado' : 'espada'})`, // André 2026-11-18: ela dizia que não usa cajado
       sozinha: this.podeSairAmiga(a, j), naLista: this.ehAmigoAmiga(j),
-      diariasDela: a.semTeto ? this.diariasTextoAmiga(a) : null, missaoJunto: a.ia.missaoJunto?.id === j.id,
-      missaoDela: a.semTeto && missaoAtual(a.prog) ? `${missaoAtual(a.prog).nome}${a.prog.hist?.ac && etapaAtual(a.prog) ? ` (agora: ${etapaAtual(a.prog).txt})` : ''}` : null,
+      diariasDela: a.tarefas ? this.diariasTextoAmiga(a) : null, missaoJunto: a.ia.missaoJunto?.id === j.id,
+      missaoDela: a.tarefas && missaoAtual(a.prog) ? `${missaoAtual(a.prog).nome}${a.prog.hist?.ac && etapaAtual(a.prog) ? ` (agora: ${etapaAtual(a.prog).txt})` : ''}` : null,
     };
   },
   // todos os campos de caça e chefes, curtinho (mesmo nome junta os níveis): "onde upar no 10?" tem resposta certa
@@ -2068,7 +2114,7 @@ export const Amiga = {
     return M && At && (a.prog.nivel | 0) - M.nv >= At.niveis ? MS.segPorDia * At.x : MS.segPorDia;
   },
   querMissaoAmiga(a) {
-    const MS = NPC_VIDA.missao, M = a.semTeto && missaoAtual(a.prog);
+    const MS = NPC_VIDA.missao, M = a.tarefas && this.modoLivreAmiga() && missaoAtual(a.prog);
     return !!M && M.nv <= (a.prog.nivel | 0) && this.missaoHojeAmiga(a) < this.limiteMissaoAmiga(a) && Math.random() < MS.chance;
   },
   missaoSozinhoAmiga(j, av, noite, voltar, dt) {
@@ -2105,7 +2151,7 @@ export const Amiga = {
   },
   // a missão da história dela agora (nome e etapa) ou null
   missaoDelaAmiga(a) {
-    const M = a.semTeto && missaoAtual(a.prog); if (!M) return null;
+    const M = a.tarefas && missaoAtual(a.prog); if (!M) return null;
     const E = a.prog.hist?.ac && etapaAtual(a.prog), npc = (this.mapa.npcs || []).find((o) => o.id === M.npc);
     return { M, txt: `${M.nome}${E ? ` (agora: ${E.txt})` : npc ? ` (falta aceitar com ${npc.nome.split(',')[0]})` : ''}`, cedo: M.nv > (a.prog.nivel | 0) };
   },
@@ -2185,7 +2231,7 @@ export const Amiga = {
   },
   // as diárias que faltam e que ele sabe fazer agora (sem sorteio)
   diariasQueFaltamAmiga(j) {
-    if (!j.semTeto || !this.temDiarias?.(j) || vigorAgora(j.prog.vigor) < 1 || (j.ia.diariaFalhou || 0) > this.tempo) return [];
+    if (!j.tarefas || !this.modoLivreAmiga() || !this.temDiarias?.(j) || vigorAgora(j.prog.vigor) < 1 || (j.ia.diariaFalhou || 0) > this.tempo) return [];
     const st = this.diariasDe(j), falta = (id) => { const D = DIARIAS.lista.find((x) => x.id === id); return D && (st.n[id] || 0) < D.n; };
     const tem = (f) => contar(j.prog.mochila, f) > 0;
     const op = [];
@@ -2196,7 +2242,7 @@ export const Amiga = {
   },
   // tem missão da história (dentro do tempo do dia) ou diária para fazer agora?
   temTarefaAmiga(j) {
-    const M = j.semTeto && missaoAtual(j.prog);
+    const M = j.tarefas && this.modoLivreAmiga() && missaoAtual(j.prog);
     return (!!M && M.nv <= (j.prog.nivel | 0) && this.missaoHojeAmiga(j) < this.limiteMissaoAmiga(j)) || this.diariasQueFaltamAmiga(j).length > 0;
   },
   sementePlantioAmiga(j) { return NPC_VIDA.diaria.arvores.find((s) => contar(j.prog.mochila, 'semente_' + s) > 0) || null; },
@@ -2208,7 +2254,7 @@ export const Amiga = {
       if (this.plantioQ?.has(key) || ruins?.has(key)) continue;
       const [i, k] = key.split(',').map(Number), x = i * Q + Q / 2, z = k * Q + Q / 2, d = Math.hypot(x - M.x, z - M.z);
       if (d >= md || d > NPC_VIDA.diaria.raio) continue;
-      if (j.semTeto && zonaFechadaEm(j.prog, x, z)) continue;
+      if (j.tarefas && zonaFechadaEm(j.prog, x, z)) continue;
       md = d; melhor = { key, i, k, ...lugarNoQuadrado(i, k) };
     }
     return melhor;
@@ -2271,7 +2317,7 @@ export const Amiga = {
   },
   // diárias (shared/diarias.js): caçando, pescando e coletando sozinho elas contam; na vila recebe o que terminou
   diariasAmiga(j) {
-    if (!j.semTeto || !this.temDiarias?.(j)) return 0;
+    if (!j.tarefas || !this.temDiarias?.(j)) return 0;
     const st = this.diariasDe(j); let n = 0;
     for (const D of DIARIAS.lista) if ((st.n[D.id] || 0) >= D.n && !st.r.includes(D.id)) { this.diaria(j.id, { acao: 'receber', id: D.id }); n++; }
     if (n) this.guardarAmiga();
@@ -3213,7 +3259,7 @@ export const Amiga = {
   // o lugar com o recurso mais perto DELA (mesmo longe dele), fora de região que a história dela ainda não abriu
   lugarRecursoAmiga(j, R, menos = null) {
     let melhor = null, md = Infinity;
-    const ok = (x, z) => !(menos && Math.hypot(x - menos.x, z - menos.z) < 12) && !(j.semTeto && zonaFechadaEm(j.prog, x, z));
+    const ok = (x, z) => !(menos && Math.hypot(x - menos.x, z - menos.z) < 12) && !(j.tarefas && zonaFechadaEm(j.prog, x, z));
     if (R.coleta === 'pescar') { for (const v of this.spots || []) if (v.ativo && ok(v.x, v.z)) { const d = Math.hypot(v.x - j.x, v.z - j.z); if (d < md) { md = d; melhor = { id: v.id, x: v.x, z: v.z, y: 0 }; } } return melhor; }
     for (const no of this.coletaveis.values()) {
       if (no.tipo !== R.no || this.cargas(j, no) <= 0 || !ok(no.x, no.z)) continue;
