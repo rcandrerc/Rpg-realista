@@ -502,9 +502,20 @@ export const Cla = {
     return txt;
   },
   // a semana: cobra cada semana vencida do cofre; sem dinheiro, o recruta fica devendo; 7 dias devendo, vai embora
+  // quem está no time do líder agora (m.time = hora): se a conexão cair (ou o servidor reiniciar) no meio do mar, eles
+  // voltam para o time e para o lado dele (entrarRecrutas). Só depois de os recrutas já terem entrado com ele (j.recrutasOk)
+  marcarTimeRecrutas(j) {
+    const c = j?.prog?.cla; if (!c || !j.recrutasOk) return;
+    const agora = Date.now();
+    for (const x of this.recrutasNoMundo(j)) {
+      const m = c.m.find((o) => o.id === x.AMIGA.id); if (!m || !x.amiga) continue;
+      if (x.amiga.time && x.amiga.time === j.time) m.time = agora; else delete m.time;
+    }
+  },
   cobrarCla(j) {
     const c = j?.prog?.cla; if (!c) return;
     const agora = Date.now();
+    this.marcarTimeRecrutas(j);
     for (const x of this.recrutasNoMundo(j)) { const m = x.amiga && c.m.find((o) => o.id === x.AMIGA.id); if (m) m.nv = x.amiga.prog.nivel | 0; }
     let mudou = false;
     for (let k = 0; c.sem <= agora && k < 60; k++) {
@@ -570,6 +581,19 @@ export const Cla = {
     this.foraRecrutas(j, novos);
     this.aplicarFuncoes(j); // a função que ficou escolhida no painel
     for (const x of this.recrutasNoMundo(j)) { const m = c.m.find((o) => o.id === x.AMIGA.id); if (m && x.amiga && novos.has(m.id) && m.id !== contratado) this.lugarRecrutaAoEntrar(j, x, m); }
+    // estavam no time quando a conexão caiu (no mar, no navio, em qualquer lugar): voltam para o time e para o lado dele
+    const agora = Date.now();
+    for (const x of this.recrutasNoMundo(j)) {
+      const m = c.m.find((o) => o.id === x.AMIGA.id), a = x.amiga; if (!m || !a) continue;
+      const volta = m.time && agora - m.time < CLA.voltaTime * 1000; delete m.time;
+      if (!volta || a.morto) continue;
+      if (!(a.time && a.time === j.time)) { if (a.time) this.sairDoTime(a, `${x.AMIGA.nome} saiu do time`); if (!x.entrarTimeAmiga(a, j)) continue; }
+      if (novos.has(m.id) || Math.hypot(a.x - j.x, a.z - j.z) > 40) {
+        const ang = Math.random() * Math.PI * 2, X = j.x + Math.sin(ang) * 2.5, Z = j.z + Math.cos(ang) * 2.5;
+        Object.assign(a, { x: X, z: Z, y: fundoAgua(X, Z) > 0.05 ? Math.max(this.terreno.altura(X, Z), j.y) : this.terreno.altura(X, Z), vx: 0, vz: 0, vy: 0, bordo: null });
+      }
+    }
+    j.recrutasOk = true;
   },
   // os recrutas de quem está fora do jogo (André 2026-11-23: "todos online, se tiver algum jogador online... sempre, sem
   // exceção"): com qualquer jogador no servidor eles ganham corpo e fazem a função; quando o servidor esvazia, saem
@@ -729,6 +753,7 @@ export const Cla = {
   // o líder saiu: os recrutas dele guardam tudo e saem junto
   sairRecrutas(j) {
     if (j?.prog?.cla) { // a conta do tempo fora (foraRecrutas) e onde cada recruta estava (lugarRecrutaAoEntrar)
+      this.marcarTimeRecrutas(j); j.recrutasOk = false;
       j.prog.cla.saiu = Date.now(); j.progSujo = true;
       for (const x of this.recrutasNoMundo(j)) { const a = x.amiga, m = a && j.prog.cla.m.find((o) => o.id === x.AMIGA.id); if (m && !a.morto) m.pos = { x: Math.round(a.x * 10) / 10, z: Math.round(a.z * 10) / 10 }; }
     }
