@@ -2,6 +2,8 @@
 // missões de história principais e que se eu perguntar eles me falem qual missão estão fazendo e eu poder me oferecer
 // pra ajudar"). Sem rede. Uso: node ferramentas/testes/npc-diarias-ajuda.mjs
 let agora = Date.parse('2026-11-21T13:00:00Z'); Date.now = () => agora; // 10h de Brasília, hora de sair
+// sorte com semente (mulberry32, como em _relogio-fixo.mjs): o mesmo resultado no CI e aqui. SEMENTE=n troca
+{ let x = (Number(process.env.SEMENTE ?? 1) >>> 0) || 1; Math.random = () => { x = (x + 0x6d2b79f5) >>> 0; let t = x; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const { Simulacao, MAPA_CLAREIRA, NPC_VIDA } = await import('../../shared/index.js');
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA), p = s.adicionarJogador('andre', 'Ruiva', 'ruiva', { conta: 7 });
