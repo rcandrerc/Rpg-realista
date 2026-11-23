@@ -66,6 +66,25 @@ s.entrarRecrutas(j);
 ok(s.recrutasNoMundo(j).filter((x) => x.amiga).length === p.cla.m.length, 'voltam quando o líder entra');
 for (let i = 0; i < 200; i++) s.passo(0.05);
 ok(true, 'simulação roda com os recrutas');
+// ao logar, cada um aparece onde a função dele manda (André 2026-11-23: "toda vez que eu logo... ficam do meu lado")
+{
+  const [m1, m2] = p.cla.m;
+  m1.fn = { k: 'recurso', r: 'ferro' }; m2.fn = { k: 'seguir' };
+  const r1 = s.recrutasNoMundo(j).find((x) => x.AMIGA.id === m1.id).amiga;
+  r1.x = j.x + 60; r1.z = j.z + 20; // farmando longe do líder
+  s.sairRecrutas(j);
+  ok(m1.pos && Math.abs(m1.pos.x - (j.x + 60)) < 0.2, 'ao sair, guarda onde cada recruta estava');
+  ok(progressoValido(JSON.parse(JSON.stringify(p))).cla.m[0].pos?.x === m1.pos.x, 'a conta guarda o lugar');
+  s.entrarRecrutas(j);
+  const a1 = s.recrutasNoMundo(j).find((x) => x.AMIGA.id === m1.id).amiga, a2 = s.recrutasNoMundo(j).find((x) => x.AMIGA.id === m2.id).amiga;
+  const d1 = Math.hypot(a1.x - j.x, a1.z - j.z), d2 = Math.hypot(a2.x - j.x, a2.z - j.z);
+  ok(d1 > 40, `Farmar: volta onde estava, longe do líder (${d1.toFixed(1)} m)`);
+  ok(d2 < 4, `Me seguir: nasce do lado do líder (${d2.toFixed(1)} m)`);
+  m1.fn = { k: 'grind' };
+  s.sairRecrutas(j); s.entrarRecrutas(j);
+  const g = s.recrutasNoMundo(j).find((x) => x.AMIGA.id === m1.id), c = g.amiga.ia.av?.c;
+  ok(c && Math.hypot(g.amiga.x - c.x, g.amiga.z - c.z) < 10, `Grind: já nasce no campo de caça (${c?.nome})`);
+}
 
 // ---------- clã bot (fase 2): Gael lidera os Lobos da Geada e contrata sozinho ----------
 {

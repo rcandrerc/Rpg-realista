@@ -14,6 +14,7 @@
 import { CLA, ENCOMENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, vagasClaNpc, almaDe, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS, RACAS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
 import { guardar, guardarQueCabe, xpProximo, contar, tirar, organizar } from './progresso.js';
+import { fundoAgua } from './transporte.js';
 import { crescerPlanta } from './simulacao.js'; // só usadas em tempo de jogo (progresso.js também importa daqui)
 
 // o que dá para mandar farmar (painel "Farmar recurso"): os da encomenda e o couro (caça e tira o couro). André
@@ -45,7 +46,8 @@ export function claValido(c) {
       ap: { cabelo: cor(ap.cabelo), olhos: cor(ap.olhos), pele: cor(ap.pele), roupa: cor(ap.roupa), calca: cor(ap.calca),
         altura: Math.max(CLA.altura[0], Math.min(CLA.altura[1], +ap.altura || 1)), penteado: P[g].includes(ap.penteado) ? ap.penteado : null },
       jeito: CLA.jeitos.includes(m.jeito) ? m.jeito : CLA.jeitos[0], gosto: CLA.gostos.includes(m.gosto) ? m.gosto : 'cacar',
-      nv0: int(m.nv0, 1, 200, 1), nv: int(m.nv, 1, 200, 1), desde: int(m.desde, 0, 9e15, 0), ...(Number.isFinite(+m.dev) && +m.dev > 0 ? { dev: Math.round(+m.dev) } : {}), ...(funcaoValida(m.fn) ? { fn: funcaoValida(m.fn) } : {}) });
+      nv0: int(m.nv0, 1, 200, 1), nv: int(m.nv, 1, 200, 1), desde: int(m.desde, 0, 9e15, 0), ...(Number.isFinite(+m.dev) && +m.dev > 0 ? { dev: Math.round(+m.dev) } : {}), ...(funcaoValida(m.fn) ? { fn: funcaoValida(m.fn) } : {}),
+      ...(m.pos && Number.isFinite(+m.pos.x) && Number.isFinite(+m.pos.z) && Math.abs(+m.pos.x) < 1e5 && Math.abs(+m.pos.z) < 1e5 ? { pos: { x: +m.pos.x, z: +m.pos.z } } : {}) }); // onde estava quando o líder saiu
   }
   for (const L of Array.isArray(c.log) ? c.log.slice(-CLA.log) : []) if (L && typeof L.txt === 'string') out.log.push({ t: int(L.t, 0, 9e15, 0), txt: L.txt.slice(0, 80), v: int(L.v, -1e9, 1e9, 0) });
   // nível do clã (vagas): clã de antes começa no nível que cabe quem ele já tem (nada some)
@@ -516,6 +518,31 @@ export const Cla = {
     }
     this.foraRecrutas(j);
     this.aplicarFuncoes(j); // a função que ficou escolhida no painel
+    for (const x of this.recrutasNoMundo(j)) { const m = c.m.find((o) => o.id === x.AMIGA.id); if (m && x.amiga) this.lugarRecrutaAoEntrar(j, x, m); }
+  },
+  // onde o recruta aparece quando o líder entra (André 2026-11-23: "toda vez que eu logo, todos eles entram, ficam do meu
+  // lado... queria que eles ficassem espalhados aí... continuassem fazendo o que estavam fazendo antes"): no trabalho da
+  // função dele (Grind e couro no campo de caça, Fazenda na base, Farmar onde estava ou na base); só "Me seguir" e
+  // "Proteger você" nascem do lado do líder. Sem lugar conhecido, fica do lado (como antes).
+  lugarRecrutaAoEntrar(j, x, m) {
+    const a = x.amiga, fn = m.fn || { k: 'livre' };
+    if (fn.k === 'seguir' || (fn.k === 'proteger' && fn.p === 'lider') || (a.time && a.time === j.time)) return;
+    let p = null, r = 3;
+    const av = a.ia?.av;
+    if (av?.fase === 'escolher' && (fn.k === 'grind' || fn.k === 'recurso')) { // caçando: o campo dele já escolhido, para nascer lá
+      const cc = x.campoAmiga?.(a); if (cc) Object.assign(av, { fase: 'ir', c: cc, coleta: null, ate: this.tempo + 900 });
+    }
+    const c = av?.c;
+    if (c && Number.isFinite(c.x) && Number.isFinite(c.z)) { p = { x: c.x, z: c.z }; r = Math.min(8, (c.r || 12) * 0.5); } // caçando: já no campo
+    else if (m.pos && Number.isFinite(m.pos.x) && Number.isFinite(m.pos.z) && fn.k !== 'fazenda') p = m.pos; // onde estava quando o líder saiu
+    else { const B = this.baseDe?.(j), D = B && this.basesDesenho?.[B.k]; const q = B && (this.bauBase?.(B) || D?.frente || B); if (q) p = { x: q.x, z: q.z }; }
+    if (!p) return;
+    for (let k = 0; k < 8; k++) {
+      const ang = Math.random() * Math.PI * 2, d = k < 7 ? 1 + Math.random() * r : 0, X = p.x + Math.sin(ang) * d, Z = p.z + Math.cos(ang) * d;
+      if (fundoAgua(X, Z) > 0.05 && k < 7) continue;
+      Object.assign(a, { x: X, z: Z, y: this.terreno.altura(X, Z), chao: true, vx: 0, vz: 0 });
+      return;
+    }
   },
   // o tempo que o líder ficou fora: cada recruta entrega o que a função dele daria (CLA.fora)
   foraRecrutas(j) {
@@ -568,7 +595,10 @@ export const Cla = {
   },
   // o líder saiu: os recrutas dele guardam tudo e saem junto
   sairRecrutas(j) {
-    if (j?.prog?.cla) { j.prog.cla.saiu = Date.now(); j.progSujo = true; } // a conta do tempo fora (foraRecrutas)
+    if (j?.prog?.cla) { // a conta do tempo fora (foraRecrutas) e onde cada recruta estava (lugarRecrutaAoEntrar)
+      j.prog.cla.saiu = Date.now(); j.progSujo = true;
+      for (const x of this.recrutasNoMundo(j)) { const a = x.amiga, m = a && j.prog.cla.m.find((o) => o.id === x.AMIGA.id); if (m && !a.morto) m.pos = { x: Math.round(a.x * 10) / 10, z: Math.round(a.z * 10) / 10 }; }
+    }
     for (const ctx of this.recrutasNoMundo(j)) ctx.amigaSair(j.id, true);
     this.amigosIa = this.amigosIa.filter((x) => !(x.AMIGA.recruta && !x.AMIGA.clanpc && x.AMIGA.lider === j.conta));
   },
