@@ -2,6 +2,8 @@
 // gostos), os dois entram juntos e podem estar no time do André ao mesmo tempo. E "não vamos caçar" não chama ninguém.
 // Uso: node ferramentas/testes/dario.mjs
 import { Simulacao, MAPA_CLAREIRA, AMIGA, DARIO, TIME } from '../../shared/index.js';
+import { loteNaBase } from './_lote-base.mjs';
+import './_amizade-antiga.mjs'; // o time com a Cecília e o Dario é do jeito antigo (antes do soldado de 2026-11-22)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 const d = s.adicionarJogador('andre', 'André', 'ruiva', {});
@@ -10,8 +12,9 @@ ok(cec === s && dario && dario !== s && dario.AMIGA === DARIO, 'dois amigos virt
 for (const x of s.amigosIa) x.amigaEntrar('andre');
 const a = s.amiga, b = dario.amiga;
 ok(a && b && a !== b && a.id === AMIGA.id && b.id === DARIO.id && b.bot, 'os dois entram com o dono');
-const La = cec.loteDaAmiga(), Lb = dario.loteDaAmiga();
-ok(La && Lb && La !== Lb && Lb.dono === DARIO.conta && Lb.def.id === 'tdario', `terrenos separados: ${La.def.id} e ${Lb.def.id}`);
+// André 2026-11-22: as casas ficam nos lotes da base da Guarda da Chama (o Dario, líder, no lote 1)
+const La = loteNaBase(s, cec), Lb = dario.loteDaAmiga(true);
+ok(La && Lb && La !== Lb && Lb.dono === DARIO.conta && Lb.def.id.endsWith('_1') && Lb.def.baseK === La.def.baseK, `lotes separados na base do clã: ${La?.def.id} e ${Lb?.def.id}`);
 ok(Lb.def.x1 <= La.def.x0 || Lb.def.x0 >= La.def.x1 || Lb.def.z1 <= La.def.z0 || Lb.def.z0 >= La.def.z1, 'os terrenos não se sobrepõem');
 ok(b.prog !== a.prog && b.prog.mochila !== a.prog.mochila, 'mochila e ouro de cada um');
 const f = s.foto().jogadores.find((j) => j.id === DARIO.id);
@@ -45,8 +48,8 @@ for (let i = 0; i < 20; i++) s.passo(0.05);
 ok(!b.time && a.time && d.time === a.time, 'Dario saiu do time, Cecília continua');
 // guarda e sai junto com o dono
 for (const x of s.amigosIa) x.guardarAmiga();
-const salvos = s.lotesParaSalvar();
-ok(salvos.find((l) => l.id === 'tdario')?.dados?.amiga?.prog, 'o progresso do Dario vai junto com o terreno dele');
+const salvos = s.npcsParaSalvar(); // o save de todos fica na tabela mundo (André 2026-11-22)
+ok(salvos.find((o) => o.id === DARIO.id)?.dados?.prog && salvos.find((o) => o.id === AMIGA.id)?.dados?.prog !== salvos.find((o) => o.id === DARIO.id)?.dados?.prog, 'o progresso do Dario vai para o save dele, separado da Cecília');
 for (const x of s.amigosIa) x.amigaSair('andre');
 ok(!s.amiga && !dario.amiga && !s.jogadores.has(DARIO.id), 'os dois saem com o dono');
 
