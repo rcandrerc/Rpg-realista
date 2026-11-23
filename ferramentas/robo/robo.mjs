@@ -18,6 +18,7 @@ import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS,
 import { xpProximo, reforcoOk } from '../../shared/progresso.js';
 import { noLago } from '../../shared/relevo.js';
 import { planejarRota } from '../../shared/rota.js';
+import { listaVenda as listaVendaDe, POCOES } from './robo-escolhas.mjs';
 import { liberado, zonaFechadaEm } from '../../shared/historia.js';
 
 // ---------- opções ----------
@@ -288,20 +289,13 @@ function cacar(agora) {
 // etapa pede; vende as peças de equipamento e as pilhas repetidas; se ainda faltar lugar, as pilhas mais baratas.
 let cheioT = 0, vendaAte = 0, vendaT = 0, vendaPausa = 0;
 const tem = (k) => (prog?.mochila || []).some((o) => o && o.k === k);
+// ronda 2026-11-19: poção fica só a pilha maior de cada uma (ferramentas/robo/robo-escolhas.mjs listaVenda)
 function protegido(o) {
   if (!o || o.cad) return true;
-  if (FERRAMENTAS_FAZENDA[o.k] || ITENS[o.k]?.usar?.veiculo || o.k === 'pocao' || o.k === 'pocao_mana') return true;
+  if (FERRAMENTAS_FAZENDA[o.k] || ITENS[o.k]?.usar?.veiculo) return true;
   return !!hi?.k && o.k === hi.k;
 }
-function listaVenda(m) {
-  const vistos = new Set(), l = [];
-  m.forEach((o, i) => { if (protegido(o)) return; if (ehEquip(o.k) || vistos.has(o.k)) l.push(i); else vistos.add(o.k); });
-  if (m.filter((o) => !o).length + l.length < 4) {
-    const resto = m.map((o, i) => [o, i]).filter(([o, i]) => o && !protegido(o) && !l.includes(i)).sort((a, b) => (ITENS[a[0].k]?.venda || 0) - (ITENS[b[0].k]?.venda || 0));
-    for (const [, i] of resto.slice(0, 6)) l.push(i);
-  }
-  return l;
-}
+const listaVenda = (m) => listaVendaDe(m, protegido);
 function vendedorPerto() {
   let b = null, md = Infinity;
   for (const n of MAPA_CLAREIRA.npcs) {
@@ -374,7 +368,8 @@ function leilao(agora) {
   if (meu) { acao('leilao', { acao: 'cancelar', id: meu.id }); return; }
   if (hi.de === 'anunciar') {
     const m = prog.mochila || [];
-    let i = m.findIndex((o) => o && !protegido(o) && !ehEquip(o.k)); if (i < 0) i = m.findIndex((o) => o && !protegido(o));
+    const anuncia = (o) => o && !protegido(o) && !POCOES.includes(o.k); // poção não vai ao leilão (como antes)
+    let i = m.findIndex((o) => anuncia(o) && !ehEquip(o.k)); if (i < 0) i = m.findIndex(anuncia);
     if (i < 0) return pular('nada na mochila para anunciar no leilão');
     acao('leilao', { acao: 'anunciar', i, preco: LEILAO.precoMax, horas: LEILAO.horas[0] }); return;
   }
