@@ -104,6 +104,7 @@ const LIVRE_PITCH := 0.82
 const LIVRE_DIST := 10.5
 const LIVRE_LONGE := 18.0 # m: o mais longe que a pinça chega no modo livre
 var foco_livre = null # Vector3 ou null
+var espiar = null # Node3D do recruta que o painel do clã mandou ver (espiar.gd), ou null
 var _antes_livre := {}
 
 func entrar_livre(p: Vector3) -> void:
@@ -244,6 +245,8 @@ func atualizar(dt: float, giro: Vector2) -> void:
 	var quer: Vector3 = m.heroi.position + Vector3(0, 1.35 + MONTADO_SOBE * _montado_k, 0) + Vector3(mov.vx, 0, mov.vz) * ANTECIPA
 	if foco_livre != null:
 		quer = foco_livre + Vector3(0, 0.4, 0)
+	elif espiar is Node3D and is_instance_valid(espiar): # "Ver" o recruta (espiar.gd): só olha, o herói fica onde está
+		quer = espiar.position + Vector3(0, 1.35, 0)
 	# em passos de no máximo 1/60 s: num quadro lento (engasgo do celular) a mola dura não explode e joga a câmera
 	# para dentro do chão ou da pedra
 	var resta := dt

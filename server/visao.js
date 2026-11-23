@@ -105,7 +105,8 @@ export class Visao {
     const eu = ctx.pos.get(id);
     let viu = this.vendo.get(id);
     if (!viu) this.vendo.set(id, (viu = new Map()));
-    const px = eu ? eu.x : 0, pz = eu ? eu.z : 0;
+    const esp = eu?.espia ? ctx.pos.get(eu.espia) : null; // "Ver" o recruta: em volta dele (shared/cla.js espiar)
+    const px = esp ? esp.x : eu ? eu.x : 0, pz = esp ? esp.z : eu ? eu.z : 0;
     const meia = VISAO.meiaVelocidade ** 2 / (ctx.total > VISAO.maxJogadores * 2 ? 4 : 1), // muita gente: meia velocidade já a partir de 20 m
       impar = this.passos & 1;
     const dentro = (o, entra, sai) => { // distância² se está no raio (quem já via usa o raio de sair), senão -1

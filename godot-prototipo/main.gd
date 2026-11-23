@@ -181,6 +181,7 @@ var nevoa # nevoa.gd: zonas que a missão principal ainda não abriu (parede de 
 var menu_topo # menu_topo.gd: Conta, Multijogador e Configurações no canto de cima, recolhe na seta (como o Quimera)
 var rota # rota.gd: "Ir para" do mapa, o herói vai sozinho pela estrada (o joystick cancela)
 var seguir # seguir.gd: o herói vai atrás da Cecília (botão Seguir no cartão dela)
+var espiar # espiar.gd: a câmera segue um recruta do clã (só olha)
 var minimapa # minimapa.gd: minimapa no canto de cima à direita; tocar abre o mapa completo
 var voz # voz.gd: comando de voz no celular (Configurações > Comando de voz; André 2026-11-14)
 var construcao # construcao.gd: Vila dos Lotes (comprar lote, modo construção e horta, como no Quimera)
@@ -508,6 +509,8 @@ func _ready() -> void:
 	minimapa = Minimapa.new(self)
 	add_child(minimapa)
 	hud.minimapa = minimapa
+	espiar = load("res://espiar.gd").new(self) # "Ver" o recruta do painel do clã (André 2026-11-23)
+	add_child(espiar)
 	voz = load("res://voz.gd").new(self) # só faz algo no Android com o plugin VozJogo; começa desligado
 	add_child(voz)
 	volta = VoltaVila.new(self)

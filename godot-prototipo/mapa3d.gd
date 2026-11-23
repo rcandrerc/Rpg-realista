@@ -1426,6 +1426,8 @@ func _arrumar_lista(tm: bool) -> void:
 
 # nome do lugar marcado para o "Ir para": o da lista ou a clareira embaixo do pino
 func _nome_marcado() -> String:
+	if mm.nome_extra != "" and mm.marcado != null and mm.marcado == mm.nome_extra_p: # recruta do clã ("Ver no mapa")
+		return mm.nome_extra
 	if mm.selecionado != "":
 		for l in mm._lugares():
 			if str(l.id) == mm.selecionado:
