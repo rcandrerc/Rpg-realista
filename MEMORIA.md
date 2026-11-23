@@ -11,8 +11,7 @@ Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 ## Foco único até 30/11: desempenho e gráfico
 1. Medir. 2. Personagens leves (23/11: máx. 2 NPCs aparecem/somem por quadro; instanciar corpo em linha de fundo deu erro de RID, não usar). 3. Mundo leve, sem travadas (OOM no S9). 4. Visual com fotos antes/depois, só com OK.
 
-## Abortado (não retomar sem pedido)
-Cecília/Dário, segurança, história/missões, economia/lojas.
+## Abortado (não retomar sem pedido): Cecília/Dário, segurança, história/missões, economia/lojas.
 
 ## Rotinas
 - Robô de testes: ronda diária às 9h, um relatório entre 9h e 10h, correção automática com cuidado. Não reduzir bots/recrutas (André quer 50-60 bots para medir o servidor).
