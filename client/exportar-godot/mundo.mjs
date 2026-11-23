@@ -7,7 +7,7 @@ import { GRADES } from '../../shared/rochas.js';
 import { historiaParaApp } from '../../shared/historia.js';
 import { LAGOS, AGUA, BEIRA, GRADE_MONTANHA, INGREME, beiraDosLagos, gradeDoMundo } from '../../shared/relevo.js';
 import { CAVERNA, TUNEL } from '../../shared/caverna.js';
-import { TUNEIS_MUNDO, VILAS_MUNDO, cargoNpc, iconeNpc, TITULOS, tituloAtivo, RACAS } from '../../shared/dados.js';
+import { DROPS, TUNEIS_MUNDO, VILAS_MUNDO, cargoNpc, iconeNpc, TITULOS, tituloAtivo, RACAS } from '../../shared/dados.js';
 import { CALCADA } from '../../shared/vilas.js';
 import zlib from 'node:zlib';
 import { gerarLonge, copasDeFora, LONGE } from './longe.mjs';
@@ -193,6 +193,8 @@ const habs = {
   // reforço de equipamento (igual ao Quimera, André 2026-11-07)
   reforco: REFORCO,
   catalisador: CATALISADOR, // destruir peça e evoluir raridade (André 2026-11-07)
+  // o que cada monstro solta de material (mapa, aba Recursos: "ir ao monstro mais perto que solta couro/carne", André 2026-11-23)
+  dropsMat: Object.fromEntries(Object.entries(DROPS).map(([t, d]) => [t, Object.keys(d.mat || {})])),
   pesca: PESCA, // pescaria igual à do Quimera (André 2026-11-08): águas, peixes, tempos da boia e da briga
   packs: PACKS, packRegras: PACK_REGRAS, veiculos: VEICULOS, // FASE 1: packs e transportes do Quimera (transporte.gd)
   historia: historiaParaApp(), // progressão (André 2026-11-10): zonas da névoa, missões principais e níveis (nevoa.gd)

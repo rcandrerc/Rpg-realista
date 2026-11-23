@@ -4325,6 +4325,45 @@
    ]
   }
  },
+ "dropsMat": {
+  "puglin": [
+   "couro",
+   "fragmento",
+   "carne"
+  ],
+  "lobo": [
+   "couro",
+   "fragmento",
+   "carne"
+  ],
+  "imp": [
+   "tecido",
+   "fragmento"
+  ],
+  "sombrio": [],
+  "lider": [],
+  "chefe": [
+   "couro",
+   "tecido",
+   "cristal",
+   "fragmento"
+  ],
+  "golem": [
+   "cristal",
+   "fragmento"
+  ],
+  "maw": [
+   "couro",
+   "fragmento",
+   "carne"
+  ],
+  "warrok": [
+   "couro",
+   "tecido",
+   "cristal",
+   "fragmento"
+  ]
+ },
  "pesca": {
   "tier": {
    "lambari": 0,

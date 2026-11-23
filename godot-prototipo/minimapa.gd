@@ -688,8 +688,9 @@ func _lugares() -> Array:
 	return _cache_lugares
 
 const NOME_MINERIO := {"pedra": "Veio de pedra", "cobre": "Veio de cobre", "ferro": "Veio de ferro", "cristal": "Veio de cristal"}
+const NOME_DROP := {"couro": "Couro (monstros)", "carne": "Carne crua (monstros)", "tecido": "Tecido (monstros)", "cristal": "Cristal (monstros)"}
 const NOME_COLETA := {"arvore": "Árvore (madeira)", "galho": "Galho no chão", "pedrinha": "Pedra solta"}
-const SECAO_DO_TIPO := {"coleta": "recursos", "casa": "vilas", "vila": "vilas", "totem": "totens", "caverna": "dungeon", "lago": "pesca", "mina": "recursos",
+const SECAO_DO_TIPO := {"coleta": "recursos", "casa": "vilas", "vila": "vilas", "totem": "totens", "caverna": "dungeon", "lago": "pesca", "mina": "recursos", "drop": "recursos", "peixe": "pesca",
 	"oficina": "oficinas", "npc": "npcs", "mercador": "mercadores"}
 
 func _montar_lugares() -> Array:
@@ -821,6 +822,64 @@ func _lugares_base() -> Array:
 				var o: Dictionary = mais[tc][1]
 				l.append({"id": "coleta_%s" % tc, "tipo": "coleta", "coleta": tc, "mais_perto": true, "nome": NOME_COLETA[tc], "curto": NOME_COLETA[tc],
 					"x": float(o.pos.x), "z": float(o.pos.z), "r": maxf(float(o.r), 0.5) + 1.2})
+	# Drops de monstro (André 2026-11-23: "couro, carne, o que tiver de drop; clica e leva ao monstro mais perto"): uma linha
+	# por material, que leva ao campo de caça mais perto que tem monstro soltando aquele material. O drop não muda com o
+	# nível do herói (só o XP muda; ver soltarDrops em shared/simulacao.js), então vale o mais perto. Bosses e cavernas ficam de fora.
+	var dm: Dictionary = m.P.dados.get("dropsMat", {}) if m.P != null else {}
+	for k in NOME_DROP:
+		var melhor = null
+		var dmin := 1e18
+		for cc in m.mundo.get("caca", []):
+			if cc.has("boss") or cc.has("tunel"):
+				continue
+			var solta := false
+			for tp in cc.get("tipos", [cc.get("bicho", "")]):
+				if dm.get(str(tp), []).has(k):
+					solta = true
+					break
+			if not solta:
+				continue
+			var dc := Vector2(float(cc.x) - hp.x, float(cc.z) - hp.z).length()
+			if dc < dmin:
+				dmin = dc
+				melhor = cc
+		if melhor != null:
+			l.append({"id": "drop_%s" % k, "tipo": "drop", "drop": k, "mais_perto": true, "nome": NOME_DROP[k], "curto": "%s (%s Nv %d)" % [NOME_DROP[k], NOME_BICHO.get(str(melhor.get("bicho", "")), "Monstros"), int(melhor.get("nivel", 1))],
+				"x": float(melhor.x), "z": float(melhor.z), "r": float(melhor.get("r", 12.0)) + 2.0})
+	# Peixes (André 2026-11-23: "tipos de peixe mais próximo"): onde cada um sai. Água doce -> a margem do lago de pescaria
+	# mais perto; mar -> o cais mais perto (de barco, com o Radar). O ponto exato do spot é sorteado, então leva à água certa.
+	var pc: Dictionary = m.P.dados.get("pesca", {}) if m.P != null else {}
+	var onde := {} # peixe -> "doce" ou "mar" (o primeiro que o tem em spots comum, raro, épico)
+	for sp in pc.get("spots", {}).values():
+		for agua in ["doce", "mar"]:
+			for pr in sp.get("peixes", {}).get(agua, []):
+				if not onde.has(str(pr[0])):
+					onde[str(pr[0])] = agua
+	var margens: Array = []
+	for lg in m.mundo.get("lagos", []):
+		if lg.get("pesca", false):
+			var mg: Array = lg.get("chegada", [lg.x, lg.z])
+			margens.append({"nome": str(lg.nome), "x": float(mg[0]), "z": float(mg[1])})
+	var cais: Array = []
+	for cs_ in m.mundo.get("cais", []):
+		cais.append({"nome": str(cs_.get("nome", "Cais")), "x": float(cs_.x), "z": float(cs_.z)})
+	for pk in ["lambari", "tilapia", "traira", "sardinha", "robalo", "garoupa", "atum", "dourado"]:
+		if not onde.has(pk):
+			continue
+		var cand: Array = margens if onde[pk] == "doce" else cais
+		var alvo = null
+		var da := 1e18
+		for a in cand:
+			var dd := Vector2(a.x - hp.x, a.z - hp.z).length()
+			if dd < da:
+				da = dd
+				alvo = a
+		if alvo == null:
+			continue
+		var nm_p: String = str(m.P.dados.get("itens", {}).get(pk, {}).get("nome", pk.capitalize()))
+		var tier: int = int(pc.get("tier", {}).get(pk, 0))
+		l.append({"id": "peixe_%s" % pk, "tipo": "peixe", "peixe": pk, "mais_perto": true, "nome": "%s%s" % [nm_p, "  (mar, de barco)" if onde[pk] == "mar" else ""],
+			"curto": "%s (%s)" % [nm_p, alvo.nome], "x": alvo.x, "z": alvo.z, "r": 4.0, "tier": tier})
 	return l
 
 # encostou num totem de teleporte (conversa.gd): o mapa abre mostrando todos os totens
@@ -1732,6 +1791,23 @@ func _linha_lugar(c: Control, l: Dictionary, x0: float, y: float, larg: float, t
 					_:
 						c.draw_circle(qi + Vector2(0, 1), 5.5, Color("a39d92"))
 						c.draw_circle(qi + Vector2(-1.5, -0.5), 2.0, Color("c9c3b8"))
+			"drop": # material de monstro: couro marrom, carne vermelha, tecido claro, cristal azul
+				match str(l.drop):
+					"couro":
+						c.draw_rect(Rect2(qi + Vector2(-6, -5), Vector2(12, 10)), Color("9a6a3a"))
+						c.draw_line(qi + Vector2(-6, 0), qi + Vector2(6, 0), Color("6e4520"), 1.5)
+					"carne":
+						c.draw_circle(qi + Vector2(0, 1), 6.0, Color("c8443c"))
+						c.draw_circle(qi + Vector2(-1.5, -0.5), 2.2, Color("f0a09a"))
+					"tecido":
+						c.draw_rect(Rect2(qi + Vector2(-6, -5), Vector2(12, 10)), Color("d9d2e6"))
+						c.draw_line(qi + Vector2(-6, -1), qi + Vector2(6, -1), Color("9a8fb8"), 1.5)
+					_:
+						c.draw_colored_polygon(PackedVector2Array([qi + Vector2(0, -8), qi + Vector2(6, 0), qi + Vector2(0, 8), qi + Vector2(-6, 0)]), Color("6fd3e8"))
+			"peixe": # peixinho claro (cor pelo tier)
+				var fc := Color("7fd0ff") if int(l.get("tier", 0)) < 2 else (Color("5f8cff") if int(l.get("tier", 0)) < 4 else Color("c070ff"))
+				c.draw_colored_polygon(PackedVector2Array([qi + Vector2(-7, 0), qi + Vector2(-2, -4), qi + Vector2(3, 0), qi + Vector2(-2, 4)]), fc)
+				c.draw_colored_polygon(PackedVector2Array([qi + Vector2(2, 0), qi + Vector2(7, -4), qi + Vector2(7, 4)]), fc)
 			"casa": # o meu terreno: casinha de telhado vermelho
 				_marca_casa(c, qi + Vector2(0, 1), 6.5)
 			"totem":
