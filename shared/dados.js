@@ -790,26 +790,12 @@ export const LOTES_ANTIGOS = {
 // alcance: até quantos metros fora do terreno o herói pode estar para construir (a câmera flutua, como no Quimera)
 // pecasPorBloco: peças que cabem (mínimo pecasMin, máximo maxPecas) · estacaoDist: perto da estação para criar
 // preco e placaDist eram do lote pronto de 10 x 10 (sem uso desde 2026-11-04, ficam por causa da regra "Nada some")
-// 2026-11-05 (André): vender de volta para o jogo por menos (venda = fração do preço por bloco: "comprar um pouco mais
-// caro, vender um pouco mais barato, para a pessoa perder dinheiro"), mudar o tamanho (aumentar paga os blocos novos;
-// diminuir devolve a mesma fração), taxa semanal que chega no correio (taxaBloco de ouro por bloco a cada taxaDias dias;
-// com taxaTrava contas sem pagar, não constrói nem planta) e a regra para não ficar bagunçado: entre dois terrenos ou
-// encosta ou deixa pelo menos 'fresta' m (um caminho); ao marcar, a borda gruda (ímã) na estrada e no vizinho a até 'ima' m.
+// Regra para não ficar bagunçado: entre dois terrenos ou encosta ou deixa pelo menos 'fresta' m (um caminho); ao marcar,
+// a borda gruda (ímã) na estrada e no vizinho a até 'ima' m. Vender, mudar o tamanho e a conta do correio saíram com as
+// bases do clã (André 2026-11-23: "apaga os dois aí... quero deixar tudo limpinho"): a taxa agora é a do clã, pelo cofre.
 export const LOTE = { preco: 400, placaDist: 3, precoBloco: 4, ladoMin: 6, ladoMax: 20, areaMax: 300, folgaRua: 0.6, folgaBorda: 1.5,
   alcance: 6, pecasPorBloco: 0.4, pecasMin: 12, maxPecas: 120, estacaoDist: 3,
-  venda: 0.5, taxaBloco: 14, taxaCurva: 0.5, taxaPeca: 0, taxaDias: 7, taxaTrava: 2, fresta: 3, ima: 1.5 };
-// taxa (André 2026-11-17: "aluguel deve subir e escalável, lote pequeno tanto, maior mais caro"): era 1 por bloco por semana.
-// Agora taxaBloco x blocos x (blocos / 36)^taxaCurva por semana: 6x6 = 504, 10x10 = 2.333, 15x15 = 7.875, 300 blocos = 12.124,
-// mais taxaPeca por peça construída no terreno (André 2026-11-17 perguntou; escolheu "só pelo tamanho": fica 0).
-export const taxaSemanaTerreno = (blocos) => Math.round(blocos * LOTE.taxaBloco * Math.pow(Math.max(1, blocos) / 36, LOTE.taxaCurva || 0));
-export const vendaTerreno = (w, d) => Math.floor(Math.max(0, Math.round(w) * Math.round(d)) * LOTE.precoBloco * LOTE.venda);
-// conta do correio: semanas fechadas desde 'taxa' (ms do começo da conta em aberto), valor e quando chega a próxima
-export function contaTerreno(def, taxa, agora, pecas = 0) {
-  const sem = LOTE.taxaDias * 86400000, ini = Number(taxa) || agora, n = Math.max(0, Math.floor((agora - ini) / sem));
-  const blocos = Math.round(def.x1 - def.x0) * Math.round(def.z1 - def.z0);
-  const terreno = taxaSemanaTerreno(blocos), nP = Math.max(0, pecas | 0), porPecas = nP * (LOTE.taxaPeca || 0), porSemana = terreno + porPecas;
-  return { semanas: n, valor: n * porSemana, porSemana, blocos, terreno, pecas: nP, porPecas, proxima: ini + (n + 1) * sem };
-}
+  fresta: 3, ima: 1.5 };
 export const precoTerreno = (w, d) => Math.max(0, Math.round(w) * Math.round(d)) * LOTE.precoBloco;
 export const maxPecasTerreno = (w, d) => Math.max(LOTE.pecasMin, Math.min(LOTE.maxPecas, Math.round(w * d * LOTE.pecasPorBloco)));
 // Peças que se constroem no lote (aba Construir do modo construção, como no Quimera). w x d = tamanho no chão (m)

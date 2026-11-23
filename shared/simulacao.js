@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos } from './progresso.js';
-import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, vendaTerreno, contaTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado } from './dados.js';
+import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
 import { Transporte, carrinhoNovo, topoCarrinho, lugarDoVeiculo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
@@ -3080,7 +3080,7 @@ export class Simulacao {
     for (const t of Object.values(L.horta)) crescerPlanta(t, agora);
     const { x0, z0, x1, z1 } = L.def;
     return { lote: L.def.id, ret: [x0, z0, x1, z1], dono: L.dono ? L.nomeDono : null, pecas: L.pecas.map((p) => [p.id, p.k, p.x, p.z, p.r]),
-      horta: Object.entries(L.horta).map(([c, t]) => t.mf ? [c, t.c, r2(t.g), t.w, t.u, t.mi, t.mf] : [c, t.c, r2(t.g), t.w, t.u]), agora, taxa: L.taxa || null, ...(L.def.baseK ? { semTaxa: 1 } : {}), // lote da base: sem correio nem conta
+      horta: Object.entries(L.horta).map(([c, t]) => t.mf ? [c, t.c, r2(t.g), t.w, t.u, t.mi, t.mf] : [c, t.c, r2(t.g), t.w, t.u]), agora,
       ...(this.areaBase?.(L) ? { area: this.areaBaseApp(L) } : {}) };
   }
   avisarLote(L) {
@@ -3120,10 +3120,7 @@ export class Simulacao {
       // fornalhas (2026-11-07): o que está dentro de cada uma, pelo id da peça
       L.fornos = {};
       for (const [pid, f] of Object.entries(d.fornos && typeof d.fornos === 'object' ? d.fornos : {})) L.fornos[String(pid)] = fornoValido(f);
-      // taxa semanal (2026-11-05): terreno de antes começa a contar agora (ninguém recebe conta atrasada)
       if (d.amiga && typeof d.amiga === 'object') L.amiga = d.amiga; // Cecília: o progresso dela vai junto com o terreno
-      if (L.def.baseK) L.taxa = null; // lote da base: sem aluguel (a taxa é do clã)
-      else if (Number(d.taxa) > 0) L.taxa = Number(d.taxa); else if (!L.taxa) { L.taxa = Date.now(); this.lotesMudados.add(L.def.id); }
     }
     this.refazerSolidosLotes();
   }
@@ -3138,7 +3135,7 @@ export class Simulacao {
     const l = [...this.lotesMudados].filter((id) => this.lotes.has(id)).map((id) => {
       const L = this.lotes.get(id);
       const { x0, z0, x1, z1 } = L.def;
-      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox, bau: L.bau || null, bauNv: L.bauNv || 0, ...(L.bauCla ? { bauCla: L.bauCla } : {}), fornos: L.fornos || {}, taxa: L.taxa || null, ...(L.amiga ? { amiga: L.amiga } : {}), ...(L.def.baseK ? { base: L.def.baseK } : {}) } };
+      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox, bau: L.bau || null, bauNv: L.bauNv || 0, ...(L.bauCla ? { bauCla: L.bauCla } : {}), fornos: L.fornos || {}, ...(L.amiga ? { amiga: L.amiga } : {}), ...(L.def.baseK ? { base: L.def.baseK } : {}) } };
     });
     // terrenos vendidos de volta para o jogo: a linha fica sem dono (o chão volta a ser livre)
     for (const id of this.lotesSoltos) l.push({ id, dono: null, nome: '', dados: {} });
@@ -3178,7 +3175,7 @@ export class Simulacao {
     const lid = 't' + String(j.conta).replace(/[^\w]/g, '').slice(0, 14);
     if (this.aoComprarLote && !this.aoComprarLote(lid, j.conta, j.nome, R)) return aviso('Esse pedaço acabou de ser vendido em outra sala');
     j.prog.ouro -= preco; this.caixa(j, 'terreno', -preco);
-    const L = { def: { id: lid, nome: 'Terreno', ...R }, dono: j.conta, nomeDono: j.nome, pecas: [], horta: {}, prox: 1, taxa: Date.now() };
+    const L = { def: { id: lid, nome: 'Terreno', ...R }, dono: j.conta, nomeDono: j.nome, pecas: [], horta: {}, prox: 1 };
     this.lotesSoltos.delete(lid);
     this.lotes.set(lid, L);
     aviso(`Terreno de ${w} x ${d} m comprado por ${preco} de ouro! Toque no martelo para construir e plantar`);
@@ -3187,89 +3184,10 @@ export class Simulacao {
     this.avisarLote(L);
     this.avisarProg(j);
   }
-  // ---------- vender, mudar o tamanho e a taxa do correio (André 2026-11-05) ----------
-  // conta do correio atrasada: com LOTE.taxaTrava contas sem pagar não dá para construir nem plantar (colher e regar dá)
+  // lote da base com a taxa do clã atrasada: não constrói nem planta (colher e regar dá). Terreno fora da base não cobra
+  // (a conta do correio saiu com as bases do clã, André 2026-11-23)
   loteTravado(L, aviso) {
-    if (L.def.baseK) return this.loteBaseTravado(L, aviso); // lote da base: a taxa do clã (shared/base.js)
-    const c = contaTerreno(L.def, L.taxa, Date.now(), L.pecas?.length);
-    if (c.semanas < LOTE.taxaTrava) return false;
-    aviso(`Conta do terreno atrasada (${c.valor} de ouro): pague no correio para construir e plantar`);
-    return true;
-  }
-  // vende o terreno de volta para o jogo por LOTE.venda do preço. As peças voltam para a mochila; a horta precisa estar
-  // colhida e o baú vazio. A conta do correio em aberto sai do valor.
-  venderLote(id) {
-    const j = this.jogadores.get(id); if (!j || j.criando || j.morto) return;
-    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
-    const L = this.loteDe(j); if (!L) return aviso('Você não tem terreno');
-    if (L.def.baseK) return aviso('O lote da base é do clã: não se vende');
-    if (distRet(L.def, j.x, j.z) > LOTE.alcance + 0.5) return aviso('Chegue perto do seu terreno');
-    if (Object.values(L.horta).some((t) => t.c)) return aviso('Colha ou desfaça as plantas antes de vender');
-    if ((L.bau || []).some(Boolean)) return aviso('Esvazie o baú antes de vender');
-    if (Object.values(L.fornos || {}).some(fornoTemCoisa)) return aviso('Esvazie a fornalha e o fogão antes de vender');
-    const prova = j.prog.mochila.map((o) => (o ? { ...o } : null));
-    for (const p of L.pecas) if (!guardar(prova, { k: 'obra_' + p.k, n: 1 })) return aviso('Mochila cheia: as peças do terreno não cabem');
-    const w = L.def.x1 - L.def.x0, d = L.def.z1 - L.def.z0, c = contaTerreno(L.def, L.taxa, Date.now(), L.pecas?.length);
-    // a conta em aberto sai do valor da venda; se for maior que ele, o resto sai do ouro (André 2026-11-18: vender e
-    // comprar de novo não zera mais a dívida). Sem ouro para o resto, não vende.
-    const valor = vendaTerreno(w, d) - c.valor;
-    if (valor < 0 && j.prog.ouro < -valor) return aviso(`A conta do terreno (${c.valor} de ouro) passa do valor da venda: faltam ${-valor - j.prog.ouro} de ouro`);
-    if (this.aoVenderLote) this.aoVenderLote(L.def.id);
-    j.prog.mochila = prova;
-    j.prog.ouro += valor; this.caixa(j, 'terrenoVenda', valor);
-    this.lotes.delete(L.def.id);
-    this.lotesMudados.delete(L.def.id);
-    this.lotesSoltos.add(L.def.id);
-    this.refazerSolidosLotes();
-    aviso((valor >= 0 ? `Terreno vendido por ${valor} de ouro` : `Terreno vendido. A conta passou do valor: pagou ${-valor} de ouro`)
-      + (c.valor && valor >= 0 ? ` (a conta de ${c.valor} saiu do valor)` : '') + (L.pecas.length ? '. As peças voltaram para a mochila' : ''));
-    this.evento({ t: 'lote', lote: L.def.id, dono: null });
-    this.evento({ t: 'meuLote', para: id, lote: '' });
-    this.avisarProg(j);
-  }
-  // m = { x0, z0, x1, z1 }: o mesmo terreno com outro tamanho (ou em outro lugar perto, desde que as peças e a horta
-  // fiquem dentro). Aumentar paga os blocos novos; diminuir devolve LOTE.venda do preço dos blocos que saem.
-  mudarLote(id, m) {
-    const j = this.jogadores.get(id); if (!j || j.criando || j.morto || !m) return;
-    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
-    const L = this.loteDe(j); if (!L) return aviso('Você não tem terreno');
-    if (L.def.baseK) return aviso('O lote da base tem tamanho fixo');
-    const R = retTerreno(m); if (!R) return;
-    if (distRet(L.def, j.x, j.z) > LOTE.alcance + 0.5) return aviso('Chegue perto do seu terreno');
-    const conta = contaTerreno(L.def, L.taxa, Date.now(), L.pecas?.length);
-    if (conta.semanas > 0) return aviso(`Pague a conta do correio (${conta.valor} de ouro) antes de mudar o terreno`);
-    const motivo = motivoTerreno(R, [...this.lotes.values()].filter((o) => o.dono && o !== L).map((o) => o.def)); if (motivo) return aviso(motivo);
-    if (L.pecas.some((p) => foraDoLote(retPeca(p), R))) return aviso('Tem peça fora do terreno novo: desmonte ou marque maior');
-    if (Object.keys(L.horta).some((c) => { const [i, k] = c.split(',').map(Number); return foraDoLote([i, k, i + 1, k + 1], R); })) return aviso('Tem horta fora do terreno novo: desfaça a terra ou marque maior');
-    const maxP = maxPecasTerreno(R.x1 - R.x0, R.z1 - R.z0);
-    if (L.pecas.length > maxP) return aviso(`O terreno novo só comporta ${maxP} peças (você tem ${L.pecas.length})`);
-    const antes = (L.def.x1 - L.def.x0) * (L.def.z1 - L.def.z0), depois = (R.x1 - R.x0) * (R.z1 - R.z0);
-    const custo = depois > antes ? (depois - antes) * LOTE.precoBloco : -Math.floor((antes - depois) * LOTE.precoBloco * LOTE.venda);
-    if (custo > j.prog.ouro) return aviso(`Faltam ${custo - j.prog.ouro} de ouro (os blocos novos custam ${custo})`);
-    if (this.aoMudarLote && !this.aoMudarLote(L.def.id, j.conta, R)) return aviso('Esse pedaço acabou de ser vendido em outra sala');
-    j.prog.ouro -= custo; this.caixa(j, 'terreno', -custo);
-    Object.assign(L.def, R);
-    this.refazerSolidosLotes();
-    aviso(`Terreno agora com ${R.x1 - R.x0} x ${R.z1 - R.z0} m` + (custo > 0 ? ` (pagou ${custo} de ouro)` : custo < 0 ? ` (recebeu ${-custo} de ouro)` : ''));
-    this.evento({ t: 'meuLote', para: id, lote: L.def.id, mudou: true });
-    this.avisarLote(L);
-    this.avisarProg(j);
-  }
-  // paga as contas do correio que chegaram (todas de uma vez)
-  pagarTaxa(id) {
-    const j = this.jogadores.get(id); if (!j || j.criando || j.morto) return;
-    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
-    const L = this.loteDe(j); if (!L) return;
-    if (L.def.baseK) return aviso('O lote da base não tem aluguel: a taxa do clã sai do cofre');
-    if (distRet(L.def, j.x, j.z) > LOTE.alcance + 0.5) return aviso('Chegue perto do seu correio');
-    const c = contaTerreno(L.def, L.taxa, Date.now(), L.pecas?.length);
-    if (c.valor <= 0) return aviso('Nenhuma conta para pagar');
-    if (j.prog.ouro < c.valor) return aviso(`Faltam ${c.valor - j.prog.ouro} de ouro para pagar a conta (${c.valor})`);
-    j.prog.ouro -= c.valor; this.caixa(j, 'taxaTerreno', -c.valor);
-    L.taxa = (Number(L.taxa) || Date.now()) + c.semanas * LOTE.taxaDias * 86400000;
-    aviso(`Conta do terreno paga: ${c.valor} de ouro`);
-    this.avisarLote(L);
-    this.avisarProg(j);
+    return L.def.baseK ? this.loteBaseTravado(L, aviso) : false;
   }
   // quem tem dono em memória mas não no banco (vendeu em outra sala) some daqui; o terreno certo vem do banco
   esquecerLotesDe(conta, menos) {

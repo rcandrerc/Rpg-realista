@@ -3273,12 +3273,6 @@
   "pecasMin": 12,
   "maxPecas": 120,
   "estacaoDist": 3,
-  "venda": 0.5,
-  "taxaBloco": 14,
-  "taxaCurva": 0.5,
-  "taxaPeca": 0,
-  "taxaDias": 7,
-  "taxaTrava": 2,
   "fresta": 3,
   "ima": 1.5
  },

@@ -51,10 +51,7 @@ var vilas: Array # FASE 3: mundo.vilasTerreno (Terras da Estrada, Porto de Vael 
 
 # modo construção
 var ativo := false
-# aba Terreno (mudar o tamanho, vender, taxa por semana): escondida desde as bases do clã (André 2026-11-23: "esse menu
-# não tem mais funcionalidade"); o código fica guardado, true traz a aba de volta
-const ABA_TERRENO := false
-var aba := "casa" # "casa", "moveis", "fazenda" ou "terreno" (as duas primeiras são de construir; terreno = mudar e vender)
+var aba := "casa" # "casa", "moveis" ou "fazenda" (as duas primeiras são de construir)
 var sel := "fundacao" # peça (CONSTRUCOES), "desmontar" ou ação da fazenda ("arar", "plantar", "regar", "colher", "tirar")
 var semente := "rabanete"
 var arvore := "" # muda de árvore escolhida na barra da Fazenda (André 2026-11-16: "padronizar")
@@ -90,10 +87,6 @@ var _ret_txt: Label3D # "8 x 6 m · 192 de ouro" em cima do terreno marcado
 var _alt := {} # Vector2i -> altura do chão + 5 cm (pintura no chão; zera ao abrir a tela)
 var _chave_compra := ""
 var _alcas: Array = [] # [{no, tipo: "canto"/"mais"/"menos", lado}]
-var _mudar_ini := {} # o tamanho de quando abriu a tela de mudar (botão Marcar de novo / Desfazer)
-var mudando := false # a mesma tela da compra, para mudar o tamanho do meu terreno (arrasta um canto)
-var _correios := {} # id do terreno -> Node3D da caixa de correio (com a bandeirinha)
-var _avisou_conta := false
 
 # tela
 var tela: CanvasLayer
@@ -199,10 +192,8 @@ func _ready() -> void:
 	m.hud._botao("encher", Vector2(509, 250), 30, "cs_regar", m.hud.COR_TROCA) # perto do poço da vila ou na beira do lago: encher o regador
 	m.hud._botao("cama", Vector2(423, 250), 30, "cs_cama", m.hud.COR_TROCA) # à noite, perto da minha cama: dormir (Quimera)
 	m.hud.botoes[-1].oculto = true
-	m.hud._botao("correio", Vector2(333, 160), 30, "correio", m.hud.COR_TROCA) # perto da minha caixa de correio: a conta do terreno
-	m.hud.botoes[-1].oculto = true
 	# recolher/expandir as estações (André 2026-11-07: entrando rápido na casa ele esbarrava nos botões): um botão só,
-	# no alto da coluna, que esconde ou mostra bancada, baú, fornalha, cama e correio. Começa recolhido e lembra a escolha
+	# no alto da coluna, que esconde ou mostra bancada, baú, fornalha e cama. Começa recolhido e lembra a escolha
 	m.hud._botao("estacoes", Vector2(423, 340), 26, "lote", m.hud.COR_FUNDO)
 	m.hud.botoes[-1].oculto = true
 	_carregar_recolhidas()
@@ -706,7 +697,6 @@ func _lote_fora(id: String) -> void:
 		return
 	L.raiz.queue_free()
 	lotes.erase(id)
-	_correios.erase(id)
 	_refazer_solidos()
 	_refazer_pisos()
 	_achar_portas()
@@ -765,7 +755,6 @@ func do_servidor_lote(ev: Dictionary) -> void:
 		L.def.x0 = r4[0]; L.def.z0 = r4[1]; L.def.x1 = r4[2]; L.def.z1 = r4[3]
 	L.area = ev.get("area") if ev.get("area") is Dictionary else null # área da base onde o lote do líder também constrói
 	L.taxa = float(ev.get("taxa")) if ev.get("taxa") != null else 0.0
-	L.sem_taxa = int(ev.get("semTaxa", 0)) == 1 # lote da base do clã: sem aluguel, sem caixa de correio (André 2026-11-23)
 	relogio = float(ev.get("agora", 0)) - Time.get_unix_time_from_system() * 1000.0
 	L.dono = ev.get("dono")
 	# peças: as que sumiram saem, as novas entram (as que ficaram não piscam)
@@ -863,12 +852,6 @@ func do_servidor_lote(ev: Dictionary) -> void:
 			_pede.solidos = true
 		else:
 			_refazer_solidos()
-	_por_correio(id)
-	if id == meu and not _avisou_conta:
-		_avisou_conta = true
-		var c := conta_terreno(L)
-		if int(c.semanas) > 0:
-			m.hud.aviso("Chegou conta do terreno no correio: %d de ouro" % int(c.valor))
 	if ativo and id == meu:
 		_mostrar_borda(true)
 		_montar_itens()
@@ -2594,40 +2577,12 @@ func motivo_terreno(R: Dictionary, menos := "") -> String:
 			return "Encoste no vizinho ou deixe %d m de caminho (está com %d m)" % [int(lo.fresta), int(round(vao))]
 	return ""
 
-# conta do correio (a mesma do servidor, contaTerreno): semanas fechadas, valor e quando chega a próxima (ms)
-func conta_terreno(L: Dictionary) -> Dictionary:
-	if L.get("sem_taxa", false): # lote da base do clã: a taxa é do clã (cofre), o terreno não cobra
-		return {"semanas": 0, "valor": 0, "porSemana": 0, "blocos": 0, "terreno": 0, "pecas": 0, "porPecas": 0, "proxima": 0.0}
-	var sem: float = float(D.lote.taxaDias) * 86400000.0
-	var agora := agora_ms()
-	var ini: float = float(L.get("taxa", 0.0))
-	if ini <= 0.0:
-		ini = agora
-	var n := maxi(0, floori((agora - ini) / sem))
-	var blocos := int(round(float(L.def.x1) - float(L.def.x0))) * int(round(float(L.def.z1) - float(L.def.z0)))
-	# André 2026-11-17: taxa escala com o tamanho (mesma conta de taxaSemanaTerreno em shared/dados.js)
-	var terreno := int(round(blocos * float(D.lote.taxaBloco) * pow(max(1.0, float(blocos)) / 36.0, float(D.lote.get("taxaCurva", 0.0)))))
-	var n_pecas: int = (L.get("pecas", []) as Array).size()
-	var por_pecas := n_pecas * int(D.lote.get("taxaPeca", 0))
-	var por_semana := terreno + por_pecas
-	return {"semanas": n, "valor": n * por_semana, "porSemana": por_semana, "blocos": blocos, "terreno": terreno, "pecas": n_pecas, "porPecas": por_pecas, "proxima": ini + (n + 1) * sem}
-
-# a conta da taxa explicada (André 2026-11-17: "lote tamanho tal, preço semanal tal, itens tantos, total tanto")
-func taxa_txt(L: Dictionary, c: Dictionary) -> String:
-	var t := "Taxa do terreno por semana:\nTerreno %d x %d (%d blocos): %d" % [int(round(float(L.def.x1) - float(L.def.x0))), int(round(float(L.def.z1) - float(L.def.z0))), int(c.blocos), int(c.terreno)]
-	if int(D.lote.get("taxaPeca", 0)) > 0:
-		t += "\nPeças construídas: %d x %d = %d" % [int(c.pecas), int(D.lote.taxaPeca), int(c.porPecas)]
-	return t + "\nTotal por semana: %d" % int(c.porSemana)
-
-func venda_terreno(R: Dictionary) -> int:
-	return int(floor((float(R.x1) - float(R.x0)) * (float(R.z1) - float(R.z0)) * float(D.lote.precoBloco) * float(D.lote.venda)))
-
 # ímã: a borda marcada gruda na beira da estrada e na borda dos vizinhos quando passa a até lote.ima m
 func _ima(R: Dictionary) -> Dictionary:
 	var xs: Array = []
 	var zs: Array = []
 	for id in lotes:
-		if (mudando and id == meu) or lotes[id].dono == null:
+		if lotes[id].dono == null:
 			continue
 		var o: Dictionary = lotes[id].def
 		xs.append_array([float(o.x0), float(o.x1)])
@@ -2750,8 +2705,6 @@ func _process_parte(dt: float) -> void:
 	_t_horta -= dt
 	if _t_horta <= 0.0:
 		_t_horta = 2.0
-		for id in _correios:
-			_por_correio(id)
 		for id in lotes:
 			for c in lotes[id].horta:
 				var h: Dictionary = lotes[id].horta[c]
@@ -2787,16 +2740,11 @@ func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void
 	_alguma_estacao = false
 	var prof := prof_da_estacao()
 	var mesa_minha := _mais_perta(_pecas_minhas(["bancada", "bigorna"])) # o fogão tem o botão da fornalha (2026-11-07)
-	# André 2026-11-14 ("a caixa de correio não aparece mais botão de interagir"): correio e bancada dividem o mesmo
-	# lugar na tela, e qualquer bancada, bigorna ou fornalha de vizinho a 3 m da caixa tomava o lugar dela. Agora fica
-	# o botão da que está mais perto do herói.
-	var d_correio := _dist_meu_correio()
-	var correio := d_correio <= CORREIO_PERTO and (prof == "" or d_correio < _dist_estacao_prof())
-	var com_mesa := not correio and (prof != "" or (no_meu and not mesa_minha.is_empty()))
+	var com_mesa := prof != "" or (no_meu and not mesa_minha.is_empty())
 	_mostrar_estacao("bancada", com_mesa and vivo and not livre)
 	# estação pública (bigorna da ferraria, bancada da Rosa): o botão aparece mesmo com as estações recolhidas
 	var pub_mesa := publica_perto(["bancada", "bigorna"])
-	if not pub_mesa.is_empty() and vivo and not livre and not correio:
+	if not pub_mesa.is_empty() and vivo and not livre:
 		m.hud.mostrar_botao("bancada", true)
 	if prof != "":
 		m.hud.icone_botao("bancada", "pf_" + prof)
@@ -2812,7 +2760,6 @@ func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void
 		m.hud.icone_botao("forno", "cs_fornalha")
 	elif not fornos_meus.is_empty():
 		m.hud.icone_botao("forno", "cs_fogao" if _mais_perta(fornos_meus).k == "fogao" else "cs_fornalha")
-	_mostrar_estacao("correio", correio and vivo and not livre)
 	# dormir (dia e noite do Quimera, André 2026-11-07): só à noite, no meu terreno ou com a minha cama perto
 	# André 2026-11-07 ("cliquei na cama e não aconteceu nada"): perto da cama o botão aparece também de dia (aí o
 	# servidor responde que só dá à noite e diz a hora); à noite, em qualquer lugar do meu terreno
@@ -3207,7 +3154,7 @@ func _atualizar_mira() -> void:
 	alvo = {"ok": false, "motivo": ""}
 	if na_area and sel != "cortar":
 		sel = "arvore"
-	if aba == "fazenda" or aba == "terreno" or sel == "desmontar":
+	if aba == "fazenda" or sel == "desmontar":
 		_mostrar_fantasma("")
 	if sel == "cortar" and aba == "fazenda": # colher árvore: só por área (arrastar), a mira não marca nada
 		_destaque_em(null)
@@ -3216,17 +3163,7 @@ func _atualizar_mira() -> void:
 		txt_motivo.add_theme_color_override("font_color", Color("b8f0a0"))
 		b_ok.disabled = true
 		return
-	if aba == "terreno":
-		# mudar o tamanho ou vender: o botão abre a tela de marcar ou a pergunta (não depende da mira)
-		_destaque_em(null)
-		var c := conta_terreno(L)
-		if sel == "vender":
-			alvo = {"ok": true, "motivo": "Recebe %d de ouro" % maxi(0, venda_terreno(L.def) - int(c.valor))}
-		elif int(c.semanas) > 0:
-			alvo = {"ok": false, "motivo": "Pague o correio antes (%d de ouro)" % int(c.valor)}
-		else:
-			alvo = {"ok": true, "motivo": "Toque em Mudar"}
-	elif aba != "fazenda" and sel != "desmontar":
+	if aba != "fazenda" and sel != "desmontar":
 		var T := tipo_peca(sel)
 		var G := grade()
 		var x: float
@@ -3472,12 +3409,6 @@ func _destaque_em(pos, tam := Vector3.ONE, cor := Color.WHITE) -> void:
 # quadrado, marcava, depois apertava Marcar e desmarcava sem querer)
 var _do_toque := false
 func colocar() -> void:
-	if aba == "terreno" and alvo.get("ok", false):
-		if sel == "vender":
-			_perguntar_venda()
-		else:
-			perguntar_mudar()
-		return
 	if not alvo.get("ok", false):
 		m.hud.aviso(str(alvo.get("motivo", "")))
 		m.sons.tocar("dash", -12.0)
@@ -3509,11 +3440,9 @@ func perguntar_compra() -> void:
 		m.trabalho.parar(true)
 	sair()
 	comprando = true
-	mudando = false
 	_canto_a = null
 	_canto_b = null
 	_ret = {}
-	_mudar_ini = {}
 	mira = m.heroi.position
 	_foco_ok = false
 	_abrir_tela_compra()
@@ -3523,16 +3452,12 @@ func sair_compra() -> void:
 		return
 	comprando = false
 	painel_compra.visible = false
-	var voltar := mudando
-	mudando = false
 	for n in [_ret_no, _outros_no, _ret_txt, _mira_no]:
 		if n:
 			n.visible = false
 	_mostrar_alcas(false)
 	_soltar_camera()
 	m.cam.sair_livre()
-	if voltar and lotes.has(meu) and m.h.morto <= 0.0 and not m.menu.aberto():
-		abrir() # volta para o modo construção, na aba Terreno
 
 # fase 0 = encostou o dedo (primeiro canto), 1 = arrastando, 2 = soltou
 func arrasto(pos: Vector2, fase_: int) -> void:
@@ -3765,23 +3690,6 @@ func _aplicar_area() -> void:
 		txt += " · %d de fora: %s" % [fora, top.to_lower()]
 	m.hud.aviso(txt)
 
-# ---------- mudar o tamanho do meu terreno (aba Terreno do modo construção): a mesma tela da compra ----------
-func perguntar_mudar() -> void:
-	if not lotes.has(meu):
-		return
-	sair()
-	comprando = true
-	mudando = true
-	var d: Dictionary = lotes[meu].def
-	_ret = {"x0": int(d.x0), "z0": int(d.z0), "x1": int(d.x1), "z1": int(d.z1)}
-	_mudar_ini = _ret.duplicate()
-	_canto_a = null
-	_canto_b = null
-	mira = Vector3((float(d.x0) + float(d.x1)) / 2.0, 0, (float(d.z0) + float(d.z1)) / 2.0)
-	_foco_ok = false
-	_abrir_tela_compra()
-	m.cam.zoom(1.35) # um pouco mais longe: o terreno inteiro cabe na tela
-
 func _abrir_tela_compra() -> void:
 	_alt.clear()
 	_chave_compra = ""
@@ -3790,180 +3698,25 @@ func _abrir_tela_compra() -> void:
 	_atualizar_compra()
 	m.hud.aviso("Joystick: anda com a câmera · arraste a tela: gira · dois dedos: zoom")
 
-# botão da barra: na compra apaga o marcado (marca de novo); no mudar volta ao tamanho de antes
-# (mexeu e quer voltar: Desfazer; já está no tamanho de antes: Marcar de novo, para marcar outro pedaço perto)
+# botão da barra: na compra apaga o marcado (marca de novo)
 func recomecar() -> void:
 	_canto_a = null
 	_canto_b = null
-	_ret = _mudar_ini.duplicate() if (mudando and not _igual_ret(_ret, _mudar_ini)) else {}
+	_ret = {}
 	_atualizar_compra()
-
-# o que muda de ouro: aumentar paga os blocos novos (preço cheio); diminuir devolve lote.venda do preço
-func custo_mudar(R: Dictionary) -> int:
-	var d: Dictionary = lotes[meu].def
-	var antes := int(round((float(d.x1) - float(d.x0)) * (float(d.z1) - float(d.z0))))
-	var depois := int(round((float(R.x1) - float(R.x0)) * (float(R.z1) - float(R.z0))))
-	if depois > antes:
-		return (depois - antes) * int(D.lote.precoBloco)
-	return -int(floor((antes - depois) * float(D.lote.precoBloco) * float(D.lote.venda)))
-
-func _motivo_mudar(R: Dictionary) -> String:
-	var L: Dictionary = lotes[meu]
-	var mot := motivo_terreno(R, meu)
-	if mot != "":
-		return mot
-	var Rr := Rect2(float(R.x0), float(R.z0), float(R.x1) - float(R.x0), float(R.z1) - float(R.z0)).grow(0.01)
-	for p in L.pecas:
-		if not Rr.encloses(ret_peca(p.k, p.x, p.z, p.r)):
-			return "Tem peça fora do terreno novo: desmonte ou marque maior"
-	for c in L.horta:
-		var h: Dictionary = L.horta[c]
-		if not Rr.encloses(Rect2(h.i, h.j, 1, 1)):
-			return "Tem horta fora do terreno novo: desfaça a terra ou marque maior"
-	var mx := max_pecas({"def": R}, D.lote)
-	if L.pecas.size() > mx:
-		return "O terreno novo só comporta %d peças (você tem %d)" % [mx, L.pecas.size()]
-	return ""
-
-# ---------- vender o terreno de volta para o jogo ----------
-func _perguntar_venda() -> void:
-	var L = lotes.get(meu)
-	if L == null:
-		return
-	var c := conta_terreno(L)
-	var valor := maxi(0, venda_terreno(L.def) - int(c.valor))
-	var pago := preco_terreno(L.def)
-	var txt := "Vender o terreno para o jogo por %d de ouro? (vale %d, volta a metade)" % [valor, pago]
-	if L.pecas.size() > 0:
-		txt += "\nAs %d peças voltam para a mochila." % L.pecas.size()
-	m.troca.mostrar_cartao(txt, [["Vender", func(): m.troca.esconder_cartao(); m.rede("venderLote", {})], ["Cancelar", func(): m.troca.esconder_cartao()]], 20.0)
-
-# ---------- caixa de correio na frente de cada terreno: a conta da taxa semanal chega nela ----------
-func _modelo_correio() -> Node3D:
-	# caixinha de madeira com telhadinho de duas águas (rústica, como as casas da vila), boca de ferro e bandeirinha
-	var r := Node3D.new()
-	var poste := _mat_tex("medieval_wood", Color("8a6a4a"), 2.0)
-	var tabua := _mat_tex("medieval_wood", Color(1.35, 1.1, 0.82), 3.0) # tábua clara (a textura é escura)
-	var telha := _mat_tex("medieval_wood", Color("7a4e34"), 3.0)
-	var ferro := _mat_cor(Color(0.16, 0.15, 0.15))
-	_caixa(r, Vector3(0.09, 1.0, 0.09), Vector3(0, 0.5, 0), poste)
-	_caixa(r, Vector3(0.28, 0.06, 0.28), Vector3(0, 0.03, 0), poste)
-	_caixa(r, Vector3(0.05, 0.32, 0.05), Vector3(0, 0.86, -0.1), poste, Vector3(0.7, 0, 0)) # mão-francesa
-	_caixa(r, Vector3(0.3, 0.24, 0.44), Vector3(0, 1.1, 0), tabua)
-	for lado in [-1.0, 1.0]: # telhadinho
-		_caixa(r, Vector3(0.22, 0.03, 0.5), Vector3(0.085 * lado, 1.27, 0), telha, Vector3(0, 0, -0.62 * lado))
-	_caixa(r, Vector3(0.2, 0.05, 0.02), Vector3(0, 1.15, 0.225), ferro) # boca
-	_caixa(r, Vector3(0.012, 0.012, 0.46), Vector3(0, 1.32, 0), ferro) # cumeeira
-	var haste := _caixa(r, Vector3(0.025, 0.3, 0.025), Vector3(0.165, 1.18, -0.12), ferro)
-	haste.name = "haste"
-	var bandeira := _caixa(r, Vector3(0.02, 0.1, 0.15), Vector3(0.165, 1.28, -0.05), _mat_cor(Color(0.85, 0.18, 0.14)))
-	bandeira.name = "bandeira"
-	return r
-
-# a caixa fica no canto do terreno mais perto da estrada central, virada para ela
-func _por_correio(id: String) -> void:
-	var L = lotes.get(id)
-	if L == null or L.dono == null:
-		return
-	if L.get("sem_taxa", false): # lote da base do clã: sem caixa de correio (não tem conta de terreno)
-		var velho: Node3D = _correios.get(id)
-		if velho != null:
-			velho.queue_free()
-			_correios.erase(id)
-		return
-	var no: Node3D = _correios.get(id)
-	if no == null:
-		no = _modelo_correio()
-		juntar_malhas(no) # FPS (2026-11-13): 10 caixinhas viram uma malha por material; a bandeirinha fica solta (mexe)
-		_alcance_peca(no, "bau") # de longe não desenha (45 m, como os móveis pequenos)
-		no.name = "Correio"
-		L.raiz.add_child(no)
-		_correios[id] = no
-	var d: Dictionary = L.def
-	var rua_x := -16.0
-	var vc := vila_em((float(d.x0) + float(d.x1)) / 2.0, (float(d.z0) + float(d.z1)) / 2.0)
-	if vc.get("mundo", false): # FASE 3: nas vilas do mundo grande o correio fica do lado do meio da vila
-		rua_x = float(vc.area.x)
-	else:
-		for e in (vc if not vc.is_empty() else terras).get("estradas", []):
-			rua_x = float(e.pontos[0][0])
-	var lado := 1.0 if (float(d.x0) + float(d.x1)) / 2.0 < rua_x else -1.0 # a estrada fica a leste (+x) ou a oeste
-	var x: float = (float(d.x1) - 0.35) if lado > 0 else (float(d.x0) + 0.35)
-	var z: float = clampf(float(d.z0) + 0.45, float(d.z0), float(d.z1))
-	no.position = Vector3(x, m.terreno.altura(x, z), z)
-	no.rotation.y = PI / 2.0 * lado # a boca (+z do modelo) olha para a estrada
-	var c := conta_terreno(L)
-	var levantada := int(c.semanas) > 0
-	no.get_node("bandeira").position = Vector3(0.165, 1.28, -0.05) if levantada else Vector3(0.165, 1.08, -0.2)
-	no.get_node("bandeira").rotation.x = 0.0 if levantada else PI / 2.0
-
-const CORREIO_PERTO := 2.6 # m
-func _meu_correio_perto() -> bool:
-	return _dist_meu_correio() <= CORREIO_PERTO
-
-func _dist_meu_correio() -> float:
-	var no: Node3D = _correios.get(meu)
-	if no == null or m.heroi == null:
-		return INF
-	return no.global_position.distance_to(m.heroi.position)
-
-# distância da estação que faz prof_da_estacao() dar "fer" ou "alf" (a mesma conta de estacao_perto e
-# _fornalha_de_outro_perto); INF se nenhuma
-func _dist_estacao_prof() -> float:
-	if m.heroi == null:
-		return INF
-	var hp: Vector3 = m.heroi.position
-	var dm := INF
-	var pub := publica_perto(["bigorna", "bancada"])
-	if not pub.is_empty():
-		dm = Vector2(float(pub.x) - hp.x, float(pub.z) - hp.z).length()
-	var lim := float(D.lote.estacaoDist) + 0.3
-	for id in lotes:
-		for p in lotes[id].pecas:
-			var vale: bool = p.k in ["bigorna", "bancada"] or (p.k == "fornalha" and id != meu)
-			if not vale:
-				continue
-			var d := Vector2(p.x - hp.x, p.z - hp.z).length()
-			if d < lim and d < dm and sem_parede(Vector2(hp.x, hp.z), Vector2(p.x, p.z)):
-				dm = d
-	return dm
-
-func abrir_correio() -> void:
-	var t0 := Time.get_ticks_usec()
-	_abrir_correio()
-	if m.lentidao and lotes.has(meu):
-		m.lentidao.menu_aberto("correio", t0, 0)
-
-func _abrir_correio() -> void:
-	var L = lotes.get(meu)
-	if L == null:
-		return
-	var c := conta_terreno(L)
-	var dias := maxf(0.0, (float(c.proxima) - agora_ms()) / 86400000.0)
-	var prox := ("a próxima chega em %d dia%s" % [ceili(dias), "" if ceili(dias) == 1 else "s"]) if dias >= 1.0 else "a próxima chega hoje"
-	if int(c.valor) > 0:
-		var txt := "Conta do terreno: %d de ouro (%d semana%s de %d).\n\n%s" % [int(c.valor), int(c.semanas), "" if int(c.semanas) == 1 else "s", int(c.porSemana), taxa_txt(L, c)]
-		if int(c.semanas) >= int(D.lote.taxaTrava):
-			txt += "\nAtrasada: sem pagar não dá para construir nem plantar."
-		m.troca.mostrar_cartao(txt, [["Pagar", func(): m.troca.esconder_cartao(); m.rede("pagarTaxa", {})], ["Fechar", func(): m.troca.esconder_cartao()]], 20.0)
-	else:
-		m.troca.mostrar_cartao("Correio vazio; %s.\n\n%s" % [prox, taxa_txt(L, c)], [["Fechar", func(): m.troca.esconder_cartao()]], 12.0)
 
 func _atualizar_compra() -> void:
 	var ouro := int(m.P.prog.get("ouro", 0))
-	var chave := "%s|%d|%s|%d" % [str(_ret), ouro, str(mudando), lotes.size()]
+	var chave := "%s|%d|%d" % [str(_ret), ouro, lotes.size()]
 	if chave == _chave_compra:
 		return # nada mudou: não repinta (antes era todo quadro)
 	_chave_compra = chave
-	b_recomecar.set_meta("pt", "Desfazer" if (mudando and not _ret.is_empty() and not _igual_ret(_ret, _mudar_ini)) else "Marcar de novo") # o guia das missões acha o botão pelo texto em português
+	b_recomecar.set_meta("pt", "Marcar de novo") # o guia das missões acha o botão pelo texto em português
 	b_recomecar.text = Idioma.frase(str(b_recomecar.get_meta("pt")))
 	b_recomecar.disabled = _ret.is_empty()
-	txt_compra_tit.text = Idioma.frase("Mudar o terreno" if mudando else "Comprar terreno")
-	b_comprar.set_meta("pt", "Confirmar" if mudando else "Comprar") # o guia das missões acha o botão pelo texto em português
+	txt_compra_tit.text = Idioma.frase("Comprar terreno")
+	b_comprar.set_meta("pt", "Comprar") # o guia das missões acha o botão pelo texto em português
 	b_comprar.text = Idioma.frase(str(b_comprar.get_meta("pt")))
-	if mudando and not _ret.is_empty() and lotes.has(meu):
-		_atualizar_mudar(ouro)
-		return
 	if _ret.is_empty():
 		_mostrar_alcas(false)
 		txt_compra.text = "1. Encoste o dedo no chão e arraste para marcar o terreno"
@@ -4017,27 +3770,6 @@ func _pintar_marcado(ok: bool, texto: String) -> void:
 	_ret_txt.modulate = Color("fff1c8") if ok else Color("ffb3a3")
 	_ret_txt.visible = true
 	_por_alcas()
-
-# mudar o tamanho: o mesmo desenho da compra, com o preço da diferença
-func _atualizar_mudar(ouro: int) -> void:
-	var w: int = int(_ret.x1) - int(_ret.x0)
-	var d: int = int(_ret.z1) - int(_ret.z0)
-	var custo := custo_mudar(_ret)
-	_ret_motivo = _motivo_mudar(_ret)
-	if _ret_motivo == "" and custo > ouro:
-		_ret_motivo = "Faltam %d de ouro" % (custo - ouro)
-	var L: Dictionary = lotes[meu]
-	var igual: bool = int(_ret.x0) == int(L.def.x0) and int(_ret.z0) == int(L.def.z0) and int(_ret.x1) == int(L.def.x1) and int(_ret.z1) == int(L.def.z1)
-	var ok := _ret_motivo == "" and not igual
-	var preco_txt := ("paga %d de ouro" % custo) if custo > 0 else (("recebe %d de ouro" % -custo) if custo < 0 else "sem custo")
-	txt_compra.text = Idioma.t("%d x %d m = %d blocos · %s") % [w, d, w * d, Idioma.frase(preco_txt)]
-	txt_compra.add_theme_color_override("font_color", Menu.OURO_CLARO if (ok or igual) else Color("ffb3a3"))
-	if igual:
-		txt_compra_info.text = Idioma.frase("1. Toque no + de um lado para crescer 1 m (- encolhe) ou arraste um canto dourado · 2. Confirmar · aumentar: %d por bloco, diminuir: volta %d" % [int(D.lote.precoBloco), int(float(D.lote.precoBloco) * float(D.lote.venda))])
-	else:
-		txt_compra_info.text = Idioma.frase(("Você tem %d de ouro · cabem %d peças" % [ouro, max_pecas({"def": _ret}, D.lote)]) if ok else _ret_motivo)
-	b_comprar.disabled = not ok
-	_pintar_marcado(ok or igual, "%d x %d m\n%s" % [w, d, preco_txt])
 
 # ---------- alças da expansão: + e - no meio de cada lado, cantos dourados para arrastar ----------
 # lado: 0 = x0 (oeste), 1 = x1 (leste), 2 = z0, 3 = z1
@@ -4149,11 +3881,6 @@ func _alca_na_tela(pos: Vector2, tipos: Array):
 			melhor = a
 	return melhor
 
-static func _igual_ret(a: Dictionary, b: Dictionary) -> bool:
-	if a.is_empty() or b.is_empty():
-		return a.is_empty() and b.is_empty()
-	return is_equal_approx(float(a.x0), float(b.x0)) and is_equal_approx(float(a.z0), float(b.z0)) and is_equal_approx(float(a.x1), float(b.x1)) and is_equal_approx(float(a.z1), float(b.z1))
-
 # o hud pergunta: este dedo marca/arrasta o terreno (true) ou é da câmera (false)?
 # Sem nada marcado: marca. Com o terreno marcado: só o canto dourado arrasta; o resto gira a câmera (o + e o - são toque).
 func pega_arrasto(pos: Vector2) -> bool:
@@ -4177,7 +3904,7 @@ func _desenhar_outros() -> void:
 	im.clear_surfaces()
 	var algum := false
 	for id in lotes:
-		if lotes[id].dono != null and not (mudando and id == meu):
+		if lotes[id].dono != null:
 			_pintar_ret(im, lotes[id].def, Color(0.75, 0.3, 0.25, 0.16), Color(0.95, 0.45, 0.35, 0.8))
 			algum = true
 	_outros_no.visible = algum
@@ -4185,9 +3912,6 @@ func _desenhar_outros() -> void:
 func comprar() -> void:
 	if _ret.is_empty() or _ret_motivo != "":
 		m.hud.aviso(_ret_motivo if _ret_motivo != "" else "Marque o terreno primeiro")
-		return
-	if mudando:
-		m.rede("mudarLote", {"x0": int(_ret.x0), "z0": int(_ret.z0), "x1": int(_ret.x1), "z1": int(_ret.z1)})
 		return
 	m.rede("lote", {"x0": int(_ret.x0), "z0": int(_ret.z0), "x1": int(_ret.x1), "z1": int(_ret.z1)})
 
@@ -4235,10 +3959,8 @@ func _montar_tela() -> void:
 	linha_abas = HBoxContainer.new()
 	linha_abas.add_theme_constant_override("separation", 6)
 	col.add_child(linha_abas)
-	for k in ["casa", "moveis", "fazenda", "terreno"]:
-		if k == "terreno" and not ABA_TERRENO:
-			continue
-		var b := _botao({"casa": "Casa", "moveis": "Móveis", "fazenda": "Fazenda", "terreno": "Terreno"}[k], func(): trocar_aba(k), k == aba, 19)
+	for k in ["casa", "moveis", "fazenda"]:
+		var b := _botao({"casa": "Casa", "moveis": "Móveis", "fazenda": "Fazenda"}[k], func(): trocar_aba(k), k == aba, 19)
 		b.custom_minimum_size = Vector2(118, 42)
 		_botoes_abas[k] = b
 		linha_abas.add_child(b)
@@ -5205,9 +4927,9 @@ func _montar_fogao() -> void:
 
 func trocar_aba(k: String) -> void:
 	aba = k
-	sel = {"casa": "fundacao", "moveis": "bancada", "terreno": "mudar"}.get(k, "arar")
+	sel = {"casa": "fundacao", "moveis": "bancada"}.get(k, "arar")
 	if k != "casa":
-		andar = "terreo" # móveis, fazenda e terreno são do chão
+		andar = "terreo" # móveis e fazenda são do chão
 	elif andar == "telhado":
 		sel = "telhado"
 	_montar_itens()
@@ -5286,7 +5008,7 @@ func _nome_slot(k: String) -> String:
 	if D.construcoes.has(k): # nome comprido ("Fundação de pedra"): só a primeira palavra cabe no quadrado
 		var nome := str(D.construcoes[k].nome)
 		return nome.split(" ")[0] if nome.length() > 11 else nome
-	return {"desmontar": "Desmontar", "arar": "Arar", "regar": "Regar", "colher": "Colher", "cortar": "Cortar", "tirar": "Desfazer", "mudar": "Tamanho", "vender": "Vender"}.get(k, "")
+	return {"desmontar": "Desmontar", "arar": "Arar", "regar": "Regar", "colher": "Colher", "cortar": "Cortar", "tirar": "Desfazer"}.get(k, "")
 
 # quantas peças dá para fazer com o que tenho na mochila
 func _quantas(custo: Dictionary) -> int:
@@ -5320,22 +5042,6 @@ func _montar_itens() -> void:
 			nome = "Plantar %s (%d sementes · a Rosa vende)" % [str(TA.get(arvore, {}).get("nome", "")).to_lower(), m.P.contar("semente_" + arvore)]
 		else:
 			nome = "Sem semente de árvore (a Rosa vende)"
-	elif aba == "terreno":
-		if L:
-			var c := conta_terreno(L)
-			pc.text = "%d x %d m" % [int(L.def.x1 - L.def.x0), int(L.def.z1 - L.def.z0)]
-			linha_itens.add_child(_slot("mudar", "terreno", "", sel == "mudar", true))
-			linha_itens.add_child(_slot("vender", "it_ouro", "", sel == "vender", true, Color("ffd27a")))
-			if sel == "vender":
-				nome = Idioma.frase("Vender para o jogo (volta a metade do preço) · as peças voltam para a mochila")
-			else:
-				nome = Idioma.frase("Mudar o tamanho · aumentar: %d de ouro por bloco · diminuir: volta %d" % [int(D.lote.precoBloco), int(float(D.lote.precoBloco) * float(D.lote.venda))])
-			if int(c.porPecas) > 0:
-				nome += " · " + Idioma.frase("taxa por semana: terreno %d + peças %d = %d" % [int(c.terreno), int(c.porPecas), int(c.porSemana)])
-			else:
-				nome += " · " + Idioma.frase("taxa por semana: %d" % int(c.porSemana))
-			if int(c.valor) > 0:
-				nome += " · " + Idioma.frase("conta no correio: %d" % int(c.valor))
 	elif aba != "fazenda":
 		# o número é quantas dessa peça já estão criadas na mochila (prontas para colocar)
 		for k in D.construcoes:
@@ -5383,12 +5089,12 @@ func _montar_itens() -> void:
 	b_criar.visible = cq != ""
 	b_criar.disabled = cq != "" and motivo_criar(cq) != ""
 	Menu.estilo_botao(b_criar, cq != "" and m.P.contar(item_criado(cq)) < 1)
-	b_girar.visible = aba != "fazenda" and aba != "terreno" and sel != "desmontar" and tipo_peca(sel) != "fundacao" # telhado gira: vira a rampa (2026-11-05)
+	b_girar.visible = aba != "fazenda" and sel != "desmontar" and tipo_peca(sel) != "fundacao" # telhado gira: vira a rampa (2026-11-05)
 	for a in _botoes_andar:
 		Menu.estilo_botao(_botoes_andar[a], a == andar)
 	if linha_andares:
 		linha_andares.visible = aba == "casa" or aba == "moveis"
-	b_ok.set_meta("pt", {"mudar": "Mudar", "vender": "Vender", "desmontar": "Desmontar", "arar": "Arar", "plantar": "Plantar", "arvore": "Plantar", "regar": "Regar", "colher": "Colher", "tirar": "Desfazer"}.get(sel, "Colocar")) # o guia das missões acha o botão pelo texto em português
+	b_ok.set_meta("pt", {"desmontar": "Desmontar", "arar": "Arar", "plantar": "Plantar", "arvore": "Plantar", "regar": "Regar", "colher": "Colher", "tirar": "Desfazer"}.get(sel, "Colocar")) # o guia das missões acha o botão pelo texto em português
 	b_ok.text = Idioma.frase(str(b_ok.get_meta("pt")))
 	Menu.estilo_botao(b_ok, true)
 	var n_plano: int = plano.quantos() if plano else 0
@@ -5435,9 +5141,6 @@ func escolher(k: String) -> void:
 	if D.construcoes.has(k):
 		andar = "telhado" if tipo_peca(k) == "telhado" else "terreo"
 	_montar_itens()
-	if aba == "terreno" and k == "mudar" and ativo: # um toque no Mudar já abre a tela de expandir (André 2026-11-06)
-		_atualizar_mira()
-		colocar()
 
 # mochila mudou (o servidor mandou o progresso): os custos e as sementes da barra se atualizam
 func progresso_mudou() -> void:
