@@ -1254,7 +1254,8 @@ export function aparenciaValida(a) {
   for (const [k, [lo, hi]] of Object.entries(CRIADOR.rosto)) r[k] = Number.isFinite(a[k]) ? Math.round(Math.min(hi, Math.max(lo, a[k])) * 100) / 100 : 1;
   r.penteado = Object.values(CRIADOR.penteados).some((l) => l.includes(a.penteado)) ? a.penteado : null;
   // traje da armadura (André 2026-11-23): 'patrulha' ou 'roupao'; null = moça patrulheira, rapaz de roupão
-  r.traje = ['roupao', 'patrulha'].includes(a.traje) ? a.traje : null;
+  r.traje = ['roupao', 'patrulha', 'patrulheiro2', 'roupao2'].includes(a.traje) ? a.traje : null;
+  // 'patrulheiro2' / 'roupao2' = peças da thread de arte (equip2.gd), para o André comparar com a v5
   return r;
 }
 export const PERSONAGEM_PADRAO = 'ruiva';
