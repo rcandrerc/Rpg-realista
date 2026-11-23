@@ -68,6 +68,14 @@ func _initialize() -> void:
 			m.vestir_heroi()
 			novo.vestir(m.heroi, m.heroi_esq, m.espada, r)
 		await esperar(20)
+		if OS.get_environment("ANGULOS") != "":
+			# corpo inteiro: frente, lado e costas (pedido do André)
+			_sem_hud(root)
+			for k in ["frente", "lado", "costas"]:
+				_cam_ang(k)
+				await esperar(30 if k == "frente" else 4)
+				await foto("%d-%s" % [r, k])
+			continue
 		_camera()
 		_sem_hud(root)
 		await esperar(40)
@@ -161,3 +169,27 @@ func _camera(perto := false, costas := false, pernas := false) -> void:
 		cam.global_position = alvo - fr * 1.2 + dir * 0.4 + Vector3(0, 0.1, 0)
 	cam.look_at(alvo, Vector3.UP)
 	cam.make_current()
+
+func _cam_ang(k: String) -> void:
+	_camera()
+	var hb: Basis = m.heroi.global_transform.basis.orthonormalized()
+	var alvo: Vector3 = m.heroi.global_position + Vector3(0, 0.86, 0)
+	var d: Vector3 = hb.z if k == "frente" else (hb.x if k == "lado" else -hb.z)
+	cam.fov = 32.0
+	cam.global_position = alvo + d * 3.7 + Vector3(0, 0.12, 0)
+	cam.look_at(alvo, Vector3.UP)
+	# nada entre a câmera e a heroína: some com outras pessoas e com o que tapa a vista (pedra, parede)
+	for sk in root.find_children("*", "Skeleton3D", true, false):
+		if not m.heroi.is_ancestor_of(sk):
+			(sk.get_parent() as Node3D).visible = false
+	for mi in root.find_children("*", "MeshInstance3D", true, false):
+		if m.heroi.is_ancestor_of(mi) or not mi.is_visible_in_tree():
+			continue
+		var bb: AABB = mi.global_transform * mi.get_aabb()
+		if bb.size.length() > 60.0:
+			continue # chão e terreno
+		for h in [0.2, 0.9, 1.5]:
+			var p0: Vector3 = m.heroi.global_position + Vector3(0, h, 0)
+			if bb.intersects_segment(cam.global_position, p0 + (cam.global_position - p0).normalized() * 0.45):
+				mi.visible = false
+				break

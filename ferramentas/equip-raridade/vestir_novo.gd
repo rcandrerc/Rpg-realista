@@ -161,9 +161,12 @@ func vestir(heroi: Node3D, esq: Skeleton3D, espada: Node3D, r: int) -> void:
 				var mt = c.get_active_material(s)
 				if v3 and c.name == "Tronco":
 					c.visible = false # o tronco de pele (peito da Victoria) fica por baixo da camisa
+				if mt and v3 and prefixo != "ia_r" and mt.resource_name.contains("Shoes"):
+					# o pé da bota: o sapato da Ruiva vira couro da cor da bota de cada raridade
+					c.set_surface_override_material(s, material(["couro", "couro_oleado", "couro_preto", "couro_negro", "couro_aurora"][r]))
 				if mt and OS.get_environment("SEM_PELE") != "" and mt.resource_name.contains("Body"):
 					c.visible = false # só para achar furo na roupa
-				if mt and (mt.resource_name.contains("Tops") or mt.resource_name.contains("Tie") or (v3 and (mt.resource_name.contains("Bottoms") or (prefixo != "ia_r" and mt.resource_name.contains("Shoes"))))):
+				if mt and (mt.resource_name.contains("Tops") or mt.resource_name.contains("Tie") or (v3 and (mt.resource_name.contains("Bottoms") or false))):
 					c.visible = false
 	for mi: MeshInstance3D in ms:
 		var nome := String(mi.name)
