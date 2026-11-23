@@ -1,6 +1,7 @@
 // Duelo (André 2026-11-17: "opção pra chamar duelo tanto contra Dario e Cecília qt contra jogadores"), shared/duelo.js.
 // Uso: node ferramentas/testes/duelo.mjs
 import { Simulacao, MAPA_CLAREIRA, AMIGA, DARIO, DUELO } from '../../shared/index.js';
+import './_relogio-fixo.mjs'; // relógio e sorte fixos: o mesmo resultado em máquina rápida ou lenta (CI)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const sorte = (v, f) => { const r = Math.random; Math.random = () => v; try { return f(); } finally { Math.random = r; } };
 const s = new Simulacao(MAPA_CLAREIRA);
