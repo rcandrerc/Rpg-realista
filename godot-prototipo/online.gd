@@ -886,6 +886,8 @@ func outro(j: Dictionary) -> void:
 	if j.has("nivel"):
 		o.nivel = int(j.nivel)
 	o.pack_k = j.get("pack") # pack nas costas (transporte.gd desenha)
+	if mexeu: # a bordo de um navio: [dono do navio, lx, lz, giro] (shared/transporte.js fotoBordo); a foto manda junto com x/z
+		o.bd = j.get("bd")
 	# montado no lobo (Simulacao.montar): o lobo embaixo, o corpo agachado na sela e as armas nas costas
 	var montado: bool = j.get("montado") != null and not j.get("morto", false)
 	if montado != (o.get("montaria") != null):
@@ -1865,7 +1867,8 @@ func _passo(dt: float) -> void:
 	for id in outros:
 		var o: Dictionary = outros[id]
 		var antes: Vector3 = o.no.position
-		_interpolar(o, o.no, dt_pos)
+		if not (o.get("bd") is Array and m.transporte and m.transporte.veic.has("n:" + str(o.bd[0]))):
+			_interpolar(o, o.no, dt_pos) # a bordo de um navio na tela: transporte.gd _no_conves põe ele no convés
 		var passo: int = o.get("anim_passo", 1)
 		if passo > 1 and o.no.visible: # longe ou fora dos mais perto: a animação anda a cada 2 ou 3 quadros (o mesmo tempo total)
 			o.anim_acc = float(o.get("anim_acc", 0.0)) + dt

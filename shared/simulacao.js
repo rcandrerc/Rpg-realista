@@ -4884,7 +4884,7 @@ export class Simulacao {
         ...(j.espia && this.jogadores.get(j.espia) ? { espia: j.espia } : {}), // "Ver" o recruta (shared/cla.js): a visão do servidor fica em volta dele
         tit: j.prog.tit?.uso || null, // título em uso (aparece em cima da cabeça para todos)
         ...(j.prog.guilda?.r >= 7 && this.vantagensDe(j).marca ? { gss: 1 } : {}), // vantagem SS da Guilda: "SS" no nome para todos
-        pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
+        pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, ...((bd) => (bd ? { bd } : {}))(j.bordo ? this.fotoBordo(j) : null), // bd: o lugar no navio (fotoBordo) // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
         cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])), ...(j.bot ? { bot: 1 } : {}),
         ...(this.racaDe(j) !== RACA_PADRAO ? { raca: this.racaDe(j) } : {}), guerra: j.guerra ? 1 : 0, prot: this.protegido(j) ? 1 : 0, ...(j.radarGuerraAte > this.tempo && !j.bot ? { rg: Math.ceil(j.radarGuerraAte - this.tempo) } : {}) })), // guerra/prot sempre (0 ou 1): a foto por área de interesse só manda o que mudou, e o app mira na outra raça por eles (André 2026-11-22) // Chama x Geada: a raça (só quem não é da Chama) e se está na zona de guerra // bot: a Cecília (só o dono conversa)
