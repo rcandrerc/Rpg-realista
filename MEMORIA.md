@@ -1,6 +1,5 @@
 # MEMORIA (estado do projeto, máx 30 linhas)
 Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
-
 ## Jogo
 - Age of Embers, mundo Aethra, vilão Vesper. APK Android 10+ 64-bit. Mapa sem mudanças.
 - Sem classe (estilo pela arma). Uma linha de armadura, sem mithril. Herói VRoid "Ruiva".
