@@ -51,6 +51,9 @@ var vilas: Array # FASE 3: mundo.vilasTerreno (Terras da Estrada, Porto de Vael 
 
 # modo construção
 var ativo := false
+# aba Terreno (mudar o tamanho, vender, taxa por semana): escondida desde as bases do clã (André 2026-11-23: "esse menu
+# não tem mais funcionalidade"); o código fica guardado, true traz a aba de volta
+const ABA_TERRENO := false
 var aba := "casa" # "casa", "moveis", "fazenda" ou "terreno" (as duas primeiras são de construir; terreno = mudar e vender)
 var sel := "fundacao" # peça (CONSTRUCOES), "desmontar" ou ação da fazenda ("arar", "plantar", "regar", "colher", "tirar")
 var semente := "rabanete"
@@ -762,6 +765,7 @@ func do_servidor_lote(ev: Dictionary) -> void:
 		L.def.x0 = r4[0]; L.def.z0 = r4[1]; L.def.x1 = r4[2]; L.def.z1 = r4[3]
 	L.area = ev.get("area") if ev.get("area") is Dictionary else null # área da base onde o lote do líder também constrói
 	L.taxa = float(ev.get("taxa")) if ev.get("taxa") != null else 0.0
+	L.sem_taxa = int(ev.get("semTaxa", 0)) == 1 # lote da base do clã: sem aluguel, sem caixa de correio (André 2026-11-23)
 	relogio = float(ev.get("agora", 0)) - Time.get_unix_time_from_system() * 1000.0
 	L.dono = ev.get("dono")
 	# peças: as que sumiram saem, as novas entram (as que ficaram não piscam)
@@ -2592,6 +2596,8 @@ func motivo_terreno(R: Dictionary, menos := "") -> String:
 
 # conta do correio (a mesma do servidor, contaTerreno): semanas fechadas, valor e quando chega a próxima (ms)
 func conta_terreno(L: Dictionary) -> Dictionary:
+	if L.get("sem_taxa", false): # lote da base do clã: a taxa é do clã (cofre), o terreno não cobra
+		return {"semanas": 0, "valor": 0, "porSemana": 0, "blocos": 0, "terreno": 0, "pecas": 0, "porPecas": 0, "proxima": 0.0}
 	var sem: float = float(D.lote.taxaDias) * 86400000.0
 	var agora := agora_ms()
 	var ini: float = float(L.get("taxa", 0.0))
@@ -3859,6 +3865,12 @@ func _por_correio(id: String) -> void:
 	var L = lotes.get(id)
 	if L == null or L.dono == null:
 		return
+	if L.get("sem_taxa", false): # lote da base do clã: sem caixa de correio (não tem conta de terreno)
+		var velho: Node3D = _correios.get(id)
+		if velho != null:
+			velho.queue_free()
+			_correios.erase(id)
+		return
 	var no: Node3D = _correios.get(id)
 	if no == null:
 		no = _modelo_correio()
@@ -4224,6 +4236,8 @@ func _montar_tela() -> void:
 	linha_abas.add_theme_constant_override("separation", 6)
 	col.add_child(linha_abas)
 	for k in ["casa", "moveis", "fazenda", "terreno"]:
+		if k == "terreno" and not ABA_TERRENO:
+			continue
 		var b := _botao({"casa": "Casa", "moveis": "Móveis", "fazenda": "Fazenda", "terreno": "Terreno"}[k], func(): trocar_aba(k), k == aba, 19)
 		b.custom_minimum_size = Vector2(118, 42)
 		_botoes_abas[k] = b
