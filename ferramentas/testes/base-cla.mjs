@@ -3,6 +3,7 @@
 // Clã do salão, a forja (Nv 4) e as bases dos clãs bot.
 // Uso: node ferramentas/testes/base-cla.mjs
 import { Simulacao, MAPA_CLAREIRA, CLA, TOTENS, contar } from '../../shared/index.js';
+import { motivoPeca } from '../../shared/simulacao.js';
 import { motivoBase, acharLugarBase, montarBase, territorioDe } from '../../shared/base.js';
 import './_tudo-aberto.mjs';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
@@ -282,4 +283,33 @@ ok(Object.values(bg.donos).length >= Math.min(bg.nv - 1, 3), 'os membros do clã
   const Bp = { k: 'praia', x: -344, z: 16 }, n = nv(Bp, []);
   ok(n && n.y > 0, 'base perto da praia também fica nivelada');
   if (n) { cb([{ ...Bp, ...n, estrada: null }]); ok(cm(Bp, n.y, []).length > 3, 'e ganha a estrada até a estrada do mundo'); cb([]); }
+}
+
+// móveis e casa na área da base (André 2026-11-23: "queria poder pôr móveis na área destinada à base também, tipo
+// fornalhas e fogão a lenha extra; ou até fundação, casa etc."): o lote 1 do líder constrói dentro da paliçada
+{
+  const s2 = new Simulacao(MAPA_CLAREIRA); s2.eventos = [];
+  const q = acharLugarBase(-6, 1, 'chama', []);
+  const l = s2.adicionarJogador('L', 'Lia', undefined, { conta: 77 });
+  l.criando = false; l.ciente = true; l.prog.ouro = 90000; l.prog.nivel = 40; l.x = q.x; l.z = q.z;
+  s2.cla('L', { acao: 'fundar', nome: 'Forno' }); l.prog.cla.nv = 3; s2.cla('L', { acao: 'base' });
+  const B2 = s2.baseDe(l), L2 = s2.loteDe(l), A = s2.areaBase(L2);
+  ok(A && A.x1 - A.x0 > 15, 'o lote do líder ganha a área de dentro da paliçada');
+  const pega = (k) => { l.prog.mochila[0] = { k: 'obra_' + k, n: 1 }; };
+  const n0 = L2.pecas.length;
+  // um canto livre de dentro da paliçada (longe do salão e do corredor do portão)
+  let lugar = null;
+  for (let x = A.x0 + 1; x < A.x1 - 1 && !lugar; x += 0.5) for (let z = A.z0 + 1; z < A.z1 - 1; z += 0.5) {
+    if (x > B2.x - 4 && x < B2.x + 4) continue;
+    const p = { k: 'fornalha', x, z, r: 0 }; if (!motivoPeca(L2, p, null, A)) { lugar = p; break; }
+  }
+  ok(!!lugar, 'tem lugar livre dentro da paliçada');
+  l.x = lugar.x + 3; l.z = lugar.z; pega('fornalha');
+  s2.construir('L', lugar);
+  ok(L2.pecas.length === n0 + 1, 'fornalha construída dentro da base');
+  pega('fogao'); s2.eventos = [];
+  s2.construir('L', { k: 'fogao', x: s2.basesDesenho[B2.k].bau.x, z: s2.basesDesenho[B2.k].bau.z + 2, r: 0 });
+  ok(L2.pecas.length === n0 + 1 && /salão|portão|Baú/.test(s2.eventos.filter((e) => e.t === 'aviso').map((e) => e.texto).join()), 'na frente do Baú do Clã não pode');
+  const dl = s2.dadosLote(L2);
+  ok(dl.area?.ret?.length === 4 && dl.area.sol.length > 0, 'o app recebe a área da base');
 }
