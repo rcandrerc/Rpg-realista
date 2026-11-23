@@ -1549,11 +1549,18 @@ export class Simulacao {
   // Alvo travado do mago (André 2026-11-03): o celular manda o índice v do monstro que está travado (o 1º ataque
   // pega o mais perto; só troca tocando em outro ou quando ele morre). Vale se está vivo e no alcance; senão null
   // e a skill pega o mais perto como antes (celular antigo não manda v).
+  // Botão Trocar alvo (André 2026-11-23): com "b" o celular escolheu o alvo no botão (4 camadas, main.gd trocar_alvo) e
+  // ele vale também para a espada (golpe, Corte, Esmagar, Investida); jogador ou bot inimigo vem pelo id em "j", e só
+  // vale se ele está mesmo em inimigosDe (duelo, arena, outra raça na guerra). Sem "b", tudo igual a antes.
   alvoTravado(j, h, m) {
-    if (!m || typeof m !== 'object' || !Number.isInteger(m.v) || m.v < 0) return null;
-    if (!['basicoMagia', 'bola', 'cadeia', 'meteoro'].includes(h.tipo)) return null;
-    const o = this.inimigos.find((e) => e.v === m.v && !e.morto);
-    if (!o || Math.abs((o.y || 0) - (j.y || 0)) > 3) return null;
+    if (!m || typeof m !== 'object') return null;
+    const botao = m.b === true, espada = ['basicoEspada', 'corte', 'esmagar', 'investida'].includes(h.tipo);
+    if (!['basicoMagia', 'bola', 'cadeia', 'meteoro'].includes(h.tipo) && !(botao && espada)) return null;
+    let o = null;
+    if (botao && typeof m.j === 'string' && m.j) o = this.inimigosDe(j).find((x) => x.tipo === 'jogador' && x.id === m.j) || null;
+    else if (Number.isInteger(m.v) && m.v >= 0) o = this.inimigos.find((e) => e.v === m.v && !e.morto);
+    if (!o || o.morto || Math.abs((o.y || 0) - (j.y || 0)) > 3) return null;
+    if (espada) return dist(o, j) < (h.tipo === 'basicoEspada' ? h.alcance + 1.5 : h.tipo === 'investida' ? h.alcance + 1.5 : h.lunge.r + 1) ? o : null;
     if (!this.visaoLivre(j, o)) return null; // travado atrás de pedra, muro ou casa: vai no mais perto que ela enxerga
     return dist(o, j) < h.alcance + 1.5 ? o : null; // folga de 1 m pelo atraso da rede
   }
