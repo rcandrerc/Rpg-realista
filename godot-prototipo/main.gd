@@ -1262,6 +1262,14 @@ const FORA_ACC_MAX := 0.25 # s: ao voltar para a tela, as molas (cabelo, saia) n
 var _planos: Array[Plane] = []
 var _planos_q := -1
 
+# onde o jogo "olha" para decidir o que anima, aparece e faz sombra: o herói, ou o recruta que o painel do clã mandou
+# "Ver" (espiar.gd). André 2026-11-23: vendo o recruta, ele sumia e os monstros em volta ficavam sem animação, porque
+# tudo isso media a distância até o herói, parado longe. Combate, alvo, lojas e conversa continuam pelo herói.
+func centro_visao() -> Vector3:
+	if espiar != null and espiar.ativo() and cam != null and cam.espiar is Node3D and is_instance_valid(cam.espiar):
+		return cam.espiar.position
+	return heroi.position
+
 func fora_da_tela(p: Vector3) -> bool:
 	if camera == null:
 		return false
@@ -4179,7 +4187,7 @@ func atualizar_heroi(dt: float) -> void:
 	if not acao.is_empty() and acao.get("lamina", false) and h.modo == "Espada" and mov.esc == null:
 		lamina = [espada.global_transform * Vector3(0, 0.2, 0), espada.global_transform * Vector3(0, 0.92, 0)]
 	fx.corpo_passo(heroi, dt, mov.arrancada != null, lamina)
-	sol.global_position = heroi.position
+	sol.global_position = centro_visao() # a sombra acompanha o que a câmera mostra ("Ver" o recruta)
 	corpo_vivo(dt, estava_no_chao)
 
 # o que dá peso ao corpo: mistura da locomoção, inclinar na curva, afundar no pouso e o som dos passos
@@ -4322,7 +4330,7 @@ func npcs_das_vilas(dt: float) -> void:
 	if _npc_vila_t > 0.0 or npcs_vila.is_empty():
 		return
 	_npc_vila_t = 0.5
-	var hp: Vector3 = heroi.position
+	var hp: Vector3 = centro_visao()
 	var criou := false
 	for info in npcs_vila:
 		var d := Vector2(float(info.x) - hp.x, float(info.z) - hp.z).length()
@@ -4355,7 +4363,7 @@ func lod_inimigos() -> void:
 	tl = _parte("li:materializar", tl)
 	npcs_das_vilas(get_process_delta_time())
 	tl = _parte("li:npcs_vilas", tl)
-	var hp: Vector3 = heroi.position
+	var hp: Vector3 = centro_visao() # herói, ou o recruta que está sendo visto
 	var trocas_detalhe := 0 # NPCs que trocaram de detalhe neste quadro (NPC_TROCAS_QUADRO)
 	# NPCs (FPS 2026-11-07): longe como os monstros (outra ponta do mapa, 70 m), o NPC some e para de animar (o guardião
 	# do leste animava e era desenhado com o herói na vila). Perto volta igual; a conversa e a loja só valem de perto.
@@ -4661,7 +4669,8 @@ func materializar_perto(dt: float) -> void:
 	if _mundo_t > 0.0 or heroi == null:
 		return
 	_mundo_t = 1.0
-	var hp := Vector2(heroi.position.x, heroi.position.z)
+	var cv: Vector3 = centro_visao()
+	var hp := Vector2(cv.x, cv.z)
 	var n := 0
 	for e in inimigos:
 		if e.get("vazio", false) and e.has("_k") and hp.distance_to(Vector2(e.centro.x, e.centro.z)) < MUNDO_PERTO:

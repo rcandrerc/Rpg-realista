@@ -1,3 +1,7 @@
+# Regra de agentes por cargo (obrigatória)
+
+Sempre que o André iniciar uma conversa citando um cargo (líder, código, game design, arte), leia apenas o `MEMORIA.md` e o arquivo correspondente em `agentes/` (lider.md, setor_codigo.md, setor_gamedesign.md, setor_arte.md). Seja direto e econômico nas palavras, execute a tarefa pedida e atualize o `MEMORIA.md` com um resumo curto do que foi feito, mantendo o arquivo enxuto (máx. 30 linhas). Para entregar: parta da main mais recente (`git fetch origin main`), abra PR, passe a verificação do GitHub e só então dê merge. Nunca push direto na main (o irmão do André também mexe). Nunca ponha senha, chave ou endereço de servidor no `MEMORIA.md`: o repositório é público.
+
 # Regras do rpg-realista
 
 - Respostas e textos do jogo em português do Brasil.
