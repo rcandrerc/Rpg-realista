@@ -2250,6 +2250,7 @@ func ir_diaria(ev: Dictionary) -> void:
 
 const LILAS := Color(0.72, 0.62, 0.95)
 func montar_missoes() -> void:
+	_card_escolta()
 	var nv = m.nevoa
 	if nv == null or nv.H.is_empty():
 		conteudo.add_child(rotulo("Sem missões por enquanto.", 14, APAGADO))
@@ -2289,6 +2290,29 @@ func montar_missoes() -> void:
 		var feito: bool = feitas > int(idx[-1])
 		var atual: bool = not feito and feitas >= int(idx[0])
 		conteudo.add_child(_card_capitulo(C, idx, ms, feitas, h, feito, atual))
+
+# a Escolta do Clã em andamento, no alto da aba (André 2026-11-23: "coloca essa missão do clã também na aba de missões")
+func _card_escolta() -> void:
+	if m.missao_ativa == null:
+		return
+	var E: Dictionary = m.missao_ativa.escolta()
+	if E.is_empty():
+		return
+	var pc := PanelContainer.new()
+	pc.add_theme_stylebox_override("panel", caixa(Color(0.14, 0.07, 0.06, 1), Color(1.0, 0.36, 0.28), 2, RAIO_JANELA))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	pc.add_child(v)
+	var te: Array = m.missao_ativa.textos_escolta(E)
+	v.add_child(rotulo("Missão do clã: " + str(te[0]), 16, OURO_CLARO))
+	v.add_child(rotulo(str(te[1]), 14, Color("ffb4a6")))
+	var d := rotulo("Leve os recrutas vivos até o totem. Nas emboscadas, derrube todos os monstros da onda antes de seguir.", 12, APAGADO)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(d)
+	v.add_child(botao("Ir até %s" % str(E.get("nome", "o totem")), func():
+		fechar()
+		m.missao_ativa.ir(), 14, true))
+	conteudo.add_child(pc)
 
 func _card_capitulo(C: Dictionary, idx: Array, ms: Array, feitas: int, h: Dictionary, feito: bool, atual: bool) -> Control:
 	var nivel := int(m.P.prog.nivel)

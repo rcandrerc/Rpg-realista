@@ -1321,6 +1321,7 @@ func evento(ev: Dictionary) -> void:
 				m.cinematica.tocar(str(ev.get("id", "")))
 			return
 		"missaoCla": # Escolta do Clã: o contador da onda no alto da tela (shared/missao-cla.js placarMissao)
+			_escolta_guardar(ev)
 			_placar_escolta(ev)
 			return
 		"nevoa_some": # chefe da história que para a luta e some (Kael): névoa no lugar e o corpo some na hora
@@ -2361,6 +2362,33 @@ func alvo_guerra(pos: Vector3, max_d: float, filtro := Callable()):
 # o placar da Escolta do Clã (André 2026-11-23: "apareceu um contador na tela... 0/12... só consigo ir pra segunda wave
 # quando ficar 12/12"): no alto, no meio, embaixo dos botões; some quando a escolta acaba
 var _placar: PanelContainer
+# a escolta em andamento (André 2026-11-23: "ela entra ali no shortcut que mostra a missão ativa" e na aba Missões):
+# {x, z, nome, emb, embs, mortos, n, ate (ms do relógio do app)}; vazio quando acaba (missao_ativa.gd, menu.gd)
+var escolta := {}
+func _escolta_guardar(ev: Dictionary) -> void:
+	if ev.has("fim"):
+		escolta = {}
+		if ev.has("ok") and m.festa: # a tela de missão concluída, igual às outras missões, com cada recruta pelo nome
+			var lista: Array = []
+			for s in ev.get("subiu", []):
+				var nv0 := int(s.get("de", 0))
+				var nv := int(s.get("nv", 0))
+				lista.append(Idioma.t("%s subiu para o Nv %d. Parabéns!") % [str(s.nome), nv] if nv > nv0 else Idioma.t("%s ganhou XP. Parabéns!") % str(s.nome))
+			var sub := Idioma.t("+%d de ouro no cofre do clã") % int(ev.get("ouro", 0))
+			if int(ev.get("alma", 0)) > 0:
+				sub += Idioma.t(" · +%d Fragmento de Alma") % int(ev.alma)
+			m.festa.missao(Idioma.t("Escolta do Clã"), sub, lista)
+		return
+	if escolta.is_empty() and not ev.has("n") and m.festa: # começou: a janela de missão nova, igual às outras
+		m.festa.do_aviso("Missão nova: Escolta do Clã → %s" % str(ev.get("nome", "o totem")))
+	for k in ["x", "z", "nome", "emb", "embs", "mortos", "n"]:
+		if ev.has(k):
+			escolta[k] = ev[k]
+	if not ev.has("n"): # começou agora: nenhuma emboscada ainda
+		escolta.mortos = 0
+		escolta.n = 0
+	if ev.has("falta"):
+		escolta.ate = Time.get_ticks_msec() + int(float(ev.falta) * 1000.0)
 var _placar_txt: Label
 func _placar_escolta(ev: Dictionary) -> void:
 	if ev.has("fim") or not ev.has("n"):

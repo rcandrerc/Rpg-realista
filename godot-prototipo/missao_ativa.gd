@@ -155,6 +155,31 @@ func cobre(p: Vector2) -> bool:
 func _missao() -> Dictionary:
 	return m.nevoa.missao_atual() if m.nevoa != null else {}
 
+# a Escolta do Clã em andamento (online.gd escolta): enquanto dura, ela é a missão do cartão (André 2026-11-23)
+func escolta() -> Dictionary:
+	if m.online == null:
+		return {}
+	var E: Dictionary = m.online.escolta
+	if E.is_empty() or (E.has("ate") and Time.get_ticks_msec() > int(E.ate) + 15000): # passou do tempo e o fim não chegou
+		return {}
+	return E
+
+static func textos_escolta(E: Dictionary) -> Array:
+	var resto := ""
+	if E.has("ate"):
+		var s: int = maxi(0, int((int(E.ate) - Time.get_ticks_msec()) / 1000))
+		resto = " · %d:%02d" % [s / 60, s % 60]
+	var n := int(E.get("n", 0))
+	var mortos := mini(int(E.get("mortos", 0)), n)
+	var l2: String
+	if n <= 0:
+		l2 = "Leve os recrutas vivos" + resto
+	elif mortos < n:
+		l2 = "Onda %d/%d · Monstros %d/%d" % [int(E.get("emb", 0)), int(E.get("embs", 4)), mortos, n] + resto
+	else:
+		l2 = "Onda %d/%d vencida · Sigam" % [int(E.get("emb", 0)), int(E.get("embs", 4))] + resto
+	return ["Escolta do Clã → %s" % str(E.get("nome", "o totem")), l2]
+
 func _nome_npc(id: String) -> String:
 	for n in m.mundo.get("npcs", []):
 		if str(n.get("id", "")) == id:
@@ -197,13 +222,30 @@ func _process_parte(dt: float) -> void:
 	if cartao == null or m.hud == null:
 		return
 	var M := _missao()
+	var E := escolta()
 	var editando: bool = m.hud.editando
-	var mostrar: bool = (not M.is_empty() or editando) and not m.hud.esconder_combate and not m.hud.modo_construcao and m.heroi != null
+	var mostrar: bool = (not M.is_empty() or not E.is_empty() or editando) and not m.hud.esconder_combate and not m.hud.modo_construcao and m.heroi != null
 	if cartao.visible != mostrar:
 		cartao.visible = mostrar
 	_chegou_npc()
 	_coluna(mostrar)
 	if not mostrar:
+		return
+	if not E.is_empty(): # Escolta do Clã: no lugar da missão da história enquanto dura
+		_t -= dt
+		if _t > 0.0:
+			return
+		_t = 0.25
+		var te := textos_escolta(E)
+		if l1.text != Idioma.frase(te[0]):
+			l1.text = Idioma.frase(te[0])
+		if l2.text != Idioma.frase(te[1]):
+			l2.text = Idioma.frase(te[1])
+			l2.add_theme_color_override("font_color", Color("ffb4a6"))
+		ir_btn.disabled = false
+		cartao.size = Vector2(LARGURA, 0)
+		if _marca:
+			_marca.visible = false
 		return
 	if M.is_empty(): # modo de editar sem missão: aparece um modelo, para dar para mover
 		_t = 0.0
@@ -231,6 +273,9 @@ func _process_parte(dt: float) -> void:
 # ---------- "Ir para" ----------
 # {pos: Vector2, nome, npc: id ou ""} do próximo passo da missão: falar com o NPC, ir caçar ou ir minerar
 func alvo() -> Dictionary:
+	var E := escolta()
+	if not E.is_empty(): # Escolta do Clã: o totem de destino
+		return {"pos": Vector2(float(E.get("x", 0)), float(E.get("z", 0))), "nome": str(E.get("nome", "o totem")), "npc": ""}
 	var M := _missao()
 	if M.is_empty():
 		return {}
@@ -290,7 +335,7 @@ func _npc(id: String) -> Dictionary:
 func ir() -> void:
 	if m.rota == null or m.heroi == null:
 		return
-	if str(_info(_missao()).get("ev", "")) in ["diaria_vista", "diaria"]: # missão da Rosa: o Ir abre a aba Diárias
+	if escolta().is_empty() and str(_info(_missao()).get("ev", "")) in ["diaria_vista", "diaria"]: # missão da Rosa: o Ir abre a aba Diárias
 		m.menu.abrir("diarias")
 		return
 	var A := alvo()

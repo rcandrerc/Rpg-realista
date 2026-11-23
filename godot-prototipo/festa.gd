@@ -105,8 +105,7 @@ func do_aviso(t: String) -> bool:
 	if t.begins_with("Escolta do Clã falhou"):
 		_faixa({"tipo": "grande", "cab": "ESCOLTA DO CLÃ", "titulo": "Falhou", "sub": t.substr(t.find(":") + 1).strip_edges() if t.contains(":") else "Pode tentar de novo agora", "cor": VERMELHO, "dur": 3.0, "som": "festa_falha"})
 		return true
-	if t.begins_with("Escolta do Clã cumprida"):
-		_faixa({"tipo": "grande", "cab": "ESCOLTA DO CLÃ", "titulo": "Cumprida!", "sub": t.substr(t.find("!") + 1).strip_edges(), "cor": SISTEMA, "tit": Color("ffe7a8"), "dur": 3.6, "som": "festa_libera", "faiscas": 16})
+	if t.begins_with("Escolta do Clã cumprida"): # a tela de missão concluída já veio do evento missaoCla (online.gd)
 		return true
 	if t.begins_with("Liberado: "):
 		liberado(t.substr(10))
@@ -190,8 +189,8 @@ func atalho(p: Vector2) -> bool:
 		m.menu.abrir("status")
 	return true
 
-func missao(nome: String, sub := "") -> void:
-	_faixa({"tipo": "grande", "cab": "MISSÃO CONCLUÍDA", "titulo": nome, "sub": sub, "cor": SISTEMA, "tit": Color("ffe7a8"), "dur": 3.2,
+func missao(nome: String, sub := "", lista: Array = []) -> void:
+	_faixa({"tipo": "grande", "cab": "MISSÃO CONCLUÍDA", "titulo": nome, "sub": sub, "lista": lista, "cor": SISTEMA, "tit": Color("ffe7a8"), "dur": 3.2 + 0.6 * lista.size(),
 		"som": "festa_missao", "coluna": "9fe4ff", "faiscas": 30, "soco": 2.5})
 
 # História v2 (André 2026-11-11): cartão de capítulo. Abre: "CAPÍTULO 3" + nome + a frase de efeito. Fecha: "CAPÍTULO 3
@@ -441,7 +440,9 @@ func _desenhar_faixa(tam: Vector2) -> void:
 	var grande: bool = f.tipo == "grande"
 	var cor: Color = f.cor
 	var W: float = min(tam.x * 0.9, 600.0 if grande else 470.0)
-	var H: float = (138.0 if f.sub != "" else 116.0) if grande else 84.0
+	var lista: Array = f.get("lista", []) # linhas a mais embaixo (Escolta do Clã: cada recruta que subiu de nível)
+	var extra: float = 24.0 * lista.size() + (8.0 if not lista.is_empty() else 0.0)
+	var H: float = ((138.0 if f.sub != "" else 116.0) if grande else 84.0) + extra
 	var cx: float = tam.x * 0.5
 	var cy: float = tam.y * (0.36 if grande else 0.25)
 	# abrir / fechar
@@ -499,11 +500,13 @@ func _desenhar_faixa(tam: Vector2) -> void:
 	var t_tit: int = 46 if grande else 26
 	while t_tit > 18 and fonte.get_string_size(titulo, HORIZONTAL_ALIGNMENT_LEFT, -1, t_tit).x > w - 40.0:
 		t_tit -= 2
-	var y_tit: float = (cy + t_tit * 0.42 + 4.0 - (10.0 if f.sub != "" else 0.0)) if grande else cy + t_tit * 0.42 + 8.0
+	var y_tit: float = (cy - extra * 0.5 + t_tit * 0.42 + 4.0 - (10.0 if f.sub != "" else 0.0)) if grande else cy + t_tit * 0.42 + 8.0
 	var esc: float = 1.0 + (1.0 - _volta(clamp(tt / 0.3, 0.0, 1.0))) * 0.12
 	_texto_centro(titulo, Vector2(cx, y_tit), t_tit, f.get("tit", Color(0.93, 0.98, 1.0)), at, esc, 0, cor)
 	if grande and f.sub != "":
-		_texto_centro(f.sub, Vector2(cx, r.end.y - 14.0), 17, Color(0.72, 0.86, 0.95), at * clamp((tt - 0.25) / 0.2, 0.0, 1.0), 1.0, 0, cor)
+		_texto_centro(f.sub, Vector2(cx, r.end.y - 14.0 - extra), 17, Color(0.72, 0.86, 0.95), at * clamp((tt - 0.25) / 0.2, 0.0, 1.0), 1.0, 0, cor)
+	for i in lista.size():
+		_texto_centro(str(lista[i]), Vector2(cx, r.end.y - extra + 10.0 + 24.0 * i), 18, Color("ffe7a8"), at * clamp((tt - 0.35 - 0.12 * i) / 0.2, 0.0, 1.0), 1.0, 0, cor)
 
 # janelinha do nível no alto (mesmo visual da janela do sistema, pequena): abre num risco de luz, texto à esquerda
 # ("NÍVEL AUMENTOU" / "NÍVEL 12") e, com pontos livres, o botão "+N PONTOS / DISTRIBUIR" à direita, que pulsa de leve
