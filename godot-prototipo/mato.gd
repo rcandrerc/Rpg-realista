@@ -45,6 +45,30 @@ var _sinal_obst := -1 # soma de peças e hortas de todos os lotes: igual = nada 
 var _sinais := {} # lote -> sinal (peças e horta); mudou: só os quadrados daquele lote são sorteados de novo
 var _refazer := {} # quadrados na tela que estão sendo sorteados de novo (o mato velho fica até o novo ficar pronto)
 var _t_sinal := 0.0
+# o chão de cada quadrado quando o mato foi sorteado (5 pontos): se mudar depois (base nivelada, estrada, qualquer
+# coisa), o quadrado é sorteado de novo (André 2026-11-23: "um monte de coisa voando")
+var _sig := {} # Vector2i -> float
+var _t_sig := 0.0
+var _sig_i := 0
+func _sig_chao(k: Vector2i) -> float:
+	var s := 0.0
+	for d in [Vector2(0.5, 0.5), Vector2(0.15, 0.15), Vector2(0.85, 0.15), Vector2(0.15, 0.85), Vector2(0.85, 0.85)]:
+		s += T.chao_relevo((k.x + d.x) * CEL, (k.y + d.y) * CEL)
+	return s
+func _conferir_chao(dt: float) -> void:
+	_t_sig -= dt
+	if _t_sig > 0.0 or _vivos.is_empty():
+		return
+	_t_sig = 0.25
+	var ks: Array = _vivos.keys()
+	_sig_i = (_sig_i + 1) % ks.size()
+	var k: Vector2i = ks[_sig_i]
+	if _refazer.has(k) or not _sig.has(k):
+		return
+	if absf(_sig_chao(k) - float(_sig[k])) > 0.25:
+		_cache.erase(k)
+		_refazer[k] = true
+		_fila.push_front(k)
 var _matas: Array = [] # áreas de mata do mapa de hoje (chão de floresta: mato mais ralo)
 var _livres: Array = [] # MultiMeshInstance3D sem uso (reaproveitados)
 
@@ -193,6 +217,7 @@ func _passo(dt: float) -> void:
 	if c != _centro:
 		_centro = c
 		_refazer_fila(hp)
+	_conferir_chao(dt)
 	_trabalhar()
 
 func _refazer_fila(hp: Vector3) -> void:
@@ -227,11 +252,11 @@ func _trabalhar() -> void:
 			if _vivos.has(k) and not _refazer.has(k):
 				continue
 			if _cache.has(k):
-				_mostrar(k, _cache[k][0], _cache[k][1])
+				_mostrar(k, _cache[k][0], _cache[k][1], _cache[k][2] if _cache[k].size() > 2 else _sig_chao(k))
 				continue
 			var rng := RandomNumberGenerator.new()
 			rng.seed = hash(Vector3i(k.x, k.y, 20261110))
-			_fazendo = {"k": k, "i": 0, "n": int(CEL * CEL * NIVEIS[2].dens), "capim": PackedFloat32Array(),
+			_fazendo = {"sig": _sig_chao(k), "k": k, "i": 0, "n": int(CEL * CEL * NIVEIS[2].dens), "capim": PackedFloat32Array(),
 				"sam": PackedFloat32Array(), "rng": rng}
 		_sortear_um_pouco(t0)
 
@@ -276,11 +301,11 @@ func _sortear_um_pouco(t0: int) -> void:
 		var cor := _cor_capim(tom, x, z)
 		cor.a = 1.0 if tipo > 0.75 else 0.0
 		_por(f.capim, b, Vector3(x, y - 0.04, z), cor)
-	_cache[k] = [f.capim, f.sam]
+	_cache[k] = [f.capim, f.sam, f.sig]
 	if _cache.size() > CACHE_MAX:
 		_cache.erase(_cache.keys()[0])
 	_fazendo = {}
-	_mostrar(k, f.capim, f.sam)
+	_mostrar(k, f.capim, f.sam, f.sig)
 
 # PALETA da grama do jogo (main.gd montar_grama: hsl 0,22-0,27 / 0,45-0,62 / 0,3-0,46), em manchas: umas touceiras
 # mais secas, amareladas, como na foto
@@ -440,10 +465,11 @@ func _sinal_lote(L: Dictionary) -> int:
 
 # ---------- montar e soltar os quadrados ----------
 
-func _mostrar(k: Vector2i, capim: PackedFloat32Array, sam: PackedFloat32Array) -> void:
+func _mostrar(k: Vector2i, capim: PackedFloat32Array, sam: PackedFloat32Array, sig: float) -> void:
 	if _vivos.has(k): # refeito (lote mudou): troca o velho pelo novo
 		_soltar(k)
 	_refazer.erase(k)
+	_sig[k] = sig
 	_vivos[k] = [_instancia(_malha_capim, capim), _instancia(_malha_samambaia, sam) if P.sam > 0.0 else null]
 
 func _instancia(malha: Mesh, buf: PackedFloat32Array) -> MultiMeshInstance3D:
@@ -472,6 +498,7 @@ func _soltar(k: Vector2i) -> void:
 			_livres.append(g)
 	_vivos.erase(k)
 	_refazer.erase(k)
+	_sig.erase(k)
 
 # Terra arada nova (André 2026-11-13: "quando arar o terreno, tem que sumir essa grama alta"): o capim e a samambaia
 # em cima do canteiro (com a terra solta da borda e o tamanho da touceira) somem na hora, sem esperar o quadrado ser
@@ -514,6 +541,8 @@ func refazer_area(x0: float, z0: float, x1: float, z1: float) -> void:
 			_cache.erase(k)
 			if _vivos.has(k):
 				_refazer[k] = true
+			if not _fazendo.is_empty() and _fazendo.k == k: # estava sorteando com o chão velho (grama voando, André 2026-11-23)
+				_fazendo = {}
 	if m.heroi != null:
 		_refazer_fila(m.heroi.global_position)
 

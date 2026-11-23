@@ -32,6 +32,14 @@ func atualizar(lista: Array) -> void:
 		elif v.size() >= 7 and not arvores.has(id):
 			botar(id, str(v[1]), float(v[2]), float(v[3]), float(v[4]), float(v[5]), float(v[6]))
 
+# o chão mudou de altura (base do clã nivelada, base_cla.gd; André 2026-11-23: "as árvores também" voando): as árvores
+# plantadas dessa área descem ou sobem junto com o chão
+func chao_mudou(area: Rect2) -> void:
+	for id in arvores:
+		var no = arvores[id].get("no")
+		if no is Node3D and is_instance_valid(no) and area.has_point(Vector2(no.position.x, no.position.z)):
+			no.position.y = m.terreno.altura(no.position.x, no.position.z)
+
 func tipos() -> Dictionary:
 	return m.P.dados.get("arvoresPlantio", {})
 
@@ -204,9 +212,16 @@ func _process(dt: float) -> void:
 	if _t > 0.0:
 		return
 	_t = 2.0
+	var hp: Vector3 = m.heroi.position if m.heroi != null else Vector3.ZERO
 	for a in arvores.values():
 		if a.fase < 2:
 			_fase(a)
+		# o chão mudou embaixo dela (base nivelada, estrada...): acompanha (André 2026-11-23: "as árvores também" voando)
+		var no = a.get("no")
+		if no is Node3D and is_instance_valid(no) and not (m.trabalho and a.get("o") and m.trabalho.queda.caida(a.o.id)) and Vector2(no.position.x - hp.x, no.position.z - hp.z).length_squared() < LONGE * LONGE:
+			var y: float = m.terreno.chao_relevo(no.position.x, no.position.z)
+			if absf(no.position.y - y) > 0.3 and absf(m.terreno.altura(no.position.x, no.position.z) - y) < 0.05:
+				no.position.y = y
 
 # plantou (evento do servidor): terra mexida e o som da mão na terra
 func plantou(ev: Dictionary) -> void:
