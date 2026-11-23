@@ -39,6 +39,16 @@ func chao_mudou(area: Rect2) -> void:
 		var no = arvores[id].get("no")
 		if no is Node3D and is_instance_valid(no) and area.has_point(Vector2(no.position.x, no.position.z)):
 			no.position.y = m.terreno.altura(no.position.x, no.position.z)
+			_acertar_y(arvores[id], no.position.y)
+
+# o coletável acompanha o chão: o corte só vale se a diferença de altura com o herói for menor que 1,5 m (trabalho.gd) e o
+# toco nasce na altura de o.pos (queda_arvore.gd). Sem isso a árvore da base nivelada ficava incortável e o toco flutuava.
+func _acertar_y(a: Dictionary, y: float) -> void:
+	var o = a.get("o")
+	if o is Dictionary:
+		if m.trabalho.queda.caida(o.id):
+			m.trabalho.queda.toco_acompanha(o.id, y - o.pos.y)
+		o.pos.y = y
 
 func tipos() -> Dictionary:
 	return m.P.dados.get("arvoresPlantio", {})
@@ -218,10 +228,17 @@ func _process(dt: float) -> void:
 			_fase(a)
 		# o chão mudou embaixo dela (base nivelada, estrada...): acompanha (André 2026-11-23: "as árvores também" voando)
 		var no = a.get("no")
-		if no is Node3D and is_instance_valid(no) and not (m.trabalho and a.get("o") and m.trabalho.queda.caida(a.o.id)) and Vector2(no.position.x - hp.x, no.position.z - hp.z).length_squared() < LONGE * LONGE:
+		if no is Node3D and is_instance_valid(no) and a.get("o") and m.trabalho.queda.caida(a.o.id):
+			# cortada, o toco fica: se o chão mudou (base nivelada), o toco acompanha
+			var yc: float = m.terreno.chao_relevo(no.position.x, no.position.z)
+			if absf(a.o.pos.y - yc) > 0.3 and absf(m.terreno.altura(no.position.x, no.position.z) - yc) < 0.05:
+				_acertar_y(a, yc)
+			continue
+		if no is Node3D and is_instance_valid(no) and Vector2(no.position.x - hp.x, no.position.z - hp.z).length_squared() < LONGE * LONGE:
 			var y: float = m.terreno.chao_relevo(no.position.x, no.position.z)
 			if absf(no.position.y - y) > 0.3 and absf(m.terreno.altura(no.position.x, no.position.z) - y) < 0.05:
 				no.position.y = y
+				_acertar_y(a, y)
 
 # plantou (evento do servidor): terra mexida e o som da mão na terra
 func plantou(ev: Dictionary) -> void:
