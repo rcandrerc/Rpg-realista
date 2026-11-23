@@ -160,7 +160,8 @@ func _ready() -> void:
 	tudo.offset_bottom = -14
 	tudo.add_theme_constant_override("separation", 18)
 	moldura.add_child(tudo)
-	tudo.add_child(montar_esquerda())
+	esquerda = montar_esquerda()
+	tudo.add_child(esquerda)
 	tudo.add_child(montar_direita())
 	# fechar (canto de cima à direita)
 	var x := Fechar.new()
@@ -405,6 +406,7 @@ func moldurar(q: Control, cor: Color, destaque: bool, com_item: bool, raio := 8,
 	q.add_child(aro)
 
 # ---------- esquerda: herói 3D e equipamentos ----------
+var esquerda: Control # some na aba Clã (André 2026-11-23: "painel de administração do clã... não faz sentido ter meus equipamentos")
 func montar_esquerda() -> Control:
 	var col := VBoxContainer.new()
 	col.custom_minimum_size = Vector2(430, 0)
@@ -1043,6 +1045,8 @@ func atualizar() -> void:
 	mostrar_painel(null)
 	if aba == "loja" and not m.perto_da_loja():
 		aba = "mochila"
+	if esquerda != null:
+		esquerda.visible = not (aba in ABAS_CLA)
 	var grupo: Array = ABAS_BOLSA if aba in ABAS_BOLSA else (ABAS_MISSOES if aba in ABAS_MISSOES else (ABAS_CLA if aba in ABAS_CLA else ABAS_PERSONAGEM))
 	for k in botoes_aba:
 		_estilo_se_mudou(botoes_aba[k], k == aba)
@@ -1087,6 +1091,7 @@ func atualizar() -> void:
 		montar_guilda()
 	elif aba == "cla":
 		montar_cla()
+		_quebrar_linhas(conteudo) # nada cortado à direita (André 2026-11-23: "está cortando ali o nível")
 	elif aba == "titulos":
 		montar_titulos()
 	elif aba == "profissoes":
@@ -2049,6 +2054,19 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 
 # com a aba Clã aberta, pede o painel de novo a cada 3 s (HP, mana e vigor andando)
 var _cla_timer := false
+# textos compridos quebram linha em vez de alargar o painel (o que passava da tela sumia)
+func _quebrar_linhas(no: Node) -> void:
+	for c in no.get_children():
+		if c is Label:
+			if no is HBoxContainer and not (c.size_flags_horizontal & Control.SIZE_EXPAND): # rótulo curto da fileira (HP, Nv): fica inteiro
+				continue
+			c.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			c.custom_minimum_size.x = maxf(c.custom_minimum_size.x, 40.0)
+		elif c is Button:
+			c.clip_text = false
+		else:
+			_quebrar_linhas(c)
+
 func _cla_vivo() -> void:
 	if _cla_timer:
 		return
