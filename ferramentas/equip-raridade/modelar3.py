@@ -406,8 +406,8 @@ def set_roupa(r, c):
         # justa onde o corpete cobre (não atravessa o couro quando o braço mexe); folgada no decote e no ombro
         g = 0.07 + 0.36 * ss(1.1, 1.31, z)
         aa = abs((a + math.pi) % (2 * math.pi) - math.pi)
-        coberta = ss(1.31, 1.27, z) * ss(g - 0.02, g + 0.1, aa)
-        return 0.007 + 0.004 * ss(1.3, 1.395, z) - 0.0045 * coberta
+        coberta = ss(1.318, 1.298, z) * ss(g - 0.03, g + 0.06, aa)
+        return 0.007 + 0.004 * ss(1.3, 1.395, z) - 0.005 * coberta
     cam, gcam = casca('camisa', linhas_z(0.9, 1.395, 16, lambda z, t: (-math.pi + 0.01, math.pi - 0.01)), folga_camisa, c['camisa'], NA=36)
     # gola: decote redondo com fenda; cava nas laterais (o ombro fica com a manga)
     for v in cam.data.vertices:
