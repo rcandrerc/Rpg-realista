@@ -63,12 +63,20 @@ static func valida(a, criador: Dictionary) -> Dictionary:
 	for l in criador.get("penteados", {}).values():
 		if d.get("penteado") != null and str(d.penteado) in l:
 			r.penteado = str(d.penteado)
+	# traje da armadura v5 (André 2026-11-23): null = patrulheira, "roupao" = roupão de mago (só muda a moça)
+	r.traje = "roupao" if str(d.get("traje", "")) == "roupao" else null
 	return r
 
 # Pinta, estica e forma o rosto de um personagem (no = o que main.modelo devolveu)
 # esperar = false (corpos dos outros): o penteado de outro modelo não carrega no quadro (penteado.gd)
 static func aplicar(no: Node3D, ap, esperar := true) -> void:
 	var a: Dictionary = ap if ap is Dictionary else {}
+	# traje (patrulheira ou roupão): a armadura lê do corpo; se trocou e ele já está vestido, veste de novo
+	var traje := str(a.get("traje")) if a.get("traje") != null else ""
+	if str(no.get_meta("traje", "")) != traje:
+		no.set_meta("traje", traje)
+		if no.has_meta("equip_v5"):
+			load("res://armadura.gd").vestir(no, no.get_meta("equip_v5"))
 	var alt = a.get("altura")
 	no.scale = Vector3.ONE * (float(alt) if alt != null else 1.0)
 	# antes das cores: o cabelo trocado também pega a cor de cabelo escolhida

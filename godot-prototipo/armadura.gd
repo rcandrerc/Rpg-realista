@@ -80,8 +80,11 @@ static func _pecas_couro(k: String, r: int) -> Array:
 # A linha de couro e aço de antes continua abaixo (LINHA_V5 = false volta para ela).
 const LINHA_V5 := true
 # roupão de mago também no feminino (André 2026-11-23: "acho que o feminino talvez vai colocar como roupão também");
-# por enquanto só para as fotos de comparação: false = feminino de patrulheira (o que ele aprovou)
+# André 2026-11-23: na Aparência a moça escolhe "Patrulheira" ou "Roupão" (aparencia.traje); o rapaz é só roupão.
+# roupao_fem = true força o roupão em todas (só as fotos de ferramentas/armadura-v5/fotos.gd)
 static var roupao_fem := false
+static func _de_roupao(raiz: Node3D, esq: Skeleton3D) -> bool:
+	return _ref(esq).masc or roupao_fem or str(raiz.get_meta("traje", "")) == "roupao"
 static func _pecas_v5(k: String, r: int) -> Array:
 	match k:
 		# "@f" = só no corpo feminino (patrulheira); "@m" = só no masculino (roupão de mago, André 2026-11-23:
@@ -275,6 +278,7 @@ static func vestir(raiz: Node3D, equip) -> void:
 		return
 	_orientar(esq)
 	_ombros_largos(esq)
+	raiz.set_meta("equip_v5", equip) # a Aparência veste de novo quando troca o traje (Aparencia.aplicar)
 	# André 2026-11-07: sem peitoral a blusa vira pele (top de biquíni na menina, peito nu no menino), então ela fica
 	# sempre justa como debaixo da armadura (antes, sem peitoral, era a camiseta branca larga)
 	_cintura(raiz, true, equip is Dictionary and equip.get("corpo") is Dictionary and PECAS.has(str(equip.corpo.get("k", ""))))
@@ -288,6 +292,8 @@ static func vestir(raiz: Node3D, equip) -> void:
 			chave = "%s:%d" % [str(it.k), int(it.get("r", 0))]
 			if l == "pernas" and tem_capa:
 				chave += ":capa" # com capa o saiote perde as lâminas de trás (o pano cobre e elas furariam a capa)
+			if LINHA_V5 and _de_roupao(raiz, esq):
+				chave += ":roupao" # traje da Aparência: peças do roupão no lugar das da patrulheira
 		var nome: String = "Armadura_" + str(l)
 		var velho := esq.get_node_or_null(nome)
 		if velho and velho.get_meta("chave", "") == chave:
@@ -1409,7 +1415,7 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 			_montar_capuz(raiz, esq, no, r)
 			continue
 		if parte.ends_with("@f") or parte.ends_with("@m"):
-			if parte.ends_with("@m") != (_ref(esq).masc or roupao_fem):
+			if parte.ends_with("@m") != _de_roupao(raiz, esq):
 				continue
 			parte = parte.left(-2)
 		if parte == "roupao_saia":
@@ -1467,7 +1473,15 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 			mat_f = "peito_reto"
 		mi.material_override = _material(mat_f, r)
 		if parte.begins_with("manga_larga"):
-			mi.set_instance_shader_parameter("punho_x", _ref(esq).x_mao - 0.02)
+			# onde começa a boca da manga: material por medida de braço (guardado), não "instance uniform" (com
+			# muitos corpos no mundo o buffer de variáveis por instância estourava)
+			var px := snappedf(_ref(esq).x_mao - 0.02, 0.005)
+			var chave_px := "%s|%d|punho%.3f" % [mat_f, r, px]
+			if not _materiais.has(chave_px):
+				var mp: Material = mi.material_override.duplicate()
+				mp.set_shader_parameter("punho_x", px)
+				_materiais[chave_px] = mp
+			mi.material_override = _materiais[chave_px]
 		if temp:
 			temp.free()
 

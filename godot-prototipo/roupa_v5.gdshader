@@ -21,7 +21,7 @@ uniform float cadarco = 0.0;
 uniform float faixa = 0.0; // tiras (m entre elas na coordenada UV2.y); 0 = sem
 uniform float costura = 1.0;
 uniform float punho = 0.0; // manga do roupão: largura da barra na boca da manga (m ao longo do braço)
-instance uniform float punho_x = 9.0; // onde começa a boca da manga (x da pose de descanso)
+uniform float punho_x = 9.0; // onde começa a boca da manga (x da pose de descanso)
 uniform float faixa_meio = 0.0; // roupão: faixa bordada no meio da frente (meia-largura, m)
 uniform float luz_ref = 2.83;
 

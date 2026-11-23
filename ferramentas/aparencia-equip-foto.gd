@@ -37,4 +37,14 @@ func _initialize() -> void:
 		c.linha_equip.emit_signal("pressed")
 		await esperar(30)
 		await foto("3-desmarcado-de-novo")
+	# André 2026-11-23: quadradinhos do traje (Patrulheira / Roupão) na moça
+	if c.get("trajes_fl") != null:
+		c.rolagem.scroll_vertical = int(c.trajes_fl.position.y) - 120
+		await esperar(5)
+		c.trajes_fl.get_child(1).emit_signal("pressed")
+		await esperar(40)
+		await foto("4-roupao")
+		c.trajes_fl.get_child(0).emit_signal("pressed")
+		await esperar(40)
+		await foto("5-patrulheira")
 	quit()
