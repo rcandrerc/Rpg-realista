@@ -47,7 +47,7 @@ const MEDALHAO := 52.0
 # André 2026-11-12: aba Títulos (títulos com bônus; um em uso por vez)
 const ABAS_PERSONAGEM := ["status", "habilidades", "profissoes", "titulos", "aparencia"]
 # André 2026-11-11: Missões saiu do menu do personagem e ganhou ícone no menu do topo (abre só ela)
-const ABAS_MISSOES := ["missoes", "diarias", "guilda"] # História e Diárias (André 2026-11-16); Guilda (2026-11-18)
+const ABAS_MISSOES := ["missoes", "diarias", "guilda", "cla_missoes"] # História e Diárias (André 2026-11-16); Guilda (2026-11-18)
 const ABAS_CLA := ["cla"] # clã e recrutas (André 2026-11-22), janela própria
 const ABAS_BOLSA := ["mochila", "criar", "recipedia", "loja"] # Recipedia: todas as receitas para consultar (André 2026-11-21)
 # submenus da aba Criar
@@ -822,7 +822,7 @@ func montar_direita() -> Control:
 	col.add_theme_constant_override("separation", 8)
 	var abas := HBoxContainer.new()
 	abas.add_theme_constant_override("separation", 6)
-	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["titulos", "Títulos"], ["missoes", "História"], ["diarias", "Diárias"], ["guilda", "Guilda"], ["cla", "Clã"], ["aparencia", "Aparência"],
+	for a in [["status", "Status"], ["habilidades", "Habilidades"], ["profissoes", "Profissões"], ["titulos", "Títulos"], ["missoes", "História"], ["diarias", "Diárias"], ["guilda", "Guilda"], ["cla_missoes", "Missão do Clã"], ["cla", "Clã"], ["aparencia", "Aparência"],
 			["mochila", "Mochila"], ["criar", "Criar"], ["recipedia", "Recipedia"], ["loja", "Loja"]]:
 		var b := botao(a[1], func(): trocar_aba(a[0]), 16)
 		b.custom_minimum_size = Vector2(126, 40)
@@ -926,6 +926,8 @@ func abrir(qual := "", sub := "") -> void:
 			_viu_diarias.call_deferred()
 		if qual == "guilda" and m.on(): # o "perto do mural" e os contratos do dia vêm do servidor na hora
 			m.rede("guilda", {"acao": "ver"})
+		if qual == "cla_missoes" and m.on(): # a escolta e o tempo da próxima vêm do servidor na hora
+			m.rede("cla", {"acao": "ver"})
 		if qual == "cla" and m.on(): # o "perto do Recrutador" e o cofre vêm do servidor na hora
 			m.rede("cla", {"acao": "ver"})
 	elif aba in ABAS_BOLSA or aba in ABAS_MISSOES or aba in ABAS_CLA: # barra de vida: só o menu do personagem
@@ -1051,7 +1053,7 @@ func atualizar() -> void:
 	for k in botoes_aba:
 		_estilo_se_mudou(botoes_aba[k], k == aba)
 		botoes_aba[k].visible = k in grupo
-		botoes_aba[k].custom_minimum_size.x = 104 if grupo == ABAS_BOLSA else 126
+		botoes_aba[k].custom_minimum_size.x = 104 if grupo == ABAS_BOLSA else (170 if k == "cla_missoes" else 126)
 	botoes_aba.loja.visible = aba in ABAS_BOLSA and m.perto_da_loja()
 	_bolinha_diarias()
 	linha_criar.visible = false # a fileira de submenus deu lugar às estações e aos grupos sanfona (André 2026-11-09)
@@ -1089,6 +1091,9 @@ func atualizar() -> void:
 		montar_diarias()
 	elif aba == "guilda":
 		montar_guilda()
+	elif aba == "cla_missoes":
+		montar_cla_missoes()
+		_quebrar_linhas(conteudo)
 	elif aba == "cla":
 		montar_cla()
 		_quebrar_linhas(conteudo) # nada cortado à direita (André 2026-11-23: "está cortando ali o nível")
@@ -1767,6 +1772,8 @@ func montar_diarias() -> void:
 		linha.add_child(rotulo("%d/%d" % [int(d.n), int(d.t)], 13, TEXTO))
 		v.add_child(linha)
 		var id := str(d.id)
+		if not recebida:
+			v.add_child(botao_fixar("diaria", id))
 		var bt: Button
 		if recebida:
 			bt = botao("Recebida", func(): pass, 15)
@@ -2160,8 +2167,52 @@ func _cla_vivo() -> void:
 	_cla_timer = true
 	get_tree().create_timer(3.0).timeout.connect(func():
 		_cla_timer = false
-		if aberto() and aba == "cla" and m.on():
+		if aberto() and (aba == "cla" or aba == "cla_missoes") and m.on():
 			m.rede("cla", {"acao": "ver"}))
+
+# Fixar no atalho (André 2026-11-23: "qualquer missão, da guilda ou do clã, eu posso marcar para ficar aparecendo no
+# atalho de missões"): o botão de cada missão. Fixada, o cartão da tela (missao_ativa.gd) mostra ela no lugar da história.
+func botao_fixar(tipo: String, id: String) -> Button:
+	var ma = m.missao_ativa
+	var fixa: bool = ma != null and ma.esta_fixada(tipo, id)
+	var b := botao("Fixada no atalho" if fixa else "Fixar no atalho", func():
+		if m.missao_ativa:
+			if m.missao_ativa.esta_fixada(tipo, id):
+				m.missao_ativa.soltar()
+			else:
+				m.missao_ativa.fixar(tipo, id)
+		atualizar(), 13, fixa)
+	b.custom_minimum_size = Vector2(0, 34)
+	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	return b
+
+# aba Missão do Clã (André 2026-11-23: "a missão do clã também aparece na aba de missões"): hoje a Escolta do Clã
+func montar_cla_missoes() -> void:
+	var C: Dictionary = m.P.cla
+	if not m.on():
+		conteudo.add_child(rotulo("As missões do clã só funcionam online.", 14, APAGADO))
+		return
+	if C.is_empty():
+		conteudo.add_child(rotulo("Carregando o clã...", 14, APAGADO))
+		return
+	if int(C.get("sem", 0)) == 1:
+		conteudo.add_child(rotulo("Você ainda não tem clã. Funde o seu na aba Clã para ter missões do clã.", 14, APAGADO))
+		return
+	conteudo.add_child(rotulo("Clã %s" % str(C.get("n", "")), 18, OURO_CLARO))
+	var B = C.get("base")
+	var Mi = B.get("missao") if B is Dictionary else null
+	var ce := PanelContainer.new()
+	ce.add_theme_stylebox_override("panel", caixa(FUNDO2, OURO, 2, 10))
+	var ve := VBoxContainer.new()
+	ve.add_theme_constant_override("separation", 3)
+	ce.add_child(ve)
+	if Mi is Dictionary:
+		_escolta_cla(ve, Mi)
+		ve.add_child(botao_fixar("cla", "escolta"))
+	else:
+		ve.add_child(rotulo("Missão do clã: Escolta", 16, OURO_CLARO))
+		ve.add_child(rotulo("A Escolta abre depois de fundar a base do clã (aba Clã).", 12, APAGADO))
+	conteudo.add_child(ce)
 
 # Guilda dos Aventureiros (André 2026-11-18; regras em shared/guilda.js): o rank (F a SS), os pontos, a Prova e os
 # contratos do dia. Pega no mural ou com a Brenda (Rio Claro); "Ir" e "Receber" valem em qualquer lugar.
@@ -2250,6 +2301,8 @@ func montar_guilda() -> void:
 			linha.add_child(rotulo("%d/%d" % [int(c.n), int(c.t)], 13, TEXTO))
 			v.add_child(linha)
 		var id := str(c.id)
+		if e == "ativo" or feito:
+			v.add_child(botao_fixar("guilda", id))
 		var bt: Button
 		match e:
 			"recebido":
@@ -2389,6 +2442,7 @@ func _card_escolta() -> void:
 	var d := rotulo("Leve os recrutas vivos até o totem. Nas emboscadas, derrube todos os monstros da onda antes de seguir.", 12, APAGADO)
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(d)
+	v.add_child(botao_fixar("cla", "escolta"))
 	v.add_child(botao("Ir até %s" % str(E.get("nome", "o totem")), func():
 		fechar()
 		m.missao_ativa.ir(), 14, true))
@@ -2463,6 +2517,8 @@ func _card_missao(M: Dictionary, i: int, feitas: int, h: Dictionary) -> Control:
 			v.add_child(et)
 		if etapas.size() > 1:
 			v.add_child(barra_prog(float(e) / float(etapas.size()), LILAS))
+	if not cedo and m.missao_ativa != null: # fixar no atalho: a da história volta a aparecer quando se solta a outra
+		v.add_child(botao_fixar("historia", str(M.get("id", ""))))
 	if not cedo and m.missao_ativa != null: # André 2026-11-11: "Ir para" leva sozinho até o NPC ou o lugar
 		var ir := botao("Ir para", _ir_missao, 14, true)
 		ir.custom_minimum_size = Vector2(130, 34)
