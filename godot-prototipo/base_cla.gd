@@ -418,12 +418,13 @@ func _rede_rota() -> void:
 	var linhas := {}
 	for B in bases:
 		var pts: Array = _ruas.get(str(B.k), [])
-		if pts.is_empty() or not (B.get("bau") is Dictionary):
+		var fr = B.get("bau") if B.get("bau") is Dictionary else B.get("frente") # baú recolhido: a rota sai da porta do salão
+		if pts.is_empty() or not (fr is Dictionary):
 			continue
 		var hc := float(B.get("centro", 14)) / 2.0
 		var bx := float(B.x)
 		var bz := float(B.z)
-		var l: Array = [Vector2(float(B.bau.x) + 1.6, float(B.bau.z) + 1.3), Vector2(bx + 1.6, bz + hc - 1.0), Vector2(bx + 1.0, bz + hc + 1.5)]
+		var l: Array = [Vector2(float(fr.x) + 1.6, float(fr.z) + 1.3), Vector2(bx + 1.6, bz + hc - 1.0), Vector2(bx + 1.0, bz + hc + 1.5)]
 		for p in pts:
 			l.append(Vector2(p.x, p.z))
 		linhas[str(B.k)] = l

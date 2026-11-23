@@ -324,4 +324,25 @@ ok(Object.values(bg.donos).length >= Math.min(bg.nv - 1, 3), 'os membros do clã
   s2.horta('L', { acao: 'arar', c: cel.join(',') });
   ok(!!L2.horta[cel.join(',')], 'arou na área comum da base');
   ok(!!motivoHorta(L2, Math.round(B2.x), Math.round(B2.z), A), 'no salão não ara');
+  // mudar o Baú do Clã de lugar (André 2026-11-23: "Recolher ele, desmontar... e reposicionar ele a hora que quiser")
+  const D2 = s2.basesDesenho[B2.k], fr = D2.bau;
+  ok(!D2.sol.some((o) => o.m === 'fogueira') && !D2.pecas.some((o) => o.m === 'fogueira'), 'a fogueira do meio saiu');
+  L2.bauCla = Array(CLA.bauCla).fill(null); L2.bauCla[0] = { k: 'lenha', n: 7 };
+  l.prog.mochila = l.prog.mochila.map(() => null); l.x = fr.x; l.z = fr.z + 1; s2.eventos = [];
+  s2.bau('L', { acao: 'recolher', cla: true });
+  ok(!s2.basesDesenho[B2.k].bau && B2.bauSolto && contar(l.prog.mochila, 'obra_bau_cla') === 1, 'o baú da porta foi para a mochila');
+  ok(!s2.pertoBauBase(l), 'sem baú na porta');
+  let lb = null;
+  for (let x = A.x0 + 1; x < A.x1 - 1 && !lb; x += 0.5) for (let z = A.z0 + 1; z < A.z1 - 1; z += 0.5) {
+    if (x > B2.x - 4 && x < B2.x + 4) continue;
+    const p = { k: 'bau_cla', x, z, r: 0 }; if (!motivoPeca(L2, p, null, A)) { lb = p; break; }
+  }
+  l.x = lb.x + 1.5; l.z = lb.z;
+  s2.construir('L', lb);
+  ok(L2.pecas.some((o) => o.k === 'bau_cla') && s2.bauBase(B2).x === lb.x, 'baú posto em outro canto da base');
+  ok(s2.pertoBauBase(l) && contar(L2.bauCla, 'lenha') === 7, 'o que tinha dentro continua lá');
+  const casa = s2.destinoCasa(l);
+  ok(Math.hypot(casa.x - lb.x, casa.z - lb.z - 2.5) < 0.1, 'a casinha segue o baú');
+  s2.salvarBases = () => {}; const est = JSON.parse(JSON.stringify(s2.basesCla)); s2.carregarBases(est);
+  ok(s2.basesCla[B2.k].bauSolto && !s2.basesDesenho[B2.k].bau, 'continua recolhido depois de reiniciar');
 }

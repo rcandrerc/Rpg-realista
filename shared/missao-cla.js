@@ -53,7 +53,7 @@ export const MissaoCla = {
     this.missoesCla ||= new Map();
     if (this.missoesCla.has(B.k)) return aviso('A escolta do clã já está acontecendo');
     if (this.baseTravada?.(B)) return aviso('Pague a taxa da base primeiro');
-    const bau = this.basesDesenho?.[B.k]?.bau || B;
+    const bau = this.bauBase?.(B) || B;
     if (Math.hypot(j.x - bau.x, j.z - bau.z) > Mc.abrir) return aviso('Abra a escolta no Baú do Clã, na base');
     const espera = this.esperaMissaoCla(B);
     if (espera > 0) { const h = Math.floor(espera / 3600e3), m = Math.ceil((espera % 3600e3) / 60e3); return aviso(`A próxima missão do clã abre em ${h ? h + ' h ' : ''}${m} min`); }
@@ -142,7 +142,7 @@ export const MissaoCla = {
     const dest = this.destinoMissao(B); if (!dest) return;
     const visto = [...this.jogadores.values()].some((o) => !o.bot && Math.hypot(o.x - L.x, o.z - L.z) < Mc.botVista);
     if (visto) { // de verdade: o líder vai para o Baú do Clã e abre como um jogador
-      const bau = this.basesDesenho?.[B.k]?.bau || B;
+      const bau = this.bauBase?.(B) || B;
       if (Math.hypot(L.x - bau.x, L.z - bau.z) <= Mc.abrir) this.iniciarMissaoCla(L, () => {}, B, ctxs);
       return;
     }

@@ -562,8 +562,8 @@ export class Simulacao {
   // para onde a casinha leva (André 2026-11-23: "O botão casa agora vai pra a base"): a frente do Baú do Clã, na porta do
   // salão da base do clã; quem não tem base volta para a vila do começo, como sempre
   destinoCasa(j) {
-    const B = this.baseDe?.(j), D = B && this.basesDesenho?.[B.k];
-    return D?.bau ? { x: D.bau.x, z: D.bau.z + 2.5, base: true } : this.mapa.nascimento;
+    const B = this.baseDe?.(j), D = B && this.basesDesenho?.[B.k], b = D && (this.bauBase(B) || D.frente);
+    return b ? { x: b.x, z: b.z + 2.5, base: true } : this.mapa.nascimento;
   }
   chegarNaVila(j) {
     j.vila = null;
@@ -3222,6 +3222,7 @@ export class Simulacao {
     if (m.k === 'bau_cla') { // um por clã, no terreno do líder (André 2026-11-22)
       if (!j.prog.cla) return aviso('Funde o seu clã primeiro (aba Clã)');
       if (L.pecas.some((o) => o.k === 'bau_cla')) return aviso('O seu clã já tem um Baú do Clã');
+      if (this.basesDesenho?.[this.baseDe?.(j)?.k]?.bau) return aviso('O Baú do Clã está na porta do salão: abra ele e toque em Mudar de lugar');
     }
     // 2026-11-04: a peça é um item (cria-se antes, como no Quimera: fabricar); colocar gasta um
     if (contar(j.prog.mochila, 'obra_' + m.k) < 1) return aviso(`Crie ${C.nome.toLowerCase()} primeiro (botão Criar no modo construção)`);
@@ -3477,6 +3478,7 @@ export class Simulacao {
     const j = this.jogadores.get(id); if (!j || !m || j.morto || j.criando) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
     const L = this.loteDe(j); if (!L) return;
+    if (m.cla && m.acao === 'recolher') return this.recolherBauBase(j, aviso); // o baú da porta do salão vai para a mochila (shared/base.js)
     if (m.cla) return this.bauCla(j, L, m, aviso); // Baú do Clã (shared/cla.js)
     if (!L.pecas.some((o) => o.k === 'bau' && dist(o, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, o))) return aviso('Chegue perto do seu baú');
     if (!Array.isArray(L.bau)) L.bau = Array(bauLugares(L.bauNv)).fill(null);
