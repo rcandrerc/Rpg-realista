@@ -70,13 +70,13 @@ export const MissaoCla = {
       else if (!(a.time && a.time === j.time)) { if (a.time) this.sairDoTime?.(a, ''); x.entrarTimeAmiga?.(a, j); }
     }
     this.avisoMissao(M, `Escolta do Clã: leve os recrutas vivos até ${dest.nome} (${Math.round(dest.d)} m) em ${Math.round(Mc.dura / 60)} min. Vai ter emboscada, e os monstros vão primeiro neles!`);
-    if (!j.bot) this.evento({ t: 'missaoCla', para: j.id, x: dest.x, z: dest.z, nome: dest.nome });
+    if (!j.bot) this.evento({ t: 'missaoCla', para: j.id, x: dest.x, z: dest.z, nome: dest.nome, emb: 0, embs: Mc.emboscadas.length, falta: Mc.dura });
     return M;
   },
   // o contador da onda na tela (André 2026-11-23: "apareceu um contador na tela... 0/12... 12/12"): para o líder e
   // os jogadores da escolta, ao nascer a onda e a cada monstro que cai
   placarMissao(M) {
-    const ev = { emb: M.emb, embs: M_().emboscadas.length, mortos: M.onda.mortos, n: M.onda.n, x: M.dest.x, z: M.dest.z, nome: M.dest.nome };
+    const ev = { emb: M.emb, embs: M_().emboscadas.length, mortos: M.onda.mortos, n: M.onda.n, x: M.dest.x, z: M.dest.z, nome: M.dest.nome, falta: Math.max(0, Math.round(M.ate - this.tempo)) };
     for (const id of [M.lider, ...M.rec]) { const o = this.jogadores.get(id); if (o && !o.bot) this.evento({ t: 'missaoCla', para: id, ...ev }); }
   },
   avisoMissao(M, texto) {
@@ -130,19 +130,24 @@ export const MissaoCla = {
     this.missoesCla.delete(M.k);
     for (const e of M.mobs) { const i = this.inimigos.indexOf(e); if (i >= 0) this.inimigos.splice(i, 1); this.evento({ t: 'nevoa_some', x: r2(e.x), y: r2(e.y || 0), z: r2(e.z) }); }
     const L = this.jogadores.get(M.lider);
-    if (L && !L.bot) this.evento({ t: 'missaoCla', para: L.id, fim: 1 });
+    if (L && !L.bot && !venceu) this.evento({ t: 'missaoCla', para: L.id, fim: 1 });
     if (!venceu) return this.avisoMissao(M, `Escolta do Clã falhou${porque ? ': ' + porque : ''}. Pode tentar de novo agora, no Baú do Clã.`);
     const Bk = this.basesCla?.[M.k]; if (Bk) { Bk.missaoOk = Date.now(); this.salvarBases?.(); }
-    const nomes = [];
+    const nomes = [], subiu = [];
     for (const id of M.rec) {
       const a = this.jogadores.get(id); if (!a || a.morto) continue;
-      this.ganharXP(a, Math.round(xpProximo(a.prog.nivel | 0) * Mc.xp)); nomes.push(a.nome);
+      const nv0 = a.prog.nivel | 0;
+      this.ganharXP(a, Math.round(xpProximo(nv0) * Mc.xp)); nomes.push(a.nome);
+      subiu.push({ nome: a.nome, de: nv0, nv: a.prog.nivel | 0 });
     }
     const ouro = Mc.cofre * nomes.length * Math.max(1, Math.round(M.nv / 10));
     if (L && !L.bot && L.prog.cla) { L.prog.cla.cofre = (L.prog.cla.cofre | 0) + ouro; this.logCla?.(L.prog.cla, 'Escolta do Clã', ouro); L.progSujo = true; }
     else if (L) L.prog.ouro = (L.prog.ouro | 0) + ouro;
     let alma = '';
     if (L) { const k = almaDe(this.racaDe?.(L)); if (guardar(L.prog.mochila, { k, n: Mc.alma })) alma = ` e ${Mc.alma} Fragmento de Alma para o líder`; L.progSujo = true; }
+    // a tela de missão concluída do app, igual às outras missões (André 2026-11-23: "mostrar a tela de recompensa...
+    // todos que estiverem no time ganharam um nível, parabéns"): cada recruta pelo nome
+    if (L && !L.bot) this.evento({ t: 'missaoCla', para: L.id, fim: 1, ok: 1, nome: M.dest.nome, subiu, ouro, alma: alma ? Mc.alma : 0 });
     this.avisoMissao(M, `Escolta do Clã cumprida! ${nomes.join(', ')} ganharam 1 nível de XP; +${ouro} de ouro no cofre${alma}.`);
     if (L && !L.bot) this.avisarProg(L);
   },
