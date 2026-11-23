@@ -8,15 +8,17 @@
 // - j.prog.carrinho: { lv, comb, vida, quebrado, packs: [], chao: {x, z, ry} | null } (chao null = está na mochila).
 // - j.prog.navio: { porao: [], chao: {x, z, ry} | null }. O barquinho não fica no mundo: desceu, volta para a mochila.
 // - j.veiculo: 'carrinho' | 'barquinho' | 'navio' | null (dirigindo agora; não vai para a conta).
-// - this.packsChao: packs largados no chão (qualquer um pega; somem depois de PACK_CHAO_DURA s).
-import { PACKS, PACK_REGRAS as PR, VEICULOS as V, ITENS, CACA, PROF_MAX, tempoCriar, GUERRA } from './dados.js';
+// - this.packsChao: packs largados no chão (qualquer um pega; somem depois de PACK_CHAO_DURA s; na terra do clã, fica = 1,
+//   não somem e passam pelo reinício: packsBaseParaSalvar).
+import { PACKS, PACK_REGRAS as PR, VEICULOS as V, ITENS, CACA, PROF_MAX, tempoCriar, GUERRA, CLA } from './dados.js';
 import { contar, tirar, guardar, gastarVigor, vigorAgora, profNivel } from './progresso.js';
 import { noLago, AGUA } from './relevo.js';
 import { motivoLibera, missaoAtual, etapasDe } from './historia.js'; // progressão (André 2026-11-10)
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const PACK_CHAO_DURA = 1800; // s: pack esquecido no chão some depois de meia hora
-const MAX_CHAO = 200;
+const MAX_CHAO = 200; // packs no mundo aberto (os da terra do clã não contam)
+const PACKS_BASE = 100; // packs guardados em cada base do clã (André 2026-11-23)
 
 // ---------- carrinho sólido (André 2026-11-13: "não quero passar por dentro dele"; "pular em cima dele") ----------
 // As caixas do carrinho de nível nv: { trator: [...], carreta: [...] }, cada uma [xmin, xmax, zmin, zmax, topo] (m).
@@ -284,8 +286,10 @@ export const Transporte = {
     }
     if (m.acao === 'largar') {
       if (!p.pack) return;
-      this.packNoChao(p.pack, j.x - Math.sin(j.ry) * 0.7, j.z - Math.cos(j.ry) * 0.7);
-      p.pack = null; aviso('Pack largado no chão');
+      const lx = j.x - Math.sin(j.ry) * 0.7, lz = j.z - Math.cos(j.ry) * 0.7, bk = this.naTerraCla(lx, lz);
+      if (bk && this.packsNaBase(bk) >= PACKS_BASE) return aviso(`A base do clã já guarda ${PACKS_BASE} packs: não cabe mais`);
+      const fica = this.packNoChao(p.pack, lx, lz);
+      p.pack = null; aviso(fica ? 'Pack guardado na terra do clã (não some)' : 'Pack largado no chão (some em 30 min)');
       return pronto();
     }
     if (m.acao === 'pegar') {
@@ -326,8 +330,39 @@ export const Transporte = {
   },
   packNoChao(pk, x, z) {
     this.packsChao ||= [];
-    if (this.packsChao.length >= MAX_CHAO) this.packsChao.shift();
-    this.packsChao.push({ ...pk, g: 'g' + (this.proxPack = (this.proxPack || 0) + 1), x: r2(x), z: r2(z), fim: this.tempo + PACK_CHAO_DURA });
+    // André 2026-11-23: na terra do clã (dentro da base, CLA.base.pegada m do centro) o pack não some: nem pelos 30 min,
+    // nem pelo limite, nem no reinício do servidor (packsBaseParaSalvar). Fora dali, tudo como antes
+    // até PACKS_BASE por base (André: "até 100 packs cada base"); esses ficam fora do limite MAX_CHAO do mundo aberto.
+    // Base cheia: largar não deixa (transporte 'largar'); o que cai à força (morte, carrinho quebrado) vira pack comum
+    const bk = this.naTerraCla(x, z), fica = !!bk && this.packsNaBase(bk) < PACKS_BASE;
+    if (!fica && this.packsChao.filter((o) => !o.fica).length >= MAX_CHAO) { const i = this.packsChao.findIndex((o) => !o.fica); if (i >= 0) this.packsChao.splice(i, 1); }
+    this.packsChao.push({ ...pk, g: 'g' + (this.proxPack = (this.proxPack || 0) + 1), x: r2(x), z: r2(z), fim: fica ? Infinity : this.tempo + PACK_CHAO_DURA, ...(fica ? { fica: 1, bk } : {}) });
+    return fica;
+  },
+  // dentro da base de algum clã (jogador ou bot, Chama ou Geada): a chave da base, ou null
+  naTerraCla(x, z) {
+    const R = CLA.base.pegada;
+    for (const B of Object.values(this.basesCla || {})) if (Math.abs(B.x - x) < R && Math.abs(B.z - z) < R && Math.hypot(B.x - x, B.z - z) < R) return B.k;
+    return null;
+  },
+  packsNaBase(bk) { let n = 0; for (const o of this.packsChao || []) if (o.fica && o.bk === bk) n++; return n; },
+  // os packs guardados na terra do clã, para a tabela mundo 'packs_base' (só quando mudou; null = igual ao último)
+  packsBaseParaSalvar() {
+    const l = (this.packsChao || []).filter((o) => o.fica).map(({ g, fim, fica, ...pk }) => pk);
+    const chave = JSON.stringify(l);
+    if (chave === this.packsBaseSalvos) return null;
+    this.packsBaseSalvos = chave;
+    return l;
+  },
+  carregarPacksBase(lista) {
+    if (!Array.isArray(lista)) return;
+    for (const o of lista) {
+      const pk = packValido(o); if (!pk || !Number.isFinite(+o.x) || !Number.isFinite(+o.z)) continue;
+      this.packsChao ||= [];
+      const bk = this.naTerraCla(+o.x, +o.z) || String(o.bk || '');
+      this.packsChao.push({ ...pk, g: 'g' + (this.proxPack = (this.proxPack || 0) + 1), x: r2(+o.x), z: r2(+o.z), fim: Infinity, fica: 1, bk });
+    }
+    this.packsBaseSalvos = JSON.stringify((this.packsChao || []).filter((o) => o.fica).map(({ g, fim, fica, ...pk }) => pk));
   },
   // ---------- veículos ----------
   // o carrinho está no mundo (no chão ou dirigindo): na mochila ele fica travado (não vende, não joga fora, não troca)
