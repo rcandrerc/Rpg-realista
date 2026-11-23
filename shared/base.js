@@ -8,7 +8,7 @@
 // já no Nv 6).
 // Estado (tabela mundo 'bases_cla'): { [k]: { k, x, z, raca, n (nome do clã), dono (conta do líder ou 'npc:' + id),
 // nomeDono, nv, taxa (ms: semanas pagas até aqui), c (ms) } }. k = 'j' + conta (jogador) ou 'n' + id (clã bot).
-import { CLA, TOTENS, VILAS_MUNDO, VILAS_TERRENO, VILA_LOTES, MAPA_CLAREIRA, AREAS_BASE, CLAS_NPC, RACAS, AMIGOS_VIRTUAIS, RIVAIS, precoTerreno, BAU, bauLugares, PLANTIO } from './dados.js';
+import { CLA, TOTENS, VILAS_MUNDO, VILAS_TERRENO, VILA_LOTES, MAPA_CLAREIRA, AREAS_BASE, CLAS_NPC, RACAS, AMIGOS_VIRTUAIS, RIVAIS, precoTerreno, BAU, bauLugares, PLANTIO, NPC_CASA_BASE } from './dados.js';
 import { guardar } from './progresso.js';
 import { zonaFechadaEm } from './historia.js';
 import { areaPlantio } from './plantio.js';
@@ -408,13 +408,19 @@ export const Base = {
   distribuirLotes(B, membros) {
     const N = nivelBase(B.nv), donos = B.donos ||= {}, ids = new Set(membros.map((o) => o.id));
     let mudou = false;
-    for (const [i, o] of Object.entries(donos)) if (!ids.has(o.id) || +i > N.lotes) { delete donos[i]; mudou = true; }
+    for (const [i, o] of Object.entries(donos)) if (!ids.has(o.id) || +i > N.lotes) { delete donos[i]; this.soltarLoteBase?.(B, i); mudou = true; }
     const tem = new Set(Object.values(donos).map((o) => o.id));
     let fila = membros.filter((o) => !tem.has(o.id));
     if (!B.sorteou && fila.length) { fila = [...fila].sort(() => Math.random() - 0.5); B.sorteou = 1; mudou = true; }
     for (let i = 2; i <= N.lotes && fila.length; i++) if (!donos[i]) { const o = fila.shift(); donos[i] = { id: o.id, nome: o.nome }; mudou = true; }
     for (const [i, o] of Object.entries(donos)) { const m = membros.find((q) => q.id === o.id); if (m && m.nome !== o.nome) { o.nome = m.nome; mudou = true; } }
     return mudou;
+  },
+  // o lote i da base perdeu o dono bot (recruta dispensado, foi embora ou a base desceu de nível): a casa dele sai e o lote
+  // fica livre para o próximo (André 2026-11-23: todo bot constrói a casa no lote dele, NPC_CASA_BASE)
+  soltarLoteBase(B, i) {
+    const L = this.lotes?.get('q' + B.k.slice(0, 20) + '_' + i);
+    if (L && /^[ar]:/.test(String(L.dono))) { this.soltarLoteBot(L); this.refazerSolidosLotes?.(); }
   },
   // o clã do jogador mudou (nível, recruta entrou ou saiu): a base acompanha
   baseDoClaMudou(j) {
@@ -556,6 +562,6 @@ export const Base = {
     }
     // a casa da Cecília e do Dario no lote deles da base (cria o lote quando a base e o lugar dele existem)
     if (mudou) this.avisarBases();
-    for (const a of this.amigosIa || []) if (a.AMIGA.terreno && !a.loteDaAmiga()) a.loteDaAmiga(true);
+    for (const a of this.amigosIa || []) if ((a.AMIGA.terreno || (NPC_CASA_BASE.ligado && a.amiga && a.fazTarefasDef?.())) && !a.loteDaAmiga()) a.loteDaAmiga(true); // e todo bot de clã no mundo (NPC_CASA_BASE)
   },
 };
