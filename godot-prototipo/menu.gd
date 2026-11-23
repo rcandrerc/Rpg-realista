@@ -2065,6 +2065,19 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		ld.add_child(botao("Ver", func():
 			fechar()
 			m.espiar.comecar(rid, rn), 12))
+	# André 2026-11-23: os recrutas saíram da lista de amigos; a mensagem (texto e voz, com os comandos) e o time ficam aqui
+	if r.has("c") and m.chat:
+		var rc := str(r.c)
+		var rnm := str(r.nome)
+		ld.add_child(botao("Mensagem", func():
+			fechar()
+			m.chat.abrir_pm(rc, rnm), 12))
+	if r.has("bid"):
+		var bid := str(r.bid)
+		if int(r.get("time", 0)) == 1:
+			ld.add_child(botao("Sair do time", func(): m.rede("time", {"acao": "expulsar", "com": bid}), 12))
+		else:
+			ld.add_child(botao("Time", func(): m.rede("time", {"acao": "convidar", "com": bid}), 12))
 	ld.add_child(botao("Dispensar", func(): m.rede("cla", {"acao": "dispensar", "id": rid}), 12))
 	v.add_child(ld)
 	return card

@@ -108,7 +108,7 @@ export const Cla = {
     return { n: c.n, cofre: c.cofre, semana: semanaCla(c), prox: Math.max(0, c.sem - Date.now()), max: c.nv || 1, nv: c.nv || 1, sobe: this.subirInfo(j), perto: this.pertoRecrutador(j),
       eu: { nome: j.nome, nv, ...st(j, j.prog) },
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, sem: semanaDe(tierDe(m.tier), a ? a.prog.nivel | 0 : m.nv), on: a ? 1 : 0, ...(m.dev ? { dev: m.dev } : {}), g: m.g,
-        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, j), x: Math.round(a.x), z: Math.round(a.z) } : {}) }; }), // x, z: "Ver no mapa"
+        fn: m.fn || { k: 'livre' }, c: 'r:' + m.id, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, j), x: Math.round(a.x), z: Math.round(a.z), bid: a.id, ...(a.time && a.time === j.time ? { time: 1 } : {}) } : {}) }; }), // x, z: "Ver no mapa"; c: conta (Mensagem), bid: o corpo (Time)
       bauCla: temBau ? bau : null, plantas: Object.entries(PLANTAS).map(([k, P]) => ({ k, nome: P.nome })),
       funcoes: CLA.funcoes, recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })),
       tiers: CLA.tiers.map((T) => { const n2 = nivelTier(T, nv); return { id: T.id, nome: T.nome, nv: n2, preco: precoTier(T, n2), sem: semanaDe(T, n2), claNv: T.claNv || 1 }; }),
