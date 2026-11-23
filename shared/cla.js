@@ -293,7 +293,10 @@ export const Cla = {
     ia.levar = fn.k === 'recurso' && RECURSOS_CLA[fn.r]?.item ? { r: fn.r, item: RECURSOS_CLA[fn.r].item, nome: RECURSOS_CLA[fn.r].nome } : null;
     if (novo) {
       ia.funcaoSt = null; ia.faz = null;
-      if (fn.k !== 'seguir' && noTime && !j.bot) x.sairTimeAmiga(j.id);
+      // proteger você, o carrinho ou o mercante: continua no time (André 2026-11-23: "larguei eles no mercante, eles já
+      // saíram do meu time"); as outras funções tiram do time para trabalhar sozinhos
+      const fica = fn.k === 'seguir' || (fn.k === 'proteger' && ['lider', 'carrinho', 'mercante'].includes(fn.p));
+      if (!fica && noTime && !j.bot) x.sairTimeAmiga(j.id);
       if (a.coleta) this.pararColeta(a, null); if (a.pesca) this.pararPesca(a, null);
       if (ia.atividade) x.fimAtividadeAmiga(a, true);
       if (ia.encomenda && !ia.encomenda.pronta) ia.encomenda = null;

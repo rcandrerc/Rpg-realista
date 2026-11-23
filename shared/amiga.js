@@ -1455,10 +1455,13 @@ export const Amiga = {
   // ele), batendo só no que alcança de lá. Carrinho ou navio fora do mundo: protege o líder até ele voltar.
   protegerVeiculoAmiga(j, dt) {
     const ia = j.ia, fn = ia.funcao, PV = CLA.protegeVeiculo;
-    const veic = fn?.k === 'proteger' && (fn.p === 'carrinho' || fn.p === 'mercante') && (this.AMIGA.recruta || this.fixoClaNpc?.(this)) && !(j.time && j.time.membros.length > 1) && !j.duelo;
+    const ehVeic = fn?.k === 'proteger' && (fn.p === 'carrinho' || fn.p === 'mercante') && (this.AMIGA.recruta || this.fixoClaNpc?.(this));
+    const lider = ehVeic ? this.corpoLiderDe(this) : null, p = lider?.prog;
+    // no time do próprio líder continua protegendo (André 2026-11-23: "larguei eles no mercante, eles já saíram do meu
+    // time"): o time fica e a função vale; time com outra pessoa não
+    const veic = ehVeic && !(j.time && j.time.membros.length > 1 && j.time !== lider?.time) && !j.duelo;
     if (!veic) { if (ia.pv) { ia.pv = null; this.descerConvesAmiga(j); } return false; }
     ia.pv ||= { alvo: null, sem: false };
-    const lider = this.corpoLiderDe(this), p = lider?.prog;
     let V = null;
     if (p && fn.p === 'carrinho' && p.carrinho) V = lider.veiculo === 'carrinho' ? { x: lider.x, z: lider.z, ry: lider.ry || 0 } : p.carrinho.chao;
     if (p && fn.p === 'mercante' && p.navio) V = lider.veiculo === 'navio' ? centroNavio(lider) : p.navio.chao;
@@ -1907,7 +1910,9 @@ export const Amiga = {
     const tj = terraId(j.x, j.z), td = terraId(dono.x, dono.z);
     const outra = !nav && !naAgua && tj > 0 && td > 0 && tj !== td && contar(j.prog.mochila, 'barquinho') > 0;
     ia.outraTerra = outra;
-    if (!(nav && d < T.navio) && !(naAgua && d < T.agua) && !outra) return false;
+    // ele mesmo no mar (nadando, com ou sem pack nas costas) e o dono longe: nada reto até ele (a estrada não sai do mar)
+    const euNaAgua = !ia.atividade && (fundoAgua(j.x, j.z) > AGUA.peito - 0.3 || tj === 0);
+    if (!(nav && d < T.navio) && !(naAgua && d < T.agua) && !outra && !euNaAgua) return false;
     ia.viagem = null;
     if (j.trava > 0) return this.pararAmiga(j), true;
     if (j.coleta) this.pararColeta(j, null);
