@@ -229,6 +229,10 @@ ok(true, 'simulação roda com os recrutas');
   ok(c.m[2].fn?.r === 'ferro' && (a3.ia.encomenda?.rec === 'ferro' || a3.ia.funcaoSt), `Farmar ferro: vai coletar ou diz por quê (${a3.ia.funcaoSt?.txt || 'coletando'})`);
   s4.cla('L', { acao: 'funcao', id: m3.id, fn: { k: 'grind' } });
   ok(c.m[2].fn?.k === 'grind' && (a3.ia.av || a3.ia.funcaoSt), `Grind: sai para caçar (${a3.ia.funcaoSt?.txt || a3.ia.av?.fase})`);
+  // soldado já passou dos 30 min de grind do dia (André 2026-11-23: "estão parados na vila"): escolhe o campo e vai, não volta
+  s4.grindHojeAmiga(a3); a3.grind.seg = 99999; a3.ia.av = { fase: 'escolher' };
+  for (let i = 0; i < 5 && a3.ia.av?.fase === 'escolher'; i++) ctx(m3.id).passoSozinhoAmiga(a3, 0.05);
+  ok(a3.ia.av?.fase === 'ir' && a3.ia.av.c, `Grind sem limite do dia: depois de 30 min ainda vai ao campo (${a3.ia.av?.fase} ${a3.ia.av?.c?.nome || ''})`);
   s4.cla('L', { acao: 'funcao', id: m1.id, fn: { k: 'livre' } });
   ok(!c.m[0].fn && !ctx(m1.id).amiga.time, 'Livre: sai do time');
   const v4 = progressoValido(JSON.parse(JSON.stringify(L.prog)));

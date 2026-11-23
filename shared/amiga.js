@@ -641,7 +641,9 @@ export const Amiga = {
     const voltar = () => { if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null); Object.assign(av, { fase: 'voltar', c: null, coleta: null }); ia.viagem = null; };
     if (av.fase === 'escolher') {
       if (noite || livres < A.mochilaLivre) return voltar();
-      const cansouGrind = this.grindAcabouAmiga(j); // André 2026-11-16: grind sozinho limitado por dia real
+      // André 2026-11-16: grind sozinho limitado por dia real; soldado do clã não tem limite (André 2026-11-22, como no 'ir'
+      // logo abaixo). Antes ele passava dos 30 min, escolhia, voltava para a vila e ficava em volta dela o dia todo (23/11).
+      const cansouGrind = !sold && this.grindAcabouAmiga(j);
       // missão da história (André 2026-11-16: "pra liberar o mapa ele tem que fazer missão, igual a gente")
       if (this.querMissaoAmiga(j)) { Object.assign(av, { fase: 'missao', c: null, coleta: null, alvo: null }); ia.viagem = null; return; }
       // diárias (André 2026-11-17: "tanto ela quanto o Dario façam as missões diárias... até pra gente ter gente pra
