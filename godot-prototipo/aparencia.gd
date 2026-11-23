@@ -63,10 +63,10 @@ static func valida(a, criador: Dictionary) -> Dictionary:
 	for l in criador.get("penteados", {}).values():
 		if d.get("penteado") != null and str(d.penteado) in l:
 			r.penteado = str(d.penteado)
-	# traje da armadura v5 (André 2026-11-23): null = padrão do corpo (moça patrulheira, rapaz roupão),
-	# "roupao" = roupão de mago, "patrulheiro" = patrulheiro (o rapaz também escolhe, rodada 2)
-	# "patrulheiro2" / "roupao2" = peças da thread de arte (equip2.gd), para o André comparar
-	r.traje = str(d.traje) if str(d.get("traje", "")) in ["roupao", "patrulheiro", "patrulheiro2", "roupao2"] else null
+	# traje da armadura v5 (André 2026-11-23): "patrulha" ou "roupao"; null = moça patrulheira, rapaz de roupão
+	var tj := str(d.get("traje", ""))
+	r.traje = tj if tj in ["roupao", "patrulha", "patrulheiro2", "roupao2"] else null
+	# "patrulheiro2" / "roupao2" = peças da thread de arte (equip2.gd), para o André comparar com a v5
 	return r
 
 # Pinta, estica e forma o rosto de um personagem (no = o que main.modelo devolveu)
@@ -79,6 +79,13 @@ static func aplicar(no: Node3D, ap, esperar := true) -> void:
 		no.set_meta("traje", traje)
 		if no.has_meta("equip_v5"):
 			load("res://armadura.gd").vestir(no, no.get_meta("equip_v5"))
+	# cor livre no pano da armadura v5 (André 2026-11-23): Roupa e Calça da Aparência; sem escolha = cor do set
+	var cr = _cor(int(a.roupa)) if a.get("roupa") != null else null
+	var cc = _cor(int(a.calca)) if a.get("calca") != null else cr
+	if no.get_meta("cor_roupa", null) != cr or no.get_meta("cor_calca", null) != cc:
+		no.set_meta("cor_roupa", cr)
+		no.set_meta("cor_calca", cc)
+		load("res://armadura.gd").tingir_v5(no)
 	var alt = a.get("altura")
 	no.scale = Vector3.ONE * (float(alt) if alt != null else 1.0)
 	# antes das cores: o cabelo trocado também pega a cor de cabelo escolhida

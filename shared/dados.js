@@ -1087,7 +1087,7 @@ export const MAPA_CLAREIRA = {
   // espantalho de treino ao lado da ferraria, na grama entre a parede dela, os caixotes e a estrada larga (fora dos
   // caminhos), a 4,6 m do Tomás para os nomes não se encostarem (direção de arte);
   // virado para a estrada, de onde o herói chega. O v dele vem depois das vagas dos campos de caça.
-  treino: [{ id: 'espantalho1', tipo: 'espantalho', x: 5, z: -1.2, ry: -0.8 }],
+  treino: [{ id: 'espantalho1', tipo: 'espantalho', x: 12, z: 35, ry: 3.14 }], // André 2026-11-23: longe do totem (PVP), na margem norte do Lago Raso (zona aberta desde o começo; o Lago Grande fica na névoa)
   // NPCs da vila: personagens anime (VRoid CC0) com cabelo, roupa e tamanho próprios.
   // roupa: peças da armadura do herói que o NPC veste (mesmo texto do servidor: peça + raridade, "peitoral0,capa3").
   // arma: 'espada' ou 'cajado' nas costas, 'cajado_mao' na mão. anciao: corpo curvado, barba e bigode (o Aldo).
@@ -1253,10 +1253,9 @@ export function aparenciaValida(a) {
   r.altura = Number.isFinite(a.altura) ? Math.round(Math.min(max, Math.max(min, a.altura)) * 100) / 100 : 1;
   for (const [k, [lo, hi]] of Object.entries(CRIADOR.rosto)) r[k] = Number.isFinite(a[k]) ? Math.round(Math.min(hi, Math.max(lo, a[k])) * 100) / 100 : 1;
   r.penteado = Object.values(CRIADOR.penteados).some((l) => l.includes(a.penteado)) ? a.penteado : null;
-  // traje da armadura (André 2026-11-23): null = padrão do corpo (moça patrulheira, rapaz roupão),
-  // 'roupao' = roupão de mago, 'patrulheiro' = patrulheiro (o rapaz também escolhe, rodada 2)
-  // 'patrulheiro2' / 'roupao2' = peças da thread de arte (equip2.gd), para o André comparar
-  r.traje = ['roupao', 'patrulheiro', 'patrulheiro2', 'roupao2'].includes(a.traje) ? a.traje : null;
+  // traje da armadura (André 2026-11-23): 'patrulha' ou 'roupao'; null = moça patrulheira, rapaz de roupão
+  r.traje = ['roupao', 'patrulha', 'patrulheiro2', 'roupao2'].includes(a.traje) ? a.traje : null;
+  // 'patrulheiro2' / 'roupao2' = peças da thread de arte (equip2.gd), para o André comparar com a v5
   return r;
 }
 export const PERSONAGEM_PADRAO = 'ruiva';
@@ -3089,6 +3088,8 @@ export const AMIGA = {
       // André 2026-11-10: ela vem de lobo pela estrada (nunca aparece do lado); longe avisa que está a caminho
       aCaminho: ['Tô montando no lobo e indo pela estrada! Me espera aí.', 'Subi no lobo, tô indo pela estrada. Já já chego!', 'Partiu de lobo! Vou pela estrada pra não me perder.'],
       outraTerra: ['Você tá do outro lado do mar! De lobo não chego aí... me espera voltar pra essa terra?', 'Eita, você tá em outra terra. Sem barco eu não chego, te espero por aqui!'],
+      // André 2026-11-23 ("eles precisam ir pro mar... nadando, de barco, de navio"): outra terra, vai até a praia e nada
+      nado: ['Você tá do outro lado do mar! Vou até a praia e vou nadando até você.', 'Tô indo! Daqui é a nado mesmo, me espera aí.'],
       // André 2026-11-09 ("as respostas têm que ter lógica"): chegou porque ele chamou, então pergunta o que vão fazer;
       // o que ela topou (vir, caçar) fica combinado por 'combinado' s e o convite de time entra sem sorteio
       chegouPergunta: ['O que vamos fazer? Bora caçar?', 'Tô pronta! Vamos caçar ou você tem outra ideia?', 'E aí, qual o plano? Caçar uns monstros?'],
@@ -3223,6 +3224,7 @@ export const DARIO = mesclarAmigo(AMIGA, {
       chegou: ['Cheguei. Sentiu minha falta?', 'Pronto, tô aqui. Que foi?'],
       aCaminho: ['Montei no lobo, tô indo pela estrada. Me espera aí.', 'Subi no lobo, já já chego pela estrada.', 'Partiu de lobo! Vou pela estrada pra não me perder.'],
       outraTerra: ['Você tá do outro lado do mar. De lobo não chego aí... volta pra essa terra que eu te encontro.', 'Você tá em outra terra. Sem barco não chego, te espero por aqui.'],
+      nado: ['Você tá do outro lado do mar. Vou até a praia e vou nadando até você.', 'Tô indo. Daqui é a nado mesmo, me espera aí.'],
       chegouPergunta: ['E aí, qual o plano? Bora caçar?', 'Tô pronto. Vamos caçar ou tem outra ideia?', 'Fala o plano. Caçar uns monstros?'],
       naoVir: ['Agora não dá, tô no meio de uma coisa. Daqui a pouco.', 'Agora não consigo... me chama mais tarde?'],
       perto: ['Eu tô do seu lado! Olha pra trás.', 'Tô aqui pertinho, parceiro.'],

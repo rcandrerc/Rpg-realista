@@ -91,9 +91,9 @@ func _initialize() -> void:
 		vp.size = Vector2i(600, 1000)
 	for corpo in corpos:
 		var no: Node3D = m.modelo(corpo)
-		no.position = base
-		if OS.get_environment("FOTO_TRAJE") != "": # patrulheiro2 / roupao2 (equip2.gd) ou outro traje da Aparência
+		if OS.get_environment("FOTO_TRAJE") != "": # "patrulha", "roupao", "patrulheiro2" ou "roupao2" (traje da Aparência)
 			no.set_meta("traje", OS.get_environment("FOTO_TRAJE"))
+		no.position = base
 		var c := no.position + Vector3(0, 0.88, 0)
 		for r in rs:
 			var variantes := [["", "chapeu%d,peitoral%d,calca%d,botas%d,capa%d" % [r, r, r, r, r]]]

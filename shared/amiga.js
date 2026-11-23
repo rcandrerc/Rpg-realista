@@ -1455,10 +1455,13 @@ export const Amiga = {
   // ele), batendo só no que alcança de lá. Carrinho ou navio fora do mundo: protege o líder até ele voltar.
   protegerVeiculoAmiga(j, dt) {
     const ia = j.ia, fn = ia.funcao, PV = CLA.protegeVeiculo;
-    const veic = fn?.k === 'proteger' && (fn.p === 'carrinho' || fn.p === 'mercante') && (this.AMIGA.recruta || this.fixoClaNpc?.(this)) && !(j.time && j.time.membros.length > 1) && !j.duelo;
+    const ehVeic = fn?.k === 'proteger' && (fn.p === 'carrinho' || fn.p === 'mercante') && (this.AMIGA.recruta || this.fixoClaNpc?.(this));
+    const lider = ehVeic ? this.corpoLiderDe(this) : null, p = lider?.prog;
+    // no time do próprio líder continua protegendo (André 2026-11-23: "larguei eles no mercante, eles já saíram do meu
+    // time"): o time fica e a função vale; time com outra pessoa não
+    const veic = ehVeic && !(j.time && j.time.membros.length > 1 && j.time !== lider?.time) && !j.duelo;
     if (!veic) { if (ia.pv) { ia.pv = null; this.descerConvesAmiga(j); } return false; }
     ia.pv ||= { alvo: null, sem: false };
-    const lider = this.corpoLiderDe(this), p = lider?.prog;
     let V = null;
     if (p && fn.p === 'carrinho' && p.carrinho) V = lider.veiculo === 'carrinho' ? { x: lider.x, z: lider.z, ry: lider.ry || 0 } : p.carrinho.chao;
     if (p && fn.p === 'mercante' && p.navio) V = lider.veiculo === 'navio' ? centroNavio(lider) : p.navio.chao;
@@ -1812,21 +1815,45 @@ export const Amiga = {
   // true = está viajando (já cuidou do passo). Longe do dono: monta no lobo e segue a rota pela estrada (shared/rota.js);
   // água no caminho desce do lobo e atravessa (sobe de novo no seco); preso desvia de lado. Perto (V.chega m): larga a
   // estrada e o resto (seguir, chegar, lutar) é o de sempre. Em outra terra (só de barco): avisa uma vez e espera.
+  // o caminho a nado até (alvo) em outra terra: pela estrada até a última terra antes do mar na reta até ele, e de lá
+  // reto (o trecho na água é nadando). Já na água: reto. null: não achou o mar no meio (fica o aviso de outra terra)
+  nadoRumoAmiga(j, alvo) {
+    const naAgua = (x, z) => terraId(x, z) === 0 || fundoAgua(x, z) > AGUA.peito;
+    const fim = { x: alvo.x, z: alvo.z };
+    if (naAgua(j.x, j.z)) return [fim];
+    const d = Math.hypot(alvo.x - j.x, alvo.z - j.z), n = Math.max(1, Math.ceil(d / 3));
+    let praia = null;
+    for (let s = 1; s <= n; s++) {
+      const x = j.x + (alvo.x - j.x) * s / n, z = j.z + (alvo.z - j.z) * s / n;
+      if (naAgua(x, z)) { const k = Math.max(0, s - 2); praia = { x: j.x + (alvo.x - j.x) * k / n, z: j.z + (alvo.z - j.z) * k / n }; break; }
+    }
+    if (!praia) return null;
+    const r = planejarRota(this.mapa, j, praia);
+    return r.bloqueio ? [praia, fim] : [...r.pontos, fim];
+  },
   longeAmiga(j, dono, d, dt) {
     const V = this.AMIGA.viagem, ia = j.ia;
     if (!(ia.viagem ? d > V.chega : d > V.estrada)) { ia.viagem = null; return false; }
     let v = ia.viagem;
     if (!v || (this.tempo >= v.novaEm && Math.hypot(v.fx - dono.x, v.fz - dono.z) > (v.bloqueio ? 2 : V.replanejar))) {
       const r = planejarRota(this.mapa, j, dono), aviso = !v && !!dono && this.tempo >= (ia.avisoViagem || 0);
-      if (r.bloqueio) {
+      // outra terra sem barco (André 2026-11-23: "eles precisam ir pro mar... nadando, de barco, de navio"): pela estrada
+      // até a praia do lado dele e de lá nadando reto até ele (no mar, travessiaAmiga leva até o fim)
+      // (bot sozinho na rotina dele continua como antes: sem barquinho, faz um ou escolhe outro campo; recruta nada)
+      const nado = r.bloqueio && (!dono.solo || this.AMIGA.recruta || this.fixoClaNpc?.(this)) ? this.nadoRumoAmiga(j, dono) : null;
+      if (nado) {
+        if (!v?.nado && !dono.solo && this.tempo >= (ia.avisoNado || 0)) { ia.avisoNado = this.tempo + 120; const F = this.AMIGA.chat.falas; this.dizerAmiga(sorteia(F.nado || F.outraTerra)); }
+        v = ia.viagem = { rota: nado, i: 0, fx: dono.x, fz: dono.z, novaEm: this.tempo + V.novaEm, seco: v?.seco ?? V.seco, t: 0, x0: j.x, z0: j.z, desvio: 0, lado: 1, falhas: 0, iFalha: -1, nado: true };
+      } else if (r.bloqueio) {
         if (!v?.bloqueio && !dono.solo) this.dizerAmiga(sorteia(this.AMIGA.chat.falas.outraTerra));
         ia.viagem = { bloqueio: r.bloqueio, fx: dono.x, fz: dono.z, novaEm: this.tempo + 5 };
         j.montado = null; this.pararAmiga(j); return true;
-      }
+      } else {
       if (aviso && !dono.solo && !ia.vir && d > V.estrada * 3) { ia.avisoViagem = this.tempo + 120; if (this.tempo - (ia.aCaminhoT ?? -1e9) > 600) { ia.aCaminhoT = this.tempo; const L = this.AMIGA.chat.falas.aCaminho, t = sorteia(L.length > 1 ? L.filter((x) => x !== ia.aCaminhoUlt) : L); ia.aCaminhoUlt = t; this.dizerAmiga(t); } } // André 2026-11-17 (ronda): "Tô montando no lobo" 3x: no máximo 1 vez a cada 10 min e nunca a mesma seguida
       v = ia.viagem = { rota: r.pontos, i: 0, fx: dono.x, fz: dono.z, novaEm: this.tempo + V.novaEm, seco: v?.seco ?? V.seco, t: 0, x0: j.x, z0: j.z, desvio: 0, lado: 1, falhas: 0, iFalha: -1 };
       // a chamada pelo chat espera o tempo da viagem (lobo no galope + folga)
       if (ia.vir) ia.vir.ate = Math.max(ia.vir.ate, this.tempo + r.metros / MONTARIAS.lobo.correr * V.folga + V.extra);
+      }
     }
     if (v.bloqueio) { j.montado = null; this.pararAmiga(j); return true; }
     if (j.trava > 0) return this.pararAmiga(j), true;
@@ -1837,7 +1864,7 @@ export const Amiga = {
     const alvo = P[v.i], dx = alvo.x - j.x, dz = alvo.z - j.z, da = Math.hypot(dx, dz) || 1;
     // montaria: água logo à frente desce do lobo; no seco de novo, sobe (como o "Ir para" do app)
     const funda = (x, z) => (noLago(x, z)?.fundo || 0) > V.agua, f = Math.min(V.frente, da);
-    const agua = funda(j.x, j.z) || funda(j.x + dx / da * f, j.z + dz / da * f);
+    const agua = funda(j.x, j.z) || funda(j.x + dx / da * f, j.z + dz / da * f) || (v.nado && fundoAgua(j.x + dx / da * f, j.z + dz / da * f) > 0.3);
     if (agua) { v.seco = 0; if (j.montado) j.montado = null; }
     else if (!j.montado && !j.veiculo && !j.prog.pack) { v.seco += dt; if (v.seco >= V.seco && j.chao && !j.esc) j.montado = MONTARIAS[dono.montado] ? dono.montado : 'lobo'; }
     // preso (árvore, pedra, gente): desvia de lado um pouco; no mesmo ponto 3 vezes, pula para o próximo
@@ -1907,7 +1934,9 @@ export const Amiga = {
     const tj = terraId(j.x, j.z), td = terraId(dono.x, dono.z);
     const outra = !nav && !naAgua && tj > 0 && td > 0 && tj !== td && contar(j.prog.mochila, 'barquinho') > 0;
     ia.outraTerra = outra;
-    if (!(nav && d < T.navio) && !(naAgua && d < T.agua) && !outra) return false;
+    // ele mesmo no mar (nadando, com ou sem pack nas costas) e o dono longe: nada reto até ele (a estrada não sai do mar)
+    const euNaAgua = !ia.atividade && (fundoAgua(j.x, j.z) > AGUA.peito - 0.3 || tj === 0);
+    if (!(nav && d < T.navio) && !(naAgua && d < T.agua) && !outra && !euNaAgua) return false;
     ia.viagem = null;
     if (j.trava > 0) return this.pararAmiga(j), true;
     if (j.coleta) this.pararColeta(j, null);

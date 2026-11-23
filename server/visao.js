@@ -33,7 +33,7 @@ export const VISAO = {
 };
 
 // o que muda quase toda foto
-const MUDA_J = ['x', 'y', 'z', 'ry', 'vida', 'morto', 'anim', 'acao', 'acaoSeq', 'escudo', 'coleta', 'montado', 'pack', 'veiculo', 'guerra', 'prot']; // guerra/prot: Chama x Geada (o app mira na outra raça por eles; André 2026-11-22 "continuo não conseguindo atacar os Geada")
+const MUDA_J = ['x', 'y', 'z', 'ry', 'vida', 'morto', 'anim', 'acao', 'acaoSeq', 'escudo', 'coleta', 'montado', 'pack', 'veiculo', 'guerra', 'prot', 'bd']; // bd: lugar no convés do navio (shared/transporte.js fotoBordo) // guerra/prot: Chama x Geada (o app mira na outra raça por eles; André 2026-11-22 "continuo não conseguindo atacar os Geada")
 const MUDA_I = ['x', 'y', 'z', 'ry', 'vida', 'morto', 'anim', 'acao', 'acaoSeq', 'ef'];
 // o que quase não muda. Dos OUTROS jogadores o celular só usa isto (online.gd: outro e animar);
 // recargas, missões, mana, estamina e build são só do dono e vão só para ele (inteiro, como antes).

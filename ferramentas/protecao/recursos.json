@@ -295,8 +295,9 @@
     {"nome": "Inglês do jogo carregado ao abrir (André 2026-11-14)", "arquivo": "godot-prototipo/main.gd", "contem": ["Idioma.iniciar()"]},
     {"nome": "Cecília e Dario (IA) respondem em inglês com o jogo em English (André 2026-11-14)", "arquivo": "server/ia-amiga.js", "contem": ["ctx.idioma === 'en'"]},
     {"nome": "Quadradinho Ver equipado na Aparência: prévia com ou sem o equipamento (André 2026-11-16)", "arquivo": "godot-prototipo/criador.gd", "contem": ["func linha_ver_equip() -> Control:", "func vestir_previa() -> void:", "\"Ver equipado\""]},
-    {"nome": "Traje Patrulheira / Roupão na Aparência e armadura v5 com capuz (André 2026-11-23)", "arquivo": "godot-prototipo/criador.gd", "contem": ["var trajes_ui := []", "[\"Roupão\", true]", "\"Patrulheiro\" if rapaz else \"Patrulheira\""]},
-    {"nome": "Traje do roupão e do patrulheiro aceito pelo servidor (André 2026-11-23)", "arquivo": "shared/dados.js", "contem": ["['roupao', 'patrulheiro', 'patrulheiro2', 'roupao2'].includes(a.traje)"]},
-    {"nome": "Patrulheiro masculino com túnica (André 2026-11-23)", "arquivo": "godot-prototipo/armadura.gd", "contem": ["traje == \"patrulheiro\"", "túnica do patrulheiro no rapaz"]}
+    {"nome": "Traje Patrulheira / Roupão na Aparência e armadura v5 com capuz (André 2026-11-23)", "arquivo": "godot-prototipo/criador.gd", "contem": ["var trajes_ui := []", "[\"Roupão\", \"roupao\"]", "\"Patrulheiro\" if masc else \"Patrulheira\""]},
+    {"nome": "Cor livre (Roupa/Calça da Aparência) no pano da armadura v5 (André 2026-11-23)", "arquivo": "godot-prototipo/armadura.gd", "contem": ["static func tingir_v5(raiz: Node3D) -> void:", "const TINTA_ROUPA :="]},
+    {"nome": "Traje do roupão aceito pelo servidor (André 2026-11-23)", "arquivo": "shared/dados.js", "contem": ["r.traje = ['roupao', 'patrulha', 'patrulheiro2', 'roupao2'].includes(a.traje) ? a.traje : null;"]},
+    {"nome": "Patrulheiro 2 e Roupão 2 (peças da thread de arte) e espada/cajado feitos à mão (André 2026-11-23)", "arquivo": "godot-prototipo/equip2.gd", "contem": ["const TRAJES := [\"patrulheiro2\", \"roupao2\"]", "static func armas(espada: Node3D, cajado: Node3D"]}
   ]
 }

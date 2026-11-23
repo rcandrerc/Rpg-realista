@@ -47,4 +47,24 @@ func _initialize() -> void:
 		c.trajes_fl.get_child(0).emit_signal("pressed")
 		await esperar(40)
 		await foto("5-patrulheira")
+		# rapaz: Patrulheiro / Roupão (André 2026-11-23)
+		if c.corpos_ui.has("cabelo_m"):
+			c.corpos_ui["cabelo_m"].botao.emit_signal("pressed")
+			await esperar(40)
+			c.trajes_fl.get_child(0).emit_signal("pressed")
+			await esperar(40)
+			await foto("6-patrulheiro")
+			c.trajes_fl.get_child(1).emit_signal("pressed")
+			await esperar(40)
+			await foto("7-roupao-rapaz")
+			# cor livre (André 2026-11-23): a cor de Roupa pinta o pano do traje
+			var cores: Array = c.criador.get("roupa", [])
+			if cores.size() > 3:
+				c.ap.roupa = cores[3]
+				c.mudou()
+				await esperar(30)
+				await foto("8-roupao-cor")
+				c.trajes_fl.get_child(0).emit_signal("pressed")
+				await esperar(40)
+				await foto("9-patrulheiro-cor")
 	quit()

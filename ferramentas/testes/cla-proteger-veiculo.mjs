@@ -81,6 +81,15 @@ for (let i = 0; i < 100; i++) {
   const q = s.naviosNoMundo()[0]; if (!a2.bordo?.pv || dn(q.x, q.z) > 7) fora++;
 }
 ok(fora === 0, `navio andou ${(99 * 0.4).toFixed(0)} m: ele ficou no convés o tempo todo`);
+// André 2026-11-23 (tremor no mercante andando): a foto leva o lugar dele NO navio, e esse lugar bate com o mundo
+{
+  const fj = s.foto().jogadores.find((o) => o.id === a2.id), bd = fj?.bd, q = s.naviosNoMundo()[0];
+  ok(Array.isArray(bd) && bd[0] === L.id, `foto: lugar no navio do líder (${JSON.stringify(bd)})`);
+  const sn = Math.sin(q.ry || 0), cs = Math.cos(q.ry || 0), wx = q.x + bd[1] * cs + bd[2] * sn, wz = q.z - bd[1] * sn + bd[2] * cs;
+  ok(Math.hypot(wx - a2.x, wz - a2.z) < 0.05, `foto: navio + lugar = onde ele está (${Math.hypot(wx - a2.x, wz - a2.z).toFixed(3)} m)`);
+  const fl = s.foto().jogadores.find((o) => o.id === L.id);
+  ok(fl && fl.bd === undefined, 'foto: quem está no leme não leva lugar no convés');
+}
 // guardou o navio: desce do lado do líder
 L.veiculo = null; L.prog.navio.chao = null; L.x = nx; L.z = nz - 10; L.y = s.terreno.altura(L.x, L.z);
 for (let i = 0; i < 5; i++) s.passo(0.1);

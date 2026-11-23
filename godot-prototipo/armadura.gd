@@ -86,12 +86,15 @@ const LINHA_V5 := true
 # (null): moça = patrulheira, rapaz = roupão; traje "patrulheiro" veste o patrulheiro, "roupao" o roupão, em qualquer corpo.
 # patrulheiro_m = true força o patrulheiro no rapaz (só as fotos)
 static var roupao_fem := false
+# patrulheiro_m = true força o patrulheiro no rapaz (só as fotos de ferramentas/armadura-v5/fotos.gd)
 static var patrulheiro_m := false
+# André 2026-11-23 (2): o rapaz também escolhe; traje "roupao" ou "patrulha", sem escolha = moça patrulheira e
+# rapaz de roupão
 static func _de_roupao(raiz: Node3D, esq: Skeleton3D) -> bool:
-	var traje := str(raiz.get_meta("traje", ""))
-	if traje == "roupao" or roupao_fem:
+	var t := str(raiz.get_meta("traje", ""))
+	if t == "roupao" or roupao_fem:
 		return true
-	if traje == "patrulheiro" or patrulheiro_m:
+	if t == "patrulha" or patrulheiro_m:
 		return false
 	return _ref(esq).masc
 # "Patrulheiro 2" / "Roupão 2" (equip2.gd): as peças da thread de arte, ao lado das v5; "" quando o traje é outro
@@ -106,12 +109,12 @@ static func _pecas_v5(k: String, r: int) -> Array:
 		"peitoral":
 			return [["colete@f", "v5_colete"], ["bracal_e@f", "v5_bracal"], ["bracal_d@f", "v5_bracal"], ["cinto@f", "v5_cinto"],
 				["luva_e", "v5_luva"], ["luva_d", "v5_luva"]] + ([["alca@f", "v5_alca"]] if r >= 1 else []) \
-				+ ([["manto@f", "v5_manto"]] if r >= 2 else []) \
+				+ ([["manto@f", "v5_manto"]] if r >= 2 else [["manto@fm", "v5_manto"]]) \
 				+ [["roupao@m", "v5_roupao_corpo"], ["manga_larga_e@m", "v5_roupao_manga"], ["manga_larga_d@m", "v5_roupao_manga"], ["manto@m", "v5_manto_m"], ["corda@m", "v5_corda"]]
 		"calca":
-			return [["coxa_e", "v5_calca"], ["coxa_d", "v5_calca"], ["saia_v5@f", "v5_tunica"], ["roupao_saia@m", "v5_roupao"]]
+			return [["coxa_e", "v5_calca"], ["coxa_d", "v5_calca"], ["saia_v5@f", "v5_tunica"], ["tunica@fm", "v5_tunica"], ["roupao_saia@m", "v5_roupao"]]
 		"short":
-			return [["short_e", "v5_calca"], ["short_d", "v5_calca"], ["saia_v5@f", "v5_tunica"], ["roupao_saia@m", "v5_roupao"]]
+			return [["short_e", "v5_calca"], ["short_d", "v5_calca"], ["saia_v5@f", "v5_tunica"], ["tunica@fm", "v5_tunica"], ["roupao_saia@m", "v5_roupao"]]
 		"botas":
 			return [["bota_e", "v5_bota"], ["bota_d", "v5_bota"], ["dobra_e", "v5_dobra"], ["dobra_d", "v5_dobra"], ["sapato_couro", "v5_bota"]]
 		"capa":
@@ -340,6 +343,7 @@ static func vestir(raiz: Node3D, equip) -> void:
 			for arma in ba.get_children():
 				costas(esq, arma, capa)
 	preload("res://realista.gd").aplicar(raiz) # pele semi-realista (André 2026-11-07)
+	tingir_v5(raiz)
 
 # André 2026-11-14: o corpo masculino "parece um magrelinho feio que não trabalha": ombros um pouco mais largos.
 # O osso do braço (UpperArm) sai OMBRO_LARGO para fora, na direção do ombro, depois da animação (modificador do
@@ -1473,15 +1477,20 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 		if parte == "capuz":
 			_montar_capuz(raiz, esq, no, r)
 			continue
-		if parte.ends_with("@f") or parte.ends_with("@m"):
+		# "@f" = patrulha, "@m" = roupão, "@fm" = patrulha só no corpo masculino (túnica e manto do patrulheiro)
+		if parte.ends_with("@fm"):
+			if _de_roupao(raiz, esq) or not _ref(esq).masc:
+				continue
+			parte = parte.left(-3)
+		elif parte.ends_with("@f") or parte.ends_with("@m"):
 			if parte.ends_with("@m") != _de_roupao(raiz, esq):
 				continue
 			parte = parte.left(-2)
 		if parte == "roupao_saia":
 			_montar_roupao_saia(raiz, esq, no, mat, r)
 			continue
-		if parte == "saia_v5" and _ref(esq).masc:
-			_montar_roupao_saia(raiz, esq, no, mat, r, true) # túnica do patrulheiro no rapaz
+		if parte == "tunica":
+			_montar_roupao_saia(raiz, esq, no, mat, r, true)
 			continue
 		if parte == "corda":
 			_montar_corda(raiz, esq, no, r)
@@ -2739,8 +2748,7 @@ static func _malha_tabardo(corpo: MeshInstance3D, raiz: Node3D, R: Ref) -> Array
 # fatia e ângulo) e nunca volta para dentro descendo (o pano cai reto e abre um pouco), com dobras verticais que
 # crescem para baixo. Pesos: em cima, os da pele mais perto; embaixo, a mistura das duas pernas (lado esquerdo segue
 # mais a perna esquerda), com um quarto preso no quadril para o pano não esticar demais na passada.
-# curta = true: túnica do patrulheiro no rapaz (André 2026-11-23, rodada 2), o mesmo pano só até o meio da coxa
-# (a calça do VRoid masculino vai até o pé, então a túnica da moça, que nasce da saia, não serve nele)
+# curta = túnica do patrulheiro (André 2026-11-23): a mesma saia de pano, até o meio da coxa
 static func _montar_roupao_saia(raiz: Node3D, esq: Skeleton3D, no: Node3D, mat: String, r: int, curta := false) -> void:
 	var corpo := _fonte(raiz, "Body_00")
 	if corpo == null:
@@ -2764,7 +2772,9 @@ static func _malha_roupao_saia(corpo: MeshInstance3D, raiz: Node3D, R: Ref, curt
 	if calca and calca.mesh:
 		pts.append_array(_FA(Malhas.vertices(calca.mesh, 0)))
 	var yt := R.y_cintura + 0.03
-	var yb := lerpf(R.y_joelho, R.y_cintura, 0.36) if curta else R.y_pe + 0.045
+	var yb := R.y_pe + 0.045
+	if curta:
+		yb = lerpf(R.y_joelho, R.y_cintura, 0.3)
 	var NA := 36
 	var NY := 9 if curta else 22
 	var zmin := 9.0
@@ -3455,6 +3465,55 @@ static func _malha_capa(src: MeshInstance3D, esq: Skeleton3D, osso: int) -> Arra
 const CALCA := [Color("4a3324"), Color("2a2230"), Color("2a2238"), Color("2c2226"), Color("2a1a22")] # couro da calça por raridade
 
 static func _material(tipo: String, r: int) -> Material:
+	var m := _material_cru(tipo, r)
+	if m and not m.has_meta("v5_tipo"):
+		m.set_meta("v5_tipo", tipo) # tingir_v5 acha o pano da roupa e da calça por aqui
+	return m
+
+# Cor livre na roupa (André 2026-11-23, teste): a cor de "Roupa" e de "Calça e saia" da Aparência pinta o pano do traje
+# v5 (túnica, roupão, manto, capuz / calça). "Original" = cor do set. Couro, barras e bordado ficam como estão.
+const TINTA_ROUPA := ["v5_tunica", "v5_saia_base", "v5_roupao", "v5_roupao_corpo", "v5_roupao_manga", "v5_manto", "v5_capuz", "capa"]
+const TINTA_CALCA := ["v5_calca", "calca"]
+static func tingir_v5(raiz: Node3D) -> void:
+	if not LINHA_V5:
+		return
+	var cr = raiz.get_meta("cor_roupa", null)
+	var cc = raiz.get_meta("cor_calca", null)
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		mi.material_override = _tinta(mi, "mo", mi.material_override, cr, cc)
+		if mi.mesh:
+			for i in mi.mesh.get_surface_count():
+				var at: Material = mi.get_surface_override_material(i)
+				if at:
+					mi.set_surface_override_material(i, _tinta(mi, "s%d" % i, at, cr, cc))
+
+static func _tinta(mi: MeshInstance3D, lugar: String, atual: Material, cr, cc) -> Material:
+	if atual == null:
+		return null
+	var orig: Material = mi.get_meta("v5_orig_" + lugar) if atual.has_meta("v5_tinta") and mi.has_meta("v5_orig_" + lugar) else atual
+	var tipo := str(orig.get_meta("v5_tipo", ""))
+	var cor = cr if tipo in TINTA_ROUPA else (cc if tipo in TINTA_CALCA else null)
+	if cor == null:
+		return orig
+	mi.set_meta("v5_orig_" + lugar, orig)
+	var chave := "tinta|%d|%s" % [orig.get_instance_id(), (cor as Color).to_html()]
+	if not _materiais.has(chave):
+		var t: Material = orig.duplicate()
+		t.set_meta("v5_tinta", true)
+		var c: Color = cor
+		if tipo == "capa": # capa: por fora na cor escolhida, por dentro um tom mais escuro
+			t.set_shader_parameter("fora", c)
+			t.set_shader_parameter("dentro", c.darkened(0.45))
+		elif t is ShaderMaterial:
+			t.set_shader_parameter("claro", c.lightened(0.25))
+			t.set_shader_parameter("medio", c)
+			t.set_shader_parameter("sombra", c.darkened(0.6))
+		elif t is BaseMaterial3D:
+			t.albedo_color = c
+		_materiais[chave] = t
+	return _materiais[chave]
+
+static func _material_cru(tipo: String, r: int) -> Material:
 	var chave := "%s:%d" % [tipo, r]
 	if _materiais.has(chave):
 		return _materiais[chave]

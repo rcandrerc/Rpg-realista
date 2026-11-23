@@ -105,10 +105,10 @@ var _vestido_previa := ""
 var corpos_ui := {} # corpo -> botão com o rosto
 var penteados_fl: HFlowContainer # botões de penteado do corpo escolhido (CRIADOR.penteados, penteado.gd)
 var penteados_ui := [] # [botão, id do penteado ou null]
-# André 2026-11-23: traje da armadura v5, dois quadradinhos "Patrulheira/Patrulheiro" e "Roupão" (aparencia.traje);
-# rodada 2: o rapaz também escolhe (null = padrão do corpo: moça patrulheira, rapaz roupão)
+# André 2026-11-23: traje da armadura v5 na moça, dois quadradinhos "Patrulheira" e "Roupão" (aparencia.traje);
+# André 2026-11-23 (2): o rapaz também escolhe (Patrulheiro / Roupão)
 var trajes_fl: HFlowContainer
-var trajes_ui := [] # [quadradinho, qual (false patrulha, true roupão, ou "patrulheiro2"/"roupao2"), rótulo]
+var trajes_ui := [] # [quadradinho, traje, rótulo]
 var _boneco_de := "" # corpo que está no palco agora
 static var _rostos := {} # corpo -> ImageTexture do rosto (feito uma vez por partida)
 
@@ -394,7 +394,7 @@ func montar_painel() -> Control:
 	trajes_fl = HFlowContainer.new()
 	trajes_fl.add_theme_constant_override("h_separation", 18)
 	# André 2026-11-23: "Patrulheiro 2" e "Roupão 2" = as peças feitas à mão na thread de arte (equip2.gd), para comparar
-	for par in [["Patrulheira", false], ["Roupão", true], ["Patrulheiro 2", "patrulheiro2"], ["Roupão 2", "roupao2"]]:
+	for par in [["Patrulheira", "patrulha"], ["Roupão", "roupao"], ["Patrulheiro 2", "patrulheiro2"], ["Roupão 2", "roupao2"]]:
 		# como o "Ver equipado": a linha toda é o botão, com o quadradinho e o nome
 		var bt := Button.new()
 		bt.flat = true
@@ -416,24 +416,18 @@ func montar_painel() -> Control:
 		t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		h.add_child(t)
-		var de_roupao = par[1]
+		var tj = par[1]
 		bt.pressed.connect(func():
 			if _arrastou:
 				return
-			# grava só o que foge do padrão do corpo; o padrão fica null (moça patrulheira, rapaz roupão)
-			if de_roupao is String:
-				ap.traje = de_roupao
-			elif _masculino():
-				ap.traje = null if de_roupao else "patrulheiro"
-			else:
-				ap.traje = "roupao" if de_roupao else null
+			ap.traje = tj
 			if not _criacao and not ver_equip: # o traje só aparece com a armadura vestida
 				ver_equip = true
 				if q_equip:
 					q_equip.marcado = true
 					q_equip.queue_redraw()
 			mudou())
-		trajes_ui.append([q, de_roupao, t])
+		trajes_ui.append([q, tj, t])
 		trajes_fl.add_child(bt)
 	lista.add_child(trajes_fl)
 	for k in Aparencia.CORES:
@@ -676,17 +670,36 @@ func fazer_rostos() -> void:
 		cm.fov = 30.0
 		vp2.add_child(cm)
 		cm.look_at_from_position(cab + Vector3(0.12, 0.03, 0.75), cab + Vector3(0, -0.01, 0))
-		await RenderingServer.frame_post_draw
-		await RenderingServer.frame_post_draw
-		if not is_instance_valid(vp2):
-			return
-		var img := vp2.get_texture().get_image()
+		# André 2026-11-23 ("a foto sumiu"): no celular o retrato às vezes saía todo preto (o quadro ainda não tinha
+		# sido desenhado, por exemplo com a placa ocupada compilando a roupa nova). Espera até o fundo aparecer
+		# (o canto tem a cor do fundo, não preto) e tenta de novo; foto preta nunca fica guardada.
+		var img: Image = null
+		for tentativa in 8:
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			if not is_instance_valid(vp2):
+				return
+			img = vp2.get_texture().get_image()
+			if img != null and not _foto_preta(img):
+				break
+			img = null
 		vp2.queue_free()
 		if img == null:
 			continue
 		_rostos[id] = ImageTexture.create_from_image(img)
 		if corpos_ui.has(id):
 			corpos_ui[id].foto.texture = _rostos[id]
+
+# retrato que não foi desenhado: o canto (fundo marrom-escuro) e o meio saem pretos
+func _foto_preta(img: Image) -> bool:
+	if img.is_empty():
+		return true
+	var w := img.get_width()
+	var h := img.get_height()
+	for p in [Vector2i(2, 2), Vector2i(w - 3, 2), Vector2i(w / 2, h / 2)]:
+		if img.get_pixelv(p).get_luminance() > 0.02:
+			return false
+	return true
 
 func botao(t: String, ativo: bool, fn: Callable) -> Button:
 	var b := Button.new()
@@ -936,15 +949,14 @@ func marcar() -> void:
 		faixas[k].value = float(ap.get(k, 1.0))
 	for par in penteados_ui:
 		Menu.estilo_botao(par[0], par[1] == ap.get("penteado"))
-	var rapaz := boneco != null and _masculino()
-	var traje = ap.get("traje")
-	var eh_roupao: bool = traje == "roupao" or (rapaz and traje != "patrulheiro")
-	var t2: bool = traje in ["patrulheiro2", "roupao2"]
+	var masc := boneco != null and _masculino()
+	# sem escolha: moça patrulheira, rapaz de roupão (Armadura._de_roupao)
+	var atual: String = str(ap.get("traje")) if ap.get("traje") != null else ("roupao" if masc else "patrulha")
 	for par in trajes_ui:
-		par[0].marcado = par[1] == traje if (t2 or par[1] is String) else par[1] == eh_roupao
+		par[0].marcado = par[1] == atual
 		par[0].queue_redraw()
-		if par[1] is bool and not par[1]:
-			par[2].text = Idioma.frase("Patrulheiro" if rapaz else "Patrulheira")
+		if par[1] == "patrulha":
+			par[2].text = Idioma.frase("Patrulheiro" if masc else "Patrulheira")
 	for id in corpos_ui: # corpo escolhido: aro dourado grosso; os outros, aro fino apagado
 		var on: bool = id == corpo
 		var sa := StyleBoxFlat.new()
