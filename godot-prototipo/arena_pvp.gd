@@ -274,6 +274,23 @@ func alvo(pos: Vector3, max_d: float, filtro := Callable()):
 		melhor = _alvos[id]
 	return melhor
 
+# botão Trocar alvo (main.gd trocar_alvo, 2026-11-23): todos do outro time até max_d, com as mesmas entradas de alvo()
+func alvos(pos: Vector3, max_d: float) -> Array:
+	var l: Array = []
+	if fase != "luta" or m.online == null:
+		return l
+	for id in times:
+		if times[id] == meu_time or caidos.get(id, 0.0) > m.tempo:
+			continue
+		var o = m.online.outros.get(id)
+		if o == null or not is_instance_valid(o.no) or not o.no.visible or o.no.position.distance_to(pos) > max_d:
+			continue
+		if not _alvos.has(id) or _alvos[id].no != o.no:
+			_alvos[id] = {"no": o.no, "estado": "vivo", "duelo": true, "id": id}
+		_alvos[id].estado = "vivo"
+		l.append(_alvos[id])
+	return l
+
 # ---------- fim ----------
 func _fim_partida(ev: Dictionary) -> void:
 	fase = "fim"

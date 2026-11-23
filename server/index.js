@@ -179,7 +179,7 @@ class SalaClareira extends Room {
     // skills do Quimera (shared/progresso.js): usar, as duas barras de 6 botões e os pontos de atributo
     this.ouvir('habQ', (c, k) => {
       if (typeof k === 'string' && k.length < 32) this.sim.usarHabQ(c.sessionId, k);
-      else if (k && typeof k.id === 'string' && k.id.length < 32) this.sim.usarHabQ(c.sessionId, { id: k.id, dx: Number(k.dx) || 0, dz: Number(k.dz) || 0, ...(Number.isInteger(k.v) ? { v: k.v } : {}) }); // v: alvo travado do mago
+      else if (k && typeof k.id === 'string' && k.id.length < 32) this.sim.usarHabQ(c.sessionId, { id: k.id, dx: Number(k.dx) || 0, dz: Number(k.dz) || 0, ...(Number.isInteger(k.v) ? { v: k.v } : {}), ...(k.b === true ? { b: true } : {}), ...(typeof k.j === 'string' && k.j.length < 64 ? { j: k.j } : {}) }); // v: alvo travado do mago; b/j: botão Trocar alvo (j = id do jogador ou bot)
     });
     this.ouvir('cancelar', (c) => this.sim.cancelarCanal(c.sessionId)); // andou no meio da magia concentrada
     this.ouvir('barra', (c, b) => this.sim.definirBarra(c.sessionId, b)); // barra da espada ou do cajado
