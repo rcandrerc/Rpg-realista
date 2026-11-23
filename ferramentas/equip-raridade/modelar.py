@@ -16,6 +16,7 @@ RUIVA = os.path.join(AQUI, '..', '..', 'godot-prototipo', 'modelos', 'ruiva.glb'
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=RUIVA)
 CORPO = [o for o in bpy.data.objects if o.type == 'MESH' and o.name in ('Body_(merged)', 'Body_(merged)_2')]
+SAIA = [o for o in bpy.data.objects if o.type == 'MESH' and o.name == 'Body_(merged)_3']
 deps = bpy.context.evaluated_depsgraph_get()
 bm_c = bmesh.new()
 for o in CORPO:
@@ -26,6 +27,15 @@ for o in CORPO:
     t.to_mesh(m)
     bm_c.from_mesh(m)
 BVH = BVHTree.FromBMesh(bm_c)
+bm_s = bmesh.new()
+for o in SAIA + CORPO:
+    t = bmesh.new()
+    t.from_mesh(o.data)
+    t.transform(o.matrix_world)
+    m = bpy.data.meshes.new('tmp2')
+    t.to_mesh(m)
+    bm_s.from_mesh(m)
+BVH_SAIA = BVHTree.FromBMesh(bm_s)
 for o in list(bpy.data.objects):
     bpy.data.objects.remove(o)
 
@@ -559,4 +569,5 @@ def mitico():
     obj.append(juntar(esp, 'espada'))
     exportar(4, obj)
 
-comum(); raro(); epico(); lendario(); mitico()
+if not globals().get('SO_FUNCOES'):  # modelar2.py usa só as funções
+    comum(); raro(); epico(); lendario(); mitico()

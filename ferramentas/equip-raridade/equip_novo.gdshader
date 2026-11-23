@@ -60,10 +60,9 @@ void fragment() {
 		met = 0.0;
 		emi = cor2 * fres * 0.35; // borda que pega o céu
 	} else if (tipo == 2) { // pano: trama
-		float tr = sin(p_local.x * 900.0) * sin(p_local.y * 900.0);
-		alb = cor * (0.82 + 0.1 * tr + 0.2 * n);
+		alb = cor * (0.86 + 0.16 * n + 0.06 * n2);
 		rug = 0.9;
-		emi = cor * fres * 0.25;
+		emi = mix(cor, cor2, step(0.01, dot(cor2, vec3(1.0)))) * fres * 0.3; // brilho de seda na borda (cor2)
 	} else if (tipo == 3) { // gema: miolo aceso que pulsa devagar
 		float pul = 0.75 + 0.25 * sin(TIME * 2.2);
 		alb = cor * 0.4;
@@ -93,6 +92,21 @@ void fragment() {
 		emi = (cor2 * (0.25 + fres * 1.4 + n * 0.25) + luz * brilho) * forca * pul;
 		rug = 0.05;
 		met = 0.3;
+	} else if (tipo == 8) { // bordado: losangos de linha sobre o pano (linha acesa se luz > 0)
+		float q = (p_local.x + p_local.z + p_local.y * 0.3) * 48.0;
+		float v = (p_local.y - p_local.z * 0.3) * 48.0;
+		float d = abs(fract(q) - 0.5) + abs(fract(v) - 0.5);
+		float linha = 1.0 - smoothstep(0.05, 0.1, abs(d - 0.3));
+		linha = max(linha, 1.0 - smoothstep(0.04, 0.08, d));
+		alb = mix(cor * (0.85 + 0.2 * n), cor2, linha);
+		rug = 0.75;
+		emi = luz * linha * forca * (0.75 + 0.25 * sin(TIME * 2.0 + q * 0.3));
+	} else if (tipo == 9) { // couro com costura (pontos de linha)
+		float s = fract((p_local.x + p_local.y + p_local.z) * 140.0);
+		float ponto = smoothstep(0.35, 0.45, s) * (1.0 - smoothstep(0.75, 0.85, s));
+		alb = mix(cor * (0.8 + 0.3 * n), cor2, ponto * 0.85);
+		rug = 0.65;
+		emi = luz * ponto * forca;
 	} else if (tipo == 7) { // runa acesa
 		float pul = 0.6 + 0.4 * sin(TIME * 2.5 - p_local.y * 12.0);
 		alb = cor * 0.3;
