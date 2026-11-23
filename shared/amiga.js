@@ -295,6 +295,7 @@ export const Amiga = {
   pedidoAmizadeAmiga(id, viaChat = false) {
     const a = this.amiga, j = this.jogadores.get(id), P = this.AMIGA.amigoLista; if (!a || !j || j.bot || !j.conta) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto }), nome = this.AMIGA.nome;
+    if (!this.amigoBotOk(this, j)) return aviso(`Só dá para adicionar líder de clã (${nome} é ${this.AMIGA.recruta || this.fixoClaNpc(this) ? 'recruta' : 'NPC'})`); // AMIGOS.soLideres (André 2026-11-23)
     if (this.ehAmigoAmiga(j)) return aviso(`${nome} já é seu amigo`);
     if ((a.ia.amigoNao?.[j.conta] || 0) > this.tempo) return aviso(`${nome} pediu para você esperar um pouco`);
     const fala = (t) => (viaChat ? this.dizerAmiga(t, false, id) : this.evento({ t: 'fala', para: id, npc: this.AMIGA.id, texto: `${nome}: ${t}` }));
@@ -489,7 +490,7 @@ export const Amiga = {
     if (this.guerraAmiga(j, dt)) return; // Chama x Geada (shared/guerra.js): atacar, ajudar, fugir ou poupar a outra raça
     if (this.protegerAmiga(j, dt)) return; // função "Proteger" do painel do clã (shared/cla.js)
     if (this.almaAmiga(j, dt)) return; // função "Farmar recurso: Fragmento de Alma": caça a outra raça
-    if (this.AMIGA.recruta && this.passoFazendaRecruta(this, j, dt)) return; // função "Fazenda": canteiros da base do clã
+    if ((this.AMIGA.recruta || this.fixoClaNpc?.(this)) && this.passoFazendaRecruta(this, j, dt)) return; // função "Fazenda": canteiros da base do clã
     // subiu de nível: os pontos vão pelo jeito dele (André 2026-11-11): quem gosta de cajado põe em Inteligência, o resto
     // em Força, e todos em Vitalidade (antes era só metade Força e metade Vitalidade)
     if (j.prog.pontos > 0) this.pontosAmiga(j);
@@ -1354,7 +1355,7 @@ export const Amiga = {
   // outra raça (as regras da guerra: acima da Trégua, fora da zona segura); o fragmento vai direto ao Baú do Clã
   // (fragmentoGuerra). Ninguém perto: anda pela rota da ronda da outra raça (onde ela costuma passar). No time, manda o time.
   almaAmiga(j, dt) {
-    const fn = j.ia.funcao; if (!fn || fn.k !== 'alma' || !this.AMIGA.recruta || (j.time && j.time.membros.length > 1)) return false;
+    const fn = j.ia.funcao; if (!fn || fn.k !== 'alma' || !(this.AMIGA.recruta || this.fixoClaNpc?.(this)) || (j.time && j.time.membros.length > 1)) return false;
     if (!j.guerra) return false; // na Trégua (Nv 30) ou na zona segura: segue a vida
     const g = (j.ia.alma ||= { alvo: null, t: 0, i: 0 });
     let alvo = g.alvo && this.jogadores.get(g.alvo);
@@ -1375,7 +1376,7 @@ export const Amiga = {
   // função "Proteger" (painel do clã, André 2026-11-22): fica perto de quem protege (o líder ou outro recruta) e ataca o
   // que chegar perto dele. No time, quem manda é o time.
   protegerAmiga(j, dt) {
-    const fn = j.ia.funcao; if (!fn || fn.k !== 'proteger' || !this.AMIGA.recruta || (j.time && j.time.membros.length > 1)) return false;
+    const fn = j.ia.funcao; if (!fn || fn.k !== 'proteger' || !(this.AMIGA.recruta || this.fixoClaNpc?.(this)) || (j.time && j.time.membros.length > 1)) return false;
     const lider = this.corpoLiderDe(this); // jogador ou líder bot (todos os clãs iguais)
     // líder fora do jogo (André 2026-11-23: "a função que prevalece é a função que tiver marcada lá no clã"): quem protege
     // ou segue o líder espera ele onde está (se defende se atacarem); quem protege outro recruta continua protegendo
@@ -2204,7 +2205,7 @@ export const Amiga = {
   // segundos caçando sozinha hoje (dia real que vira às 3h de Brasília); no time com alguém não conta
   grindHojeAmiga(a) { const dia = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10); if (a.grind?.dia !== dia) a.grind = { dia, seg: 0 }; return a.grind.seg; },
   // recruta de clã bot (André 2026-11-23): no lugar dos 30 min, CLAS_NPC_ORDENS.horasDia de caça por dia real
-  grindAcabouAmiga(a) { return this.grindHojeAmiga(a) >= (this.AMIGA.clanpc && CLAS_NPC_ORDENS.ligado ? CLAS_NPC_ORDENS.horasDia * 3600 : NPC_VIDA.grind.segPorDia); },
+  grindAcabouAmiga(a) { return this.grindHojeAmiga(a) >= ((this.AMIGA.clanpc || this.fixoClaNpc?.(this)) && CLAS_NPC_ORDENS.ligado ? CLAS_NPC_ORDENS.horasDia * 3600 : NPC_VIDA.grind.segPorDia); },
   // a IA decidiu que ela vai caçar sozinha (ele pediu ou ela quis): sai agora; lugar = nome do campo que ela disse, se der
   sairCacarAmiga(a, j, lugar) {
     const v = this.podeSairAmiga(a, j); if (!v.ok) return v;

@@ -16,7 +16,10 @@ for (const g of G) {
   ok(a.semTeto, `${n}: sobe sem o teto do jogador mais alto`);
   ok(a.prog.nivel > i0.nv, `${n}: subiu caçando (${i0.nv} -> ${a.prog.nivel})`);
   ok(a.evolucao.some((e) => e.o === 'nivel'), `${n}: a subida foi para o diário de evolução`);
-  ok(a.prog.ouro !== i0.ouro, `${n}: o ouro é dele e mexeu (${i0.ouro} -> ${a.prog.ouro})`);
+  // André 2026-11-23: Kira, Rufo e Lis viraram recrutas do Gael (CLAS_NPC_ORDENS): farmando para o Baú do Clã o ouro
+  // pode não mexer nesses 25 min; o ouro continua sendo dele
+  const fx = s.clasNpc?.geada?.fx?.[g.AMIGA.id]?.fn;
+  ok(a.prog.ouro !== i0.ouro || (fx && fx.k !== 'grind'), `${n}: o ouro é dele e mexeu (${i0.ouro} -> ${a.prog.ouro}${fx ? ', ordem do Gael: ' + fx.k + (fx.r ? ' ' + fx.r : '') : ''})`);
 }
 // reforço com o próprio ouro, como a Cecília
 {

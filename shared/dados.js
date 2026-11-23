@@ -1458,7 +1458,10 @@ export const LOJA_PVP = [
 ];
 // Amigos e time (André 2026-11-05): até 20 amigos na conta; o time junta até 5 amigos da mesma sala.
 // XP e drop dos monstros valem para quem do time está a até 'perto' metros do monstro que caiu e lutou há pouco.
-export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3, buscaMin: 2, buscaMax: 8, entreBuscas: 1, pedidoDias: 14 }; // amigos, s, s; busca por nome (André 2026-11-15): letras, resultados, s; pedido a distância guardado (dias)
+export const AMIGOS = { soLideres: true, max: 20, pedido: 30, entrePedidos: 3, buscaMin: 2, buscaMax: 8, entreBuscas: 1, pedidoDias: 14 }; // amigos, s, s; busca por nome (André 2026-11-15): letras, resultados, s; pedido a distância guardado (dias)
+// soLideres (André 2026-11-23: "tira os recrutas da minha lista... só posso adicionar líderes de clã, do lado da Chama"):
+// dos bots, só o líder de clã bot da mesma raça aparece na lista e na busca e aceita pedido (para aliança). Os recrutas
+// continuam obedecendo e no painel do clã; false volta como era.
 // combate: só ganha quem lutou (bateu ou apanhou) nos últimos 10 s. bonus: +10% de XP para cada outro do time que ganhou junto
 // (2 = +10%, 5 = +40%).
 // Chat (André 2026-11-06: "cria um chat geral e um de amigos"; o geral pode ser silenciado no app).
