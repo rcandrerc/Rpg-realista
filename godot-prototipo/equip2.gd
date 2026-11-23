@@ -143,6 +143,7 @@ static func material(nome: String) -> Material:
 	sm.set_shader_parameter("aspereza", d[5])
 	sm.set_shader_parameter("forca", d[6])
 	sm.set_shader_parameter("ruido", _ruido)
+	sm.set_meta("tipo2", d[0]) # tingir() só pinta pano (tipo 2)
 	_mats[k] = sm
 	return sm
 
@@ -190,6 +191,7 @@ static func montar(esq: Skeleton3D, no: Node3D, k: String, r: int, traje: String
 			continue
 		var mi := MeshInstance3D.new()
 		mi.mesh = p[1]
+		mi.set_meta("equip2_nome", String(p[0])) # tingir() acha o pano da roupa e da calça por aqui
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		if p[2] != null:
 			mi.skin = p[2]
@@ -241,3 +243,28 @@ static func armas(espada: Node3D, cajado: Node3D, traje: String, r_espada: int, 
 			mi.set_meta("r", r)
 			no.add_child(mi)
 			break
+
+# Cor livre no Patrulheiro 2 / Roupão 2 (André 2026-11-23, "por enquanto sim", mesmo sistema do PR 843): a cor de Roupa
+# e de Calça da Aparência pinta só o PANO (tipo 2: túnica, robe, manto, capuz, saia, calça). Couro, metal, bordado,
+# costura e gemas ficam como estão. cr / cc = null: volta à cor do set. O material pintado é copiado e guardado por
+# cor (_tintas), então não pesa; a malha compartilhada não muda, só o material da peça (surface override).
+static var _tintas := {}
+static func tingir(mi: MeshInstance3D, cr, cc) -> void:
+	if mi.mesh == null:
+		return
+	var cor = cc if String(mi.get_meta("equip2_nome", "")).to_lower().contains("calca") else cr
+	for s in mi.mesh.get_surface_count():
+		var base: Material = mi.mesh.surface_get_material(s)
+		if cor == null or not (base is ShaderMaterial) or int(base.get_meta("tipo2", -1)) != 2:
+			mi.set_surface_override_material(s, null)
+			continue
+		var c: Color = cor
+		var chave := "%d|%s" % [base.get_instance_id(), c.to_html()]
+		if not _tintas.has(chave):
+			var t: ShaderMaterial = base.duplicate()
+			t.set_shader_parameter("cor", c)
+			var c2: Color = base.get_shader_parameter("cor2")
+			if c2.r + c2.g + c2.b > 0.01:
+				t.set_shader_parameter("cor2", c.lightened(0.3)) # brilho de seda na borda
+			_tintas[chave] = t
+		mi.set_surface_override_material(s, _tintas[chave])
