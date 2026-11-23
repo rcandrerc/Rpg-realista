@@ -3291,6 +3291,9 @@ export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
 // nivel: 'um' (Nv 1), 'metade' (metade do nível do líder), 'igual' (o nível do líder).
 export const CLA = {
   nome: { min: 3, max: 20 },
+  // queda de conexão ou servidor reiniciando no meio do caminho (André 2026-11-23: "no mar eles saem do meu time e somem do
+  // mapa"): quem estava no time do líder e ele volta em até voltaTime s, volta para o time e do lado dele
+  voltaTime: 600,
   max: 6, // recrutas no clã (André 2026-11-22: 6 por clã; era 5)
   // Missão do Clã: Escolta (André 2026-11-23, shared/missao-cla.js): levar os recrutas vivos até o totem mais perto a
   // pelo menos destMin m da base. entre: ms até abrir de novo; dura: s; abrir: m do Baú do Clã; perto: m do líder para
