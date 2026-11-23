@@ -1217,13 +1217,17 @@ func montar_mata(vila: Node3D) -> void:
 			arvores_mata[pos] = info
 
 # ---------- personagens ----------
-func modelo(id: String) -> Node3D:
+func cena_modelo(id: String) -> PackedScene:
 	if not cache.has(id):
 		var t0 := Time.get_ticks_usec()
 		cache[id] = load("res://modelos/%s.glb" % id)
 		if lentidao:
 			lentidao.ev("glb:" + id, t0) # a primeira vez que o modelo sai do disco
-	var no: Node3D = cache[id].instantiate()
+	return cache[id]
+
+# pronto: o .glb já instanciado fora da cena numa linha de fundo (online.gd _pedir_fundo); senão instancia aqui
+func modelo(id: String, pronto: Node3D = null) -> Node3D:
+	var no: Node3D = pronto if pronto != null else cena_modelo(id).instantiate()
 	add_child(no)
 	var anim: AnimationPlayer = no.find_child("AnimationPlayer", true, false)
 	for nome in anim.get_animation_list():
@@ -4468,6 +4472,7 @@ func npcs_das_vilas(dt: float) -> void:
 # monstro longe (outra clareira): a animação para (o corpo já não é desenhado: visibility_range_end em criar_inimigo).
 # Online ele continua andando pelo que o servidor manda; sem internet ele não pensa (atualizar_inimigos)
 const NPC_TROCAS_QUADRO := 2
+const NPC_MOSTRAR_QUADRO := 2
 func lod_inimigos() -> void:
 	if heroi == null:
 		return
@@ -4481,13 +4486,21 @@ func lod_inimigos() -> void:
 	var trocas_detalhe := 0 # NPCs que trocaram de detalhe neste quadro (NPC_TROCAS_QUADRO)
 	# NPCs (FPS 2026-11-07): longe como os monstros (outra ponta do mapa, 70 m), o NPC some e para de animar (o guardião
 	# do leste animava e era desenhado com o herói na vila). Perto volta igual; a conversa e a loja só valem de perto.
+	var mostrar_n := 0 # NPCs que apareceram ou sumiram neste quadro (NPC_MOSTRAR_QUADRO)
 	for n in npcs:
 		var dn: float = n.no.position.distance_squared_to(hp)
 		var longe_n: bool = dn > (NPC_LONGE + 5.0) * (NPC_LONGE + 5.0) if n.get("longe", false) else dn > NPC_LONGE * NPC_LONGE
+		# personagens mais leves (2026-11-23, registros do Poco X7: li:npcs 16 a 37 ms no pior quadro do minuto, entrando
+		# na vila): no máximo NPC_MOSTRAR_QUADRO NPCs aparecem ou somem por quadro (mostrar liga sombra, malhas e animação
+		# de uma vez); os outros ficam para os quadros seguintes, a 45 m ninguém nota
+		if longe_n != n.get("longe", false) and mostrar_n >= NPC_MOSTRAR_QUADRO:
+			longe_n = n.get("longe", false)
 		if longe_n != n.get("longe", false):
+			mostrar_n += 1
 			n.longe = longe_n
 			n.no.visible = not longe_n
 			n.no.process_mode = Node.PROCESS_MODE_DISABLED if longe_n else Node.PROCESS_MODE_INHERIT
+			tl = _parte("li:npc_mostrar", tl)
 		# André 2026-11-07 (escolheu "as duas" no FPS da vila): NPC a mais de 15 m fica sem sombra e sem contorno
 		var meio_n: bool = dn > NPC_DETALHE_SAI * NPC_DETALHE_SAI if n.get("simples", false) else dn > NPC_DETALHE * NPC_DETALHE
 		# registros do celular 2026-11-16: entrando na cidade de lobo, vários NPCs passavam de 15 m no mesmo quadro e a

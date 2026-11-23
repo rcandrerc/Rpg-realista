@@ -25,6 +25,7 @@ Cecília/Dário, segurança, história/missões, economia/lojas.
 
 ## Feito
 - 23/11: "Ver" o recruta: animação, sombra e magia contam a partir dele (`centro_visao`); "Ver no mapa" com ponto dele.
+- 23/11: personagens leves 1: corpo novo de jogador/NPC instanciado em segundo plano (online.gd _pedir_fundo); no máx. 2 NPCs aparecem/somem por quadro (li:npc_mostrar).
 - 23/11: botão "Trocar alvo" (4 camadas: quem te bateu 5 s > PK no alcance > monstro > espantalho); sem tocar, alvo igual.
 
 ## Próximas tarefas: medição de desempenho -> personagens leves -> mundo leve -> visual.
