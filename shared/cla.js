@@ -11,7 +11,7 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { CLA, ENCOMENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, vagasClaNpc, almaDe, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS, RACAS } from './dados.js';
+import { CLA, ENCOMENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, vagasClaNpc, almaDe, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
 import { guardar, guardarQueCabe, xpProximo, contar, tirar, organizar } from './progresso.js';
 import { fundoAgua } from './transporte.js';
@@ -19,7 +19,12 @@ import { crescerPlanta } from './simulacao.js'; // só usadas em tempo de jogo (
 
 // o que dá para mandar farmar (painel "Farmar recurso"): os da encomenda e o couro (caça e tira o couro). André
 // 2026-11-23: "somente qd eu solicitar em comando tipo preciso de ferro couro ou madeira aí ele trará"
-export const RECURSOS_CLA = { ...ENCOMENDA.recursos, couro: { palavras: ['couro'], coleta: 'cacar', no: null, item: 'couro', nome: 'couro' } };
+// André 2026-11-23 ("acrescente a carne crua e tudo que tem no mapa lá de recursos... qualquer recurso útil e dropável
+// de monstros e coletáveis do mundo"): os materiais que os monstros de caça soltam (DROPS.mat) entram também; o recruta
+// caça no campo cujos monstros soltam aquele material (campoDoDrop)
+const DROP_NOMES = { couro: 'couro', carne: 'carne crua', tecido: 'tecido', fragmento: 'fragmento rúnico' };
+export const RECURSOS_CLA = { ...ENCOMENDA.recursos,
+  ...Object.fromEntries(Object.entries(DROP_NOMES).map(([k, nome]) => [k, { palavras: [k], coleta: 'cacar', no: null, item: k, nome }])) };
 const sorteia = (l, r) => l[Math.floor(r() * l.length)];
 const int = (v, a, b, d) => (Number.isFinite(+v) ? Math.max(a, Math.min(b, Math.round(+v))) : d);
 // vigor de agora (igual ao vigorAgora de progresso.js; aqui sem importar para não dar laço)
@@ -290,9 +295,9 @@ export const Cla = {
     if (fn.k === 'recurso') {
       const R = RECURSOS_CLA[fn.r]; if (!R) return;
       if (this.levandoRecruta(a)) return; // indo deixar no Baú do Clã
-      if (R.coleta === 'cacar') { // couro: caça, e a volta é para o Baú do Clã
+      if (R.coleta === 'cacar') { // couro, carne, tecido...: caça no campo que solta, e a volta é para o Baú do Clã
         if (ia.av && !ia.av.encomenda && ia.av.fase !== 'voltar') return;
-        const v = x.sairCacarAmiga(a, j);
+        const v = this.cacarDrop(x, a, j, R.item);
         if (!v.ok && !v.ja) avisa(v.fala ? v.fala[0].toUpperCase() + v.fala.slice(1) : 'Não consegue sair agora');
         return;
       }
@@ -567,6 +572,23 @@ export const Cla = {
       }
     }
   },
+  // o campo de caça para o material pedido: os monstros dali soltam ele (DROPS.mat; o chefe da clareira não conta) e o
+  // nível cabe no recruta; o mais forte que ele aguenta, senão o mais fraco que solta. null: o campo dele (qualquer um)
+  campoDoDrop(a, item) {
+    if (!item) return null;
+    const A = NPC_VIDA.aventura, teto = (a.prog.nivel | 0) + A.campoAcima - (a.licoes?.acima || 0);
+    const l = this.cacas.map((x) => x.def).filter((c) => !c.boss && !c.tunel && (c.tipos || [c.bicho]).some((t) => !['chefe', 'lider'].includes(t) && DROPS[t]?.mat?.[item]));
+    if (!l.length) return null;
+    l.sort((x, y) => (x.nivel || 1) - (y.nivel || 1));
+    const cabe = l.filter((c) => (c.nivel || 1) <= teto);
+    return cabe.length ? cabe[cabe.length - 1] : l[0];
+  },
+  // caçar para o material: sai como o Grind e vai ao campo que solta ele
+  cacarDrop(ctx, a, L, item) {
+    const v = ctx.sairCacarAmiga?.(a, L);
+    if (v?.ok && a.ia.av?.fase === 'ir') { const c = this.campoDoDrop(a, item); if (c) a.ia.av.c = c; }
+    return v;
+  },
   // a função do painel com o líder fora do jogo (André 2026-11-23: "aquilo ali é literalmente o que ele vai fazer quando
   // ele estiver no modo sozinho"). Livre: a vida dele (missões, plantar, grindar...). Grind/couro: caça. Farmar: vai ao
   // veio, árvore ou pesqueiro e leva ao Baú do Clã. Fazenda: a horta da base. Proteger outro recruta: protege.
@@ -582,7 +604,8 @@ export const Cla = {
     if (ia.av) return; // indo deixar no Baú do Clã: termina a entrega
     const R = fn.k === 'recurso' ? RECURSOS_CLA[fn.r] : null;
     if (R && R.coleta !== 'cacar') { const cc = ctx.lugarColetaAmiga?.(a, R.coleta); if (cc) ia.av = { fase: 'ir', c: cc, coleta: R.coleta, ate: this.tempo + 900 }; }
-    else if (fn.k === 'grind' || R) { const v = ctx.sairCacarAmiga?.(a, L); if (v && !v.ok) ia.av = null; }
+    else if (R) { const v = this.cacarDrop(ctx, a, L, R.item); if (v && !v.ok) ia.av = null; }
+    else if (fn.k === 'grind') { const v = ctx.sairCacarAmiga?.(a, L); if (v && !v.ok) ia.av = null; }
   },
   // a cada minuto (como o aplicarFuncoes do cobrarCla com o líder no jogo): quem terminou a caçada ou a coleta volta
   // para a função do painel

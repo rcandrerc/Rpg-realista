@@ -115,6 +115,18 @@ ok(true, 'simulação roda com os recrutas');
   ok(true, 'simulação roda');
 }
 
+// ---------- farmar drop de monstro (André 2026-11-23: "acrescente a carne crua e tudo que tem no mapa de recursos") ----------
+{
+  const { RECURSOS_CLA } = await import('../../shared/cla.js');
+  const { DROPS } = await import('../../shared/dados.js');
+  ok(['carne', 'tecido', 'fragmento', 'couro'].every((k) => RECURSOS_CLA[k]?.coleta === 'cacar'), 'carne, tecido, fragmento e couro no Farmar recurso');
+  const s8 = new Simulacao(MAPA_CLAREIRA);
+  for (const item of ['carne', 'tecido', 'fragmento']) {
+    const c = s8.campoDoDrop({ prog: { nivel: 20 } }, item);
+    ok(c && c.tipos.some((t) => DROPS[t]?.mat?.[item]), `${item}: campo que solta (${c?.nome})`);
+  }
+}
+
 // ---------- clã bot (fase 2): Gael lidera os Lobos da Geada e contrata sozinho ----------
 {
   const { CLAS_NPC, CLAS_NPC_REGRAS, vagasClaNpc } = await import('../../shared/dados.js');
