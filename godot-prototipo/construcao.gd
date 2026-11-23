@@ -427,8 +427,8 @@ func _de_pedra(raiz: Node3D) -> Node3D:
 
 # Tocha de pé: poste de madeira, suporte de ferro, chama acesa e uma luz quente sem sombra (some de longe)
 # Palete de packs (André 2026-11-23: "como se fosse pallets para botar os packs em cima"): 1,6 x 1,2 m e 0,16 m de alto,
-# três vigas embaixo (com os blocos) e as tábuas de cima com frestas, na madeira das outras peças; uma marca pintada no
-# chão em volta (a "área marcada" do armazém). Os 5 packs ficam em cima (transporte.gd, PALETE.alto).
+# três vigas embaixo (com os blocos) e as tábuas de cima com frestas, na madeira das outras peças. A marca pintada no
+# chão em volta (a "área marcada" do armazém) contorna o grupo de paletes encostados (_marca_paletes). Os 5 packs ficam em cima (transporte.gd, PALETE.alto).
 func _modelo_palete() -> Node3D:
 	var r := Node3D.new()
 	var madeira := _mat_tex("medieval_wood", Color("8a6a48"), 1.0)
@@ -440,12 +440,7 @@ func _modelo_palete() -> Node3D:
 	for i in 7: # tábuas de cima, com fresta
 		var x := -0.69 + i * 0.23
 		_caixa(r, Vector3(0.19, 0.035, 1.2), Vector3(x, 0.1425, 0), madeira, Vector3(0, 0, 0.004 * (i % 3 - 1)))
-	var tinta := _mat_cor(Color(0.86, 0.74, 0.3))
-	for q in [[Vector3(1.9, 0.01, 0.06), Vector3(0, 0.005, -0.75)], [Vector3(1.9, 0.01, 0.06), Vector3(0, 0.005, 0.75)],
-			[Vector3(0.06, 0.01, 1.5), Vector3(-0.95, 0.005, 0)], [Vector3(0.06, 0.01, 1.5), Vector3(0.95, 0.005, 0)]]:
-		var mi := _caixa(r, q[0], q[1], tinta)
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	return r
+	return r # a marca pintada no chão é do grupo todo (_marca_paletes): encostados viram uma área só
 
 func _modelo_tocha() -> Node3D:
 	var r := Node3D.new()
@@ -847,6 +842,7 @@ func do_servidor_lote(ev: Dictionary) -> void:
 				pil.scale = Vector3(1.0 + 0.012 * p.r, 1.0 + 0.003 * p.r, 1.0 + 0.012 * p.r)
 			L.raiz.add_child(p.no)
 	if mudou_pecas:
+		_marca_paletes(L)
 		_refazer_telhado(L)
 		if _em_lista:
 			_pede.portas = true
@@ -2102,9 +2098,89 @@ func ret_peca(k: String, x: float, z: float, r: int) -> Rect2:
 # quase meio metro longe da parede (ou em cima dela, vermelho). Com a mira a até ENCOSTA m da face de uma
 # parede/porta/janela, o móvel vai colado nela (folga de 4 cm, que passa pelas juntas). Longe da parede, fica na
 # grade de 0,5 m de antes (dá para centralizar). O servidor aceita a posição (arredonda em 5 cm e confere o espaço).
+# Paletes juntos (André 2026-11-23: "quando eu juntasse um do lado do outro, ficassem como se fosse uma coisa só"): a
+# marca amarela do chão contorna o grupo todo, sem emenda entre os encostados (só os lados que não encostam em outro).
+func _marca_paletes(L: Dictionary) -> void:
+	var velha = L.raiz.get_node_or_null("marca_paletes")
+	if velha:
+		velha.queue_free()
+	var pals := []
+	for p in L.pecas:
+		if str(p.k) == "palete":
+			pals.append(p)
+	if pals.is_empty():
+		return
+	var raiz := Node3D.new()
+	raiz.name = "marca_paletes"
+	L.raiz.add_child(raiz)
+	var tinta := _mat_cor(Color(0.86, 0.74, 0.3))
+	const F := 0.15 # a marca fica 15 cm pra fora da madeira
+	const E := 0.06 # largura da faixa
+	for p in pals:
+		var R := ret_peca("palete", float(p.x), float(p.z), int(p.r)).grow(F)
+		var y := _y_peca(p) + 0.006
+		# cada lado: [início, fim, fixo, ao longo de x?, pra fora]
+		for lado in [[R.position.x, R.end.x, R.position.y, true, -1.0], [R.position.x, R.end.x, R.end.y, true, 1.0],
+				[R.position.y, R.end.y, R.position.x, false, -1.0], [R.position.y, R.end.y, R.end.x, false, 1.0]]:
+			# trechos do lado cobertos por outro palete encostado não ganham faixa
+			var cortes := [[float(lado[0]), float(lado[1])]]
+			for o in pals:
+				if o == p:
+					continue
+				var Q := ret_peca("palete", float(o.x), float(o.z), int(o.r)).grow(F + 0.05)
+				var dentro: bool = (Q.position.y <= float(lado[2]) + 0.06 and Q.end.y >= float(lado[2]) - 0.06) if lado[3] else (Q.position.x <= float(lado[2]) + 0.06 and Q.end.x >= float(lado[2]) - 0.06)
+				# o outro precisa estar do lado de fora deste lado (encostado), não por cima
+				var fora: bool = ((Q.position.y + Q.end.y) / 2.0 - float(lado[2])) * float(lado[4]) > 0.0 if lado[3] else ((Q.position.x + Q.end.x) / 2.0 - float(lado[2])) * float(lado[4]) > 0.0
+				if not (dentro and fora):
+					continue
+				var a0: float = Q.position.x if lado[3] else Q.position.y
+				var a1: float = Q.end.x if lado[3] else Q.end.y
+				var novos := []
+				for c in cortes:
+					if a1 <= c[0] or a0 >= c[1]:
+						novos.append(c)
+						continue
+					if a0 > c[0]:
+						novos.append([c[0], a0])
+					if a1 < c[1]:
+						novos.append([a1, c[1]])
+				cortes = novos
+			for c in cortes:
+				var tam: float = float(c[1]) - float(c[0])
+				if tam < 0.05:
+					continue
+				var meio: float = (float(c[0]) + float(c[1])) / 2.0
+				var pos: Vector3 = Vector3(meio, y, float(lado[2])) if lado[3] else Vector3(float(lado[2]), y, meio)
+				var mi := _caixa(raiz, Vector3(tam + E, 0.01, E) if lado[3] else Vector3(E, 0.01, tam + E), pos, tinta)
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+# encaixe do palete ao lado de outro (mesmo lote): perto de um lado (até PALETE.junta m), vai colado nele, alinhado
+func _encaixe_palete(L: Dictionary, x: float, z: float, r: int):
+	var junta: float = float(D.get("palete", {}).get("junta", 0.9))
+	var R := ret_peca("palete", x, z, r)
+	var melhor = null
+	var md := junta
+	for o in L.pecas:
+		if str(o.k) != "palete":
+			continue
+		var Q := ret_peca("palete", float(o.x), float(o.z), int(o.r))
+		var ox := float(o.x)
+		var oz := float(o.z)
+		for c in [Vector2(ox + (Q.size.x + R.size.x) / 2.0, oz), Vector2(ox - (Q.size.x + R.size.x) / 2.0, oz),
+				Vector2(ox, oz + (Q.size.y + R.size.y) / 2.0), Vector2(ox, oz - (Q.size.y + R.size.y) / 2.0)]:
+			var d := Vector2(x, z).distance_to(c)
+			if d < md:
+				md = d
+				melhor = Vector2(snappedf(c.x, 0.05), snappedf(c.y, 0.05))
+	return melhor
+
 const ENCOSTA := 0.6
 const FOLGA_PAREDE := 0.04
 func encostar_movel(L: Dictionary, k: String, x: float, z: float, r: int, px: float, pz: float) -> Vector2:
+	if k == "palete":
+		var enc = _encaixe_palete(L, x, z, r)
+		if enc != null:
+			return enc
 	var R := ret_peca(k, x, z, r)
 	var hw := R.size.x / 2.0
 	var hd := R.size.y / 2.0

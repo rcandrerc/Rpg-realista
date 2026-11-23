@@ -1813,6 +1813,7 @@ func _toque_fundo(ev: InputEvent) -> void:
 		_fechar_janela()
 
 func _fechar_janela() -> void:
+	_jan_palete = ""
 	_jan_carrinho = false
 	_jan_navio = false
 	if _jan:
@@ -1820,6 +1821,176 @@ func _fechar_janela() -> void:
 		_jan = null
 	if not m.menu.aberto():
 		m.hud.bloqueado = false
+
+# ---------- palete de packs (André 2026-11-23: "quando chegar perto do pallet, apareceu o botão de interação ... abre
+# aquele menu igualzinho do carrinho, e eu boto os packs lá, ou tiro") ----------
+# Paletes encostados formam um grupo só (os encaixados lado a lado): a janela mostra todos os lugares do grupo, 5 por
+# palete. Tocar num pack = pegar nas costas; num lugar vazio = pôr o das costas (o servidor confere: shared/transporte.js
+# palete_por e pegar; só o clã dono da base pega).
+var _jan_palete := "" # id de um palete do grupo aberto ("" = fechada)
+var _pal_ass := ""
+func _paletes() -> Array:
+	var l := []
+	if m.construcao == null:
+		return l
+	for id in m.construcao.lotes:
+		for p in m.construcao.lotes[id].pecas:
+			if str(p.k) == "palete":
+				l.append(p)
+	return l
+
+func palete_perto(x: float, z: float) -> String:
+	var dm: float = float(m.P.dados.get("palete", {}).get("perto", 2.2)) + 0.6
+	var id := ""
+	for p in _paletes():
+		var d := Vector2(float(p.x) - x, float(p.z) - z).length()
+		if d < dm:
+			dm = d
+			id = str(p.id)
+	return id
+
+# o grupo do palete id: os que se encostam (lado com lado, na mesma direção ou não)
+func _grupo_palete(id: String) -> Array:
+	var todos := _paletes()
+	var grupo := []
+	var fila := []
+	for p in todos:
+		if str(p.id) == id:
+			fila.append(p)
+	while not fila.is_empty():
+		var a = fila.pop_back()
+		if grupo.has(a):
+			continue
+		grupo.append(a)
+		var ra: Rect2 = m.construcao.ret_peca("palete", float(a.x), float(a.z), int(a.r)).grow(0.12)
+		for b in todos:
+			if not grupo.has(b) and ra.intersects(m.construcao.ret_peca("palete", float(b.x), float(b.z), int(b.r))):
+				fila.append(b)
+	grupo.sort_custom(func(a, b): return float(a.x) + float(a.z) * 0.001 < float(b.x) + float(b.z) * 0.001)
+	return grupo
+
+func _lugares_palete(p) -> Array:
+	var l := []
+	for q in m.P.dados.get("palete", {}).get("lugar", []):
+		var a := float(q[0])
+		var b := float(q[1])
+		l.append(Vector2(float(p.x) + b, float(p.z) + a) if int(p.r) % 2 == 1 else Vector2(float(p.x) + a, float(p.z) + b))
+	return l
+
+# os packs do grupo, lugar por lugar: [{p, sl, g, k}] (g "" = vazio)
+func _lugares_grupo(id: String) -> Array:
+	var r := []
+	for p in _grupo_palete(id):
+		var lug := _lugares_palete(p)
+		for sl in lug.size():
+			var g := ""
+			for gg in chao:
+				if chao[gg].get("pal", false) and Vector2(chao[gg].x, chao[gg].z).distance_to(lug[sl]) < 0.12:
+					g = gg
+					break
+			r.append({"p": str(p.id), "sl": sl, "g": g, "k": chao[g].k if g != "" else ""})
+	return r
+
+func _pal_assinatura() -> String:
+	if _jan_palete == "":
+		return ""
+	var t := ""
+	for e in _lugares_grupo(_jan_palete):
+		t += e.g + ","
+	return t + str(m.P.prog.get("pack") is Dictionary)
+
+func abrir_palete(id: String) -> void:
+	if id == "":
+		return
+	if _jan:
+		_jan.queue_free()
+	if not (_jan and is_instance_valid(_jan)):
+		_aberta_ms = Time.get_ticks_msec()
+	_jan_carrinho = false
+	_jan_navio = false
+	_jan_palete = id
+	_pal_ass = _pal_assinatura()
+	var lugares := _lugares_grupo(id)
+	var cheios := 0
+	for e in lugares:
+		if e.g != "":
+			cheios += 1
+	_jan = CanvasLayer.new()
+	_jan.layer = 16
+	add_child(_jan)
+	var fundo := ColorRect.new()
+	fundo.color = Color(0, 0, 0, 0.35)
+	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fundo.gui_input.connect(_toque_fundo)
+	_jan.add_child(fundo)
+	var pc := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.12, 0.09, 0.06, 0.96)
+	sb.border_color = Color(0.85, 0.7, 0.4)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(16)
+	sb.set_content_margin_all(14)
+	pc.add_theme_stylebox_override("panel", sb)
+	_jan.add_child(pc)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	pc.add_child(vb)
+	var topo := HBoxContainer.new()
+	topo.add_theme_constant_override("separation", 10)
+	vb.add_child(topo)
+	topo.add_child(_icone(m.hud.icone("cs_palete"), 40))
+	var tv := VBoxContainer.new()
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	topo.add_child(tv)
+	var n_pal: int = lugares.size() / max(1, (m.P.dados.get("palete", {}).get("lugar", [1, 1, 1, 1, 1]) as Array).size())
+	tv.add_child(_rotulo("Paletes de packs" if n_pal > 1 else "Palete de packs", 18, Color("#ffe7a8")))
+	tv.add_child(_barra(float(cheios) / float(max(1, lugares.size())), Color("#6fb7c9"), "Carga %d/%d packs" % [cheios, lugares.size()], 300))
+	var x := Button.new()
+	x.text = "✕"
+	x.focus_mode = Control.FOCUS_NONE
+	x.custom_minimum_size = Vector2(44, 44)
+	x.add_theme_font_size_override("font_size", 20)
+	x.pressed.connect(_fechar_janela)
+	x.add_to_group("guia_saida")
+	topo.add_child(x)
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.custom_minimum_size = Vector2(5 * 80, min(3, int(ceil(lugares.size() / 5.0))) * 80)
+	vb.add_child(sc)
+	var grade := GridContainer.new()
+	grade.columns = 5
+	grade.add_theme_constant_override("h_separation", 8)
+	grade.add_theme_constant_override("v_separation", 8)
+	sc.add_child(grade)
+	for e in lugares:
+		if e.g != "":
+			var k := str(e.k)
+			var nome := str(PK.get(k, {}).get("nome", "Pack")).replace("Pack de ", "")
+			var g: String = e.g
+			grade.add_child(_slot(Vector2(72, 72), m.hud.icone("it_pack"), nome, Color(str(PK.get(k, {}).get("cor", "#a0703a"))), func(): _tirar_palete(g)))
+		else:
+			var pid: String = e.p
+			var sl: int = e.sl
+			grade.add_child(_slot(Vector2(72, 72), null, "vazio", Color(0.5, 0.42, 0.3), func(): _por_palete(pid, sl)))
+	vb.add_child(_rotulo("Toque num pack pra pegar nas costas; num lugar vazio pra pôr o das costas. No palete o pack não some.", 12, Color("#a89a80")))
+	m.hud.bloqueado = true
+	await get_tree().process_frame
+	if is_instance_valid(pc):
+		pc.position = (pc.get_viewport_rect().size - pc.size) * 0.5
+
+func _tirar_palete(g: String) -> void:
+	if m.P.prog.get("pack") is Dictionary:
+		m.hud.aviso("Você já tem um pack nas costas")
+		return
+	m.rede("pack", {"acao": "pegar", "g": g})
+	m.sons.tocar("pano", -8.0)
+
+func _por_palete(pid: String, sl: int) -> void:
+	if not (m.P.prog.get("pack") is Dictionary):
+		m.hud.aviso("Traga um pack nas costas pra pôr no palete")
+		return
+	m.rede("pack", {"acao": "palete_por", "p": pid, "sl": sl})
+	m.sons.tocar("pano", -8.0)
 
 # ---------- botão do veículo ----------
 func usar_botao() -> void:
@@ -1830,6 +2001,8 @@ func usar_botao() -> void:
 			abrir_carrinho()
 		"navio":
 			abrir_navio()
+		"palete":
+			abrir_palete(palete_perto(m.heroi.position.x, m.heroi.position.z))
 		"barquinho":
 			m.rede("veiculo", {"acao": "colocar", "k": "barquinho"})
 
@@ -1849,6 +2022,8 @@ func _estado_botao() -> String:
 	var nv = p.get("navio")
 	if nv is Dictionary and _perto_de(nv.get("chao"), hp.x, hp.z, float(V.navio.perto)):
 		return "navio"
+	if palete_perto(hp.x, hp.z) != "":
+		return "palete"
 	if m.P.contar("barquinho") > 0 and _agua_perto(hp.x, hp.z, float(V.barquinho.fundo)):
 		return "barquinho"
 	return ""
@@ -1881,7 +2056,9 @@ func atualizar(carga) -> void:
 			var no_palete: bool = (e as Array).size() > 4 and int(e[4]) == 1
 			no.position = Vector3(x, m.terreno.altura(x, z) + (float(m.P.dados.get("palete", {}).get("alto", 0.16)) if no_palete else 0.0), z)
 			no.rotation.y = 0.0 if no_palete else fmod(x * 7.0, TAU)
-			chao[g] = {"no": no, "k": str(e[1]), "x": x, "z": z}
+			chao[g] = {"no": no, "k": str(e[1]), "x": x, "z": z, "pal": no_palete}
+	if _jan_palete != "" and _jan and is_instance_valid(_jan) and _pal_assinatura() != _pal_ass:
+		abrir_palete.call_deferred(_jan_palete)
 	for g in chao.keys():
 		if not vistos.has(g):
 			chao[g].no.queue_free()
@@ -2033,6 +2210,8 @@ func prog_chegou() -> void:
 		abrir_carrinho.call_deferred() # a janela mostra o que o servidor mandou (combustível, packs, vida, nível)
 	elif _jan_navio and _jan and is_instance_valid(_jan):
 		abrir_navio.call_deferred() # o porão como o servidor mandou
+	elif _jan_palete != "" and _jan and is_instance_valid(_jan) and _pal_assinatura() != _pal_ass:
+		abrir_palete.call_deferred(_jan_palete) # o pack das costas foi/voltou
 	var c = m.P.prog.get("carrinho")
 	if c is Dictionary and m.mov.veiculo.get("k", "") == "carrinho":
 		comb_local = float(c.get("comb", 0))
@@ -2171,11 +2350,13 @@ func _process_parte(dt: float) -> void:
 		_busca = 0.25
 		_botao_estado = _estado_botao()
 		m.hud.mostrar_botao("veiculo", _botao_estado != "" and m.h.morto <= 0.0)
-		m.hud.icone_botao("veiculo", "it_" + (meu_k if _botao_estado == "descer" else _botao_estado) if _botao_estado != "" else "it_carrinho")
+		m.hud.icone_botao("veiculo", "cs_palete" if _botao_estado == "palete" else ("it_" + (meu_k if _botao_estado == "descer" else _botao_estado) if _botao_estado != "" else "it_carrinho"))
 		_perto_g = ""
 		if not m.P.prog.get("pack") is Dictionary and meu_k == "":
 			var dm: float = float(PR.get("pegar", 2.5))
 			for g in chao:
+				if chao[g].get("pal", false):
+					continue # o do palete sai pela janela dele (botão de interação)
 				var d := Vector2(chao[g].x - hp.x, chao[g].z - hp.z).length()
 				if d < dm:
 					dm = d

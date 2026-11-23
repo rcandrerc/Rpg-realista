@@ -832,7 +832,7 @@ export const CONSTRUCOES = {
 // palete de packs (shared/transporte.js): lugar = os 5 lugares de cima [x, z] do meio da peça (sem girar; André: "cada
 // pallet dá cinco"); perto = m do jogador até o palete pra largar em cima; porBase 0 = sem teto: o limite é o espaço
 // da base (André: "o limite é o espaço" de construir; cabem quantos paletes couberem nos lotes)
-export const PALETE = { lugar: [[-0.52, -0.3], [0, -0.3], [0.52, -0.3], [-0.26, 0.3], [0.26, 0.3]], perto: 2.2, porBase: 0, alto: 0.16 };
+export const PALETE = { lugar: [[-0.52, -0.3], [0, -0.3], [0.52, -0.3], [-0.26, 0.3], [0.26, 0.3]], perto: 2.2, porBase: 0, alto: 0.16, janela: 6, junta: 0.9 }; // janela: m até um palete do grupo pra mexer pela janela; junta: m pra encaixar ao lado de outro
 export const CASA = { grade: 2, parede: 3.1, fundacao: 0.2, espessura: 0.3,
   // telhado das casas do jogador (2026-11-04: dá para ficar em pé em cima): sobe 0,6 m por metro até o meio, no máximo 1,8 m
   beiral: 0.45, inclina: 0.6, telhaMax: 1.8, porta: 2.2,
