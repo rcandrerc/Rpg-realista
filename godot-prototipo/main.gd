@@ -312,9 +312,9 @@ func _passo(nome: String) -> void:
 # Memória numa linha (2026-11-19, Galaxy S9 de 4 GB morto pelo Android 4 s depois do Entrar): quanto o celular ainda
 # tem livre, quanto o Godot pegou no processador e quanto a placa guarda. Vai no log da entrada e no robô do celular.
 static func memoria_txt() -> String:
-	var info := OS.get_memory_info()
-	return "livre %d MB, jogo %d MB, placa %d MB" % [int(info.get("available", -1)) / 1048576,
-		OS.get_static_memory_usage() / 1048576, int(Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED)) / 1048576]
+	var mi: Dictionary = Aquecer.meminfo()
+	return "livre %d MB, jogo %d MB, placa %d MB (de %d MB)" % [mi.livre, mi.jogo,
+		int(Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED)) / 1048576, mi.total]
 func _ready() -> void:
 	t_ready0 = Time.get_ticks_msec()
 	# preparo da placa guardado mesmo quando o Android mata o app no fundo (retomada.gd)
