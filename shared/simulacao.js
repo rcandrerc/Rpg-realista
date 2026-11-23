@@ -1018,16 +1018,27 @@ export class Simulacao {
     for (const j of this.jogadores.values()) if (j.progSujo || j.veiculo) { j.progSujo = false; r.push({ id: j.id, prog: this.progParaSalvar(j) }); }
     return r;
   }
+  // gente na sala (não é NPC nem robô de testes) e quem conta para o teto dos NPCs (também não é a conta de teste do
+  // André, que pode mudar o próprio nível: CONTA_TESTE). Presidente 2026-11-19
+  genteNaSala(o) { return !!o && !o.bot && !o.robo && !o.criando; }
+  jogadorDeVerdade(o) { return this.genteNaSala(o) && !o.testador; }
+  // o teto de nível deste NPC (null = sem teto): os aventureiros e a Geada nunca passam do jogador de verdade mais alto
+  // (Presidente 2026-11-19: "a Geada ganha o mesmo teto"; Kira e Lis subiram 10 níveis num dia junto com o robô)
+  tetoNpc(j) { return j.bot && (!j.semTeto || j.tetoReal) && this.nivelTetoNpc != null ? this.nivelTetoNpc : null; }
   ganharXP(j, n) {
     const p = j.prog; if (p.nivel >= NIVEL_MAX) return;
+    // Cecília, Dario e a Geada só sobem com gente na sala: o robô de testes sozinho não faz eles andarem (Presidente
+    // 2026-11-19). O XP do tempo fora (offlineAmiga) passa com xpLivre.
+    if (j.bot && j.semTeto && !j.xpLivre && ![...this.jogadores.values()].some((o) => this.genteNaSala(o))) return;
     // NPC (André 2026-11-11): nunca passa do jogador mais alto do servidor (nivelTetoNpc vem do banco; sem banco, sem teto)
-    if (j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) return;
+    const teto = this.tetoNpc(j);
+    if (teto != null && p.nivel >= teto) return;
     const nivelAntes = p.nivel;
     p.xp += n;
     let subiu = false;
-    while (p.nivel < NIVEL_MAX && p.xp >= xpProximo(p.nivel) && !(j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc)) { p.xp -= xpProximo(p.nivel); p.nivel++; p.pontos += PONTOS_POR_NIVEL; subiu = true; }
-    if (j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) p.xp = Math.min(p.xp, xpProximo(p.nivel) - 1); // parado no teto
-    if (!j.bot && this.nivelTetoNpc != null && p.nivel > this.nivelTetoNpc) this.nivelTetoNpc = p.nivel; // jogador subiu: o teto sobe junto
+    while (p.nivel < NIVEL_MAX && p.xp >= xpProximo(p.nivel) && !(teto != null && p.nivel >= teto)) { p.xp -= xpProximo(p.nivel); p.nivel++; p.pontos += PONTOS_POR_NIVEL; subiu = true; }
+    if (teto != null && p.nivel >= teto) p.xp = Math.min(p.xp, xpProximo(p.nivel) - 1); // parado no teto
+    if (this.jogadorDeVerdade(j) && this.nivelTetoNpc != null && p.nivel > this.nivelTetoNpc) this.nivelTetoNpc = p.nivel; // jogador de verdade subiu: o teto sobe junto (robô e conta de teste não puxam)
     if (p.nivel >= NIVEL_MAX) p.xp = 0;
     if (subiu) {
       this.aplicarStatus(j, true);

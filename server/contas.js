@@ -274,10 +274,17 @@ export class Contas {
   // todos os lotes guardados (formato de Simulacao.carregarLotes)
   // o nível do jogador mais alto do servidor (André 2026-11-11: os NPCs nunca passam dele)
   // null (sem teto) se não deu para ler: melhor sem teto do que todos parados no Nv 1
+  // o jogador de verdade mais alto: sem robô ('robo:') e sem a conta de teste do André, que muda o próprio nível
+  // (Presidente 2026-11-19: "o jogador mais alto e qualquer ritmo contam só jogador de verdade")
   nivelMaisAlto() {
-    try { return this.db.prepare("SELECT MAX(CAST(json_extract(progresso, '$.nivel') AS INTEGER)) AS n FROM contas WHERE progresso IS NOT NULL AND google NOT LIKE 'robo:%'").get()?.n || null; } catch {
-      try { let n = 0; for (const r of this.db.prepare("SELECT progresso FROM contas WHERE progresso IS NOT NULL AND google NOT LIKE 'robo:%'").all()) { try { n = Math.max(n, JSON.parse(r.progresso)?.nivel | 0); } catch { /* conta com progresso estragado */ } } return n || null; } catch { return null; }
-    }
+    try {
+      let n = 0;
+      for (const r of this.db.prepare("SELECT email, progresso FROM contas WHERE progresso IS NOT NULL AND google NOT LIKE 'robo:%'").all()) {
+        if (this.ehTestador(r.email)) continue;
+        try { n = Math.max(n, JSON.parse(r.progresso)?.nivel | 0); } catch { /* conta com progresso estragado */ }
+      }
+      return n || null;
+    } catch { return null; }
   }
   // os clãs de todas as contas (André 2026-11-23: "todos online, se tiver algum jogador online... sem exceção"): os
   // recrutas de quem está fora entram no mundo com o primeiro jogador. [{ conta, cla, raca }]

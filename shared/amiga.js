@@ -240,7 +240,8 @@ export const Amiga = {
       j.semTeto = !!this.AMIGA.terreno || !!this.AMIGA.rival; // Cecília e Dario sobem sem o teto do jogador mais alto (André 2026-11-16); a Geada também
       // André 2026-11-21: enquanto eles grindam, sem a trava da névoa (nada de missão para abrir); desligue em NPC_SEM_NEVOA (shared/dados.js)
       if (NPC_SEM_NEVOA && j.semTeto) SEM_NEVOA.add(j.prog); else SEM_NEVOA.delete(j.prog);
-      if (j.semTeto) this.diariasOfflineAmiga(j, salvo.t); // os dias em que ninguém jogou: as diárias dele também (André 2026-11-21)
+      if (j.semTeto) { j.xpLivre = true; this.diariasOfflineAmiga(j, salvo.t); j.xpLivre = false; } // os dias em que ninguém jogou: as diárias dele também (André 2026-11-21)
+      if (this.AMIGA.rival) j.tetoReal = true; // a Geada não passa do jogador de verdade mais alto (Presidente 2026-11-19); ninguém desce
       if (this.AMIGA.raca) j.raca = this.AMIGA.raca; // Chama x Geada (shared/guerra.js): sem raça = Chama
       j.guerraMem = salvo.guerra && typeof salvo.guerra === 'object' && !Array.isArray(salvo.guerra) ? Object.fromEntries(Object.entries(salvo.guerra).slice(-300)) : {}; // quem ele já viu e o placar
       this.pocoesAmiga(j);
@@ -573,7 +574,9 @@ export const Amiga = {
     const O = NPC_VIDA.offline; if (!Number.isFinite(desde)) return 0;
     const horas = Math.min(O.maxDias * 24, Math.max(0, (Date.now() - desde) / 3600000)) * O.horasPorDia / 24;
     const n0 = j.prog.nivel;
+    j.xpLivre = true; // tempo que passou, não o robô na sala (Presidente 2026-11-19)
     for (let h = horas; h > 0; h -= 1) this.ganharXP(j, Math.round(xpProximo(j.prog.nivel) * O.porHora * Math.min(1, h) / (1 + j.prog.nivel / O.meio)));
+    j.xpLivre = false;
     return j.prog.nivel - n0;
   },
   // o campo de caça para o nível dele: entre os que não passam de campoAcima níveis acima, um dos 3 mais altos (sem
