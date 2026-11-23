@@ -82,3 +82,51 @@ for (let i = 0; i < 200; i++) s.passo(0.05);
 s.passoClasNpc();
 ok(E.ordensT > Date.now(), 'o líder marcou a próxima olhada');
 ok(true, 'simulação roda com o líder comandando');
+
+// 8) os membros antigos também são recrutas do líder (André 2026-11-23: "não é para ser fixo")
+{
+  const s4 = new Simulacao(MAPA_CLAREIRA);
+  const q = s4.adicionarJogador('Q', 'Quim', undefined, { conta: 13 }); q.criando = false;
+  s4.carregarClasNpc(null);
+  for (const ctx of s4.amigosIa) ctx.amigaEntrar('Q', false);
+  const G = CLAS_NPC.find((K) => K.id === 'geada'), E4 = s4.clasNpc.geada, L4 = s4.liderNpc(G);
+  const kira = s4.amigosIa.find((x) => x.AMIGA.id === 'kira');
+  ok(kira?.amiga && s4.fixoClaNpc(kira) && !s4.fixoClaNpc(s4.amigosIa.find((x) => x.AMIGA.id === 'gael')), 'Kira é membro do Gael; o Gael é o líder');
+  ok(s4.claDoRecruta(kira)?.bot && s4.claDoRecruta(kira).C.id === 'geada', 'o clã da Kira é o do Gael (Baú do Clã dele)');
+  const nv0 = kira.amiga.prog.nivel, itens0 = JSON.stringify(kira.amiga.prog.equip);
+  E4.ordensT = 0; s4.passoClasNpc();
+  const fx = E4.fx || {};
+  ok(['kira', 'rufo', 'lis'].every((id) => fx[id]?.fn), `Kira, Rufo e Lis receberam ordens (${['kira', 'rufo', 'lis'].map((id) => fx[id]?.fn?.k + ':' + (fx[id]?.fn?.r || ''))})`);
+  ok(kira.amiga.prog.nivel === nv0 && JSON.stringify(kira.amiga.prog.equip) === itens0, 'continuam com o nível e os itens');
+  for (const id of ['kira', 'rufo', 'lis']) fx[id].fn = { k: 'recurso', r: 'lenha' };
+  s4.passoClasNpc();
+  ok(kira.amiga.ia.levar?.item === 'lenha', 'farmando lenha: leva para o Baú do Clã');
+  kira.amiga.grind = { dia: new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), seg: 1900 };
+  ok(!kira.grindAcabouAmiga(kira.amiga), 'membro antigo também caça até 2 h por dia');
+  // o líder sobe o clã com o que tem na mochila e abre vaga
+  const N = CLA.niveis[(E4.nv || 1) + 1];
+  L4.prog.nivel = Math.max(L4.prog.nivel | 0, N.lider); L4.prog.ouro = N.ouro + 10000;
+  E4.bau = Array(CLA.bauCla).fill(null);
+  const { guardarQueCabe } = await import('../../shared/progresso.js');
+  const { almaDe } = await import('../../shared/dados.js');
+  for (const [k, n] of Object.entries(N.mat)) guardarQueCabe(L4.prog.mochila, { k, n });
+  guardarQueCabe(L4.prog.mochila, { k: almaDe('geada'), n: N.alma });
+  const nvC = E4.nv; E4.prox = Date.now() + 9e9; s4.passoClasNpc();
+  ok(E4.nv === nvC + 1, `com o material na mochila do líder o clã sobe (Nv ${nvC} -> ${E4.nv})`);
+  E4.prox = Date.now() - 1; s4.passoClasNpc();
+  ok(E4.m.length === 1, `abriu vaga e o Gael contratou (${E4.m.map((m) => m.nome)})`);
+}
+
+// 9) lista de amigos: dos bots, só o líder de clã do lado do jogador (André 2026-11-23)
+{
+  const s5 = new Simulacao(MAPA_CLAREIRA);
+  const a = s5.adicionarJogador('A', 'Ana', undefined, { conta: 21 }); a.criando = false; a.ciente = true;
+  s5.carregarClasNpc(null);
+  for (const ctx of s5.amigosIa) ctx.amigaEntrar('A', false);
+  s5.eventos = []; s5.enviarAmigos(a);
+  const v = s5.eventos.filter((e) => e.t === 'amigos' && e.para === 'A').at(-1)?.virtuais || [];
+  ok(v.length >= 1 && v.every((o) => o.nome.startsWith('Dar') || o.nome.startsWith('Dár')), `na lista só o líder da Chama (${v.map((o) => o.nome)})`);
+  const lia = s5.amigosIa.find((x) => x.AMIGA.id === 'lia');
+  s5.eventos = []; lia.pedidoAmizadeAmiga('A');
+  ok(s5.eventos.some((e) => e.t === 'aviso' && /líder de clã/.test(e.texto)), 'pedir amizade para recruta: só líder de clã');
+}
