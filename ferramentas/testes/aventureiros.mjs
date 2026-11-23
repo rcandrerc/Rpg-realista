@@ -32,21 +32,23 @@ const M0 = NPC_VIDA.moradia[0];
 ok(aventureiros.every((x) => Math.hypot(x.amiga.x - M0.x, x.amiga.z - M0.z) <= M0.r + 0.5), 'nascem espalhados na vila');
 // algumas horas de jogo (de dia): saem para caçar, matam, ganham XP, voltam
 const xp0 = aventureiros.map((x) => x.amiga.prog.nivel * 1e6 + x.amiga.prog.xp);
-const t0 = performance.now(); let passos = 0;
+// tempo de CPU deste processo (não o do relógio): no GitHub os testes rodam 4 de cada vez e o relógio contava a espera
+// pelos outros (9-10 ms lá, 6 ms aqui sozinho)
+const t0 = performance.now(), cpu0 = process.cpuUsage(); let passos = 0;
 const fases = new Set(), longe = new Set(), dia = { h: 12, t: Date.now() };
 for (let i = 0; i < 20 * 60 * 6; i++) { // 6 minutos
   for (const x of aventureiros) x.amiga.prog.dia = dia; // meio-dia fixo (a hora do jogo segue o relógio de verdade)
   s.passo(0.05); passos++;
   if (i % 200 === 0) for (const x of aventureiros) { if (x.amiga.ia.av) fases.add(x.amiga.ia.av.fase); if (Math.hypot(x.amiga.x - M0.x, x.amiga.z - M0.z) > 40) longe.add(x.AMIGA.id); }
 }
-const ms = (performance.now() - t0) / passos;
+const cpu = process.cpuUsage(cpu0), ms = (cpu.user + cpu.system) / 1000 / passos, msRelogio = (performance.now() - t0) / passos;
 const ganhou = aventureiros.filter((x, i) => x.amiga.prog.nivel * 1e6 + x.amiga.prog.xp > xp0[i]).length;
 console.log('fases vistas:', [...fases].join(', '), '| longe da vila:', longe.size, '| ganharam XP:', ganhou, '| ms por passo:', ms.toFixed(2));
 ok(fases.has('ir') && fases.has('cacar'), 'saem para o campo e caçam sozinhos');
 ok(longe.size >= 10, `andam pelo mundo (${longe.size} de 20 saíram da vila)`);
 ok(ganhou >= 5, `ganham XP caçando (${ganhou} de 20)`);
 ok(aventureiros.every((x) => x.amiga.prog.nivel <= 12), 'ninguém passou do jogador mais alto');
-ok(ms < 8, `custo: ${ms.toFixed(2)} ms por passo com 22 NPCs (o servidor tem 50 ms)`);
+ok(ms < 8, `custo: ${ms.toFixed(2)} ms de CPU por passo com 22 NPCs (relógio ${msRelogio.toFixed(2)} ms; o servidor tem 50 ms)`);
 // save na tabela mundo e volta
 for (const x of aventureiros) x.guardarAmiga();
 const ids = new Set(aventureiros.map((x) => x.AMIGA.id)), salvos = s.npcsParaSalvar().filter((n) => ids.has(n.id)); // todos salvam na tabela mundo desde 2026-11-22 (Geada, Cecília, Dario...): aqui só os 18
