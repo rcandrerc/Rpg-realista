@@ -1,5 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
+import { fichaJogadorValida } from './dados.js';
 import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS, TITULOS, HISTORIA } from './dados.js';
 import { packValido, carrinhoValido, navioValido } from './transporte.js';
 import { histNova, histValida } from './historia.js';
@@ -613,6 +614,7 @@ export function progressoValido(p) {
   n.tit = titValido(p.tit);
   n.abates = int(p.abates, 0, 1e9, 0);
   { const d = placarDueloValido(p.duelos); if (d) n.duelos = d; } // placar de duelos (André 2026-11-17, shared/duelo.js)
+  { const f = fichaJogadorValida(p.fic); if (f) n.fic = f; } // ficha do jogador, opcional (André 2026-11-23, FICHA_RECRUTA)
   { const a = pvpValido(p.pvp); if (a) n.pvp = a; } // Arena PvP (André 2026-11-21, shared/arena.js): Insígnias e placar
   if (Number.isFinite(p.rgCd) && p.rgCd > 0) n.rgCd = Math.round(p.rgCd); // Pó de rastreio: quando a recarga acaba (ms, hora de verdade)
   if (p.rgDado === 1) n.rgDado = 1; // Pó de rastreio de presente já entregue (conta de teste do André)

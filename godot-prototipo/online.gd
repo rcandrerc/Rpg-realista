@@ -1366,6 +1366,10 @@ func evento(ev: Dictionary) -> void:
 			if m.reforco:
 				m.reforco.do_servidor(ev)
 			return
+		"claCandidatos": # os 3 candidatos do Recrutador, com ficha (troca.gd, André 2026-11-23)
+			if m.troca:
+				m.troca.mostrar_candidatos(ev)
+			return
 		"equipVer": # o equipamento de outro jogador ou da Cecília (troca.gd, André 2026-11-10)
 			if m.troca:
 				m.troca.mostrar_equip(ev)

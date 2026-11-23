@@ -3391,8 +3391,78 @@ export const CLA = {
     ],
   },
 };
+// Ficha do recruta (André 2026-11-23: "aparecem 3 recrutas... corajoso, preferência magia... cuidadoso, preferência
+// guerreiro, e eu escolho entre 3"; "e dependendo da preferência eles focam o status em inteligência em vez de STR").
+// Cada recruta tem coragem (co), cuidado com o time (cu) e gosto pelo cajado (ca), de 0 a 1: os mesmos números de
+// CEREBRO.jeitos, então ele luta e põe os pontos (pontosAmiga: Força pelo 1 - ca, Inteligência pelo ca) conforme a ficha.
+// jeitos: na ordem de CLA.jeitos, o nome curto (ele, ela) e a coragem e o cuidado de base (±vari no sorteio), para o
+// medroso não sair o mais corajoso. estilos: a preferência sorteada e a faixa do cajado. Recruta de antes (sem ficha)
+// ganha uma sorteada pelo id, sempre a mesma (fichaLuta). candidatos: quantos o Recrutador mostra; validade: ms.
+// escolhaLider: o que o líder bot olha para escolher entre os candidatos (Gael quer coragem, Dario quer cuidado).
+export const FICHA_RECRUTA = {
+  candidatos: 3, validade: 10 * 60000, vari: 0.1,
+  jeitos: [
+    { nome: ['Disciplinado', 'Disciplinada'], co: 0.65, cu: 0.6 }, { nome: ['Brincalhão', 'Brincalhona'], co: 0.7, cu: 0.45 },
+    { nome: ['Ambicioso', 'Ambiciosa'], co: 0.8, cu: 0.3 }, { nome: ['Medroso', 'Medrosa'], co: 0.3, cu: 0.6 },
+    { nome: ['Rabugento', 'Rabugenta'], co: 0.6, cu: 0.4 }, { nome: ['Curioso', 'Curiosa'], co: 0.5, cu: 0.5 },
+    { nome: ['Orgulhoso', 'Orgulhosa'], co: 0.85, cu: 0.25 }, { nome: ['Gentil', 'Gentil'], co: 0.4, cu: 0.9 },
+    { nome: ['Competitivo', 'Competitiva'], co: 0.8, cu: 0.35 }, { nome: ['Saudoso', 'Saudosa'], co: 0.5, cu: 0.65 },
+  ],
+  estilos: [
+    { id: 'espada', nome: 'Espada', cajado: [0.05, 0.3] },
+    { id: 'meio', nome: 'Meio a meio', cajado: [0.4, 0.6] },
+    { id: 'magia', nome: 'Magia', cajado: [0.7, 0.95] },
+  ],
+  gostos: { cacar: 'Caçar', minerar: 'Minerar', lenha: 'Cortar lenha', pescar: 'Pescar' },
+  escolhaLider: { gael: 'co', dario: 'cu' },
+};
+// a luta de um recruta novo (rnd: () => 0..1) pelo jeito dele
+export function sortearLuta(rnd, jeito) {
+  const F = FICHA_RECRUTA, J = F.jeitos[Math.max(0, CLA.jeitos.indexOf(jeito))] || F.jeitos[0], E = F.estilos[Math.floor(rnd() * F.estilos.length)] || F.estilos[0];
+  const v = (b) => +Math.max(0.05, Math.min(1, b + (rnd() * 2 - 1) * F.vari)).toFixed(2);
+  return { co: v(J.co), cu: v(J.cu), ca: +(E.cajado[0] + rnd() * (E.cajado[1] - E.cajado[0])).toFixed(2) };
+}
+const lutaOk = (L) => !!L && typeof L === 'object' && ['co', 'cu', 'ca'].every((k) => Number.isFinite(+L[k]) && +L[k] >= 0 && +L[k] <= 1);
+// a ficha de luta do membro m: a dele ou, se é recruta de antes, uma sorteada pelo id (sempre a mesma, nada some)
+export function fichaLuta(m) {
+  if (lutaOk(m?.lu)) return { co: +m.lu.co, cu: +m.lu.cu, ca: +m.lu.ca };
+  let s = 7; for (const c of String(m?.id || '')) s = (s * 31 + c.charCodeAt(0)) >>> 0;
+  const rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+  rnd(); return sortearLuta(rnd, m?.jeito);
+}
+// a preferência pelo gosto do cajado
+export const estiloDe = (ca) => FICHA_RECRUTA.estilos.reduce((b, E) => (Math.abs(ca - (E.cajado[0] + E.cajado[1]) / 2) < Math.abs(ca - (b.cajado[0] + b.cajado[1]) / 2) ? E : b));
+// para onde vão os pontos de atributo (igual a pontosAmiga em shared/amiga.js), em %
+export function pontosDaFicha(ca) {
+  const p = { for: Math.max(0.05, 1 - ca), int: Math.max(0.05, ca), vit: 0.8 }, t = p.for + p.int + p.vit;
+  return { for: Math.round(p.for / t * 100), int: Math.round(p.int / t * 100), vit: Math.round(p.vit / t * 100) };
+}
+// a ficha do jogador (André 2026-11-23: "no jogador também tem esse espaço... a gente preenche se quiser, pode deixar em
+// branco"): as mesmas escolhas da do recruta, só escolhas (sem texto livre). prog.fic = { j: índice de jeitos, e: estilo, g: gosto }
+export function fichaJogadorValida(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  const F = FICHA_RECRUTA, r = {};
+  if (Number.isInteger(o.j) && o.j >= 0 && o.j < F.jeitos.length) r.j = o.j;
+  if (F.estilos.some((E) => E.id === o.e)) r.e = o.e;
+  if (Object.hasOwn(F.gostos, o.g)) r.g = o.g;
+  return Object.keys(r).length ? r : null;
+}
+// o que o app mostra da ficha do jogador (só o que ele preencheu)
+export function fichaJogadorInfo(o, f) {
+  const F = FICHA_RECRUTA, v = fichaJogadorValida(o); if (!v) return null;
+  return { ...(v.j !== undefined ? { jeito: F.jeitos[v.j].nome[f ? 1 : 0] } : {}), ...(v.e ? { estilo: F.estilos.find((E) => E.id === v.e).nome } : {}),
+    ...(v.g ? { gosto: F.gostos[v.g] } : {}), jogador: 1 };
+}
+// o que o app mostra (perfil do recruta e candidatos do Recrutador). L: { co, cu, ca }; jeito: texto de CLA.jeitos
+export function fichaInfo(L, jeito, gosto, g) {
+  const i = CLA.jeitos.indexOf(jeito), J = FICHA_RECRUTA.jeitos[i];
+  return { ...(J ? { jeito: J.nome[g === 'f' ? 1 : 0], txt: jeito } : {}), estilo: estiloDe(L.ca).nome, co: L.co, cu: L.cu, ca: L.ca,
+    ...(FICHA_RECRUTA.gostos[gosto] ? { gosto: FICHA_RECRUTA.gostos[gosto] } : {}), pts: pontosDaFicha(L.ca) };
+}
 // o recruta m do clã (shared/cla.js) vira um NPC igual aos aventureiros por dentro (cérebro, conversa, time, troca,
 // encomenda, barco...), com dono: só o líder conversa e manda nele, e ele só existe com o líder no jogo.
+// luta: o jeito de luta (no lugar de CEREBRO.jeitos.padrao); ficha: o jeito em texto e o gosto (o perfil no app)
+const lutaDoRecruta = (m) => { const L = fichaLuta(m); return { luta: { coragem: L.co, cuidado: L.cu, cajado: L.ca }, ficha: { jeito: m.jeito, gosto: m.gosto } }; };
 export function defRecruta(m, lider, nomeCla, raca) {
   const f = m.g !== 'm';
   return mesclarAmigo(f ? AMIGA : DARIO, {
@@ -3402,6 +3472,7 @@ export function defRecruta(m, lider, nomeCla, raca) {
     puxaAssunto: false, naoInsiste: true, recomeco: null, recomecoJogo: null,
     lider, recruta: true, cla: nomeCla, ...(raca && raca !== RACA_PADRAO ? { raca } : {}),
     guerra: { coragem: 0.7, honra: 0.6, paciencia: 0.5 }, // soldado: defende o líder da outra raça (ronda e emboscada, não: fica com ele)
+    ...lutaDoRecruta(m),
   });
 }
 // ---------- Clãs bot (André 2026-11-22: "não gente solta... pode até ter 2, 3 clãs inimigos depois") ----------
@@ -3452,6 +3523,7 @@ export function defRecrutaNpc(m, C) {
     puxaAssunto: false, naoInsiste: false, seguivel: false, convida: false, recomeco: null, recomecoJogo: null,
     recruta: true, clanpc: C.id, lider: 'npc:' + C.lider, cla: C.n, falas: C.falas[f ? 'f' : 'm'],
     guerra: { coragem: 0.5 + r(1) * 0.45, honra: 0.2 + r(5) * 0.7, paciencia: 0.2 + r(9) * 0.7 },
+    ...lutaDoRecruta(m),
   });
 }
 // Desculpas para sair quando a IA do dia acaba (André 2026-11-19: "50 desculpas para sair... engraçado e natural"; "algumas
