@@ -3283,6 +3283,16 @@ export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
 export const CLA = {
   nome: { min: 3, max: 20 },
   max: 6, // recrutas no clã (André 2026-11-22: 6 por clã; era 5)
+  // Missão do Clã: Escolta (André 2026-11-23, shared/missao-cla.js): levar os recrutas vivos até o totem mais perto a
+  // pelo menos destMin m da base. entre: ms até abrir de novo; dura: s; abrir: m do Baú do Clã; perto: m do líder para
+  // o recruta entrar; fugiu: m longe do líder e o recruta sai; chegou: m do totem; longe: m à frente onde a emboscada
+  // nasce; em: fração da viagem; nível dos monstros = o do líder; vida/dano: força a mais; provoca: s que o monstro
+  // acertado pelo líder vai nele; xp: fração do XP do nível do recruta que chegou; cofre: ouro por recruta que chegou
+  // (x nível do líder / 10); alma: Fragmentos de Alma para o líder.
+  missao: { entre: 6 * 3600e3, dura: 600, abrir: 12, perto: 40, fugiu: 60, chegou: 18, maxRec: 6, longe: 24, destMin: 300,
+    vida: 1.2, dano: 1, provoca: 4, xp: 1, cofre: 40, alma: 1,
+    emboscadas: [{ em: 0.15, tipos: ['puglin', 'lobo'], n: 3 }, { em: 0.4, tipos: ['imp', 'lobo'], n: 4 }, { em: 0.65, tipos: ['golem', 'maw'], n: 4 }, { em: 0.85, tipos: ['imp', 'maw', 'golem'], n: 4 }],
+    chefe: { tipo: 'warrok', nome: 'Chefe da Emboscada', nv: 2, vida: 4, dano: 1.3, escala: 1.3 } },
   semana: 7 * 86400000, // ms
   calote: 7 * 86400000, // sem pagamento por 7 dias: o recruta vai embora
   extra: { de: 3, por: 0.10 }, // cada recruta depois do 3º: +10% na semana toda

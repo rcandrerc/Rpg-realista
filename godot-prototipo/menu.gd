@@ -1753,6 +1753,31 @@ func _escolher_base() -> void:
 	elif m.base_cla:
 		m.base_cla.comecar_escolha()
 
+# Escolta do Clã (André 2026-11-23, shared/missao-cla.js): levar os recrutas vivos até o totem mais perto (300 m ou
+# mais), com emboscadas no nível do líder que vão primeiro neles. Quem chega ganha 1 nível de XP.
+func _escolta_cla(vs: VBoxContainer, Mi) -> void:
+	if not (Mi is Dictionary):
+		return
+	vs.add_child(rotulo("Escolta do Clã", 15, OURO_CLARO))
+	if int(Mi.get("ativa", 0)) == 1:
+		vs.add_child(rotulo("Levando %d recruta(s) até %s · emboscada %d de %d · faltam %s" % [int(Mi.rec), str(Mi.dest), int(Mi.emb), int(Mi.embs), _tempo_cla(int(Mi.falta) * 1000)], 13, TEXTO))
+		var dx := float(Mi.x)
+		var dz := float(Mi.z)
+		var nome := str(Mi.dest)
+		var bi := botao("Ir até %s" % nome, func():
+			fechar()
+			if m.rota:
+				m.rota.ir(m.rota.planejar(Vector2(dx, dz)), "Indo para " + nome), 14)
+		bi.custom_minimum_size = Vector2(0, 42)
+		vs.add_child(bi)
+	elif int(Mi.get("espera", 0)) > 0:
+		vs.add_child(rotulo("Próxima escolta em %s." % _tempo_cla(int(Mi.espera)), 12, APAGADO))
+	else:
+		vs.add_child(rotulo("Leve os recrutas vivos até o totem mais perto (300 m ou mais) em 10 min. No caminho vêm 4 emboscadas no seu nível, e os monstros vão primeiro nos recrutas: bata neles para segurar. Quem chegar ganha 1 nível de XP; o cofre ganha ouro e você, 1 Fragmento de Alma. Abra no Baú do Clã, com os recrutas perto. Uma a cada 6 h.", 12, APAGADO))
+		var be := botao("Começar a escolta", func(): m.rede("cla", {"acao": "missao"}), 15, true)
+		be.custom_minimum_size = Vector2(0, 44)
+		vs.add_child(be)
+
 func _base_cla(C: Dictionary) -> void:
 	var cs := PanelContainer.new()
 	cs.add_theme_stylebox_override("panel", caixa(FUNDO2, OURO.darkened(0.35), 1, 10))
@@ -1789,6 +1814,7 @@ func _base_cla(C: Dictionary) -> void:
 					m.minimapa.abrir_base(true), 14)
 			bm.custom_minimum_size = Vector2(0, 42)
 			vs.add_child(bm)
+		_escolta_cla(vs, B.get("missao"))
 	else:
 		vs.add_child(rotulo("Base do clã", 16, OURO_CLARO))
 		vs.add_child(rotulo("Vá até o lugar e funde a base onde você está. No meio fica o salão com o Baú do Clã; em volta, o seu lote e um lote para cada recruta. Sem aluguel: a taxa sai do cofre toda semana.", 12, APAGADO))
