@@ -164,7 +164,11 @@ func _mostrar_tudo() -> void:
 		_montou = true
 	# o mapa 3D (lentidão de 2026-11-16: a 1ª abertura levou 3,5 s no 1º quadro, 27 pipelines): monta a maquete no fundo
 	# (se ainda não montou) e a desenha uma vez escondida, atrás da capa (mapa3d.gd aquecer)
-	var m3 = m.minimapa.mapa3d if m.minimapa else null
+	# Celular de 4 GB (robô no S9, 2026-11-19: a placa ia de 629 MB no menu a 1006 MB 30 s depois de entrar, e o Android
+	# matava o jogo): lá ficam só os efeitos (shaders, leves). Mapa 3D, monstros, gente das vilas e veículos montam quando
+	# aparecem, com um tranco na primeira vez, em vez de tudo de uma vez atrás da capa.
+	var pouca := memoria_pouca()
+	var m3 = m.minimapa.mapa3d if m.minimapa and not pouca else null
 	if m3 != null and m3.has_method("aquecer"):
 		m3.aquecer()
 		_mapa_aquecendo = true
@@ -199,6 +203,8 @@ func _mostrar_tudo() -> void:
 	var tipos := {}
 	for t in m.MODELO_TIPO.values():
 		tipos[t] = true
+	if pouca: # só um monstro (o preparo do golpe, o "Firme!" e o aviso de área ainda aparecem uma vez)
+		tipos = {tipos.keys()[0]: true} if not tipos.is_empty() else {}
 	var i := 0
 	for t in tipos:
 		var e: Dictionary = m.criar_inimigo(t, p + frente.cross(Vector3.UP) * (float(i) - tipos.size() * 0.5) * 1.5, "Nv 1")
@@ -215,6 +221,8 @@ func _mostrar_tudo() -> void:
 	# modelo (~0,6 s no PC), a pele, as peças da armadura e a roupa de ofício (até ~0,7 s). Aqui, atrás da capa, nasce e
 	# some um de cada tipo: o que é montado fica guardado e, na corrida, o NPC sai pronto. Medido na corrida simulada:
 	# pior tranco 690 -> 72 ms no PC; a capa fica ~1,7 s mais (35 tipos).
+	if pouca:
+		return
 	if m.transporte != null and m.transporte.has_method("aquecer_em"):
 		_veics = m.transporte.aquecer_em(p + frente * 6.0, frente.cross(Vector3.UP))
 	var vistos := {}
@@ -235,10 +243,31 @@ func _mostrar_tudo() -> void:
 			n.no.queue_free()
 	print_verbose("aquecer: %d tipos de NPC em %d ms" % [vistos.size(), (Time.get_ticks_usec() - t0) / 1000])
 
+# Memória do aparelho em MB: total, livre (MemAvailable) e o que o jogo ocupa (VmRSS). No Android o
+# OS.get_memory_info() e o get_static_memory_usage() do build de lançamento vêm vazios (robô no S9, 2026-11-19: "livre 0
+# MB, jogo 0 MB"); o /proc do Linux o app pode ler. -1 = não deu para saber.
+static func meminfo() -> Dictionary:
+	var r := {"total": -1, "livre": -1, "jogo": -1}
+	var info := OS.get_memory_info()
+	if int(info.get("physical", -1)) > 0:
+		r.total = int(info.physical) / 1048576
+	if int(info.get("available", -1)) > 0:
+		r.livre = int(info.available) / 1048576
+	for par in [["/proc/meminfo", {"MemTotal:": "total", "MemAvailable:": "livre"}], ["/proc/self/status", {"VmRSS:": "jogo"}]]:
+		var f := FileAccess.open(str(par[0]), FileAccess.READ)
+		if f == null:
+			continue
+		while not f.eof_reached(): # linha a linha: o get_as_text() vem vazio no /proc/self/status (tamanho 0)
+			var linha := f.get_line()
+			var partes := linha.replace("\t", " ").split(" ", false)
+			if partes.size() >= 2 and par[1].has(partes[0]):
+				r[par[1][partes[0]]] = int(partes[1]) / 1024 # kB -> MB
+	return r
+
 # 4 GB de memória ou menos (o Android mostra ~3,6 GB num celular de 4 GB; um de 6 GB mostra ~5,5 GB)
 static func memoria_pouca() -> bool:
-	var total := int(OS.get_memory_info().get("physical", -1))
-	return total > 0 and total < 4800 * 1048576
+	var total: int = meminfo().total
+	return total > 0 and total < 4800
 
 func _preparar_corpos() -> void:
 	var cri = m.P.dados.get("criador") if m.P and m.P.dados is Dictionary else null
@@ -259,7 +288,7 @@ func _preparar_corpos() -> void:
 	var pouca := memoria_pouca()
 	if pouca:
 		corpos = [m.visual] if str(m.visual) in corpos else []
-		print("[entrada] celular com pouca memória (%d MB): prepara só o corpo do herói" % (int(OS.get_memory_info().get("physical", 0)) / 1048576))
+		print("[entrada] celular com pouca memória (%d MB): prepara só o corpo do herói" % int(meminfo().total))
 	for c in corpos:
 		for d in pent.get(c, []):
 			Penteado.pedir(str(d)) # carrega no fundo enquanto as armaduras montam
