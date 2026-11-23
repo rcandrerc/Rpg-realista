@@ -162,6 +162,7 @@ class SalaClareira extends Room {
       if (!contas.lerMundo('base_mudancas_teste_v1')) { let n = 0; for (const B of Object.values(this.sim.basesCla || {})) if (B.k[0] === 'j' && B.nomeDono === 'Yukmei') { B.livres = 6; n++; } if (n) this.sim.salvarBases(); contas.gravarMundo('base_mudancas_teste_v1', { t: Date.now(), n }); console.log(`base do clã: ${n} base(s) com 6 mudanças grátis`); }
     }
     if (contas) this.sim.carregarPlantio(contas.lerMundo('plantadas')); // árvores plantadas pelos jogadores (shared/plantio.js)
+    if (contas) this.sim.carregarPacksBase(contas.lerMundo('packs_base')); // packs guardados na terra do clã (André 2026-11-23: não somem)
     if (contas) this.sim.carregarVeios(contas.lerMundo('veios')); // árvores cortadas e veios batidos: o tempo de voltar continua depois do reinício
     // leilão: o mesmo em todas as salas; mudou, grava. Vendeu: avisa o dono, esteja em que sala estiver
     this.sim.leilao = leilao;
@@ -381,6 +382,7 @@ class SalaClareira extends Room {
     for (const n of this.sim.npcsParaSalvar()) contas.gravarMundo('npc:' + n.id, n.dados); // aventureiros sem casa
     { const v = this.sim.veiosParaSalvar(); if (v) contas.gravarMundo('veios', v); } // árvores cortadas e veios batidos (só quando mudou)
     { const v = this.sim.plantioParaSalvar(); if (v) contas.gravarMundo('plantadas', v); } // árvores plantadas (só quando mudou)
+    { const v = this.sim.packsBaseParaSalvar(); if (v) contas.gravarMundo('packs_base', v); } // packs na terra do clã (só quando mudou)
   }
 
   // Igual a onMessage, mas descarta o que passar do limite (cliente alterado inundando o servidor)
