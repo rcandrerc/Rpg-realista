@@ -296,6 +296,7 @@
     {"nome": "Cecília e Dario (IA) respondem em inglês com o jogo em English (André 2026-11-14)", "arquivo": "server/ia-amiga.js", "contem": ["ctx.idioma === 'en'"]},
     {"nome": "Quadradinho Ver equipado na Aparência: prévia com ou sem o equipamento (André 2026-11-16)", "arquivo": "godot-prototipo/criador.gd", "contem": ["func linha_ver_equip() -> Control:", "func vestir_previa() -> void:", "\"Ver equipado\""]},
     {"nome": "Traje Patrulheira / Roupão na Aparência e armadura v5 com capuz (André 2026-11-23)", "arquivo": "godot-prototipo/criador.gd", "contem": ["var trajes_ui := []", "[\"Roupão\", \"roupao\"]", "\"Patrulheiro\" if masc else \"Patrulheira\""]},
+    {"nome": "Cor livre (Roupa/Calça da Aparência) no pano da armadura v5 (André 2026-11-23)", "arquivo": "godot-prototipo/armadura.gd", "contem": ["static func tingir_v5(raiz: Node3D) -> void:", "const TINTA_ROUPA :="]},
     {"nome": "Traje do roupão aceito pelo servidor (André 2026-11-23)", "arquivo": "shared/dados.js", "contem": ["r.traje = ['roupao', 'patrulha'].includes(a.traje) ? a.traje : null;"]}
   ]
 }

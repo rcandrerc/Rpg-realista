@@ -330,6 +330,7 @@ static func vestir(raiz: Node3D, equip) -> void:
 			for arma in ba.get_children():
 				costas(esq, arma, capa)
 	preload("res://realista.gd").aplicar(raiz) # pele semi-realista (André 2026-11-07)
+	tingir_v5(raiz)
 
 # André 2026-11-14: o corpo masculino "parece um magrelinho feio que não trabalha": ombros um pouco mais largos.
 # O osso do braço (UpperArm) sai OMBRO_LARGO para fora, na direção do ombro, depois da animação (modificador do
@@ -3409,6 +3410,55 @@ static func _malha_capa(src: MeshInstance3D, esq: Skeleton3D, osso: int) -> Arra
 const CALCA := [Color("4a3324"), Color("2a2230"), Color("2a2238"), Color("2c2226"), Color("2a1a22")] # couro da calça por raridade
 
 static func _material(tipo: String, r: int) -> Material:
+	var m := _material_cru(tipo, r)
+	if m and not m.has_meta("v5_tipo"):
+		m.set_meta("v5_tipo", tipo) # tingir_v5 acha o pano da roupa e da calça por aqui
+	return m
+
+# Cor livre na roupa (André 2026-11-23, teste): a cor de "Roupa" e de "Calça e saia" da Aparência pinta o pano do traje
+# v5 (túnica, roupão, manto, capuz / calça). "Original" = cor do set. Couro, barras e bordado ficam como estão.
+const TINTA_ROUPA := ["v5_tunica", "v5_saia_base", "v5_roupao", "v5_roupao_corpo", "v5_roupao_manga", "v5_manto", "v5_capuz", "capa"]
+const TINTA_CALCA := ["v5_calca", "calca"]
+static func tingir_v5(raiz: Node3D) -> void:
+	if not LINHA_V5:
+		return
+	var cr = raiz.get_meta("cor_roupa", null)
+	var cc = raiz.get_meta("cor_calca", null)
+	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		mi.material_override = _tinta(mi, "mo", mi.material_override, cr, cc)
+		if mi.mesh:
+			for i in mi.mesh.get_surface_count():
+				var at: Material = mi.get_surface_override_material(i)
+				if at:
+					mi.set_surface_override_material(i, _tinta(mi, "s%d" % i, at, cr, cc))
+
+static func _tinta(mi: MeshInstance3D, lugar: String, atual: Material, cr, cc) -> Material:
+	if atual == null:
+		return null
+	var orig: Material = mi.get_meta("v5_orig_" + lugar) if atual.has_meta("v5_tinta") and mi.has_meta("v5_orig_" + lugar) else atual
+	var tipo := str(orig.get_meta("v5_tipo", ""))
+	var cor = cr if tipo in TINTA_ROUPA else (cc if tipo in TINTA_CALCA else null)
+	if cor == null:
+		return orig
+	mi.set_meta("v5_orig_" + lugar, orig)
+	var chave := "tinta|%d|%s" % [orig.get_instance_id(), (cor as Color).to_html()]
+	if not _materiais.has(chave):
+		var t: Material = orig.duplicate()
+		t.set_meta("v5_tinta", true)
+		var c: Color = cor
+		if tipo == "capa": # capa: por fora na cor escolhida, por dentro um tom mais escuro
+			t.set_shader_parameter("fora", c)
+			t.set_shader_parameter("dentro", c.darkened(0.45))
+		elif t is ShaderMaterial:
+			t.set_shader_parameter("claro", c.lightened(0.25))
+			t.set_shader_parameter("medio", c)
+			t.set_shader_parameter("sombra", c.darkened(0.6))
+		elif t is BaseMaterial3D:
+			t.albedo_color = c
+		_materiais[chave] = t
+	return _materiais[chave]
+
+static func _material_cru(tipo: String, r: int) -> Material:
 	var chave := "%s:%d" % [tipo, r]
 	if _materiais.has(chave):
 		return _materiais[chave]
