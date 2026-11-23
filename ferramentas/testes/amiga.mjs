@@ -393,13 +393,14 @@ function guardarItem(j, k, n) { guardar(j.prog.mochila, { k, n }); }
     if (modo === 'time') s12.entrarTimeAmiga(c, d); else c.ia.vir = { ate: s12.tempo + 120, longe: s12.tempo + 4 };
     let pulo = 0, montada = 0, px = c.x, pz = c.z, perto = 1e9; const d0 = Math.hypot(c.x - d.x, c.z - d.z);
     for (let i = 0; i < 20 * 240 && perto > 4; i++) {
-      aqui(); s12.passo(0.05);
+      aqui(); if (lugar === 'c_i1') c.vida = c.vidaMax; // o campo c_i1 tem monstro: aqui só a viagem conta (morrer no caminho a leva para a vila)
+      s12.passo(0.05);
       pulo = Math.max(pulo, Math.hypot(c.x - px, c.z - pz)); px = c.x; pz = c.z;
       if (c.montado) montada += 0.05;
       perto = Math.hypot(c.x - d.x, c.z - d.z);
     }
     // André 2026-11-23 (#844, "eles precisam ir pro mar... nadando"): outra terra sem barco, vai até a praia e nada até ele
-    if (lugar === 'c_i1') ok((c.ia.viagem?.nado || perto < d0 - 50) && pulo < 0.6 && ditos.some((t) => AMIGA.chat.falas.nado.includes(t)), `ele em outra terra: ela não aparece lá, avisa que vai nadando e vai (a ${perto.toFixed(0)} m de ${d0.toFixed(0)} m)`);
+    if (lugar === 'c_i1') ok((c.ia.viagem?.nado || perto < d0 - 50) && pulo < 0.6 && ditos.some((t) => AMIGA.chat.falas.nado.includes(t)), `ele em outra terra: ela não aparece lá, avisa que vai nadando e vai (a ${perto.toFixed(0)} m de ${d0.toFixed(0)} m; maior passo ${pulo.toFixed(2)} m; disse: ${ditos.join(" | ")})`);
     else ok(perto <= 4 && pulo < 0.6 && montada > 10, `${modo === 'time' ? 'no time' : '"vem cá"'}: veio de lobo pela estrada ${Math.round(d0)} m sem se teletransportar (maior passo ${pulo.toFixed(2)} m, ${Math.round(montada)} s montada)`);
   }
 }
