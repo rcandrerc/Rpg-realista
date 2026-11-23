@@ -7,10 +7,10 @@ Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 - Servidor decide o combate (`shared/simulacao.js`); conteúdo em `shared/dados.js`.
 - Câmera lenta/congelada do golpe removida pelo irmão: nunca religar.
 - Clãs (até 6 recrutas), base/fazenda do clã e arena PvP 4x4 entram desde 20/11.
+- Estratégia (23/11): luta de clãs. André lidera; recrutas pagos (taxa + semanal) obedecem cegamente e só respondem. Jogadores nascem Chama; clãs bot líderes são Geada. Quantos clãs bot de cada lado: sem regra ainda (André decide conforme entrarem jogadores; não mexer). Feito: nunca voltar ao jogo de antes de 20/11.
 
 ## Foco único até 30/11: desempenho e gráfico
-1. Medir o desempenho. 2. Personagens mais leves. 3. Mundo mais leve, sem travadas (inclui OOM no S9).
-4. Visual com fotos antes/depois no jogo, só com OK do André.
+1. Medir. 2. Personagens leves. 3. Mundo leve, sem travadas (OOM no S9). 4. Visual com fotos antes/depois, só com OK.
 
 ## Abortado (não retomar sem pedido)
 Cecília/Dário, segurança, história/missões, economia/lojas.
@@ -24,7 +24,7 @@ Cecília/Dário, segurança, história/missões, economia/lojas.
 - Todo merge: PR, main mais recente, verificação verde, nada some.
 
 ## Feito
-- 23/11: criada a estrutura enxuta (MEMORIA.md + agentes/).
 - 23/11: "Ver" o recruta: animação, sombra e magia contam a partir dele (`centro_visao`); "Ver no mapa" com ponto dele.
+- 23/11: botão "Trocar alvo" (4 camadas: quem te bateu 5 s > PK no alcance > monstro > espantalho); sem tocar, alvo igual.
 
 ## Próximas tarefas: medição de desempenho -> personagens leves -> mundo leve -> visual.

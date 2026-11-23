@@ -152,7 +152,8 @@ var mao_esquerda := -1
 var h := {"vida": 120.0, "mana": 100.0, "vy": 0.0, "pulos": 0, "morto": 0.0, "modo": "Espada", "combo": 0, "combo_ate": 0.0,
 	"dash": 0.0, "dash_dir": Vector3.ZERO, "segurando": false, "ultimo_basico": 0.0, "escudo": 0.0, "escudo_ate": 0.0,
 	"combo_fim": -9.0, "mao": 0, "pend": null, "lunge": null, "sem_alvo": -9.0, "vel_k": 1.0, "golpe_forte": false,
-	"alvo_fixo": null, "mira_ate": -9.0, "mira_espada": null} # alvo_fixo: monstro travado do mago (alvo_travado)
+	"alvo_fixo": null, "mira_ate": -9.0, "mira_espada": null, "alvo_botao": false} # alvo_fixo: monstro travado do mago (alvo_travado)
+# alvo_botao: o alvo_fixo veio do botão Trocar alvo (trocar_alvo): aí a espada e as skills de espada também vão nele
 # mira_espada: o bicho do último corte da espada (o corpo continua virado para ele até mira_ate, andando de lado)
 # mira_ate: até quando o mago continua virado para o alvo depois do último tiro da Faísca (anda de lado e de costas)
 var acao := {} # o que o herói está fazendo agora (golpe, habilidade, rolamento...)
@@ -2918,6 +2919,9 @@ func usar(qual: String) -> void:
 	if qual == "zoom": # atalho do zoom (2026-11-12): só a câmera; não para golpe, coleta, volta nem fila
 		cam.zoom_maximo()
 		return
+	if qual == "trocar_alvo": # botão Trocar alvo (2026-11-23): só escolhe o alvo; não para golpe, coleta nem volta
+		trocar_alvo()
+		return
 	if h.morto > 0.0:
 		return
 	if boss_mundo.preso() and (qual in ["basico", "cura", "dash", "rolar", "pular", "montar", "disparada", "coletar"] or qual.begins_with("hab")):
@@ -3217,6 +3221,15 @@ func basico() -> bool:
 func basico_espada() -> void:
 	var hab: Dictionary = P.hab_pronta("espada_basico")
 	var alvo = mais_perto(heroi.position, hab.alcance)
+	var bt = alvo_do_botao() # botão Trocar alvo: vai nele (no alcance bate, até 12 m corre até ele)
+	if bt != null:
+		var db: float = bt.no.position.distance_to(heroi.position)
+		if db <= hab.alcance:
+			alvo = bt
+		elif db <= hab.persegue:
+			h.pend = {"e": bt, "t": 3.0}
+			recargas["basico"] = 0.15
+			return
 	if alvo == null:
 		var longe = mais_perto(heroi.position, hab.persegue)
 		if longe:
@@ -3237,7 +3250,7 @@ func basico_espada() -> void:
 	var fade: float = 0.14 if i == 0 else 0.05 # 4º -> 1º golpe: a pose muda muito, mistura mais devagar
 	h.combo_fim = tempo + g.dur
 	recargas["basico"] = max(hab.cd, g.dur) # o 4º golpe é mais longo: o próximo espera ele terminar
-	rede("habQ", "espada_basico")
+	rede("habQ", msg_botao("espada_basico", alvo) if e_botao(alvo) else "espada_basico") # sem o botão: igual antes
 	var ultimo: bool = i == hab.combo.size() - 1
 	comecar_q(g.anim, g.dur, [g.hit], func(_k):
 		h.golpe_forte = ultimo # o último corte do combo pesa mais (congela e treme mais)
@@ -3324,6 +3337,98 @@ func tocou_inimigo(pos: Vector2) -> void:
 func indice_inimigo(e) -> int:
 	return inimigos.find(e) if vivo(e) else -1
 
+# ---------- botão Trocar alvo (André 2026-11-23) ----------
+# Sem tocar nele nada muda: o golpe continua no monstro mais perto até ele morrer (regra do André). Tocando, o alvo
+# sai por camadas: 1) jogador ou bot inimigo que te bateu nos últimos 5 s; 2) jogador ou bot inimigo no alcance;
+# 3) monstro no alcance; 4) espantalho de treino, só se não houver nada nas outras. Na mesma camada, o mais perto.
+# Toques seguidos (até 3 s um do outro) passam para o próximo da lista. A busca roda só no toque, nunca por quadro.
+# Quem decide o dano é o servidor (Simulacao.alvoTravado com "b": vale também para a espada).
+const TROCA_ALVO_BATEU := 5.0 # s: quem te bateu há menos que isso é a camada 1
+const TROCA_ALVO_SEGUIDO := 3.0 # s: toque até isso depois do outro passa para o próximo candidato
+var _troca_alvo_t := -99.0
+
+func trocar_alvo() -> void:
+	if h.morto > 0.0 or heroi == null:
+		return
+	var pos: Vector3 = heroi.position
+	var alcance: float = float(P.hab_pronta("cajado_basico").alcance) + 0.5 if h.modo == "Magia" else float(P.hab_pronta("espada_basico").persegue)
+	var pks: Array = [] # jogadores e bots que dá para ferir agora (duelo, arena, outra raça na guerra)
+	var o = duelo.alvo() if duelo else null
+	if o != null:
+		pks.append(o)
+	if arena_pvp:
+		pks.append_array(arena_pvp.alvos(pos, ALVO_SOLTA))
+	if on():
+		pks.append_array(online.pks_perto(pos, ALVO_SOLTA))
+	var c1: Array = []
+	var c2: Array = []
+	var c3: Array = []
+	var c4: Array = []
+	var vistos := {}
+	for e in pks:
+		if vistos.has(e.no):
+			continue
+		vistos[e.no] = true
+		var d: float = e.no.position.distance_to(pos)
+		var bateu: float = float(online.bateram.get(str(e.get("id", "")), -99.0)) if online else -99.0
+		if tempo - bateu <= TROCA_ALVO_BATEU:
+			c1.append([d, e])
+		elif d <= alcance:
+			c2.append([d, e])
+	for e in inimigos:
+		if not vivo(e) or e.get("longe", false) or not is_instance_valid(e.no) or not e.no.visible:
+			continue
+		var d: float = e.no.position.distance_to(pos)
+		if d <= alcance:
+			(c4 if e.get("treino", false) else c3).append([d, e])
+	var lista: Array = []
+	for c in ([c1, c2, c3] if not (c1.is_empty() and c2.is_empty() and c3.is_empty()) else [c4]):
+		c.sort_custom(func(a, b): return a[0] < b[0])
+		for par in c:
+			lista.append(par[1])
+	if lista.is_empty():
+		hud.aviso("Nenhum alvo por perto")
+		hud.negar("trocar_alvo")
+		return
+	var i := 0
+	var atual = h.alvo_fixo if h.alvo_botao and h.alvo_fixo != null else alvo_atual
+	var ja := -1
+	for k in lista.size():
+		if is_same(lista[k], atual):
+			ja = k
+	if ja >= 0 and (tempo - _troca_alvo_t <= TROCA_ALVO_SEGUIDO or ja == 0):
+		i = (ja + 1) % lista.size() # toque seguido (ou o melhor já é o alvo): o próximo
+	_troca_alvo_t = tempo
+	h.alvo_fixo = lista[i]
+	h.alvo_botao = true
+	h.pend = null
+	sons.tocar("pano", -10.0)
+
+# o alvo escolhido no botão, se ainda vale (vivo, perto e, se for jogador, ainda inimigo e à vista); senão null
+func alvo_do_botao():
+	if not h.alvo_botao or not vivo(h.alvo_fixo) or not alvo_pk_ok(h.alvo_fixo):
+		return null
+	return h.alvo_fixo
+
+func e_botao(alvo) -> bool:
+	return alvo != null and h.alvo_botao and is_same(alvo, h.alvo_fixo)
+
+# o que vai no habQ com o alvo do botão: monstro pelo v, jogador ou bot pelo j; "b" = escolhido no botão
+func msg_botao(k: String, alvo) -> Dictionary:
+	var msg := {"id": k, "v": indice_inimigo(alvo), "b": true}
+	if alvo.get("duelo", false) and alvo.has("id"):
+		msg.j = str(alvo.id)
+	return msg
+
+# jogador ou bot (duelo, arena, guerra) travado: ainda está no mundo, à vista e não caiu nem entrou na zona segura
+func alvo_pk_ok(e) -> bool:
+	if not (e is Dictionary) or not e.get("duelo", false) or not e.has("id"):
+		return true
+	if online == null:
+		return false
+	var o = online.outros.get(str(e.id))
+	return o != null and is_instance_valid(o.get("no")) and o.no == e.no and o.no.visible and not o.get("morto_srv", false) and not o.get("prot", false)
+
 # Cajado: faísca de fogo que mira sozinha no alvo travado (alvo_travado; 9 m), alternando as mãos
 func basico_magia() -> void:
 	var hab: Dictionary = P.hab_pronta("cajado_basico")
@@ -3342,7 +3447,7 @@ func basico_magia() -> void:
 	h.mao = 1 - h.mao
 	var g: Dictionary = hab.combo[h.mao]
 	recargas["basico"] = hab.cd
-	rede("habQ", {"id": "cajado_basico", "v": indice_inimigo(alvo)})
+	rede("habQ", msg_botao("cajado_basico", alvo) if e_botao(alvo) else {"id": "cajado_basico", "v": indice_inimigo(alvo)})
 	comecar_q(g.anim, g.dur, [g.hit], func(_k): atirar(hab, alvo, hab.alcance + 3.0), {"livre": true, "alvo": alvo, "basico": true})
 	heroi_anim.so_tronco = true # andando, as pernas continuam no passo e só os braços atiram
 	h.mira_ate = tempo + g.dur + 0.6 # entre um tiro e outro continua virado para o alvo (não fica virando para lá e para cá)
@@ -3422,11 +3527,16 @@ func atirar(hab: Dictionary, alvo, alcance: float) -> void:
 func alvo_hab(hab: Dictionary):
 	var t: String = hab.tipo
 	h.sem_visao = false
+	var bt = alvo_do_botao() # botão Trocar alvo: as skills de espada vão nele quando ele está no alcance
 	if t == "corte" or t == "esmagar":
+		if bt != null and bt.no.position.distance_to(heroi.position) <= hab.lunge.r:
+			return bt
 		return mais_perto(heroi.position, hab.lunge.r)
 	if t in ["bola", "cadeia", "meteoro"] and vivo(h.alvo_fixo) and h.alvo_fixo.no.position.distance_to(heroi.position) <= hab.alcance + 0.5 and visao_livre(heroi.position, h.alvo_fixo.no.position):
 		return h.alvo_fixo # magia de alvo único vai no alvo travado do mago quando ele está no alcance (e à vista)
 	if t == "investida":
+		if bt != null and bt.no.position.distance_to(heroi.position) <= hab.alcance + 0.5:
+			return bt
 		var e = mais_perto(heroi.position, hab.alcance + 0.5)
 		return e if e else false
 	# magia (André 2026-11-21): só quem ela enxerga; alguém no alcance mas atrás de pedra, muro ou casa = "Sem visão do alvo"
@@ -3466,6 +3576,8 @@ func habilidade(i: int) -> bool:
 	var dir := direcao_joystick()
 	if hab.tipo == "teleporte":
 		rede("habQ", {"id": k, "dx": snappedf(dir.x, 0.01), "dz": snappedf(dir.z, 0.01)})
+	elif e_botao(alvo): # alvo do botão Trocar alvo: o servidor mira nele (monstro pelo v, jogador pelo j)
+		rede("habQ", msg_botao(k, alvo))
 	elif hab.tipo in ["bola", "cadeia", "meteoro"] and vivo(alvo):
 		rede("habQ", {"id": k, "v": indice_inimigo(alvo)}) # o servidor mira no mesmo alvo
 	else:
@@ -3870,10 +3982,12 @@ func _passo_main(dt: float) -> void:
 	combate.passo(dt_real)
 	tp = _parte("m:combate", tp)
 	# marca no chão de quem o golpe vai pegar (o mais perto, até 12 m; de cajado, o alvo travado)
-	if h.alvo_fixo != null and (not vivo(h.alvo_fixo) or h.alvo_fixo.no.position.distance_to(heroi.position) > ALVO_SOLTA):
+	if h.alvo_fixo != null and (not vivo(h.alvo_fixo) or not alvo_pk_ok(h.alvo_fixo) or h.alvo_fixo.no.position.distance_to(heroi.position) > ALVO_SOLTA):
 		h.alvo_fixo = null # morreu (ou fugiu longe): o próximo ataque pega o mais perto
+	if h.alvo_fixo == null:
+		h.alvo_botao = false # o alvo do botão Trocar alvo acabou: volta a regra de sempre (o mais perto)
 	var marcado = mais_perto(heroi.position, 12.0) if h.morto <= 0.0 else null
-	if h.modo == "Magia" and h.alvo_fixo != null and h.morto <= 0.0:
+	if (h.modo == "Magia" or h.alvo_botao) and h.alvo_fixo != null and h.morto <= 0.0:
 		marcado = h.alvo_fixo
 	combate.marcar(marcado.no if marcado else null, dt_real)
 	alvo_atual = marcado # quadro do alvo à esquerda (alvo_quadro.gd)

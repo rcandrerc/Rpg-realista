@@ -22,7 +22,7 @@ const NOMES := {"painel": "Vida e mana", "joy": "Joystick", "chat": "Mensagens d
 	"bt:pular": "Pular", "bt:afundar": "Afundar", "bt:subir": "Subir", "bt:dash": "Dash", "bt:rolar": "Rolar", "bt:coletar": "Coletar", "bt:falar": "Falar",
 	"bt:disparada": "Disparada", "bt:montar": "Lobo", "bt:construir": "Construir", "bt:lote": "Comprar terreno",
 	"bt:bancada": "Estação de trabalho", "bt:bau": "Baú", "bt:estacoes": "Recolher estações",
-	"bt:pocao": "Poção de vida", "bt:pocao_mana": "Poção de mana", "bt:zoom": "Zoom rápido",
+	"bt:pocao": "Poção de vida", "bt:pocao_mana": "Poção de mana", "bt:zoom": "Zoom rápido", "bt:trocar_alvo": "Trocar alvo",
 	"pack": "Pack nas costas", "missao": "Missão da vez", "bt:veiculo": "Carrinho e barco", "bt:pegar_pack": "Pegar pack",
 	"alvo": "Alvo marcado"} # alvo: André 2026-11-17 # pack: André 2026-11-12
 

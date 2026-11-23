@@ -1271,6 +1271,8 @@ func evento(ev: Dictionary) -> void:
 					if e.no == quem:
 						e.combate = m.tempo + 5.0
 			var no = corpos.get(str(ev.alvo))
+			if str(ev.alvo) == meu_id and outros.has(str(ev.get("de", ""))) and float(ev.get("n", 0)) > 0.0:
+				bateram[str(ev.de)] = m.tempo # jogador ou bot que me bateu: camada 1 do botão Trocar alvo (main.gd trocar_alvo)
 			if no:
 				var eu: bool = str(ev.alvo) == meu_id
 				if eu or meu:
@@ -2336,6 +2338,27 @@ void fragment() {
 		camada.add_child(_perigo)
 	_perigo.visible = true
 	(_perigo.material as ShaderMaterial).set_shader_parameter("forca", _perigo_a)
+
+# botão Trocar alvo (André 2026-11-23): id -> m.tempo do último golpe que o jogador ou bot deu em mim
+var bateram := {}
+
+# botão Trocar alvo: todos da outra raça na zona de guerra até max_d (mesma regra e mesmas entradas de alvo_guerra).
+# Só roda no toque do botão.
+func pks_perto(pos: Vector3, max_d: float) -> Array:
+	var l: Array = []
+	if not eu_guerra:
+		return l
+	for id in outros:
+		var o: Dictionary = outros[id]
+		if str(o.get("raca", "")) == eu_raca or not o.get("guerra", false) or o.get("prot", false) or o.get("morto_srv", false):
+			continue
+		if not is_instance_valid(o.get("no")) or not o.no.visible or o.no.position.distance_to(pos) > max_d:
+			continue
+		if not _alvos_guerra.has(id) or _alvos_guerra[id].no != o.no:
+			_alvos_guerra[id] = {"no": o.no, "estado": "vivo", "duelo": true, "id": id}
+		_alvos_guerra[id].estado = "vivo"
+		l.append(_alvos_guerra[id])
+	return l
 
 func alvo_guerra(pos: Vector3, max_d: float, filtro := Callable()):
 	if not eu_guerra:

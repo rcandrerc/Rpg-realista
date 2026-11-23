@@ -180,6 +180,10 @@ func _ready() -> void:
 	# escuta uma fala (voz.gd tocar). Fica à esquerda da poção de vida, longe do polegar das skills.
 	_botao("voz", Vector2(104, 380), 25, "falar", COR_FUNDO)
 	botoes[-1].oculto = true
+	# Trocar alvo (André 2026-11-23): por fora do arco das skills, em cima entre a 2ª e a 3ª. Sem tocar nele o alvo
+	# continua o de sempre (o monstro mais perto até morrer); tocando escolhe pelas 4 camadas (main.gd trocar_alvo).
+	# No fim da lista, como os outros botões novos (os índices de cima são usados em mostrar_build).
+	_botao("trocar_alvo", Vector2(272, 332), 26, "trocar_alvo", COR_TROCA)
 
 func _botao(acao: String, canto: Vector2, raio: float, icone: String, cor: Color) -> void:
 	botoes.append({"acao": acao, "canto": canto, "raio": raio, "raio0": raio, "d": Vector2.ZERO, "s": 1.0, "icone": icone, "cor": cor, "cd": 0.0, "cd_max": 1.0, "apertado": false, "travado": false, "oculto": false,
