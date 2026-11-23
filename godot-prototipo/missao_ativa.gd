@@ -30,6 +30,100 @@ var _d := Vector2.ZERO
 var _s := 1.0
 var _livre := false
 
+# Missão fixada no atalho (André 2026-11-23: "qualquer missão, da guilda ou do clã, eu posso marcar para ficar
+# aparecendo no atalho"): {t: diaria|guilda|cla, id}. Vazia = a missão da história, como sempre. A Escolta do Clã em
+# andamento continua passando na frente (tem tempo contado). Guardada no aparelho (user://config.cfg, seção "missoes").
+const ARQ_CFG := "user://config.cfg"
+var fixa := {}
+
+func _carregar_fixa() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(ARQ_CFG) != OK:
+		return
+	var f = cfg.get_value("missoes", "fixa", {})
+	if f is Dictionary and f.has("t") and f.has("id"):
+		fixa = {"t": str(f.t), "id": str(f.id)}
+
+func _guardar_fixa() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(ARQ_CFG)
+	cfg.set_value("missoes", "fixa", fixa)
+	cfg.save(ARQ_CFG)
+
+func esta_fixada(t: String, id: String) -> bool:
+	if t == "historia":
+		return fixa.is_empty()
+	return not fixa.is_empty() and str(fixa.t) == t and str(fixa.id) == id
+
+func fixar(t: String, id: String) -> void:
+	if t == "historia":
+		soltar()
+		return
+	fixa = {"t": t, "id": id}
+	_guardar_fixa()
+	_t = 0.0
+
+func soltar() -> void:
+	if fixa.is_empty():
+		return
+	fixa = {}
+	_guardar_fixa()
+	_t = 0.0
+
+# {l1, l2, ir: Callable} da missão fixada, ou {} (nada fixado, ou os dados ainda não chegaram). Quando a missão já foi
+# recebida/sumiu do dia, solta sozinha e volta a história.
+func fixada() -> Dictionary:
+	if fixa.is_empty():
+		return {}
+	var id := str(fixa.id)
+	match str(fixa.t):
+		"diaria":
+			var D: Dictionary = m.P.diarias
+			if not D.has("l"):
+				return {}
+			for d in D.l:
+				if str(d.id) != id:
+					continue
+				if d.get("r", false) == true:
+					soltar()
+					return {}
+				var ok: bool = int(d.n) >= int(d.t)
+				return {"l1": "Diária: %s" % str(d.txt), "l2": "Pronta! Toque para receber" if ok else "%d/%d" % [int(d.n), int(d.t)],
+					"ir": func(): m.rede("diaria", {"acao": "receber" if ok else "ir", "id": id})}
+			soltar() # a diária de ontem: o dia virou
+			return {}
+		"guilda":
+			var G: Dictionary = m.P.guilda
+			if not G.has("l"):
+				return {}
+			for c in G.l:
+				if str(c.id) != id:
+					continue
+				var e := str(c.get("e", "livre"))
+				if e == "recebido":
+					soltar()
+					return {}
+				if e == "feito":
+					return {"l1": "Guilda: %s" % str(c.txt), "l2": "Pronto! Toque para receber", "ir": func(): m.rede("guilda", {"acao": "receber", "id": id})}
+				if e == "ativo":
+					return {"l1": "Guilda: %s" % str(c.txt), "l2": "%d/%d" % [int(c.n), int(c.t)], "ir": func(): m.rede("guilda", {"acao": "ir", "id": id})}
+				return {"l1": "Guilda: %s" % str(c.txt), "l2": "Pegue no mural do Rio Claro", "ir": func(): m.menu.abrir("guilda")}
+			soltar()
+			return {}
+		"cla":
+			var B = m.P.cla.get("base")
+			var Mi = B.get("missao") if B is Dictionary else null
+			if not (Mi is Dictionary):
+				return {"l1": "Missão do clã: Escolta", "l2": "Funde a base do clã", "ir": func(): m.menu.abrir("cla_missoes")}
+			var l2: String
+			if int(Mi.get("espera", 0)) > 0:
+				l2 = "Próxima em %s" % m.menu._tempo_cla(int(Mi.espera))
+			else:
+				l2 = "Pronta: comece no Baú do Clã"
+			return {"l1": "Missão do clã: Escolta", "l2": l2, "ir": func(): m.menu.abrir("cla_missoes")}
+	soltar()
+	return {}
+
 func _init(principal) -> void:
 	m = principal
 	layer = 3 # junto da HUD e das barras do time, abaixo do menu do topo (4) e dos menus
@@ -61,6 +155,7 @@ func _ready() -> void:
 	ir_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	linha.add_child(ir_btn)
 	cartao.visible = false
+	_carregar_fixa()
 
 func _linha(tam: int, cor: Color) -> Label:
 	var l := Menu.rotulo("", tam, cor)
@@ -224,7 +319,8 @@ func _process_parte(dt: float) -> void:
 	var M := _missao()
 	var E := escolta()
 	var editando: bool = m.hud.editando
-	var mostrar: bool = (not M.is_empty() or not E.is_empty() or editando) and not m.hud.esconder_combate and not m.hud.modo_construcao and m.heroi != null
+	var F := fixada() if E.is_empty() else {}
+	var mostrar: bool = (not M.is_empty() or not E.is_empty() or not F.is_empty() or editando) and not m.hud.esconder_combate and not m.hud.modo_construcao and m.heroi != null
 	if cartao.visible != mostrar:
 		cartao.visible = mostrar
 	_chegou_npc()
@@ -242,6 +338,21 @@ func _process_parte(dt: float) -> void:
 		if l2.text != Idioma.frase(te[1]):
 			l2.text = Idioma.frase(te[1])
 			l2.add_theme_color_override("font_color", Color("ffb4a6"))
+		ir_btn.disabled = false
+		cartao.size = Vector2(LARGURA, 0)
+		if _marca:
+			_marca.visible = false
+		return
+	if not F.is_empty(): # missão fixada no atalho (menu.gd botao_fixar): no lugar da história
+		_t -= dt
+		if _t > 0.0:
+			return
+		_t = 0.25
+		if l1.text != Idioma.frase(str(F.l1)):
+			l1.text = Idioma.frase(str(F.l1))
+		if l2.text != Idioma.frase(str(F.l2)):
+			l2.text = Idioma.frase(str(F.l2))
+			l2.add_theme_color_override("font_color", Color(1, 0.95, 0.85) if str(F.l2).begins_with("Pront") else Color(0.85, 0.82, 0.78))
 		ir_btn.disabled = false
 		cartao.size = Vector2(LARGURA, 0)
 		if _marca:
@@ -337,6 +448,10 @@ func ir() -> void:
 		return
 	if escolta().is_empty() and str(_info(_missao()).get("ev", "")) in ["diaria_vista", "diaria"]: # missão da Rosa: o Ir abre a aba Diárias
 		m.menu.abrir("diarias")
+		return
+	var F := fixada() if escolta().is_empty() else {}
+	if not F.is_empty(): # missão fixada: o "Ir" dela (diária, guilda ou clã)
+		F.ir.call()
 		return
 	var A := alvo()
 	if A.is_empty():
