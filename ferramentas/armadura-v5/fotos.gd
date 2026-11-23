@@ -68,6 +68,25 @@ func _initialize() -> void:
 	Armadura.roupao_fem = OS.get_environment("FOTO_ROUPAO_FEM") == "1"
 	Armadura.patrulheiro_m = OS.get_environment("FOTO_PATRULHEIRO_M") == "1" # rapaz de patrulheiro
 	var extra := OS.get_environment("FOTO_EXTRA") # "sem" = também sem capuz e sem capa
+	if OS.get_environment("FOTO_ARMAS") == "1": # espadas e cajados do Patrulheiro 2 / Roupão 2 (equip2.gd), raridade 0 a 4
+		var fila := []
+		for r in 5:
+			var e: Node3D = m.nova_arma("espada")
+			var cj: Node3D = m.nova_arma("cajado")
+			m.add_child(e)
+			m.add_child(cj)
+			Armadura.Equip2.armas(e, cj, "patrulheiro2", r, r)
+			e.global_position = base + Vector3(-1.2 + r * 0.6, 0.25, 0)
+			cj.global_position = base + Vector3(-1.45 + r * 0.6, 0.1, 0)
+			fila.append_array([e, cj])
+		await esperar(6)
+		cam.global_position = base + Vector3(0, 1.0, 10.5)
+		cam.look_at(base + Vector3(0, 0.95, 0))
+		fundo.global_position = base + Vector3(0, 0, -12)
+		await esperar(2)
+		await foto("armas")
+		for n in fila:
+			n.queue_free()
 	for corpo in corpos:
 		var no: Node3D = m.modelo(corpo)
 		no.position = base

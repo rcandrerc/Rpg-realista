@@ -210,3 +210,34 @@ static func montar(esq: Skeleton3D, no: Node3D, k: String, r: int, traje: String
 # o pé da bota: o sapato do corpo vira couro da cor da bota de cada raridade
 static func material_sapato(r: int) -> Material:
 	return material(["couro", "couro_oleado", "couro_preto", "couro_negro", "couro_aurora"][clampi(r, 0, 4)])
+
+# Espada e cajado feitos à mão (André 2026-11-23: "as armas já pode dar merge", junto com os trajes): no Patrulheiro 2 e
+# no Roupão 2 a espada e o cajado do herói viram os de armas3_rN.glb, na raridade da arma equipada. Nos outros trajes
+# (ou sem arma equipada) volta o modelo de hoje. A peça nova entra dentro do nó da arma (cabo na origem, ponta em +Y,
+# a mesma regra de armas3d/espada.glb e cajado.glb), então mão, costas e golpe continuam iguais.
+static func armas(espada: Node3D, cajado: Node3D, traje: String, r_espada: int, r_cajado: int) -> void:
+	for par in [[espada, "espada", r_espada], [cajado, "cajado", r_cajado]]:
+		var no: Node3D = par[0]
+		if no == null:
+			continue
+		var r: int = par[2] if traje in TRAJES else -1
+		var velha: Node = no.get_node_or_null("Arma2")
+		if velha and int(velha.get_meta("r", -1)) == r:
+			continue
+		if velha:
+			no.remove_child(velha)
+			velha.queue_free()
+		for mi in no.find_children("*", "MeshInstance3D", true, false):
+			mi.visible = r < 0 # o modelo de hoje some só enquanto a arma nova está na mão
+		if r < 0:
+			continue
+		for p in _abrir(PASTA + "armas3_r%d.glb" % clampi(r, 0, 4)):
+			if not String(p[0]).begins_with(par[1]):
+				continue
+			var mi := MeshInstance3D.new()
+			mi.name = "Arma2"
+			mi.mesh = p[1]
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			mi.set_meta("r", r)
+			no.add_child(mi)
+			break
