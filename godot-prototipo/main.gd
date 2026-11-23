@@ -3122,8 +3122,6 @@ func _tentar(qual: String) -> bool:
 			construcao.tocar_estacao("cama")
 		"forno": # a minha fornalha (construcao.gd, 2026-11-07): anda até o lado dela e abre a janela de combustível + material
 			construcao.tocar_estacao("forno")
-		"correio": # perto da minha caixa de correio (construcao.gd): a conta semanal do terreno
-			construcao.abrir_correio()
 		"estacoes": # no terreno/casa (André 2026-11-07): recolhe ou expande os botões das estações (construcao.gd)
 			construcao.alternar_estacoes()
 		_:
