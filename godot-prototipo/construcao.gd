@@ -15,7 +15,7 @@ const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado t
 # 2026-11-04 (André, remoção aprovada): saíram os 6 lotes prontos com estaca, corda e placa "À venda".
 # 2026-11-04 (André: "não consigo criar nada"): a casa inteira do Quimera. Cada peça é criada antes (botão Criar,
 # vira o item obra_* na mochila; parede, porta, janela, telhado e móveis pedem uma bancada perto) e depois colocada.
-# Abas Casa (fundação, parede, porta, janela, telhado), Móveis (bancada, bigorna, fornalha, cerca, baú, cama, tocha)
+# Abas Casa (fundação, parede, porta, janela, telhado), Móveis (bancada, bigorna, fornalha, cerca, baú, cama, tocha, palete)
 # e Fazenda (enxada e regador também se criam aqui). Casa numa grade de 2 m: fundação no quadrado (dá para andar em
 # cima), parede/porta/janela na borda, telhado em cima; os telhados vizinhos viram um telhado só, inclinado, que some
 # quando o herói entra. Baú guarda 40 pilhas (todos os seus baús são o mesmo), cama é onde você volta ao morrer.
@@ -227,6 +227,7 @@ func _carregar_modelos() -> void:
 	_modelos["bau_cla"] = _modelo_bau_cla() # Baú do Clã (André 2026-11-22): o mesmo baú com ferragem e faixa vermelha do clã
 	_modelos["cama"] = _modelo_gltf("res://construcao3d/Bed_Twin1.gltf", 1.0)
 	_modelos["tocha"] = _modelo_tocha()
+	_modelos["palete"] = _modelo_palete() # palete de packs (André 2026-11-23): os packs ficam em cima e não somem
 	for k in _modelos:
 		juntar_malhas(_modelos[k]) # FPS (2026-11-07): a peça vira 1 ou 2 malhas, com o mesmo visual
 		_alcance_peca(_modelos[k], k)
@@ -425,6 +426,27 @@ func _de_pedra(raiz: Node3D) -> Node3D:
 	return raiz
 
 # Tocha de pé: poste de madeira, suporte de ferro, chama acesa e uma luz quente sem sombra (some de longe)
+# Palete de packs (André 2026-11-23: "como se fosse pallets para botar os packs em cima"): 1,6 x 1,2 m e 0,16 m de alto,
+# três vigas embaixo (com os blocos) e as tábuas de cima com frestas, na madeira das outras peças; uma marca pintada no
+# chão em volta (a "área marcada" do armazém). Os 5 packs ficam em cima (transporte.gd, PALETE.alto).
+func _modelo_palete() -> Node3D:
+	var r := Node3D.new()
+	var madeira := _mat_tex("medieval_wood", Color("8a6a48"), 1.0)
+	var escura := _mat_tex("medieval_wood", Color("5e4430"), 1.0)
+	for z in [-0.5, 0.0, 0.5]: # vigas de baixo, de ponta a ponta
+		_caixa(r, Vector3(1.6, 0.04, 0.12), Vector3(0, 0.02, z), escura)
+		for x in [-0.72, 0.0, 0.72]: # blocos
+			_caixa(r, Vector3(0.14, 0.08, 0.14), Vector3(x, 0.08, z), escura)
+	for i in 7: # tábuas de cima, com fresta
+		var x := -0.69 + i * 0.23
+		_caixa(r, Vector3(0.19, 0.035, 1.2), Vector3(x, 0.1425, 0), madeira, Vector3(0, 0, 0.004 * (i % 3 - 1)))
+	var tinta := _mat_cor(Color(0.86, 0.74, 0.3))
+	for q in [[Vector3(1.9, 0.01, 0.06), Vector3(0, 0.005, -0.75)], [Vector3(1.9, 0.01, 0.06), Vector3(0, 0.005, 0.75)],
+			[Vector3(0.06, 0.01, 1.5), Vector3(-0.95, 0.005, 0)], [Vector3(0.06, 0.01, 1.5), Vector3(0.95, 0.005, 0)]]:
+		var mi := _caixa(r, q[0], q[1], tinta)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return r
+
 func _modelo_tocha() -> Node3D:
 	var r := Node3D.new()
 	var madeira := _mat_tex("medieval_wood", Color("8a6a4a"), 2.0)

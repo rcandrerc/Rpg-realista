@@ -2,7 +2,7 @@
 // esteios, poço...) e as regras de escalada, para o Godot andar, colidir e escalar igual ao servidor (shared/terreno.js).
 // Uso: node client/exportar-godot/mundo.mjs
 import fs from 'node:fs';
-import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, LOJA_MAX, TROCA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD, MISSOES, TIPOS_INIMIGO, TREINO, NIVEL_INIMIGO, statusInimigo, VILA_LOTES, VILAS_TERRENO, LOTE, CONSTRUCOES, PLANTAS, VOLTA_VILA, TOTENS, HORTA, REGEN, FERRAMENTAS_FAZENDA, CASA, BAU, ORGANIZAR, FORNALHA, FOGAO, CRIAR_OBRA, MORTE, REFORCO, CATALISADOR, PESCA, PACKS, PACK_REGRAS, VEICULOS, AMIGOS, TIME, DIA, CAMA, POCAO_RECARGA, ARVORES_PLANTIO, PLANTIO, CLA } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, ESCALADA, SUBIDA, PARADO_PAREDE, DURACAO, HEROI, MOVIMENTO, A, HABS, PASSIVAS, ATRIBUTOS, PONTOS_POR_NIVEL, NIVEL_MAX, SKILL_MAX, BOTOES_PADRAO, N_BOTOES, XP_INIMIGO, ANDAR_ATIRANDO, NIVEL_SEM_TOMO, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, LOJA, LOJA_DISTANCIA, LOJA_MAX, TROCA, ESTAMINA, VIGOR, PROFISSOES, RANKS, PROF_MAX, MERCADOR, COLETA, COLETA_DISTANCIA, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, CRIADOR, NOME, RESET_BUILD, MISSOES, TIPOS_INIMIGO, TREINO, NIVEL_INIMIGO, statusInimigo, VILA_LOTES, VILAS_TERRENO, LOTE, CONSTRUCOES, PLANTAS, VOLTA_VILA, TOTENS, HORTA, REGEN, FERRAMENTAS_FAZENDA, CASA, BAU, ORGANIZAR, FORNALHA, FOGAO, CRIAR_OBRA, MORTE, REFORCO, CATALISADOR, PESCA, PACKS, PACK_REGRAS, VEICULOS, PALETE, AMIGOS, TIME, DIA, CAMA, POCAO_RECARGA, ARVORES_PLANTIO, PLANTIO, CLA } from '@rpg/shared';
 import { GRADES } from '../../shared/rochas.js';
 import { historiaParaApp } from '../../shared/historia.js';
 import { LAGOS, AGUA, BEIRA, GRADE_MONTANHA, INGREME, beiraDosLagos, gradeDoMundo } from '../../shared/relevo.js';
@@ -196,7 +196,7 @@ const habs = {
   // o que cada monstro solta de material (mapa, aba Recursos: "ir ao monstro mais perto que solta couro/carne", André 2026-11-23)
   dropsMat: Object.fromEntries(Object.entries(DROPS).map(([t, d]) => [t, Object.keys(d.mat || {})])),
   pesca: PESCA, // pescaria igual à do Quimera (André 2026-11-08): águas, peixes, tempos da boia e da briga
-  packs: PACKS, packRegras: PACK_REGRAS, veiculos: VEICULOS, // FASE 1: packs e transportes do Quimera (transporte.gd)
+  packs: PACKS, packRegras: PACK_REGRAS, veiculos: VEICULOS, palete: PALETE, // FASE 1: packs e transportes do Quimera (transporte.gd)
   historia: historiaParaApp(), // progressão (André 2026-11-10): zonas da névoa, missões principais e níveis (nevoa.gd)
   // títulos com bônus (André 2026-11-12): a aba Títulos do menu e o título em cima da cabeça (titulos.gd)
   titulos: Object.fromEntries(Object.entries(TITULOS).filter(([id]) => tituloAtivo(id)).map(([id, t]) => [id, { nome: t.nome, r: t.r, como: t.como, txt: t.txt, b: t.b, cond: t.cond }])),

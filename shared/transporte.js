@@ -8,17 +8,16 @@
 // - j.prog.carrinho: { lv, comb, vida, quebrado, packs: [], chao: {x, z, ry} | null } (chao null = está na mochila).
 // - j.prog.navio: { porao: [], chao: {x, z, ry} | null }. O barquinho não fica no mundo: desceu, volta para a mochila.
 // - j.veiculo: 'carrinho' | 'barquinho' | 'navio' | null (dirigindo agora; não vai para a conta).
-// - this.packsChao: packs largados no chão (qualquer um pega; somem depois de PACK_CHAO_DURA s; na terra do clã, fica = 1,
-//   não somem e passam pelo reinício: packsBaseParaSalvar).
-import { PACKS, PACK_REGRAS as PR, VEICULOS as V, ITENS, CACA, PROF_MAX, tempoCriar, GUERRA, CLA } from './dados.js';
+// - this.packsChao: packs largados no chão (qualquer um pega; somem depois de PACK_CHAO_DURA s). Os de cima de um palete
+//   na base do clã (fica = 1, pal = id da peça, sl = lugar) não somem e passam pelo reinício: packsBaseParaSalvar.
+import { PACKS, PACK_REGRAS as PR, VEICULOS as V, ITENS, CACA, PROF_MAX, tempoCriar, GUERRA, CLA, PALETE } from './dados.js';
 import { contar, tirar, guardar, gastarVigor, vigorAgora, profNivel } from './progresso.js';
 import { noLago, AGUA } from './relevo.js';
 import { motivoLibera, missaoAtual, etapasDe } from './historia.js'; // progressão (André 2026-11-10)
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const PACK_CHAO_DURA = 1800; // s: pack esquecido no chão some depois de meia hora
-const MAX_CHAO = 200; // packs no mundo aberto (os da terra do clã não contam)
-const PACKS_BASE = 100; // packs guardados em cada base do clã (André 2026-11-23)
+const MAX_CHAO = 200; // packs no chão do mundo (os dos paletes não contam)
 
 // ---------- carrinho sólido (André 2026-11-13: "não quero passar por dentro dele"; "pular em cima dele") ----------
 // As caixas do carrinho de nível nv: { trator: [...], carreta: [...] }, cada uma [xmin, xmax, zmin, zmax, topo] (m).
@@ -286,10 +285,12 @@ export const Transporte = {
     }
     if (m.acao === 'largar') {
       if (!p.pack) return;
-      const lx = j.x - Math.sin(j.ry) * 0.7, lz = j.z - Math.cos(j.ry) * 0.7, bk = this.naTerraCla(lx, lz);
-      if (bk && this.packsNaBase(bk) >= PACKS_BASE) return aviso(`A base do clã já guarda ${PACKS_BASE} packs: não cabe mais`);
-      const fica = this.packNoChao(p.pack, lx, lz);
-      p.pack = null; aviso(fica ? 'Pack guardado na terra do clã (não some)' : 'Pack largado no chão (some em 30 min)');
+      // perto de um palete com lugar (na base do clã): o pack vai pra cima dele e não some (André 2026-11-23)
+      const A = this.paletePerto(j);
+      if (A?.P) { this.packNoPalete(p.pack, A); p.pack = null; aviso('Pack guardado no palete (não some)'); return pronto(); }
+      if (A?.cheio) return aviso(A.cheio === 'base' ? `A base do clã já guarda ${PALETE.porBase} packs nos paletes` : `Palete cheio (${PALETE.lugar.length} packs)`);
+      this.packNoChao(p.pack, j.x - Math.sin(j.ry) * 0.7, j.z - Math.cos(j.ry) * 0.7);
+      p.pack = null; aviso('Pack largado no chão: some em 30 min (só no palete ele fica)');
       return pronto();
     }
     if (m.acao === 'pegar') {
@@ -328,25 +329,62 @@ export const Transporte = {
       return pronto();
     }
   },
+  // pack no chão (em qualquer lugar): some em PACK_CHAO_DURA s; no máximo MAX_CHAO no mundo (os dos paletes não contam)
   packNoChao(pk, x, z) {
     this.packsChao ||= [];
-    // André 2026-11-23: na terra do clã (dentro da base, CLA.base.pegada m do centro) o pack não some: nem pelos 30 min,
-    // nem pelo limite, nem no reinício do servidor (packsBaseParaSalvar). Fora dali, tudo como antes
-    // até PACKS_BASE por base (André: "até 100 packs cada base"); esses ficam fora do limite MAX_CHAO do mundo aberto.
-    // Base cheia: largar não deixa (transporte 'largar'); o que cai à força (morte, carrinho quebrado) vira pack comum
-    const bk = this.naTerraCla(x, z), fica = !!bk && this.packsNaBase(bk) < PACKS_BASE;
-    if (!fica && this.packsChao.filter((o) => !o.fica).length >= MAX_CHAO) { const i = this.packsChao.findIndex((o) => !o.fica); if (i >= 0) this.packsChao.splice(i, 1); }
-    this.packsChao.push({ ...pk, g: 'g' + (this.proxPack = (this.proxPack || 0) + 1), x: r2(x), z: r2(z), fim: fica ? Infinity : this.tempo + PACK_CHAO_DURA, ...(fica ? { fica: 1, bk } : {}) });
-    return fica;
+    if (this.packsChao.filter((o) => !o.fica).length >= MAX_CHAO) { const i = this.packsChao.findIndex((o) => !o.fica); if (i >= 0) this.packsChao.splice(i, 1); }
+    this.packsChao.push({ ...pk, g: 'g' + (this.proxPack = (this.proxPack || 0) + 1), x: r2(x), z: r2(z), fim: this.tempo + PACK_CHAO_DURA });
   },
-  // dentro da base de algum clã (jogador ou bot, Chama ou Geada): a chave da base, ou null
+  // ---------- palete de packs (André 2026-11-23: "uma área que você marca como se fosse um armazém ... como se fosse
+  // pallets para botar os packs em cima"; "O único lugar onde o pack fica valendo de não sumir é dentro dos pallets") ----------
+  // O palete (CONSTRUCOES.palete) é peça de construção; só vale dentro da base de um clã (CLA.base.pegada m do centro).
+  // Cada um guarda PALETE.lugar.length (5) packs em cima; sem teto por base (PALETE.porBase 0: o limite é o espaço de
+  // construir), fora do limite MAX_CHAO. Pack no palete não some (nem pelo tempo, nem no reinício: tabela mundo 'packs_base'); qualquer um
+  // que chegar pega (a base não é zona segura). Palete desmontado: o que estava em cima vira pack comum (30 min).
   naTerraCla(x, z) {
     const R = CLA.base.pegada;
     for (const B of Object.values(this.basesCla || {})) if (Math.abs(B.x - x) < R && Math.abs(B.z - z) < R && Math.hypot(B.x - x, B.z - z) < R) return B.k;
     return null;
   },
   packsNaBase(bk) { let n = 0; for (const o of this.packsChao || []) if (o.fica && o.bk === bk) n++; return n; },
-  // os packs guardados na terra do clã, para a tabela mundo 'packs_base' (só quando mudou; null = igual ao último)
+  packsNoPalete(id) { return (this.packsChao || []).filter((o) => o.fica && o.pal === id); },
+  // os lugares de cima do palete P (girado por P.r), em coordenadas do mundo
+  lugaresPalete(P) {
+    const PL = PALETE, gira = (P.r | 0) & 1;
+    return PL.lugar.map(([a, b]) => (gira ? { x: P.x + b, z: P.z + a } : { x: P.x + a, z: P.z + b }));
+  },
+  // o palete com lugar livre mais perto de j (até PALETE.perto m), dentro de uma base: { P, bk, sl } ou { cheio } ou null
+  paletePerto(j) {
+    let best = null, bd = PALETE.perto, cheio = null;
+    for (const L of this.lotes?.values?.() || []) for (const P of L.pecas || []) {
+      if (P.k !== 'palete') continue;
+      const d = Math.hypot(P.x - j.x, P.z - j.z); if (d > bd) continue;
+      const bk = this.naTerraCla(P.x, P.z); if (!bk) continue;
+      const ocup = new Set(this.packsNoPalete(P.id).map((o) => o.sl));
+      const sl = PALETE.lugar.findIndex((_, i) => !ocup.has(i));
+      if (sl < 0) { cheio = 'palete'; continue; }
+      if (PALETE.porBase > 0 && this.packsNaBase(bk) >= PALETE.porBase) { cheio = 'base'; continue; }
+      bd = d; best = { P, bk, sl };
+    }
+    return best || (cheio ? { cheio } : null);
+  },
+  packNoPalete(pk, A) {
+    const q = this.lugaresPalete(A.P)[A.sl];
+    this.packsChao ||= [];
+    this.packsChao.push({ ...pk, g: 'g' + (this.proxPack = (this.proxPack || 0) + 1), x: r2(q.x), z: r2(q.z), fim: Infinity, fica: 1, bk: A.bk, pal: A.P.id, sl: A.sl });
+  },
+  // a cada 2 s: pack em palete que sumiu (desmontado, lote devolvido) ou saiu da base vira pack comum
+  conferirPaletes() {
+    if (this.tempo < (this.paleteT || 0)) return; this.paleteT = this.tempo + 2;
+    let ids = null;
+    for (const o of this.packsChao || []) {
+      if (!o.fica) continue;
+      if (!ids) { ids = new Map(); for (const L of this.lotes?.values?.() || []) for (const P of L.pecas || []) if (P.k === 'palete') ids.set(P.id, P); }
+      const P = ids.get(o.pal);
+      if (!P || !this.naTerraCla(P.x, P.z)) { o.fica = 0; o.fim = this.tempo + PACK_CHAO_DURA; delete o.pal; delete o.sl; delete o.bk; }
+    }
+  },
+  // os packs dos paletes, para a tabela mundo 'packs_base' (só quando mudou; null = igual ao último)
   packsBaseParaSalvar() {
     const l = (this.packsChao || []).filter((o) => o.fica).map(({ g, fim, fica, ...pk }) => pk);
     const chave = JSON.stringify(l);
@@ -357,10 +395,9 @@ export const Transporte = {
   carregarPacksBase(lista) {
     if (!Array.isArray(lista)) return;
     for (const o of lista) {
-      const pk = packValido(o); if (!pk || !Number.isFinite(+o.x) || !Number.isFinite(+o.z)) continue;
+      const pk = packValido(o); if (!pk || !Number.isFinite(+o.x) || !Number.isFinite(+o.z) || typeof o.pal !== 'string') continue; // só os de palete (o do #808, solto no chão, não volta)
       this.packsChao ||= [];
-      const bk = this.naTerraCla(+o.x, +o.z) || String(o.bk || '');
-      this.packsChao.push({ ...pk, g: 'g' + (this.proxPack = (this.proxPack || 0) + 1), x: r2(+o.x), z: r2(+o.z), fim: Infinity, fica: 1, bk });
+      this.packsChao.push({ ...pk, g: 'g' + (this.proxPack = (this.proxPack || 0) + 1), x: r2(+o.x), z: r2(+o.z), fim: Infinity, fica: 1, bk: String(o.bk || ''), pal: o.pal, sl: o.sl | 0 });
     }
     this.packsBaseSalvos = JSON.stringify((this.packsChao || []).filter((o) => o.fica).map(({ g, fim, fica, ...pk }) => pk));
   },
@@ -683,6 +720,7 @@ export const Transporte = {
   },
   passoPacks() {
     if (!this.packsChao?.length) return;
+    this.conferirPaletes();
     for (let i = this.packsChao.length - 1; i >= 0; i--) if (this.packsChao[i].fim <= this.tempo) this.packsChao.splice(i, 1);
   },
   // carrinhos no mundo (parados ou com alguém dirigindo) para o topoCarrinho: { x, z, ry, y, lv }. sem: quem não conta
@@ -765,6 +803,6 @@ export const Transporte = {
       if (n && (n.chao || eu === 'navio')) { const q = n.chao || centroNavio(j); veic.push(['n', j.id, r2(q.x), r2(q.z), r2(q.ry), 1, n.porao.map((o) => o.k), 0, eu === 'navio' ? 1 : 0]); }
       if (eu === 'barquinho') veic.push(['b', j.id, r2(j.x), r2(j.z), r2(j.ry), 1, [], 0, 1]);
     }
-    return { packs: (this.packsChao || []).map((o) => [o.g, o.k, o.x, o.z]), veic };
+    return { packs: (this.packsChao || []).map((o) => (o.pal ? [o.g, o.k, o.x, o.z, 1] : [o.g, o.k, o.x, o.z])), veic }; // 1: em cima do palete
   },
 };
