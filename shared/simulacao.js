@@ -1177,6 +1177,7 @@ export class Simulacao {
     else if (E.ja === 'carrinho') feito = (p.carrinho?.lv || 0) >= (E.min || 1); // carrinho já no nível pedido
     else if (E.ja === 'totem') feito = (p.totens || []).includes(E.k); // já tocou esse totem antes
     else if (E.ja === 'arma') feito = Math.max(p.equip?.espada?.r ?? -1, p.equip?.cajado?.r ?? -1) >= (E.min || 0); // arma equipada dessa raridade
+    else if (E.ja === 'cofre') feito = (p.cla?.cofre || 0) >= (E.min || 1); // o cofre do clã já tem o que a etapa pede
     else if (E.ja === 'carro_ok') feito = !!p.carrinho && !p.carrinho.quebrado && p.carrinho.vida >= VEICULOS.carrinho.vida; // inteiro
     if (!feito && E.ev === 'ter') {
       const n = Object.entries(E.itens).reduce((a, [k, q]) => a + Math.min(q, contar(p.mochila, k)), 0);

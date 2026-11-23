@@ -9,9 +9,7 @@ Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 - Estratégia (23/11): luta de clãs. André lidera; recrutas pagos (taxa + semanal) obedecem cegamente e só respondem. Jogadores nascem Chama; clãs bot líderes são Geada. Quantos clãs bot de cada lado: sem regra ainda (André decide conforme entrarem jogadores; não mexer). Feito: nunca voltar ao jogo de antes de 20/11.
 ## Foco único até 30/11: desempenho e gráfico
 1. Medir. 2. Personagens leves (23/11: máx. 2 NPCs aparecem/somem por quadro; instanciar corpo em linha de fundo deu erro de RID, não usar). 3. Mundo leve, sem travadas (OOM no S9). 4. Visual com fotos antes/depois, só com OK.
-
 ## Abortado (não retomar sem pedido): Cecília/Dário, segurança, história/missões, economia/lojas.
-
 ## Rotinas
 - Robô de testes: ronda diária às 9h, um relatório entre 9h e 10h, correção automática com cuidado. Não reduzir bots/recrutas (André quer 50-60 bots para medir o servidor).
 
@@ -28,4 +26,5 @@ Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 - 23/11: Proteger > Carrinho / Mercante (painel do clã): ataca o que chega a 12 m, larga a 15 m (não persegue), roda de 3 m; no mercante fica no convés (`CLA.protegeVeiculo`). Bot a bordo vai na foto com o lugar no navio (`bd`, `fotoBordo`) e o app prende ele no navio da tela (`_no_conves`): sem tremor.
 - 23/11: aba "Missão do Clã" (Escolta) ao lado de História/Diárias/Guilda; "Fixar no atalho" em toda missão (história, diária, guilda, clã): o cartão da tela mostra a fixada (`missao_ativa.fixa`, guardada no aparelho); Escolta em andamento passa na frente.
 - 23/11: cor livre também no Patrulheiro 2 / Roupão 2: Roupa/Calça da Aparência pintam só o pano (`Equip2.tingir`, tipo 2); couro, metal e bordado ficam. Pedido: André "por enquanto sim".
+- 23/11: história x clãs: Kael (líder da Geada) é rival, nunca aliado (h14, e6 com a Elara, f1, f2, cenas, diário); "A base do clã" (a12: fundar clã e base, ev `base`) e "Uma base que aguenta" (b1: cerca, tocha, baú, cama, fornalha, bigorna, taxa no cofre `cofre`), sem casa. Pendente OK: "Ato do Clã" Nv 10-30.
 ## Próximas tarefas: medição de desempenho -> personagens leves -> mundo leve -> visual.
