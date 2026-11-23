@@ -7,4 +7,6 @@ client/public/tmp-mixamo/
 __pycache__/
 # chaves e segredos do servidor nunca entram no git (a selada é server/segredos-selados.json)
 *.pem
+# exceção: só a PÚBLICA de assinatura da cópia das contas, fixada para o voltar-contas.sh (ferramentas/servidor/LEIAME.md)
+!ferramentas/servidor/copia-assinatura*.pub.pem
 segredos.json

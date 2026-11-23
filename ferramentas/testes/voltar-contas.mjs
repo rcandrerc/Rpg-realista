@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
+import { createHash } from 'node:crypto';
 import { gerarCopia } from '../../server/copia-contas.js';
 const ok = (v, m) => { if (!v) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const SCRIPT = new URL('../servidor/voltar-contas.sh', import.meta.url).pathname;
@@ -99,5 +100,14 @@ let semChave = false; try { await gerarCopia({ banco: path.join(dados, 'contas.d
 ok(semChave, 'sem chave pública o servidor não faz cópia');
 const idx = fs.readFileSync(new URL('../../server/index.js', import.meta.url), 'utf8');
 ok(idx.includes("payload.ref === 'refs/heads/main'") && idx.includes('3600e3') && idx.includes('copiaT = 0;') && idx.includes("COPIA_CAMINHO = '/.github/workflows/contas-copia.yml@refs/heads/main'"), 'rota: só o workflow da main (caminho exato), uma vez por hora, e falha libera tentar de novo');
+// a pública do servidor de verdade fixada no repositório (ronda 2026-11-23): impressão conferida por dois caminhos, o log
+// do contas-copia.yml e a busca direta de /contas/copia-assinatura.pub.pem. Servidor novo gera chave nova: entra um
+// arquivo novo ao lado e os antigos ficam (cópia velha só abre com a chave de quando foi feita).
+const FIXADAS = { 'copia-assinatura-oracle-2026-11.pub.pem': 'b8dc8bb5abdf1c22866e91e09526a7119a2c7f3bf4601a397b7539c6d6b2fd51' };
+for (const [arq, impressao] of Object.entries(FIXADAS)) {
+  const p = path.join(path.dirname(SCRIPT), arq);
+  const der = fs.existsSync(p) ? execFileSync('openssl', ['pkey', '-pubin', '-in', p, '-outform', 'DER']) : null;
+  ok(der && createHash('sha256').update(der).digest('hex') === impressao && /ED25519/.test(execFileSync('openssl', ['pkey', '-pubin', '-in', p, '-noout', '-text']).toString()), `pública fixada ${arq} continua no repositório, Ed25519, impressão ${impressao.slice(0, 8)}`);
+}
 fs.rmSync(dados, { recursive: true, force: true });
 fs.rmSync(pasta, { recursive: true, force: true }); fs.rmSync(t, { recursive: true, force: true });
