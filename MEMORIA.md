@@ -27,4 +27,5 @@ Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 - 23/11: ficha do recruta (`FICHA_RECRUTA`): jeito, preferência espada/meio/magia (pontos INT x FOR), coragem, cuidado; 3 candidatos no Recrutador; líder bot escolhe pelo jeito; perfil na janela de equipamento; jogador preenche a dele (opcional, aba Status).
 - 23/11: Proteger > Carrinho / Mercante (painel do clã): ataca o que chega a 12 m, larga a 15 m (não persegue), roda de 3 m; no mercante fica no convés (`CLA.protegeVeiculo`). Bot a bordo vai na foto com o lugar no navio (`bd`, `fotoBordo`) e o app prende ele no navio da tela (`_no_conves`): sem tremor.
 - 23/11: aba "Missão do Clã" (Escolta) ao lado de História/Diárias/Guilda; "Fixar no atalho" em toda missão (história, diária, guilda, clã): o cartão da tela mostra a fixada (`missao_ativa.fixa`, guardada no aparelho); Escolta em andamento passa na frente.
+- 23/11: cor livre também no Patrulheiro 2 / Roupão 2: Roupa/Calça da Aparência pintam só o pano (`Equip2.tingir`, tipo 2); couro, metal e bordado ficam. Pedido: André "por enquanto sim".
 ## Próximas tarefas: medição de desempenho -> personagens leves -> mundo leve -> visual.
