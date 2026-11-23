@@ -73,7 +73,7 @@ func _process_parte(dt: float) -> void:
 	_espera = 0.1 if m.online and m.online._cobrindo else 1.0
 	_acender()
 	_lampioes()
-	var h: Vector3 = m.heroi.position
+	var h: Vector3 = m.centro_visao() # herói, ou o recruta que está sendo visto
 	var precisa := false
 	for V in vilas:
 		var d := Vector2(float(V.x) - h.x, float(V.z) - h.z).length()
@@ -125,7 +125,7 @@ func por_bases(lista: Array) -> void:
 func pendente() -> bool:
 	if vilas.is_empty() or m.heroi == null:
 		return false
-	var h: Vector3 = m.heroi.position
+	var h: Vector3 = m.centro_visao()
 	for V in vilas:
 		if Vector2(float(V.x) - h.x, float(V.z) - h.z).length() < PERTO and not montadas.has(str(V.id)):
 			return true

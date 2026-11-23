@@ -25,6 +25,6 @@ Cecília/Dário, segurança, história/missões, economia/lojas.
 
 ## Feito
 - 23/11: criada a estrutura enxuta (MEMORIA.md + agentes/).
+- 23/11: "Ver" o recruta: animação, sombra e magia contam a partir dele (`centro_visao`); "Ver no mapa" com ponto dele.
 
-## Próximas tarefas
-- Medição de desempenho -> personagens leves -> mundo leve -> visual.
+## Próximas tarefas: medição de desempenho -> personagens leves -> mundo leve -> visual.

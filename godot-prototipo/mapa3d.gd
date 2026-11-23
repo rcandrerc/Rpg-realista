@@ -245,7 +245,7 @@ func _process(dt: float) -> void:
 	# jogadores e o herói andando: parado, o mapa quase não gasta
 	_t_marcas += dt
 	var tc: Transform3D = cam.global_transform if cam != null else Transform3D()
-	if _t_marcas > 0.25 or not tc.is_equal_approx(_cam_antes) or not mm.totem_de.is_empty():
+	if _t_marcas > (0.08 if not mm.recruta.is_empty() else 0.25) or not tc.is_equal_approx(_cam_antes) or not mm.totem_de.is_empty():
 		_t_marcas = 0.0
 		_cam_antes = tc
 		marcas.queue_redraw()
@@ -1412,6 +1412,11 @@ func _pessoas(c: Control, em: Callable) -> void:
 			continue
 		mm._coracao(c, q, 7.0)
 		mm._texto(c, q + Vector2(0, -14), ce.nome, 13, mm.COR_AMIGA.lightened(0.3))
+	var rp = mm.recruta_pos() # "Ver no mapa" do painel do clã: o ponto do recruta, onde ele está agora
+	if rp != null:
+		var q: Vector2 = em.call(rp.x, rp.y)
+		if q != FORA:
+			mm.desenhar_recruta(c, q)
 
 # ---------- lista de Lugares e totens no 3D (André 2026-11-16: "quando encosto no totem abre o mapa 3D, mas não
 # aparece totem nenhum; tenho que mudar pro 2D". A ideia dele é ficar só com o 3D: tudo do 2D precisa funcionar aqui) ----

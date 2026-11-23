@@ -2061,7 +2061,7 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		var rn := str(r.nome)
 		ld.add_child(botao("Ver no mapa", func():
 			fechar()
-			m.minimapa.abrir_em(rx, rn), 12))
+			m.minimapa.abrir_em(rx, rn, rid), 12))
 		ld.add_child(botao("Ver", func():
 			fechar()
 			m.espiar.comecar(rid, rn), 12))

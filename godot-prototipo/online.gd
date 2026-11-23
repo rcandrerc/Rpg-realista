@@ -1485,7 +1485,8 @@ func evento(ev: Dictionary) -> void:
 		return
 	# magia dos outros longe (André 2026-11-11: os NPCs caçando juntos travavam o spot): a mais de FX_LONGE m nem desenha
 	if t in ["proj", "raio", "explosao", "chuva", "meteoro", "cadeia"] and ev.has("x") and ev.has("z") and m.heroi != null:
-		if Vector2(float(ev.x) - m.heroi.position.x, float(ev.z) - m.heroi.position.z).length() > FX_LONGE:
+		var cv: Vector3 = m.centro_visao() # vendo o recruta: a magia perto dele aparece
+		if Vector2(float(ev.x) - cv.x, float(ev.z) - cv.z).length() > FX_LONGE:
 			return
 	match t:
 		"proj":
@@ -1679,7 +1680,7 @@ func _detalhe_outros(dt: float) -> void:
 	if _detalhe_t > 0.0 or m.heroi == null:
 		return
 	_detalhe_t = 0.25
-	var hp: Vector3 = m.heroi.position
+	var hp: Vector3 = m.centro_visao() # herói, ou o recruta que está sendo visto (espiar.gd)
 	var td := Time.get_ticks_usec()
 	for id in outros: # penteado que estava carregando no fundo (Penteado.aplicar sem esperar): põe agora, um por vez
 		var oe: Dictionary = outros[id]
