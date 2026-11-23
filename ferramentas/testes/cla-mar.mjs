@@ -101,3 +101,44 @@ ok(s.recrutasNoMundo(L).every((x) => !(x.amiga.time && x.amiga.time === L.time))
   for (let i = 0; i < 20 * 60; i++) s3.passo(0.05);
   ok(cs.every((a) => a.time && a.time === L3.time && Math.hypot(a.x - L3.x, a.z - L3.z) < 8), `com pack, nadaram até ele (${cs.map((a) => Math.hypot(a.x - L3.x, a.z - L3.z).toFixed(0)).join(', ')} m)`);
 }
+// outra terra sem barco (André 2026-11-23, print: "Você tá em outra terra. Sem barco não chego, te espero por aqui"):
+// vão até a praia e nadam até o líder
+{
+  const { terraId } = await import('../../shared/rota.js');
+  const s4 = new Simulacao(MAPA_CLAREIRA);
+  const L4 = s4.adicionarJogador('L4', 'Chefe', undefined, { conta: 81 }); L4.criando = false; L4.ciente = true; L4.prog.nivel = 40; L4.prog.ouro = 90000;
+  const r4 = s4.mapa.npcs.find((n) => n.funcao === 'recrutador'); L4.x = r4.x + 1; L4.z = r4.z;
+  s4.cla('L4', { acao: 'fundar', nome: 'Teste Ilha' }); L4.prog.cla.nv = 6;
+  s4.cla('L4', { acao: 'recrutar', tier: 'recruta' }); s4.cla('L4', { acao: 'recrutar', tier: 'recruta' });
+  for (const m of L4.prog.cla.m) s4.cla('L4', { acao: 'funcao', id: m.id, fn: { k: 'seguir' } });
+  const ds = s4.recrutasNoMundo(L4).map((x) => x.amiga);
+  const p4 = (o, x, z) => { o.x = x; o.z = z; o.y = fundoAgua(x, z) > 0.05 ? AGUA.nivel : s4.terreno.altura(x, z); o.vy = 0; o.chao = true; o.montado = null; o.veiculo = null; o.bordo = null; };
+  p4(L4, 241, 624); ds.forEach((a, i) => p4(a, 80 - i * 2, 440));
+  ok(ds.every((a) => terraId(a.x, a.z) > 0 && terraId(a.x, a.z) !== terraId(L4.x, L4.z) && !a.prog.mochila.some((o) => o?.k === 'barquinho')), 'em outra terra, sem barquinho');
+  const falas = []; const ev = s4.evento.bind(s4); s4.evento = (e) => { if (e.t === 'chat' || e.texto) falas.push(e.texto || e.msg || ''); return ev(e); };
+  let nadou = false;
+  for (let i = 0; i < 20 * 240 && !ds.every((a) => Math.hypot(a.x - L4.x, a.z - L4.z) < 8); i++) { s4.passo(0.05); if (ds.some((a) => terraId(a.x, a.z) === 0 || fundoAgua(a.x, a.z) > 1)) nadou = true; }
+  ok(nadou, 'entraram no mar nadando');
+  ok(ds.every((a) => a.time === L4.time && Math.hypot(a.x - L4.x, a.z - L4.z) < 8), `chegaram nele na outra terra (${ds.map((a) => Math.hypot(a.x - L4.x, a.z - L4.z).toFixed(0)).join(', ')} m)`);
+  ok(!falas.some((t) => /Sem barco/.test(String(t))), 'ninguém fala "sem barco não chego"');
+}
+// Proteger mercante com o navio do outro lado do mar: vão nadando e sobem no convés
+{
+  const { terraId } = await import('../../shared/rota.js');
+  const s5 = new Simulacao(MAPA_CLAREIRA);
+  const L5 = s5.adicionarJogador('L5', 'Chefe', undefined, { conta: 91 }); L5.criando = false; L5.ciente = true; L5.prog.nivel = 40; L5.prog.ouro = 90000;
+  const r5 = s5.mapa.npcs.find((n) => n.funcao === 'recrutador'); L5.x = r5.x + 1; L5.z = r5.z;
+  s5.cla('L5', { acao: 'fundar', nome: 'Teste Merc2' }); L5.prog.cla.nv = 6;
+  s5.cla('L5', { acao: 'recrutar', tier: 'recruta' });
+  const e = s5.recrutasNoMundo(L5)[0].amiga, m = L5.prog.cla.m[0];
+  const p5 = (o, x, z) => { o.x = x; o.z = z; o.y = fundoAgua(x, z) > 0.05 ? AGUA.nivel : s5.terreno.altura(x, z); o.vy = 0; o.chao = true; o.montado = null; o.veiculo = null; o.bordo = null; };
+  p5(L5, 101.3, 454); L5.y = 0.6;
+  L5.prog.mochila[L5.prog.mochila.indexOf(null)] = { k: 'navio', n: 1 };
+  s5.veiculo('L5', { acao: 'colocar', k: 'navio' });
+  p5(L5, 103, 450);
+  s5.cla('L5', { acao: 'funcao', id: m.id, fn: { k: 'proteger', p: 'mercante' } });
+  p5(e, 241, 624);
+  ok(terraId(e.x, e.z) > 0 && terraId(e.x, e.z) !== terraId(L5.x, L5.z), 'recruta na outra terra');
+  for (let i = 0; i < 20 * 240 && !e.bordo; i++) s5.passo(0.05);
+  ok(!!e.bordo, `Proteger mercante: foi nadando e subiu no navio (${Math.hypot(e.x - L5.prog.navio.chao.x, e.z - L5.prog.navio.chao.z).toFixed(0)} m do navio)`);
+}

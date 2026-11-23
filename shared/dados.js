@@ -3087,6 +3087,8 @@ export const AMIGA = {
       // André 2026-11-10: ela vem de lobo pela estrada (nunca aparece do lado); longe avisa que está a caminho
       aCaminho: ['Tô montando no lobo e indo pela estrada! Me espera aí.', 'Subi no lobo, tô indo pela estrada. Já já chego!', 'Partiu de lobo! Vou pela estrada pra não me perder.'],
       outraTerra: ['Você tá do outro lado do mar! De lobo não chego aí... me espera voltar pra essa terra?', 'Eita, você tá em outra terra. Sem barco eu não chego, te espero por aqui!'],
+      // André 2026-11-23 ("eles precisam ir pro mar... nadando, de barco, de navio"): outra terra, vai até a praia e nada
+      nado: ['Você tá do outro lado do mar! Vou até a praia e vou nadando até você.', 'Tô indo! Daqui é a nado mesmo, me espera aí.'],
       // André 2026-11-09 ("as respostas têm que ter lógica"): chegou porque ele chamou, então pergunta o que vão fazer;
       // o que ela topou (vir, caçar) fica combinado por 'combinado' s e o convite de time entra sem sorteio
       chegouPergunta: ['O que vamos fazer? Bora caçar?', 'Tô pronta! Vamos caçar ou você tem outra ideia?', 'E aí, qual o plano? Caçar uns monstros?'],
@@ -3221,6 +3223,7 @@ export const DARIO = mesclarAmigo(AMIGA, {
       chegou: ['Cheguei. Sentiu minha falta?', 'Pronto, tô aqui. Que foi?'],
       aCaminho: ['Montei no lobo, tô indo pela estrada. Me espera aí.', 'Subi no lobo, já já chego pela estrada.', 'Partiu de lobo! Vou pela estrada pra não me perder.'],
       outraTerra: ['Você tá do outro lado do mar. De lobo não chego aí... volta pra essa terra que eu te encontro.', 'Você tá em outra terra. Sem barco não chego, te espero por aqui.'],
+      nado: ['Você tá do outro lado do mar. Vou até a praia e vou nadando até você.', 'Tô indo. Daqui é a nado mesmo, me espera aí.'],
       chegouPergunta: ['E aí, qual o plano? Bora caçar?', 'Tô pronto. Vamos caçar ou tem outra ideia?', 'Fala o plano. Caçar uns monstros?'],
       naoVir: ['Agora não dá, tô no meio de uma coisa. Daqui a pouco.', 'Agora não consigo... me chama mais tarde?'],
       perto: ['Eu tô do seu lado! Olha pra trás.', 'Tô aqui pertinho, parceiro.'],
