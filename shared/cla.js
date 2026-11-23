@@ -24,7 +24,9 @@ import { crescerPlanta } from './simulacao.js'; // só usadas em tempo de jogo (
 // caça no campo cujos monstros soltam aquele material (campoDoDrop)
 const DROP_NOMES = { couro: 'couro', carne: 'carne crua', tecido: 'tecido', fragmento: 'fragmento rúnico' };
 export const RECURSOS_CLA = { ...ENCOMENDA.recursos,
-  ...Object.fromEntries(Object.entries(DROP_NOMES).map(([k, nome]) => [k, { palavras: [k], coleta: 'cacar', no: null, item: k, nome }])) };
+  ...Object.fromEntries(Object.entries(DROP_NOMES).map(([k, nome]) => [k, { palavras: [k], coleta: 'cacar', no: null, item: k, nome }])),
+  // o Fragmento de Alma da outra raça: caça Geada (ou Chama, para a Geada); cai direto no Baú do Clã (fragmentoGuerra)
+  alma: { palavras: ['alma', 'fragmento de alma'], coleta: 'guerra', no: null, item: null, nome: 'fragmento de alma' } };
 const sorteia = (l, r) => l[Math.floor(r() * l.length)];
 const int = (v, a, b, d) => (Number.isFinite(+v) ? Math.max(a, Math.min(b, Math.round(+v))) : d);
 // vigor de agora (igual ao vigorAgora de progresso.js; aqui sem importar para não dar laço)
@@ -251,6 +253,7 @@ export const Cla = {
     if (a.time && a.time === j.time) return 'No seu time';
     if (ia.funcao?.k === 'proteger') return 'Protegendo';
     if (ia.funcao?.k === 'fazenda') return 'Na fazenda';
+    if (ia.funcao?.k === 'alma') return !a.guerra ? 'Fragmento de Alma: só acima do Nv 30 e fora da zona segura' : ia.alma?.alvo ? 'Caçando a outra raça' : 'Procurando a outra raça';
     if (ia.encomenda && !ia.encomenda.pronta) return `Coletando ${ENCOMENDA.recursos[ia.encomenda.rec]?.nome || ''}`.trim();
     if (ia.av) return ia.av.fase === 'voltar' ? 'Voltando' : ia.av.coleta ? 'Coletando' : 'Caçando';
     return 'Parado';
@@ -268,7 +271,7 @@ export const Cla = {
     ia.funcao = fn.k === 'proteger' || fn.k === 'fazenda' ? fn : null;
     // só o recurso pedido vai para o Baú do Clã, e ele leva andando (André 2026-11-23: "n quero q vá nada somente qd eu
     // solicitar... queria q ele trouxesse n q fosse direto pro baú auto"). O resto fica na bolsa dele.
-    ia.levar = fn.k === 'recurso' && RECURSOS_CLA[fn.r] ? { r: fn.r, item: RECURSOS_CLA[fn.r].item, nome: RECURSOS_CLA[fn.r].nome } : null;
+    ia.levar = fn.k === 'recurso' && RECURSOS_CLA[fn.r]?.item ? { r: fn.r, item: RECURSOS_CLA[fn.r].item, nome: RECURSOS_CLA[fn.r].nome } : null;
     if (novo) {
       ia.funcaoSt = null; ia.faz = null;
       if (fn.k !== 'seguir' && noTime && !j.bot) x.sairTimeAmiga(j.id);
@@ -294,6 +297,7 @@ export const Cla = {
     }
     if (fn.k === 'recurso') {
       const R = RECURSOS_CLA[fn.r]; if (!R) return;
+      if (R.coleta === 'guerra') { ia.funcao = { k: 'alma' }; ia.levar = null; if (novo) ia.av = null; return; } // caça a outra raça (almaAmiga)
       if (this.levandoRecruta(a)) return; // indo deixar no Baú do Clã
       if (R.coleta === 'cacar') { // couro, carne, tecido...: caça no campo que solta, e a volta é para o Baú do Clã
         if (ia.av && !ia.av.encomenda && ia.av.fase !== 'voltar') return;
@@ -599,7 +603,8 @@ export const Cla = {
     Object.assign(ia, { vir: null, chamado: null, viagem: null, fase: 'pensar' });
     if (ia.encomenda && !ia.encomenda.pronta) ia.encomenda = null;
     ia.funcao = fn.k === 'fazenda' || fn.k === 'proteger' ? fn : fn.k === 'seguir' ? { k: 'proteger', p: 'lider' } : null;
-    ia.levar = fn.k === 'recurso' && RECURSOS_CLA[fn.r] ? { r: fn.r, item: RECURSOS_CLA[fn.r].item, nome: RECURSOS_CLA[fn.r].nome } : null;
+    ia.levar = fn.k === 'recurso' && RECURSOS_CLA[fn.r]?.item ? { r: fn.r, item: RECURSOS_CLA[fn.r].item, nome: RECURSOS_CLA[fn.r].nome } : null;
+    if (fn.k === 'recurso' && RECURSOS_CLA[fn.r]?.coleta === 'guerra') { ia.funcao = { k: 'alma' }; ia.av = null; return; }
     if (!(ia.levar && this.levandoRecruta(a))) ia.av = null;
     if (ia.av) return; // indo deixar no Baú do Clã: termina a entrega
     const R = fn.k === 'recurso' ? RECURSOS_CLA[fn.r] : null;
@@ -617,7 +622,7 @@ export const Cla = {
       const L = { id: null, conta, bot: false, time: null, prog: { cla: c } };
       for (const x of this.recrutasNoMundo(L)) {
         const a = x.amiga, m = a && c.m.find((o) => o.id === x.AMIGA.id); if (!m || a.morto || a.ia?.av || a.time) continue;
-        if (['grind', 'recurso'].includes(m.fn?.k)) this.funcaoSemLider(x, a, m.fn, L);
+        if (['grind', 'recurso'].includes(m.fn?.k) && a.ia?.funcao?.k !== 'alma') this.funcaoSemLider(x, a, m.fn, L);
       }
     }
   },
@@ -677,7 +682,7 @@ export const Cla = {
       while (n > 0 && nv < teto) { const prox = xpProximo(nv), falta = prox - resto, q = Math.min(n, falta / prox); xp += Math.round(q * prox); n -= q; resto = 0; nv++; }
       if (xp > 0) { this.ganharXP(a, xp); if ((a.prog.nivel | 0) > teto) a.prog.nivel = teto; m.nv = a.prog.nivel | 0; txt = `${m.nome}: caçou e foi do Nv ${antes} ao ${a.prog.nivel}`; }
     } else if (m.fn.k === 'recurso') {
-      const R = RECURSOS_CLA[m.fn.r]; if (!R) return null;
+      const R = RECURSOS_CLA[m.fn.r]; if (!R?.item) return null; // Fragmento de Alma: só lutando de verdade
       const C = R.no && COLETA[R.no], item = R.item === 'peixe' ? F.peixe : R.item;
       const custo = C ? C.vigor / (C.da[R.item] || 1) : R.coleta === 'cacar' ? F.couroVigor : 1; // vigor por unidade
       const vg = vigorDe(a.prog.vigor) + (h * 3600 / VIGOR.enche) * VIGOR.max; // o que tinha + o que encheu fora
