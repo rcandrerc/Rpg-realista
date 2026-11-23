@@ -36,9 +36,11 @@ export function funcaoValida(fn) {
   if (!fn || typeof fn !== 'object' || !CLA.funcoes.some((F) => F.id === fn.k) || fn.k === 'livre') return null;
   if (fn.k === 'recurso') return Object.hasOwn(RECURSOS_CLA, fn.r) ? { k: 'recurso', r: fn.r } : null;
   if (fn.k === 'fazenda') return { k: 'fazenda', ...(PLANTAS[fn.s] ? { s: fn.s } : {}) };
-  if (fn.k === 'proteger') return fn.p === 'lider' || (typeof fn.p === 'string' && /^rc[a-z0-9]{4,16}$/.test(fn.p)) ? { k: 'proteger', p: fn.p } : null;
+  if (fn.k === 'proteger') return fn.p === 'lider' || fn.p === 'carrinho' || fn.p === 'mercante' || (typeof fn.p === 'string' && /^rc[a-z0-9]{4,16}$/.test(fn.p)) ? { k: 'proteger', p: fn.p } : null;
   return { k: fn.k };
 }
+// Proteger carrinho / mercante (André 2026-11-23): o nome que aparece no aviso e no painel
+const VEIC_PROTEGE = { carrinho: 'o carrinho', mercante: 'o mercante' };
 const cor = (v) => (Number.isInteger(v) && v >= 0 && v <= 0xffffff ? v : 0x888888);
 
 // confere o que veio da conta (progressoValido)
@@ -115,6 +117,7 @@ export const Cla = {
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, sem: semanaDe(tierDe(m.tier), a ? a.prog.nivel | 0 : m.nv), on: a ? 1 : 0, ...(m.dev ? { dev: m.dev } : {}), g: m.g,
         fn: m.fn || { k: 'livre' }, c: 'r:' + m.id, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, j), x: Math.round(a.x), z: Math.round(a.z), bid: a.id, ...(a.time && a.time === j.time ? { time: 1 } : {}) } : {}) }; }), // x, z: "Ver no mapa"; c: conta (Mensagem), bid: o corpo (Time)
       bauCla: temBau ? bau : null, plantas: Object.entries(PLANTAS).map(([k, P]) => ({ k, nome: P.nome })),
+      veic: { carrinho: this.carrinhoFora(j, { k: 'carrinho' }) ? 1 : 0, mercante: this.navioFora(j) ? 1 : 0 }, // Proteger carrinho / mercante: apagado se não está no mundo
       funcoes: CLA.funcoes, recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })),
       tiers: CLA.tiers.map((T) => { const n2 = nivelTier(T, nv); return { id: T.id, nome: T.nome, nv: n2, preco: precoTier(T, n2), sem: semanaDe(T, n2), claNv: T.claNv || 1 }; }),
       rec, log: c.log.slice(-10).reverse(), dep: CLA.deposito, clas: this.clasNpcInfo(j), base: this.baseInfo?.(j) || null,
@@ -189,13 +192,15 @@ export const Cla = {
     if (m.acao === 'funcao') {
       const r = c.m.find((o) => o.id === m.id); if (!r) return;
       const fn = funcaoValida(m.fn);
-      if (fn?.k === 'proteger' && fn.p !== 'lider' && (fn.p === r.id || !c.m.some((o) => o.id === fn.p))) return aviso('Escolha você ou outro membro do clã');
+      if (fn?.k === 'proteger' && fn.p === 'carrinho' && !this.carrinhoFora(j, { k: 'carrinho' })) return aviso('Coloque o carrinho no mundo primeiro');
+      if (fn?.k === 'proteger' && fn.p === 'mercante' && !this.navioFora(j)) return aviso('Coloque o navio mercante na água primeiro');
+      if (fn?.k === 'proteger' && !VEIC_PROTEGE[fn.p] && fn.p !== 'lider' && (fn.p === r.id || !c.m.some((o) => o.id === fn.p))) return aviso('Escolha você ou outro membro do clã');
       if (fn) r.fn = fn; else delete r.fn;
       j.progSujo = true;
       const x = this.recrutasNoMundo(j).find((o) => o.AMIGA.id === r.id);
       if (x?.amiga) this.aplicarFuncao(j, x, r, true);
       const F = CLA.funcoes.find((o) => o.id === (fn?.k || 'livre'));
-      aviso(`${r.nome}: ${F.nome}${fn?.k === 'fazenda' ? (fn.s ? ` (plantar ${PLANTAS[fn.s].nome.toLowerCase()})` : ' (só colhe e rega)') : fn?.k === 'recurso' ? ` (${RECURSOS_CLA[fn.r].nome})` : fn?.k === 'proteger' ? ` ${fn.p === 'lider' ? 'você' : c.m.find((o) => o.id === fn.p).nome}` : ''}`);
+      aviso(`${r.nome}: ${F.nome}${fn?.k === 'fazenda' ? (fn.s ? ` (plantar ${PLANTAS[fn.s].nome.toLowerCase()})` : ' (só colhe e rega)') : fn?.k === 'recurso' ? ` (${RECURSOS_CLA[fn.r].nome})` : fn?.k === 'proteger' ? ` ${fn.p === 'lider' ? 'você' : VEIC_PROTEGE[fn.p] || c.m.find((o) => o.id === fn.p).nome}` : ''}`);
       return this.avisarProg(j);
     }
     if (m.acao === 'melhorar') {
@@ -265,7 +270,7 @@ export const Cla = {
     if (this.levandoRecruta(a)) return `Levando ${ia.levar.nome} ao Baú do Clã`;
     if (ia.funcaoSt && ia.funcaoSt.ate > this.tempo) return ia.funcaoSt.txt;
     if (a.time && a.time === j.time) return 'No seu time';
-    if (ia.funcao?.k === 'proteger') return 'Protegendo';
+    if (ia.funcao?.k === 'proteger') return VEIC_PROTEGE[ia.funcao.p] ? (ia.pv?.sem ? `Esperando ${VEIC_PROTEGE[ia.funcao.p]}` : `Protegendo ${VEIC_PROTEGE[ia.funcao.p]}`) : 'Protegendo';
     if (ia.funcao?.k === 'fazenda') return 'Na fazenda';
     if (ia.funcao?.k === 'alma') return !a.guerra ? 'Fragmento de Alma: só acima do Nv 30 e fora da zona segura' : ia.alma?.alvo ? 'Caçando a outra raça' : 'Procurando a outra raça';
     if (ia.encomenda && !ia.encomenda.pronta) return `Coletando ${ENCOMENDA.recursos[ia.encomenda.rec]?.nome || ''}`.trim();
