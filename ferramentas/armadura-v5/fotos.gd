@@ -76,17 +76,19 @@ func _initialize() -> void:
 			m.add_child(e)
 			m.add_child(cj)
 			Armadura.Equip2.armas(e, cj, "patrulheiro2", r, r)
-			e.global_position = base + Vector3(-1.2 + r * 0.6, 0.25, 0)
-			cj.global_position = base + Vector3(-1.45 + r * 0.6, 0.1, 0)
+			e.global_position = base + Vector3(-0.9 + r * 0.48, 0.25, 0)
+			cj.global_position = base + Vector3(-1.14 + r * 0.48, 0.1, 0)
 			fila.append_array([e, cj])
+		vp.size = Vector2i(1600, 800) # foto larga só para a fila de armas
 		await esperar(6)
-		cam.global_position = base + Vector3(0, 1.0, 10.5)
+		cam.global_position = base + Vector3(0, 0.95, 7.0)
 		cam.look_at(base + Vector3(0, 0.95, 0))
 		fundo.global_position = base + Vector3(0, 0, -12)
 		await esperar(2)
 		await foto("armas")
 		for n in fila:
 			n.queue_free()
+		vp.size = Vector2i(600, 1000)
 	for corpo in corpos:
 		var no: Node3D = m.modelo(corpo)
 		no.position = base
