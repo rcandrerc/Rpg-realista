@@ -59,11 +59,13 @@ s.cla('L', { acao: 'missao' });
 ok(/próxima missão do clã abre em/.test(avisos()), 'espera 6 h para a próxima');
 ok(s.baseInfo(j).missao?.espera > 0, 'o painel mostra a espera');
 // falha por tempo
-B.missaoEm = 0; junto({ x: bau.x, z: bau.z + 2 });
+B.missaoOk = 0; junto({ x: bau.x, z: bau.z + 2 });
 s.cla('L', { acao: 'missao' }); const M2 = s.missoesCla.get(B.k);
 junto(ponto(0.2)); s.passoMissoesCla();
 s.tempo += CLA.missao.dura + 1; s.passoMissoesCla();
 ok(!s.missoesCla.has(B.k) && /tempo acabou/.test(avisos()) && [...M2.mobs].every((m) => !s.inimigos.includes(m)), 'tempo acabou: falha e os monstros somem');
+ok([...M2.mobs].every((m) => m.v >= s.vMissao && m.v < s.vMissao + CLA.missao.vagas) && new Set([...M2.mobs].map((m) => m.v)).size === M2.mobs.size, 'cada monstro da emboscada tem o seu lugar no app (v)');
+ok(s.esperaMissaoCla(B) === 0, 'falhou: pode tentar de novo na hora');
 
 // clã bot (regra do André: tudo igual para jogador e bot): o líder bot faz a escolta dele a cada 6 h. Longe dos
 // jogadores ela é contada (cada recruta chega com botChega de chance); o prêmio é o mesmo.
@@ -77,11 +79,11 @@ ok(!s.missoesCla.has(B.k) && /tempo acabou/.test(avisos()) && [...M2.mobs].every
   const R = s3.adicionarJogador('BR', 'Rufo', undefined, {}); R.bot = true; R.criando = false; R.prog.nivel = 10; R.x = B.x; R.z = B.z;
   const xp0 = R.prog.xp | 0, nv0 = R.prog.nivel, ouro0 = L.prog.ouro | 0;
   CLA.missao.botChega = 1;
-  B.missaoEm = 0; s3.missaoClaNpc(C, L, [{ amiga: R }]);
+  B.missaoOk = 0; s3.missaoClaNpc(C, L, [{ amiga: R }]);
   ok(B.missaoEm > 0 && !s3.missoesCla.has(B.k) && ((R.prog.xp | 0) > xp0 || R.prog.nivel > nv0) && (L.prog.ouro | 0) > ouro0, 'clã bot longe dos jogadores: escolta contada, recruta ganha XP e o líder o ouro');
   const t = B.missaoEm; s3.missaoClaNpc(C, L, [{ amiga: R }]);
   ok(B.missaoEm === t, 'clã bot também espera 6 h');
-  B.missaoEm = 0; h.x = L.x + 20; h.z = L.z; const bau = s3.basesDesenho[B.k].bau; L.x = bau.x; L.z = bau.z + 1; R.x = L.x + 2; R.z = L.z;
+  B.missaoOk = 0; h.x = L.x + 20; h.z = L.z; const bau = s3.basesDesenho[B.k].bau; L.x = bau.x; L.z = bau.z + 1; R.x = L.x + 2; R.z = L.z;
   s3.missaoClaNpc(C, L, [{ amiga: R, AMIGA: {} }]);
   ok(s3.missoesCla.has(B.k), 'clã bot perto de jogador: a escolta acontece de verdade');
 }

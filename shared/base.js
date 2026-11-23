@@ -212,7 +212,7 @@ export const Base = {
     for (const [k, b] of Object.entries(est && typeof est === 'object' ? est : {})) {
       if (!b || !/^[jn][\w:.-]{1,40}$/.test(k) || !Number.isFinite(+b.x) || !Number.isFinite(+b.z)) continue;
       this.basesCla[k] = { k, x: Math.round(+b.x), z: Math.round(+b.z), raca: RACAS[b.raca] ? b.raca : 'chama', n: String(b.n || '').slice(0, 24), dono: String(b.dono || ''), nomeDono: String(b.nomeDono || '').slice(0, 24),
-        nv: Math.max(1, Math.min(CLA.max, b.nv | 0)), taxa: Number.isFinite(+b.taxa) ? +b.taxa : Date.now(), c: +b.c || Date.now(), donos: {}, ...(b.sorteou ? { sorteou: 1 } : {}), ...(b.bauSolto ? { bauSolto: 1 } : {}), ...(b.mudou > 0 ? { mudou: b.mudou | 0, mudouEm: +b.mudouEm || 0 } : {}), ...(b.livres > 0 ? { livres: Math.min(20, b.livres | 0) } : {}), ...(b.missaoEm > 0 ? { missaoEm: +b.missaoEm } : {}) };
+        nv: Math.max(1, Math.min(CLA.max, b.nv | 0)), taxa: Number.isFinite(+b.taxa) ? +b.taxa : Date.now(), c: +b.c || Date.now(), donos: {}, ...(b.sorteou ? { sorteou: 1 } : {}), ...(b.bauSolto ? { bauSolto: 1 } : {}), ...(b.mudou > 0 ? { mudou: b.mudou | 0, mudouEm: +b.mudouEm || 0 } : {}), ...(b.livres > 0 ? { livres: Math.min(20, b.livres | 0) } : {}), ...(b.missaoEm > 0 ? { missaoEm: +b.missaoEm } : {}), ...(b.missaoOk > 0 ? { missaoOk: +b.missaoOk } : {}) };
       for (const [i, o] of Object.entries(b.donos && typeof b.donos === 'object' ? b.donos : {})) if (/^[2-9]$/.test(i) && o && typeof o.id === 'string') this.basesCla[k].donos[i] = { id: o.id.slice(0, 24), nome: String(o.nome || '').slice(0, 24) };
     }
     this.refazerBases();

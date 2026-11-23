@@ -395,6 +395,9 @@ export class Simulacao {
     // espantalhos de treino (TREINO): o v deles vem depois das vagas dos campos de caça
     (mapa.treino || []).forEach((sp, k) => this.criarInimigo({ ...sp, v: v + k }));
     v += (mapa.treino || []).length;
+    // Escolta do Clã (shared/missao-cla.js): CLA.missao.vagas lugares fixos para os monstros das emboscadas (o app só
+    // mostra monstro com v conhecido; antes da dungeon, que nasce aos poucos no app)
+    this.vMissao = v; v += CLA.missao.vagas;
     // dungeon da montanha (2026-11-06): cada monstro das salas tem um v fixo depois do espantalho, mas o corpo só existe
     // enquanto tem alguém lá dentro (passoCaverna)
     this.dungeon = mapa.dungeon ? { def: mapa.dungeon, vazia: 0, salas: mapa.dungeon.salas.map((S) => ({ def: S, ativa: false, limpa: 0,

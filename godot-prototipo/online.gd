@@ -975,6 +975,8 @@ func inimigo(c: Dictionary) -> void:
 	if v < 0 or v >= m.inimigos.size():
 		return
 	var e: Dictionary = m.inimigos[v]
+	if e.get("missao_vaga", false) and (e.get("vazio", false) or str(e.tipo) != str(c.get("tipo", e.tipo)) or int(e.get("nivel", 0)) != int(c.get("nivel", e.get("nivel", 0)))): # monstro da escolta do clã
+		m.vestir_missao(v, c)
 	if e.get("vazio", false): # campo do mundo grande ainda sem modelo (main.gd criar_vaga): monta agora
 		m.materializar(e)
 		m.entrou_online(e)
