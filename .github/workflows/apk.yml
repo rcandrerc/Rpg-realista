@@ -566,6 +566,23 @@ jobs:
           printf 'atualizacao/casca=true\n' >> project.godot # fica na seção [aethra] gravada acima
           $GODOT_BIN --headless --export-release "Android casca" $GITHUB_WORKSPACE/rpg-realista-casca.apk
           ls -la $GITHUB_WORKSPACE/rpg-realista-casca.apk
+      # AAB da casca para o teste interno da Google Play (mesmo pacote e mesma chave oficial; o jogo continua
+      # baixando o conteúdo do bucket Oracle como no APK casca). Só gera à mão (Run workflow) ou em PR com a
+      # etiqueta "gerar aab", para não pesar em todo build.
+      - name: AAB casca (Google Play)
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'gerar aab')
+        working-directory: godot-prototipo
+        run: |
+          $GODOT_BIN --headless --export-release "Android casca AAB" $GITHUB_WORKSPACE/rpg-realista-casca.aab
+          ls -la $GITHUB_WORKSPACE/rpg-realista-casca.aab
+          jarsigner -verify -verbose -certs $GITHUB_WORKSPACE/rpg-realista-casca.aab | grep -i "SHA1\|SHA-1\|verified" | head -3 || true
+          keytool -printcert -jarfile $GITHUB_WORKSPACE/rpg-realista-casca.aab | grep -i "SHA1"
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'gerar aab')
+        with:
+          name: rpg-realista-casca-aab
+          path: rpg-realista-casca.aab
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         with:
           name: rpg-realista-apk
