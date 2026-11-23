@@ -536,6 +536,8 @@ class SalaClareira extends Room {
     // os recrutas do clã de quem entrou (shared/cla.js): o save fica na tabela mundo, como o dos aventureiros
     if (contas) this.sim.lerNpc ||= (id) => contas.lerMundo('npc:' + id);
     { const j = this.sim.jogadores.get(client.sessionId); if (j && !j.bot) { this.sim.cobrarCla(j); this.sim.entrarRecrutas(j); } }
+    // os recrutas dos clãs de quem está fora: no mundo enquanto tiver jogador online (André 2026-11-23: "sempre, sem exceção")
+    if (contas) { try { this.sim.entrarRecrutasSemLider(contas.clasDasContas(), client.sessionId); } catch (e) { console.warn('recrutas sem líder:', e.message); } }
     this.sim.enviarLotes(client.sessionId);
   }
 

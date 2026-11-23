@@ -279,6 +279,17 @@ export class Contas {
       try { let n = 0; for (const r of this.db.prepare("SELECT progresso FROM contas WHERE progresso IS NOT NULL AND google NOT LIKE 'robo:%'").all()) { try { n = Math.max(n, JSON.parse(r.progresso)?.nivel | 0); } catch { /* conta com progresso estragado */ } } return n || null; } catch { return null; }
     }
   }
+  // os clãs de todas as contas (André 2026-11-23: "todos online, se tiver algum jogador online... sem exceção"): os
+  // recrutas de quem está fora entram no mundo com o primeiro jogador. [{ conta, cla, raca }]
+  clasDasContas() {
+    const l = [];
+    try {
+      for (const r of this.db.prepare("SELECT id, progresso FROM contas WHERE progresso LIKE '%\"cla\"%' AND google NOT LIKE 'robo:%'").all()) {
+        try { const p = progressoValido(JSON.parse(r.progresso)); if (p?.cla?.m?.length) l.push({ conta: r.id, cla: p.cla, raca: p.raca }); } catch { /* conta com progresso estragado */ }
+      }
+    } catch (e) { console.warn('clasDasContas:', e.message); }
+    return l;
+  }
   lerMundo(chave) { try { const r = this.db.prepare('SELECT valor FROM mundo WHERE chave = ?').get(chave); return r ? JSON.parse(r.valor) : null; } catch { return null; } }
   gravarMundo(chave, valor) { this.db.prepare('INSERT INTO mundo (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor').run(chave, JSON.stringify(valor)); }
   lotes() { return this.q.lotes.all().map(linhaLote); }
