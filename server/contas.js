@@ -281,11 +281,13 @@ export class Contas {
   }
   // os clãs de todas as contas (André 2026-11-23: "todos online, se tiver algum jogador online... sem exceção"): os
   // recrutas de quem está fora entram no mundo com o primeiro jogador. [{ conta, cla, raca }]
+  // conta no formato do jogador no mundo (j.conta = 'c' + id, shared/simulacao.js): com o número puro, o recruta que
+  // entrava sem o líder ficava com lider 5 e o líder 'c5' não achava ele (sumia do painel, dos amigos e o Ver dizia "fora do mundo")
   clasDasContas() {
     const l = [];
     try {
       for (const r of this.db.prepare("SELECT id, progresso FROM contas WHERE progresso LIKE '%\"cla\"%' AND google NOT LIKE 'robo:%'").all()) {
-        try { const p = progressoValido(JSON.parse(r.progresso)); if (p?.cla?.m?.length) l.push({ conta: r.id, cla: p.cla, raca: p.raca }); } catch { /* conta com progresso estragado */ }
+        try { const p = progressoValido(JSON.parse(r.progresso)); if (p?.cla?.m?.length) l.push({ conta: 'c' + r.id, cla: p.cla, raca: p.raca }); } catch { /* conta com progresso estragado */ }
       }
     } catch (e) { console.warn('clasDasContas:', e.message); }
     return l;

@@ -106,11 +106,11 @@ ok(true, 'simulação roda com os recrutas');
   sair('B');
   ok(corpos() === 0 && s9.amigosIa.some((x) => x.AMIGA.recruta && x.foraDesde), 'servidor vazio: saem e viram simulação');
   const B2 = s9.adicionarJogador('B2', 'Beto', undefined, { conta: 10 }); B2.criando = false;
-  s9.entrarRecrutasSemLider([{ conta: 9, cla: claA }], 'B2');
+  s9.entrarRecrutasSemLider([{ conta: 'c9', cla: claA }], 'B2'); // como server/contas.js clasDasContas() manda
   ok(corpos() === 2, `outro jogador entrou: os recrutas da Ana voltam ao mundo sem ela (${corpos()})`);
   const A2 = s9.adicionarJogador('A2', 'Ana', undefined, { conta: 9, progresso: JSON.parse(JSON.stringify(A.prog)) }); A2.criando = false; A2.prog.cla = claA;
   s9.entrarRecrutas(A2);
-  ok(corpos() === 2 && s9.recrutasNoMundo(A2).every((x) => x.amigaDono === 'A2'), 'a Ana entra: assume os mesmos corpos (nada duplica)');
+  ok(corpos() === 2 && s9.recrutasNoMundo(A2).length === 2 && s9.recrutasNoMundo(A2).every((x) => x.amigaDono === 'A2'), 'a Ana entra: assume os mesmos corpos (nada duplica)');
   for (let i = 0; i < 100; i++) s9.passo(0.05);
   ok(true, 'simulação roda');
 }
