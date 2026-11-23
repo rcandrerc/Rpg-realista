@@ -119,6 +119,6 @@ ok(p.ouro < 500, `pagou a taxa de anúncio (${500 - p.ouro} de ouro)`);
 ok(/comprou|anunciou/.test(C.fichaLeilaoAmiga(a) || ''), 'ficha do chat com os negócios de verdade');
 // guardado com o bot (banco)
 C.guardarAmiga();
-const salvo = C.loteDaAmiga()?.amiga;
+const salvo = C.npcSalvos?.get(C.AMIGA.id); // o save de todos fica na tabela mundo (André 2026-11-22)
 ok(salvo?.leilao?.log?.length > 0, 'a poupança e os negócios ficam salvos com ela');
 ok(LEILAO.taxaAnuncio === 0.02 && LEILAO.taxa === 0.05, 'taxas: 2% para anunciar e 5% na venda');

@@ -49,7 +49,7 @@ ok(aventureiros.every((x) => x.amiga.prog.nivel <= 12), 'ninguém passou do joga
 ok(ms < 8, `custo: ${ms.toFixed(2)} ms por passo com 22 NPCs (o servidor tem 50 ms)`);
 // save na tabela mundo e volta
 for (const x of aventureiros) x.guardarAmiga();
-const salvos = s.npcsParaSalvar().filter((n) => !['kira', 'rufo', 'lis'].includes(n.id)); // a Geada salva junto (teste em guerra.mjs)
+const ids = new Set(aventureiros.map((x) => x.AMIGA.id)), salvos = s.npcsParaSalvar().filter((n) => ids.has(n.id)); // todos salvam na tabela mundo desde 2026-11-22 (Geada, Cecília, Dario...): aqui só os 18
 ok(salvos.length === 18 && salvos.every((n) => n.dados.prog && n.dados.t), 'o progresso dos 18 vai para o banco (tabela mundo)');
 // André 2026-11-23 (NPC_CASA_BASE): quem é de clã bot (Geada, Gael) também tem lote na base; aventureiro sem clã, não
 ok(!s.lotesParaSalvar().some((l) => l.dono?.startsWith('a:') && !['a:cecilia', 'a:dario', 'a:lia', ...CLAS_NPC.flatMap((C) => C.membros.map((id) => 'a:' + id))].includes(l.dono)), 'nenhum terreno criado para aventureiro');

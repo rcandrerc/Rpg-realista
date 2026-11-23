@@ -23,10 +23,11 @@ ok(s.jogadores.get('A').prog.paginas === 1, 'conta do André começa com 1 pági
   const mo = Array(MOCHILA * 4).fill(null); mo[0] = { k: 'pocao', n: 3 }; mo[MOCHILA * 2 + 5] = { k: 'pocao_mana', n: 2 };
   const s2 = new Simulacao(MAPA_CLAREIRA); s2.adicionarJogador('A', 'André', null, { testador: true, progresso: { nivel: 3, mochila: mo, paginas: 4 } });
   const p2 = s2.jogadores.get('A').prog;
-  ok(p2.paginas === 1 && p2.mochila.length === MOCHILA && p2.mochila.filter(Boolean).length === 2 && p2.devPag === CONTA_TESTE.devolver, 'páginas de graça devolvidas sem perder item');
+  // a conta de teste também ganha 3 Pós de rastreio (presente da guerra): fora da conta aqui
+  ok(p2.paginas === 1 && p2.mochila.length === MOCHILA && p2.mochila.filter((o) => o && o.k !== 'rastreio').length === 2 && p2.devPag === CONTA_TESTE.devolver, 'páginas de graça devolvidas sem perder item');
   const cheia = Array(MOCHILA * 4).fill(null).map((_, i) => (i < 50 ? { k: 'pocao', n: 1 } : null));
   const s3 = new Simulacao(MAPA_CLAREIRA); s3.adicionarJogador('A', 'André', null, { testador: true, progresso: { nivel: 3, mochila: cheia, paginas: 4 } });
-  ok(s3.jogadores.get('A').prog.paginas === 2 && s3.jogadores.get('A').prog.mochila.filter(Boolean).length === 50, 'não cabe em 1 página: fica com 2, nada some');
+  ok(s3.jogadores.get('A').prog.paginas === 2 && s3.jogadores.get('A').prog.mochila.filter((o) => o && o.k !== 'rastreio').length === 50, 'não cabe em 1 página: fica com 2, nada some');
   const comprada = { ...p2, paginas: 3, mochila: [...p2.mochila, ...Array(MOCHILA * 2).fill(null)] };
   const s4 = new Simulacao(MAPA_CLAREIRA); s4.adicionarJogador('A', 'André', null, { testador: true, progresso: comprada });
   ok(s4.jogadores.get('A').prog.paginas === 3, 'página comprada depois não é tirada de novo');
