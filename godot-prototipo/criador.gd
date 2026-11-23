@@ -106,9 +106,9 @@ var corpos_ui := {} # corpo -> botão com o rosto
 var penteados_fl: HFlowContainer # botões de penteado do corpo escolhido (CRIADOR.penteados, penteado.gd)
 var penteados_ui := [] # [botão, id do penteado ou null]
 # André 2026-11-23: traje da armadura v5 na moça, dois quadradinhos "Patrulheira" e "Roupão" (aparencia.traje);
-# o rapaz é só roupão, então a linha some nele
+# André 2026-11-23 (2): o rapaz também escolhe (Patrulheiro / Roupão)
 var trajes_fl: HFlowContainer
-var trajes_ui := [] # [botão, traje ou null]
+var trajes_ui := [] # [quadradinho, traje, rótulo]
 var _boneco_de := "" # corpo que está no palco agora
 static var _rostos := {} # corpo -> ImageTexture do rosto (feito uma vez por partida)
 
@@ -393,7 +393,7 @@ func montar_painel() -> Control:
 	lista.add_child(Menu.rotulo("Traje", 15, OURO_CLARO))
 	trajes_fl = HFlowContainer.new()
 	trajes_fl.add_theme_constant_override("h_separation", 18)
-	for par in [["Patrulheira", null], ["Roupão", "roupao"]]:
+	for par in [["Patrulheira", "patrulha"], ["Roupão", "roupao"]]:
 		# como o "Ver equipado": a linha toda é o botão, com o quadradinho e o nome
 		var bt := Button.new()
 		bt.flat = true
@@ -426,7 +426,7 @@ func montar_painel() -> Control:
 					q_equip.marcado = true
 					q_equip.queue_redraw()
 			mudou())
-		trajes_ui.append([q, tj])
+		trajes_ui.append([q, tj, t])
 		trajes_fl.add_child(bt)
 	lista.add_child(trajes_fl)
 	for k in Aparencia.CORES:
@@ -929,12 +929,14 @@ func marcar() -> void:
 		faixas[k].value = float(ap.get(k, 1.0))
 	for par in penteados_ui:
 		Menu.estilo_botao(par[0], par[1] == ap.get("penteado"))
-	var moca := boneco != null and not _masculino()
-	trajes_fl.visible = moca
-	trajes_fl.get_parent().get_child(trajes_fl.get_index() - 1).visible = moca
+	var masc := boneco != null and _masculino()
+	# sem escolha: moça patrulheira, rapaz de roupão (Armadura._de_roupao)
+	var atual: String = str(ap.get("traje")) if ap.get("traje") != null else ("roupao" if masc else "patrulha")
 	for par in trajes_ui:
-		par[0].marcado = par[1] == ap.get("traje")
+		par[0].marcado = par[1] == atual
 		par[0].queue_redraw()
+		if par[1] == "patrulha":
+			par[2].text = Idioma.frase("Patrulheiro" if masc else "Patrulheira")
 	for id in corpos_ui: # corpo escolhido: aro dourado grosso; os outros, aro fino apagado
 		var on: bool = id == corpo
 		var sa := StyleBoxFlat.new()

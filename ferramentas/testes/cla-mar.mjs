@@ -63,3 +63,41 @@ ok(s.recrutasNoMundo(L).every((x) => !(x.amiga.time && x.amiga.time === L.time))
   s.cobrarCla(L); s.entrarRecrutas(L);
   ok(xs3.every((x) => x.amiga.time && x.amiga.time === L.time), 'o líder voltou: de volta ao time');
 }
+// "Proteger mercante" com eles no time (André 2026-11-23: "larguei eles no mercante, eles já saíram do meu time"):
+// continuam no time e protegem o navio
+{
+  const s2 = new Simulacao(MAPA_CLAREIRA);
+  const L2 = s2.adicionarJogador('L2', 'Chefe', undefined, { conta: 61 }); L2.criando = false; L2.ciente = true; L2.prog.nivel = 40; L2.prog.ouro = 90000;
+  const r2 = s2.mapa.npcs.find((n) => n.funcao === 'recrutador'); L2.x = r2.x + 1; L2.z = r2.z;
+  s2.cla('L2', { acao: 'fundar', nome: 'Teste Merc' }); L2.prog.cla.nv = 6;
+  s2.cla('L2', { acao: 'recrutar', tier: 'recruta' }); s2.cla('L2', { acao: 'recrutar', tier: 'recruta' });
+  for (const m of L2.prog.cla.m) s2.cla('L2', { acao: 'funcao', id: m.id, fn: { k: 'seguir' } });
+  const bs = s2.recrutasNoMundo(L2).map((x) => x.amiga);
+  const p2 = (o, x, z) => { o.x = x; o.z = z; o.y = fundoAgua(x, z) > 0.05 ? AGUA.nivel : s2.terreno.altura(x, z); o.vy = 0; o.chao = true; o.montado = null; o.veiculo = null; o.bordo = null; };
+  p2(L2, 101.3, 454); L2.y = 0.6; bs.forEach((a, i) => p2(a, 98 - i, 451));
+  L2.prog.mochila[L2.prog.mochila.indexOf(null)] = { k: 'navio', n: 1 };
+  s2.veiculo('L2', { acao: 'colocar', k: 'navio' });
+  for (const m of L2.prog.cla.m) s2.cla('L2', { acao: 'funcao', id: m.id, fn: { k: 'proteger', p: 'mercante' } });
+  ok(bs.every((a) => a.time && a.time === L2.time), 'Proteger mercante: continuam no time');
+  s2.veiculo('L2', { acao: 'subir', k: 'navio' });
+  for (let i = 0; i < 20 * 10; i++) s2.passo(0.05);
+  for (let i = 0; i < 20 * 20; i++) { L2.x += 0.2; s2.passo(0.05); }
+  ok(bs.every((a) => a.time && a.time === L2.time && a.bordo), `no mar: no time e no convés (${bs.map((a) => Math.hypot(a.x - L2.x, a.z - L2.z).toFixed(0)).join(', ')} m)`);
+  for (const m of L2.prog.cla.m) s2.cla('L2', { acao: 'funcao', id: m.id, fn: { k: 'grind' } });
+  ok(bs.every((a) => !a.time), 'Grind: saem do time para trabalhar (como antes)');
+}
+// nadando com pack nas costas (mais devagar): o líder chega do outro lado e eles não ficam parados no meio do mar
+{
+  const s3 = new Simulacao(MAPA_CLAREIRA);
+  const L3 = s3.adicionarJogador('L3', 'Chefe', undefined, { conta: 71 }); L3.criando = false; L3.ciente = true; L3.prog.nivel = 40; L3.prog.ouro = 90000;
+  const r3 = s3.mapa.npcs.find((n) => n.funcao === 'recrutador'); L3.x = r3.x + 1; L3.z = r3.z;
+  s3.cla('L3', { acao: 'fundar', nome: 'Teste Nado' }); L3.prog.cla.nv = 6;
+  s3.cla('L3', { acao: 'recrutar', tier: 'recruta' }); s3.cla('L3', { acao: 'recrutar', tier: 'recruta' });
+  for (const m of L3.prog.cla.m) s3.cla('L3', { acao: 'funcao', id: m.id, fn: { k: 'seguir' } });
+  const cs = s3.recrutasNoMundo(L3).map((x) => x.amiga);
+  const p3 = (o, x, z) => { o.x = x; o.z = z; o.y = fundoAgua(x, z) > 0.05 ? AGUA.nivel : s3.terreno.altura(x, z); o.vy = 0; o.chao = true; o.montado = null; o.veiculo = null; o.bordo = null; };
+  p3(L3, 101.3, 454); cs.forEach((a, i) => { p3(a, 97 - i, 450); a.prog.pack = { k: 'lenha', ox: 0, oz: 0, t: Date.now() }; });
+  for (let i = 0; i < 20 * 40; i++) { if (i < 20 * 37) { L3.x += 0.2; L3.z += 0.15; L3.y = fundoAgua(L3.x, L3.z) > 0.05 ? AGUA.nivel : s3.terreno.altura(L3.x, L3.z); } s3.passo(0.05); }
+  for (let i = 0; i < 20 * 60; i++) s3.passo(0.05);
+  ok(cs.every((a) => a.time && a.time === L3.time && Math.hypot(a.x - L3.x, a.z - L3.z) < 8), `com pack, nadaram até ele (${cs.map((a) => Math.hypot(a.x - L3.x, a.z - L3.z).toFixed(0)).join(', ')} m)`);
+}
