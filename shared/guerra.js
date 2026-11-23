@@ -12,6 +12,9 @@
 import { GUERRA, RACAS, RACA_PADRAO, TOTENS, FALAS_GUERRA, CHAT, ASSUNTOS_GUERRA, DUPLAS_GUERRA, PACKS, PACK_REGRAS, VEICULOS } from './dados.js';
 import { packValido, precoPack, centroNavio, lugarDoVeiculo, acharPonto, fundoAgua } from './transporte.js';
 import { AGUA } from './relevo.js';
+// as falas de guerra do bot: o recruta de clã bot usa as de quem ele imita (falas: 'kira'); os outros, as do próprio id.
+// AMIGA.falas dos amigos virtuais é o repertório (objeto): sem este cuidado a Geada ficava muda na guerra.
+const chaveGuerra = (A) => (typeof A?.falas === 'string' ? A.falas : A?.id);
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const hashId = (id) => { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
@@ -74,7 +77,7 @@ export const Guerra = {
     this.passoEmboscadas(); this.passoRondas();
     // os NPCs com falas de guerra comentam quem da outra raça apareceu perto (também no time do André)
     for (const ctx of this.amigosIa) {
-      const a = ctx.amiga; if (!a || a.morto || !FALAS_GUERRA[ctx.AMIGA.falas || ctx.AMIGA.id]) continue;
+      const a = ctx.amiga; if (!a || a.morto || !FALAS_GUERRA[chaveGuerra(ctx.AMIGA)]) continue;
       for (const o of this.jogadores.values()) {
         if (o === a || o.morto || o.criando || !this.outraRaca(a, o) || (o.prog?.nivel | 0) <= W.tregua || dist(o, a) > W.ve * 0.75) continue;
         const m = ctx.memGuerra(a, o); if (this.tempo - (m.vistoT ?? -1e9) < W.avistar) continue;
@@ -96,7 +99,7 @@ export const Guerra = {
   // ganha (_tregua, _rev, _fregues); abre/fecho entram às vezes nos gatilhos de conversa. para = só quem tocou nele
   // (conversa, recusa); senão todo mundo (de verdade) a até GUERRA.ouvir m ouve. Devolve o texto (ou '' se calou).
   montarFalaGuerra(gatilho, o) {
-    const a = this.amiga, F = FALAS_GUERRA[this.AMIGA.falas || this.AMIGA.id]; if (!a || !F) return '';
+    const a = this.amiga, F = FALAS_GUERRA[chaveGuerra(this.AMIGA)]; if (!a || !F) return '';
     const m = o ? this.memGuerra(a, o) : { n: 0, v: 0, d: 0 };
     const sufixos = [];
     if (o && (o.prog?.nivel | 0) <= GUERRA.tregua) sufixos.push('_tregua');
@@ -154,16 +157,16 @@ export const Guerra = {
     const t = String(texto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const assunto = ASSUNTOS_GUERRA.find(([, re]) => re.test(t))?.[0] || 'conversa';
     for (const ctx of this.amigosIa) {
-      const a = ctx.amiga; if (!a || a.morto || !FALAS_GUERRA[ctx.AMIGA.falas || ctx.AMIGA.id] || dist(a, j) > CHAT.local) continue;
+      const a = ctx.amiga; if (!a || a.morto || !FALAS_GUERRA[chaveGuerra(ctx.AMIGA)] || dist(a, j) > CHAT.local) continue;
       const outra = this.outraRaca(j, a);
-      if (!outra && !(assunto === 'kael' && FALAS_GUERRA[ctx.AMIGA.falas || ctx.AMIGA.id].kael)) continue;
+      if (!outra && !(assunto === 'kael' && FALAS_GUERRA[chaveGuerra(ctx.AMIGA)].kael)) continue;
       if (this.tempo < (a.ia.respLocalT ?? -1e9) + GUERRA.falaEntre) continue;
       a.ia.respLocalT = this.tempo;
       const [d0, d1] = GUERRA.resposta;
       const qual = outra ? 'lingua' : assunto;
       this.depois(d0 + Math.random() * (d1 - d0), () => {
         if (!ctx.amiga || ctx.amiga.morto || !this.jogadores.has(j.id)) return;
-        const F = FALAS_GUERRA[ctx.AMIGA.falas || ctx.AMIGA.id];
+        const F = FALAS_GUERRA[chaveGuerra(ctx.AMIGA)];
         const txt = ctx.montarFalaGuerra(F[qual] ? qual : F.conversa ? 'conversa' : 'avista', j);
         if (txt) ctx.falaLocal(ctx.amiga, ctx.AMIGA.conta, txt);
       });
@@ -190,7 +193,7 @@ export const Guerra = {
   recusaGuerra(j, o) {
     if (!this.outraRaca(j, o)) return false;
     const ctx = o.bot ? this.amigoIaDe(o) : null;
-    if (ctx && FALAS_GUERRA[ctx.AMIGA.falas || ctx.AMIGA.id]) ctx.falaGuerra('recusa', j, j.id);
+    if (ctx && FALAS_GUERRA[chaveGuerra(ctx.AMIGA)]) ctx.falaGuerra('recusa', j, j.id);
     else this.evento({ t: 'aviso', para: j.id, texto: `${o.nome} é da ${this.nomeRaca(o)}: não dá` });
     return true;
   },
