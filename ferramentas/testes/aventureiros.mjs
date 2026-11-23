@@ -48,7 +48,9 @@ ok(fases.has('ir') && fases.has('cacar'), 'saem para o campo e caçam sozinhos')
 ok(longe.size >= 10, `andam pelo mundo (${longe.size} de 20 saíram da vila)`);
 ok(ganhou >= 5, `ganham XP caçando (${ganhou} de 20)`);
 ok(aventureiros.every((x) => x.amiga.prog.nivel <= 12), 'ninguém passou do jogador mais alto');
-ok(ms < 8, `custo: ${ms.toFixed(2)} ms de CPU por passo com 22 NPCs (relógio ${msRelogio.toFixed(2)} ms; o servidor tem 50 ms)`);
+// limite: 8 ms; no GitHub (máquina ~2x mais lenta) 12 ms (André 2026-11-23, PR 846). O servidor tem 50 ms por passo
+const limiteMs = process.env.GITHUB_ACTIONS ? 12 : 8;
+ok(ms < limiteMs, `custo: ${ms.toFixed(2)} ms de CPU por passo com 22 NPCs (relógio ${msRelogio.toFixed(2)} ms; limite ${limiteMs} ms; o servidor tem 50 ms)`);
 // save na tabela mundo e volta
 for (const x of aventureiros) x.guardarAmiga();
 const ids = new Set(aventureiros.map((x) => x.AMIGA.id)), salvos = s.npcsParaSalvar().filter((n) => ids.has(n.id)); // todos salvam na tabela mundo desde 2026-11-22 (Geada, Cecília, Dario...): aqui só os 18
