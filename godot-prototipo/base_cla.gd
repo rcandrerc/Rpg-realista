@@ -502,6 +502,9 @@ func _chao_das_bases() -> void:
 		MT.refazer(mexidos)
 	if m.mato != null and tem_area:
 		m.mato.refazer_area(area.position.x, area.position.y, area.end.x, area.end.y)
+	var PL = m.get("plantio")
+	if PL != null and tem_area and PL.has_method("chao_mudou"):
+		PL.chao_mudou(area) # árvores plantadas (jogadores e bots) acompanham o chão
 	_desenhar_estradas(caminhos)
 	_rede_rota()
 	var C = m.get("construcao")
