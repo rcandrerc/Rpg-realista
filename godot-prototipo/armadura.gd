@@ -3496,6 +3496,9 @@ static func tingir_v5(raiz: Node3D) -> void:
 	var cr = raiz.get_meta("cor_roupa", null)
 	var cc = raiz.get_meta("cor_calca", null)
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
+		if mi.has_meta("equip2_nome"): # Patrulheiro 2 / Roupão 2: pano pintado em equip2.gd
+			Equip2.tingir(mi, cr, cc)
+			continue
 		mi.material_override = _tinta(mi, "mo", mi.material_override, cr, cc)
 		if mi.mesh:
 			for i in mi.mesh.get_surface_count():
