@@ -295,7 +295,7 @@ export const Amiga = {
   pedidoAmizadeAmiga(id, viaChat = false) {
     const a = this.amiga, j = this.jogadores.get(id), P = this.AMIGA.amigoLista; if (!a || !j || j.bot || !j.conta) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto }), nome = this.AMIGA.nome;
-    if (!this.amigoBotOk(this, j)) return aviso(`Só dá para adicionar líder de clã (${nome} é ${this.AMIGA.recruta || this.fixoClaNpc(this) ? 'recruta' : 'NPC'})`); // AMIGOS.soLideres (André 2026-11-23)
+    if (!this.amigoBotOk(this, j)) return aviso(`${nome} não é líder de clã: só dá para adicionar líder de clã`); // AMIGOS.soLideres (André 2026-11-23)
     if (this.ehAmigoAmiga(j)) return aviso(`${nome} já é seu amigo`);
     if ((a.ia.amigoNao?.[j.conta] || 0) > this.tempo) return aviso(`${nome} pediu para você esperar um pouco`);
     const fala = (t) => (viaChat ? this.dizerAmiga(t, false, id) : this.evento({ t: 'fala', para: id, npc: this.AMIGA.id, texto: `${nome}: ${t}` }));
