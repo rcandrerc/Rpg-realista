@@ -8,8 +8,8 @@ var shader: Shader
 var ruido: Texture2D
 var _postos: Array = []
 var _mats := {}
-var prefixo: String = {"2": "pecas2_r", "3": "pecas3_r", "ia": "ia_r", "robe": "robe_m_r" if OS.get_environment("CORPO") == "cabelo_m" else "robe_r"}.get(OS.get_environment("VERSAO"), "pecas_r")
-var v3: bool = prefixo == "pecas3_r" or prefixo == "ia_r" or prefixo.begins_with("robe") # ia_r: teste do caminho da IA (vestir_ia.py)
+var prefixo: String = {"2": "pecas2_r", "3": "pecas3_m_r" if OS.get_environment("CORPO") == "cabelo_m" else "pecas3_r", "ia": "ia_r", "robe": "robe_m_r" if OS.get_environment("CORPO") == "cabelo_m" else "robe_r"}.get(OS.get_environment("VERSAO"), "pecas_r")
+var v3: bool = prefixo.begins_with("pecas3_") or prefixo == "ia_r" or prefixo.begins_with("robe") # ia_r: teste do caminho da IA (vestir_ia.py)
 
 # material -> [tipo, cor, cor2, luz, metal, aspereza, força]
 const M := {
@@ -149,6 +149,13 @@ func vestir(heroi: Node3D, esq: Skeleton3D, espada: Node3D, r: int) -> void:
 	var ms: Array = []
 	_malhas(cena, ms)
 	var cena_armas: Node = _armas3(r, ms)
+	var cena_omb: Node = null
+	if OS.get_environment("OMBREIRA") != "": # teste: ombreira da IA (ombreira_ia.py) por cima do traje
+		var d2 := GLTFDocument.new()
+		var s2 := GLTFState.new()
+		if d2.append_from_file(pasta + ("/ombreira_ia_m.glb" if OS.get_environment("CORPO") == "cabelo_m" else "/ombreira_ia.glb"), s2) == OK:
+			cena_omb = d2.generate_scene(s2)
+			_malhas(cena_omb, ms)
 	# esconde a espada de hoje (só as malhas dela)
 	var velhas: Array = []
 	_malhas(espada, velhas)
@@ -249,6 +256,8 @@ func vestir(heroi: Node3D, esq: Skeleton3D, espada: Node3D, r: int) -> void:
 		if nome.begins_with("ombro") and r == 4:
 			_faiscas(novo, r, Vector3(0.2 * (1 if nome.ends_with("e") else -1), 1.33, 0.0), Vector3(0.05, 0.04, 0.05), 6)
 	cena.free()
+	if cena_omb:
+		cena_omb.free()
 	if cena_armas:
 		cena_armas.free()
 
@@ -340,4 +349,27 @@ func espada_sozinha(r: int, qual := "espada") -> MeshInstance3D:
 	cena.free()
 	if cena_armas:
 		cena_armas.free()
+	return novo
+
+# uma peça solta de qualquer glb (comparativo feito à mão x IA): as peças da IA ficam com a textura delas
+func peca_de(arquivo: String, qual: String) -> MeshInstance3D:
+	var doc := GLTFDocument.new()
+	var st := GLTFState.new()
+	if doc.append_from_file(pasta + "/" + arquivo, st) != OK:
+		return null
+	var cena: Node = doc.generate_scene(st)
+	var ms: Array = []
+	_malhas(cena, ms)
+	var novo: MeshInstance3D = null
+	for mi: MeshInstance3D in ms:
+		if String(mi.name).begins_with(qual):
+			var malha: Mesh = mi.mesh
+			for s in malha.get_surface_count():
+				var mo: Material = malha.surface_get_material(s)
+				if mo == null or not mo.resource_name.begins_with("ia_"):
+					malha.surface_set_material(s, material(mo.resource_name if mo else "aco"))
+			novo = MeshInstance3D.new()
+			novo.mesh = malha
+			break
+	cena.free()
 	return novo

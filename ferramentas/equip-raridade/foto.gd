@@ -93,6 +93,8 @@ func _initialize() -> void:
 			_camera(false, true, true)
 			await esperar(3)
 			await foto("%s-pernas-%d" % [modo, r])
+	if OS.get_environment("COMPARA") != "":
+		await _fila_compara(novo)
 	if modo == "depois" and OS.get_environment("SEM_FILA") == "":
 		await _fila_espadas(novo)
 		await _fila_espadas(novo, "cajado")
@@ -136,6 +138,60 @@ func _fila_espadas(novo, qual := "espada") -> void:
 		await esperar(10)
 		await foto("cajados-perto")
 		cam.global_position -= b.y * 0.62 + b.z * 0.2
+# comparativo pedido pelo André: arma feita à mão ao lado da feita pela IA (mesma luz, mesmo lugar)
+func _fila_compara(novo) -> void:
+	DisplayServer.window_set_size(Vector2i(1280, 720))
+	root.size = Vector2i(1280, 720)
+	_camera()
+	m.heroi.visible = false
+	_sem_hud(root)
+	for sk in root.find_children("*", "Skeleton3D", true, false):
+		(sk.get_parent() as Node3D).visible = false
+	var b: Basis = cam.global_transform.basis
+	var r := OS.get_environment("COMPARA")
+	var itens := [["armas3_r%s.glb" % r, "espada"], ["armas_ia_r%s.glb" % r, "espada"], ["armas3_r%s.glb" % r, "cajado"], ["armas_ia_r%s.glb" % r, "cajado"]]
+	if OS.get_environment("COMPARA_EXTRA") != "":
+		for x in OS.get_environment("COMPARA_EXTRA").split(";"):
+			itens.append(Array(x.split(":")))
+	var centro: Vector3 = cam.global_position - b.z * 3.4 + b.x * 0.25
+	var n := itens.size()
+	for k in n:
+		var e: MeshInstance3D = novo.peca_de(itens[k][0], itens[k][1])
+		if e == null:
+			print("SEM PECA ", itens[k])
+			continue
+		m.add_child(e)
+		_filas.append(e)
+		var bb: AABB = e.mesh.get_aabb()
+		var alvo: Vector3 = centro + b.x * (k - (n - 1) / 2.0) * 0.52
+		e.global_basis = b * Basis(Vector3.UP, deg_to_rad(-8.0))
+		var esc := 1.0
+		if bb.size.y > 1.75:
+			esc = 1.75 / bb.size.y
+		e.scale = Vector3.ONE * esc
+		e.global_position = alvo - e.global_basis * bb.get_center()
+		var rot := Label3D.new()
+		rot.text = (itens[k][2] if itens[k].size() > 2 else ("IA" if itens[k][0].contains("_ia") else "à mão"))
+		rot.font_size = 30
+		rot.outline_size = 12
+		rot.no_depth_test = true
+		rot.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		m.add_child(rot)
+		rot.global_position = alvo - b.y * 0.8 - b.z * 0.3
+		# some com o que tapa a vista (pedra, cavalete)
+		for mi in root.find_children("*", "MeshInstance3D", true, false):
+			if mi in _filas or not mi.is_visible_in_tree():
+				continue
+			var caixa: AABB = mi.global_transform * mi.get_aabb()
+			if caixa.size.length() > 60.0:
+				continue
+			for h in [-0.6, 0.0, 0.6]:
+				if caixa.intersects_segment(cam.global_position, alvo + b.y * h):
+					mi.visible = false
+					break
+	await esperar(30)
+	await foto("compara-" + r)
+
 func _arvore(n: Node, pre: String) -> void:
 	print(pre, n.name, " ", n.get_class(), " ", (n as Node3D).transform if n is Node3D else "")
 	for c in n.get_children():

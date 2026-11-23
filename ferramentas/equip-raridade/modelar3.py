@@ -16,12 +16,14 @@ from mathutils.bvhtree import BVHTree
 AQUI = os.path.dirname(os.path.abspath(__file__))
 RUIVA = os.path.join(AQUI, '..', '..', 'godot-prototipo', 'modelos', 'ruiva.glb')
 SO = [int(x) for x in os.environ.get('SO', '0,1,2,3,4').split(',') if x != '']
-NOME_SAIDA = 'pecas3_r'
+NOME_SAIDA = 'pecas3_r'  # (masculino: pecas3_m_r, logo abaixo)
 
 # CORPO=m: corpo masculino do criador (cabelo_m). Ele é medido "entortado" para as medidas da Ruiva (alturas e largura
 # dos ombros nos mesmos lugares), a roupa sai com todo o código feito para ela e depois volta para as medidas dele.
 CORPO = os.environ.get('CORPO', 'f')
 MASC = CORPO == 'm'
+if MASC:
+    NOME_SAIDA = 'pecas3_m_r'
 if MASC:
     RUIVA = os.path.join(AQUI, '..', '..', 'godot-prototipo', 'modelos', 'cabelo_m.glb')
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -50,11 +52,17 @@ def entortar(p):  # corpo dele -> medidas dela
     if not MASC: return p.copy()
     if GIRA: p = Vector((-p.x, -p.y, p.z))
     s = 1 if p.x >= 0 else -1
-    return Vector((s * _linear(abs(p.x), _xm, _xf), p.y, _linear(p.z, _zm, _zf)))
+    k = _k_x(p.z)  # a largura só entorta no tronco e nos braços; quadril e pernas ficam com a medida dele
+    return Vector((s * ((1 - k) * abs(p.x) + k * _linear(abs(p.x), _xm, _xf)), p.y, _linear(p.z, _zm, _zf)))
+def _k_x(z_dele):
+    t = max(0.0, min(1.0, (z_dele - _zm[4] + 0.12) / 0.12))  # 0 abaixo de 12 cm sob o peito, 1 no peito
+    return t * t * (3 - 2 * t)
 def desentortar(p):  # medidas dela -> corpo dele
     if not MASC: return p.copy()
     s = 1 if p.x >= 0 else -1
-    q = Vector((s * _linear(abs(p.x), _xf, _xm), p.y, _linear(p.z, _zf, _zm)))
+    zd = _linear(p.z, _zf, _zm)
+    k = _k_x(zd)
+    q = Vector((s * ((1 - k) * abs(p.x) + k * _linear(abs(p.x), _xf, _xm)), p.y, zd))
     return Vector((-q.x, -q.y, q.z)) if GIRA else q
 def malha_por_material(chave):
     ms = [o for o in bpy.data.objects if o.type == 'MESH' and any(chave in m.name for m in o.data.materials)]
@@ -96,6 +104,13 @@ F_TRONCO = juntar_fontes(fonte(PELE, _sem_braco), fonte(BLUSA, _sem_braco))
 F_SAIA = fonte(SAIA)
 # cada perna sozinha (para medir a coxa por trás sem bater na outra perna)
 BVH_PERNA = {l: fonte(PELE, lambda ps, l=l: all(p.x * l > 0.004 for p in ps) and all(p.z < 0.95 for p in ps))['bvh'] for l in (1, -1)}
+if MASC:  # a pele dele some debaixo da calça (canela vazia): mede pela pele e pelo sapato, com teto de raio na manga()
+    _SAP = malha_por_material('Shoes')
+    def _perna_m(l):
+        f = lambda ps, l=l: all(p.x * l > 0.004 for p in ps) and all(p.z < 0.95 for p in ps)
+        a = juntar_fontes(fonte(PELE, f), fonte(_SAP, f))  # a calça dele é larga: fica de fora
+        return a['bvh']
+    BVH_PERNA = {l: _perna_m(l) for l in (1, -1)}
 # a saia junto com a pele (para medir a túnica por fora da saia)
 _vs = F_PELE['vs'] + F_SAIA['vs']
 _n = len(F_PELE['vs'])
@@ -229,15 +244,21 @@ def manga(nome, A, B, t0, t1, folga, material, N=10, M=12, bvh=None, esp=0.0, lo
             d = u * math.cos(q) + w * math.sin(q)
             r = raio(bvh or F_PELE['bvh'], c, d, longe)
             rs.append(r if r is not None and r < longe else None)
+        if MASC and bvh is not None and any(bvh is b_ for b_ in BVH_PERNA.values()):
+            teto = 0.075 - 0.015 * ss(0.75, 0.3, c.z)  # só corta raio absurdo onde a canela dele não tem pele
+            rs = [min(r, teto) if r else None for r in rs]
         validos = [r for r in rs if r]
-        med = sum(validos) / len(validos) if validos else 0.04
+        med = sum(validos) / len(validos) if validos else (0.042 if MASC else 0.04)
         rs = [r if r else med for r in rs]
         rs = [0.5 * rs[k] + 0.25 * (rs[k - 1] + rs[(k + 1) % M]) for k in range(M)]
         f = folga(t) if callable(folga) else folga
+        perna_m = MASC and bvh is not None and any(bvh is b_ for b_ in BVH_PERNA.values())
         for k in range(M):
             q = 2 * math.pi * k / M
             d = u * math.cos(q) + w * math.sin(q)
             fa = atras(t) * max(0.0, d.y) if atras else 0.0
+            if perna_m:  # as pernas dele ficam juntas: folga só atrás (a batata da perna aparecia atrás do joelho)
+                fa += 0.02 * max(0.0, d.y) ** 1.5
             verts.append(c + d * (max(rs[k], med * 0.85) + f + fa))
     faces = []
     for i in range(N - 1):
