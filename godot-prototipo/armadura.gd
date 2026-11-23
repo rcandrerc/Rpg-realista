@@ -79,6 +79,9 @@ static func _pecas_couro(k: String, r: int) -> Array:
 # Lendário carmesim e ouro com bordado, Mítico obsidiana com barras de brasa acesas.
 # A linha de couro e aço de antes continua abaixo (LINHA_V5 = false volta para ela).
 const LINHA_V5 := true
+# roupão de mago também no feminino (André 2026-11-23: "acho que o feminino talvez vai colocar como roupão também");
+# por enquanto só para as fotos de comparação: false = feminino de patrulheira (o que ele aprovou)
+static var roupao_fem := false
 static func _pecas_v5(k: String, r: int) -> Array:
 	match k:
 		# "@f" = só no corpo feminino (patrulheira); "@m" = só no masculino (roupão de mago, André 2026-11-23:
@@ -1406,7 +1409,7 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 			_montar_capuz(raiz, esq, no, r)
 			continue
 		if parte.ends_with("@f") or parte.ends_with("@m"):
-			if parte.ends_with("@m") != _ref(esq).masc:
+			if parte.ends_with("@m") != (_ref(esq).masc or roupao_fem):
 				continue
 			parte = parte.left(-2)
 		if parte == "roupao_saia":
@@ -3578,9 +3581,14 @@ static func _montar_capuz(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> 
 	if osso < 0:
 		return
 	var h := _cabeca(raiz)
-	var chave := "capuz:%s" % str(h.c)
+	# largura dos ombros: a gola do capuz cobre o manto do roupão (masculino tem ombro mais largo)
+	var ombro := 0.17
+	var ob := esq.find_bone("J_Bip_L_UpperArm")
+	if ob >= 0:
+		ombro = absf((_G().affine_inverse() * esq.get_bone_global_rest(ob).origin).x - h.c.x)
+	var chave := "capuz:%s:%.3f" % [str(h.c), ombro]
 	if not _malhas.has(chave):
-		_malhas[chave] = _malha_capuz(h)
+		_malhas[chave] = _malha_capuz(h, ombro)
 	var ba := BoneAttachment3D.new()
 	no.add_child(ba)
 	ba.use_external_skeleton = true
@@ -3593,24 +3601,43 @@ static func _montar_capuz(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> 
 	mi.transform = esq.get_bone_global_rest(osso).affine_inverse() * _G()
 	ba.add_child(mi)
 
-static func _borda_capuz(h: Cabeca, a: float) -> float:
-	var x := absf(wrapf(a, -PI, PI))
-	# frente: aba logo acima da testa; dos lados desce até abaixo do queixo; atrás cobre a nuca
-	# André 2026-11-23: borda da frente em bico, como capuz de mago: desce em ponta no meio da testa e sobe em
-	# curva para os lados, antes de cair pelas bochechas
-	# André 2026-11-23 (referência do patrulheiro): a abertura do rosto é um arco bem curvado, em ogiva: o alto fica
-	# no meio da testa e desce em curva pelos lados até o queixo (antes era reta na testa)
-	var topo_a := h.testa + 0.05
-	var fundo := h.nuca - 0.08
-	var e := topo_a - (topo_a - fundo) * pow(clampf(x / 1.05, 0.0, 1.0), 1.3)
-	e += 0.012 * sin(a * 7.0 + 0.4) * smoothstep(1.0, 1.6, x) # barra ondulada (pano, não casco)
-	return e - 0.085 * smoothstep(1.1, 2.6, x) # atrás o pano cai mais, até entrar na gola
+# Abertura do rosto (André 2026-11-23): arco curvado na testa que desce pelos lados do rosto e FECHA por baixo do
+# queixo (referência do patrulheiro: o capuz junta embaixo e vira gola em volta do pescoço). Em volta da abertura,
+# fora dela o pano é inteiro da cabeça até os ombros.
+const CAPUZ_A0 := 1.0 # meia-largura da abertura do rosto (rad, 0 = meio da frente)
 
-static func _malha_capuz(h: Cabeca) -> ArrayMesh:
+static func _capuz_meio(h: Cabeca) -> float:
+	return h.bochecha + 0.012 # altura onde o arco de cima encontra a curva de baixo (lado do rosto)
+
+static func _capuz_queixo(h: Cabeca) -> float:
+	var alt := (h.testa - h.bochecha) / 0.6 # altura do rosto (ver _cabeca)
+	return h.bochecha - 0.14 * alt - 0.022 # logo abaixo do queixo
+
+# borda de cima da abertura (arco da testa)
+static func _borda_capuz(h: Cabeca, a: float) -> float:
+	var t := clampf(absf(wrapf(a, -PI, PI)) / CAPUZ_A0, 0.0, 1.0)
+	var topo_a := h.testa + 0.05
+	return topo_a - (topo_a - _capuz_meio(h)) * pow(t, 1.3)
+
+# borda de baixo da abertura (por baixo do queixo, onde o pano fecha)
+static func _borda_capuz_baixo(h: Cabeca, a: float) -> float:
+	var t := clampf(absf(wrapf(a, -PI, PI)) / CAPUZ_A0, 0.0, 1.0)
+	var m := _capuz_meio(h)
+	return m - (m - _capuz_queixo(h)) * sqrt(maxf(0.0, 1.0 - t * t))
+
+# barra de baixo: o pano assenta nos ombros e no alto do peito (gola fechada), com barra ondulada
+static func _barra_capuz(h: Cabeca, a: float) -> float:
+	var x := absf(wrapf(a, -PI, PI))
+	var b := lerpf(h.c.y - 0.235, h.c.y - 0.25, smoothstep(0.6, 2.4, x))
+	return b + 0.01 * sin(a * 7.0 + 0.4)
+
+static func _malha_capuz(h: Cabeca, ombro := 0.17) -> ArrayMesh:
 	var NA := 64
-	var NJ := 22
+	var NJ := 22 # da abertura até o alto
+	var NB := 12 # da barra dos ombros até a abertura
 	var folga := Vector3(0.04, 0.026, 0.046) # folgado: pano solto em volta da cabeça
 	var topo := h.c.y + h.raio.y + folga.y
+	var meio := _capuz_meio(h)
 	var V := PackedVector3Array()
 	var U2 := PackedVector2Array()
 	var U1 := PackedVector2Array()
@@ -3618,73 +3645,112 @@ static func _malha_capuz(h: Cabeca) -> ArrayMesh:
 	var ponto := func(a: float, y: float, dentro: float) -> Vector3:
 		var rx := h.raio.x + folga.x - dentro
 		var rz := h.raio.z + folga.z - dentro
+		var frente := maxf(0.0, cos(a))
 		var k := 1.0
 		if y > h.c.y:
 			k = sqrt(maxf(0.0, 1.0 - pow((y - h.c.y) / (topo - h.c.y), 2.0)))
 		else:
-			# abaixo do meio da cabeça o pano cai reto e abre um pouco no pescoço (assenta nos ombros)
-			k = 1.0 - 0.1 * smoothstep(h.c.y, h.c.y - 0.08, y) + 0.18 * smoothstep(h.c.y - 0.1, h.c.y - 0.22, y)
-		# pano mole (André: "atrás parece capacete"): dobras verticais que nascem no alto e abrem embaixo, e atrás o
-		# pano fica mais solto e cai para trás
+			# abaixo do meio da cabeça o pano fecha em volta do pescoço (um pouco mais justo na frente, por baixo do
+			# queixo) e abre de novo embaixo, assentando nos ombros e no peito
+			k = 1.0 - (0.1 + 0.06 * frente) * smoothstep(h.c.y, h.c.y - 0.1, y) \
+				+ (0.24 + 0.08 * frente) * smoothstep(h.c.y - 0.08, h.c.y - 0.24, y)
 		var atras := maxf(0.0, -cos(a))
 		var baixo := smoothstep(h.c.y + 0.06, h.c.y - 0.16, y)
-		# dobras em toda a volta (mais fundas embaixo e atrás), em duas frequências para não ficar regular
+		# pano mole: dobras verticais que nascem no alto e abrem embaixo, em duas frequências
 		var dobra := (sin(a * 9.0 + 0.6 + y * 14.0) * 0.6 + sin(a * 5.0 - 1.1) * 0.4) * 0.0095 \
 			* lerpf(0.35, 1.0, smoothstep(h.c.y + 0.12, h.c.y - 0.08, y)) * (0.45 + 0.55 * atras)
-		# atrás o pano não cola na nuca: faz barriga e cai
+		# na frente, por baixo do queixo, a gola drapeia em dobras curvas (U), como pano que junta e fecha
+		var qx := _capuz_queixo(h)
+		var drape := sin((qx - y) * 70.0 - absf(sin(a)) * 3.0) * 0.005 * frente \
+			* smoothstep(qx + 0.01, qx - 0.03, y) * smoothstep(h.c.y - 0.26, h.c.y - 0.2, y)
+		dobra += drape
 		var barriga := 0.028 * atras * sin(clampf((topo - y) / (topo - h.c.y + 0.2), 0.0, 1.0) * PI)
 		var q := Vector3(h.c.x + (rx * k + dobra) * sin(a), y, h.c.z + (rz * k + dobra + barriga) * cos(a))
 		q.z -= 0.03 * atras * baixo
-		# costura no meio, da testa à nuca: um vinco leve que tira a cara de casco liso
+		# costura no meio, da testa à nuca
 		var vinco := (1.0 - smoothstep(0.0, 0.18, absf(sin(a)))) * smoothstep(h.c.y - 0.02, h.c.y + 0.06, y)
-		q += (q - Vector3(h.c.x, h.c.y, h.c.z)).normalized() * 0.006 * vinco
-		# embaixo, atrás e dos lados, o pano abre e assenta nos ombros e na capa
-		var assenta := smoothstep(h.c.y - 0.14, h.c.y - 0.26, y) * (0.4 + 0.6 * atras)
-		q.x = h.c.x + (q.x - h.c.x) * (1.0 + 0.35 * assenta)
+		q += (q - h.c).normalized() * 0.006 * vinco
+		# embaixo o pano abre e assenta nos ombros (dos lados mais que na frente)
+		var assenta := smoothstep(h.c.y - 0.09, h.c.y - 0.25, y) * (0.4 + 0.6 * maxf(atras, absf(sin(a))))
+		# dos lados a gola chega até a ponta do ombro (cobre o manto e a costura da manga)
+		var abre_x := maxf(0.45, (ombro + 0.05) / ((h.raio.x + folga.x) * 1.1) - 1.0)
+		q.x = h.c.x + (q.x - h.c.x) * (1.0 + abre_x * assenta)
 		q.z = h.c.z + (q.z - h.c.z) * (1.0 + 0.2 * assenta)
-		# ponta alta de mago no cocuruto, caída para trás
+		# bico suave no alto, levemente para a frente
 		var u := clampf((y - h.c.y) / (topo - h.c.y), 0.0, 1.0)
 		var w := pow(u, 2.2)
-		# bico suave no alto, levemente para a frente (como o capuz do patrulheiro); sem ponta caída
 		q = q.lerp(Vector3(h.c.x, q.y, h.c.z + 0.005), w * 0.25)
 		q.y += 0.03 * w * u
 		return q
+	# distância até a borda mais perto (barra de acento): abertura do rosto ou barra dos ombros
+	var dist := func(a: float, y: float) -> float:
+		var d := y - _barra_capuz(h, a)
+		if absf(wrapf(a, -PI, PI)) < CAPUZ_A0:
+			d = minf(d, minf(absf(y - _borda_capuz(h, a)), absf(_borda_capuz_baixo(h, a) - y)))
+		return maxf(d, 0.0)
+	var add := func(a: float, y: float, dentro: float, d: float) -> int:
+		var p: Vector3 = ponto.call(a, y, dentro)
+		V.append(p)
+		U2.append(Vector2(d, -1.0))
+		U1.append(Vector2(p.x, p.y))
+		return V.size() - 1
+	var na := NA + 1
+	# parte de cima: da abertura (ou do meio, fora dela) até o alto
+	var cima := PackedInt32Array()
 	for j in NJ + 1:
 		var s := float(j) / NJ
-		for i in NA + 1:
+		for i in na:
 			var a := float(i) / NA * TAU
 			var e := _borda_capuz(h, a)
 			var y := e + (topo - e) * (0.55 * s + 0.45 * sin(s * PI * 0.5))
-			var p: Vector3 = ponto.call(a, y, 0.0)
 			if j == NJ:
-				p = ponto.call(PI, topo - 0.001, 0.0).lerp(Vector3(h.c.x, topo, h.c.z), 0.0)
-			V.append(p)
-			U2.append(Vector2((y - e) * 1.0, -1.0))
-			U1.append(Vector2(p.x, p.y))
-	for j in NJ:
-		for i in NA:
-			var a0 := j * (NA + 1) + i
-			var b0 := a0 + 1
-			var c0 := a0 + NA + 1
-			var d0 := c0 + 1
-			I.append_array([a0, c0, b0, b0, c0, d0])
-	# aba dobrada para dentro na borda (1,2 cm de pano virado)
-	var n := V.size()
-	for i in NA + 1:
-		var a := float(i) / NA * TAU
-		var e := _borda_capuz(h, a)
-		var p: Vector3 = ponto.call(a, e + 0.007, 0.004) # pano fino: dobra de 7 mm na borda
-		V.append(p)
-		U2.append(Vector2(0.0, -1.0))
-		U1.append(Vector2(p.x, p.y))
-	for i in NA:
-		I.append_array([i, i + 1, n + i, i + 1, n + i + 1, n + i])
+				y = topo - 0.001
+			cima.append(add.call(a, y, 0.0, dist.call(a, y)))
+	# parte de baixo (gola fechada): da barra dos ombros até a abertura; fora da abertura emenda com a de cima
+	var baixo_i := PackedInt32Array()
+	for j in NB + 1:
+		var s := float(j) / NB
+		for i in na:
+			var a := float(i) / NA * TAU
+			var fora := absf(wrapf(a, -PI, PI)) >= CAPUZ_A0
+			if j == NB and fora:
+				baixo_i.append(cima[i])
+				continue
+			var b := _barra_capuz(h, a)
+			var t := _borda_capuz_baixo(h, a) if not fora else meio
+			var y := b + (t - b) * s
+			baixo_i.append(add.call(a, y, 0.0, dist.call(a, y)))
+	for grade in [[cima, NJ], [baixo_i, NB]]:
+		var g: PackedInt32Array = grade[0]
+		for j in int(grade[1]):
+			for i in NA:
+				var a0 := g[j * na + i]
+				var b0 := g[j * na + i + 1]
+				var c0 := g[(j + 1) * na + i]
+				var d0 := g[(j + 1) * na + i + 1]
+				I.append_array([a0, c0, b0, b0, c0, d0])
+	# pano virado para dentro em toda a volta da abertura do rosto (7 mm) e na barra dos ombros
+	var dobra_borda := func(borda: Callable, a0: float, a1: float, n: int, sobe: float) -> void:
+		var base := V.size()
+		for i in n + 1:
+			var a := lerpf(a0, a1, float(i) / n)
+			var e: float = borda.call(h, a)
+			add.call(a, e, 0.0, 0.0)
+			add.call(a, e + sobe, 0.004, 0.0)
+		for i in n:
+			var k := base + i * 2
+			I.append_array([k, k + 2, k + 1, k + 2, k + 3, k + 1])
+	dobra_borda.call(_borda_capuz, -CAPUZ_A0, CAPUZ_A0, 24, 0.007)
+	dobra_borda.call(_borda_capuz_baixo, -CAPUZ_A0, CAPUZ_A0, 24, -0.007)
+	dobra_borda.call(_barra_capuz, 0.0, TAU, NA, 0.007)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for q in I:
-		st.set_uv(U1[q])
-		st.set_uv2(U2[q])
-		st.add_vertex(V[q])
+	for k in V.size():
+		st.set_uv(U1[k])
+		st.set_uv2(U2[k])
+		st.add_vertex(V[k])
+	for k in I:
+		st.add_index(k)
 	st.generate_normals()
 	return st.commit()
 
