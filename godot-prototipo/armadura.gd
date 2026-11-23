@@ -100,7 +100,7 @@ static func _pecas_v5(k: String, r: int) -> Array:
 		"capa":
 			return [["capa", "capa"]]
 		"chapeu":
-			return [["capuz", "v5_capuz"], ["capuz_gola", "v5_capuz"]]
+			return [["capuz", "v5_capuz"], ["laco_gola", "v5_corda"]] # o cordão vem com o capuz: aperta a gola por cima dele
 	return []
 # cores de cada raridade (Comum, Raro, Épico, Lendário, Mítico)
 # roupão do masculino: pano do roupão e do manto por cima (o manto contrasta, como o preto sobre o azul da referência)
@@ -1418,6 +1418,9 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 		if parte == "corda":
 			_montar_corda(raiz, esq, no, r)
 			continue
+		if parte == "laco_gola":
+			_montar_laco_gola(raiz, esq, no, r)
+			continue
 		if parte.begins_with("ombro"):
 			_montar_ombreira(esq, no, 1.0 if parte == "ombro_e" else -1.0, mat, r)
 			continue
@@ -1735,10 +1738,11 @@ static func _regiao(parte: String, p: Vector3, R: Ref) -> Vector2:
 			var lado_r := R.x_braco + 0.025 if p.y > R.y_braco - 0.1 else 0.25 # cruza com a manga: sem fresta no ombro
 			if p.y > R.y_pescoco + 0.035 or ax > lado_r:
 				return Vector2(-1, 0)
-			return Vector2(0.014, p.z)
+			# gola alta e um pouco solta: fecha por cima do pano do capuz, que entra por dentro (André, rodada 5)
+			return Vector2(0.014 + 0.016 * smoothstep(R.y_pescoco - 0.06, R.y_pescoco + 0.01, p.y), p.z)
 		"manga_larga_e", "manga_larga_d":
 			# manga larga em sino: justa no ombro e abrindo até o punho (a ponta cai, _casca)
-			if ax < R.x_braco - 0.04 or ax > R.x_mao + 0.02:
+			if ax < R.x_braco - (0.04 if R.masc else 0.005) or ax > R.x_mao + 0.02:
 				return Vector2(-1, 0)
 			return Vector2(0.014 + 0.045 * smoothstep(R.x_cotovelo - 0.08, R.x_mao, ax), -1.0)
 		"capuz_gola":
@@ -2817,6 +2821,104 @@ static func _malha_roupao_saia(corpo: MeshInstance3D, raiz: Node3D, R: Ref) -> A
 	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 	return am
 
+# cordão amarrado em volta da gola alta do roupão (André 2026-11-23, rodada 5: o capuz entra por dentro do roupão e a
+# gola fecha por cima dele "como se fosse amarrada"), com nó e duas pontas curtas na frente
+static func _montar_laco_gola(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> void:
+	var nome_b := "J_Bip_C_UpperChest" if esq.find_bone("J_Bip_C_UpperChest") >= 0 else "J_Bip_C_Chest"
+	var b := esq.find_bone(nome_b)
+	var tops := _fonte(raiz, "Tops")
+	if b < 0 or tops == null:
+		return
+	var R := _ref(esq)
+	# alto da gola: onde a blusa acaba no pescoço (no masculino ela é mais baixa)
+	var y_topo := -INF
+	for sfc in tops.mesh.get_surface_count():
+		for q in _FA(Malhas.vertices(tops.mesh, sfc)):
+			if absf(q.x) < 0.05 and q.y < R.y_pescoco + 0.06:
+				y_topo = maxf(y_topo, q.y)
+	var y := minf(R.y_pescoco + 0.016, y_topo - 0.014)
+	# masculino: a blusa para abaixo do pescoço e quem fecha a gola é o manto; o cordão aperta o pano do capuz bem
+	# onde ele entra no manto (medido na pele do pescoço)
+	var fonte := tops
+	var folga_l := 0.037
+	if R.masc:
+		y = y_topo + 0.012
+		fonte = _fonte(raiz, "Body_00")
+		folga_l = 0.03
+	var chave := "laco_gola:%d:%.3f" % [tops.mesh.get_instance_id(), y]
+	if not _malhas.has(chave):
+		# elipse da blusa nessa altura; o anel fica por fora da gola do roupão (que é a blusa + ~2,6 cm)
+		var mn := Vector2(INF, INF)
+		var mx := Vector2(-INF, -INF)
+		for sfc in fonte.mesh.get_surface_count():
+			for q in _FA(Malhas.vertices(fonte.mesh, sfc)):
+				if absf(q.y - y) < 0.01 and absf(q.x) < (0.1 if fonte == tops else 0.075):
+					mn = Vector2(minf(mn.x, q.x), minf(mn.y, q.z))
+					mx = Vector2(maxf(mx.x, q.x), maxf(mx.y, q.z))
+		if mx.x <= mn.x:
+			_malhas[chave] = null
+		else:
+			var c := (mn + mx) * 0.5
+			var ra := (mx - mn) * 0.5 + Vector2(folga_l, folga_l)
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			var NA := 40
+			var NT := 8
+			var tubo := 0.0055
+			var pts := []
+			for i in NA + 1:
+				var a := float(i) / NA * TAU
+				var cen := Vector3(c.x + ra.x * sin(a), y - 0.004 * cos(a), c.y + ra.y * cos(a))
+				var fora := Vector3(sin(a) * ra.y, 0, cos(a) * ra.x).normalized()
+				for j in NT + 1:
+					var t := float(j) / NT * TAU
+					pts.append(cen + (fora * cos(t) + Vector3.UP * sin(t)) * tubo)
+			for i in NA:
+				for j in NT:
+					var a0: int = i * (NT + 1) + j
+					var c0: int = a0 + NT + 1
+					for k in [a0, a0 + 1, c0, a0 + 1, c0 + 1, c0]:
+						st.add_vertex(pts[k])
+			st.generate_normals()
+			var m := st.commit()
+			# nó na frente e duas pontas curtas caindo sobre o peito
+			var frente := Vector3(c.x, y - 0.004, c.y + ra.y + 0.004)
+			_malhas[chave] = [m, frente]
+	var dados = _malhas[chave]
+	if dados == null:
+		return
+	var ba := _preso(esq, no, nome_b)
+	var base := esq.get_bone_global_rest(b).affine_inverse() * _G()
+	var mi := MeshInstance3D.new()
+	mi.mesh = dados[0]
+	mi.material_override = _material("v5_corda", r)
+	mi.transform = base
+	ba.add_child(mi)
+	var f: Vector3 = dados[1]
+	var esf := SphereMesh.new()
+	esf.radius = 0.011
+	esf.height = 0.018
+	esf.radial_segments = 10
+	esf.rings = 5
+	var noz := MeshInstance3D.new()
+	noz.mesh = esf
+	noz.material_override = _material("v5_corda", r)
+	noz.transform = base * Transform3D(Basis(), f)
+	ba.add_child(noz)
+	for k in [[0.012, 0.25], [-0.01, -0.2]]:
+		var cil := CylinderMesh.new()
+		cil.top_radius = 0.0045
+		cil.bottom_radius = 0.0045
+		cil.height = 0.07
+		cil.radial_segments = 6
+		cil.rings = 1
+		var ci := MeshInstance3D.new()
+		ci.mesh = cil
+		ci.material_override = _material("v5_corda", r)
+		var giro := Basis(Vector3(0, 0, 1), float(k[1])) * Basis(Vector3(1, 0, 0), -0.25)
+		ci.transform = base * Transform3D(giro, f + Vector3(float(k[0]), 0, 0.006) + giro * Vector3(0, -0.035, 0))
+		ba.add_child(ci)
+
 # cordão na cintura do roupão, com duas pontas penduradas e borlas (preso no quadril)
 static func _montar_corda(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> void:
 	var b := esq.find_bone("J_Bip_C_Spine")
@@ -3586,9 +3688,24 @@ static func _montar_capuz(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> 
 	var ob := esq.find_bone("J_Bip_L_UpperArm")
 	if ob >= 0:
 		ombro = absf((_G().affine_inverse() * esq.get_bone_global_rest(ob).origin).x - h.c.x)
-	var chave := "capuz:%s:%.3f" % [str(h.c), ombro]
+	# pescoço (André 2026-11-23, rodada 5): o pano de baixo do capuz desce justo pelo pescoço e entra por dentro
+	# da gola do roupão/camisa; mede a elipse do pescoço na pele, um pouco acima da base
+	var R := _ref(esq)
+	var pesc := Vector4(h.c.x, h.c.z - 0.01, 0.055, 0.06) # centro x, z; raio x, z
+	var corpo := _fonte(raiz, "Body_00")
+	if corpo:
+		var mn := Vector3(INF, 0, INF)
+		var mx := Vector3(-INF, 0, -INF)
+		for sfc in corpo.mesh.get_surface_count():
+			for q in _FA(Malhas.vertices(corpo.mesh, sfc)):
+				if absf(q.y - (R.y_pescoco + 0.03)) < 0.008 and absf(q.x - h.c.x) < 0.09:
+					mn = Vector3(minf(mn.x, q.x), 0, minf(mn.z, q.z))
+					mx = Vector3(maxf(mx.x, q.x), 0, maxf(mx.z, q.z))
+		if mx.x > mn.x:
+			pesc = Vector4((mn.x + mx.x) * 0.5, (mn.z + mx.z) * 0.5, (mx.x - mn.x) * 0.5, (mx.z - mn.z) * 0.5)
+	var chave := "capuz:%s:%.3f:%s" % [str(h.c), ombro, str(pesc)]
 	if not _malhas.has(chave):
-		_malhas[chave] = _malha_capuz(h, ombro)
+		_malhas[chave] = _malha_capuz(h, ombro, R.y_pescoco, pesc)
 	var ba := BoneAttachment3D.new()
 	no.add_child(ba)
 	ba.use_external_skeleton = true
@@ -3626,12 +3743,17 @@ static func _borda_capuz_baixo(h: Cabeca, a: float) -> float:
 	return m - (m - _capuz_queixo(h)) * sqrt(maxf(0.0, 1.0 - t * t))
 
 # barra de baixo: o pano assenta nos ombros e no alto do peito (gola fechada), com barra ondulada
+static var _capuz_y_pesc := -9.0
 static func _barra_capuz(h: Cabeca, a: float) -> float:
+	# rodada 5 (André): a barra fica escondida por dentro da gola do roupão, um pouco abaixo da base do pescoço
+	if _capuz_y_pesc > -5.0:
+		return _capuz_y_pesc - 0.035
 	var x := absf(wrapf(a, -PI, PI))
 	var b := lerpf(h.c.y - 0.235, h.c.y - 0.25, smoothstep(0.6, 2.4, x))
 	return b + 0.01 * sin(a * 7.0 + 0.4)
 
-static func _malha_capuz(h: Cabeca, ombro := 0.17) -> ArrayMesh:
+static func _malha_capuz(h: Cabeca, ombro := 0.17, y_pesc := -9.0, pesc := Vector4.ZERO) -> ArrayMesh:
+	_capuz_y_pesc = y_pesc
 	var NA := 64
 	var NJ := 22 # da abertura até o alto
 	var NB := 12 # da barra dos ombros até a abertura
@@ -3674,8 +3796,18 @@ static func _malha_capuz(h: Cabeca, ombro := 0.17) -> ArrayMesh:
 		var assenta := smoothstep(h.c.y - 0.09, h.c.y - 0.25, y) * (0.4 + 0.6 * maxf(atras, absf(sin(a))))
 		# dos lados a gola chega até a ponta do ombro (cobre o manto e a costura da manga)
 		var abre_x := maxf(0.45, (ombro + 0.05) / ((h.raio.x + folga.x) * 1.1) - 1.0)
-		q.x = h.c.x + (q.x - h.c.x) * (1.0 + abre_x * assenta)
-		q.z = h.c.z + (q.z - h.c.z) * (1.0 + 0.2 * assenta)
+		if y_pesc < -5.0:
+			q.x = h.c.x + (q.x - h.c.x) * (1.0 + abre_x * assenta)
+			q.z = h.c.z + (q.z - h.c.z) * (1.0 + 0.2 * assenta)
+		if y_pesc > -5.0:
+			# rodada 5: abaixo do queixo o pano fecha justo em volta do pescoço (com folga de pano) e desce reto
+			# para dentro da gola; sem capinha por fora
+			var qy := _capuz_queixo(h)
+			var tub := smoothstep(qy + 0.03, qy - 0.03, y)
+			var ang := Vector2(sin(a), cos(a))
+			var folga_t := 0.013 + 0.004 * sin(a * 6.0 + 1.0) # dobrinhas do pano em volta do pescoço
+			var alvo := Vector3(pesc.x + (pesc.z + folga_t) * ang.x, y, pesc.y + (pesc.w + folga_t) * ang.y)
+			q = q.lerp(alvo, tub)
 		# bico suave no alto, levemente para a frente
 		var u := clampf((y - h.c.y) / (topo - h.c.y), 0.0, 1.0)
 		var w := pow(u, 2.2)
