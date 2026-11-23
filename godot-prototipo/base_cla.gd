@@ -515,7 +515,7 @@ func _aplainar(g: Dictionary, h: PackedFloat32Array, ed: Dictionary, x: float, z
 		for i in range(i0, i1 + 1):
 			var k := j * nx + i
 			var o: float = h[k]
-			if o < 0.5 or _rio_em(g, k):
+			if o < 0.1 or _rio_em(g, k): # o mar não muda; a areia da beira sobe junto (shared/terrapleno.js AREIA)
 				continue
 			var px: float = float(g.x0) + i * passo
 			var pz: float = float(g.z0) + j * passo
@@ -563,7 +563,7 @@ func _cortar(g: Dictionary, h: PackedFloat32Array, ed: Dictionary, pts: Array, c
 					melhor[k] = [dd, a.y + (b.y - a.y) * t]
 	for k in melhor:
 		var o: float = h[k]
-		if o < 0.5 or _rio_em(g, k):
+		if o < 0.1 or _rio_em(g, k):
 			continue
 		var px: float = float(g.x0) + (int(k) % nx) * passo
 		var pz: float = float(g.z0) + (int(k) / nx) * passo
