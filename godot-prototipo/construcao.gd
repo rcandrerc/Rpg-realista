@@ -1589,6 +1589,10 @@ func chao_mudou(area: Rect2) -> void:
 		for p in L.get("pecas", []):
 			if p is Dictionary and p.has("no") and is_instance_valid(p.no) and area.has_point(Vector2(float(p.x), float(p.z))):
 				p.no.position.y = _y_peca(p)
+	# André 2026-11-23 (v2975: "todos os móveis, bancadas, baús e fornos ficaram não sólidos"): a batida dos móveis tem
+	# altura (topo = chão + alto); feita com o chão de antes do nivelamento, o herói passava por cima dela quando o
+	# chão subiu. Refaz com o chão novo.
+	_refazer_solidos()
 
 func _desenhar_canteiro(h: Dictionary, forcar := false) -> void:
 	var f := fase(_crescida(h)) if h.c != "" else -1
