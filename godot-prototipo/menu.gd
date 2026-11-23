@@ -2012,7 +2012,7 @@ func montar_cla() -> void:
 		bt.custom_minimum_size = Vector2(0, 46)
 		var trava := int(T.get("claNv", 1)) > int(C.get("nv", 1))
 		if trava:
-			bt.text = "%s · só no clã Nv %d" % [str(T.nome), int(T.claNv)]
+			bt.text = Idioma.frase("%s · só no clã Nv %d" % [str(T.nome), int(T.claNv)])
 		bt.disabled = not perto or cheio or trava or int(m.P.prog.get("ouro", 0)) < int(T.preco)
 		conteudo.add_child(bt)
 	conteudo.add_child(rotulo("Cada recruta depois do 3º deixa a semana toda 10% mais cara. 7 dias sem pagamento, ele vai embora.", 12, APAGADO))
