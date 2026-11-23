@@ -13,7 +13,7 @@
 import { CLA } from './dados.js';
 import { gradeDoMundo, alturaOrigGrade, aplicarChaoBases } from './relevo.js';
 
-export const TERRAPLENO = { meio: 33, rampa: 0.25, wMin: 6, wMax: 90, yMin: 1.8, portao: 19, larg: 3.5, borda: 9, busca: 420, subida: 0.12, aterro: 5 };
+export const TERRAPLENO = { meio: 33, rampa: 0.25, wMin: 6, wMax: 90, yMin: 1.8, portao: 19, larg: 5.6, borda: 11, busca: 420, subida: 0.12, aterro: 5 };
 
 const sv = (t) => { const u = Math.max(0, Math.min(1, t)); return u * u * (3 - 2 * u); };
 export const ruidoChao = (x, z) => 0.6 * Math.sin(x * 0.21 + z * 0.13) + 0.4 * Math.sin(z * 0.29 - x * 0.17);
