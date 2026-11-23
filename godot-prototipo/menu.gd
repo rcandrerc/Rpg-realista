@@ -1763,7 +1763,7 @@ func _escolher_base() -> void:
 func _escolta_cla(vs: VBoxContainer, Mi) -> void:
 	if not (Mi is Dictionary):
 		return
-	vs.add_child(rotulo("Escolta do Clã", 15, OURO_CLARO))
+	vs.add_child(rotulo("Missão do clã: Escolta", 16, OURO_CLARO))
 	if int(Mi.get("ativa", 0)) == 1:
 		vs.add_child(rotulo("Levando %d recruta(s) até %s · emboscada %d de %d · faltam %s" % [int(Mi.rec), str(Mi.dest), int(Mi.emb), int(Mi.embs), _tempo_cla(int(Mi.falta) * 1000)], 13, TEXTO))
 		var dx := float(Mi.x)
@@ -1790,6 +1790,14 @@ func _base_cla(C: Dictionary) -> void:
 	vs.add_theme_constant_override("separation", 3)
 	cs.add_child(vs)
 	var B = C.get("base")
+	if B is Dictionary and B.get("missao") is Dictionary: # a escolta num cartão próprio, antes da base (André 2026-11-23: "não tô achando a missão do clã")
+		var ce := PanelContainer.new()
+		ce.add_theme_stylebox_override("panel", caixa(FUNDO2, OURO, 2, 10))
+		var ve := VBoxContainer.new()
+		ve.add_theme_constant_override("separation", 3)
+		ce.add_child(ve)
+		_escolta_cla(ve, B.missao)
+		conteudo.add_child(ce)
 	if B is Dictionary:
 		vs.add_child(rotulo("Base do clã · Nv %d" % int(B.nv), 16, OURO_CLARO))
 		var h: Vector3 = m.heroi.position if m.heroi != null else Vector3.ZERO
@@ -1819,7 +1827,6 @@ func _base_cla(C: Dictionary) -> void:
 					m.minimapa.abrir_base(true), 14)
 			bm.custom_minimum_size = Vector2(0, 42)
 			vs.add_child(bm)
-		_escolta_cla(vs, B.get("missao"))
 	else:
 		vs.add_child(rotulo("Base do clã", 16, OURO_CLARO))
 		vs.add_child(rotulo("Vá até o lugar e funde a base onde você está. No meio fica o salão com o Baú do Clã; em volta, o seu lote e um lote para cada recruta. Sem aluguel: a taxa sai do cofre toda semana.", 12, APAGADO))
