@@ -209,7 +209,7 @@ export const Base = {
     for (const [k, b] of Object.entries(est && typeof est === 'object' ? est : {})) {
       if (!b || !/^[jn][\w:.-]{1,40}$/.test(k) || !Number.isFinite(+b.x) || !Number.isFinite(+b.z)) continue;
       this.basesCla[k] = { k, x: Math.round(+b.x), z: Math.round(+b.z), raca: RACAS[b.raca] ? b.raca : 'chama', n: String(b.n || '').slice(0, 24), dono: String(b.dono || ''), nomeDono: String(b.nomeDono || '').slice(0, 24),
-        nv: Math.max(1, Math.min(CLA.max, b.nv | 0)), taxa: Number.isFinite(+b.taxa) ? +b.taxa : Date.now(), c: +b.c || Date.now(), donos: {}, ...(b.sorteou ? { sorteou: 1 } : {}), ...(b.mudou > 0 ? { mudou: b.mudou | 0, mudouEm: +b.mudouEm || 0 } : {}), ...(b.livres > 0 ? { livres: Math.min(20, b.livres | 0) } : {}) };
+        nv: Math.max(1, Math.min(CLA.max, b.nv | 0)), taxa: Number.isFinite(+b.taxa) ? +b.taxa : Date.now(), c: +b.c || Date.now(), donos: {}, ...(b.sorteou ? { sorteou: 1 } : {}), ...(b.mudou > 0 ? { mudou: b.mudou | 0, mudouEm: +b.mudouEm || 0 } : {}), ...(b.livres > 0 ? { livres: Math.min(20, b.livres | 0) } : {}), ...(b.missaoEm > 0 ? { missaoEm: +b.missaoEm } : {}) };
       for (const [i, o] of Object.entries(b.donos && typeof b.donos === 'object' ? b.donos : {})) if (/^[2-9]$/.test(i) && o && typeof o.id === 'string') this.basesCla[k].donos[i] = { id: o.id.slice(0, 24), nome: String(o.nome || '').slice(0, 24) };
     }
     this.refazerBases();
@@ -429,7 +429,7 @@ export const Base = {
     const N = nivelBase(B.nv), D = this.basesDesenho?.[B.k], sem = this.semanasBase(B);
     return { x: B.x, z: B.z, nv: B.nv, tem: N.tem, taxa: N.taxa, atraso: sem, devendo: sem * N.taxa, trava: this.baseTravada(B) ? 1 : 0,
       prox: Math.max(0, B.taxa + CLA.semana - Date.now()), centro: N.centro, raio: N.raio, mudar: (B.mudou | 0) && !(B.livres > 0) ? B_().mudar.ouro : 0, livres: B.livres | 0, mudarEm: (B.mudou | 0) && !(B.livres > 0) && B.mudouEm ? Math.max(0, B.mudouEm + B_().mudar.dias * 86400000 - Date.now()) : 0,
-      lotes: (D?.lotes || []).map((l) => ({ i: l.i, dono: l.i === 1 ? j.nome : B.donos?.[l.i]?.nome || '' })) };
+      lotes: (D?.lotes || []).map((l) => ({ i: l.i, dono: l.i === 1 ? j.nome : B.donos?.[l.i]?.nome || '' })), missao: this.missaoInfo?.(B) || null };
   },
   // ---------- o Baú do Clã do salão e a forja ----------
   pertoBauBase(j) {

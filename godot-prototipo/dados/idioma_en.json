@@ -1228,7 +1228,7 @@
 "Missão Nv %d (%s)": "Quest Lv %d (%s)",
 "  (Nv %d-%d)": "  (Lv %d-%d)",
 "Totem": "Totem",
-"Ir para %s": "Go to %s",
+"Ir para %s": "Go to {1}",
 "%d m pela estrada": "%d m by road",
 "Lugares": "Places",
 "1 Imp Chefe em cada clareira": "1 Imp Chief in each clearing",
@@ -4277,5 +4277,11 @@
 "Mudar para cá": "Move here",
 "Baú do Clã": "Clan Chest",
 "Verde = onde pode ficar o MEIO da base (a base inteira já cabe). Toque para marcar": "Green = where the CENTER of the base can go (the whole base already fits). Tap to mark",
-"Aqui é a base de um clã: só dá para plantar no seu lote": "This is a clan base: you can only plant on your own plot"
+"Aqui é a base de um clã: só dá para plantar no seu lote": "This is a clan base: you can only plant on your own plot",
+"Escolta do Clã": "Clan Escort",
+"Começar a escolta": "Start the escort",
+"Próxima escolta em %s.": "Next escort in {1}.",
+"Ir até %s": "Go to {1}",
+"Levando %d recruta(s) até %s · emboscada %d de %d · faltam %s": "Escorting {1} recruit(s) to {2} · ambush {3} of {4} · {5} left",
+"Leve os recrutas vivos até o totem mais perto (300 m ou mais) em 10 min. No caminho vêm 4 emboscadas no seu nível, e os monstros vão primeiro nos recrutas: bata neles para segurar. Quem chegar ganha 1 nível de XP; o cofre ganha ouro e você, 1 Fragmento de Alma. Abra no Baú do Clã, com os recrutas perto. Uma a cada 6 h.": "Take your recruits alive to the nearest totem (300 m or more) within 10 min. 4 ambushes at your level come on the way, and the monsters go for the recruits first: hit them to pull their aggro. Whoever arrives gains 1 level of XP; the treasury gets gold and you get 1 Soul Fragment. Start it at the Clan Chest with your recruits nearby. Once every 6 h."
 }

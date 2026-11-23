@@ -23,6 +23,7 @@ import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (A
 import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
 import { Cla } from './cla.js'; // clã e recrutas (André 2026-11-22)
 import { Base } from './base.js'; // base do clã (André 2026-11-22)
+import { MissaoCla } from './missao-cla.js'; // Missão do Clã em grupo (André 2026-11-23)
 import { Guilda } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11-18)
 import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
 import { Guerra } from './guerra.js'; // Chama x Geada (André 2026-11-18)
@@ -644,6 +645,7 @@ export class Simulacao {
   }
   todos() { return [...this.jogadores.values(), ...this.inimigos]; }
   inimigosDe(c) {
+    if (c.sp?.missao) { const M = this.missaoDoMob(c); if (M) return this.alvosMissao(M, c); } // Escolta do Clã: os recrutas primeiro (o líder só se segurou o monstro)
     // caverna da montanha: quem está lá dentro só enxerga quem também está (nada atravessa a rocha do teto)
     const sub = c.tipo === 'jogador' ? this.naCaverna(c) : !!c.sub;
     const l = (c.tipo === 'jogador' ? this.inimigos : [...this.jogadores.values()]).filter((o) => !o.morto && !o.criando && !(o.bot && !o.time) && (o.tipo === 'jogador' ? this.naCaverna(o) : !!o.sub) === sub);
@@ -4037,6 +4039,7 @@ export class Simulacao {
     const nvM = de && de.tipo !== 'jogador' && alvo.tipo === 'jogador' && de.nivel ? de.nivel : 0;
     if (nvM) n *= danoMonstroNivel(nvM, alvo.prog?.nivel, NIVEL_INIMIGO);
     if (de?.tipo === 'jogador' && alvo.tipo !== 'jogador' && !alvo.treino && alvo.nivel) n *= golpeHeroiNivel(alvo.nivel, de.prog?.nivel, NIVEL_INIMIGO);
+    if (alvo.sp?.missao) this.provocouMissao(alvo, de); // Escolta do Clã: o monstro que o líder acerta vai nele por um tempo
     if (alvo.st) n *= 1 - (nvM ? reducaoContra(alvo.st.defesa, nvM, NIVEL_INIMIGO) : alvo.st.reducao); // defesa do herói (contra monstro: cai com o nível dele)
     if (alvo.defesa > 0) n *= 1 - alvo.defesa;
     n = Math.max(1, Math.round(n));
@@ -4169,7 +4172,8 @@ export class Simulacao {
       }
       for (const ctx of this.amigosIa) ctx.cacaJuntosAmiga?.(ganham, c); // caçar junto com a Cecília/Dario sobe a amizade (André 2026-11-14)
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
-      if (c.sp.caverna) { // sala da caverna: o corpo some; a sala volta cheia depois (passoCaverna)
+      if (c.sp.missao) this.mobMissaoMorreu(c); // Escolta do Clã: o corpo some e não volta (shared/missao-cla.js)
+      else if (c.sp.caverna) { // sala da caverna: o corpo some; a sala volta cheia depois (passoCaverna)
         const S = this.dungeon.salas.find((S) => S.def.id === c.sp.caverna), vg = S?.vagas.find((vg) => vg.e === c);
         this.depois(this.dungeon.def.corpo, () => { const i = this.inimigos.indexOf(c); if (i >= 0) this.inimigos.splice(i, 1); if (vg && vg.e === c) vg.e = null; });
       } else if (c.sp.caca != null) { // campo de caça: o corpo some e a vaga abre (o próximo nasce pela regra do Quimera, em passoCacas)
@@ -4440,6 +4444,7 @@ export class Simulacao {
         }
       }
     }
+    this.passoMissoesCla(); // Escolta do Clã (shared/missao-cla.js)
     this.passoGuerra(); this.passoDuplasGuerra(); // Chama x Geada (shared/guerra.js): quem pode lutar agora e as falas de quem avistou alguém
     if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); } // a semana do clã (shared/cla.js)
     for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
@@ -4560,7 +4565,7 @@ export class Simulacao {
     if (b.trava > 0) return;
     const t = TIPOS_INIMIGO[b.tipo];
     const lento = b.lento && b.lento.ate > this.tempo ? 1 - b.lento.k : 1;
-    let alvo = this.maisPerto(b, b.bm ? b.arena.r * 2 : 14);
+    let alvo = this.maisPerto(b, b.bm ? b.arena.r * 2 : b.sp?.missao ? 45 : 14); // Escolta do Clã: a emboscada vem de longe para cima dos recrutas
     if (alvo && naAreaSegura(alvo.x, alvo.z)) alvo = null; // totem (André 2026-11-10): lá dentro monstro não persegue; volta para casa
     if (alvo && this.mobFechadoPara(b, alvo)) alvo = null; // região fechada para esse herói (André 2026-11-11): não sai atrás dele
     if (alvo && alvo.cenaAte > this.tempo) alvo = null; // vendo uma cena da história (cena()): o monstro deixa ele em paz
@@ -4942,6 +4947,7 @@ Object.assign(Simulacao.prototype, Kit);
 Object.assign(Simulacao.prototype, Plantio); // árvores plantadas (André 2026-11-16)
 Object.assign(Simulacao.prototype, Diarias); // missões diárias (André 2026-11-16)
 Object.assign(Simulacao.prototype, Cla); // clã e recrutas (André 2026-11-22, shared/cla.js)
+Object.assign(Simulacao.prototype, MissaoCla); // Missão do Clã em grupo (André 2026-11-23, shared/missao-cla.js)
 Object.assign(Simulacao.prototype, Base); // base do clã (André 2026-11-22, shared/base.js)
 Object.assign(Simulacao.prototype, Guilda); // Guilda dos Aventureiros: contratos e ranks F a SS (André 2026-11-18)
 Object.assign(Simulacao.prototype, Economia); // livro-caixa da economia (André 2026-11-16)
