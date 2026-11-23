@@ -12,8 +12,10 @@
 // Ele nunca negocia, não compra terreno, não conversa (o servidor também barra: ROBO_NAO em server/index.js).
 import fs from 'node:fs';
 import { Client } from 'colyseus.js';
-import { xpProximo, reforcoOk } from '../../shared/progresso.js';
+// shared/index.js PRIMEIRO: os módulos do shared se importam em círculo (cla.js -> amiga.js -> simulacao.js); entrando
+// por progresso.js o robô caía em 9 s com "Cannot access 'Amiga' before initialization" (desde 2026-11-22)
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS, FERRAMENTAS_FAZENDA, MONTARIAS, HEROI, CURA, COLETA_DISTANCIA, HABS, TIPOS_INIMIGO, ITENS, ehEquip, TOTENS, LEILAO } from '../../shared/index.js';
+import { xpProximo, reforcoOk } from '../../shared/progresso.js';
 import { noLago } from '../../shared/relevo.js';
 import { planejarRota } from '../../shared/rota.js';
 import { liberado, zonaFechadaEm } from '../../shared/historia.js';
@@ -264,12 +266,19 @@ function cacar(agora) {
     if (camposRuins.size >= 6) camposRuins.clear(); // nenhum serviu: tenta todos de novo
     // ronda 2026-11-17: no Nv 47 (h11) o robô passou 2 turnos sem XP indo para o campo Nv 42, que está na névoa, e para o
     // covil da gruta. Só campo aberto e fora das grutas
-    const bons = CACA.filter((c) => !c.boss && (c.nivel || 1) <= nv && (c.nivel || 1) >= nv - 6 && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && !(/\(Ilha/.test(c.nome || '') && !/\(Ilha/.test(campoCaca?.nome || '') && Math.hypot(eu.x - c.x, eu.z - c.z) > 120) && !(prog && zonaFechadaEm(prog, c.x, c.z))).sort((a, b) => d2(eu, a) - d2(eu, b));
-    // André 2026-11-22 ("vira e mexe vejo meu robô nível 60 grindando em mob nível 1"): no Nv 54+ não há campo do nível
-    // no continente (o mais forte é o Nv 48; os do Nv 52+ ficam na Ilha e em Aurora) e a lista vazia caía no CACA[0], o
-    // campo Nv 1. Agora, sem campo na faixa, vai ao mais forte aberto que ele alcança (mesma terra, sem covil nem boss)
-    const alcanca = CACA.filter((c) => !c.boss && (c.nivel || 1) <= nv && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && !(/\(Ilha|\(Aurora/.test(c.nome || '') && Math.hypot(eu.x - c.x, eu.z - c.z) > 120) && !(prog && zonaFechadaEm(prog, c.x, c.z))).sort((a, b) => (b.nivel || 1) - (a.nivel || 1));
-    campoCaca = bons[Math.floor(Math.random() * Math.min(3, bons.length))] || alcanca[Math.floor(Math.random() * Math.min(2, alcanca.length))] || CACA[0]; campoT = agora;
+    // ronda 2026-11-23 (André: "tá nível 60, 70, fica lá matando o bicho nível 1"): só campo da MESMA terra em que ele
+    // está (Clareira/Vael, Ilha do Meio, Aurora: sem barco ele não atravessa o mar) e nunca mais o CACA[0] (Nv 1) de
+    // reserva: sem campo na faixa, vai ao mais forte que alcança na terra dele
+    const terra = (c) => (/\(Ilha/.test(c.nome || '') ? 'ilha' : /\(Aurora/.test(c.nome || '') ? 'aurora' : 'vael');
+    let perto = null; for (const c of CACA) if (!c.boss && (!perto || d2(eu, c) < d2(eu, perto))) perto = c;
+    const minha = perto ? terra(perto) : 'vael';
+    const ok = (c) => !c.boss && (c.nivel || 1) <= nv && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && terra(c) === minha && !(prog && zonaFechadaEm(prog, c.x, c.z));
+    const bons = CACA.filter((c) => ok(c) && (c.nivel || 1) >= nv - 6).sort((a, b) => d2(eu, a) - d2(eu, b));
+    const alcanca = CACA.filter(ok).sort((a, b) => (b.nivel || 1) - (a.nivel || 1));
+    campoCaca = bons[Math.floor(Math.random() * Math.min(3, bons.length))] || alcanca[Math.floor(Math.random() * Math.min(2, alcanca.length))]
+      || CACA.filter((c) => !c.boss && !/^Covil/.test(c.nome || '') && terra(c) === minha && (c.nivel || 1) <= nv).sort((a, b) => (b.nivel || 1) - (a.nivel || 1))[0] || CACA[0];
+    if ((campoCaca.nivel || 1) < nv - 15) log('sem campo do nível na terra dele, caça no mais forte que alcança:', campoCaca.nome, 'Nv', campoCaca.nivel);
+    campoT = agora;
   }
   if (irPara(campoCaca.x + (Math.random() - 0.5) * 6, campoCaca.z + (Math.random() - 0.5) * 6, 4)) parar();
 }
