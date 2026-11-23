@@ -94,7 +94,7 @@ static func _pecas_v5(k: String, r: int) -> Array:
 		"capa":
 			return [["capa", "capa"]]
 		"chapeu":
-			return [["capuz", "v5_capuz"]]
+			return [["capuz", "v5_capuz"], ["capuz_gola", "v5_capuz"]]
 	return []
 # cores de cada raridade (Comum, Raro, Épico, Lendário, Mítico)
 const V5_COURO := [ # [claro, cor, sombra]
@@ -1441,7 +1441,7 @@ const REGIOES := {
 	"peito_pe": {"fonte": "Shoes"},
 	# v5 (patrulheiro)
 	"colete": {"fonte": "Tops"}, "alca": {"fonte": "Tops"}, "manto": {"fonte": "Tops"}, "bracal_e": {"fonte": "Tops"}, "bracal_d": {"fonte": "Tops"},
-	"saia_v5": {"fonte": "Bottoms"}, "saia_aba": {"fonte": "Bottoms"},
+	"capuz_gola": {"fonte": "Tops"}, "saia_v5": {"fonte": "Bottoms"}, "saia_aba": {"fonte": "Bottoms"},
 	"bota_e": {"fonte": "Body_00"}, "bota_d": {"fonte": "Body_00"}, "dobra_e": {"fonte": "Body_00"}, "dobra_d": {"fonte": "Body_00"},
 }
 
@@ -1691,6 +1691,15 @@ static func _regiao(parte: String, p: Vector3, R: Ref) -> Vector2:
 			if p.y < borda_m or ax > R.x_braco + 0.11 or p.y > R.y_pescoco + 0.03:
 				return Vector2(-1, 0)
 			return Vector2(0.022 + 0.006 * smoothstep(R.y_pescoco - 0.03, R.y_pescoco + 0.02, p.y), -1.0)
+		"capuz_gola":
+			# gola do capuz (referência de patrulheiro, André 2026-11-23): o pano do capuz não acaba no pescoço; desce
+			# em volta dele e cai sobre os ombros e o alto do peito, por cima do manto e da capa (parece uma peça só)
+			# mais curta que o manto (as duas barras não ficam uma em cima da outra)
+			var borda_g := R.y_pescoco - (0.085 if p.z > 0.0 else 0.11)
+			borda_g = lerpf(borda_g, R.y_braco + 0.01, smoothstep(0.04, R.x_braco - 0.01, ax))
+			if p.y < borda_g or ax > R.x_braco + 0.01:
+				return Vector2(-1, 0)
+			return Vector2(0.034 + 0.012 * smoothstep(R.y_pescoco - 0.04, R.y_pescoco + 0.03, p.y), -1.0)
 		"bracal_e", "bracal_d":
 			# braçadeira de couro com tiras, do meio do antebraço até o punho, mais larga perto do cotovelo
 			if ax < R.x_cotovelo + 0.045 or ax > R.x_mao - 0.012:
@@ -3302,9 +3311,12 @@ static func _borda_capuz(h: Cabeca, a: float) -> float:
 	# frente: aba logo acima da testa; dos lados desce até abaixo do queixo; atrás cobre a nuca
 	# André 2026-11-23: borda da frente em bico, como capuz de mago: desce em ponta no meio da testa e sobe em
 	# curva para os lados, antes de cair pelas bochechas
-	var bico := 0.026 * pow(1.0 - clampf(x / 0.5, 0.0, 1.0), 1.4)
-	var arco := 0.012 * sin(clampf((x - 0.12) / 0.55, 0.0, 1.0) * PI)
-	return lerpf(h.testa + 0.018 - bico + arco, h.nuca - 0.1, smoothstep(0.62, 1.15, x))
+	# André 2026-11-23 (referência do patrulheiro): a abertura do rosto é um arco bem curvado, em ogiva: o alto fica
+	# no meio da testa e desce em curva pelos lados até o queixo (antes era reta na testa)
+	var topo_a := h.testa + 0.05
+	var fundo := h.nuca - 0.08
+	var e := topo_a - (topo_a - fundo) * pow(clampf(x / 1.05, 0.0, 1.0), 1.3)
+	return e - 0.085 * smoothstep(1.1, 2.6, x) # atrás o pano cai mais, até entrar na gola
 
 static func _malha_capuz(h: Cabeca) -> ArrayMesh:
 	var NA := 64
@@ -3323,14 +3335,24 @@ static func _malha_capuz(h: Cabeca) -> ArrayMesh:
 			k = sqrt(maxf(0.0, 1.0 - pow((y - h.c.y) / (topo - h.c.y), 2.0)))
 		else:
 			# abaixo do meio da cabeça o pano cai reto e abre um pouco no pescoço (assenta nos ombros)
-			k = 1.0 - 0.1 * smoothstep(h.c.y, h.c.y - 0.08, y) + 0.4 * smoothstep(h.c.y - 0.1, h.c.y - 0.24, y)
-		var q := Vector3(h.c.x + rx * k * sin(a), y, h.c.z + rz * k * cos(a))
+			k = 1.0 - 0.1 * smoothstep(h.c.y, h.c.y - 0.08, y) + 0.18 * smoothstep(h.c.y - 0.1, h.c.y - 0.22, y)
+		# pano mole (André: "atrás parece capacete"): dobras verticais que nascem no alto e abrem embaixo, e atrás o
+		# pano fica mais solto e cai para trás
+		var atras := maxf(0.0, -cos(a))
+		var baixo := smoothstep(h.c.y + 0.06, h.c.y - 0.16, y)
+		var dobra := (sin(a * 9.0 + 0.6) * 0.65 + sin(a * 5.0 - 1.1) * 0.35) * 0.0075 * smoothstep(h.c.y + 0.1, h.c.y - 0.05, y) * (0.35 + 0.65 * atras)
+		var q := Vector3(h.c.x + (rx * k + dobra) * sin(a), y, h.c.z + (rz * k + dobra) * cos(a))
+		q.z -= 0.03 * atras * baixo
+		# embaixo, atrás e dos lados, o pano abre e assenta nos ombros e na capa
+		var assenta := smoothstep(h.c.y - 0.14, h.c.y - 0.26, y) * (0.4 + 0.6 * atras)
+		q.x = h.c.x + (q.x - h.c.x) * (1.0 + 0.35 * assenta)
+		q.z = h.c.z + (q.z - h.c.z) * (1.0 + 0.2 * assenta)
 		# ponta alta de mago no cocuruto, caída para trás
 		var u := clampf((y - h.c.y) / (topo - h.c.y), 0.0, 1.0)
 		var w := pow(u, 2.2)
-		q = q.lerp(Vector3(h.c.x, q.y, h.c.z - 0.03), w * 0.35) # o alto afina
-		# a ponta sobe pouco e tomba para trás, como pano mole (roupão de mago)
-		q += Vector3(0, 0.07 * w - 0.03 * w * w * u, -0.17 * w * u)
+		# bico suave no alto, levemente para a frente (como o capuz do patrulheiro); sem ponta caída
+		q = q.lerp(Vector3(h.c.x, q.y, h.c.z + 0.005), w * 0.25)
+		q.y += 0.03 * w * u
 		return q
 	for j in NJ + 1:
 		var s := float(j) / NJ
