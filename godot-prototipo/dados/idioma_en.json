@@ -4360,5 +4360,22 @@
 "%s  (Nv %d)": "{1}  (Lv {2})",
 "%d de ouro · %d/semana": "{1} gold · {2}/week",
 "Contratar": "Hire",
-"Ver outros": "See others"
+"Ver outros": "See others",
+"Missão do Clã": "Clan Missions",
+"Fixada no atalho": "Pinned to tracker",
+"Fixar no atalho": "Pin to tracker",
+"As missões do clã só funcionam online.": "Clan missions only work online.",
+"Você ainda não tem clã. Funde o seu na aba Clã para ter missões do clã.": "You have no clan yet. Found yours in the Clan tab to get clan missions.",
+"A Escolta abre depois de fundar a base do clã (aba Clã).": "The Escort unlocks after you found the clan base (Clan tab).",
+"Diária: %s": "Daily: %s",
+"Pronta! Toque para receber": "Ready! Tap to claim",
+"Pronto! Toque para receber": "Ready! Tap to claim",
+"Pegue no mural do Rio Claro": "Take it at the Rio Claro board",
+"Funde a base do clã": "Found the clan base",
+"Próxima em %s": "Next in %s",
+"Pronta: comece no Baú do Clã": "Ready: start at the Clan Chest",
+"Guilda: %s": "Guild: %s",
+"Missão do clã: Escolta": "Clan mission: Escort",
+"Escolta do Clã → %s": "Clan Escort → %s",
+"Clã": "Clan"
 }
