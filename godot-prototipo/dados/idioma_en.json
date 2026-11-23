@@ -1,6 +1,13 @@
 {
 "_nota": "Inglês do jogo (idioma.gd). Chave = texto em português, igual ao do código. %s/%d viram {1},{2}... na ordem; para mudar a ordem escreva {n} no inglês. Nome próprio fica igual; título e parentesco traduzem (Mestre Ivo = Master Ivo). Nada ao pé da letra.",
 "Mochila": "Inventory",
+"Mercante": "Merchant ship",
+"Coloque o carrinho no mundo primeiro": "Place the cart in the world first",
+"Coloque o navio mercante na água primeiro": "Put the merchant ship in the water first",
+"Protegendo o carrinho": "Guarding the cart",
+"Protegendo o mercante": "Guarding the merchant ship",
+"Esperando o carrinho": "Waiting for the cart",
+"Esperando o mercante": "Waiting for the merchant ship",
 "Construir": "Build",
 "Missões": "Quests",
 "Conta": "Account",

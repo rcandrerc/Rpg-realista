@@ -39,6 +39,16 @@ func chao_mudou(area: Rect2) -> void:
 		var no = arvores[id].get("no")
 		if no is Node3D and is_instance_valid(no) and area.has_point(Vector2(no.position.x, no.position.z)):
 			no.position.y = m.terreno.altura(no.position.x, no.position.z)
+			_acertar_y(arvores[id], no.position.y)
+
+# o coletável acompanha o chão: o corte só vale se a diferença de altura com o herói for menor que 1,5 m (trabalho.gd) e o
+# toco nasce na altura de o.pos (queda_arvore.gd). Sem isso a árvore da base nivelada ficava incortável e o toco flutuava.
+func _acertar_y(a: Dictionary, y: float) -> void:
+	var o = a.get("o")
+	if o is Dictionary:
+		if m.trabalho.queda.caida(o.id):
+			m.trabalho.queda.toco_acompanha(o.id, y - o.pos.y)
+		o.pos.y = y
 
 func tipos() -> Dictionary:
 	return m.P.dados.get("arvoresPlantio", {})
@@ -218,10 +228,17 @@ func _process(dt: float) -> void:
 			_fase(a)
 		# o chão mudou embaixo dela (base nivelada, estrada...): acompanha (André 2026-11-23: "as árvores também" voando)
 		var no = a.get("no")
-		if no is Node3D and is_instance_valid(no) and not (m.trabalho and a.get("o") and m.trabalho.queda.caida(a.o.id)) and Vector2(no.position.x - hp.x, no.position.z - hp.z).length_squared() < LONGE * LONGE:
+		if no is Node3D and is_instance_valid(no) and a.get("o") and m.trabalho.queda.caida(a.o.id):
+			# cortada, o toco fica: se o chão mudou (base nivelada), o toco acompanha
+			var yc: float = m.terreno.chao_relevo(no.position.x, no.position.z)
+			if absf(a.o.pos.y - yc) > 0.3 and absf(m.terreno.altura(no.position.x, no.position.z) - yc) < 0.05:
+				_acertar_y(a, yc)
+			continue
+		if no is Node3D and is_instance_valid(no) and Vector2(no.position.x - hp.x, no.position.z - hp.z).length_squared() < LONGE * LONGE:
 			var y: float = m.terreno.chao_relevo(no.position.x, no.position.z)
 			if absf(no.position.y - y) > 0.3 and absf(m.terreno.altura(no.position.x, no.position.z) - y) < 0.05:
 				no.position.y = y
+				_acertar_y(a, y)
 
 # plantou (evento do servidor): terra mexida e o som da mão na terra
 func plantou(ev: Dictionary) -> void:
@@ -241,6 +258,8 @@ const Q := 4.0 # m do quadrado (PLANTIO.quadrado)
 const RAIO_MODO := 16.0 # m em volta do herói com os quadrados desenhados (e até onde a mira vai na área)
 const PERTO_AREA := 10.0 # m: com um quadrado livre tão perto, abre a Fazenda sem andar
 const COR_Q := {"livre": Color(1.0, 0.86, 0.45), "ocupado": Color(1.0, 0.42, 0.36)}
+var _quads_todos := {} # todas as áreas, sem tirar as bases
+var _sig_bases := ""
 var _quads := {} # Vector2i(i, k) -> id da área (habilidades.json, plantio.areas: "k:i0~i1,i2;...")
 var mostrando := false # quadrados no chão (Fazenda aberta numa área de plantio)
 var semente := ""
@@ -250,7 +269,7 @@ var _centro_marcas := Vector2(INF, INF)
 var _mats_q := {}
 
 func quadrados() -> Dictionary:
-	if _quads.is_empty():
+	if _quads_todos.is_empty():
 		for A in m.P.dados.get("plantio", {}).get("areas", []):
 			for linha in str(A.q).split(";"):
 				var pk := linha.split(":")
@@ -262,7 +281,21 @@ func quadrados() -> Dictionary:
 					var a := int(ab[0])
 					var b := int(ab[1]) if ab.size() > 1 else a
 					for i in range(a, b + 1):
-						_quads[Vector2i(i, k)] = str(A.id)
+						_quads_todos[Vector2i(i, k)] = str(A.id)
+	# André 2026-11-23: o que está dentro da base de qualquer clã deixa de ser área de plantio pública (o servidor recusa:
+	# shared/plantio.js, naBaseCla). Refaz quando as bases mudam.
+	var sig := ""
+	if m.base_cla != null:
+		for B in m.base_cla.bases:
+			sig += "%s,%s;" % [str(B.get("x", 0)), str(B.get("z", 0))]
+	if sig != _sig_bases or _quads.is_empty():
+		_sig_bases = sig
+		_quads = {}
+		for q in _quads_todos:
+			if m.base_cla == null or m.base_cla.base_em((q.x + 0.5) * Q, (q.y + 0.5) * Q).is_empty():
+				_quads[q] = _quads_todos[q]
+		if has_method("_refazer_marcas") and mostrando:
+			call_deferred("_refazer_marcas")
 	return _quads
 
 # quadrados com árvore plantada (as que eu conheço: as de perto)

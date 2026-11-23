@@ -531,7 +531,7 @@ class SalaClareira extends Room {
   entrarAmiga(client, fala = true) {
     for (const ctx of this.sim.amigosIa) { // a Cecília, o Dario e os 20 aventureiros (André 2026-11-11), cada um com o seu save
       if (contas && !ctx.amiga) {
-        if (ctx.AMIGA.terreno) { const l = contas.loteDoDono(ctx.AMIGA.conta); if (l) this.sim.carregarLotes([l]); } // o lote dele na base do clã
+        if (ctx.AMIGA.terreno || ctx.fazTarefasDef?.()) { const l = contas.loteDoDono(ctx.AMIGA.conta); if (l) this.sim.carregarLotes([l]); } // o lote dele na base do clã
         if (!this.sim.npcSalvos?.has(ctx.AMIGA.id)) this.sim.carregarNpc(ctx.AMIGA.id, contas.lerMundo('npc:' + ctx.AMIGA.id)); // o save fica na tabela mundo (todos, desde 2026-11-22)
       }
       ctx.amigaEntrar(client.sessionId, fala);
