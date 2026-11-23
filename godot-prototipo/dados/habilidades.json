@@ -5066,7 +5066,9 @@
   ],
   "perto": 2.2,
   "porBase": 0,
-  "alto": 0.16
+  "alto": 0.16,
+  "janela": 6,
+  "junta": 0.9
  },
  "historia": {
   "zonas": [

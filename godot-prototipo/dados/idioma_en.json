@@ -4289,5 +4289,13 @@
 "Na base do clã: largue o pack perto dele e o pack fica em cima, sem nunca sumir (5 por palete). Pack no chão some em 30 min. Coloque no seu terreno pelo modo construção (martelo).": "In the clan base: drop a pack next to it and the pack sits on top and never disappears (5 per pallet). A pack on the ground disappears in 30 min. Place it on your plot in build mode (hammer).",
 "Pack guardado no palete (não some)": "Pack stored on the pallet (it won't disappear)",
 "Pack largado no chão: some em 30 min (só no palete ele fica)": "Pack dropped on the ground: it disappears in 30 min (only on a pallet it stays)",
-"Tire os packs de cima do palete antes de desmontar": "Take the packs off the pallet before dismantling it"
+"Tire os packs de cima do palete antes de desmontar": "Take the packs off the pallet before dismantling it",
+"Paletes de packs": "Pack pallets",
+"Carga %d/%d packs": "Load %d/%d packs",
+"Toque num pack pra pegar nas costas; num lugar vazio pra pôr o das costas. No palete o pack não some.": "Tap a pack to carry it on your back; tap an empty spot to put down the one on your back. On a pallet the pack never disappears.",
+"Traga um pack nas costas pra pôr no palete": "Bring a pack on your back to put it on the pallet",
+"Chegue perto do palete": "Get closer to the pallet",
+"O palete só guarda dentro da base do clã": "The pallet only stores packs inside the clan base",
+"Esse lugar já tem pack": "That spot already has a pack",
+"Esse pack está no palete de outro clã: só o clã dono pega": "That pack is on another clan's pallet: only the owning clan can take it"
 }

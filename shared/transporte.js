@@ -293,10 +293,21 @@ export const Transporte = {
       p.pack = null; aviso('Pack largado no chão: some em 30 min (só no palete ele fica)');
       return pronto();
     }
+    // janela do palete (André 2026-11-23: "igualzinho do carrinho"): põe o pack das costas no lugar sl do palete p
+    if (m.acao === 'palete_por') {
+      if (!p.pack) return aviso('Traga um pack nas costas pra pôr no palete');
+      let P = null; for (const L of this.lotes?.values?.() || []) { P = (L.pecas || []).find((o) => o.k === 'palete' && o.id === String(m.p)); if (P) break; }
+      if (!P || Math.hypot(P.x - j.x, P.z - j.z) > PALETE.janela) return aviso('Chegue perto do palete');
+      const bk = this.naTerraCla(P.x, P.z); if (!bk) return aviso('O palete só guarda dentro da base do clã');
+      const sl = m.sl | 0; if (sl < 0 || sl >= PALETE.lugar.length) return;
+      if (this.packsNoPalete(P.id).some((o) => o.sl === sl)) return aviso('Esse lugar já tem pack');
+      this.packNoPalete(p.pack, { P, bk, sl }); p.pack = null; aviso('Pack guardado no palete (não some)');
+      return pronto();
+    }
     if (m.acao === 'pegar') {
       if (p.pack) return aviso('Suas costas já estão ocupadas');
       if (j.veiculo === 'carrinho') return aviso('Desça do carrinho primeiro');
-      const g = this.packsChao.find((o) => o.g === m.g); if (!g || Math.hypot(g.x - j.x, g.z - j.z) > PR.pegar + 0.5) return;
+      const g = this.packsChao.find((o) => o.g === m.g); if (!g || Math.hypot(g.x - j.x, g.z - j.z) > (g.fica ? PALETE.janela : PR.pegar + 0.5)) return; // palete: pela janela dele, de perto do grupo
       if (!this.podePegarPack(j, g)) return aviso('Esse pack está no palete de outro clã: só o clã dono pega');
       this.packsChao.splice(this.packsChao.indexOf(g), 1);
       p.pack = packValido(g); j.montado = null;

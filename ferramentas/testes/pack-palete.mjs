@@ -41,3 +41,13 @@ ok(s.packsChao.filter((o) => o.fica).length === 0 && s.packsChao.some((o) => o.f
   ok(!fora.prog.pack && s3.packsChao.length === 1, 'quem é de fora não pega do palete');
   s3.pack(dono.id, { acao: 'pegar', g }); ok(!!dono.prog.pack && !s3.packsChao.length, 'o dono da base pega');
 }
+// janela do palete (igual à do carrinho): pôr no lugar escolhido e tirar de até PALETE.janela m
+{
+  const s4 = new Simulacao(MAPA_CLAREIRA); s4.basesCla = { jc1: { k: 'jc1', x: 400, z: 200 } };
+  s4.lotes.set('L1', { def: { id: 'L1', x0: 395, x1: 405, z0: 195, z1: 205 }, dono: 'c1', pecas: [{ id: 'p1', k: 'palete', x: 400, z: 200, r: 0 }, { id: 'p2', k: 'palete', x: 401.6, z: 200, r: 0 }] });
+  const a = s4.adicionarJogador('a', 'Ana', 'ruiva', {}); a.conta = 'c1'; Object.assign(a, { x: 403, z: 203 });
+  a.prog.pack = { k: 'couro', ox: 0, oz: 0 }; s4.pack(a.id, { acao: 'palete_por', p: 'p2', sl: 3 });
+  const o = s4.packsChao[0]; ok(!a.prog.pack && o?.pal === 'p2' && o.sl === 3, 'pela janela: o pack vai no lugar escolhido do palete');
+  a.prog.pack = { k: 'couro', ox: 0, oz: 0 }; s4.pack(a.id, { acao: 'palete_por', p: 'p2', sl: 3 }); ok(!!a.prog.pack, 'lugar ocupado: não põe');
+  a.prog.pack = null; s4.pack(a.id, { acao: 'pegar', g: o.g }); ok(!!a.prog.pack, 'tira pela janela a uns 4 m');
+}
