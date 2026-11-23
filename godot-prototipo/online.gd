@@ -791,7 +791,6 @@ func outro(j: Dictionary) -> void:
 		# conselho de auditoria 2026-11-13: o corpo de outro jogador também é reaproveitado (antes ia embora e voltava montado)
 		var g = _tirar_guardado(vis)
 		if g != null:
-			_pedir_fundo(vis) # o próximo corpo deste visual já vai sendo instanciado na linha de fundo
 			o = {"no": g.no, "visual": vis, "anim": g.anim, "esq": g.esq, "espada": g.espada, "cajado": g.cajado,
 				"alvo": Vector3(float(j.x), float(j.y), float(j.z)), "ry": float(j.ry), "seq": -1, "modo": "", "uma_vez": 0.0,
 				"barra": g.barra, "placa": g.placa, "placa_txt": "", "lod": -1, "sumiu": false, "molas": g.get("molas", []), "fase": g.get("fase", 0),
@@ -810,18 +809,12 @@ func outro(j: Dictionary) -> void:
 			# vez logo depois da capa): no máximo um corpo NOVO por foto; o próximo nasce na foto seguinte (0,05 s depois)
 			if _novos_foto >= NOVOS_POR_FOTO:
 				return
-			# personagens mais leves (2026-11-23): o .glb é instanciado na linha de fundo; até ficar pronto (umas fotos
-			# depois, ele chega a 55 m) este jogador ainda não aparece
-			var pronto = _tirar_fundo(vis)
-			if pronto == null and _pedir_fundo(vis):
-				return
 			_novos_foto += 1
 			var tc := Time.get_ticks_usec()
-			o = _montar_corpo(vis, Vector3(float(j.x), float(j.y), float(j.z)), float(j.ry), str(j.get("nome", "")), pronto)
+			o = _montar_corpo(vis, Vector3(float(j.x), float(j.y), float(j.z)), float(j.ry), str(j.get("nome", "")))
 			o.nasceu = Engine.get_process_frames()
 			outros[id] = o
 			_marca("o:corpo", tc)
-			_pedir_fundo(vis) # o próximo já vai sendo instanciado
 	# corpo novo neste quadro: a roupa e as cores ficam para a próxima foto (0,05 s depois). Juntos davam 280 ms num
 	# quadro só no Poco X7 (o:corpo ~150 + o:vestir ~130, registros de 2026-11-14)
 	var recem: bool = int(o.get("nasceu", -1)) == Engine.get_process_frames()
@@ -1373,6 +1366,10 @@ func evento(ev: Dictionary) -> void:
 			if m.reforco:
 				m.reforco.do_servidor(ev)
 			return
+		"claCandidatos": # os 3 candidatos do Recrutador, com ficha (troca.gd, André 2026-11-23)
+			if m.troca:
+				m.troca.mostrar_candidatos(ev)
+			return
 		"equipVer": # o equipamento de outro jogador ou da Cecília (troca.gd, André 2026-11-10)
 			if m.troca:
 				m.troca.mostrar_equip(ev)
@@ -1743,8 +1740,8 @@ func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 	o.anim_acc = 0.0
 
 # um corpo novo de outro jogador (ou NPC do servidor): o modelo, as armas, a barra e o nome
-func _montar_corpo(vis: String, pos: Vector3, ry: float, nome: String, pronto: Node3D = null) -> Dictionary:
-	var no: Node3D = m.modelo(vis, pronto) # todo corpo do criador tem as animações do herói (exportar.js)
+func _montar_corpo(vis: String, pos: Vector3, ry: float, nome: String) -> Dictionary:
+	var no: Node3D = m.modelo(vis) # todo corpo do criador tem as animações do herói (exportar.js)
 	no.set_meta("pano_outro", true) # capa de outro: pano de verdade só nas mais perto da câmera (pano_capa.gd)
 	var esq: Skeleton3D = m.esqueleto(no)
 	var esp: Node3D = m.nova_arma("espada")
@@ -1779,56 +1776,6 @@ func reservar_corpo(vis: String) -> void:
 	o.tit = ""
 	o.roupa = "-"
 	_soltar_corpo(o)
-
-# Corpo novo na linha de fundo (frente "personagens mais leves", André 2026-11-23): com a reserva vazia, o:corpo ainda
-# dava 116 a 160 ms num quadro no Poco X7 (registros de 23/11). Instanciar o .glb (centenas de nós, 96 ossos) vai para
-# outra linha do processador (WorkerThreadPool; montar nós fora da cena numa linha de fundo é permitido no Godot); no
-# quadro do jogo fica só pôr na cena, pintar, molas, armas e nome (m.modelo com pronto). Um de cada visual por vez, só
-# depois da capa (antes, a fila da abertura monta a reserva). Se a linha de fundo passar de FUNDO_ESPERA, espera por ela.
-const FUNDO_ESPERA := 1500 # ms
-var _fundo := {} # visual -> [id da tarefa, quando pediu (ms)]
-var _fundo_no := {} # visual -> Node3D instanciado (fora da cena), escrito pela linha de fundo
-var _fundo_trava := Mutex.new()
-
-# true: está (ou acabou de ficar) instanciando na linha de fundo; false: não dá (modelo não existe, ou ainda na capa)
-func _pedir_fundo(vis: String) -> bool:
-	if _fundo.has(vis):
-		return true
-	if _cobrindo or not ResourceLoader.exists("res://modelos/%s.glb" % vis):
-		return false
-	var cena: PackedScene = m.cena_modelo(vis) # o .glb sai do disco aqui, nesta linha (só a primeira vez)
-	_fundo[vis] = [WorkerThreadPool.add_task(_instanciar_fundo.bind(vis, cena), false, "corpo"), Time.get_ticks_msec()]
-	return true
-
-func _instanciar_fundo(vis: String, cena: PackedScene) -> void: # roda na linha de fundo: nada da cena aqui
-	var no: Node = cena.instantiate()
-	_fundo_trava.lock()
-	_fundo_no[vis] = no
-	_fundo_trava.unlock()
-
-# o corpo instanciado na linha de fundo, se já ficou pronto (null: ainda não, ou nada pedido)
-func _tirar_fundo(vis: String) -> Node3D:
-	var f = _fundo.get(vis)
-	if f == null:
-		return null
-	if not WorkerThreadPool.is_task_completed(f[0]) and Time.get_ticks_msec() - int(f[1]) < FUNDO_ESPERA:
-		return null
-	WorkerThreadPool.wait_for_task_completion(f[0])
-	_fundo.erase(vis)
-	_fundo_trava.lock()
-	var no = _fundo_no.get(vis)
-	_fundo_no.erase(vis)
-	_fundo_trava.unlock()
-	return no as Node3D
-
-func _exit_tree() -> void: # sobra da linha de fundo (fora da cena) não fica perdida na memória
-	for vis in _fundo.keys():
-		WorkerThreadPool.wait_for_task_completion(_fundo[vis][0])
-	_fundo.clear()
-	for no in _fundo_no.values():
-		if is_instance_valid(no):
-			no.free()
-	_fundo_no.clear()
 
 # saiu da visão: o corpo fica escondido e parado para ser reaproveitado (NPC e, desde 2026-11-13, jogador também)
 func _soltar_corpo(o: Dictionary) -> void:

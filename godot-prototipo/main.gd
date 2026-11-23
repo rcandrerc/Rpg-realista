@@ -1217,17 +1217,13 @@ func montar_mata(vila: Node3D) -> void:
 			arvores_mata[pos] = info
 
 # ---------- personagens ----------
-func cena_modelo(id: String) -> PackedScene:
+func modelo(id: String) -> Node3D:
 	if not cache.has(id):
 		var t0 := Time.get_ticks_usec()
 		cache[id] = load("res://modelos/%s.glb" % id)
 		if lentidao:
 			lentidao.ev("glb:" + id, t0) # a primeira vez que o modelo sai do disco
-	return cache[id]
-
-# pronto: o .glb já instanciado fora da cena numa linha de fundo (online.gd _pedir_fundo); senão instancia aqui
-func modelo(id: String, pronto: Node3D = null) -> Node3D:
-	var no: Node3D = pronto if pronto != null else cena_modelo(id).instantiate()
+	var no: Node3D = cache[id].instantiate()
 	add_child(no)
 	var anim: AnimationPlayer = no.find_child("AnimationPlayer", true, false)
 	for nome in anim.get_animation_list():

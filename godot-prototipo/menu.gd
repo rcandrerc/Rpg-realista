@@ -1252,6 +1252,53 @@ func montar_status() -> void:
 			c.add_child(rotulo("  → %s" % depois[it[0]], 14, VERDE))
 		g.add_child(c)
 	conteudo.add_child(g)
+	_minha_ficha()
+
+# Minha ficha (André 2026-11-23: "no jogador também tem esse espaço... a gente preenche se quiser, pode deixar em branco"):
+# as mesmas escolhas da ficha do recruta (FICHA_RECRUTA em shared/dados.js, na mesma ordem); o servidor confere.
+const FICHA_JEITOS := [["Disciplinado", "Disciplinada"], ["Brincalhão", "Brincalhona"], ["Ambicioso", "Ambiciosa"], ["Medroso", "Medrosa"], ["Rabugento", "Rabugenta"], ["Curioso", "Curiosa"], ["Orgulhoso", "Orgulhosa"], ["Gentil", "Gentil"], ["Competitivo", "Competitiva"], ["Saudoso", "Saudosa"]]
+const FICHA_ESTILOS := [["espada", "Espada"], ["meio", "Meio a meio"], ["magia", "Magia"]]
+const FICHA_GOSTOS := [["cacar", "Caçar"], ["minerar", "Minerar"], ["lenha", "Cortar lenha"], ["pescar", "Pescar"]]
+
+func _minha_ficha() -> void:
+	separador("Minha ficha")
+	conteudo.add_child(rotulo("Opcional: aparece para quem vê o seu equipamento. Toque para trocar.", 12, APAGADO))
+	var fic: Dictionary = m.P.prog.get("fic", {}) if m.P.prog.get("fic") is Dictionary else {}
+	var f := 0 if str(m.visual) == "cabelo_m" else 1 # o corpo do herói (main.gd)
+	var j := int(fic.get("j", -1))
+	var e := -1
+	var g := -1
+	for i in FICHA_ESTILOS.size():
+		if FICHA_ESTILOS[i][0] == str(fic.get("e", "")):
+			e = i
+	for i in FICHA_GOSTOS.size():
+		if FICHA_GOSTOS[i][0] == str(fic.get("g", "")):
+			g = i
+	var linhas := [
+		["Jeito", FICHA_JEITOS[j][f] if j >= 0 and j < FICHA_JEITOS.size() else "em branco", func(): _mudar_ficha(fic, "j", -1 if j + 1 >= FICHA_JEITOS.size() else j + 1)],
+		["Preferência", FICHA_ESTILOS[e][1] if e >= 0 else "em branco", func(): _mudar_ficha(fic, "e", null if e + 1 >= FICHA_ESTILOS.size() else FICHA_ESTILOS[e + 1][0])],
+		["Gosta de", FICHA_GOSTOS[g][1] if g >= 0 else "em branco", func(): _mudar_ficha(fic, "g", null if g + 1 >= FICHA_GOSTOS.size() else FICHA_GOSTOS[g + 1][0])],
+	]
+	for L in linhas:
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 8)
+		var n := rotulo(L[0], 14, APAGADO)
+		n.custom_minimum_size = Vector2(110, 0)
+		h.add_child(n)
+		var b := botao("%s  ›" % L[1], L[2], 14)
+		b.custom_minimum_size = Vector2(200, 38)
+		h.add_child(b)
+		conteudo.add_child(h)
+
+func _mudar_ficha(fic: Dictionary, k: String, v) -> void:
+	var novo := fic.duplicate()
+	if v == null or (v is int and v < 0):
+		novo.erase(k)
+	else:
+		novo[k] = v
+	m.P.prog["fic"] = novo # já mostra; o servidor confere e devolve o progresso
+	m.rede("ficha", novo)
+	atualizar()
 
 # Mestre Ivo (NPC de resetar a build): janela pequena para confirmar. Online quem confere e cobra é o servidor.
 var _reset: Control
@@ -1954,7 +2001,7 @@ func montar_cla() -> void:
 	var cheio := ms.size() >= int(C.get("max", 6))
 	for T in C.get("tiers", []):
 		var tid := str(T.id)
-		var bt := botao("%s Nv %d · %d de ouro · %d/semana" % [str(T.nome), int(T.nv), int(T.preco), int(T.sem)], func(): m.rede("cla", {"acao": "recrutar", "tier": tid}), 15, perto)
+		var bt := botao("%s Nv %d · %d de ouro · %d/semana" % [str(T.nome), int(T.nv), int(T.preco), int(T.sem)], func(): m.rede("cla", {"acao": "candidatos", "tier": tid}), 15, perto) # 3 candidatos com ficha (troca.gd)
 		bt.custom_minimum_size = Vector2(0, 46)
 		var trava := int(T.get("claNv", 1)) > int(C.get("nv", 1))
 		if trava:
@@ -2065,6 +2112,19 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		ld.add_child(botao("Ver", func():
 			fechar()
 			m.espiar.comecar(rid, rn), 12))
+	# André 2026-11-23: os recrutas saíram da lista de amigos; a mensagem (texto e voz, com os comandos) e o time ficam aqui
+	if r.has("c") and m.chat:
+		var rc := str(r.c)
+		var rnm := str(r.nome)
+		ld.add_child(botao("Mensagem", func():
+			fechar()
+			m.chat.abrir_pm(rc, rnm), 12))
+	if r.has("bid"):
+		var bid := str(r.bid)
+		if int(r.get("time", 0)) == 1:
+			ld.add_child(botao("Sair do time", func(): m.rede("time", {"acao": "expulsar", "com": bid}), 12))
+		else:
+			ld.add_child(botao("Time", func(): m.rede("time", {"acao": "convidar", "com": bid}), 12))
 	ld.add_child(botao("Dispensar", func(): m.rede("cla", {"acao": "dispensar", "id": rid}), 12))
 	v.add_child(ld)
 	return card

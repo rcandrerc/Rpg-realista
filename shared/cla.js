@@ -11,7 +11,7 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { CLA, ENCOMENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, almaDe, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
+import { CLA, ENCOMENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
 import { guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tirar, organizar } from './progresso.js';
 import { fundoAgua } from './transporte.js';
@@ -53,6 +53,7 @@ export function claValido(c) {
       ap: { cabelo: cor(ap.cabelo), olhos: cor(ap.olhos), pele: cor(ap.pele), roupa: cor(ap.roupa), calca: cor(ap.calca),
         altura: Math.max(CLA.altura[0], Math.min(CLA.altura[1], +ap.altura || 1)), penteado: P[g].includes(ap.penteado) ? ap.penteado : null },
       jeito: CLA.jeitos.includes(m.jeito) ? m.jeito : CLA.jeitos[0], gosto: CLA.gostos.includes(m.gosto) ? m.gosto : 'cacar',
+      lu: fichaLuta(m), // a ficha (FICHA_RECRUTA); recruta de antes ganha a sorteada pelo id
       nv0: int(m.nv0, 1, 200, 1), nv: int(m.nv, 1, 200, 1), desde: int(m.desde, 0, 9e15, 0), ...(Number.isFinite(+m.dev) && +m.dev > 0 ? { dev: Math.round(+m.dev) } : {}), ...(funcaoValida(m.fn) ? { fn: funcaoValida(m.fn) } : {}),
       ...(m.pos && Number.isFinite(+m.pos.x) && Number.isFinite(+m.pos.z) && Math.abs(+m.pos.x) < 1e5 && Math.abs(+m.pos.z) < 1e5 ? { pos: { x: +m.pos.x, z: +m.pos.z } } : {}) }); // onde estava quando o líder saiu
   }
@@ -85,6 +86,10 @@ export function sortearRecruta(rnd, T, nvLider, agora) {
       altura: +(CLA.altura[0] + rnd() * (CLA.altura[1] - CLA.altura[0])).toFixed(2), penteado: sorteia(CLA.penteados[g], rnd) },
     jeito: sorteia(CLA.jeitos, rnd), gosto: sorteia(CLA.gostos, rnd), nv0: nv, nv, desde: agora };
 }
+// o recruta com a ficha (FICHA_RECRUTA): o sorteio de antes e, por cima, coragem, cuidado e gosto pelo cajado
+export function sortearComFicha(rnd, T, nvLider, agora) { const r = sortearRecruta(rnd, T, nvLider, agora); r.lu = sortearLuta(rnd, r.jeito); return r; }
+// o que o app mostra de um candidato
+const candidatoInfo = (r, T) => ({ nome: r.nome, g: r.g, nv: r.nv, preco: precoTier(T, r.nv), sem: semanaDe(T, r.nv), ap: r.ap, ficha: fichaInfo(r.lu, r.jeito, r.gosto, r.g) });
 
 export const Cla = {
   temCla(j) { return !!j && !j.bot && !!j.conta && !!j.prog?.cla; },
@@ -108,7 +113,7 @@ export const Cla = {
     return { n: c.n, cofre: c.cofre, semana: semanaCla(c), prox: Math.max(0, c.sem - Date.now()), max: c.nv || 1, nv: c.nv || 1, sobe: this.subirInfo(j), perto: this.pertoRecrutador(j),
       eu: { nome: j.nome, nv, ...st(j, j.prog) },
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, sem: semanaDe(tierDe(m.tier), a ? a.prog.nivel | 0 : m.nv), on: a ? 1 : 0, ...(m.dev ? { dev: m.dev } : {}), g: m.g,
-        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, j), x: Math.round(a.x), z: Math.round(a.z) } : {}) }; }), // x, z: "Ver no mapa"
+        fn: m.fn || { k: 'livre' }, c: 'r:' + m.id, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, j), x: Math.round(a.x), z: Math.round(a.z), bid: a.id, ...(a.time && a.time === j.time ? { time: 1 } : {}) } : {}) }; }), // x, z: "Ver no mapa"; c: conta (Mensagem), bid: o corpo (Time)
       bauCla: temBau ? bau : null, plantas: Object.entries(PLANTAS).map(([k, P]) => ({ k, nome: P.nome })),
       funcoes: CLA.funcoes, recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })),
       tiers: CLA.tiers.map((T) => { const n2 = nivelTier(T, nv); return { id: T.id, nome: T.nome, nv: n2, preco: precoTier(T, n2), sem: semanaDe(T, n2), claNv: T.claNv || 1 }; }),
@@ -130,14 +135,23 @@ export const Cla = {
     }
     if (!c) return aviso('Funde o seu clã primeiro');
     this.cobrarCla(j);
-    if (m.acao === 'recrutar') {
+    // 'candidatos' (André 2026-11-23: "aparecem 3 recrutas... e eu escolho entre 3"): o Recrutador mostra
+    // FICHA_RECRUTA.candidatos com ficha; 'recrutar' com esc (0, 1, 2) contrata o escolhido. Sem esc: sorteia um (como antes)
+    if (m.acao === 'recrutar' || m.acao === 'candidatos') {
       const T = CLA.tiers.find((x) => x.id === m.tier); if (!T) return;
       if (!this.pertoRecrutador(j)) return aviso('Fale com o Recrutador (Clareira ou Juncal)');
       if (c.m.length >= (c.nv || 1)) return aviso(c.nv >= CLA.max ? `O clã já tem ${CLA.max} recrutas (o máximo)` : `Clã Nv ${c.nv}: ${c.nv} vaga${c.nv > 1 ? 's' : ''}. Melhore o clã para abrir outra`);
       if ((T.claNv || 1) > (c.nv || 1)) return aviso(`${T.nome} só no clã Nv ${T.claNv}`);
-      const r = sortearRecruta(Math.random, T, j.prog.nivel, agora), preco = precoTier(T, r.nv);
+      if (m.acao === 'candidatos') {
+        const l = Array.from({ length: FICHA_RECRUTA.candidatos }, () => sortearComFicha(Math.random, T, j.prog.nivel, agora));
+        j.candidatosCla = { tier: T.id, l, ate: agora + FICHA_RECRUTA.validade };
+        return this.evento({ t: 'claCandidatos', para: id, tier: T.id, nome: T.nome, l: l.map((r) => candidatoInfo(r, T)) });
+      }
+      const esc = Number.isInteger(m.esc) ? m.esc : -1, K = j.candidatosCla;
+      if (esc >= 0 && !(K && K.tier === T.id && K.ate >= agora && K.l[esc])) return aviso('Os candidatos já foram embora. Peça de novo ao Recrutador');
+      const r = esc >= 0 ? K.l[esc] : sortearComFicha(Math.random, T, j.prog.nivel, agora), preco = precoTier(T, r.nv);
       if ((j.prog.ouro | 0) < preco) return aviso(`Falta ouro: ${T.nome} custa ${preco}`);
-      j.prog.ouro -= preco;
+      j.prog.ouro -= preco; j.candidatosCla = null;
       c.m.push(r);
       this.logCla(c, `Contratou ${r.nome} (${T.nome} Nv ${r.nv})`, -preco);
       aviso(`${r.nome} entrou no clã! ${T.nome} Nv ${r.nv}. Semana: ${semanaDe(T, r.nv)} de ouro`);
@@ -805,7 +819,9 @@ export const Cla = {
         const nv = L.prog.nivel | 0, livre = (L.prog.ouro | 0) - R.reserva;
         const T = [...CLA.tiers].reverse().find((T) => (T.claNv || 1) <= (E.nv || 1) && precoTier(T, nivelTier(T, nv)) <= livre);
         if (T) {
-          const m = sortearRecruta(Math.random, T, nv, agora);
+          // o líder bot também vê FICHA_RECRUTA.candidatos e escolhe pelo jeito dele (escolhaLider); outro líder: sorteio
+          const l = Array.from({ length: FICHA_RECRUTA.candidatos }, () => sortearComFicha(Math.random, T, nv, agora)), q = FICHA_RECRUTA.escolhaLider[C.lider];
+          const m = q ? l.reduce((b, r) => (r.lu[q] > b.lu[q] ? r : b)) : l[Math.floor(Math.random() * l.length)];
           m.fn = this.funcaoBotCla(E.m.length, temLote); // o líder já diz o que ele vai fazer
           L.prog.ouro -= precoTier(T, m.nv); E.m.push(m);
           this.criarRecrutaNpc(C, m, true);
