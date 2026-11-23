@@ -4242,6 +4242,7 @@ func _cama_perto() -> Dictionary:
 	return c
 
 var _bau_pedido := 0 # µs do toque em abrir o baú (o registro conta a espera pelo servidor)
+var bt_mudar_bau: Button
 var bau_cla := false # a janela aberta é a do Baú do Clã (o servidor guarda separado do particular)
 func abrir_bau() -> void:
 	if not m.on():
@@ -4330,6 +4331,10 @@ func _montar_tela_bau() -> void:
 	bt_melhorar = _botao("Melhorar", melhorar_bau, false, 16)
 	bt_melhorar.custom_minimum_size = Vector2(130, 46)
 	topo.add_child(bt_melhorar)
+	# o Baú do Clã da porta do salão vai para a mochila e o líder põe onde quiser (André 2026-11-23); nada de dentro se perde
+	bt_mudar_bau = _botao("Mudar de lugar", func(): _rede_bau({"acao": "recolher"}); fechar_bau(), false, 16)
+	bt_mudar_bau.custom_minimum_size = Vector2(160, 46)
+	topo.add_child(bt_mudar_bau)
 	var fe := _botao("Fechar", fechar_bau, false, 18)
 	fe.custom_minimum_size = Vector2(120, 46)
 	topo.add_child(fe)
@@ -4395,6 +4400,7 @@ func _montar_bau() -> void:
 	else:
 		txt_melhorar.text = "" if bau_cla else "Tamanho máximo"
 	bt_melhorar.visible = bau_prox != null
+	bt_mudar_bau.visible = bau_cla and m.base_cla != null and m.base_cla.bau_perto()
 	for i in bau_slots:
 		var it = bau_itens[i] if i < bau_itens.size() else null
 		if it != null:

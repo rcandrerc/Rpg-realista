@@ -167,10 +167,12 @@ export function montarBase(B) {
   const S = MODELOS_VILA[salao], sz = -h + 1 + S.d / 2;
   casa(salao, 0, sz);
   // o Baú do Clã na frente da porta (o app desenha o baú do clã de construcao.gd), estandartes dos lados
-  const bz = sz + S.d / 2 + 1.4, bau = { x: r2(x0), z: r2(z0 + bz), y: r2(chao(x0, z0 + bz)) };
-  caixa(bau.x, bau.z, 0, 0.65, 0.4, bau.y + 0.69);
+  // o Baú do Clã nasce na porta do salão; o líder pode recolher e pôr onde quiser (B.bauSolto: vira a peça bau_cla do
+  // lote 1, André 2026-11-23: "seja possível editar o local do baú do clã"). frente = o lugar de antes (casinha, rota)
+  const bz = sz + S.d / 2 + 1.4, frente = { x: r2(x0), z: r2(z0 + bz), y: r2(chao(x0, z0 + bz)) }, bau = B.bauSolto ? null : frente;
+  if (bau) caixa(bau.x, bau.z, 0, 0.65, 0.4, bau.y + 0.69);
   for (const s of [-1, 1]) enfeite('estandarte', s * (S.w / 2 + 0.8), sz + S.d / 2 + 0.4);
-  enfeite('fogueira', 0, Math.min(h - 2.5, bz + 3.2));
+  // a fogueira do meio saiu (André 2026-11-23: "tira essa fogueira... impede eu de construir em volta")
   enfeite('barris', S.w / 2 + 1.6, sz - S.d / 4);
   enfeite('caixotes', -(S.w / 2 + 1.7), sz - S.d / 4);
   if (nv >= 2) { casa('aurora_torre', h - 3, h - 3); enfeite('mesa', -(h - 3.5), Math.min(h - 3.5, bz + 2)); } // torre de vigia no canto da frente (atrás não cabe com o salão)
@@ -199,7 +201,7 @@ export function montarBase(B) {
   }
   // os lotes abertos (1 a N.lotes): retângulo inteiro (o lote do jogo usa o mesmo); os fechados não aparecem
   const lotes = P.lugares.slice(0, N.lotes).map(([dx, dz], i) => ({ i: i + 1, x0: x0 + dx - P.lote / 2, z0: z0 + dz - P.lote / 2, x1: x0 + dx + P.lote / 2, z1: z0 + dz + P.lote / 2 }));
-  return { nv, centro: N.centro, raio: N.raio, pecas, sol, bau, forja, lotes };
+  return { nv, centro: N.centro, raio: N.raio, pecas, sol, bau, frente, forja, lotes };
 }
 
 export const Base = {
@@ -209,7 +211,7 @@ export const Base = {
     for (const [k, b] of Object.entries(est && typeof est === 'object' ? est : {})) {
       if (!b || !/^[jn][\w:.-]{1,40}$/.test(k) || !Number.isFinite(+b.x) || !Number.isFinite(+b.z)) continue;
       this.basesCla[k] = { k, x: Math.round(+b.x), z: Math.round(+b.z), raca: RACAS[b.raca] ? b.raca : 'chama', n: String(b.n || '').slice(0, 24), dono: String(b.dono || ''), nomeDono: String(b.nomeDono || '').slice(0, 24),
-        nv: Math.max(1, Math.min(CLA.max, b.nv | 0)), taxa: Number.isFinite(+b.taxa) ? +b.taxa : Date.now(), c: +b.c || Date.now(), donos: {}, ...(b.sorteou ? { sorteou: 1 } : {}), ...(b.mudou > 0 ? { mudou: b.mudou | 0, mudouEm: +b.mudouEm || 0 } : {}), ...(b.livres > 0 ? { livres: Math.min(20, b.livres | 0) } : {}), ...(b.missaoEm > 0 ? { missaoEm: +b.missaoEm } : {}) };
+        nv: Math.max(1, Math.min(CLA.max, b.nv | 0)), taxa: Number.isFinite(+b.taxa) ? +b.taxa : Date.now(), c: +b.c || Date.now(), donos: {}, ...(b.sorteou ? { sorteou: 1 } : {}), ...(b.bauSolto ? { bauSolto: 1 } : {}), ...(b.mudou > 0 ? { mudou: b.mudou | 0, mudouEm: +b.mudouEm || 0 } : {}), ...(b.livres > 0 ? { livres: Math.min(20, b.livres | 0) } : {}), ...(b.missaoEm > 0 ? { missaoEm: +b.missaoEm } : {}) };
       for (const [i, o] of Object.entries(b.donos && typeof b.donos === 'object' ? b.donos : {})) if (/^[2-9]$/.test(i) && o && typeof o.id === 'string') this.basesCla[k].donos[i] = { id: o.id.slice(0, 24), nome: String(o.nome || '').slice(0, 24) };
     }
     this.refazerBases();
@@ -262,7 +264,7 @@ export const Base = {
   // o que o app recebe: todas as bases (o desenho pronto) e qual é a minha
   dadosBase(B) {
     const D = this.basesDesenho?.[B.k] || montarBase(B), N = nivelBase(B.nv);
-    return { k: B.k, n: B.n, raca: B.raca, x: B.x, z: B.z, nv: B.nv, lider: B.nomeDono, centro: D.centro, raio: D.raio, pecas: D.pecas, sol: D.sol, bau: D.bau, forja: D.forja,
+    return { k: B.k, n: B.n, raca: B.raca, x: B.x, z: B.z, nv: B.nv, lider: B.nomeDono, centro: D.centro, raio: D.raio, pecas: D.pecas, sol: D.sol, bau: D.bau, frente: D.frente, forja: D.forja,
       lotes: D.lotes.map((l) => [l.i, l.x0, l.z0, l.x1, l.z1, l.i === 1 ? B.nomeDono : B.donos?.[l.i]?.nome || '']), arvores: D.arvores || [], taxa: N.taxa, atraso: this.semanasBase(B),
       chao: this.chaoBase(B) };
   },
@@ -280,7 +282,7 @@ export const Base = {
   areaBase(L) {
     const B = L?.def?.baseK && /_1$/.test(L.def.id) && this.basesCla?.[L.def.baseK]; if (!B) return null;
     const D = this.basesDesenho?.[B.k]; if (!D) return null;
-    const hc = nivelBase(B.nv).centro / 2 - 1, bz = D.bau ? D.bau.z : B.z;
+    const hc = nivelBase(B.nv).centro / 2 - 1, bz = D.frente ? D.frente.z : B.z;
     return { x0: B.x - hc, z0: B.z - hc, x1: B.x + hc, z1: B.z + hc, livre: [B.x - 2.5, bz - 1, B.x + 2.5, B.z + hc + 1], sol: D.sol || [] };
   },
   // a mesma área para o app (godot-prototipo/construcao.gd): [x0, z0, x1, z1], o corredor e as caixas [x, z, cos, sen, hw, hd]
@@ -433,8 +435,30 @@ export const Base = {
   },
   // ---------- o Baú do Clã do salão e a forja ----------
   pertoBauBase(j) {
-    const B = this.baseDe(j), D = B && this.basesDesenho?.[B.k];
-    return !!D && Math.hypot(D.bau.x - j.x, D.bau.z - j.z) <= B_().bauPerto;
+    const b = this.bauBase(this.baseDe(j));
+    return !!b && Math.hypot(b.x - j.x, b.z - j.z) <= B_().bauPerto;
+  },
+  // onde está o Baú do Clã da base: o da porta do salão ou, depois de recolhido, a peça bau_cla que o líder pôs no lote 1
+  bauBase(B) {
+    const D = B && this.basesDesenho?.[B.k]; if (!D) return null;
+    if (D.bau) return D.bau;
+    const p = this.lotes?.get('q' + B.k.slice(0, 20) + '_1')?.pecas.find((o) => o.k === 'bau_cla');
+    return p ? { x: p.x, z: p.z } : null;
+  },
+  // o líder recolhe o baú da porta do salão: vira a peça bau_cla na mochila (o que tem dentro fica guardado no Baú do Clã)
+  recolherBauBase(j, aviso) {
+    const B = this.baseDe(j), D = B && this.basesDesenho?.[B.k]; if (!D?.bau) return aviso('Esse baú já foi recolhido');
+    if (Math.hypot(D.bau.x - j.x, D.bau.z - j.z) > B_().bauPerto) return aviso('Chegue perto do Baú do Clã');
+    const prova = j.prog.mochila.map((o) => (o ? { ...o } : null));
+    if (!guardar(prova, { k: 'obra_bau_cla', n: 1 })) return aviso('Mochila cheia: o baú não cabe');
+    j.prog.mochila = prova;
+    B.bauSolto = 1;
+    this.refazerBases();
+    if (this.terreno) this.refazerSolidosLotes();
+    this.salvarBases();
+    this.avisarBases();
+    this.avisarProg(j);
+    aviso('Baú do Clã recolhido: está na mochila. Ponha onde quiser na base (martelo, Móveis). Nada de dentro se perdeu');
   },
   fornalhaBasePerto(j) {
     const B = this.baseDe(j), D = B && this.basesDesenho?.[B.k];
