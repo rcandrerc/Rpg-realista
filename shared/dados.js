@@ -1087,7 +1087,7 @@ export const MAPA_CLAREIRA = {
   // espantalho de treino ao lado da ferraria, na grama entre a parede dela, os caixotes e a estrada larga (fora dos
   // caminhos), a 4,6 m do Tomás para os nomes não se encostarem (direção de arte);
   // virado para a estrada, de onde o herói chega. O v dele vem depois das vagas dos campos de caça.
-  treino: [{ id: 'espantalho1', tipo: 'espantalho', x: -19, z: 170, ry: 0.8 }], // André 2026-11-23: longe do totem (PVP), ao lado do Pescador Nico no Lago Grande
+  treino: [{ id: 'espantalho1', tipo: 'espantalho', x: 12, z: 35, ry: 3.14 }], // André 2026-11-23: longe do totem (PVP), na margem norte do Lago Raso (zona aberta desde o começo; o Lago Grande fica na névoa)
   // NPCs da vila: personagens anime (VRoid CC0) com cabelo, roupa e tamanho próprios.
   // roupa: peças da armadura do herói que o NPC veste (mesmo texto do servidor: peça + raridade, "peitoral0,capa3").
   // arma: 'espada' ou 'cajado' nas costas, 'cajado_mao' na mão. anciao: corpo curvado, barba e bigode (o Aldo).
