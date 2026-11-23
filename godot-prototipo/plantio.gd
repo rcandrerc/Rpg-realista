@@ -258,6 +258,8 @@ const Q := 4.0 # m do quadrado (PLANTIO.quadrado)
 const RAIO_MODO := 16.0 # m em volta do herói com os quadrados desenhados (e até onde a mira vai na área)
 const PERTO_AREA := 10.0 # m: com um quadrado livre tão perto, abre a Fazenda sem andar
 const COR_Q := {"livre": Color(1.0, 0.86, 0.45), "ocupado": Color(1.0, 0.42, 0.36)}
+var _quads_todos := {} # todas as áreas, sem tirar as bases
+var _sig_bases := ""
 var _quads := {} # Vector2i(i, k) -> id da área (habilidades.json, plantio.areas: "k:i0~i1,i2;...")
 var mostrando := false # quadrados no chão (Fazenda aberta numa área de plantio)
 var semente := ""
@@ -267,7 +269,7 @@ var _centro_marcas := Vector2(INF, INF)
 var _mats_q := {}
 
 func quadrados() -> Dictionary:
-	if _quads.is_empty():
+	if _quads_todos.is_empty():
 		for A in m.P.dados.get("plantio", {}).get("areas", []):
 			for linha in str(A.q).split(";"):
 				var pk := linha.split(":")
@@ -279,7 +281,21 @@ func quadrados() -> Dictionary:
 					var a := int(ab[0])
 					var b := int(ab[1]) if ab.size() > 1 else a
 					for i in range(a, b + 1):
-						_quads[Vector2i(i, k)] = str(A.id)
+						_quads_todos[Vector2i(i, k)] = str(A.id)
+	# André 2026-11-23: o que está dentro da base de qualquer clã deixa de ser área de plantio pública (o servidor recusa:
+	# shared/plantio.js, naBaseCla). Refaz quando as bases mudam.
+	var sig := ""
+	if m.base_cla != null:
+		for B in m.base_cla.bases:
+			sig += "%s,%s;" % [str(B.get("x", 0)), str(B.get("z", 0))]
+	if sig != _sig_bases or _quads.is_empty():
+		_sig_bases = sig
+		_quads = {}
+		for q in _quads_todos:
+			if m.base_cla == null or m.base_cla.base_em((q.x + 0.5) * Q, (q.y + 0.5) * Q).is_empty():
+				_quads[q] = _quads_todos[q]
+		if has_method("_refazer_marcas") and mostrando:
+			call_deferred("_refazer_marcas")
 	return _quads
 
 # quadrados com árvore plantada (as que eu conheço: as de perto)
