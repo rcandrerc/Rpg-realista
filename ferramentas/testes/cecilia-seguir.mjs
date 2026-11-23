@@ -34,6 +34,7 @@ a.amigosDe = { [j.conta]: 1 };
   a.ia.chatFila = []; a.time = null; j.time = null; a.ia.vir = null; a.morto = false; j.x = a.x + 200; j.z = a.z;
   s.aoPuxarAmiga = null; // sem IA: só a chamada pronta
   for (let i = 0; i < 25; i++) {
+    s.tempo += 421; // 7 min entre falas sozinhas de NPC (REACOES.sozinha.global, André 2026-11-22)
     a.ia.espera = {}; a.ia.chamado = null; a.ia.chamaEm = s.tempo - 1; a.ia.chatFila = [];
     cec.passoChatAmiga(a); const t = a.ia.chatFila.at(-1)?.texto; if (t) falas.push(t);
   }
@@ -42,6 +43,7 @@ a.amigosDe = { [j.conta]: 1 };
 
 // ---------- não insiste ----------
 {
+  s.tempo += 421; // 7 min entre falas sozinhas de NPC (REACOES.sozinha.global)
   a.ia.espera = {}; a.ia.chamado = null; a.ia.chamaEm = s.tempo - 1; a.ia.chatFila = [];
   cec.passoChatAmiga(a);
   ok(a.ia.chatFila.length === 1 && cec.esperandoAmiga(a, j), 'chamou ("Oi, vamos caçar") e fica esperando a resposta');
