@@ -12,6 +12,7 @@ import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CE
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito, npcApareceu } from './historia.js'; // progressão (André 2026-11-10)
 import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS, VISAO } from './dados.js'; // bosses de mundo (André 2026-11-11)
 import { ECONOMIA, precoLoja } from './dados.js'; // economia (André 2026-11-16)
+import { CEREBRO, fichaInfo, estiloDe, fichaJogadorValida, fichaJogadorInfo } from './dados.js'; // perfil na janela de equipamento (André 2026-11-23)
 import { AVISO_EVOLUIR } from './dados.js'; // aviso de ir à bigorna/bancada ao evoluir (André 2026-11-21)
 import { Economia } from './economia.js';
 import { LUGARES_MUNDO } from './mundo.js'; // os cais: a pesca no mar nasce em volta deles (André 2026-11-13)
@@ -2105,7 +2106,27 @@ export class Simulacao {
     if (Math.hypot(o.x - j.x, o.z - j.z) > TROCA.perto + 2) return this.evento({ t: 'aviso', para: id, texto: `Chegue mais perto de ${o.nome}` });
     const equip = {};
     for (const l of LUGARES) { const it = o.prog.equip?.[l]; if (it) equip[l] = { k: it.k, r: it.r | 0, ...(it.e ? { e: it.e | 0 } : {}) }; }
-    this.evento({ t: 'equipVer', para: id, de: o.id, nome: o.nome, nivel: o.prog.nivel, equip, ...(o.prog.duelos ? { duelos: o.prog.duelos } : {}) }); // duelos: placar (André 2026-11-17)
+    this.evento({ t: 'equipVer', para: id, de: o.id, nome: o.nome, nivel: o.prog.nivel, equip, ...(o.prog.duelos ? { duelos: o.prog.duelos } : {}), perfil: this.perfilVer(o) }); // duelos: placar (André 2026-11-17)
+  }
+  // perfil na janela de equipamento (André 2026-11-23: "aparece em algum lugar um perfilzinho... até para os jogadores
+  // também"): recruta e bot mostram a ficha (jeito, preferência, coragem, cuidado, gosto, para onde vão os pontos);
+  // jogador mostra clã, raça e a preferência que os pontos dele dizem. Todos: os atributos de agora.
+  perfilVer(o) {
+    const a = o.prog.atr || {}, atr = { for: a.for | 0, int: a.int | 0, vit: a.vit | 0, des: a.des | 0 }, ctx = o.bot ? this.amigoIaDe(o) : null;
+    const base = { raca: RACAS[this.racaDe(o)]?.nome || '', atr };
+    if (ctx) {
+      const A = ctx.AMIGA, J = CEREBRO.jeitos[A.id] || A.luta || CEREBRO.jeitos.padrao, f = A.genero === 'f' ? 'f' : 'm';
+      return { ...base, ...(A.cla ? { cla: A.cla } : {}), ...(A.recruta ? { recruta: 1 } : {}),
+        ficha: fichaInfo({ co: J.coragem, cu: J.cuidado, ca: J.cajado }, A.ficha?.jeito, A.ficha?.gosto ?? A.gosto, f) };
+    }
+    const fi = (a.for | 0) + (a.int | 0), fj = fichaJogadorInfo(o.prog.fic, o.visual !== 'cabelo_m');
+    return { ...base, ...(o.prog.cla?.n ? { cla: o.prog.cla.n, lider: 1 } : {}), ...(fi > 12 ? { estilo: estiloDe((a.int | 0) / fi).nome } : {}), ...(fj ? { ficha: fj } : {}) };
+  }
+  // o jogador preenche a ficha dele (opcional; tudo vazio apaga)
+  fichaJogador(id, m) {
+    const j = this.jogadores.get(id); if (!j || j.bot || !m || typeof m !== 'object') return;
+    const f = fichaJogadorValida(m); if (f) j.prog.fic = f; else delete j.prog.fic;
+    this.avisarProg(j);
   }
   troca(id, m) {
     const j = this.jogadores.get(id); if (!j || !m || typeof m !== 'object') return;

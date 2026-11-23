@@ -245,6 +245,8 @@ func mostrar_cartao(texto: String, botoes: Array, dur: float) -> void:
 func cobre(p: Vector2) -> bool:
 	if equip_jan != null and equip_jan.visible and equip_jan.get_global_rect().grow(6).has_point(p):
 		return true
+	if cand_jan != null and cand_jan.visible and cand_jan.get_global_rect().grow(6).has_point(p):
+		return true
 	return cartao != null and cartao.visible and cartao.get_global_rect().grow(6).has_point(p)
 
 # ---------- ver o equipamento de outro jogador (André 2026-11-10: qualquer jogador e a Cecília, de perto) ----------
@@ -273,6 +275,8 @@ func mostrar_equip(ev: Dictionary) -> void:
 	col.add_child(Menu.rotulo("Equipamento de %s  (Nv %d)" % [str(ev.get("nome", "")), int(ev.get("nivel", 1))], 18, Menu.OURO_CLARO))
 	if ev.get("duelos") is Dictionary: # placar de duelos (André 2026-11-17)
 		col.add_child(Menu.rotulo("Duelos: %d vitórias e %d derrotas" % [int(ev.duelos.get("v", 0)), int(ev.duelos.get("d", 0))], 14, Menu.TEXTO))
+	if ev.get("perfil") is Dictionary: # o perfilzinho (André 2026-11-23): ficha do recruta ou do jogador
+		col.add_child(ficha_ui(ev.perfil))
 	var grade := GridContainer.new()
 	grade.columns = 2
 	grade.add_theme_constant_override("h_separation", 16)
@@ -300,6 +304,140 @@ func mostrar_equip(ev: Dictionary) -> void:
 	col.add_child(fechar)
 	equip_jan.reset_size()
 	equip_jan.visible = true
+	_centrar.call_deferred(equip_jan)
+
+# ---------- ficha (André 2026-11-23, FICHA_RECRUTA em shared/dados.js) ----------
+const COR_CORAGEM := Color(0.92, 0.45, 0.3)
+const COR_CUIDADO := Color(0.45, 0.78, 0.45)
+const COR_MAGIA := Color(0.55, 0.6, 1.0)
+
+func _linha_barra(nome: String, v: float, cor: Color) -> Control:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 8)
+	var n := Menu.rotulo(nome, 13, Menu.APAGADO)
+	n.custom_minimum_size = Vector2(130, 0)
+	h.add_child(n)
+	var b: Control = m.menu.barra_prog(v, cor, 9.0)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(b)
+	return h
+
+func _quebra(t: String, tam: int, cor: Color, largura := 500.0) -> Label:
+	var l := Menu.rotulo(t, tam, cor)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(largura, 0)
+	return l
+
+# perfil (evento equipVer.perfil) ou candidato do Recrutador: { ficha: { jeito, txt, estilo, co, cu, ca, gosto, pts, jogador },
+# cla, raca, recruta, lider, estilo (jogador: pelos pontos), atr }
+func ficha_ui(p: Dictionary, largura := 500.0) -> Control:
+	var caixa := PanelContainer.new()
+	caixa.add_theme_stylebox_override("panel", Menu.caixa(Color(0.11, 0.095, 0.075, 0.95), Menu.BORDA, 1, 8, 10))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	caixa.add_child(v)
+	var f: Dictionary = p.get("ficha", {}) if p.get("ficha") is Dictionary else {}
+	var topo := []
+	if p.has("cla"):
+		topo.append(("Líder do clã %s" if p.has("lider") else ("Recruta do clã %s" if p.has("recruta") else "Clã %s")) % str(p.cla))
+	if str(p.get("raca", "")) != "":
+		topo.append("Raça %s" % str(p.raca))
+	if not topo.is_empty():
+		v.add_child(Menu.rotulo(" · ".join(PackedStringArray(topo)), 13, Menu.OURO_CLARO))
+	if f.has("jeito"):
+		v.add_child(Menu.rotulo("Jeito: %s" % str(f.jeito), 15, Menu.TEXTO))
+	if f.has("txt"):
+		v.add_child(_quebra("\"%s\"" % str(f.txt), 12, Menu.APAGADO, largura))
+	var pref := []
+	if f.has("estilo"):
+		pref.append("Preferência: %s" % str(f.estilo))
+	elif p.has("estilo"):
+		pref.append("Pelos pontos: %s" % str(p.estilo))
+	if f.has("gosto"):
+		pref.append("Gosta de: %s" % str(f.gosto))
+	if not pref.is_empty():
+		v.add_child(Menu.rotulo("   ".join(PackedStringArray(pref)), 14, Menu.TEXTO))
+	if f.has("co"):
+		v.add_child(_linha_barra("Coragem", float(f.co), COR_CORAGEM))
+		v.add_child(_linha_barra("Cuidado com o time", float(f.cu), COR_CUIDADO))
+		v.add_child(_linha_barra("Gosto por magia", float(f.ca), COR_MAGIA))
+	if f.get("pts") is Dictionary:
+		v.add_child(Menu.rotulo("Pontos vão para: FOR %d%% · INT %d%% · VIT %d%%" % [int(f.pts.get("for", 0)), int(f.pts.get("int", 0)), int(f.pts.get("vit", 0))], 13, Menu.APAGADO))
+	if p.get("atr") is Dictionary:
+		v.add_child(Menu.rotulo("Atributos: FOR %d · INT %d · VIT %d · DES %d" % [int(p.atr.get("for", 0)), int(p.atr.get("int", 0)), int(p.atr.get("vit", 0)), int(p.atr.get("des", 0))], 13, Menu.APAGADO))
+	if f.is_empty() and not p.has("recruta"):
+		v.add_child(Menu.rotulo("Ficha em branco", 12, Menu.APAGADO))
+	return caixa
+
+# ---------- os candidatos do Recrutador (André 2026-11-23: "aparecem 3 recrutas... e eu escolho entre 3") ----------
+var cand_jan: PanelContainer
+
+func mostrar_candidatos(ev: Dictionary) -> void:
+	if cand_jan == null:
+		cand_jan = PanelContainer.new()
+		cand_jan.add_theme_stylebox_override("panel", Menu.caixa(Menu.FUNDO, Menu.OURO.darkened(0.25), 2, 12, 14))
+		cand_jan.set_anchors_preset(Control.PRESET_CENTER)
+		cand_jan.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		cand_jan.grow_vertical = Control.GROW_DIRECTION_BOTH
+		add_child(cand_jan)
+	for c in cand_jan.get_children():
+		cand_jan.remove_child(c)
+		c.queue_free()
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 8)
+	cand_jan.add_child(col)
+	col.add_child(Menu.rotulo("Candidatos a %s: escolha um" % str(ev.get("nome", "recruta")), 18, Menu.OURO_CLARO))
+	var linha := HBoxContainer.new()
+	linha.add_theme_constant_override("separation", 10)
+	col.add_child(linha)
+	var tier := str(ev.get("tier", ""))
+	var ouro := int(m.P.prog.get("ouro", 0))
+	var l: Array = ev.get("l", [])
+	for i in l.size():
+		var c: Dictionary = l[i]
+		var card := VBoxContainer.new()
+		card.add_theme_constant_override("separation", 6)
+		card.custom_minimum_size = Vector2(300, 0)
+		var cab := HBoxContainer.new()
+		cab.add_theme_constant_override("separation", 8)
+		var cor_cab := ColorRect.new() # a cor do cabelo dele (o rosto vem quando ele chega)
+		cor_cab.custom_minimum_size = Vector2(14, 14)
+		cor_cab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var ap: Dictionary = c.get("ap", {}) if c.get("ap") is Dictionary else {}
+		cor_cab.color = Color.hex((int(ap.get("cabelo", 0x888888)) << 8) | 0xff)
+		cab.add_child(cor_cab)
+		cab.add_child(Menu.rotulo("%s  (Nv %d)" % [str(c.get("nome", "")), int(c.get("nv", 1))], 16, Menu.TEXTO))
+		card.add_child(cab)
+		card.add_child(ficha_ui({"ficha": c.get("ficha", {}), "recruta": 1}, 280.0))
+		card.add_child(Menu.rotulo("%d de ouro · %d/semana" % [int(c.get("preco", 0)), int(c.get("sem", 0))], 13, Menu.OURO_CLARO))
+		var idx := i
+		var bt: Button = m.menu.botao("Contratar", func(): cand_jan.visible = false; m.rede("cla", {"acao": "recrutar", "tier": tier, "esc": idx}), 15, true)
+		bt.custom_minimum_size = Vector2(0, 42)
+		bt.disabled = ouro < int(c.get("preco", 0))
+		card.add_child(bt)
+		linha.add_child(card)
+	var baixo := HBoxContainer.new()
+	baixo.alignment = BoxContainer.ALIGNMENT_CENTER
+	baixo.add_theme_constant_override("separation", 12)
+	var outros: Button = m.menu.botao("Ver outros", func(): m.rede("cla", {"acao": "candidatos", "tier": tier}), 15)
+	outros.custom_minimum_size = Vector2(150, 40)
+	baixo.add_child(outros)
+	var fechar: Button = m.menu.botao("Fechar", func(): cand_jan.visible = false, 15)
+	fechar.custom_minimum_size = Vector2(150, 40)
+	baixo.add_child(fechar)
+	col.add_child(baixo)
+	cand_jan.reset_size()
+	cand_jan.visible = true
+	_centrar.call_deferred(cand_jan)
+
+# no meio da tela, do tamanho do que tem dentro (a janela cresceu com o perfil)
+func _centrar(j: Control) -> void:
+	j.reset_size()
+	var t := j.get_combined_minimum_size()
+	j.offset_left = -t.x / 2.0
+	j.offset_right = t.x / 2.0
+	j.offset_top = -t.y / 2.0
+	j.offset_bottom = t.y / 2.0
 
 func esconder_cartao() -> void:
 	cartao.visible = false
