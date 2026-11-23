@@ -260,7 +260,7 @@ export function pecasCasaSolidas(L, chao) {
     else if (T === 'borda') {
       const eixo = p.r & 1, y0 = chao(p.x, p.z), y1 = Math.max(...ladosDaBorda(p).map(([x, z]) => piso(x, z))) + CASA.parede, e = CASA.espessura / 2 + 0.02;
       const ret = (u, hu, base, alto) => (eixo ? peca(p.x, p.z + u, e, hu, alto, base) : peca(p.x + u, p.z, hu, e, alto, base));
-      if (p.k === 'porta') l.push(ret(-0.85, 0.3, y0, y1), ret(0.85, 0.3, y0, y1), ret(0, g + 0.15, y1 - CASA.parede + CASA.porta, y1));
+      if ((CONSTRUCOES[p.k]?.como || p.k) === 'porta') l.push(ret(-0.85, 0.3, y0, y1), ret(0.85, 0.3, y0, y1), ret(0, g + 0.15, y1 - CASA.parede + CASA.porta, y1));
       else l.push(ret(0, g + 0.15, y0, y1));
     } else if (T === 'telhado') { cel.push([p.x, p.z, p.r | 0]); topo = Math.max(topo, piso(p.x, p.z) + CASA.parede); }
   }
@@ -3230,7 +3230,7 @@ export class Simulacao {
     L.pecas.push(p);
     this.refazerSolidosLotes();
     this.evento({ t: 'construiu', para: id, k: p.k, px: x, pz: z });
-    this.historia(j, 'construir', { k: p.k });
+    this.historia(j, 'construir', { k: CONSTRUCOES[p.k]?.como || p.k }); // parede de pedra conta como parede (missões)
     this.avisarLote(L);
     this.avisarProg(j);
   }

@@ -1261,6 +1261,34 @@
    "obra": "telhado",
    "desc": "Vai em cima da fundação, com parede em volta. Vários juntos formam um telhado inclinado. Some quando você entra. Coloque no seu terreno pelo modo construção (martelo)."
   },
+  "obra_fundacao_pedra": {
+   "nome": "Fundação de calçamento",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "fundacao_pedra",
+   "desc": "Base da casa (2 x 2 m) com chão de pedra, igual ao da forja do clã. Serve como a fundação de pedra. Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_parede_pedra": {
+   "nome": "Parede de pedra",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "parede_pedra",
+   "desc": "Parede de pedra igual à do salão do clã. Vai na borda da fundação. Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_porta_pedra": {
+   "nome": "Porta na pedra",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "porta_pedra",
+   "desc": "Porta numa parede de pedra. Dá para passar por ela. Coloque no seu terreno pelo modo construção (martelo)."
+  },
+  "obra_janela_pedra": {
+   "nome": "Janela na pedra",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "janela_pedra",
+   "desc": "Parede de pedra com janela. Coloque no seu terreno pelo modo construção (martelo)."
+  },
   "obra_bau": {
    "nome": "Baú",
    "pilha": 20,
@@ -3530,6 +3558,127 @@
    },
    "bancada": true,
    "desc": "Vai em cima da fundação, com parede em volta. Vários juntos formam um telhado inclinado. Some quando você entra."
+  },
+  "fundacao_pedra": {
+   "nome": "Fundação de calçamento",
+   "tipo": "fundacao",
+   "como": "fundacao",
+   "aba": "casa",
+   "w": 2,
+   "d": 2,
+   "circulos": [],
+   "custo": {
+    "pedra": 6
+   },
+   "bancada": false,
+   "desc": "Base da casa (2 x 2 m) com chão de pedra, igual ao da forja do clã. Serve como a fundação de pedra."
+  },
+  "parede_pedra": {
+   "nome": "Parede de pedra",
+   "tipo": "borda",
+   "como": "parede",
+   "aba": "casa",
+   "w": 2,
+   "d": 0.3,
+   "circulos": [
+    [
+     -0.85,
+     0,
+     0.2
+    ],
+    [
+     -0.42,
+     0,
+     0.2
+    ],
+    [
+     0,
+     0,
+     0.2
+    ],
+    [
+     0.42,
+     0,
+     0.2
+    ],
+    [
+     0.85,
+     0,
+     0.2
+    ]
+   ],
+   "custo": {
+    "pedra": 6
+   },
+   "bancada": true,
+   "desc": "Parede de pedra igual à do salão do clã. Vai na borda da fundação."
+  },
+  "porta_pedra": {
+   "nome": "Porta na pedra",
+   "tipo": "borda",
+   "como": "porta",
+   "aba": "casa",
+   "w": 2,
+   "d": 0.3,
+   "circulos": [
+    [
+     -0.85,
+     0,
+     0.2
+    ],
+    [
+     0.85,
+     0,
+     0.2
+    ]
+   ],
+   "custo": {
+    "pedra": 4,
+    "lenha": 2
+   },
+   "bancada": true,
+   "desc": "Porta numa parede de pedra. Dá para passar por ela."
+  },
+  "janela_pedra": {
+   "nome": "Janela na pedra",
+   "tipo": "borda",
+   "como": "janela",
+   "aba": "casa",
+   "w": 2,
+   "d": 0.3,
+   "circulos": [
+    [
+     -0.85,
+     0,
+     0.2
+    ],
+    [
+     -0.42,
+     0,
+     0.2
+    ],
+    [
+     0,
+     0,
+     0.2
+    ],
+    [
+     0.42,
+     0,
+     0.2
+    ],
+    [
+     0.85,
+     0,
+     0.2
+    ]
+   ],
+   "custo": {
+    "pedra": 4,
+    "lenha": 1
+   },
+   "bancada": true,
+   "desc": "Parede de pedra com janela."
   },
   "bau": {
    "nome": "Baú",
