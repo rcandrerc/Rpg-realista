@@ -669,17 +669,36 @@ func fazer_rostos() -> void:
 		cm.fov = 30.0
 		vp2.add_child(cm)
 		cm.look_at_from_position(cab + Vector3(0.12, 0.03, 0.75), cab + Vector3(0, -0.01, 0))
-		await RenderingServer.frame_post_draw
-		await RenderingServer.frame_post_draw
-		if not is_instance_valid(vp2):
-			return
-		var img := vp2.get_texture().get_image()
+		# André 2026-11-23 ("a foto sumiu"): no celular o retrato às vezes saía todo preto (o quadro ainda não tinha
+		# sido desenhado, por exemplo com a placa ocupada compilando a roupa nova). Espera até o fundo aparecer
+		# (o canto tem a cor do fundo, não preto) e tenta de novo; foto preta nunca fica guardada.
+		var img: Image = null
+		for tentativa in 8:
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			if not is_instance_valid(vp2):
+				return
+			img = vp2.get_texture().get_image()
+			if img != null and not _foto_preta(img):
+				break
+			img = null
 		vp2.queue_free()
 		if img == null:
 			continue
 		_rostos[id] = ImageTexture.create_from_image(img)
 		if corpos_ui.has(id):
 			corpos_ui[id].foto.texture = _rostos[id]
+
+# retrato que não foi desenhado: o canto (fundo marrom-escuro) e o meio saem pretos
+func _foto_preta(img: Image) -> bool:
+	if img.is_empty():
+		return true
+	var w := img.get_width()
+	var h := img.get_height()
+	for p in [Vector2i(2, 2), Vector2i(w - 3, 2), Vector2i(w / 2, h / 2)]:
+		if img.get_pixelv(p).get_luminance() > 0.02:
+			return false
+	return true
 
 func botao(t: String, ativo: bool, fn: Callable) -> Button:
 	var b := Button.new()
