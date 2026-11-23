@@ -78,6 +78,13 @@ static func aplicar(no: Node3D, ap, esperar := true) -> void:
 		no.set_meta("traje", traje)
 		if no.has_meta("equip_v5"):
 			load("res://armadura.gd").vestir(no, no.get_meta("equip_v5"))
+	# cor livre no pano da armadura v5 (André 2026-11-23): Roupa e Calça da Aparência; sem escolha = cor do set
+	var cr = _cor(int(a.roupa)) if a.get("roupa") != null else null
+	var cc = _cor(int(a.calca)) if a.get("calca") != null else cr
+	if no.get_meta("cor_roupa", null) != cr or no.get_meta("cor_calca", null) != cc:
+		no.set_meta("cor_roupa", cr)
+		no.set_meta("cor_calca", cc)
+		load("res://armadura.gd").tingir_v5(no)
 	var alt = a.get("altura")
 	no.scale = Vector3.ONE * (float(alt) if alt != null else 1.0)
 	# antes das cores: o cabelo trocado também pega a cor de cabelo escolhida
