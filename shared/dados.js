@@ -847,6 +847,16 @@ Object.assign(CONSTRUCOES, {
     custo: { lenha: 3, pedra: 1 }, bancada: true, desc: 'Parede com janela. Vai na borda da fundação.' },
   telhado: { nome: 'Telhado', tipo: 'telhado', aba: 'casa', w: 2, d: 2, circulos: [], custo: { lenha: 2, pedra: 1 }, bancada: true,
     desc: 'Vai em cima da fundação, com parede em volta. Vários juntos formam um telhado inclinado. Some quando você entra.' },
+  // pedra igual à do salão do clã (André 2026-11-23: "essa pedrinha aí eu achei bem maneira... esse tipo de parede aí
+  // de pedra eu queria"): mesmas regras da peça de 'como', só a textura muda (a de antes continua)
+  fundacao_pedra: { nome: 'Fundação de calçamento', tipo: 'fundacao', como: 'fundacao', aba: 'casa', w: 2, d: 2, circulos: [], custo: { pedra: 6 }, bancada: false,
+    desc: 'Base da casa (2 x 2 m) com chão de pedra, igual ao da forja do clã. Serve como a fundação de pedra.' },
+  parede_pedra: { nome: 'Parede de pedra', tipo: 'borda', como: 'parede', aba: 'casa', w: 2, d: 0.3, circulos: [[-0.85, 0, 0.2], [-0.42, 0, 0.2], [0, 0, 0.2], [0.42, 0, 0.2], [0.85, 0, 0.2]],
+    custo: { pedra: 6 }, bancada: true, desc: 'Parede de pedra igual à do salão do clã. Vai na borda da fundação.' },
+  porta_pedra: { nome: 'Porta na pedra', tipo: 'borda', como: 'porta', aba: 'casa', w: 2, d: 0.3, circulos: [[-0.85, 0, 0.2], [0.85, 0, 0.2]], custo: { pedra: 4, lenha: 2 }, bancada: true,
+    desc: 'Porta numa parede de pedra. Dá para passar por ela.' },
+  janela_pedra: { nome: 'Janela na pedra', tipo: 'borda', como: 'janela', aba: 'casa', w: 2, d: 0.3, circulos: [[-0.85, 0, 0.2], [-0.42, 0, 0.2], [0, 0, 0.2], [0.42, 0, 0.2], [0.85, 0, 0.2]],
+    custo: { pedra: 4, lenha: 1 }, bancada: true, desc: 'Parede de pedra com janela.' },
   bau: { nome: 'Baú', tipo: 'movel', aba: 'moveis', w: 1.3, d: 0.8, circulos: [[-0.3, 0, 0.38], [0.3, 0, 0.38]], custo: { lenha: 10 }, bancada: true, alto: 0.69,
     desc: 'Guarda até 40 pilhas de itens. Todos os seus baús guardam as mesmas coisas. Toque nele para abrir.' },
   // base do clã (André 2026-11-22): o terreno do líder é a base; o Baú do Clã (um por clã) é onde os recrutas deixam o

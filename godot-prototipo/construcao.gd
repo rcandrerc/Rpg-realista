@@ -212,9 +212,16 @@ func _carregar_modelos() -> void:
 		[["res://construcao3d/Door_1_Flat.gltf", Vector3(-0.53, 0, 0.0), "folha"]])
 	_modelos["janela"] = _modelo_gltf("res://construcao3d/Wall_Plaster_Window_Wide_Flat.gltf", 1.0, meio,
 		[["res://construcao3d/Window_Wide_Flat1.gltf", meio, ""]])
-	for k in ["parede", "porta", "janela"]: # juntas (André 2026-11-05): pilar de madeira nas duas pontas fecha o canto
+	# de pedra (André 2026-11-23: "esse tipo de parede aí de pedra eu queria"): o mesmo modelo com a pedra do salão do clã
+	_modelos["parede_pedra"] = _de_pedra(_modelo_gltf("res://construcao3d/Wall_Plaster_Straight.gltf", 1.0, meio))
+	_modelos["porta_pedra"] = _de_pedra(_modelo_gltf("res://construcao3d/Wall_Plaster_Door_Flat.gltf", 1.0, meio,
+		[["res://construcao3d/Door_1_Flat.gltf", Vector3(-0.53, 0, 0.0), "folha"]]))
+	_modelos["janela_pedra"] = _de_pedra(_modelo_gltf("res://construcao3d/Wall_Plaster_Window_Wide_Flat.gltf", 1.0, meio,
+		[["res://construcao3d/Window_Wide_Flat1.gltf", meio, ""]]))
+	for k in ["parede", "porta", "janela", "parede_pedra", "porta_pedra", "janela_pedra"]: # juntas (André 2026-11-05): pilar de madeira nas duas pontas fecha o canto
 		_pilares(_modelos[k])
 	_modelos["fundacao"] = _modelo_fundacao()
+	_modelos["fundacao_pedra"] = _modelo_fundacao(true)
 	_modelos["telhado"] = _modelo_telhado_um()
 	_modelos["bau"] = _modelo_gltf("res://construcao3d/Chest_Wood.gltf", 1.0)
 	_modelos["bau_cla"] = _modelo_bau_cla() # Baú do Clã (André 2026-11-22): o mesmo baú com ferragem e faixa vermelha do clã
@@ -315,7 +322,7 @@ func _modelo_bau_cla() -> Node3D:
 
 static func _alcance_peca(raiz: Node3D, k: String) -> void:
 	# André 2026-11-07: apertado como a vila (era 120/90/60 m)
-	var longe := 100.0 if k in ["parede", "porta", "janela", "fundacao", "telhado"] else 70.0
+	var longe := 100.0 if k in ["parede", "porta", "janela", "fundacao", "telhado", "parede_pedra", "porta_pedra", "janela_pedra", "fundacao_pedra"] else 70.0
 	if k in ["bau", "bau_cla", "tocha", "bigorna"]:
 		longe = 45.0
 	for mi: GeometryInstance3D in raiz.find_children("*", "GeometryInstance3D", true, false):
@@ -381,12 +388,41 @@ func _pilares(raiz: Node3D) -> void:
 
 # Fundação: bloco de pedra de 2 x 2 m (o topo fica 20 cm acima do chão; desce 60 cm para não flutuar em chão torto)
 # com o assoalho de tábuas escuras em cima
-func _modelo_fundacao() -> Node3D:
+func _modelo_fundacao(calcada := false) -> Node3D:
 	var r := Node3D.new()
 	_caixa(r, Vector3(2.0, 0.8, 2.0), Vector3(0, -0.2, 0), _mat_tex("stacked_stone_wall", Color("d6cec4"), 0.8))
+	if calcada: # chão de pedra igual ao da forja do clã (André 2026-11-23); a de antes fica com o piso de madeira
+		_caixa(r, Vector3(2.0, 0.02, 2.0), Vector3(0, 0.205, 0), _mat_pedra())
+		return r
 	var piso := _modelo_gltf("res://construcao3d/Floor_WoodDark.gltf", 1.0, Vector3(0, 0.205, 0))
 	r.add_child(piso)
 	return r
+
+# a pedra do salão do clã (vilas.glb MI_UnevenBrick): 2 m por ladrilho, pelo mundo (as peças vizinhas continuam o desenho)
+var _pedra_mat: StandardMaterial3D
+func _mat_pedra() -> StandardMaterial3D:
+	if _pedra_mat == null:
+		_pedra_mat = StandardMaterial3D.new()
+		_pedra_mat.albedo_texture = load("res://vilas3d/vilas_T_UnevenBrick_BaseColor.jpg")
+		_pedra_mat.uv1_triplanar = true
+		_pedra_mat.uv1_world_triplanar = true
+		_pedra_mat.uv1_scale = Vector3.ONE * 0.5
+		_pedra_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		_pedra_mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+		_pedra_mat.roughness = 1.0
+	return _pedra_mat
+
+# troca o reboco (e o tijolo da janela) da parede pela pedra do salão; a madeira e a pedra da soleira ficam
+func _de_pedra(raiz: Node3D) -> Node3D:
+	for mi: MeshInstance3D in raiz.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null or str(mi.get_parent().name) == "folha" or str(mi.name) == "folha":
+			continue
+		for i in mi.mesh.get_surface_count():
+			var mt: Material = mi.mesh.surface_get_material(i)
+			var nome: String = (mt.resource_name if mt else "") + " " + mi.mesh.surface_get_name(i)
+			if "Plaster" in nome or "Brick" in nome:
+				mi.set_surface_override_material(i, _mat_pedra())
+	return raiz
 
 # Tocha de pé: poste de madeira, suporte de ferro, chama acesa e uma luz quente sem sombra (some de longe)
 func _modelo_tocha() -> Node3D:
@@ -896,6 +932,10 @@ func grade() -> float:
 func tipo_peca(k: String) -> String:
 	return str(D.construcoes[k].get("tipo", "movel")) if D.construcoes.has(k) else "movel"
 
+# a peça de base da variante (parede_pedra -> parede, porta_pedra -> porta): mesmas regras, outra textura
+func como_peca(k: String) -> String:
+	return str(D.construcoes[k].get("como", k)) if D.construcoes.has(k) else k
+
 static func _inteiro(v: float) -> bool:
 	return absf(v - roundf(v)) < 1e-4
 
@@ -954,13 +994,13 @@ func _piso(x: float, z: float) -> float:
 	var g := grade() / 2.0
 	for id in lotes:
 		for p in lotes[id].pecas:
-			if p.k == "fundacao" and absf(p.x - x) < g and absf(p.z - z) < g:
+			if tipo_peca(p.k) == "fundacao" and absf(p.x - x) < g and absf(p.z - z) < g:
 				return _chao(x, z) + float(D.casa.fundacao)
 	return _chao(x, z)
 
 # altura onde a peça fica: a fundação no chão; parede/porta/janela no piso mais alto dos dois lados; móvel no piso
 func _y_peca(p: Dictionary) -> float:
-	if p.k == "fundacao":
+	if tipo_peca(p.k) == "fundacao":
 		return _chao(p.x, p.z)
 	if tipo_peca(p.k) == "borda":
 		var y := -INF
@@ -996,7 +1036,7 @@ func _refazer_pisos() -> void:
 				var y0 := _chao(p.x, p.z)
 				var y1 := _y_peca(p) + float(C.parede)
 				var e := float(C.espessura) / 2.0 + 0.02
-				var partes: Array = [[-0.85, 0.3, y0, y1], [0.85, 0.3, y0, y1], [0.0, g + 0.15, y1 - float(C.parede) + float(C.porta), y1]] if p.k == "porta" else [[0.0, g + 0.15, y0, y1]]
+				var partes: Array = [[-0.85, 0.3, y0, y1], [0.85, 0.3, y0, y1], [0.0, g + 0.15, y1 - float(C.parede) + float(C.porta), y1]] if como_peca(p.k) == "porta" else [[0.0, g + 0.15, y0, y1]]
 				for q in partes:
 					if eixo:
 						_pisos.append(peca.call(p.x, p.z + q[0], e, q[1], q[3], q[2]))
@@ -1394,7 +1434,7 @@ func _telhados_visiveis(hp: Vector3, dt := 0.016) -> void:
 		var topo := float(D.get("casa", {}).get("parede", 3.1)) - 0.3
 		for id in perto:
 			for p in lotes[id].pecas:
-				if p.k == "fundacao" and absf(hp.x - p.x) < g and absf(hp.z - p.z) < g and hp.y < _piso(p.x, p.z) + topo:
+				if tipo_peca(p.k) == "fundacao" and absf(hp.x - p.x) < g and absf(hp.z - p.z) < g and hp.y < _piso(p.x, p.z) + topo:
 					dentro = true
 					break
 			if dentro:
@@ -1499,7 +1539,7 @@ func _achar_portas() -> void:
 	_portas.clear()
 	for id in lotes:
 		for p in lotes[id].pecas:
-			if p.k == "porta" and p.get("no") and is_instance_valid(p.no):
+			if como_peca(p.k) == "porta" and p.get("no") and is_instance_valid(p.no):
 				var f = p.no.find_child("folha", true, false)
 				if f:
 					_portas.append(f)
