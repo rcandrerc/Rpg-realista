@@ -7,7 +7,7 @@ Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 - Servidor decide o combate (`shared/simulacao.js`); conteúdo em `shared/dados.js`.
 - Câmera lenta/congelada do golpe removida pelo irmão: nunca religar.
 - Clãs (até 6 recrutas), base/fazenda do clã e arena PvP 4x4 entram desde 20/11.
-- Estratégia (23/11): luta de clãs. André lidera; recrutas pagos (taxa + semanal) obedecem cegamente e só respondem. Jogadores nascem Chama; 4 clãs bot Geada, 1 clã bot + André na Chama (mais bots se faltar jogador). Feito: nunca voltar ao jogo de antes de 20/11.
+- Estratégia (23/11): luta de clãs. André lidera; recrutas pagos (taxa + semanal) obedecem cegamente e só respondem. Jogadores nascem Chama; clãs bot líderes são Geada. Quantos clãs bot de cada lado: sem regra ainda (André decide conforme entrarem jogadores; não mexer). Feito: nunca voltar ao jogo de antes de 20/11.
 
 ## Foco único até 30/11: desempenho e gráfico
 1. Medir. 2. Personagens leves. 3. Mundo leve, sem travadas (OOM no S9). 4. Visual com fotos antes/depois, só com OK.
