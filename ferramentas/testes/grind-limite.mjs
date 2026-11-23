@@ -2,6 +2,7 @@
 // nível de diferença... aumentar um pouco a chance de rejeição"; "vou te ajudar porque você é meu amigo, mas... não tão grosseira".
 // Uso: node ferramentas/testes/grind-limite.mjs
 import { Simulacao, MAPA_CLAREIRA, DARIO, NPC_VIDA } from '../../shared/index.js';
+import './_amizade-antiga.mjs'; // o time com a Cecília e o Dario é do jeito antigo (antes do soldado de 2026-11-22)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 const d = s.adicionarJogador('andre', 'André', 'ruiva', { conta: 7 });

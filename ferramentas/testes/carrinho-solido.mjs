@@ -1,4 +1,5 @@
 // Carrinho sólido (André 2026-11-13): em cima do carrinho conta como chão no servidor (ataca, pula, usa magia lá de cima)
+import '../../shared/index.js'; // carrega na ordem certa (ciclo progresso/simulacao/cla: 'Amiga' before initialization)
 import { caixasCarrinho, topoCarrinho } from '../../shared/transporte.js';
 let falhou = 0;
 const ok = (c, t) => { console.log((c ? 'ok ' : 'FALHOU ') + t); if (!c) falhou++; };

@@ -66,6 +66,6 @@ ok(Math.abs(AMIGA.time.porAmizade * Z.max - AMIGA.time.amizadeMax) < 1e-9, 'vont
 ok(Math.abs(AMIGA.coleta.presente + AMIGA.coleta.porAmizade * Z.max - AMIGA.coleta.presenteMax) < 1e-9, 'coleta: 50% no 10');
 ok(Math.abs(AMIGA.troca.margem - AMIGA.troca.porAmizade * Z.max - AMIGA.troca.margemMin) < 1e-9, 'preço de amiga: mínimo no 10');
 
-// salva junto com o terreno
-s.guardarAmiga(); const L = s.loteDaAmiga();
+// salva junto com o save dela (tabela mundo, André 2026-11-22)
+s.guardarAmiga(); const L = { amiga: s.npcSalvos?.get(s.AMIGA.id) };
 ok(L?.amiga?.amizadeDia?.[d.conta]?.[1] === 1, 'o limite do dia vai salvo (reiniciar o servidor não zera)');

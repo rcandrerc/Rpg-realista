@@ -3,6 +3,7 @@
 // Uso: node ferramentas/testes/quantidade-mover.mjs
 import { Simulacao, MAPA_CLAREIRA, ESTACOES_PUBLICAS, contar } from '../../shared/index.js';
 import './_tudo-aberto.mjs';
+import './_relogio-fixo.mjs'; // relógio fixo: no GitHub (máquina cheia) a lenha queimava entre duas linhas
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 const ev = () => { const e = s.eventos; s.eventos = []; return e; };

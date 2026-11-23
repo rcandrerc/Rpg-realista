@@ -3,6 +3,7 @@
 // a regra pronta. Uso: node ferramentas/testes/dicas.mjs
 import { Simulacao, MAPA_CLAREIRA, CEREBRO, DARIO } from '../../shared/index.js';
 import { validarRegra, juntarDica, decidir, ordenarRegras } from '../../shared/cerebro.js';
+import './_amizade-antiga.mjs'; // o time com a Cecília é do jeito antigo (antes do soldado de 2026-11-22)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 
 // conferência da regra
@@ -41,8 +42,7 @@ ok(sim.aprenderDicaAmiga('andre', boa, 'recua quando o chefe levantar o braço')
 ok(!sim.aprenderDicaAmiga('andre', { quando: [['xp', '>', 1]], faca: 'voar' }, 'voa') && a.dicas.length === 1, 'dica que não dá: não muda nada');
 ok(a.ia.chatFila?.some((m) => m.texto.includes('recuar quando o chefe')), 'ela confirma no chat');
 sim.guardarAmiga();
-const L = sim.loteDaAmiga();
-ok(L.amiga.dicas?.length === 1, 'vai para o banco junto com o terreno');
+ok(sim.npcSalvos?.get(sim.AMIGA.id)?.dicas?.length === 1, 'vai para o banco junto com o save dela (tabela mundo, 2026-11-22)');
 sim.amigaSair('andre'); for (const x of sim.amigosIa) x.amigaEntrar('andre');
 ok(sim.amiga.dicas?.length === 1 && sim.amiga.dicas[0].faca === 'recuar', 'voltou com a dica');
 // vale para todo mundo: outra pessoa no time dela também
