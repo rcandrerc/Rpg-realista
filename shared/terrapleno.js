@@ -22,14 +22,19 @@ export const ruidoChao = (x, z) => 0.6 * Math.sin(x * 0.21 + z * 0.13) + 0.4 * M
 export function nivelDaBase(B, protegidos = []) {
   const G = gradeDoMundo(), T = TERRAPLENO; if (!G) return null;
   const hs = [];
+  let tot = 0;
   const i0 = Math.ceil((B.x - T.meio - G.x0) / G.passo), i1 = Math.floor((B.x + T.meio - G.x0) / G.passo);
   const j0 = Math.ceil((B.z - T.meio - G.z0) / G.passo), j1 = Math.floor((B.z + T.meio - G.z0) / G.passo);
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
     if (i < 0 || j < 0 || i >= G.nx || j >= G.nz) continue;
-    const o = alturaOrigGrade(j * G.nx + i); if (o < 0.6) return null; // mapa de hoje ou beira: não nivela (base.js desnivelFixo)
-    hs.push(o);
+    // André 2026-11-23 (base perto da praia, v2971: "a estrada continua sem aparecer"): antes qualquer ponto baixo
+    // (areia da beira) cancelava o nivelamento e a estrada da base inteira. Agora só o mapa de hoje (grade 0) cancela;
+    // areia e mar ficam fora da conta do meio (a areia sobe junto no platô; o mar não muda).
+    const o = alturaOrigGrade(j * G.nx + i); if (Math.abs(o) < 0.02) return null; // mapa de hoje: não nivela (base.js desnivelFixo)
+    tot++;
+    if (o >= 0.6) hs.push(o);
   }
-  if (!hs.length) return null;
+  if (!hs.length || hs.length < tot * 0.6) return null;
   hs.sort((a, b) => a - b);
   const y = Math.max(T.yMin, hs[hs.length >> 1]);
   let wmax = T.wMax;
@@ -40,6 +45,7 @@ export function nivelDaBase(B, protegidos = []) {
   return { y: +y.toFixed(2), wmax: +Math.max(0, wmax).toFixed(1) };
 }
 
+const AREIA = 0.1; // m: grade acima disso é terra (a areia da praia fica entre 0,1 e 0,6)
 // o platô de uma base nas alturas de trabalho (ed: Map k -> h)
 export function aplainar(G, ed, x, z, y, wmax) {
   const T = TERRAPLENO, R = T.meio + wmax;
@@ -47,7 +53,7 @@ export function aplainar(G, ed, x, z, y, wmax) {
   const j0 = Math.max(0, Math.ceil((z - R - G.z0) / G.passo)), j1 = Math.min(G.nz - 1, Math.floor((z + R - G.z0) / G.passo));
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
     const k = j * G.nx + i, o = alturaOrigGrade(k);
-    if (o < 0.5 || (G.rio && G.rio[k] > 0)) continue;
+    if (o < AREIA || (G.rio && G.rio[k] > 0)) continue; // o mar não muda (a areia da beira sobe junto)
     const px = G.x0 + i * G.passo, pz = G.z0 + j * G.passo, dx = Math.abs(px - x), dz = Math.abs(pz - z);
     const d = Math.hypot(Math.max(dx - T.meio, 0), Math.max(dz - T.meio, 0)), n = ruidoChao(px, pz);
     if (d <= 0) { ed.set(k, y); continue; } // dentro: plano de verdade (André 2026-11-23: a grama furava a terra arada); a ondinha fica na rampa
@@ -68,7 +74,7 @@ export function cortarEstrada(G, ed, pts, bases = []) {
   const j0 = Math.max(0, Math.ceil((z0 - T.borda - G.z0) / G.passo)), j1 = Math.min(G.nz - 1, Math.floor((z1 + T.borda - G.z0) / G.passo));
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
     const k = j * G.nx + i, o = alturaOrigGrade(k);
-    if (o < 0.5 || (G.rio && G.rio[k] > 0)) continue;
+    if (o < AREIA || (G.rio && G.rio[k] > 0)) continue;
     const px = G.x0 + i * G.passo, pz = G.z0 + j * G.passo;
     if (bases.some((b) => Math.abs(px - b[0]) <= T.meio && Math.abs(pz - b[1]) <= T.meio)) continue; // dentro do platô
     let best = Infinity, by = 0;

@@ -274,3 +274,12 @@ ok(Object.values(bg.donos).length >= Math.min(bg.nv - 1, 3), 'os membros do clã
   ok(Math.hypot(h.x - D.bau.x, h.z - D.bau.z - 2.5) < 3, 'a casinha leva para a porta do salão da base');
   s10.basesCla = {}; s10.refazerBases();
 }
+
+// base perto da praia (André 2026-11-23, v2971: sem estrada, "Ir" batendo na cerca, grama na terra arada): a areia da
+// beira não cancela mais o nivelamento nem a estrada
+{
+  const { nivelDaBase: nv, caminhoDaBase: cm, chaoDasBases: cb } = await import('../../shared/terrapleno.js');
+  const Bp = { k: 'praia', x: -344, z: 16 }, n = nv(Bp, []);
+  ok(n && n.y > 0, 'base perto da praia também fica nivelada');
+  if (n) { cb([{ ...Bp, ...n, estrada: null }]); ok(cm(Bp, n.y, []).length > 3, 'e ganha a estrada até a estrada do mundo'); cb([]); }
+}
