@@ -8,6 +8,7 @@ import { PESCA, HISTORIA } from '../../shared/dados.js';
 // estes testes são de pesca, estrada e time; a história dela (que agora começa do zero, André 2026-11-17) fica aberta aqui
 const historiaFeita = (c) => { c.prog.hist = { v: 2, p: HISTORIA.length, ac: false, e: 0, n: 0, m: 0 }; };
 import { noLago } from '../../shared/relevo.js';
+import './_relogio-fixo.mjs'; // relógio e sorte fixos: o mesmo resultado em máquina rápida ou lenta (CI)
 import './_amizade-antiga.mjs';
 import { loteNaBase } from './_lote-base.mjs'; // o jeito antigo (amizade e papo), sem o soldado de 2026-11-22
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
