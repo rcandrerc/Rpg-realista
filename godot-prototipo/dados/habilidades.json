@@ -1317,6 +1317,13 @@
    "obra": "tocha",
    "desc": "Ilumina em volta. Coloque no chão. Coloque no seu terreno pelo modo construção (martelo)."
   },
+  "obra_palete": {
+   "nome": "Palete de packs",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "palete",
+   "desc": "Na base do clã: largue o pack perto dele e o pack fica em cima, sem nunca sumir (5 por palete). Pack no chão some em 30 min. Coloque no seu terreno pelo modo construção (martelo)."
+  },
   "enxada": {
    "nome": "Enxada",
    "pilha": 1,
@@ -3776,6 +3783,21 @@
    },
    "bancada": false,
    "desc": "Ilumina em volta. Coloque no chão."
+  },
+  "palete": {
+   "nome": "Palete de packs",
+   "tipo": "movel",
+   "aba": "moveis",
+   "w": 1.6,
+   "d": 1.2,
+   "circulos": [],
+   "custo": {
+    "lenha": 8,
+    "barra_ferro": 1
+   },
+   "bancada": true,
+   "alto": 0.16,
+   "desc": "Na base do clã: largue o pack perto dele e o pack fica em cima, sem nunca sumir (5 por palete). Pack no chão some em 30 min."
   }
  },
  "plantas": {
@@ -5018,6 +5040,33 @@
     "pertoTime": 60
    }
   }
+ },
+ "palete": {
+  "lugar": [
+   [
+    -0.52,
+    -0.3
+   ],
+   [
+    0,
+    -0.3
+   ],
+   [
+    0.52,
+    -0.3
+   ],
+   [
+    -0.26,
+    0.3
+   ],
+   [
+    0.26,
+    0.3
+   ]
+  ],
+  "perto": 2.2,
+  "porBase": 0,
+  "alto": 0.16
  },
  "historia": {
   "zonas": [

@@ -1877,8 +1877,10 @@ func atualizar(carga) -> void:
 			m.add_child(no)
 			var x := float(e[2])
 			var z := float(e[3])
-			no.position = Vector3(x, m.terreno.altura(x, z), z)
-			no.rotation.y = fmod(x * 7.0, TAU)
+			# em cima do palete de packs (5º número = 1, André 2026-11-23): sobe a altura do palete e fica alinhado
+			var no_palete: bool = (e as Array).size() > 4 and int(e[4]) == 1
+			no.position = Vector3(x, m.terreno.altura(x, z) + (float(m.P.dados.get("palete", {}).get("alto", 0.16)) if no_palete else 0.0), z)
+			no.rotation.y = 0.0 if no_palete else fmod(x * 7.0, TAU)
 			chao[g] = {"no": no, "k": str(e[1]), "x": x, "z": z}
 	for g in chao.keys():
 		if not vistos.has(g):

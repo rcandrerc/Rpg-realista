@@ -3248,6 +3248,7 @@ export class Simulacao {
     if (!this.loteParaMexer(j, p.x, p.z, aviso)) return;
     const dep = motivoDesmontar(L, p); if (dep) return aviso(dep);
     if (p.k === 'bau' && L.pecas.filter((o) => o.k === 'bau').length === 1 && (L.bau || []).some(Boolean)) return aviso('Esvazie o baú antes de desmontar o último');
+    if (p.k === 'palete' && this.packsNoPalete?.(p.id).length) return aviso('Tire os packs de cima do palete antes de desmontar'); // André 2026-11-23
     if ((p.k === 'fornalha' || p.k === 'fogao') && L.fornos && L.fornos[p.id]) {
       avancarForno(L.fornos[p.id], Date.now(), regraForno(p.k));
       if (fornoTemCoisa(L.fornos[p.id])) return aviso(p.k === 'fogao' ? 'Esvazie o fogão antes de desmontar' : 'Esvazie a fornalha antes de desmontar');

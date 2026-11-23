@@ -829,6 +829,10 @@ export const CONSTRUCOES = {
 // formam um telhado inclinado de verdade, que some quando você entra).
 // tipo: 'movel' (padrão: fica no chão ou em cima da fundação), 'fundacao', 'borda' (parede/porta/janela), 'telhado'
 // aba: em que aba do modo construção a peça aparece ('casa' ou 'moveis') · bancada: precisa de bancada perto para criar
+// palete de packs (shared/transporte.js): lugar = os 5 lugares de cima [x, z] do meio da peça (sem girar; André: "cada
+// pallet dá cinco"); perto = m do jogador até o palete pra largar em cima; porBase 0 = sem teto: o limite é o espaço
+// da base (André: "o limite é o espaço" de construir; cabem quantos paletes couberem nos lotes)
+export const PALETE = { lugar: [[-0.52, -0.3], [0, -0.3], [0.52, -0.3], [-0.26, 0.3], [0.26, 0.3]], perto: 2.2, porBase: 0, alto: 0.16 };
 export const CASA = { grade: 2, parede: 3.1, fundacao: 0.2, espessura: 0.3,
   // telhado das casas do jogador (2026-11-04: dá para ficar em pé em cima): sobe 0,6 m por metro até o meio, no máximo 1,8 m
   beiral: 0.45, inclina: 0.6, telhaMax: 1.8, porta: 2.2,
@@ -867,6 +871,10 @@ Object.assign(CONSTRUCOES, {
     desc: 'Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias e +40 de vigor (a cada 6 h).' },
   tocha: { nome: 'Tocha', tipo: 'movel', aba: 'moveis', w: 0.4, d: 0.4, circulos: [[0, 0, 0.15]], custo: { lenha: 2, carvao: 1 }, bancada: false,
     desc: 'Ilumina em volta. Coloque no chão.' },
+  // palete de packs (André 2026-11-23: "como se fosse pallets para botar os packs em cima ... craftar, nem que seja com
+  // madeira"): só dentro da base do clã; o pack largado perto dele vai pra cima e não some (shared/transporte.js)
+  palete: { nome: 'Palete de packs', tipo: 'movel', aba: 'moveis', w: 1.6, d: 1.2, circulos: [], custo: { lenha: 8, barra_ferro: 1 }, bancada: true, alto: 0.16,
+    desc: 'Na base do clã: largue o pack perto dele e o pack fica em cima, sem nunca sumir (5 por palete). Pack no chão some em 30 min.' },
 });
 // ferramentas da fazenda (Quimera: enxada para arar, regador para regar); ficam na mochila, não gastam
 export const FERRAMENTAS_FAZENDA = {
