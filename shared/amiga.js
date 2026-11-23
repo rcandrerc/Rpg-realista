@@ -686,6 +686,7 @@ export const Amiga = {
       return this.pararAmiga(j);
     }
     if (av.fase === 'voltar') {
+      if (ia.levar && this.levarBauRecruta?.(this, j, dt)) return; // recruta com recurso pedido: leva ao Baú do Clã (cla.js)
       const M = this.pontoVilaAmiga(j), L = this.loteDaAmiga();
       const casa = L ? { x: L.def.x0 + this.AMIGA.porta[0], z: L.def.z0 + this.AMIGA.porta[1] } : M;
       const canto = L && Math.hypot(casa.x - j.x, casa.z - j.z) < 15 && this.contornoCasa(L, j, casa);
@@ -3170,7 +3171,7 @@ export const Amiga = {
     if (pt) j.ia.av = null;
     if (!enc.tem) j.ia.encomenda = null;
     const ele = [...this.jogadores.values()].find((p) => !p.bot && p.conta === enc.conta);
-    if (ele) this.dizerAmiga(this.falaEncAmiga(fala, enc, j, { motivo: m }), false, ele.id);
+    if (ele && !j.ia.levar) this.dizerAmiga(this.falaEncAmiga(fala, enc, j, { motivo: m }), false, ele.id); // recruta com recurso pedido: leva ao Baú do Clã, sem "me chama"
   },
   acharColetaAmiga(j, dono, tipo, noTipo = null) {
     const C = this.AMIGA.coleta, ia = j.ia, ruim = (id) => (ia.ruins.get(id) || 0) > this.tempo;

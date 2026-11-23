@@ -3348,11 +3348,13 @@ export const CLA = {
   // Clã; sem ela, compra na Rosa com o cofre do clã. A colheita vai para o Baú do Clã (sem baú, fica na bolsa dele).
   fazenda: { passo: 1.6, perto: 1.4 },
   farmar: 40, // quanto ele junta por viagem (o máximo da encomenda); acabou, vai de novo
+  // entrega (André 2026-11-23): só o recurso pedido vai para o Baú do Clã, e ele leva andando (perto: m do baú para deixar)
+  entrega: { perto: 2.4 },
   protegeRaio: 9, // m em volta de quem ele protege: monstro ou inimigo ali dentro, ele ataca
   // com o líder fora do jogo (André 2026-11-22: "eqt estou offline ele faz oq eu mandei?"): a sala fecha sem ninguém,
   // então quando ele volta o servidor conta o tempo fora (até max) e dá o resultado da função: Grind = XP (nivelHora
   // níveis por hora, nunca passa do nível do líder); Farmar = o que o vigor pagaria (o vigor enche no tempo fora)
-  fora: { minimo: 5 * 60e3, max: 12 * 3600e3, nivelHora: 0.25, peixe: 'tilapia' },
+  fora: { minimo: 5 * 60e3, max: 12 * 3600e3, nivelHora: 0.25, peixe: 'tilapia', couroVigor: 3 },
   // Base do clã (André 2026-11-22: "já pode implantar o lance da base"; shared/base.js). Cada clã tem uma base no mapa:
   // o líder funda onde está. No meio fica o centro (salão do clã, com o Baú do Clã); em volta, os lotes de 10 x 10 m.
   // Sem aluguel: a taxa do clã sai do cofre toda semana (clã bot: do ouro do líder). O nível da base é o nível do clã.
