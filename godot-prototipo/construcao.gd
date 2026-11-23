@@ -760,6 +760,7 @@ func do_servidor_lote(ev: Dictionary) -> void:
 		if r4 != [float(L.def.x0), float(L.def.z0), float(L.def.x1), float(L.def.z1)]:
 			mudou_forma = true
 		L.def.x0 = r4[0]; L.def.z0 = r4[1]; L.def.x1 = r4[2]; L.def.z1 = r4[3]
+	L.area = ev.get("area") if ev.get("area") is Dictionary else null # área da base onde o lote do líder também constrói
 	L.taxa = float(ev.get("taxa")) if ev.get("taxa") != null else 0.0
 	relogio = float(ev.get("agora", 0)) - Time.get_unix_time_from_system() * 1000.0
 	L.dono = ev.get("dono")
@@ -2082,14 +2083,56 @@ func encostar_movel(L: Dictionary, k: String, x: float, z: float, r: int, px: fl
 static func _cruza(a: Rect2, b: Rect2) -> bool:
 	return a.position.x < b.end.x - 0.01 and b.position.x < a.end.x - 0.01 and a.position.y < b.end.y - 0.01 and b.position.y < a.end.y - 0.01
 
+# Área da base (André 2026-11-23: "queria poder pôr móveis na área destinada à base também"): o lote 1 do líder também
+# constrói dentro da paliçada, menos em cima do salão, torres e enfeites e no corredor do portão até o Baú do Clã.
+# A mesma conta de shared/simulacao.js naAreaBase.
+static func _ret_area(A) -> Dictionary:
+	if not (A is Dictionary) or not (A.get("ret") is Array):
+		return {}
+	return {"x0": float(A.ret[0]), "z0": float(A.ret[1]), "x1": float(A.ret[2]), "z1": float(A.ret[3])}
+
+func _na_area_base(R: Rect2, A) -> bool:
+	var ra := _ret_area(A)
+	if ra.is_empty() or _fora_do_lote(R, ra):
+		return false
+	var lv = A.get("livre")
+	if lv is Array and lv.size() >= 4 and _cruza(R, Rect2(float(lv[0]), float(lv[1]), float(lv[2]) - float(lv[0]), float(lv[3]) - float(lv[1]))):
+		return false
+	var px := maxf(0.01, minf(0.5, R.size.x / 2.0))
+	var pz := maxf(0.01, minf(0.5, R.size.y / 2.0))
+	for o in A.get("sol", []):
+		var ox := float(o[0])
+		var oz := float(o[1])
+		var c := float(o[2])
+		var sn := float(o[3])
+		var x := R.position.x
+		while x <= R.end.x + 0.001:
+			var z := R.position.y
+			while z <= R.end.y + 0.001:
+				var dx := x - ox
+				var dz := z - oz
+				if absf(dx * c + dz * sn) < float(o[4]) + 0.05 and absf(-dx * sn + dz * c) < float(o[5]) + 0.05:
+					return false
+				z += pz
+			x += px
+	return true
+
+# distância do (x, z) ao meu terreno (e à área da base, se o lote é o do líder)
+func dist_meu(x: float, z: float) -> float:
+	if not lotes.has(meu):
+		return INF
+	var d := dist_ret(lotes[meu].def, x, z)
+	var ra := _ret_area(lotes[meu].get("area"))
+	return minf(d, dist_ret(ra, x, z)) if not ra.is_empty() else d
+
 func _fora_do_lote(R: Rect2, l: Dictionary) -> bool:
 	return R.position.x < float(l.x0) - 0.01 or R.end.x > float(l.x1) + 0.01 or R.position.y < float(l.z0) - 0.01 or R.end.y > float(l.z1) + 0.01
 
 func motivo_peca(L: Dictionary, k: String, x: float, z: float, r: int) -> String:
 	var R := ret_peca(k, x, z, r)
 	var T := tipo_peca(k)
-	if _fora_do_lote(R, L.def):
-		return "Só dá para construir dentro do seu terreno"
+	if _fora_do_lote(R, L.def) and not _na_area_base(R, L.get("area")):
+		return "Aí fica o salão, o portão ou o Baú do Clã" if L.get("area") != null and not _fora_do_lote(R, _ret_area(L.area)) else "Só dá para construir dentro do seu terreno"
 	var na_horta := func() -> bool:
 		for c in L.horta:
 			if _cruza(R, Rect2(L.horta[c].i, L.horta[c].j, 1, 1)):
@@ -2655,7 +2698,7 @@ func _process_parte(dt: float) -> void:
 			terras = vh
 	# nas terras e sem terreno: botão Comprar terreno
 	m.hud.mostrar_botao("lote", meu == "" and dentro_das_terras(hp.x, hp.z, -2.0) and vivo and not livre)
-	var no_meu := meu != "" and lotes.has(meu) and dist_ret(lotes[meu].def, hp.x, hp.z) <= float(D.lote.alcance)
+	var no_meu := meu != "" and lotes.has(meu) and dist_meu(hp.x, hp.z) <= float(D.lote.alcance)
 	m.hud.mostrar_botao("construir", false) # André 2026-11-06: o martelo foi para o menu do topo (menu_topo.gd), aceso aqui
 	_pode_aqui = (no_meu or (m.plantio != null and m.plantio.area_perto(Vector2(hp.x, hp.z)))) and vivo and not comprando
 	# estação do terreno perto: um botão só (o André tirou o botão da forja da HUD; a forja do Tomás fica no Falar)
@@ -2826,7 +2869,10 @@ func _prender(p: Vector3, folga: float) -> Vector3:
 		p.x = hpm.x + dv.x
 		p.z = hpm.z + dv.y
 	elif ativo and lotes.has(meu):
-		var l: Dictionary = lotes[meu].def
+		var l: Dictionary = lotes[meu].def.duplicate()
+		var ra := _ret_area(lotes[meu].get("area"))
+		if not ra.is_empty(): # a câmera também anda pela área da base
+			l = {"x0": minf(l.x0, ra.x0), "z0": minf(l.z0, ra.z0), "x1": maxf(l.x1, ra.x1), "z1": maxf(l.z1, ra.z1)}
 		p.x = clampf(p.x, float(l.x0) - 1.5 - folga, float(l.x1) + 1.5 + folga)
 		p.z = clampf(p.z, float(l.z0) - 1.5 - folga, float(l.z1) + 1.5 + folga)
 	elif comprando:
@@ -2855,7 +2901,7 @@ func abrir() -> void:
 		m.hud.aviso("Construir só funciona online (o terreno fica guardado no servidor)")
 		return
 	var hp0: Vector3 = m.heroi.position
-	var perto_lote: bool = meu != "" and lotes.has(meu) and dist_ret(lotes[meu].def, hp0.x, hp0.z) <= float(D.lote.alcance)
+	var perto_lote: bool = meu != "" and lotes.has(meu) and dist_meu(hp0.x, hp0.z) <= float(D.lote.alcance)
 	if not perto_lote and m.plantio and m.plantio.area_perto(Vector2(hp0.x, hp0.z)):
 		abrir_area(arvore)
 		return
@@ -2954,6 +3000,9 @@ func _mostrar_borda(v: bool) -> void:
 		var im: ImmediateMesh = _borda_lote.mesh
 		im.clear_surfaces()
 		_pintar_ret(im, lotes[meu].def, Color(1.0, 0.9, 0.55, 0.0), Color(1.0, 0.9, 0.55, 0.95))
+		var ra := _ret_area(lotes[meu].get("area"))
+		if not ra.is_empty():
+			_pintar_ret(im, ra, Color(1.0, 0.9, 0.55, 0.0), Color(1.0, 0.9, 0.55, 0.95))
 
 # material do que se pinta no chão (terreno marcado, borda): cor por vértice, sem luz, por cima da grama
 func _mat_chao(cor: Color) -> StandardMaterial3D:
@@ -3123,7 +3172,7 @@ func tocou_tela(pos: Vector2) -> void:
 	var vale := false
 	if p != null and na_area:
 		vale = Vector2(p.x - m.heroi.position.x, p.z - m.heroi.position.z).length() <= m.plantio.RAIO_MODO
-	elif p != null and lotes.has(meu) and dist_ret(lotes[meu].def, p.x, p.z) <= 1.5:
+	elif p != null and lotes.has(meu) and dist_meu(p.x, p.z) <= 1.5:
 		vale = true
 	if vale:
 		mira = p

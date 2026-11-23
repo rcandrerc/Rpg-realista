@@ -194,9 +194,25 @@ const bordaEm = (L, x, z, eixo) => L.pecas.find((o) => tipoPeca(o.k) === 'borda'
 const telhadoEm = (L, x, z) => L.pecas.some((o) => tipoPeca(o.k) === 'telhado' && mesmoLugar(o, x, z));
 // por que a peça não pode ficar ali ('' = pode): dentro do lote, sem encostar em outra peça nem na horta, fora do herói
 // Casa (2026-11-04): a fundação aceita móveis em cima; parede e telhado precisam de fundação (regras do Quimera).
-export function motivoPeca(L, p, j) {
+// Área da base (André 2026-11-23: "queria poder pôr móveis na área destinada à base também, tipo fornalhas e fogão a
+// lenha extra; ou até fundação, casa etc."): o lote 1 (do líder) também constrói dentro da paliçada (shared/base.js
+// areaBase), menos em cima do salão, das torres e enfeites (A.sol) e no corredor do portão até o Baú do Clã (A.livre).
+// godot-prototipo/construcao.gd _na_area_base repete a conta.
+export function naAreaBase(R, A) {
+  if (!A || foraDoLote(R, A)) return false;
+  if (A.livre && cruza(R, A.livre)) return false;
+  for (const o of A.sol || []) {
+    // caixa girada (cos, sen, hw, hd) contra o retângulo: amostra o retângulo a cada 0,5 m
+    for (let x = R[0]; x <= R[2] + 0.001; x += Math.max(0.01, Math.min(0.5, (R[2] - R[0]) / 2))) for (let z = R[1]; z <= R[3] + 0.001; z += Math.max(0.01, Math.min(0.5, (R[3] - R[1]) / 2))) {
+      const dx = x - o.x, dz = z - o.z, lx = dx * o.cos + dz * o.sen, lz = -dx * o.sen + dz * o.cos;
+      if (Math.abs(lx) < o.hw + 0.05 && Math.abs(lz) < o.hd + 0.05) return false;
+    }
+  }
+  return true;
+}
+export function motivoPeca(L, p, j, area = null) {
   const R = retPeca(p), T = tipoPeca(p.k);
-  if (foraDoLote(R, L.def)) return 'Só dá para construir dentro do seu terreno';
+  if (foraDoLote(R, L.def) && !naAreaBase(R, area)) return area && !foraDoLote(R, area) ? 'Aí fica o salão, o portão ou o Baú do Clã' : 'Só dá para construir dentro do seu terreno';
   const naHorta = () => Object.keys(L.horta).some((c) => { const [i, k] = c.split(',').map(Number); return cruza(R, [i, k, i + 1, k + 1]); });
   const emCima = () => j && j.x > R[0] - 0.35 && j.x < R[2] + 0.35 && j.z > R[1] - 0.35 && j.z < R[3] + 0.35;
   if (T === 'fundacao') {
@@ -3061,7 +3077,8 @@ export class Simulacao {
     for (const t of Object.values(L.horta)) crescerPlanta(t, agora);
     const { x0, z0, x1, z1 } = L.def;
     return { lote: L.def.id, ret: [x0, z0, x1, z1], dono: L.dono ? L.nomeDono : null, pecas: L.pecas.map((p) => [p.id, p.k, p.x, p.z, p.r]),
-      horta: Object.entries(L.horta).map(([c, t]) => t.mf ? [c, t.c, r2(t.g), t.w, t.u, t.mi, t.mf] : [c, t.c, r2(t.g), t.w, t.u]), agora, taxa: L.taxa || null };
+      horta: Object.entries(L.horta).map(([c, t]) => t.mf ? [c, t.c, r2(t.g), t.w, t.u, t.mi, t.mf] : [c, t.c, r2(t.g), t.w, t.u]), agora, taxa: L.taxa || null,
+      ...(this.areaBase?.(L) ? { area: this.areaBaseApp(L) } : {}) };
   }
   avisarLote(L) {
     this.lotesMudados.add(L.def.id);
@@ -3265,7 +3282,8 @@ export class Simulacao {
     if (!L) { aviso('Compre um terreno nas Terras da Estrada para construir'); return null; }
     if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
     // câmera flutuante (como no Quimera): o herói fica no terreno ou perto dele e a mira vai em qualquer canto dele
-    if (distRet(L.def, j.x, j.z) > LOTE.alcance + 0.5) { aviso('Chegue perto do seu terreno'); return null; }
+    const A = this.areaBase?.(L);
+    if (distRet(L.def, j.x, j.z) > LOTE.alcance + 0.5 && !(A && distRet(A, j.x, j.z) <= LOTE.alcance + 0.5)) { aviso('Chegue perto do seu terreno'); return null; }
     return L;
   }
   // m = { k, x, z, r }: peça nova no lote (paga com os materiais da mochila)
@@ -3279,7 +3297,7 @@ export class Simulacao {
     const maxP = maxPecasTerreno(L.def.x1 - L.def.x0, L.def.z1 - L.def.z0);
     if (L.pecas.length >= maxP) return aviso(`Limite de ${maxP} peças no terreno: desmonte uma para pôr outra`);
     const p = { id: 'p' + L.prox, k: m.k, x, z, r, lote: L.def.id };
-    const motivo = motivoPeca(L, p, j); if (motivo) return aviso(motivo);
+    const motivo = motivoPeca(L, p, j, this.areaBase?.(L)); if (motivo) return aviso(motivo);
     if (m.k === 'bau_cla') { // um por clã, no terreno do líder (André 2026-11-22)
       if (!j.prog.cla) return aviso('Funde o seu clã primeiro (aba Clã)');
       if (L.pecas.some((o) => o.k === 'bau_cla')) return aviso('O seu clã já tem um Baú do Clã');

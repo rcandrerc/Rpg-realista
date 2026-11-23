@@ -275,9 +275,24 @@ export const Base = {
     const j = this.jogadores.get(id); if (!j) return;
     this.evento({ t: 'bases', para: id, meu: this.baseDe(j)?.k || '', lista: Object.values(this.basesCla || {}).map((B) => this.dadosBase(B)) });
   },
+  // a área da base onde o lote 1 (do líder) também constrói (shared/simulacao.js naAreaBase): dentro da paliçada (1 m de
+  // folga), sem o salão, as torres e os enfeites (sol) e sem o corredor do portão até o Baú do Clã
+  areaBase(L) {
+    const B = L?.def?.baseK && /_1$/.test(L.def.id) && this.basesCla?.[L.def.baseK]; if (!B) return null;
+    const D = this.basesDesenho?.[B.k]; if (!D) return null;
+    const hc = nivelBase(B.nv).centro / 2 - 1, bz = D.bau ? D.bau.z : B.z;
+    return { x0: B.x - hc, z0: B.z - hc, x1: B.x + hc, z1: B.z + hc, livre: [B.x - 2.5, bz - 1, B.x + 2.5, B.z + hc + 1], sol: D.sol || [] };
+  },
+  // a mesma área para o app (godot-prototipo/construcao.gd): [x0, z0, x1, z1], o corredor e as caixas [x, z, cos, sen, hw, hd]
+  areaBaseApp(L) {
+    const A = this.areaBase(L); if (!A) return null;
+    const r = (v) => Math.round(v * 100) / 100;
+    return { ret: [A.x0, A.z0, A.x1, A.z1], livre: A.livre, sol: A.sol.map((o) => [o.x, o.z, r(o.cos), r(o.sen), o.hw, o.hd]) };
+  },
   avisarBases() {
     this.refazerBases();
     this.refazerSolidosLotes();
+    for (const L of this.lotes.values()) if (L.def.baseK && /_1$/.test(L.def.id)) this.avisarLote(L); // a área da base muda com o nível e o lugar
     for (const j of this.jogadores.values()) if (!j.bot) this.enviarBases(j.id);
     this.salvarBases();
   },

@@ -795,7 +795,7 @@ export const Amiga = {
   },
   colocarPeca(L, falta) {
     const p = { id: 'p' + L.prox, ...falta, lote: L.def.id };
-    const motivo = motivoPeca(L, p, null);
+    const motivo = motivoPeca(L, p, null, this.areaBase?.(L));
     if (motivo) { // não cabe (alguém mudou o mapa): pula esta peça para sempre nesta sala
       (this.amiga.ia.pulas ||= new Set()).add(chavePeca(falta));
       console.warn(`${this.AMIGA.nome}: ${falta.k} em ${falta.x}, ${falta.z} não coube (${motivo})`);
