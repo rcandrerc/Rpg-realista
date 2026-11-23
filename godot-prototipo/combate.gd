@@ -3,9 +3,8 @@ extends RefCounted
 # - o monstro avisa antes de bater: brilho vermelho que cresce durante o preparo (COMBATE.preparo em dados.gd);
 # - tranco no corpo do monstro para o lado do golpe (mola), em vez de só tocar "apanhar";
 # - firme: depois de muitos golpes seguidos ele aguenta e revida (brilho laranja + "Firme!");
-# - esquiva: rolar ou dar dash na hora do golpe = câmera lenta curtinha + "Esquiva!" e o próximo golpe vale mais;
+# - esquiva: rolar ou dar dash na hora do golpe = "Esquiva!" e o próximo golpe vale mais (sem câmera lenta desde 2026-11-23);
 # - morte: o corpo é jogado para trás, depois se desfaz em fumaça; volta com um sopro de poeira;
-# - último inimigo por perto: câmera lenta curtinha (a câmera não se mexe, só o tempo).
 # As regras (quando bate, quem fica firme, quanto vale o contra-ataque) são do servidor (shared/simulacao.js);
 # sem internet main.gd faz igual com os mesmos números (dados.gd COMBATE).
 
@@ -102,7 +101,7 @@ func _c(no: Node3D) -> Dictionary:
 			if not (mi.mesh is QuadMesh): # o corpo, não a barra de vida
 				malhas.append(mi)
 		c = {"tilt": Vector2.ZERO, "v": Vector2.ZERO, "preparo": 0.0, "preparo_dur": 0.0, "firme": 0.0,
-			"morto": -1.0, "escala": no.scale, "malhas": malhas, "volta": 0.0, "reagiu": -9.0, "meu_golpe": -9.0, "arco": null, "firme_txt": null}
+			"morto": -1.0, "escala": no.scale, "malhas": malhas, "volta": 0.0, "reagiu": -9.0, "arco": null, "firme_txt": null}
 		_corpos[no] = c
 	return c
 
@@ -113,8 +112,6 @@ func reacao(no: Node3D, de: Vector3, forte := false, meu := true) -> void:
 		return
 	var c := _c(no)
 	c.reagiu = m.tempo
-	if meu:
-		c.meu_golpe = m.tempo
 	if c.firme > 0.0:
 		forte = false # firme: quase não balança
 	else:
@@ -183,7 +180,6 @@ func firme(no: Node3D, dur: float) -> void:
 # o herói rolou ou deu dash bem na hora do golpe
 func esquiva(heroi: Node3D) -> void:
 	fx.texto(heroi.global_position, "Esquiva!", Color(0.7, 0.95, 1.0), 0.0, 0.8, 1.9, 0.9)
-	m.lenta(0.28, 0.35)
 	m.sons.tocar("dash", -4.0, 0.05)
 
 func morreu(no: Node3D) -> void:
@@ -194,18 +190,6 @@ func morreu(no: Node3D) -> void:
 	c.preparo = 0.0
 	c.firme = 0.0
 	c.volta = 0.0
-	# último monstro por perto: câmera lenta curtinha (só o tempo; a câmera fica como está). Só quando foi o golpe do
-	# herói que derrubou (André 2026-11-21, vídeo perto da Vila da Clareira: "slow motion muito frequente, FPS e ping
-	# normais"). Antes valia qualquer golpe: os bots e os outros jogadores matando bicho longe deixavam o jogo inteiro
-	# a 30% por 0,45 s a cada morte, e o herói corria em câmera lenta sem estar lutando.
-	if m.tempo - float(c.meu_golpe) >= 0.6 or no.position.distance_to(m.heroi.position) > 30.0:
-		return
-	var vivos := 0
-	for e in m.inimigos:
-		if e.no != no and e.estado != "morto" and e.no.position.distance_to(m.heroi.position) < 15.0:
-			vivos += 1
-	if vivos == 0:
-		m.lenta(0.45, 0.3)
 
 # voltou (renasceu): aparece com um sopro de poeira, crescendo
 func voltou(no: Node3D) -> void:
