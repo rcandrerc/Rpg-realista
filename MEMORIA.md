@@ -26,5 +26,5 @@ Cecília/Dário, segurança, história/missões, economia/lojas.
 ## Feito
 - 23/11: "Ver" o recruta: animação, sombra e magia contam a partir dele (`centro_visao`); "Ver no mapa" com ponto dele.
 - 23/11: botão "Trocar alvo" (4 camadas: quem te bateu 5 s > PK no alcance > monstro > espantalho); sem tocar, alvo igual.
-
+- 23/11: líder bot comanda o clã a cada 15 min pelo que falta (grind/material/alma/proteger/fazenda), peso da personalidade (Gael agressivo, Dario construtor), recruta de clã bot caça até 2 h/dia com XP real (`CLAS_NPC_ORDENS`). Recrutas do André: online sem limite, offline 0,25 nv/h (sem mudança).
 ## Próximas tarefas: medição de desempenho -> personagens leves -> mundo leve -> visual.
