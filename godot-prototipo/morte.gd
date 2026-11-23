@@ -9,7 +9,7 @@ const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado t
 # - batida do coração ("tum-tum") cada vez mais rápida, com uma vibração leve quando está bem no fim;
 # - o mundo vai perdendo a cor e o som fica abafado, como quem está quase apagando.
 # Morreu:
-# - câmera lenta curtinha, tranco na câmera, vibração forte e um baque grave;
+# - tranco na câmera, vibração forte e um baque grave;
 # - a cor some de vez, o vermelho fecha as bordas e o coração dá as duas últimas batidas, devagar;
 # - o corpo cai no chão (main.gd corpo_caido) e tudo escurece aos poucos até o preto;
 #   o texto "VOCÊ CAIU" ficou desligado (MOSTRAR_TEXTO): o André não gostou (2026-11-05), quer só cair e escurecer;
@@ -224,7 +224,6 @@ func _caiu() -> void:
 	_pulso = 1.0
 	_batidas_finais = 2
 	_bate_em = 0.55
-	m.lenta(0.9, 0.3) # o corpo cai em câmera lenta
 	if m.cam:
 		m.cam.tremer(0.7)
 		m.cam.afundar(0.5)

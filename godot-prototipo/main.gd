@@ -112,8 +112,6 @@ var fx
 var boss_mundo # boss_mundo.gd: bosses de mundo (André 2026-11-11): aviso no chão, barra no topo, efeitos no herói
 var morte # morte.gd: bordas vermelhas, coração e cor sumindo com a vida baixa; "VOCÊ CAIU" e o escuro ao morrer
 var combate # combate.gd: aviso antes do golpe do monstro, tranco, firme, esquiva, morte em fumaça
-var _lenta_ate := 0.0 # câmera lenta (só o tempo): esquiva e último inimigo
-var _lenta_k := 1.0
 var cache := {}
 var armas_lugar := {} # por personagem: onde a espada e o cajado ficam presos (cada corpo tem a mão num jeito)
 var mundo: Dictionary # dados/mundo.json: pedras, casas e regras de escalada (iguais às do servidor)
@@ -219,12 +217,9 @@ var montaria = null # montaria.gd: montado no lobo (botão do lobo); null = a p�
 # sensação do combate (ajuste aqui testando no celular)
 const FILA_TEMPO := 0.3 # s que um botão apertado na hora errada fica guardado esperando poder sair
 const FILA_PULO := 0.15 # o pulo apertado pouco antes de pousar sai no pouso
-const HITSTOP := 0.05 # s de congelada no golpe que acerta
-const HITSTOP_FORTE := 0.085 # 4º golpe do combo, skill e crítico
 const TREME := 0.15 # André 2026-11-02: pouca mudança de câmera no combate (era 0,22)
 const TREME_FORTE := 0.38
 var fila = null # botão guardado: {q, ate}
-var _hitstop_ate := 0.0
 var _impacto_quadro := -1
 var _passo_dist := 0.0 # metros andados desde o último som de passo
 var _quadril := 0.0 # afundada do quadril no pouso (m)
@@ -2528,7 +2523,6 @@ func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool, tiro_bas
 		_faisca_t = tempo
 		vibrar(18 if pesado else 12)
 		return
-	parar_golpe(HITSTOP_FORTE if pesado else HITSTOP)
 	cam.tremer(TREME_FORTE if pesado else TREME)
 	# teste do André (2026-11-08): skills de mago sem o "acerto" genérico ("saco duro batendo"); ficam os sons próprios
 	# de cada magia (explosão, gelo, raio...). Para voltar como era, troque SOM_ACERTO_MAGIA para true.
@@ -2550,23 +2544,9 @@ func impacto_golpe(pos: Vector3, forte: bool, crit: bool, lamina: bool, tiro_bas
 func tiro_basico(hab) -> bool:
 	return hab is Dictionary and str(hab.get("tipo", "")) == "basicoMagia"
 
-# tudo para por um instante (Engine.time_scale), como nos jogos de ação; volta pelo relógio de verdade
-# PvP (André 2026-11-22: "tô sentindo umas travadas no PvP 4x4"): na arena e lutando com jogador ou bot (guerra Geada x
-# Chama, duelo) o tempo não para nem desacelera: sem congelada do golpe e sem câmera lenta (esquiva, a própria morte).
-# Ficam o tranco da câmera, o flash, o som e a vibração. Fora disso, como sempre.
-var pvp_ate := 0.0 # m.tempo até quando ainda conta como luta com jogador (online.gd, evento "dano")
-func em_pvp() -> bool:
-	return tempo < pvp_ate or (arena_pvp != null and arena_pvp.ativo())
-# André 2026-11-23 ("quero remover esse slow motion quando eu tô grindando... o da esquiva na hora certa também, isso aí não
-# vai ter mais não"): nenhum lugar do jogo para ou desacelera o tempo (congelada do golpe, esquiva, último monstro, a própria
-# morte). O tranco da câmera, o flash, o som e a vibração ficam. Para voltar como era, troque para true.
-const TEMPO_LENTO := false
-
-func parar_golpe(seg: float) -> void:
-	if not TEMPO_LENTO or em_pvp():
-		return
-	_hitstop_ate = max(_hitstop_ate, Time.get_ticks_usec() / 1000000.0 + seg)
-	Engine.time_scale = 0.05
+# André 2026-11-23 ("apaga esse slow motion completamente, tanto da esquiva quanto dos golpes"): o jogo não para nem
+# desacelera o tempo em lugar nenhum. Saíram a congelada do golpe (hitstop), a câmera lenta da esquiva, a do último
+# monstro e a da própria morte. Ficam o tranco da câmera, o flash, o som e a vibração.
 
 # folhagem entre a câmera e o peito do herói (cápsula de 0,8 m) fica transparente: alfa 0,25 em 0,15 s,
 # volta em 0,4 s. Os troncos são outra malha e continuam sólidos. (direção de arte, pacote A)
@@ -2818,15 +2798,6 @@ func _voltar_arvore(pos: Vector2) -> void:
 		_mats_mata_livres[mt.get_meta("chave")] = l
 	_sumindo[pos].no.queue_free()
 	_sumindo.erase(pos)
-
-# câmera lenta curtinha (o tempo, não a câmera): k = velocidade (0,3 = 30%) por seg segundos de verdade
-func lenta(seg: float, k: float) -> void:
-	if not TEMPO_LENTO or em_pvp():
-		return
-	_lenta_ate = max(_lenta_ate, Time.get_ticks_usec() / 1000000.0 + seg)
-	_lenta_k = k
-	if Engine.time_scale > k:
-		Engine.time_scale = k
 
 func vibrar(ms: int) -> void:
 	if OS.has_feature("mobile") and vibracao:
@@ -3857,11 +3828,7 @@ func _passo_main(dt: float) -> void:
 	if lentidao and Time.get_ticks_usec() - t_lod > 1000:
 		lentidao.ev("lod", t_lod)
 	tp = Time.get_ticks_usec()
-	# congelada do golpe: dt já vem quase zero; a câmera e a HUD usam o tempo de verdade
 	var dt_real: float = dt / max(Engine.time_scale, 0.001)
-	var agora_s: float = Time.get_ticks_usec() / 1000000.0
-	if Engine.time_scale < 1.0 and agora_s >= _hitstop_ate:
-		Engine.time_scale = _lenta_k if agora_s < _lenta_ate else 1.0
 	tempo += dt
 	P.passo(dt_real) # grava a cópia do progresso fora do quadro (progresso.gd)
 	tp = _parte("m:progresso", tp)
