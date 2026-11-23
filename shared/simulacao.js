@@ -3080,7 +3080,7 @@ export class Simulacao {
     for (const t of Object.values(L.horta)) crescerPlanta(t, agora);
     const { x0, z0, x1, z1 } = L.def;
     return { lote: L.def.id, ret: [x0, z0, x1, z1], dono: L.dono ? L.nomeDono : null, pecas: L.pecas.map((p) => [p.id, p.k, p.x, p.z, p.r]),
-      horta: Object.entries(L.horta).map(([c, t]) => t.mf ? [c, t.c, r2(t.g), t.w, t.u, t.mi, t.mf] : [c, t.c, r2(t.g), t.w, t.u]), agora, taxa: L.taxa || null,
+      horta: Object.entries(L.horta).map(([c, t]) => t.mf ? [c, t.c, r2(t.g), t.w, t.u, t.mi, t.mf] : [c, t.c, r2(t.g), t.w, t.u]), agora, taxa: L.taxa || null, ...(L.def.baseK ? { semTaxa: 1 } : {}), // lote da base: sem correio nem conta
       ...(this.areaBase?.(L) ? { area: this.areaBaseApp(L) } : {}) };
   }
   avisarLote(L) {
