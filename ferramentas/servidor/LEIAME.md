@@ -95,11 +95,4 @@ em `copias/antes-da-volta-<hora>.db` (dá para desfazer), põe a cópia no lugar
     sudo bash voltar-contas.sh marco-2026-11-19-antes-do-presidente
     sudo bash voltar-contas.sh copia.tar --chave copia-contas.pem   # cópia cifrada de fora da máquina
 
-A cópia cifrada só abre se a assinatura do servidor conferir com uma pública fixada ao lado do script
-(`copia-assinatura*.pub.pem`). A de agora é `copia-assinatura-oracle-2026-11.pub.pem`, impressão (sha256 do DER)
-`b8dc8bb5abdf1c22866e91e09526a7119a2c7f3bf4601a397b7539c6d6b2fd51`, conferida em 2026-11-23 pelo log do
-`contas-copia.yml` e pela busca direta de `/contas/copia-assinatura.pub.pem`. Servidor novo gera chave nova: confira a
-impressão nova pelos dois caminhos e ponha um arquivo novo ao lado. Os antigos ficam (cópia velha só abre com a chave de
-quando foi feita) e o `ferramentas/testes/voltar-contas.mjs` confere que continuam lá.
-
 Cópia de antes de um `RECOMECO.data` volta a zerar as contas de teste quando o servidor sobe (o recomeço roda de novo).
