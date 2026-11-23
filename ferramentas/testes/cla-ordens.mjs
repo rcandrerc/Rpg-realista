@@ -130,3 +130,21 @@ ok(true, 'simulação roda com o líder comandando');
   s5.eventos = []; lia.pedidoAmizadeAmiga('A');
   ok(s5.eventos.some((e) => e.t === 'aviso' && /líder de clã/.test(e.texto)), 'pedir amizade para recruta: só líder de clã');
 }
+
+// 10) os recrutas do jogador saíram da lista de amigos, mas a Mensagem e o Time continuam (painel do clã, André 2026-11-23)
+{
+  const s6 = new Simulacao(MAPA_CLAREIRA);
+  const j = s6.adicionarJogador('J', 'Ju', undefined, { conta: 31 }); j.criando = false; j.ciente = true;
+  j.prog.nivel = 30; j.prog.ouro = 20000;
+  s6.cla('J', { acao: 'fundar', nome: 'Os Testes' }); j.prog.cla.nv = 6;
+  const rec = s6.mapa.npcs.find((n) => n.funcao === 'recrutador'); j.x = rec.x + 1; j.z = rec.z;
+  s6.cla('J', { acao: 'recrutar', tier: 'recruta' });
+  const r = s6.recrutasNoMundo(j)[0];
+  const I = s6.claInfo(j), mi = I.m[0];
+  ok(r && mi.c === r.AMIGA.conta && mi.bid === r.amiga.id, `painel do clã com a conta (Mensagem) e o corpo (Time) do recruta (${mi.c}, ${mi.bid})`);
+  s6.eventos = []; s6.enviarAmigos(j);
+  const e = s6.eventos.filter((x) => x.t === 'amigos' && x.para === 'J').at(-1);
+  ok(!e.virtuais.some((v) => v.c === r.AMIGA.conta) && e.recrutas.some((v) => v.c === r.AMIGA.conta), 'fora da lista de amigos, mas vai em recrutas (toque no mundo e Msg)');
+  s6.time('J', { acao: 'convidar', com: mi.bid });
+  ok(r.amiga.time && r.amiga.time === j.time && s6.claInfo(j).m[0].time === 1, 'botão Time do painel: entrou no time');
+}

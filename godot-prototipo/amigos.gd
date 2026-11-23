@@ -11,6 +11,7 @@ const COR_TIME := Color("7ee08a") # verde do time (minimapa e barras)
 
 var m # main.gd
 var lista: Array = [] # do servidor: [{c, nome, id, nivel, on (0 off, 1 aqui, 2 outro mundo), time}]
+var recrutas: Array = [] # os recrutas do jogador (André 2026-11-23): fora da lista de amigos; Msg e Time pelo painel do clã e pelo toque no mundo
 var virtuais: Array = [] # amigos virtuais (André 2026-11-09, como no Quimera): a Cecília, só para o dono [{c, nome, id, nivel, time, amizade}]
 var maximo := 20
 var time: Array = [] # do servidor: [{id, nome, nivel, vida, vidaMax, mana, manaMax, x, z, morto}]
@@ -216,6 +217,7 @@ func do_servidor(ev: Dictionary) -> void:
 			lista = ev.get("lista", [])
 			maximo = int(ev.get("max", 20))
 			virtuais = ev.get("virtuais", [])
+			recrutas = ev.get("recrutas", [])
 			pedidos = ev.get("pedidos", [])
 		"amigoBusca": # resultado da busca pelo nome
 			busca_res = ev.get("lista", [])
@@ -631,7 +633,7 @@ func _time_virtual(mt, acao: String, id: String, c: String) -> void:
 
 # a conta (para a mensagem privada) do amigo virtual com este id na sala, ou ""
 func conta_virtual(id: String) -> String:
-	for v in virtuais:
+	for v in virtuais + recrutas:
 		if v is Dictionary and str(v.get("id", "")) == id:
 			return str(v.get("c", ""))
 	return ""
