@@ -69,6 +69,8 @@ func _initialize() -> void:
 	var extra := OS.get_environment("FOTO_EXTRA") # "sem" = também sem capuz e sem capa
 	for corpo in corpos:
 		var no: Node3D = m.modelo(corpo)
+		if OS.get_environment("FOTO_TRAJE") != "": # "patrulha" ou "roupao" (traje da Aparência)
+			no.set_meta("traje", OS.get_environment("FOTO_TRAJE"))
 		no.position = base
 		var c := no.position + Vector3(0, 0.88, 0)
 		for r in rs:
