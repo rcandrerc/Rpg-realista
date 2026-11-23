@@ -1458,7 +1458,10 @@ export const LOJA_PVP = [
 ];
 // Amigos e time (André 2026-11-05): até 20 amigos na conta; o time junta até 5 amigos da mesma sala.
 // XP e drop dos monstros valem para quem do time está a até 'perto' metros do monstro que caiu e lutou há pouco.
-export const AMIGOS = { max: 20, pedido: 30, entrePedidos: 3, buscaMin: 2, buscaMax: 8, entreBuscas: 1, pedidoDias: 14 }; // amigos, s, s; busca por nome (André 2026-11-15): letras, resultados, s; pedido a distância guardado (dias)
+export const AMIGOS = { soLideres: true, max: 20, pedido: 30, entrePedidos: 3, buscaMin: 2, buscaMax: 8, entreBuscas: 1, pedidoDias: 14 }; // amigos, s, s; busca por nome (André 2026-11-15): letras, resultados, s; pedido a distância guardado (dias)
+// soLideres (André 2026-11-23: "tira os recrutas da minha lista... só posso adicionar líderes de clã, do lado da Chama"):
+// dos bots, só o líder de clã bot da mesma raça aparece na lista e na busca e aceita pedido (para aliança). Os recrutas
+// continuam obedecendo e no painel do clã; false volta como era.
 // combate: só ganha quem lutou (bateu ou apanhou) nos últimos 10 s. bonus: +10% de XP para cada outro do time que ganhou junto
 // (2 = +10%, 5 = +40%).
 // Chat (André 2026-11-06: "cria um chat geral e um de amigos"; o geral pode ser silenciado no app).
@@ -3407,6 +3410,24 @@ export function defRecruta(m, lider, nomeCla, raca) {
 // do ouro do líder; sem ouro, o recruta mais caro vai embora. Os recrutas são bots da raça do clã com jeito de guerra
 // (ronda, emboscada, atacam a outra raça a 25 m) e as falas de um membro (falas). Estado na tabela mundo ('clas_npc').
 export const CLAS_NPC_REGRAS = { entre: 6, primeiro: 0.5, reserva: 300 }; // h reais entre contratações (a 1ª: primeiro h); ouro que o líder nunca gasta
+// O líder bot comanda pelo que o clã precisa (André 2026-11-23: "o líder vai liderar... se ele quer que os recrutas fiquem
+// mais fortes, bota pra grindar; se quer farmar coisas pro clã, vai botar"). A cada `cada` s reais ele olha cada recruta:
+// fraco (abaixo níveis abaixo do líder) e com cota = grind; falta material ou Fragmento de Alma para o próximo nível do
+// clã = farmar o que mais falta; inimigo da outra raça a raioBase m da base = proteger; com terreno, um na fazenda.
+// O vigor só conta para farmar (sem vigor ele grinda ou protege). sorte: ±20% em cada peso (os clãs não ficam iguais).
+// horasDia: horas de caça por dia real de cada recruta de clã bot (André 2026-11-23: "é melhor horas do que nível,
+// porque vai variar de acordo com o nível deles"; ele joga umas 2 h por dia). Troca os 30 min de NPC_VIDA.grind. O XP é o
+// da caça de verdade (a curva do jogo: no Nv alto quase nada). Com o mundo vazio conta nas mesmas horas. Acabou: o
+// líder manda farmar ou proteger.
+// pesos: a personalidade do líder (Gael agressivo: grind e alma; Dario construtor: material e fazenda). Outro líder = 1.
+export const CLAS_NPC_ORDENS = { ligado: true, cada: 900, horasDia: 2, abaixo: 5, sorte: 0.2, raioBase: 60,
+  pesos: { gael: { grind: 1.5, alma: 1.5, recurso: 0.9, fazenda: 0.8, proteger: 1.2 }, dario: { grind: 0.9, alma: 1, recurso: 1.5, fazenda: 1.3, proteger: 1 } },
+  // o material que o nível do clã pede -> o recurso que o recruta farma (a fornalha do líder faz as barras: fundirBauNpc)
+  // mundo vazio (sem corpo): o grind conta como caça de verdade, pela curva do jogo (André 2026-11-23: "esse grind tem que
+  // ser realista... nos mobs nível 100 eles praticamente não vão ganhar mais XP"): abatesHora monstros por hora de caça
+  // (medido no servidor: 33 a 90 por hora de rotina, uns 2/3 dela caçando), cada um com o XP real do campo dele (xpDoInimigo)
+  abatesHora: 60,
+  mat: { lenha: 'lenha', pedra: 'pedra', barra_ferro: 'ferro', barra_aco: 'ferro', minerio_ferro: 'ferro', couro: 'couro', cristal: 'cristal' } };
 // limite (André 2026-11-22: "todos os clãs iguais"): CLA.max membros além do líder, contando os fixos (Kira, Rufo e Lis)
 // André 2026-11-22 (níveis): as vagas são o nível do clã (E.nv), contando os fixos
 export const vagasClaNpc = (C, nv = CLA.max) => Math.max(0, Math.min(CLA.max, nv) - C.membros.filter((id) => id !== C.lider).length);

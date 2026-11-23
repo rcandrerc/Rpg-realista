@@ -4530,7 +4530,7 @@ func lod_inimigos() -> void:
 						n.esq_p.advance(n.anim_acc)
 					n.anim_acc = 0.0
 		# (registros 2026-11-16, li:npcs 345 ms num segundo entrando na cidade): um NPC por quadro
-		if not longe_n and not n.has("lod_pedido") and trocas_detalhe < NPC_TROCAS_QUADRO + 1: # roupa e cabelo montados no jogo ganham LOD (lod_malha.gd)
+		if not longe_n and dn <= NPC_LONGE * NPC_LONGE and not n.has("lod_pedido") and trocas_detalhe < NPC_TROCAS_QUADRO + 1: # (longe de verdade, só esperando a vez de sumir: sem LOD) # roupa e cabelo montados no jogo ganham LOD (lod_malha.gd)
 			trocas_detalhe = NPC_TROCAS_QUADRO + 1
 			n.lod_pedido = true
 			tl = _parte("li:npcs", tl)

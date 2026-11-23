@@ -11,9 +11,9 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { CLA, ENCOMENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, vagasClaNpc, almaDe, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA } from './dados.js';
+import { CLA, ENCOMENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, almaDe, defRecrutaNpc, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
-import { guardar, guardarQueCabe, xpProximo, contar, tirar, organizar } from './progresso.js';
+import { guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tirar, organizar } from './progresso.js';
 import { fundoAgua } from './transporte.js';
 import { crescerPlanta } from './simulacao.js'; // só usadas em tempo de jogo (progresso.js também importa daqui)
 
@@ -307,6 +307,8 @@ export const Cla = {
       }
       if (ia.encomenda && !ia.encomenda.pronta && ia.av?.encomenda) return;
       if (ia.encomenda?.pronta) ia.encomenda = null; // o que juntou já foi para o baú (ou fica na bolsa dele)
+      // clã bot: o líder dá a ferramenta simples para quem ele manda farmar (o jogador compra a dele na loja)
+      const fer = j.bot && x.AMIGA.atividades?.[R.coleta]?.ferramenta; if (fer && ITENS[fer] && contar(a.prog.mochila, fer) < 1) guardarQueCabe(a.prog.mochila, { k: fer, n: 1 });
       const verbo = R.coleta === 'pescar' ? 'pesca' : R.coleta === 'lenha' ? 'corta' : 'minera';
       const fala = x.encomendaAmiga(a, j, `${verbo} ${CLA.farmar} ${R.palavras[0]} pra mim`);
       if (!(ia.encomenda && !ia.encomenda.pronta)) avisa(String(fala || 'Não dá agora').replace(/^[^:]*: /, '').slice(0, 60));
@@ -316,8 +318,8 @@ export const Cla = {
   // o clã de um recruta (jogador ou bot): quem lidera, a conta (dono do terreno), a lista de membros e o cofre
   claDoRecruta(x) {
     const A = x.AMIGA;
-    if (A.clanpc) {
-      const C = CLAS_NPC.find((o) => o.id === A.clanpc); if (!C) return null;
+    if (A.clanpc || this.fixoClaNpc(x)) {
+      const C = this.claBotDe(x); if (!C) return null;
       const L = this.amigosIa.find((o) => o.AMIGA.id === C.lider);
       return { bot: true, C, corpo: L?.amiga || null, conta: L?.AMIGA.conta, m: this.clasNpc?.[C.id]?.m || [], E: this.clasNpc?.[C.id] };
     }
@@ -679,6 +681,7 @@ export const Cla = {
     if (m.fn.k === 'grind') {
       const teto = Math.max(1, nvLider), antes = a.prog.nivel | 0; if (antes >= teto) return null;
       let n = F.nivelHora * h, xp = 0, nv = antes, resto = a.prog.xp | 0;
+      if ((x.AMIGA.clanpc || this.fixoClaNpc(x)) && CLAS_NPC_ORDENS.ligado) return this.grindForaBot(x, m, h, teto);
       while (n > 0 && nv < teto) { const prox = xpProximo(nv), falta = prox - resto, q = Math.min(n, falta / prox); xp += Math.round(q * prox); n -= q; resto = 0; nv++; }
       if (xp > 0) { this.ganharXP(a, xp); if ((a.prog.nivel | 0) > teto) a.prog.nivel = teto; m.nv = a.prog.nivel | 0; txt = `${m.nome}: caçou e foi do Nv ${antes} ao ${a.prog.nivel}`; }
     } else if (m.fn.k === 'recurso') {
@@ -762,17 +765,22 @@ export const Cla = {
       let mudou = false;
       // o líder bot comanda como um jogador (André 2026-11-22: "como se fosse um ser humano"): dá função a quem está sem,
       // aplica as funções, recolhe o que farmaram no Baú do Clã e, na volta do mundo vazio, conta o tempo fora
-      const ctxs = this.amigosIa.filter((x) => x.AMIGA.clanpc === C.id && x.amiga);
+      const ctxs = this.amigosIa.filter((x) => x.amiga && (x.AMIGA.clanpc === C.id || (this.fixoClaNpc(x) && C.membros.includes(x.AMIGA.id))));
+      const todos = [...E.m, ...this.membrosFixosNpc(C, E)], doM = (x) => todos.find((o) => o.id === x.AMIGA.id); // recrutas + membros antigos
       const temLote = !!this.loteDaConta(this.amigosIa.find((x) => x.AMIGA.id === C.lider)?.AMIGA.conta);
       E.m.forEach((m, i) => { if (!m.fn) { m.fn = this.funcaoBotCla(i, temLote); mudou = true; } });
+      // o líder olha o clã e reparte as ordens pelo que falta (CLAS_NPC_ORDENS); quem mudou de ordem larga o que fazia
+      const trocou = new Set();
+      const cansou = ctxs.some((x) => doM(x)?.fn?.k === 'grind' && this.grindSobraBot(x, x.amiga) <= 0); // acabou a caça do dia: nova ordem já
+      if (CLAS_NPC_ORDENS.ligado && (cansou || !(agora < (E.ordensT || 0)))) { E.ordensT = agora + CLAS_NPC_ORDENS.cada * 1000; for (const id of this.ordensLiderNpc(C, E, L, ctxs, temLote)) trocou.add(id); if (trocou.size) mudou = true; }
       if (E.visto && !E.foraFeito) {
         E.foraFeito = true;
         const ms = Math.min(CLA.fora.max, agora - E.visto);
-        if (ms >= CLA.fora.minimo) for (const x of ctxs) { const m = E.m.find((o) => o.id === x.AMIGA.id); if (m?.fn) this.trabalhoFora(x, m, ms / 3600e3, L.prog.nivel | 0); }
+        if (ms >= CLA.fora.minimo) for (const x of ctxs) { const m = doM(x); if (m?.fn) this.trabalhoFora(x, m, ms / 3600e3, L.prog.nivel | 0); }
       }
       E.foraFeito = true;
       if (!E.visto || agora - E.visto > 600e3) { E.visto = agora; mudou = true; }
-      for (const x of ctxs) { const m = E.m.find((o) => o.id === x.AMIGA.id); if (m) this.aplicarFuncao(L, x, m, false); }
+      for (const x of ctxs) { const m = doM(x); if (m?.fn) this.aplicarFuncao(L, x, m, trocou.has(m.id)); }
       this.missaoClaNpc?.(C, L, ctxs); // Escolta do Clã: o clã bot faz a dele também (shared/missao-cla.js)
       for (const x of this.amigosIa) { const m = x.AMIGA.clanpc === C.id && x.amiga && E.m.find((o) => o.id === x.AMIGA.id); if (m && m.nv !== (x.amiga.prog.nivel | 0)) { m.nv = x.amiga.prog.nivel | 0; mudou = true; } }
       // a semana: sai do ouro do líder; sem ouro, o mais caro vai embora
@@ -788,7 +796,7 @@ export const Cla = {
       // liderança: clã cheio, sobe de nível quando dá (as mesmas regras do jogador; o ouro é o do líder, com a reserva)
       if (E.m.length >= vagasClaNpc(C, E.nv) && CLA.niveis[(E.nv || 1) + 1]) {
         this.fundirBauNpc(E);
-        const r = this.subirCla({ nv: E.nv || 1, nvLider: L.prog.nivel | 0, raca: C.raca, ouro: (L.prog.ouro | 0) - R.reserva, fontes: [E.bau || []] });
+        const r = this.subirCla({ nv: E.nv || 1, nvLider: L.prog.nivel | 0, raca: C.raca, ouro: (L.prog.ouro | 0) - R.reserva, fontes: [E.bau || [], L.prog.mochila] }); // e a mochila do líder, como no clã do jogador (André 2026-11-23)
         if (!r.falta) { L.prog.ouro -= r.N.ouro; r.tirar(); E.nv = r.N.nv; mudou = true;
           for (const o of this.jogadores.values()) if (!o.bot) this.evento({ t: 'aviso', para: o.id, texto: `${C.n} subiu para o Nv ${E.nv}` }); }
       }
@@ -813,6 +821,83 @@ export const Cla = {
     const b = E.bau; if (!b) return;
     const f = Math.floor(contar(b, 'minerio_ferro') / 3); if (f) { tirar(b, 'minerio_ferro', f * 3); guardarQueCabe(b, { k: 'barra_ferro', n: f }); }
     const a = Math.floor(Math.max(0, contar(b, 'barra_ferro') - 30) / 2); if (a) { tirar(b, 'barra_ferro', a * 2); guardarQueCabe(b, { k: 'barra_aco', n: a }); }
+  },
+  // ---------- o líder bot comanda (André 2026-11-23, CLAS_NPC_ORDENS) ----------
+  // André 2026-11-23 ("existisse um líder e os outros fossem considerados recrutas também... não é para ser fixo"): os
+  // membros antigos (Kira, Rufo, Lis; Cecília, Lia) obedecem ao líder como os recrutas. Guardam nome, nível, itens e jeito.
+  // dá para ter esse bot na lista de amigos? (AMIGOS.soLideres: só o líder de clã bot da raça do jogador)
+  amigoBotOk(x, j) { return !AMIGOS.soLideres || CLAS_NPC.some((C) => C.lider === x?.AMIGA?.id && C.raca === this.racaDe(j)); },
+  fixoClaNpc(x) { const A = x?.AMIGA; return !!A && !A.recruta && CLAS_NPC_ORDENS.ligado && CLAS_NPC.some((C) => C.lider !== A.id && C.membros.includes(A.id)); },
+  claBotDe(x) { const A = x?.AMIGA; if (!A) return null; if (A.clanpc) return CLAS_NPC.find((o) => o.id === A.clanpc) || null; return this.fixoClaNpc(x) ? CLAS_NPC.find((C) => C.membros.includes(A.id)) : null; },
+  // o registro de cada membro antigo no clã (função dada pelo líder), como o de um recruta (E.m); guardado em E.fx
+  membrosFixosNpc(C, E) {
+    if (!CLAS_NPC_ORDENS.ligado) return [];
+    const fx = (E.fx ||= {}), nome = (id) => [...AMIGOS_VIRTUAIS, ...RIVAIS].find((d) => d.id === id)?.nome || id;
+    return C.membros.filter((id) => id !== C.lider).map((id) => (fx[id] ||= { id, nome: nome(id), fixo: 1 }));
+  },
+  // grind de clã bot com o mundo vazio: as horas que sobram da caça do dia (horasDia), abatesHora x o XP real de um bicho
+  // do campo que ele escolheria (a curva do jogo: no Nv alto quase nada), sem passar do nível do líder
+  grindForaBot(x, m, h, teto) {
+    const a = x.amiga, nv = a.prog.nivel | 0, tipoDe = (c) => (c.tipos || []).find((t) => t !== 'chefe' && t !== 'warrok') || c.bicho || 'lobo';
+    const xpDe = (c) => xpDoInimigo(tipoDe(c), c.nivel || 1, nv, NIVEL_INIMIGO);
+    // o campo sai sorteado como no mundo (campoAmiga); das 3 tentativas, o que dá mais XP (ele escolheria o melhor)
+    const c = [0, 1, 2].map(() => x.campoAmiga?.(a)).filter(Boolean).sort((p, q) => xpDe(q) - xpDe(p))[0]; if (!c) return null;
+    const horas = Math.min(h, this.grindSobraBot(x, a) / 3600); if (!(horas > 0)) return null;
+    a.grind.seg += horas * 3600;
+    const antes = nv, tipo = tipoDe(c);
+    for (let n = Math.round(CLAS_NPC_ORDENS.abatesHora * horas); n > 0 && (a.prog.nivel | 0) < teto; n -= 10)
+      this.ganharXP(a, Math.min(n, 10) * xpDoInimigo(tipo, c.nivel || 1, a.prog.nivel | 0, NIVEL_INIMIGO));
+    if ((a.prog.nivel | 0) > teto) a.prog.nivel = teto;
+    m.nv = a.prog.nivel | 0; x.guardarAmiga?.();
+    return a.prog.nivel > antes ? `${m.nome}: caçou e foi do Nv ${antes} ao ${a.prog.nivel}` : null;
+  },
+  // segundos de caça que ainda sobram hoje para um recruta de clã bot (o mesmo contador do grind: grindHojeAmiga)
+  grindSobraBot(x, a) { return Math.max(0, CLAS_NPC_ORDENS.horasDia * 3600 - x.grindHojeAmiga(a)); },
+  // o que falta para o próximo nível do clã: { recurso: fração que falta (0..1) }, alma inclusive
+  faltaClaNpc(C, E, L) {
+    const N = CLA.niveis[(E.nv || 1) + 1], f = {}; if (!N) return f;
+    const tem = (k) => contar(E.bau || [], k) + contar(L?.prog?.mochila || [], k);
+    for (const [k, q] of Object.entries(N.mat || {})) {
+      const r = CLAS_NPC_ORDENS.mat[k]; if (!r || !RECURSOS_CLA[r]) continue;
+      let t = tem(k); if (k === 'barra_ferro') t += tem('minerio_ferro') / 3; if (k === 'barra_aco') t += tem('barra_ferro') / 2 + tem('minerio_ferro') / 6;
+      const fr = Math.max(0, 1 - t / q); if (fr > 0) f[r] = Math.max(f[r] || 0, fr);
+    }
+    if (N.alma) { const fr = Math.max(0, 1 - tem(almaDe(C.raca)) / N.alma); if (fr > 0) f.alma = fr; }
+    return f;
+  },
+  // inimigo da outra raça perto da base do clã (ou do líder, sem base)
+  ameacaClaNpc(C, L) {
+    const B = this.baseDoClaNpc?.(C) || L; if (!B) return false;
+    for (const o of this.jogadores.values()) if (!o.morto && !o.criando && this.racaDe(o) && this.racaDe(o) !== C.raca && Math.hypot(o.x - B.x, o.z - B.z) < CLAS_NPC_ORDENS.raioBase) return true;
+    return false;
+  },
+  // reparte as ordens: para cada recruta, a função de maior peso (necessidade x personalidade x sorte). Devolve os ids
+  // que mudaram de função. rnd: para os testes
+  ordensLiderNpc(C, E, L, ctxs, temLote, rnd = Math.random) {
+    const O = CLAS_NPC_ORDENS, P = { grind: 1, alma: 1, recurso: 1, fazenda: 1, proteger: 1, ...(O.pesos[C.lider] || {}) };
+    const falta = this.faltaClaNpc(C, E, L), ameaca = this.ameacaClaNpc(C, L), nvL = L.prog.nivel | 0, mudou = [];
+    const sorte = () => 1 + (rnd() * 2 - 1) * O.sorte;
+    let fazenda = false, protege = 0;
+    for (const m of [...E.m, ...this.membrosFixosNpc(C, E)]) {
+      const x = ctxs.find((o) => o.AMIGA.id === m.id), a = x?.amiga; if (!a || a.morto) continue;
+      const cota = this.grindSobraBot(x, a) > 0, fraco = (a.prog.nivel | 0) <= nvL - O.abaixo, vigor = vigorDe(a.prog.vigor) >= 1;
+      const op = [];
+      if (cota) op.push([{ k: 'grind' }, (fraco ? 1 : 0.35) * P.grind]);
+      for (const [r, fr] of Object.entries(falta)) {
+        if (r === 'alma') { op.push([{ k: 'recurso', r: 'alma' }, fr * P.alma]); continue; }
+        if (vigor) op.push([{ k: 'recurso', r }, fr * P.recurso]);
+      }
+      op.push([{ k: 'proteger', p: 'lider' }, (ameaca ? 1.5 / (1 + protege) : 0.1) * P.proteger]);
+      if (temLote && !fazenda) op.push([{ k: 'fazenda', s: 'cenoura' }, 0.4 * P.fazenda]);
+      let best = null, bp = -1;
+      for (const [fn, p] of op) { const v = p * sorte(); if (v > bp) { bp = v; best = fn; } }
+      if (!best) continue;
+      if (best.k === 'fazenda') fazenda = true;
+      if (best.k === 'proteger') protege++;
+      if (best.k === 'recurso' && falta[best.r]) falta[best.r] *= 0.5; // o próximo vê que esse já tem gente
+      if (JSON.stringify(best) !== JSON.stringify(m.fn || null)) { m.fn = best; mudou.push(m.id); }
+    }
+    return mudou;
   },
   // a função que o líder bot dá para o recruta i (como um jogador faria: metade caça, uns farmam, um guarda o líder e,
   // com terreno, um cuida da fazenda)
