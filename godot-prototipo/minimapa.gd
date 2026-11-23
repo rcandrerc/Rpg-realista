@@ -1012,8 +1012,13 @@ func _abrir() -> void:
 # "Ver no mapa" do painel do clã (André 2026-11-23): abre o mapa já no recruta, com a marca e o nome dele
 var nome_extra := ""
 var nome_extra_p = null
-func abrir_em(p: Vector2, nome: String) -> void:
+# André 2026-11-23: "mostra no mapa, mas não sinaliza onde ele está". Agora o recruta ganha um ponto próprio (verde,
+# pulsando, com o nome) no lugar exato dele, que acompanha ele andando enquanto o mapa está aberto. O pino e o
+# "Ir para" / "Marcar" continuam como antes, para ir até ele.
+var recruta := {} # {"id", "nome", "p": Vector2} do "Ver no mapa", ou vazio
+func abrir_em(p: Vector2, nome: String, rid := "") -> void:
 	abrir()
+	recruta = {"id": rid, "nome": nome, "p": p}
 	_marcar(p)
 	nome_extra = nome
 	nome_extra_p = marcado
@@ -1023,6 +1028,26 @@ func abrir_em(p: Vector2, nome: String) -> void:
 		mapa3d.foco_alvo = Vector3(p.x, 0, p.y)
 		mapa3d.foco = mapa3d.foco_alvo
 		mapa3d.marcas.queue_redraw()
+
+# onde o recruta do "Ver no mapa" está agora: o corpo dele, se está no mundo perto, senão onde o painel do clã disse
+func recruta_pos():
+	if recruta.is_empty():
+		return null
+	var o = m.online.outros.get(str(recruta.id)) if m.online and str(recruta.id) != "" else null
+	var no = o.get("no") if o is Dictionary else null
+	if no is Node3D and is_instance_valid(no):
+		return Vector2(no.position.x, no.position.z)
+	return recruta.p
+
+# o ponto do recruta: anel pulsando, bolinha verde do time e o nome em cima (mesmo desenho no 2D e no 3D)
+func desenhar_recruta(c: Control, q: Vector2) -> void:
+	var pulso := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 220.0)
+	var cor: Color = m.amigos.COR_TIME if m.amigos else Color("5fd16a")
+	c.draw_arc(q, 11.0 + 5.0 * pulso, 0.0, TAU, 28, Color(cor.r, cor.g, cor.b, 0.85 - 0.55 * pulso), 3.0, true)
+	c.draw_circle(q, 8.0, Color(0.03, 0.08, 0.03, 0.95))
+	c.draw_circle(q, 6.5, cor)
+	c.draw_circle(q, 2.5, Color(1, 1, 1, 0.95))
+	_texto(c, q + Vector2(0, -20), str(recruta.nome), 16, cor.lightened(0.35))
 
 func _em_3d() -> bool:
 	return mapa3d != null and mapa3d.visible
@@ -1052,6 +1077,7 @@ func fechar() -> void:
 	if mapa3d != null:
 		mapa3d.fechar()
 	aberto = false
+	recruta = {}
 	base_modo = false
 	base_alvo = null
 	totem_de = {}
@@ -1603,6 +1629,9 @@ func _desenhar_mapa() -> void:
 		var q: Vector2 = em.call(ce.x, ce.z)
 		_coracao(c, q, 7.0)
 		_texto(c, q + Vector2(0, -14), ce.nome, 13, COR_AMIGA.lightened(0.3))
+	var rp = recruta_pos() # "Ver no mapa" do painel do clã
+	if rp != null:
+		desenhar_recruta(c, em.call(rp.x, rp.y))
 	if ponto != null: # marca do jogador
 		bandeira(c, em.call(ponto.x, ponto.y), 1.15)
 	# rota pela estrada: a que está sendo andada e a do lugar marcado agora
