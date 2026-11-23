@@ -105,6 +105,10 @@ var _vestido_previa := ""
 var corpos_ui := {} # corpo -> botão com o rosto
 var penteados_fl: HFlowContainer # botões de penteado do corpo escolhido (CRIADOR.penteados, penteado.gd)
 var penteados_ui := [] # [botão, id do penteado ou null]
+# André 2026-11-23: traje da armadura v5 na moça, dois quadradinhos "Patrulheira" e "Roupão" (aparencia.traje);
+# o rapaz é só roupão, então a linha some nele
+var trajes_fl: HFlowContainer
+var trajes_ui := [] # [botão, traje ou null]
 var _boneco_de := "" # corpo que está no palco agora
 static var _rostos := {} # corpo -> ImageTexture do rosto (feito uma vez por partida)
 
@@ -386,6 +390,45 @@ func montar_painel() -> Control:
 	penteados_fl.add_theme_constant_override("h_separation", 6)
 	penteados_fl.add_theme_constant_override("v_separation", 6)
 	lista.add_child(penteados_fl)
+	lista.add_child(Menu.rotulo("Traje", 15, OURO_CLARO))
+	trajes_fl = HFlowContainer.new()
+	trajes_fl.add_theme_constant_override("h_separation", 18)
+	for par in [["Patrulheira", null], ["Roupão", "roupao"]]:
+		# como o "Ver equipado": a linha toda é o botão, com o quadradinho e o nome
+		var bt := Button.new()
+		bt.flat = true
+		bt.focus_mode = Control.FOCUS_NONE
+		bt.custom_minimum_size = Vector2(150, 36)
+		var vazio := StyleBoxEmpty.new()
+		for st in ["normal", "hover", "pressed", "focus"]:
+			bt.add_theme_stylebox_override(st, vazio)
+		var h := HBoxContainer.new()
+		h.set_anchors_preset(Control.PRESET_FULL_RECT)
+		h.add_theme_constant_override("separation", 8)
+		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bt.add_child(h)
+		var q := Menu.Quadradinho.new()
+		q.lado = 22
+		q.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(q)
+		var t := Menu.rotulo(str(par[0]), 15, TEXTO)
+		t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		h.add_child(t)
+		var tj = par[1]
+		bt.pressed.connect(func():
+			if _arrastou:
+				return
+			ap.traje = tj
+			if not _criacao and not ver_equip: # o traje só aparece com a armadura vestida
+				ver_equip = true
+				if q_equip:
+					q_equip.marcado = true
+					q_equip.queue_redraw()
+			mudou())
+		trajes_ui.append([q, tj])
+		trajes_fl.add_child(bt)
+	lista.add_child(trajes_fl)
 	for k in Aparencia.CORES:
 		var cab := HBoxContainer.new()
 		var rt := Menu.rotulo(NOMES[k], 15, OURO_CLARO)
@@ -546,6 +589,10 @@ func botao_corpo(id: String) -> Control:
 		mudou())
 	corpos_ui[id] = {"botao": b, "foto": foto, "aro": aro}
 	return b
+
+func _masculino() -> bool:
+	var esq = Armadura._esqueleto(boneco)
+	return esq != null and Armadura._ref(esq).masc
 
 func _lista_penteados() -> Array:
 	return [null] + Array(criador.get("penteados", {}).get(corpo, []))
@@ -882,6 +929,12 @@ func marcar() -> void:
 		faixas[k].value = float(ap.get(k, 1.0))
 	for par in penteados_ui:
 		Menu.estilo_botao(par[0], par[1] == ap.get("penteado"))
+	var moca := boneco != null and not _masculino()
+	trajes_fl.visible = moca
+	trajes_fl.get_parent().get_child(trajes_fl.get_index() - 1).visible = moca
+	for par in trajes_ui:
+		par[0].marcado = par[1] == ap.get("traje")
+		par[0].queue_redraw()
 	for id in corpos_ui: # corpo escolhido: aro dourado grosso; os outros, aro fino apagado
 		var on: bool = id == corpo
 		var sa := StyleBoxFlat.new()

@@ -22,6 +22,8 @@ const PanoCapa := preload("res://pano_capa.gd") # física de pano da capa (Andr�
 # capa. A linha de aço (v11c, ficha técnica) continua aqui: COURO_EM_TUDO = false volta para ela.
 const COURO_EM_TUDO := true
 static func pecas(k: String, r: int) -> Array: # [[parte, material], ...]
+	if LINHA_V5:
+		return _pecas_v5(k, r)
 	if COURO_EM_TUDO and r >= 1:
 		return _pecas_couro(k, r)
 	var metal := r >= 1
@@ -69,6 +71,133 @@ static func _pecas_couro(k: String, r: int) -> Array:
 		"chapeu":
 			return [["elmo", "elmo_couro"]]
 	return []
+# ---------- v5: patrulheiro (André 2026-11-23) ----------
+# André: "desenvolva uma roupa melhor do que a atual", com a referência de patrulheira de couro (camisa de linho,
+# colete de couro com cadarço, cinto com fivela, braçadeiras, túnica, calça e botas altas com dobra) e o roupão de
+# mago (capuz e manto de ombro com barra). Cada raridade tem as cores dela; nada de rosa:
+# Comum terra (marrom, linho, cinza e oliva), Raro verde-floresta e bronze, Épico azul-real e prata com manto preto,
+# Lendário carmesim e ouro com bordado, Mítico obsidiana com barras de brasa acesas.
+# A linha de couro e aço de antes continua abaixo (LINHA_V5 = false volta para ela).
+const LINHA_V5 := true
+# roupão de mago também no feminino (André 2026-11-23: "acho que o feminino talvez vai colocar como roupão também");
+# André 2026-11-23: na Aparência a moça escolhe "Patrulheira" ou "Roupão" (aparencia.traje); o rapaz é só roupão.
+# roupao_fem = true força o roupão em todas (só as fotos de ferramentas/armadura-v5/fotos.gd)
+static var roupao_fem := false
+static func _de_roupao(raiz: Node3D, esq: Skeleton3D) -> bool:
+	return _ref(esq).masc or roupao_fem or str(raiz.get_meta("traje", "")) == "roupao"
+static func _pecas_v5(k: String, r: int) -> Array:
+	match k:
+		# "@f" = só no corpo feminino (patrulheira); "@m" = só no masculino (roupão de mago, André 2026-11-23:
+		# "o masculino tenta fazer mais estilo roupão mesmo, como o do mago")
+		"peitoral":
+			return [["colete@f", "v5_colete"], ["bracal_e@f", "v5_bracal"], ["bracal_d@f", "v5_bracal"], ["cinto@f", "v5_cinto"],
+				["luva_e", "v5_luva"], ["luva_d", "v5_luva"]] + ([["alca@f", "v5_alca"]] if r >= 1 else []) \
+				+ ([["manto@f", "v5_manto"]] if r >= 2 else []) \
+				+ [["roupao@m", "v5_roupao_corpo"], ["manga_larga_e@m", "v5_roupao_manga"], ["manga_larga_d@m", "v5_roupao_manga"], ["manto@m", "v5_manto_m"], ["corda@m", "v5_corda"]]
+		"calca":
+			return [["coxa_e", "v5_calca"], ["coxa_d", "v5_calca"], ["saia_v5@f", "v5_tunica"], ["roupao_saia@m", "v5_roupao"]]
+		"short":
+			return [["short_e", "v5_calca"], ["short_d", "v5_calca"], ["saia_v5@f", "v5_tunica"], ["roupao_saia@m", "v5_roupao"]]
+		"botas":
+			return [["bota_e", "v5_bota"], ["bota_d", "v5_bota"], ["dobra_e", "v5_dobra"], ["dobra_d", "v5_dobra"], ["sapato_couro", "v5_bota"]]
+		"capa":
+			return [["capa", "capa"]]
+		"chapeu":
+			return [["capuz", "v5_capuz"], ["laco_gola", "v5_corda"]] # o cordão vem com o capuz: aperta a gola por cima dele
+	return []
+# cores de cada raridade (Comum, Raro, Épico, Lendário, Mítico)
+# roupão do masculino: pano do roupão e do manto por cima (o manto contrasta, como o preto sobre o azul da referência)
+const V5_ROUPAO := [Color("5a4634"), Color("1e3c26"), Color("162058"), Color("5a0e14"), Color("18161c")]
+const V5_MANTO_M := [Color("2e2218"), Color("2a2018"), Color("16161c"), Color("1a1214"), Color("2a0c06")]
+const V5_COURO := [ # [claro, cor, sombra]
+	[Color("a47c52"), Color("74512e"), Color("2a1a0e")],
+	[Color("80593a"), Color("553820"), Color("1c1009")],
+	[Color("50505e"), Color("2e2e3a"), Color("0c0c12")],
+	[Color("4a3a32"), Color("2a1e1a"), Color("0a0606")],
+	[Color("3c3842"), Color("1e1c22"), Color("060508")]]
+const V5_CAMISA := [Color("94876a"), Color("8a8466"), Color("7c8494"), Color("9c9078"), Color("3a3438")]
+const V5_TUNICA := [Color("4e4d48"), Color("21402a"), Color("18225c"), Color("5e1016"), Color("1a171c")]
+const V5_CALCA := [Color("3e4428"), Color("2e241c"), Color("202228"), Color("2e2420"), Color("121014")]
+const V5_ACENTO := [Color("4a3424"), Color("9a6a36"), Color("b4bac6"), Color("c89a3a"), Color("ff7a14")]
+const V5_LINHA := [Color("d8c8a0"), Color("d0aa6c"), Color("dfe3ea"), Color("f0cf72"), Color("ffb050")]
+const V5_MANTO := [Color("4a3424"), Color("21402a"), Color("18181e"), Color("5a0e14"), Color("161418")]
+const V5_CAPA := [[Color("5a4230"), Color("34261a")], [Color("22402a"), Color("12241a")], [Color("18245e"), Color("0b1236")],
+	[Color("5e1016"), Color("260608")], [Color("18161c"), Color("1e0c08")]]
+
+static func _material_v5(tipo: String, r: int) -> Material:
+	var s := ShaderMaterial.new()
+	s.shader = preload("res://roupa_v5.gdshader")
+	var couro: Array = V5_COURO[r]
+	var c3 := couro
+	var modo := 0.0
+	var pano := func(c: Color) -> Array:
+		return [c.lightened(0.25), c, c.darkened(0.6)]
+	match tipo:
+		"v5_tunica":
+			c3 = pano.call(V5_TUNICA[r])
+			modo = 1.0
+		"v5_calca":
+			c3 = pano.call(V5_CALCA[r])
+			modo = 1.0
+		"v5_roupao", "v5_roupao_corpo", "v5_roupao_manga":
+			c3 = pano.call(V5_ROUPAO[r])
+			modo = 1.0
+		"v5_manto_m":
+			c3 = pano.call(V5_MANTO_M[r])
+			modo = 1.0
+		"v5_corda":
+			var cc: Color = V5_LINHA[r].darkened(0.25) if r >= 1 else Color("7a6440")
+			c3 = [cc.lightened(0.2), cc, cc.darkened(0.6)]
+			modo = 1.0
+		"v5_manto", "v5_capuz":
+			# o capuz usa o pano do manto (vestidos juntos parecem uma peça só); no Épico o capuz é azul e o manto preto, como no roupão
+			c3 = pano.call(V5_MANTO[r] if tipo == "v5_manto" or r != 2 else V5_CAPA[r][0])
+			modo = 1.0
+		"v5_luva", "v5_aba", "v5_alca", "v5_cinto":
+			c3 = [couro[0].darkened(0.15), couro[1].darkened(0.2), couro[2]]
+		"v5_dobra":
+			c3 = [couro[0].lightened(0.05), couro[1].lightened(0.06), couro[2]]
+	s.set_shader_parameter("claro", c3[0])
+	s.set_shader_parameter("medio", c3[1])
+	s.set_shader_parameter("sombra", c3[2])
+	s.set_shader_parameter("modo", modo)
+	s.set_shader_parameter("acento", V5_ACENTO[r])
+	s.set_shader_parameter("linha", V5_LINHA[r])
+	s.set_shader_parameter("bordado", 1.0 if r >= 3 and (tipo in ["v5_manto", "v5_capuz", "v5_tunica", "v5_colete", "v5_manto_m"] or tipo.begins_with("v5_roupao")) else 0.0)
+	# roupão: faixa bordada no meio da frente (de cima a baixo) do Raro em diante
+	s.set_shader_parameter("faixa_meio", 0.018 if tipo in ["v5_roupao", "v5_roupao_corpo"] and r >= 1 else 0.0)
+	s.set_shader_parameter("brasa", 1.0 if r == 4 else 0.0)
+	s.set_shader_parameter("cadarco", 1.0 if tipo == "v5_colete" else 0.0)
+	s.set_shader_parameter("faixa", 0.06 if tipo == "v5_bracal" else 0.0)
+	var larg := 0.008
+	if tipo in ["v5_manto", "v5_capuz", "v5_tunica", "v5_roupao", "v5_manto_m"]:
+		larg = 0.012 if r < 3 else 0.02 # barra larga do pano (o bordado vai nela)
+	if tipo.begins_with("v5_roupao"):
+		larg = 0.03 if r >= 1 else 0.014 # barra larga na bainha e nas mangas
+		if tipo == "v5_roupao_corpo":
+			larg = 0.0 # o corpo encontra o manto, as mangas e a saia: barra só no meio da frente
+		elif tipo == "v5_roupao_manga":
+			s.set_shader_parameter("punho", larg) # barra só na boca da manga (não na costura do ombro)
+			larg = 0.0
+	if tipo == "v5_capuz":
+		larg = 0.008 # capuz: só um debrum fino (barra larga parecia aba de capacete)
+	elif tipo in ["v5_luva", "v5_alca", "v5_cinto", "v5_calca", "v5_corda"]:
+		larg = 0.0 if tipo != "v5_alca" else 0.003
+	if r == 0 and modo > 0.5 and not tipo.begins_with("v5_roupao"):
+		larg = 0.0 # Comum: pano liso, só a costura
+	if tipo == "v5_corda":
+		s.set_shader_parameter("faixa", 0.012) # cordão torcido
+	s.set_shader_parameter("largura", larg)
+	s.set_shader_parameter("costura", 0.0 if tipo == "v5_calca" else 1.0)
+	var c := StandardMaterial3D.new() # contorno de desenho, igual ao das outras peças
+	c.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	c.cull_mode = BaseMaterial3D.CULL_FRONT
+	c.grow = true
+	c.grow_amount = 0.0025
+	c.albedo_color = Color(0.1, 0.08, 0.09)
+	s.next_pass = c
+	return s
+
 const PECAS := {"chapeu": "cabeca", "peitoral": "corpo", "calca": "pernas", "short": "pernas", "botas": "pes", "capa": "capa"}
 const LUGARES := ["cabeca", "corpo", "pernas", "pes", "capa"]
 
@@ -149,6 +278,7 @@ static func vestir(raiz: Node3D, equip) -> void:
 		return
 	_orientar(esq)
 	_ombros_largos(esq)
+	raiz.set_meta("equip_v5", equip) # a Aparência veste de novo quando troca o traje (Aparencia.aplicar)
 	# André 2026-11-07: sem peitoral a blusa vira pele (top de biquíni na menina, peito nu no menino), então ela fica
 	# sempre justa como debaixo da armadura (antes, sem peitoral, era a camiseta branca larga)
 	_cintura(raiz, true, equip is Dictionary and equip.get("corpo") is Dictionary and PECAS.has(str(equip.corpo.get("k", ""))))
@@ -162,6 +292,8 @@ static func vestir(raiz: Node3D, equip) -> void:
 			chave = "%s:%d" % [str(it.k), int(it.get("r", 0))]
 			if l == "pernas" and tem_capa:
 				chave += ":capa" # com capa o saiote perde as lâminas de trás (o pano cobre e elas furariam a capa)
+			if LINHA_V5 and _de_roupao(raiz, esq):
+				chave += ":roupao" # traje da Aparência: peças do roupão no lugar das da patrulheira
 		var nome: String = "Armadura_" + str(l)
 		var velho := esq.get_node_or_null(nome)
 		if velho and velho.get_meta("chave", "") == chave:
@@ -182,7 +314,8 @@ static func vestir(raiz: Node3D, equip) -> void:
 	_sem_contorno_tronco(raiz, esq)
 	_roupa_base(raiz, esq) # antes do _uniforme: ele pinta o short de baixo na cor da calça quando há armadura
 	_uniforme(raiz, equip if equip is Dictionary else {})
-	_cabelo(raiz, esq.get_node_or_null("Armadura_cabeca") != null)
+	# v5: o capuz é folgado; o cabelo aperta só até a parede de dentro dele (no tamanho do capacete ficava careca)
+	_cabelo(raiz, esq.get_node_or_null("Armadura_cabeca") != null, LINHA_V5)
 	# armas nas costas passam por fora da capa
 	var capa := esq.get_node_or_null("Armadura_capa") != null
 	for ba in esq.get_children():
@@ -1145,6 +1278,9 @@ static func _uniforme(raiz: Node3D, equip: Dictionary) -> void:
 				var r := clampi(int(it.get("r", 0)), 0, 4)
 				if trecho == "Tops" and mi.has_meta("decote"):
 					mi.set_surface_override_material(sfc, _material_decote(r, mi.get_meta("decote"), _cor_pele(raiz), mi.get_meta("decote_fem", true)))
+				elif LINHA_V5 and trecho == "Bottoms":
+					# v5: saia do VRoid na cor da túnica (fica por baixo dela); calça do masculino na cor da calça
+					mi.set_surface_override_material(sfc, _material("calca" if _ref(_esqueleto(raiz)).masc else "v5_saia_base", r))
 				else:
 					mi.set_surface_override_material(sfc, _material_tecido(r))
 			elif trecho == "Tops":
@@ -1191,7 +1327,7 @@ static func _material_tecido(r: int) -> Material:
 	if not _materiais.has(chave):
 		var m := StandardMaterial3D.new()
 		m.set_meta("armadura", true) # a aparência (cor da roupa) não troca o tecido da armadura
-		m.albedo_color = ROUPA[r]
+		m.albedo_color = V5_CAMISA[r] if LINHA_V5 else ROUPA[r]
 		m.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
 		m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 		m.roughness = 1.0
@@ -1275,6 +1411,22 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 		if parte == "elmo":
 			_montar_elmo(raiz, esq, no, mat, r)
 			continue
+		if parte == "capuz":
+			_montar_capuz(raiz, esq, no, r)
+			continue
+		if parte.ends_with("@f") or parte.ends_with("@m"):
+			if parte.ends_with("@m") != _de_roupao(raiz, esq):
+				continue
+			parte = parte.left(-2)
+		if parte == "roupao_saia":
+			_montar_roupao_saia(raiz, esq, no, mat, r)
+			continue
+		if parte == "corda":
+			_montar_corda(raiz, esq, no, r)
+			continue
+		if parte == "laco_gola":
+			_montar_laco_gola(raiz, esq, no, r)
+			continue
 		if parte.begins_with("ombro"):
 			_montar_ombreira(esq, no, 1.0 if parte == "ombro_e" else -1.0, mat, r)
 			continue
@@ -1320,6 +1472,16 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 		if parte == "peito" and mat == "peito" and _ref(esq).masc:
 			mat_f = "peito_reto"
 		mi.material_override = _material(mat_f, r)
+		if parte.begins_with("manga_larga"):
+			# onde começa a boca da manga: material por medida de braço (guardado), não "instance uniform" (com
+			# muitos corpos no mundo o buffer de variáveis por instância estourava)
+			var px := snappedf(_ref(esq).x_mao - 0.02, 0.005)
+			var chave_px := "%s|%d|punho%.3f" % [mat_f, r, px]
+			if not _materiais.has(chave_px):
+				var mp: Material = mi.material_override.duplicate()
+				mp.set_shader_parameter("punho_x", px)
+				_materiais[chave_px] = mp
+			mi.material_override = _materiais[chave_px]
 		if temp:
 			temp.free()
 
@@ -1333,6 +1495,10 @@ const REGIOES := {
 	"coxa_e": {"fonte": "Body_00"}, "coxa_d": {"fonte": "Body_00"}, "short_e": {"fonte": "Body_00"}, "short_d": {"fonte": "Body_00"}, "saia": {"fonte": "Bottoms"}, "saia_frente": {"fonte": "Bottoms"},
 	"luva_e": {"fonte": "Body_00"}, "luva_d": {"fonte": "Body_00"}, "joelho_e": {"fonte": "Body_00"}, "joelho_d": {"fonte": "Body_00"},
 	"peito_pe": {"fonte": "Shoes"},
+	# v5 (patrulheiro)
+	"colete": {"fonte": "Tops"}, "alca": {"fonte": "Tops"}, "manto": {"fonte": "Tops"}, "bracal_e": {"fonte": "Tops"}, "bracal_d": {"fonte": "Tops"},
+	"capuz_gola": {"fonte": "Tops"}, "roupao": {"fonte": "Tops"}, "manga_larga_e": {"fonte": "Tops"}, "manga_larga_d": {"fonte": "Tops"}, "saia_v5": {"fonte": "Bottoms"}, "saia_aba": {"fonte": "Bottoms"},
+	"bota_e": {"fonte": "Body_00"}, "bota_d": {"fonte": "Body_00"}, "dobra_e": {"fonte": "Body_00"}, "dobra_d": {"fonte": "Body_00"},
 }
 
 class Ref:
@@ -1545,6 +1711,94 @@ static func _regiao(parte: String, p: Vector3, R: Ref) -> Vector2:
 			return Vector2(0.01, p.z)
 		"sapato_couro":
 			return Vector2(0.006, p.z)
+		# ---------- v5 (patrulheiro) ----------
+		"colete":
+			# colete de couro do peito até logo abaixo do cinto, decote em U na frente (a camisa de linho aparece) e
+			# alças largas no ombro; cava funda (as mangas são da camisa)
+			var baixo_c := R.y_cintura + (-0.075 if R.masc else -0.085) # feminino: cobre a barra da blusa (sobre a túnica)
+			if p.z > 0.0:
+				baixo_c -= 0.022 * (1.0 - clampf(ax / 0.07, 0.0, 1.0)) # ponta no meio da frente
+			var fundo_u := 0.1 if R.masc else 0.135
+			var topo_c := R.y_pescoco - 0.025
+			if p.z > 0.0:
+				topo_c = R.y_pescoco - 0.02 - fundo_u * (1.0 - smoothstep(0.035, 0.09, ax))
+			var lado_c := R.x_braco - (0.035 if p.y > R.y_braco - 0.05 else 0.008)
+			if p.y < R.y_braco - 0.1:
+				lado_c = 0.22 # abaixo da cava não há braço (pose em T): o colete fecha em volta do quadril
+			if p.y < baixo_c or p.y > topo_c or ax > lado_c:
+				return Vector2(-1, 0)
+			return Vector2(0.008 if not R.masc else 0.01, p.z)
+		"alca":
+			# correia de couro atravessada: do ombro esquerdo (+x) ao quadril direito, na frente e nas costas
+			var A := Vector2(0.07, R.y_pescoco - 0.005)
+			var B := Vector2(-0.14, R.y_cintura + (-0.02 if R.masc else 0.03))
+			var ab := B - A
+			var t := clampf((Vector2(p.x, p.y) - A).dot(ab) / ab.length_squared(), 0.0, 1.0)
+			var dd := (A + ab * t).distance_to(Vector2(p.x, p.y))
+			if dd > 0.022 or t <= 0.0 or t >= 1.0 or ax > R.x_braco - 0.01:
+				return Vector2(-1, 0)
+			return Vector2(0.016, -1.0)
+		"manto":
+			# manto de ombro (roupão de mago): gola alta, ponta em V na frente e nas costas, cobre o alto do braço
+			var y_v := R.y_pescoco - (0.15 if p.z > 0.0 else 0.17)
+			var borda_m := lerpf(y_v, R.y_braco - 0.03, smoothstep(0.0, R.x_braco, ax))
+			if ax > R.x_braco:
+				borda_m = R.y_braco - 0.03 + 0.25 * (ax - R.x_braco) # sobe pelo braço: cobre só o ombro
+			if p.y < borda_m or ax > R.x_braco + 0.11 or p.y > R.y_pescoco + 0.03:
+				return Vector2(-1, 0)
+			return Vector2(0.022 + 0.006 * smoothstep(R.y_pescoco - 0.03, R.y_pescoco + 0.02, p.y), -1.0)
+		"roupao":
+			# corpo do roupão: do colarinho alto até a cintura, todo em volta (as mangas são outra peça)
+			var lado_r := R.x_braco + 0.025 if p.y > R.y_braco - 0.1 else 0.25 # cruza com a manga: sem fresta no ombro
+			if p.y > R.y_pescoco + 0.035 or ax > lado_r:
+				return Vector2(-1, 0)
+			# gola alta e um pouco solta: fecha por cima do pano do capuz, que entra por dentro (André, rodada 5)
+			return Vector2(0.014 + 0.016 * smoothstep(R.y_pescoco - 0.06, R.y_pescoco + 0.01, p.y), p.z)
+		"manga_larga_e", "manga_larga_d":
+			# manga larga em sino: justa no ombro e abrindo até o punho (a ponta cai, _casca)
+			if ax < R.x_braco - (0.04 if R.masc else 0.005) or ax > R.x_mao + 0.02:
+				return Vector2(-1, 0)
+			return Vector2(0.014 + 0.045 * smoothstep(R.x_cotovelo - 0.08, R.x_mao, ax), -1.0)
+		"capuz_gola":
+			# gola do capuz (referência de patrulheiro, André 2026-11-23): o pano do capuz não acaba no pescoço; desce
+			# em volta dele e cai sobre os ombros e o alto do peito, por cima do manto e da capa (parece uma peça só)
+			# mais curta que o manto (as duas barras não ficam uma em cima da outra)
+			var borda_g := R.y_pescoco - (0.085 if p.z > 0.0 else 0.11)
+			borda_g = lerpf(borda_g, R.y_braco + 0.01, smoothstep(0.04, R.x_braco - 0.01, ax))
+			if p.y < borda_g or ax > R.x_braco + 0.01:
+				return Vector2(-1, 0)
+			return Vector2(0.034 + 0.012 * smoothstep(R.y_pescoco - 0.04, R.y_pescoco + 0.03, p.y), -1.0)
+		"bracal_e", "bracal_d":
+			# braçadeira de couro com tiras, do meio do antebraço até o punho, mais larga perto do cotovelo
+			if ax < R.x_cotovelo + 0.045 or ax > R.x_mao - 0.012:
+				return Vector2(-1, 0)
+			return Vector2(0.009 + 0.006 * (1.0 - smoothstep(R.x_cotovelo + 0.05, R.x_cotovelo + 0.14, ax)), ax - R.x_cotovelo)
+		"saia_v5", "saia_aba":
+			# túnica de pano até o meio da coxa (por baixo) e abas do colete por cima, abertas no meio da frente
+			if R.masc:
+				return Vector2(-1, 0)
+			# a túnica começa por baixo do cinto e cobre a saia do VRoid até o alto
+			var topo_t := R.y_cintura + 0.04
+			if p.y > topo_t:
+				return Vector2(-1, 0)
+			if parte == "saia_aba":
+				# abas do colete só na frente, abertas no meio
+				if p.y < topo_t - 0.1 or p.z < 0.01 or ax < 0.012 or ax > 0.12:
+					return Vector2(-1, 0)
+				return Vector2(0.026, -1.0)
+			return Vector2(0.016, -1.0)
+		"bota_e", "bota_d":
+			# bota de cano alto até um palmo acima do joelho na frente (atrás fica abaixo da dobra do joelho)
+			var topo_b := R.y_joelho - 0.015
+			if p.y > topo_b or p.y < R.y_pe - 0.01 or ax > 0.17:
+				return Vector2(-1, 0)
+			return Vector2(0.012, p.y)
+		"dobra_e", "dobra_d":
+			# dobra do cano (couro virado para fora), um pouco folgada, logo abaixo da boca da bota
+			var topo_d := R.y_joelho - 0.003
+			if p.y > topo_d or p.y < topo_d - 0.07 or ax > 0.17:
+				return Vector2(-1, 0)
+			return Vector2(0.014 + 0.01 * smoothstep(topo_d - 0.07, topo_d, p.y), p.y)
 	return Vector2(-1, 0)
 
 # ---------- malha soldada (sem costuras de UV: um vértice por posição) ----------
@@ -1761,6 +2015,15 @@ static func _casca(src: MeshInstance3D, parte: String, esq: Skeleton3D) -> Array
 					mudou = true
 		if not mudou:
 			break
+	# manga larga: a boca da manga cai (pano pesado pendurado do antebraço) e passa um pouco do punho
+	if parte.begins_with("manga_larga"):
+		for i in n:
+			var ax := absf(base[i].x)
+			var t := smoothstep(R.x_cotovelo - 0.04, R.x_mao + 0.02, ax)
+			var eixo_y := lerpf(R.p_braco.y, R.p_mao.y, clampf((ax - R.p_braco.x) / maxf(R.p_mao.x - R.p_braco.x, 0.01), 0.0, 1.0))
+			var embaixo := smoothstep(eixo_y + 0.02, eixo_y - 0.03, base[i].y)
+			pos[i].y -= 0.085 * t * t * embaixo
+			pos[i].x += signf(base[i].x) * 0.03 * t * t
 	# borda dobrada para fora (aba enrolada)
 	for i in n:
 		pos[i] += nor[i] * (0.0 if parte.begins_with("base") else 0.004) * _sino(dist[i], 0.012)
@@ -1813,8 +2076,10 @@ static func _casca(src: MeshInstance3D, parte: String, esq: Skeleton3D) -> Array
 	var V := PackedVector3Array(pos)
 	var Nn := PackedVector3Array(vn)
 	var U2 := PackedVector2Array()
+	var U1 := PackedVector2Array() # v5: x e y da pose de descanso (cadarço e bordado presos no corpo)
 	for i in n:
 		U2.append(Vector2(dist[i], seg[i]))
+		U1.append(Vector2(base[i].x, base[i].y))
 	var P := pesos.duplicate()
 	var I := PackedInt32Array(tris)
 	for e in arestas_borda:
@@ -1829,6 +2094,7 @@ static func _casca(src: MeshInstance3D, parte: String, esq: Skeleton3D) -> Array
 		V.append_array([pos[a], pos[b], base[a] + nor[a] * 0.002, base[b] + nor[b] * 0.002])
 		Nn.append_array([nl, nl, nl, nl])
 		U2.append_array([Vector2(0, seg[a]), Vector2(0, seg[b]), Vector2(0, seg[a]), Vector2(0, seg[b])])
+		U1.append_array([U1[a], U1[b], U1[a], U1[b]])
 		P.append_array([pesos[a], pesos[b], pesos[a], pesos[b]])
 		I.append_array([k, k + 2, k + 1, k + 1, k + 2, k + 3])
 	# pesos em 4 ossos
@@ -1852,6 +2118,7 @@ static func _casca(src: MeshInstance3D, parte: String, esq: Skeleton3D) -> Array
 	arr[Mesh.ARRAY_VERTEX] = _FA(V) # de volta ao espaço do modelo
 	arr[Mesh.ARRAY_NORMAL] = _FA(Nn)
 	arr[Mesh.ARRAY_TEX_UV2] = U2
+	arr[Mesh.ARRAY_TEX_UV] = U1
 	arr[Mesh.ARRAY_BONES] = Bo
 	arr[Mesh.ARRAY_WEIGHTS] = We
 	arr[Mesh.ARRAY_INDEX] = I
@@ -1892,7 +2159,7 @@ static func _montar_cinto(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> 
 	var ba := _preso(esq, no, "J_Bip_C_Spine")
 	var rest := esq.get_bone_global_rest(b)
 	# v11c (ficha técnica do André): faixas e cintos largos sobrepostos abaixo do peitoral, fivelas quadradas
-	for desce in [0.0, 0.046]:
+	for desce in ([0.0] if LINHA_V5 else [0.0, 0.046]): # v5: um cinto só, com fivela
 		_cinto_em(tops, R, r, ba, rest, desce)
 
 static func _cinto_em(tops: MeshInstance3D, R: Ref, r: int, ba: Node3D, rest: Transform3D, desce: float) -> void:
@@ -1903,19 +2170,19 @@ static func _cinto_em(tops: MeshInstance3D, R: Ref, r: int, ba: Node3D, rest: Tr
 		return
 	var mi := MeshInstance3D.new()
 	mi.mesh = _malhas[chave][0]
-	mi.material_override = _material("cinto_set" if COURO_EM_TUDO and r >= 1 else "cinto", r)
+	mi.material_override = _material("v5_cinto" if LINHA_V5 else ("cinto_set" if COURO_EM_TUDO and r >= 1 else "cinto"), r)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	mi.transform = rest.affine_inverse() * _G()
 	ba.add_child(mi)
 	var fv := MeshInstance3D.new()
 	fv.mesh = _malhas[chave][1]
-	fv.material_override = _material("fecho", r)
+	fv.material_override = _material("v5_fivela" if LINHA_V5 else "fecho", r)
 	fv.transform = rest.affine_inverse() * _G()
 	ba.add_child(fv)
 
-static func _malha_cinto(tops: Mesh, R: Ref, desce := 0.0) -> Array:
+static func _malha_cinto(tops: Mesh, R: Ref, desce := 0.0, alt := 0.042, afasta := 0.0) -> Array:
 	var y1 := R.y_cintura + (0.02 if R.masc else 0.07) - desce # na parte mais fina da cintura, encostando na ponta do V (o osso fica no quadril)
-	var y0 := y1 - 0.042 # v11: cinto mais largo (4,2 cm), de couro marrom
+	var y0 := y1 - alt # v11: cinto mais largo (4,2 cm), de couro marrom
 	var V: PackedVector3Array = _FA(Malhas.vertices(tops, 0))
 	var zmin := 9.0
 	var zmax := -9.0
@@ -1951,6 +2218,8 @@ static func _malha_cinto(tops: Mesh, R: Ref, desce := 0.0) -> Array:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	# perfil: borda de cima dobrando para dentro, faixa, borda de baixo (couro grosso, 3 mm)
 	var perfil := [[y1, -0.003], [y1 - 0.002, 0.003], [y0 + 0.002, 0.003], [y0, -0.003]]
+	if afasta > 0.0: # cordão: seção redonda
+		perfil = [[y1, -0.002], [y1 - alt * 0.2, 0.003], [y1 - alt * 0.5, 0.0045], [y0 + alt * 0.2, 0.003], [y0, -0.002]]
 	var pts := []
 	for i in NA + 1:
 		var a := TAU * float(i) / NA
@@ -1958,7 +2227,7 @@ static func _malha_cinto(tops: Mesh, R: Ref, desce := 0.0) -> Array:
 		var rr: float = raio[i % NA]
 		var linha := []
 		for pf in perfil:
-			var q: float = rr + 0.003 + float(pf[1])
+			var q: float = rr + 0.003 + afasta + float(pf[1])
 			linha.append(Vector3(d.x * q, float(pf[0]), cz + d.y * q))
 		pts.append(linha)
 	for i in NA:
@@ -2112,11 +2381,11 @@ static func _material_decote(r: int, y_pescoco: float, pele: Color, fem := true)
 		var m := ShaderMaterial.new()
 		m.shader = preload("res://decote.gdshader")
 		m.set_meta("armadura", true) # a aparência (cor da roupa) não troca o tecido da armadura
-		m.set_shader_parameter("tecido", ROUPA[r])
+		m.set_shader_parameter("tecido", V5_CAMISA[r] if LINHA_V5 else ROUPA[r])
 		m.set_shader_parameter("pele", pele)
 		m.set_shader_parameter("y_pescoco", y_pescoco)
 		m.set_shader_parameter("fundo", DECOTE_FUNDO if fem else 0.0)
-		m.set_shader_parameter("colete", COLETE[r])
+		m.set_shader_parameter("colete", V5_CAMISA[r] if LINHA_V5 else COLETE[r]) # v5: o colete é peça por cima
 		m.set_shader_parameter("largura", DECOTE_LARG)
 		_materiais[chave] = m
 	return _materiais[chave]
@@ -2403,6 +2672,333 @@ static func _malha_tabardo(corpo: MeshInstance3D, raiz: Node3D, R: Ref) -> Array
 	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 	return am
 
+# ---------- roupão (v5, masculino) ----------
+# Saia do roupão: do cinto até o tornozelo, em volta do corpo todo. A forma sai do contorno do corpo e da calça (por
+# fatia e ângulo) e nunca volta para dentro descendo (o pano cai reto e abre um pouco), com dobras verticais que
+# crescem para baixo. Pesos: em cima, os da pele mais perto; embaixo, a mistura das duas pernas (lado esquerdo segue
+# mais a perna esquerda), com um quarto preso no quadril para o pano não esticar demais na passada.
+static func _montar_roupao_saia(raiz: Node3D, esq: Skeleton3D, no: Node3D, mat: String, r: int) -> void:
+	var corpo := _fonte(raiz, "Body_00")
+	if corpo == null:
+		return
+	var R := _ref(esq)
+	var chave := "roupao_saia:%d" % corpo.mesh.get_instance_id()
+	if not _malhas.has(chave):
+		_malhas[chave] = _malha_roupao_saia(corpo, raiz, R)
+	var mi := MeshInstance3D.new()
+	mi.mesh = _malhas[chave]
+	mi.skin = corpo.skin
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	no.add_child(mi)
+	mi.skeleton = mi.get_path_to(esq)
+	mi.material_override = _material(mat, r)
+
+static func _malha_roupao_saia(corpo: MeshInstance3D, raiz: Node3D, R: Ref) -> ArrayMesh:
+	var S := _soldar(corpo)
+	var pts := PackedVector3Array(S.pos)
+	var calca := _fonte(raiz, "Bottoms")
+	if calca and calca.mesh:
+		pts.append_array(_FA(Malhas.vertices(calca.mesh, 0)))
+	var yt := R.y_cintura + 0.03
+	var yb := R.y_pe + 0.045
+	var NA := 36
+	var NY := 22
+	var zmin := 9.0
+	var zmax := -9.0
+	for p in pts:
+		if absf(p.y - R.y_cintura) < 0.03 and absf(p.x) < 0.1:
+			zmin = minf(zmin, p.z)
+			zmax = maxf(zmax, p.z)
+	var cz := (zmin + zmax) * 0.5 if zmin < zmax else 0.0
+	var raio := []
+	for j in NY + 1:
+		var linha := PackedFloat32Array()
+		linha.resize(NA)
+		raio.append(linha)
+	for p in pts:
+		if p.y > yt + 0.02 or p.y < yb - 0.02 or absf(p.x) > 0.3:
+			continue
+		var j := clampi(int(round((yt - p.y) / (yt - yb) * NY)), 0, NY)
+		var i := posmod(int(round(atan2(p.x, p.z - cz) / TAU * NA)), NA)
+		raio[j][i] = maxf(raio[j][i], Vector2(p.x, p.z - cz).length())
+	var passo := (yt - yb) / NY
+	for j in NY + 1:
+		var l: PackedFloat32Array = raio[j]
+		for it in NA:
+			for i in NA:
+				if l[i] <= 0.0:
+					l[i] = maxf(l[(i + NA - 1) % NA], l[(i + 1) % NA])
+		for it in 3:
+			var nl := l.duplicate()
+			for i in NA:
+				nl[i] = maxf(l[i], (l[(i + NA - 1) % NA] + 2.0 * l[i] + l[(i + 1) % NA]) * 0.25)
+			l = nl
+		for i in NA:
+			l[i] += 0.016
+			if j > 0:
+				l[i] = maxf(l[i], raio[j - 1][i] + passo * 0.1) # cai reto e abre ~6 graus
+		raio[j] = l
+	# pesos: pele perto (só a parte de cima, poucos pontos) e as duas pernas por altura
+	var perto := []
+	for i in range(0, S.pos.size(), 2):
+		var p := S.pos[i]
+		if absf(p.x) < 0.25 and p.y < yt + 0.06 and p.y > yb - 0.06:
+			perto.append(i)
+	var peso_em := func(alvo: Vector3) -> Dictionary:
+		var melhor := -1
+		var dm := INF
+		for i in perto:
+			var d: float = S.pos[i].distance_squared_to(alvo)
+			if d < dm:
+				dm = d
+				melhor = i
+		return S.pesos[melhor] if melhor >= 0 else {}
+	var gancho := R.y_coxa - 0.06
+	var V := PackedVector3Array()
+	var U2 := PackedVector2Array()
+	var U1 := PackedVector2Array()
+	var P := []
+	var I := PackedInt32Array()
+	var quadril := {}
+	for i in NA + 1:
+		var a := TAU * float(i % NA) / NA
+		quadril[i] = peso_em.call(Vector3(sin(a) * 0.12, gancho + 0.05, cz + cos(a) * 0.1))
+	for j in NY + 1:
+		var y := yt - passo * j
+		var pe := _misturar(peso_em.call(Vector3(0.09, y, cz)), {})
+		var pd := _misturar(peso_em.call(Vector3(-0.09, y, cz)), {})
+		var w := smoothstep(gancho + 0.05, gancho - 0.08, y)
+		for i in NA + 1:
+			var a := TAU * float(i % NA) / NA
+			var rr: float = raio[j][i % NA]
+			var t := float(j) / NY
+			rr += 0.009 * t * sin(a * 8.0 + 0.7) # dobras que crescem para baixo
+			var p := Vector3(sin(a) * rr, y, cz + cos(a) * rr)
+			V.append(p)
+			U2.append(Vector2(minf(y - yb, yt - y), p.z))
+			U1.append(Vector2(p.x, p.y))
+			var d := {}
+			if w < 1.0:
+				var pc: Dictionary = peso_em.call(Vector3(p.x, y, p.z - signf(cos(a)) * 0.02))
+				for k in pc:
+					d[k] = pc[k] * (1.0 - w)
+			if w > 0.0:
+				var wl := smoothstep(-0.07, 0.07, p.x)
+				for k in pe:
+					d[k] = d.get(k, 0.0) + pe[k] * wl * 0.75 * w
+				for k in pd:
+					d[k] = d.get(k, 0.0) + pd[k] * (1.0 - wl) * 0.75 * w
+				var qd: Dictionary = quadril[i]
+				for k in qd:
+					d[k] = d.get(k, 0.0) + qd[k] * 0.25 * w
+			P.append(d)
+	for j in NY:
+		for i in NA:
+			var a0 := j * (NA + 1) + i
+			I.append_array([a0, a0 + 1, a0 + NA + 1, a0 + 1, a0 + NA + 2, a0 + NA + 1]) # frente da face para fora
+	var Bo := PackedInt32Array()
+	var We := PackedFloat32Array()
+	for d in P:
+		var ks: Array = d.keys()
+		ks.sort_custom(func(x, y): return d[x] > d[y])
+		var soma := 0.0
+		for q in mini(4, ks.size()):
+			soma += d[ks[q]]
+		for q in 4:
+			if q < ks.size():
+				Bo.append(ks[q])
+				We.append(d[ks[q]] / maxf(soma, 0.0001))
+			else:
+				Bo.append(0)
+				We.append(0.0)
+	var Nn := PackedVector3Array()
+	Nn.resize(V.size())
+	for t in range(0, I.size(), 3):
+		var nv := (V[I[t + 2]] - V[I[t]]).cross(V[I[t + 1]] - V[I[t]])
+		for e in 3:
+			Nn[I[t + e]] += nv
+	for i in Nn.size():
+		var fora := Vector3(V[i].x, 0.0, V[i].z - cz)
+		Nn[i] = Nn[i].normalized()
+		if Nn[i].dot(fora) < 0.0:
+			Nn[i] = -Nn[i]
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = _FA(V)
+	arr[Mesh.ARRAY_NORMAL] = _FA(Nn)
+	arr[Mesh.ARRAY_TEX_UV2] = U2
+	arr[Mesh.ARRAY_TEX_UV] = U1
+	arr[Mesh.ARRAY_BONES] = Bo
+	arr[Mesh.ARRAY_WEIGHTS] = We
+	arr[Mesh.ARRAY_INDEX] = I
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return am
+
+# cordão amarrado em volta da gola alta do roupão (André 2026-11-23, rodada 5: o capuz entra por dentro do roupão e a
+# gola fecha por cima dele "como se fosse amarrada"), com nó e duas pontas curtas na frente
+static func _montar_laco_gola(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> void:
+	var nome_b := "J_Bip_C_UpperChest" if esq.find_bone("J_Bip_C_UpperChest") >= 0 else "J_Bip_C_Chest"
+	var b := esq.find_bone(nome_b)
+	var tops := _fonte(raiz, "Tops")
+	if b < 0 or tops == null:
+		return
+	var R := _ref(esq)
+	# alto da gola: onde a blusa acaba no pescoço (no masculino ela é mais baixa)
+	var y_topo := -INF
+	for sfc in tops.mesh.get_surface_count():
+		for q in _FA(Malhas.vertices(tops.mesh, sfc)):
+			if absf(q.x) < 0.05 and q.y < R.y_pescoco + 0.06:
+				y_topo = maxf(y_topo, q.y)
+	var y := minf(R.y_pescoco + 0.016, y_topo - 0.014)
+	# masculino: a blusa para abaixo do pescoço e quem fecha a gola é o manto; o cordão aperta o pano do capuz bem
+	# onde ele entra no manto (medido na pele do pescoço)
+	var fonte := tops
+	var folga_l := 0.037
+	if R.masc:
+		y = y_topo + 0.012
+		fonte = _fonte(raiz, "Body_00")
+		folga_l = 0.03
+	var chave := "laco_gola:%d:%.3f" % [tops.mesh.get_instance_id(), y]
+	if not _malhas.has(chave):
+		# elipse da blusa nessa altura; o anel fica por fora da gola do roupão (que é a blusa + ~2,6 cm)
+		var mn := Vector2(INF, INF)
+		var mx := Vector2(-INF, -INF)
+		for sfc in fonte.mesh.get_surface_count():
+			for q in _FA(Malhas.vertices(fonte.mesh, sfc)):
+				if absf(q.y - y) < 0.01 and absf(q.x) < (0.1 if fonte == tops else 0.075):
+					mn = Vector2(minf(mn.x, q.x), minf(mn.y, q.z))
+					mx = Vector2(maxf(mx.x, q.x), maxf(mx.y, q.z))
+		if mx.x <= mn.x:
+			_malhas[chave] = null
+		else:
+			var c := (mn + mx) * 0.5
+			var ra := (mx - mn) * 0.5 + Vector2(folga_l, folga_l)
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			var NA := 40
+			var NT := 8
+			var tubo := 0.0055
+			var pts := []
+			for i in NA + 1:
+				var a := float(i) / NA * TAU
+				var cen := Vector3(c.x + ra.x * sin(a), y - 0.004 * cos(a), c.y + ra.y * cos(a))
+				var fora := Vector3(sin(a) * ra.y, 0, cos(a) * ra.x).normalized()
+				for j in NT + 1:
+					var t := float(j) / NT * TAU
+					pts.append(cen + (fora * cos(t) + Vector3.UP * sin(t)) * tubo)
+			for i in NA:
+				for j in NT:
+					var a0: int = i * (NT + 1) + j
+					var c0: int = a0 + NT + 1
+					for k in [a0, a0 + 1, c0, a0 + 1, c0 + 1, c0]:
+						st.add_vertex(pts[k])
+			st.generate_normals()
+			var m := st.commit()
+			# nó na frente e duas pontas curtas caindo sobre o peito
+			var frente := Vector3(c.x, y - 0.004, c.y + ra.y + 0.004)
+			_malhas[chave] = [m, frente]
+	var dados = _malhas[chave]
+	if dados == null:
+		return
+	var ba := _preso(esq, no, nome_b)
+	var base := esq.get_bone_global_rest(b).affine_inverse() * _G()
+	var mi := MeshInstance3D.new()
+	mi.mesh = dados[0]
+	mi.material_override = _material("v5_corda", r)
+	mi.transform = base
+	ba.add_child(mi)
+	var f: Vector3 = dados[1]
+	var esf := SphereMesh.new()
+	esf.radius = 0.011
+	esf.height = 0.018
+	esf.radial_segments = 10
+	esf.rings = 5
+	var noz := MeshInstance3D.new()
+	noz.mesh = esf
+	noz.material_override = _material("v5_corda", r)
+	noz.transform = base * Transform3D(Basis(), f)
+	ba.add_child(noz)
+	for k in [[0.012, 0.25], [-0.01, -0.2]]:
+		var cil := CylinderMesh.new()
+		cil.top_radius = 0.0045
+		cil.bottom_radius = 0.0045
+		cil.height = 0.07
+		cil.radial_segments = 6
+		cil.rings = 1
+		var ci := MeshInstance3D.new()
+		ci.mesh = cil
+		ci.material_override = _material("v5_corda", r)
+		var giro := Basis(Vector3(0, 0, 1), float(k[1])) * Basis(Vector3(1, 0, 0), -0.25)
+		ci.transform = base * Transform3D(giro, f + Vector3(float(k[0]), 0, 0.006) + giro * Vector3(0, -0.035, 0))
+		ba.add_child(ci)
+
+# cordão na cintura do roupão, com duas pontas penduradas e borlas (preso no quadril)
+static func _montar_corda(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> void:
+	var b := esq.find_bone("J_Bip_C_Spine")
+	var tops := _fonte(raiz, "Tops")
+	if b < 0 or tops == null:
+		return
+	var R := _ref(esq)
+	var ba := _preso(esq, no, "J_Bip_C_Spine")
+	var rest := esq.get_bone_global_rest(b)
+	var chave := "corda:%d:%s" % [tops.mesh.get_instance_id(), R.masc]
+	if not _malhas.has(chave):
+		_malhas[chave] = _malha_cinto(tops.mesh, R, -0.005, 0.016, 0.015)
+	if _malhas[chave][0] == null:
+		return
+	var mi := MeshInstance3D.new()
+	mi.mesh = _malhas[chave][0]
+	mi.material_override = _material("v5_corda", r)
+	mi.transform = rest.affine_inverse() * _G()
+	ba.add_child(mi)
+	# pontas: saem de um nó na frente, um pouco para a esquerda, e caem até o meio da coxa
+	var bq := esq.find_bone("J_Bip_C_Hips")
+	if bq < 0:
+		return
+	var bh := _preso(esq, no, "J_Bip_C_Hips")
+	var rq := esq.get_bone_global_rest(bq)
+	var z0 := 0.0
+	var y_no := R.y_cintura + 0.01
+	for p in _FA(Malhas.vertices(tops.mesh, 0)):
+		if absf(p.x - 0.05) < 0.03 and absf(p.y - y_no) < 0.03:
+			z0 = maxf(z0, p.z)
+	for k in [[0.045, 0.3, 0.05], [0.07, 0.24, -0.08]]:
+		var cil := CylinderMesh.new()
+		cil.top_radius = 0.0065
+		cil.bottom_radius = 0.0065
+		cil.height = k[1]
+		cil.radial_segments = 8
+		cil.rings = 1
+		var c := MeshInstance3D.new()
+		c.mesh = cil
+		c.material_override = _material("v5_corda", r)
+		var giro := Basis(Vector3(0, 0, 1), float(k[2]))
+		var topo_c := Vector3(k[0], y_no, z0 + 0.035)
+		c.transform = rq.affine_inverse() * _G() * Transform3D(giro, topo_c + giro * Vector3(0, -k[1] * 0.5, 0))
+		bh.add_child(c)
+		var borla := CylinderMesh.new()
+		borla.top_radius = 0.008
+		borla.bottom_radius = 0.016
+		borla.height = 0.05
+		borla.radial_segments = 8
+		borla.rings = 1
+		var bl := MeshInstance3D.new()
+		bl.mesh = borla
+		bl.material_override = _material("v5_corda", r)
+		bl.transform = rq.affine_inverse() * _G() * Transform3D(giro, topo_c + giro * Vector3(0, -k[1] - 0.02, 0))
+		bh.add_child(bl)
+	var nozinho := MeshInstance3D.new()
+	var esf := SphereMesh.new()
+	esf.radius = 0.014
+	esf.height = 0.024
+	esf.radial_segments = 10
+	esf.rings = 6
+	nozinho.mesh = esf
+	nozinho.material_override = _material("v5_corda", r)
+	nozinho.transform = rq.affine_inverse() * _G() * Transform3D(Basis(), Vector3(0.055, y_no, z0 + 0.034))
+	bh.add_child(nozinho)
+
 # ---------- cinto de quadril (v10, arte do Aethra) ----------
 # Faixa de couro vermelho caída na diagonal por cima do saiote (alta à direita, baixa à esquerda), com bolsa e
 # fivela de ouro do lado baixo. Presa no osso do quadril.
@@ -2601,7 +3197,7 @@ static func _montar_capa(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> v
 		cil.radial_segments = 16
 		cil.rings = 1
 		f.mesh = cil
-		f.material_override = _material("fecho", r)
+		f.material_override = _material("v5_fivela" if LINHA_V5 else "fecho", r)
 		var R := _ref(esq)
 		f.transform = esq.get_bone_global_rest(osso).affine_inverse() * _G() * Transform3D(Basis(Vector3.RIGHT, PI * 0.5).rotated(Vector3.RIGHT, -0.25), Vector3(s * 0.075, R.y_pescoco - 0.075, zb + 0.022))
 		ba.add_child(f)
@@ -2639,7 +3235,7 @@ static func _material_gola(r: int) -> Material:
 	var chave := "gola:%d" % r
 	if not _materiais.has(chave):
 		var m := StandardMaterial3D.new()
-		m.albedo_color = CAPA[r][0].darkened(0.35) # o shader da capa escurece o pano; a gola acompanha
+		m.albedo_color = (V5_CAPA[r][0] if LINHA_V5 else CAPA[r][0]).darkened(0.35) # o shader da capa escurece o pano; a gola acompanha
 		m.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
 		m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -2799,9 +3395,32 @@ static func _material(tipo: String, r: int) -> Material:
 	if _materiais.has(chave):
 		return _materiais[chave]
 	var m: Material
+	if tipo.begins_with("v5_") and tipo != "v5_fivela" and tipo != "v5_saia_base":
+		m = _material_v5(tipo, r)
+		_materiais[chave] = m
+		return m
+	if tipo == "v5_saia_base":
+		var sb := StandardMaterial3D.new()
+		sb.albedo_color = V5_TUNICA[r].darkened(0.2)
+		sb.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		sb.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+		sb.roughness = 1.0
+		_materiais[chave] = sb
+		return sb
+	if tipo == "v5_fivela": # fivela e broche de metal: latão, bronze, prata, ouro, brasa
+		var f := StandardMaterial3D.new()
+		f.albedo_color = V5_ACENTO[r] if r >= 1 else Color("a8884c")
+		f.metallic = 0.85
+		f.roughness = 0.32
+		if r == 4:
+			f.emission_enabled = true
+			f.emission = V5_ACENTO[4]
+			f.emission_energy_multiplier = 0.8
+		_materiais[chave] = f
+		return f
 	if tipo == "calca":
 		var c := StandardMaterial3D.new()
-		c.albedo_color = CALCA[r]
+		c.albedo_color = V5_CALCA[r] if LINHA_V5 else CALCA[r]
 		c.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
 		c.specular_mode = BaseMaterial3D.SPECULAR_TOON
 		c.roughness = 0.55 # um brilho pequeno de couro
@@ -2820,9 +3439,9 @@ static func _material(tipo: String, r: int) -> Material:
 	if tipo == "capa":
 		var s := ShaderMaterial.new()
 		s.shader = SHADER_CAPA
-		s.set_shader_parameter("fora", CAPA[r][0])
-		s.set_shader_parameter("dentro", CAPA[r][1])
-		s.set_shader_parameter("friso", FRISO[r][0])
+		s.set_shader_parameter("fora", V5_CAPA[r][0] if LINHA_V5 else CAPA[r][0])
+		s.set_shader_parameter("dentro", V5_CAPA[r][1] if LINHA_V5 else CAPA[r][1])
+		s.set_shader_parameter("friso", V5_ACENTO[r] if LINHA_V5 and r >= 1 else FRISO[r][0])
 		s.set_shader_parameter("brilho", BRILHO[r])
 		m = s
 	else:
@@ -3070,9 +3689,220 @@ static func _malha_elmo(h: Cabeca) -> ArrayMesh:
 	st.generate_normals()
 	return st.commit()
 
+# ---------- capuz (v5) ----------
+# Capuz de pano do roupão de mago: folgado em volta da cabeça, abre o rosto (da testa ao queixo), desce pela nuca e
+# pelos lados até o pescoço, e tem a ponta caída para trás no alto. Barra na cor de acento do set.
+static func _montar_capuz(raiz: Node3D, esq: Skeleton3D, no: Node3D, r: int) -> void:
+	var osso := esq.find_bone("J_Bip_C_Head")
+	if osso < 0:
+		return
+	var h := _cabeca(raiz)
+	# largura dos ombros: a gola do capuz cobre o manto do roupão (masculino tem ombro mais largo)
+	var ombro := 0.17
+	var ob := esq.find_bone("J_Bip_L_UpperArm")
+	if ob >= 0:
+		ombro = absf((_G().affine_inverse() * esq.get_bone_global_rest(ob).origin).x - h.c.x)
+	# pescoço (André 2026-11-23, rodada 5): o pano de baixo do capuz desce justo pelo pescoço e entra por dentro
+	# da gola do roupão/camisa; mede a elipse do pescoço na pele, um pouco acima da base
+	var R := _ref(esq)
+	var pesc := Vector4(h.c.x, h.c.z - 0.01, 0.055, 0.06) # centro x, z; raio x, z
+	var corpo := _fonte(raiz, "Body_00")
+	if corpo:
+		var mn := Vector3(INF, 0, INF)
+		var mx := Vector3(-INF, 0, -INF)
+		for sfc in corpo.mesh.get_surface_count():
+			for q in _FA(Malhas.vertices(corpo.mesh, sfc)):
+				if absf(q.y - (R.y_pescoco + 0.03)) < 0.008 and absf(q.x - h.c.x) < 0.09:
+					mn = Vector3(minf(mn.x, q.x), 0, minf(mn.z, q.z))
+					mx = Vector3(maxf(mx.x, q.x), 0, maxf(mx.z, q.z))
+		if mx.x > mn.x:
+			pesc = Vector4((mn.x + mx.x) * 0.5, (mn.z + mx.z) * 0.5, (mx.x - mn.x) * 0.5, (mx.z - mn.z) * 0.5)
+	var chave := "capuz:%s:%.3f:%s" % [str(h.c), ombro, str(pesc)]
+	if not _malhas.has(chave):
+		_malhas[chave] = _malha_capuz(h, ombro, R.y_pescoco, pesc)
+	var ba := BoneAttachment3D.new()
+	no.add_child(ba)
+	ba.use_external_skeleton = true
+	ba.external_skeleton = ba.get_path_to(esq)
+	ba.bone_name = "J_Bip_C_Head"
+	var mi := MeshInstance3D.new()
+	mi.mesh = _malhas[chave]
+	mi.material_override = _material("v5_capuz", r)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	mi.transform = esq.get_bone_global_rest(osso).affine_inverse() * _G()
+	ba.add_child(mi)
+
+# Abertura do rosto (André 2026-11-23): arco curvado na testa que desce pelos lados do rosto e FECHA por baixo do
+# queixo (referência do patrulheiro: o capuz junta embaixo e vira gola em volta do pescoço). Em volta da abertura,
+# fora dela o pano é inteiro da cabeça até os ombros.
+const CAPUZ_A0 := 1.0 # meia-largura da abertura do rosto (rad, 0 = meio da frente)
+
+static func _capuz_meio(h: Cabeca) -> float:
+	return h.bochecha + 0.012 # altura onde o arco de cima encontra a curva de baixo (lado do rosto)
+
+static func _capuz_queixo(h: Cabeca) -> float:
+	var alt := (h.testa - h.bochecha) / 0.6 # altura do rosto (ver _cabeca)
+	return h.bochecha - 0.14 * alt - 0.022 # logo abaixo do queixo
+
+# borda de cima da abertura (arco da testa)
+static func _borda_capuz(h: Cabeca, a: float) -> float:
+	var t := clampf(absf(wrapf(a, -PI, PI)) / CAPUZ_A0, 0.0, 1.0)
+	var topo_a := h.testa + 0.05
+	return topo_a - (topo_a - _capuz_meio(h)) * pow(t, 1.3)
+
+# borda de baixo da abertura (por baixo do queixo, onde o pano fecha)
+static func _borda_capuz_baixo(h: Cabeca, a: float) -> float:
+	var t := clampf(absf(wrapf(a, -PI, PI)) / CAPUZ_A0, 0.0, 1.0)
+	var m := _capuz_meio(h)
+	return m - (m - _capuz_queixo(h)) * sqrt(maxf(0.0, 1.0 - t * t))
+
+# barra de baixo: o pano assenta nos ombros e no alto do peito (gola fechada), com barra ondulada
+static var _capuz_y_pesc := -9.0
+static func _barra_capuz(h: Cabeca, a: float) -> float:
+	# rodada 5 (André): a barra fica escondida por dentro da gola do roupão, um pouco abaixo da base do pescoço
+	if _capuz_y_pesc > -5.0:
+		return _capuz_y_pesc - 0.035
+	var x := absf(wrapf(a, -PI, PI))
+	var b := lerpf(h.c.y - 0.235, h.c.y - 0.25, smoothstep(0.6, 2.4, x))
+	return b + 0.01 * sin(a * 7.0 + 0.4)
+
+static func _malha_capuz(h: Cabeca, ombro := 0.17, y_pesc := -9.0, pesc := Vector4.ZERO) -> ArrayMesh:
+	_capuz_y_pesc = y_pesc
+	var NA := 64
+	var NJ := 22 # da abertura até o alto
+	var NB := 12 # da barra dos ombros até a abertura
+	var folga := Vector3(0.04, 0.026, 0.046) # folgado: pano solto em volta da cabeça
+	var topo := h.c.y + h.raio.y + folga.y
+	var meio := _capuz_meio(h)
+	var V := PackedVector3Array()
+	var U2 := PackedVector2Array()
+	var U1 := PackedVector2Array()
+	var I := PackedInt32Array()
+	var ponto := func(a: float, y: float, dentro: float) -> Vector3:
+		var rx := h.raio.x + folga.x - dentro
+		var rz := h.raio.z + folga.z - dentro
+		var frente := maxf(0.0, cos(a))
+		var k := 1.0
+		if y > h.c.y:
+			k = sqrt(maxf(0.0, 1.0 - pow((y - h.c.y) / (topo - h.c.y), 2.0)))
+		else:
+			# abaixo do meio da cabeça o pano fecha em volta do pescoço (um pouco mais justo na frente, por baixo do
+			# queixo) e abre de novo embaixo, assentando nos ombros e no peito
+			k = 1.0 - (0.1 + 0.06 * frente) * smoothstep(h.c.y, h.c.y - 0.1, y) \
+				+ (0.24 + 0.08 * frente) * smoothstep(h.c.y - 0.08, h.c.y - 0.24, y)
+		var atras := maxf(0.0, -cos(a))
+		var baixo := smoothstep(h.c.y + 0.06, h.c.y - 0.16, y)
+		# pano mole: dobras verticais que nascem no alto e abrem embaixo, em duas frequências
+		var dobra := (sin(a * 9.0 + 0.6 + y * 14.0) * 0.6 + sin(a * 5.0 - 1.1) * 0.4) * 0.0095 \
+			* lerpf(0.35, 1.0, smoothstep(h.c.y + 0.12, h.c.y - 0.08, y)) * (0.45 + 0.55 * atras)
+		# na frente, por baixo do queixo, a gola drapeia em dobras curvas (U), como pano que junta e fecha
+		var qx := _capuz_queixo(h)
+		var drape := sin((qx - y) * 70.0 - absf(sin(a)) * 3.0) * 0.005 * frente \
+			* smoothstep(qx + 0.01, qx - 0.03, y) * smoothstep(h.c.y - 0.26, h.c.y - 0.2, y)
+		dobra += drape
+		var barriga := 0.028 * atras * sin(clampf((topo - y) / (topo - h.c.y + 0.2), 0.0, 1.0) * PI)
+		var q := Vector3(h.c.x + (rx * k + dobra) * sin(a), y, h.c.z + (rz * k + dobra + barriga) * cos(a))
+		q.z -= 0.03 * atras * baixo
+		# costura no meio, da testa à nuca
+		var vinco := (1.0 - smoothstep(0.0, 0.18, absf(sin(a)))) * smoothstep(h.c.y - 0.02, h.c.y + 0.06, y)
+		q += (q - h.c).normalized() * 0.006 * vinco
+		# embaixo o pano abre e assenta nos ombros (dos lados mais que na frente)
+		var assenta := smoothstep(h.c.y - 0.09, h.c.y - 0.25, y) * (0.4 + 0.6 * maxf(atras, absf(sin(a))))
+		# dos lados a gola chega até a ponta do ombro (cobre o manto e a costura da manga)
+		var abre_x := maxf(0.45, (ombro + 0.05) / ((h.raio.x + folga.x) * 1.1) - 1.0)
+		if y_pesc < -5.0:
+			q.x = h.c.x + (q.x - h.c.x) * (1.0 + abre_x * assenta)
+			q.z = h.c.z + (q.z - h.c.z) * (1.0 + 0.2 * assenta)
+		if y_pesc > -5.0:
+			# rodada 5: abaixo do queixo o pano fecha justo em volta do pescoço (com folga de pano) e desce reto
+			# para dentro da gola; sem capinha por fora
+			var qy := _capuz_queixo(h)
+			var tub := smoothstep(qy + 0.03, qy - 0.03, y)
+			var ang := Vector2(sin(a), cos(a))
+			var folga_t := 0.013 + 0.004 * sin(a * 6.0 + 1.0) # dobrinhas do pano em volta do pescoço
+			var alvo := Vector3(pesc.x + (pesc.z + folga_t) * ang.x, y, pesc.y + (pesc.w + folga_t) * ang.y)
+			q = q.lerp(alvo, tub)
+		# bico suave no alto, levemente para a frente
+		var u := clampf((y - h.c.y) / (topo - h.c.y), 0.0, 1.0)
+		var w := pow(u, 2.2)
+		q = q.lerp(Vector3(h.c.x, q.y, h.c.z + 0.005), w * 0.25)
+		q.y += 0.03 * w * u
+		return q
+	# distância até a borda mais perto (barra de acento): abertura do rosto ou barra dos ombros
+	var dist := func(a: float, y: float) -> float:
+		var d := y - _barra_capuz(h, a)
+		if absf(wrapf(a, -PI, PI)) < CAPUZ_A0:
+			d = minf(d, minf(absf(y - _borda_capuz(h, a)), absf(_borda_capuz_baixo(h, a) - y)))
+		return maxf(d, 0.0)
+	var add := func(a: float, y: float, dentro: float, d: float) -> int:
+		var p: Vector3 = ponto.call(a, y, dentro)
+		V.append(p)
+		U2.append(Vector2(d, -1.0))
+		U1.append(Vector2(p.x, p.y))
+		return V.size() - 1
+	var na := NA + 1
+	# parte de cima: da abertura (ou do meio, fora dela) até o alto
+	var cima := PackedInt32Array()
+	for j in NJ + 1:
+		var s := float(j) / NJ
+		for i in na:
+			var a := float(i) / NA * TAU
+			var e := _borda_capuz(h, a)
+			var y := e + (topo - e) * (0.55 * s + 0.45 * sin(s * PI * 0.5))
+			if j == NJ:
+				y = topo - 0.001
+			cima.append(add.call(a, y, 0.0, dist.call(a, y)))
+	# parte de baixo (gola fechada): da barra dos ombros até a abertura; fora da abertura emenda com a de cima
+	var baixo_i := PackedInt32Array()
+	for j in NB + 1:
+		var s := float(j) / NB
+		for i in na:
+			var a := float(i) / NA * TAU
+			var fora := absf(wrapf(a, -PI, PI)) >= CAPUZ_A0
+			if j == NB and fora:
+				baixo_i.append(cima[i])
+				continue
+			var b := _barra_capuz(h, a)
+			var t := _borda_capuz_baixo(h, a) if not fora else meio
+			var y := b + (t - b) * s
+			baixo_i.append(add.call(a, y, 0.0, dist.call(a, y)))
+	for grade in [[cima, NJ], [baixo_i, NB]]:
+		var g: PackedInt32Array = grade[0]
+		for j in int(grade[1]):
+			for i in NA:
+				var a0 := g[j * na + i]
+				var b0 := g[j * na + i + 1]
+				var c0 := g[(j + 1) * na + i]
+				var d0 := g[(j + 1) * na + i + 1]
+				I.append_array([a0, c0, b0, b0, c0, d0])
+	# pano virado para dentro em toda a volta da abertura do rosto (7 mm) e na barra dos ombros
+	var dobra_borda := func(borda: Callable, a0: float, a1: float, n: int, sobe: float) -> void:
+		var base := V.size()
+		for i in n + 1:
+			var a := lerpf(a0, a1, float(i) / n)
+			var e: float = borda.call(h, a)
+			add.call(a, e, 0.0, 0.0)
+			add.call(a, e + sobe, 0.004, 0.0)
+		for i in n:
+			var k := base + i * 2
+			I.append_array([k, k + 2, k + 1, k + 2, k + 3, k + 1])
+	dobra_borda.call(_borda_capuz, -CAPUZ_A0, CAPUZ_A0, 24, 0.007)
+	dobra_borda.call(_borda_capuz_baixo, -CAPUZ_A0, CAPUZ_A0, 24, -0.007)
+	dobra_borda.call(_barra_capuz, 0.0, TAU, NA, 0.007)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for k in V.size():
+		st.set_uv(U1[k])
+		st.set_uv2(U2[k])
+		st.add_vertex(V[k])
+	for k in I:
+		st.add_index(k)
+	st.generate_normals()
+	return st.commit()
+
 # Com capacete o cabelo de cima é apertado para dentro do casco (técnica comum em jogo: "cabelo de capacete").
 # A franja abaixo da testa, o cabelo que cai pelos lados e o rabo de cavalo continuam como estão.
-static func _cabelo(raiz: Node3D, com_elmo: bool) -> void:
+static func _cabelo(raiz: Node3D, com_elmo: bool, capuz := false) -> void:
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
 		if not (mi.mesh is ArrayMesh) or mi.mesh.get_surface_count() == 0 or str(mi.name).begins_with("Armadura"):
 			continue
@@ -3090,9 +3920,18 @@ static func _cabelo(raiz: Node3D, com_elmo: bool) -> void:
 		# corpo que já ganhou LOD (lod_malha.gd) aperta a malha original: a mesma do boneco aquecido atrás da capa
 		# (aquecer.gd), senão cada penteado debaixo do capacete era refeito no quadro (~30 ms, 2026-11-13)
 		var fonte: Mesh = preload("res://lod_malha.gd").original(orig)
-		var chave := "cabelo:%d" % fonte.get_instance_id()
+		var chave := "cabelo%s:%d" % ["_capuz" if capuz else "", fonte.get_instance_id()]
 		if not _malhas.has(chave):
-			_malhas[chave] = _cabelo_apertado(fonte, _cabeca(raiz), _bind_cabeca(mi))
+			var h := _cabeca(raiz)
+			if capuz:
+				var hc := Cabeca.new()
+				hc.c = h.c
+				hc.raio = h.raio + Vector3(0.024, 0.012, 0.028)
+				hc.testa = h.testa
+				hc.bochecha = h.bochecha
+				hc.nuca = h.nuca - 0.03
+				h = hc
+			_malhas[chave] = _cabelo_apertado(fonte, h, _bind_cabeca(mi))
 		mi.mesh = _malhas[chave]
 
 static func _malha_cabelo(raiz: Node3D) -> Mesh:
