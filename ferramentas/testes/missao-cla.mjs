@@ -33,8 +33,10 @@ s.cla('L', { acao: 'missao' });
 ok(/já está acontecendo/.test(avisos()), 'não abre duas');
 // anda até 20% do caminho: primeira emboscada
 const ponto = (f) => ({ x: M.x0 + (M.dest.x - M.x0) * f, z: M.z0 + (M.dest.z - M.z0) * f });
-junto(ponto(0.2)); s.passoMissoesCla();
+s.eventos = []; junto(ponto(0.2)); s.passoMissoesCla();
 const emb = [...M.mobs];
+const placar = () => s.eventos.filter((e) => e.t === 'missaoCla' && e.para === 'L' && e.n).pop();
+ok(placar()?.n === emb.length && placar().mortos === 0 && placar().emb === 1, 'o contador da onda aparece: 0 de N');
 ok(emb.length === CLA.missao.emboscadas[0].n && emb.every((e) => e.nivel === 60), 'emboscada 1 no nível do líder');
 ok(s.inimigosDe(emb[0]).every((o) => o !== j) && s.inimigosDe(emb[0]).length === 2, 'o monstro vai nos recrutas, não no líder');
 s.ferir(emb[0], 1, j);
@@ -46,6 +48,7 @@ recs[1].morto = false;
 const xp0 = recs[0].prog.xp | 0, nv0 = recs[0].prog.nivel, xp1 = recs[1].prog.xp | 0, cofre0 = j.prog.cla.cofre | 0, alma0 = contar(j.prog.mochila, almaDe(s.racaDe(j)));
 const matar = () => { for (const m of [...M.mobs]) { m.atacantes = new Set(); s.morrer(m, null); } s.tempo += 4; for (const t of [...s.timers]) if (t.t <= s.tempo) { s.timers.splice(s.timers.indexOf(t), 1); t.fn(); } s.passoMissoesCla(); };
 matar();
+ok(placar()?.mortos === emb.length, 'o contador chega em N/N com a onda vencida');
 let txt = '';
 for (const f of [0.45, 0.7, 0.9, 1]) { junto(f < 1 ? ponto(f) : { x: M.dest.x, z: M.dest.z }); s.passoMissoesCla(); txt += avisos(); matar(); s.passoMissoesCla(); }
 txt += avisos();
