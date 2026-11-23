@@ -63,8 +63,9 @@ static func valida(a, criador: Dictionary) -> Dictionary:
 	for l in criador.get("penteados", {}).values():
 		if d.get("penteado") != null and str(d.penteado) in l:
 			r.penteado = str(d.penteado)
-	# traje da armadura v5 (André 2026-11-23): null = patrulheira, "roupao" = roupão de mago (só muda a moça)
-	r.traje = "roupao" if str(d.get("traje", "")) == "roupao" else null
+	# traje da armadura v5 (André 2026-11-23): null = padrão do corpo (moça patrulheira, rapaz roupão),
+	# "roupao" = roupão de mago, "patrulheiro" = patrulheiro (o rapaz também escolhe, rodada 2)
+	r.traje = str(d.traje) if str(d.get("traje", "")) in ["roupao", "patrulheiro"] else null
 	return r
 
 # Pinta, estica e forma o rosto de um personagem (no = o que main.modelo devolveu)

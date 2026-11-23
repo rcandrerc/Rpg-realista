@@ -1253,8 +1253,9 @@ export function aparenciaValida(a) {
   r.altura = Number.isFinite(a.altura) ? Math.round(Math.min(max, Math.max(min, a.altura)) * 100) / 100 : 1;
   for (const [k, [lo, hi]] of Object.entries(CRIADOR.rosto)) r[k] = Number.isFinite(a[k]) ? Math.round(Math.min(hi, Math.max(lo, a[k])) * 100) / 100 : 1;
   r.penteado = Object.values(CRIADOR.penteados).some((l) => l.includes(a.penteado)) ? a.penteado : null;
-  // traje da armadura (André 2026-11-23): null = patrulheira, 'roupao' = roupão de mago (só muda a moça)
-  r.traje = a.traje === 'roupao' ? 'roupao' : null;
+  // traje da armadura (André 2026-11-23): null = padrão do corpo (moça patrulheira, rapaz roupão),
+  // 'roupao' = roupão de mago, 'patrulheiro' = patrulheiro (o rapaz também escolhe, rodada 2)
+  r.traje = a.traje === 'roupao' || a.traje === 'patrulheiro' ? a.traje : null;
   return r;
 }
 export const PERSONAGEM_PADRAO = 'ruiva';

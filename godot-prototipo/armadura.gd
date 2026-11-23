@@ -82,9 +82,18 @@ const LINHA_V5 := true
 # roupão de mago também no feminino (André 2026-11-23: "acho que o feminino talvez vai colocar como roupão também");
 # André 2026-11-23: na Aparência a moça escolhe "Patrulheira" ou "Roupão" (aparencia.traje); o rapaz é só roupão.
 # roupao_fem = true força o roupão em todas (só as fotos de ferramentas/armadura-v5/fotos.gd)
+# André 2026-11-23 (rodada 2): o rapaz também escolhe, "Patrulheiro" ou "Roupão". Cada corpo guarda o seu padrão
+# (null): moça = patrulheira, rapaz = roupão; traje "patrulheiro" veste o patrulheiro, "roupao" o roupão, em qualquer corpo.
+# patrulheiro_m = true força o patrulheiro no rapaz (só as fotos)
 static var roupao_fem := false
+static var patrulheiro_m := false
 static func _de_roupao(raiz: Node3D, esq: Skeleton3D) -> bool:
-	return _ref(esq).masc or roupao_fem or str(raiz.get_meta("traje", "")) == "roupao"
+	var traje := str(raiz.get_meta("traje", ""))
+	if traje == "roupao" or roupao_fem:
+		return true
+	if traje == "patrulheiro" or patrulheiro_m:
+		return false
+	return _ref(esq).masc
 static func _pecas_v5(k: String, r: int) -> Array:
 	match k:
 		# "@f" = só no corpo feminino (patrulheira); "@m" = só no masculino (roupão de mago, André 2026-11-23:
@@ -1421,6 +1430,9 @@ static func _montar(raiz: Node3D, esq: Skeleton3D, no: Node3D, k: String, r: int
 		if parte == "roupao_saia":
 			_montar_roupao_saia(raiz, esq, no, mat, r)
 			continue
+		if parte == "saia_v5" and _ref(esq).masc:
+			_montar_roupao_saia(raiz, esq, no, mat, r, true) # túnica do patrulheiro no rapaz
+			continue
 		if parte == "corda":
 			_montar_corda(raiz, esq, no, r)
 			continue
@@ -2677,14 +2689,16 @@ static func _malha_tabardo(corpo: MeshInstance3D, raiz: Node3D, R: Ref) -> Array
 # fatia e ângulo) e nunca volta para dentro descendo (o pano cai reto e abre um pouco), com dobras verticais que
 # crescem para baixo. Pesos: em cima, os da pele mais perto; embaixo, a mistura das duas pernas (lado esquerdo segue
 # mais a perna esquerda), com um quarto preso no quadril para o pano não esticar demais na passada.
-static func _montar_roupao_saia(raiz: Node3D, esq: Skeleton3D, no: Node3D, mat: String, r: int) -> void:
+# curta = true: túnica do patrulheiro no rapaz (André 2026-11-23, rodada 2), o mesmo pano só até o meio da coxa
+# (a calça do VRoid masculino vai até o pé, então a túnica da moça, que nasce da saia, não serve nele)
+static func _montar_roupao_saia(raiz: Node3D, esq: Skeleton3D, no: Node3D, mat: String, r: int, curta := false) -> void:
 	var corpo := _fonte(raiz, "Body_00")
 	if corpo == null:
 		return
 	var R := _ref(esq)
-	var chave := "roupao_saia:%d" % corpo.mesh.get_instance_id()
+	var chave := "roupao_saia:%d:%s" % [corpo.mesh.get_instance_id(), curta]
 	if not _malhas.has(chave):
-		_malhas[chave] = _malha_roupao_saia(corpo, raiz, R)
+		_malhas[chave] = _malha_roupao_saia(corpo, raiz, R, curta)
 	var mi := MeshInstance3D.new()
 	mi.mesh = _malhas[chave]
 	mi.skin = corpo.skin
@@ -2693,16 +2707,16 @@ static func _montar_roupao_saia(raiz: Node3D, esq: Skeleton3D, no: Node3D, mat: 
 	mi.skeleton = mi.get_path_to(esq)
 	mi.material_override = _material(mat, r)
 
-static func _malha_roupao_saia(corpo: MeshInstance3D, raiz: Node3D, R: Ref) -> ArrayMesh:
+static func _malha_roupao_saia(corpo: MeshInstance3D, raiz: Node3D, R: Ref, curta := false) -> ArrayMesh:
 	var S := _soldar(corpo)
 	var pts := PackedVector3Array(S.pos)
 	var calca := _fonte(raiz, "Bottoms")
 	if calca and calca.mesh:
 		pts.append_array(_FA(Malhas.vertices(calca.mesh, 0)))
 	var yt := R.y_cintura + 0.03
-	var yb := R.y_pe + 0.045
+	var yb := lerpf(R.y_joelho, R.y_cintura, 0.36) if curta else R.y_pe + 0.045
 	var NA := 36
-	var NY := 22
+	var NY := 9 if curta else 22
 	var zmin := 9.0
 	var zmax := -9.0
 	for p in pts:

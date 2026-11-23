@@ -66,6 +66,7 @@ func _initialize() -> void:
 		rs.append(int(t))
 	var corpos := (OS.get_environment("FOTO_CORPO") if OS.get_environment("FOTO_CORPO") != "" else "ruiva,cabelo_m").split(",")
 	Armadura.roupao_fem = OS.get_environment("FOTO_ROUPAO_FEM") == "1"
+	Armadura.patrulheiro_m = OS.get_environment("FOTO_PATRULHEIRO_M") == "1" # rapaz de patrulheiro
 	var extra := OS.get_environment("FOTO_EXTRA") # "sem" = também sem capuz e sem capa
 	for corpo in corpos:
 		var no: Node3D = m.modelo(corpo)
