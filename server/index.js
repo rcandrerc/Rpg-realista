@@ -662,7 +662,8 @@ class SalaClareira extends Room {
       if (agora - (u.painelLeilao || 0) < 1500) return; u.painelLeilao = agora;
       const tipo = typeof m.tipo === 'string' && TIPOS_LEILAO[m.tipo] ? m.tipo : undefined, ordem = ['barato', 'caro', 'novo'].includes(m.ordem) ? m.ordem : 'barato';
       const app = (a) => { const r = ehEquip(a.item.k) ? RARIDADES[a.item.r | 0] : null; return { ...anuncioParaApp(a), nome: nomeItem(a.item), ...(r ? { rar: r.nome, cor: '#' + r.cor.toString(16).padStart(6, '0') } : {}) }; };
-      return client.send('painelLeilao', { lista: leilao.buscar({ tipo, ordem }, kc).map(app), meus: leilao.meus(kc).map(app), tipos: TIPOS_LEILAO, agora });
+      const texto = typeof m.texto === 'string' ? m.texto.slice(0, 24) : undefined; // parte do nome, sem acento nem maiúscula (semAcento)
+      return client.send('painelLeilao', { lista: leilao.buscar({ tipo, ordem, texto }, kc).map(app), meus: leilao.meus(kc).map(app), tipos: TIPOS_LEILAO, agora });
     }
     if (m.acao !== 'funcao' || typeof m.id !== 'string' || m.id.length > 20) return;
     if (agora - (u.painelOrdem || 0) < PAINEL.ordemMs) return;
