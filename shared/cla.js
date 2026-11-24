@@ -13,7 +13,7 @@
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
 import { LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
-import { guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas } from './progresso.js';
+import { guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
 import { fundoAgua } from './transporte.js';
 import { crescerPlanta } from './simulacao.js'; // só usadas em tempo de jogo (progresso.js também importa daqui)
 
@@ -181,6 +181,21 @@ export const Cla = {
       if (!x?.amiga) return aviso('Esse recruta está fora do mundo agora');
       j.espia = x.amiga.id;
       return;
+    }
+    // "Ver" > menu do recruta (André 2026-11-24: "ter acesso a toda sua interface... não vou poder editar nada, somente
+    // visual... consigo ver o que ele precisa upar"): manda ao líder o progresso inteiro do recruta (status, mochila,
+    // equipamento, profissões, habilidades, Tomos) só para olhar; nada volta. No mundo: o corpo de agora; fora: o save
+    if (m.acao === 'fichaVer') {
+      const r = c.m.find((o) => o.id === m.id); if (!r) return aviso('Esse recruta não está no seu clã');
+      const ctx = this.recrutasNoMundo(j).find((o) => o.AMIGA.id === r.id), b = ctx?.amiga;
+      if (!b && this.lerNpc && !this.npcSalvos?.has(r.id)) this.carregarNpc(r.id, this.lerNpc(r.id));
+      const prog = b?.prog || this.npcSalvos?.get(r.id)?.prog;
+      if (!prog) return aviso(`${r.nome} ainda não tem ficha salva`);
+      let st = b?.st;
+      if (!st) { try { st = calcularStatus(prog, passivasDe(prog)); } catch { st = {}; } }
+      const def = ctx?.AMIGA || defRecruta(r, j.conta, c.n, this.racaDe(j));
+      return this.evento({ t: 'claFicha', para: id, rid: r.id, nome: r.nome, g: r.g, visual: b?.visual || def.visual, aparencia: b?.aparencia || def.aparencia,
+        prog, st: Object.fromEntries(Object.entries(st || {}).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4])), xpProx: xpProximo(prog.nivel | 0 || 1), agora, mundo: !!b });
     }
     if (m.acao === 'dispensar') {
       const i = c.m.findIndex((o) => o.id === m.id); if (i < 0) return;
