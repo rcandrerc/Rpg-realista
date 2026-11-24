@@ -90,3 +90,14 @@ ok(L2.caixa.c1.itens.length === 9 && L2.vendas.c1 === 4 && L2.seq === s.leilao.s
 s.falar('A', { npc: 'v_otavio' });
 e = ev();
 ok(e.some((x) => x.t === 'fala' && x.abrir === 'leilao') && ultimo(e, 'A'), 'falar com o Otávio abre o leilão');
+// a casa some enquanto houver anúncio do item e volta 24 h depois do último (André 2026-11-24)
+{
+  const L3 = new Leilao(), t0 = Date.now(), H = 3600e3, k = L3.casa[0].item.k;
+  ok(L3.buscar({}, 'z').some((a) => a.id === 'casa0'), 'sem anúncio do item, a casa vende');
+  const an = L3.anunciar('bot1', 'Bot', { k, n: 5 }, 100, 24, t0);
+  ok(!L3.buscar({}, 'z').some((a) => a.id === 'casa0') && L3.achar('casa0', 'z') === null, 'com anúncio do item, a casa esconde o dela');
+  L3.comprar(an.id, 'z');
+  ok(L3.casaEscondida(k, t0 + 23 * H), '23 h sem anúncio: ainda escondida');
+  ok(!L3.casaEscondida(k, t0 + 25 * H), '24 h sem anúncio: a casa volta');
+  ok(L3.anunciosDe('minerio_ferro') === 0, 'conta os anúncios do item');
+}
