@@ -24,7 +24,7 @@ import { HISTORIA } from './dados.js';
 import { LOJA, precoLoja, PLANTIO, RECEITA_ESTACAO, CATALISADOR, LUGARES } from './dados.js';
 import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js';
 import { diaDiarias, premioDiaria } from './diarias.js';
-import { ARVORES_PLANTIO, ENCOMENDA, PROFISSOES, MINA, PACK_BOT, PACKS, PACK_REGRAS, GUERRA, PACK_TIME, PALETE } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
+import { ARVORES_PLANTIO, ENCOMENDA, TITULOS, PROFISSOES, MINA, PACK_BOT, PACKS, PACK_REGRAS, GUERRA, PACK_TIME, PALETE } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
 import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera, QUEM_LIBERA, SEM_NEVOA } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
@@ -2966,8 +2966,20 @@ export const Amiga = {
       ouro += precoVenda(it) * (it.n || 1); p.mochila[i] = null; vendeu++;
     }
     if (vendeu) { p.ouro += ouro; this.aplicarStatus(j); }
+    this.tituloAmiga(j);
     this.guardarAmiga();
     return { vendeu, ouro };
+  },
+  // usa o melhor título que ganhou (André 2026-11-24: "quero que eles usem título também"): farmando, o da profissão do
+  // farm; senão o de luta mais forte (dano e crítico valem mais, depois defesa e vida, depois XP e ouro)
+  tituloAmiga(j) {
+    const p = j.prog, tem = (p.tit?.tem || []).filter((id) => TITULOS[id]); if (!tem.length) return;
+    const ia = j.ia, at = ia?.av?.coleta || (ia?.levar && ENCOMENDA.recursos[ia.levar.r]?.coleta), prof = { minerar: 'min', lenha: 'len', pescar: 'pes' }[at];
+    const peso = { dano: 3, critico: 3, defesa: 2, vida: 2, xp: 1, ouro: 1 };
+    const nota = (id) => { const T = TITULOS[id]; if (T.cond?.prof) return T.cond.prof === prof ? 100 + (T.r | 0) : -1; return Object.entries(T.b || {}).reduce((s, [k, v]) => s + (peso[k] || 0.5) * v, 0) * 100 + (T.r | 0) * 0.01; };
+    const melhor = tem.reduce((m, id) => (nota(id) > nota(m) ? id : m), tem[0]);
+    if (nota(melhor) < 0 || p.tit.uso === melhor) return;
+    p.tit.uso = melhor; this.aplicarStatus(j); j.progSujo = true;
   },
   // o dono quer trocar: abre a janela normal de troca. true = abriu; senão a fala do porquê
   abrirTrocaAmiga(dono) {

@@ -4363,6 +4363,9 @@ export const NPC_VIDA = {
 // o jeito dele no comércio. O jeito de luta fica em CEREBRO.jeitos, o de guerra em AMIGA.guerra, o horário em NPC_VIDA.rotina.
 export const LEILAO_BOT = {
   olhadasDia: [2, 3], horas: 24, maxAnuncios: 8, compraMax: 2,
+  // André 2026-11-24 ("equipamento pra caramba na bag dele... cheio de tomo"): guarda para o leilão no máximo isso; o resto
+  // vai para a loja na volta. Tomo: 1 de cada habilidade que ainda pode ler fica; os outros vão ao leilão (pelo menos 1 por olhada)
+  guardaEquip: 8, guardaTomos: 4,
   acima: [0.05, 0.15], escasso: 1, // anuncia de 5% a 15% acima do mercado; com até "escasso" anúncio igual, vai no topo
   caroDemais: 1.3, // não paga mais que 30% acima do preço de mercado
   essencial: 0.1, livre: 1.5, metaMin: 300, metaCara: 3,
