@@ -851,7 +851,11 @@ export const Amiga = {
   modoLivreAmiga() {
     if (!this.AMIGA.recruta || this.AMIGA.clanpc) return true;
     const m = this.claDoRecruta?.(this)?.m?.find((o) => o.id === this.AMIGA.id);
-    return !m?.fn || m.fn.k === 'livre';
+    if (!m?.fn || m.fn.k === 'livre') return true;
+    // acabou o vigor no farm pedido: fica no modo livre até o vigor voltar (André 2026-11-24: "se eu colocar ele para fazer
+    // alguma tarefa e acabar o vigor, ele entra em modo livre... vai fazer o que ele quiser"); o aplicarFuncoes o chama de novo
+    const R = m.fn.k === 'recurso' && ENCOMENDA.recursos[m.fn.r];
+    return !!(R && ['minerar', 'lenha', 'pescar'].includes(R.coleta) && this.amiga && vigorAgora(this.amiga.prog.vigor) < 1);
   },
   // falta alguma peça da casa (que ainda dá para pôr nesta sala) ou um móvel fora do lugar?
   casaFaltaAmiga(j, L) {

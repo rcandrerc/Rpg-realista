@@ -32,3 +32,20 @@ export function listaVenda(m, protegido) {
   }
   return l;
 }
+
+// Ronda 2026-11-24: numa noite o robô morreu 175 vezes na guerra (os Lobos da Geada o pegavam caçando, ele levantava na
+// vila e voltava para o mesmo campo). Campo onde ele morreu MORTES_TROCA vezes nos últimos 10 min fica de fora neste
+// turno e ele escolhe outro, como já faz com o campo sem XP. mortes = [{ t, campo }] (t em ms, campo = nome).
+export const MORTES_TROCA = 3;
+export function campoPerigoso(mortes, campo, agora, janela = 10 * 60e3) {
+  if (!campo) return false;
+  return mortes.filter((m) => m.campo === campo && agora - m.t < janela).length >= MORTES_TROCA;
+}
+
+// Ronda 2026-11-24: o merge do Ato do Clã pôs 4 missões (k1-k4) no meio da lista com o turno do robô andando. O servidor
+// achou a conta pela última entregue (hist.u) e a e3 passou da posição 51 para a 55; o robô, com a lista velha do turno,
+// leu a 55 como e6, contou "missão feita" e foi caçar para o Nv 92. Lista do robô diferente da do servidor: a última
+// entregue (u) não é a que vem antes da missão da vez. H = HISTORIA do robô, h = prog.hist do servidor.
+export function listaMudou(H, h) {
+  return !!h && (h.p | 0) > 0 && typeof h.u === 'string' && H[h.p - 1]?.id !== h.u;
+}
