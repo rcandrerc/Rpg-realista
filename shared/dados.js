@@ -3418,9 +3418,9 @@ export const CLA = {
   // onde ele fica. No mercante ele sobe no convés e não sai do navio (não cai na água no trajeto): bate só no que alcança.
   protegeVeiculo: { raio: 12, coleira: 15, roda: 3 },
   // com o líder fora do jogo (André 2026-11-22: "eqt estou offline ele faz oq eu mandei?"): a sala fecha sem ninguém,
-  // então quando ele volta o servidor conta o tempo fora (até max) e dá o resultado da função: Grind = XP (nivelHora
-  // níveis por hora, nunca passa do nível do líder); Farmar = o que o vigor pagaria (o vigor enche no tempo fora)
-  fora: { minimo: 5 * 60e3, max: 12 * 3600e3, nivelHora: 0.25, peixe: 'tilapia', couroVigor: 3 },
+  // então quando ele volta o servidor conta o tempo fora (até max) e dá o resultado da função: Grind = XP (era nivelHora
+  // níveis por hora; André 2026-11-24, Jeito B: o XP de mobsHora monstros do nível dele por hora; nunca passa do nível do líder); Farmar = o que o vigor pagaria (o vigor enche no tempo fora)
+  fora: { minimo: 5 * 60e3, max: 12 * 3600e3, nivelHora: 0.25, mobsHora: 6, peixe: 'tilapia', couroVigor: 3 },
   // Base do clã (André 2026-11-22: "já pode implantar o lance da base"; shared/base.js). Cada clã tem uma base no mapa:
   // o líder funda onde está. No meio fica o centro (salão do clã, com o Baú do Clã); em volta, os lotes de 10 x 10 m.
   // Sem aluguel: a taxa do clã sai do cofre toda semana (clã bot: do ouro do líder). O nível da base é o nível do clã.

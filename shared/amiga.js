@@ -380,7 +380,7 @@ export const Amiga = {
     if (!this.amiga) return;
     if (this.AMIGA.recruta && !this.AMIGA.clanpc) { // recruta do clã (shared/cla.js): sai junto com o líder (ou dispensado), nunca fica sem ele
       // fica no mundo enquanto tiver jogador online, com ou sem o líder (André 2026-11-23: "todos iguais"); sai com o último
-      if (!forcar && [...this.jogadores.values()].some((o) => !o.bot && o.id !== donoId)) return;
+      if (!forcar && this.genteOnline(donoId)) return; // painel do clã aberto também segura (André 2026-11-24)
       if (!forcar) this.foraDesde = Date.now(); // ficou sem o líder e saiu com o servidor vazio: o tempo fora (shared/cla.js foraRecrutas) conta daqui
       this.amigaFalam?.clear();
       if (this.amiga.ia?.atividade) this.fimAtividadeAmiga(this.amiga, false);
@@ -393,7 +393,7 @@ export const Amiga = {
     { const sai = this.jogadores.get(donoId); if (sai) this.diarioAmiga(sai.conta); } // quem saiu: o diário da conversa de hoje
     if (donoId != null) this.amigaFalam?.delete(donoId);
     // André 2026-11-11: ele vive no mundo enquanto tiver gente na sala (com ou sem chave); só sai com o último jogador
-    const fica = [...this.jogadores.values()].some((o) => !o.bot && o.id !== donoId);
+    const fica = this.genteOnline(donoId); // jogador ou painel do clã aberto (André 2026-11-24)
     if (fica && donoId != null && donoId !== this.amigaDono) return this.avisarVirtuaisAmiga(); // saiu outro: ela fica com quem está
     const prox = [...(this.amigaFalam || [])].find((k) => k !== donoId && this.jogadores.has(k));
     if (prox) { // quem ela acompanhava saiu, mas tem outro amigo com chave aqui: ela fica e passa a acompanhar ele
