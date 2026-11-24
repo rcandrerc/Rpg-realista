@@ -13,6 +13,7 @@ var prog := {}
 var st := {} # números do herói: vidaMax, manaMax, defesa, danoFisico...
 var xp_prox := 16
 var teste := false # conta de teste do André: o menu mostra os botões de mudar o nível (o servidor confere)
+var teste_reset := false # só a conta do André: botão "Resetar líderes" no painel do clã (LIDERES_CLA.reset)
 var teste_missoes := false # só a conta do André: "Voltar 1 missão" e "Zerar missões" na aba Missões (CONTA_TESTE.missoes)
 var mudou := false # o menu redesenha quando muda
 var diarias: Dictionary = {} # missões diárias (André 2026-11-16): o resumo do servidor (shared/diarias.js diariasInfo)
@@ -146,6 +147,7 @@ func do_servidor(ev: Dictionary) -> void:
 	carrinho_no_mundo()
 	teste = bool(ev.get("teste", false))
 	teste_missoes = bool(ev.get("testeMissoes", false))
+	teste_reset = bool(ev.get("testeReset", false))
 	if ev.has("st"):
 		for k in ev.st:
 			st[k] = float(ev.st[k])

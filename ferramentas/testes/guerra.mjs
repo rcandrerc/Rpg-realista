@@ -70,7 +70,7 @@ const f = s.foto().jogadores;
 ok(f.find((o) => o.id === kira.id)?.raca === 'geada' && !f.find((o) => o.id === 'andre')?.raca, 'na foto: raca=geada só para quem não é da Chama');
 // save: a memória vai junto
 ck.guardarAmiga(); ok(s.npcSalvos.get('kira')?.guerra?.[d.conta || d.nome || d.id]?.v === 1, 'o placar vai para o save');
-ok(Object.keys(FALAS_GUERRA).every((k) => ['kira', 'rufo', 'lis', 'gael', 'dario', 'lia'].includes(k)) && RIVAIS.length === 4, '4 da Geada (Kira, Rufo, Lis, Gael); falas de guerra também do Dario e da Lia');
+ok(Object.keys(FALAS_GUERRA).every((k) => ['kira', 'rufo', 'lis', 'gael', 'dario', 'lia'].includes(k)) && RIVAIS.length === 5, '5 da Geada (Kira, Rufo, Lis, Gael, Kael); falas de guerra também do Dario e da Lia');
 
 // André 2026-11-18: "se você for do lado de Geada, aí você consegue dar trade, duelo... tudo igualzinho que eu faço com o Dário"
 {
