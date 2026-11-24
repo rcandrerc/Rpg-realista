@@ -93,6 +93,7 @@ func _process(dt: float) -> bool:
 		return false
 	_medir(m, dt)
 	if t - entrou_t >= AQUECE + dur:
+		_medir_menu(m)
 		_salvar("")
 		quit(0)
 	return false
@@ -154,6 +155,39 @@ func _medir(m, dt: float) -> void:
 		nos_max = max(nos_max, int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)))
 	if int(t) % 60 == 0 and int(t - dt) % 60 != 0:
 		print("CELULAR t=%.0f s trecho=%s fps=%.0f travadas>100ms=%d" % [t - entrou_t, nome, Engine.get_frames_per_second(), n100])
+
+# Abas do menu (frente "personagens mais leves", 2026-11-24: Clã e Mochila travavam 55-60 ms ao abrir no Poco X7):
+# no fim do passeio abre cada aba 5 vezes e anota quanto o abrir() leva ("CELULAR menu ..."). Clã também com um clã
+# de exemplo de 10 recrutas (a conta do robô pode não ter clã). Só mede: nada é mandado ao servidor além do "ver".
+func _medir_menu(m) -> void:
+	if m.menu == null:
+		return
+	var cla_real = m.P.cla
+	var membros := []
+	for i in 10:
+		membros.append({"id": "r%d" % i, "nome": "Recruta %d" % i, "tier": "Soldado", "nv": 20 + i, "sem": 50, "on": 1, "g": 0,
+			"fn": {"k": "livre"}, "c": "r:r%d" % i, "hp": 300, "hpM": 400, "mp": 50, "mpM": 80, "vg": 60, "vgM": 100, "morto": 0, "x": 10, "z": 20, "bid": "b%d" % i})
+	var cla10 := {"n": "Brasas", "cofre": 1200, "semana": 300, "prox": 3600000, "max": 10, "nv": 10, "sobe": null, "perto": true,
+		"eu": {"nome": "Robô", "nv": 40, "hp": 500, "hpM": 600, "mp": 90, "mpM": 100, "vg": 70, "vgM": 100, "morto": 0},
+		"m": membros, "bauCla": {}, "plantas": [], "veic": {"carrinho": 0, "mercante": 0}, "funcoes": [], "recursos": [], "tiers": [],
+		"rec": {}, "log": [], "dep": [], "clas": [], "base": null, "baseNiveis": []}
+	for aba in ["status", "mochila", "habilidades", "criar", "missoes", "diarias", "guilda", "cla", "cla10", "cla_missoes", "titulos"]:
+		if aba == "cla10":
+			m.P.cla = cla10
+		var ds := PackedFloat32Array()
+		for k in 5:
+			var t0 := Time.get_ticks_usec()
+			m.menu.abrir("cla" if aba == "cla10" else aba)
+			ds.append((Time.get_ticks_usec() - t0) / 1000.0)
+			m.menu.fechar()
+		m.menu.abrir("cla" if aba == "cla10" else aba)
+		var t2 := Time.get_ticks_usec()
+		m.menu.atualizar()
+		var at := (Time.get_ticks_usec() - t2) / 1000.0
+		var nos: int = m.menu.conteudo.get_child_count()
+		m.menu.fechar()
+		m.P.cla = cla_real
+		print("CELULAR menu %s abrir mediana %.1f ms maior %.1f ms, atualizar %.1f ms, %d itens" % [aba, _pct(ds, 0.5), _pct(ds, 1.0), at, nos])
 
 func _pct(a: PackedFloat32Array, q: float) -> float:
 	if a.is_empty():
