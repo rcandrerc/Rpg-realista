@@ -19,15 +19,13 @@ a.prog.dia = { h: 12, t: Date.now() }; s.dormir('A'); ok(avisos(ev()).includes('
 a.prog.dia = { h: 22, t: Date.now() };
 a.vida = 1; a.mana = 0; a.prog.vigor = { v: 10, t: Date.now() };
 s.dormir('A'); let e = ev(), d = e.find((x) => x.t === 'dormiu');
-ok(d && d.vigor === CAMA.vigor, 'dormiu e ganhou +40 de vigor ' + avisos(e));
+// André 2026-11-24: a cama não dá mais vigor (CAMA.vigor 0); vida e mana continuam cheias
+ok(d && d.vigor === 0 && d.espera === 0, 'dormiu e não ganhou vigor ' + avisos(e));
 ok(Math.abs(horaDoJogo(a.prog.dia) - DIA.acorda) < 0.01, 'acordou às 6h30');
 ok(a.vida === a.vidaMax && a.mana === a.manaMax, 'vida e mana cheias');
-ok(Math.abs(vigorAgora(a.prog.vigor) - 50) < 0.1, 'vigor 10 -> 50');
-a.prog.dia = { h: 23, t: Date.now() };
-s.dormir('A'); e = ev(); d = e.find((x) => x.t === 'dormiu');
-ok(d && d.vigor === 0 && d.espera > 6 * 3600 - 10, 'dormir de novo antes de 6 h não dá vigor (avisa o tempo)');
+ok(Math.abs(vigorAgora(a.prog.vigor) - 10) < 0.1, 'vigor fica em 10');
 a.prog.vigor = { v: 90, t: Date.now() }; a.prog.camaT = Date.now() - CAMA.cada * 1000 - 1; a.prog.dia = { h: 2, t: Date.now() };
-s.dormir('A'); d = ev().find((x) => x.t === 'dormiu'); ok(d && d.vigor === 10 && vigorAgora(a.prog.vigor) <= VIGOR.max, 'vigor não passa de 100');
+s.dormir('A'); d = ev().find((x) => x.t === 'dormiu'); ok(d && d.vigor === 0 && vigorAgora(a.prog.vigor) <= VIGOR.max, 'mesmo depois de 6 h a cama não dá vigor');
 a.x = 0; a.z = 0; a.prog.dia = { h: 22, t: Date.now() }; s.dormir('A'); ok(avisos(ev()).includes('perto da sua cama'), 'longe da cama não dorme');
 a.x = -23; a.z = 60; a.combateAte = s.tempo + 5; s.dormir('A'); ok(avisos(ev()).includes('monstros'), 'em combate não dorme');
 const q = progressoValido(JSON.parse(JSON.stringify(a.prog)));

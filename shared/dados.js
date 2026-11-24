@@ -868,7 +868,7 @@ Object.assign(CONSTRUCOES, {
   bau_cla: { nome: 'Baú do Clã', tipo: 'movel', aba: 'moveis', w: 1.3, d: 0.8, circulos: [[-0.3, 0, 0.38], [0.3, 0, 0.38]], custo: { lenha: 20, barra_ferro: 2 }, bancada: true, alto: 0.69,
     desc: 'Um por clã, no terreno do líder. Os recrutas guardam aqui o que farmam e colhem. Toque nele para abrir.' },
   cama: { nome: 'Cama', tipo: 'movel', aba: 'moveis', w: 1.9, d: 2.4, circulos: [[0, -0.6, 0.6], [0, 0.6, 0.6]], custo: { lenha: 8, couro: 3 }, bancada: true, alto: 0.6,
-    desc: 'Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias e +40 de vigor (a cada 6 h).' },
+    desc: 'Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias.' },
   tocha: { nome: 'Tocha', tipo: 'movel', aba: 'moveis', w: 0.4, d: 0.4, circulos: [[0, 0, 0.15]], custo: { lenha: 2, carvao: 1 }, bancada: false,
     desc: 'Ilumina em volta. Coloque no chão.' },
   // palete de packs (André 2026-11-23: "como se fosse pallets para botar os packs em cima ... craftar, nem que seja com
@@ -1330,24 +1330,26 @@ export const ITENS = {
   fragmento: { nome: 'Fragmento rúnico', mat: true, pilha: 50, venda: 4, desc: 'Lasca de pedra com uma runa apagada. Os monstros carregam sem saber. O Gaspar, na boca da caverna da montanha, faz passes com ela.' },
   // carne (2026-11-07): cai dos bichos (Puglin, Lobo, Maw) e vai para o fogão
   carne: { nome: 'Carne crua', mat: true, pilha: 50, venda: 2, desc: 'Carne de caça. No fogão vira carne assada ou ensopado.' },
-  // pratos do fogão (Cozinheiro): comer recupera vida/mana e dá vigor (usar.vigor = pontos); sem recarga nem limite por enquanto (André 2026-11-07)
-  carne_assada: { nome: 'Carne assada', pilha: 20, comida: true, usar: { vida: 0.25, vigor: 6 }, venda: 6, desc: 'Recupera 25% da vida e 6 de vigor.' },
-  sopa_legumes: { nome: 'Sopa de legumes', pilha: 20, comida: true, usar: { vida: 0.3, vigor: 10 }, venda: 8, desc: 'Recupera 30% da vida e 10 de vigor.' },
-  pao_milho: { nome: 'Pão de milho', pilha: 20, comida: true, usar: { mana: 0.3, vigor: 8 }, venda: 8, desc: 'Recupera 30% da mana e 8 de vigor.' },
-  ensopado: { nome: 'Ensopado de carne', pilha: 20, comida: true, usar: { vida: 0.5, vigor: 15 }, venda: 14, desc: 'Recupera 50% da vida e 15 de vigor.' },
-  torta_abobora: { nome: 'Torta de abóbora', pilha: 20, comida: true, usar: { vida: 0.4, mana: 0.4, vigor: 20 }, venda: 22, desc: 'Recupera 40% da vida, 40% da mana e 20 de vigor.' },
+  // pratos do fogão (Cozinheiro): comer recupera vida/mana; André 2026-11-24: comida não dá mais vigor (excesso com os recrutas)
+  // e dá buff (buff.b: dano/defesa = fração a mais, critico = chance somada, regenMana = fração a mais; buff.dur em s).
+  // Um buff por vez (comer outro troca), morrer tira. Tabela aprovada pelo André em 2026-11-24; sem recarga nem limite por enquanto (André 2026-11-07)
+  carne_assada: { nome: 'Carne assada', pilha: 20, comida: true, usar: { vida: 0.25 }, venda: 6, buff: { b: { dano: 0.05 }, dur: 600 }, desc: 'Recupera 25% da vida. Buff: +5% de dano por 10 min.' },
+  sopa_legumes: { nome: 'Sopa de legumes', pilha: 20, comida: true, usar: { vida: 0.3 }, venda: 8, buff: { b: { defesa: 0.1 }, dur: 600 }, desc: 'Recupera 30% da vida. Buff: +10% de defesa por 10 min.' },
+  pao_milho: { nome: 'Pão de milho', pilha: 20, comida: true, usar: { mana: 0.3 }, venda: 8, buff: { b: { regenMana: 0.2 }, dur: 600 }, desc: 'Recupera 30% da mana. Buff: +20% na volta da mana por 10 min.' },
+  ensopado: { nome: 'Ensopado de carne', pilha: 20, comida: true, usar: { vida: 0.5 }, venda: 14, buff: { b: { dano: 0.08, defesa: 0.05 }, dur: 900 }, desc: 'Recupera 50% da vida. Buff: +8% de dano e +5% de defesa por 15 min.' },
+  torta_abobora: { nome: 'Torta de abóbora', pilha: 20, comida: true, usar: { vida: 0.4, mana: 0.4 }, venda: 22, buff: { b: { critico: 0.03, dano: 0.05 }, dur: 1200 }, desc: 'Recupera 40% da vida e 40% da mana. Buff: +3% de crítico e +5% de dano por 20 min.' },
   catalisador_memoria: { nome: 'Catalisador da Memória', mat: true, pilha: 1, venda: 1, desc: 'Feito pela Mirela com obsidiana, ervas e cristal de Aurora. Devolve a memória a quem a Névoa comeu. Só serve uma vez.' },
   passe_caverna: { nome: 'Passe da Caverna', mat: true, pilha: 20, venda: 10, desc: 'Abre o selo da Caverna da Montanha uma vez. Use na porta (o botão aparece quando você chega perto).' },
   // pescaria (igual ao Quimera, André 2026-11-08): peixes crus (comer recupera um pouco; preço e vigor do Quimera) e o peixe assado do fogão
-  lambari: { nome: 'Lambari', pilha: 99, comida: true, peixe: true, usar: { vida: 0.06, vigor: 1 }, venda: 3, desc: 'Peixinho de rio e lago. Asse dois no fogão.' },
-  tilapia: { nome: 'Tilápia', pilha: 99, comida: true, peixe: true, usar: { vida: 0.1, vigor: 1 }, venda: 6, desc: 'Peixe de lago e rio. Vale umas moedas.' },
-  traira: { nome: 'Traíra', pilha: 99, comida: true, peixe: true, usar: { vida: 0.14, vigor: 2 }, venda: 11, desc: 'Peixe bravo de água doce. Briga muito na linha!' },
-  sardinha: { nome: 'Sardinha', pilha: 99, comida: true, peixe: true, usar: { vida: 0.06, vigor: 1 }, venda: 3, desc: 'Peixinho do mar.' },
-  robalo: { nome: 'Robalo', pilha: 99, comida: true, peixe: true, usar: { vida: 0.14, vigor: 2 }, venda: 9, desc: 'Peixe do mar. Ótimo pra moqueca.' },
-  garoupa: { nome: 'Garoupa', pilha: 99, comida: true, peixe: true, usar: { vida: 0.2, vigor: 2 }, venda: 18, desc: 'Peixe grande do mar. Vale bem.' },
-  atum: { nome: 'Atum', pilha: 99, comida: true, peixe: true, usar: { vida: 0.28, vigor: 4 }, venda: 30, desc: 'Peixe enorme do mar aberto. Raro!' },
-  dourado: { nome: 'Peixe-Dourado', pilha: 99, comida: true, peixe: true, usar: { vida: 0.6, vigor: 8 }, venda: 160, desc: 'Lendário! Só nas águas em volta da ilha. Vale uma fortuna.' },
-  peixe_assado: { nome: 'Peixe assado', pilha: 20, comida: true, usar: { vida: 0.3, vigor: 4 }, venda: 7, desc: 'Recupera 30% da vida e 4 de vigor.' },
+  lambari: { nome: 'Lambari', pilha: 99, comida: true, peixe: true, usar: { vida: 0.06 }, venda: 3, desc: 'Peixinho de rio e lago. Asse dois no fogão.' },
+  tilapia: { nome: 'Tilápia', pilha: 99, comida: true, peixe: true, usar: { vida: 0.1 }, venda: 6, desc: 'Peixe de lago e rio. Vale umas moedas.' },
+  traira: { nome: 'Traíra', pilha: 99, comida: true, peixe: true, usar: { vida: 0.14 }, venda: 11, desc: 'Peixe bravo de água doce. Briga muito na linha!' },
+  sardinha: { nome: 'Sardinha', pilha: 99, comida: true, peixe: true, usar: { vida: 0.06 }, venda: 3, desc: 'Peixinho do mar.' },
+  robalo: { nome: 'Robalo', pilha: 99, comida: true, peixe: true, usar: { vida: 0.14 }, venda: 9, desc: 'Peixe do mar. Ótimo pra moqueca.' },
+  garoupa: { nome: 'Garoupa', pilha: 99, comida: true, peixe: true, usar: { vida: 0.2 }, venda: 18, desc: 'Peixe grande do mar. Vale bem.' },
+  atum: { nome: 'Atum', pilha: 99, comida: true, peixe: true, usar: { vida: 0.28 }, venda: 30, buff: { b: { critico: 0.02 }, dur: 300 }, desc: 'Peixe enorme do mar aberto. Raro! Buff: +2% de crítico por 5 min.' },
+  dourado: { nome: 'Peixe-Dourado', pilha: 99, comida: true, peixe: true, usar: { vida: 0.6 }, venda: 160, buff: { b: { critico: 0.05, dano: 0.1 }, dur: 900 }, desc: 'Lendário! Só nas águas em volta da ilha. Vale uma fortuna. Buff: +5% de crítico e +10% de dano por 15 min.' },
+  peixe_assado: { nome: 'Peixe assado', pilha: 20, comida: true, usar: { vida: 0.3 }, venda: 7, buff: { b: { critico: 0.02 }, dur: 600 }, desc: 'Recupera 30% da vida. Buff: +2% de crítico por 10 min.' },
 };
 // Recarga das poções (André 2026-11-06): segundos entre uma poção e outra do mesmo tipo (vida e mana contam separado).
 export const POCAO_RECARGA = 10;
@@ -1625,14 +1627,17 @@ export const ESTAMINA = { base: 50, porNivel: 2, porDes: 5, correr: 10, trote: 0
 // nadoFundo/s submerso; boiando parado não gasta, mas na água funda a estamina volta só a voltaAgua do normal. Sem fôlego
 // na água o nado cai para nadoCansado da velocidade (não afoga).
 // Vigor: energia para trabalhar (coletar e criar). Vai de 0 a max e enche sozinho em "enche" segundos (6 h), mesmo com o jogo fechado.
-export const VIGOR = { max: 100, enche: 6 * 3600 };
+// porNivel (André 2026-11-24): cada nível que sobe aumenta o vigor MÁXIMO em porNivel, sem teto (Nv 50 = 149), para
+// jogador e recruta (comida e cama não dão mais vigor). 0 desliga. +10 ele achou demais; escolheu +1.
+// O que enche sozinho continua "max" (100) a cada "enche" s, seja qual for o máximo.
+export const VIGOR = { max: 100, enche: 6 * 3600, porNivel: 1 };
 // Dia e noite (igual ao Quimera, André 2026-11-07): 1 hora do jogo = horaSeg s (o dia inteiro em 12 min). Escurece das
 // 18h30 às 20h30 e clareia das 4h30 às 6h30; é "noite" (dá para dormir) das 19h às 5h. Cada conta tem o seu relógio
 // (prog.dia = { h, t }: hora h no instante t, em ms); conta que nunca dormiu segue o relógio do mundo (comeco às 0 ms).
 export const DIA = { horaSeg: 30, comeco: 8, noite: 19, manha: 5, escurece: [18.5, 20.5], clareia: [4.5, 6.5], acorda: 6.5 };
 // Dormir na cama do seu terreno (Quimera): só à noite e sem monstro a menos de "perigo" m. Pula até as 6h30 com vida,
 // mana e estamina cheias; o vigor ganha "vigor" uma vez a cada "cada" s (se ainda não deu, avisa quando volta).
-export const CAMA = { vigor: 40, cada: 6 * 3600, perigo: 14 };
+export const CAMA = { vigor: 0, cada: 6 * 3600, perigo: 14 }; // vigor: era 40; André 2026-11-24 tirou o vigor da cama (0 = não dá)
 // Profissões (as do Quimera que cabem no mapa de agora; Pescador e Fazendeiro chegam com água e horta).
 // Trabalhar gasta vigor e dá pontos na profissão: Nv = raiz(pontos / 8) + 1, até 20. Rank sobe a cada 2 níveis
 // (19 e 20 têm rank próprio): rank maior gasta menos vigor (-4% por rank), trabalha mais rápido (+3,5%), dá chance
@@ -3521,7 +3526,10 @@ export const CLAS_NPC_ORDENS = { ligado: true, cada: 900, horasDia: 2, abaixo: 5
   // ser realista... nos mobs nível 100 eles praticamente não vão ganhar mais XP"): abatesHora monstros por hora de caça
   // (medido no servidor: 33 a 90 por hora de rotina, uns 2/3 dela caçando), cada um com o XP real do campo dele (xpDoInimigo)
   abatesHora: 60,
-  mat: { lenha: 'lenha', pedra: 'pedra', barra_ferro: 'ferro', barra_aco: 'ferro', minerio_ferro: 'ferro', couro: 'couro', cristal: 'cristal' } };
+  mat: { lenha: 'lenha', pedra: 'pedra', barra_ferro: 'ferro', barra_aco: 'ferro', minerio_ferro: 'ferro', couro: 'couro', cristal: 'cristal' },
+  // André 2026-11-24: o líder exige os recursos dos membros (nunca o ouro), guarda o que os próximos `niveis` níveis do clã
+  // pedem e vende o resto para ter ouro (shared/cla.js exigirRecursosNpc). false volta como era.
+  exigir: { ligado: true, niveis: 2, itens: ['lenha', 'pedra', 'minerio_ferro', 'barra_ferro', 'barra_aco', 'minerio_cobre', 'couro', 'cristal'] } }; // peixe é comida: fica com eles
 // limite (André 2026-11-22: "todos os clãs iguais"): CLA.max membros além do líder, contando os fixos (Kira, Rufo e Lis)
 // André 2026-11-22 (níveis): as vagas são o nível do clã (E.nv), contando os fixos
 export const vagasClaNpc = (C, nv = CLA.max) => Math.max(0, Math.min(CLA.max, nv) - C.membros.filter((id) => id !== C.lider).length);
