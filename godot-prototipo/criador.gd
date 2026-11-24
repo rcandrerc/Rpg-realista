@@ -113,6 +113,13 @@ var trajes_ui := [] # [quadradinho, traje, rótulo]
 # todas as peças vestidas aparecem, seja qual for a do item (aparencia.raridade, Armadura.visual). Junto com o Traje
 # acima, qualquer set (do irmão ou da thread de arte) em qualquer raridade. Só na Aparência (na conta nova não há peças)
 var raridade_ui := [] # [botão, raridade ou null]
+# André 2026-11-24: "pode editar as duas cores, só que em abas separadas". A cor da Roupa e a da Calça e saia
+# (Aparencia.roupa / .calca) ficam cada uma na sua aba, uma paleta por vez. Valem nos 4 trajes: patrulheiro e roupão
+# do irmão (Armadura.tingir_v5) e Patrulheiro 2 / Roupão 2 (Equip2.tingir).
+const ABAS_COR := ["roupa", "calca"]
+var aba_cor := "roupa"
+var abas_cor_ui := {} # parte -> botão da aba
+var blocos_aba := {} # parte -> [cabeçalho, paleta]
 var linha_rar: Control
 var _boneco_de := "" # corpo que está no palco agora
 static var _rostos := {} # corpo -> ImageTexture do rosto (feito uma vez por partida)
@@ -462,9 +469,14 @@ func montar_painel() -> Control:
 	linha_rar = vr
 	lista.add_child(vr)
 	for k in Aparencia.CORES:
+		if k == ABAS_COR[0]:
+			lista.add_child(montar_abas_cor())
 		var cab := HBoxContainer.new()
 		var rt := Menu.rotulo(NOMES[k], 15, OURO_CLARO)
 		rt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if k in ABAS_COR:
+			rt.text = Idioma.frase("Cor do traje" if k == ABAS_COR[0] else "Cor da calça e da saia") # o nome já está na aba
+			rt.add_theme_font_size_override("font_size", 13)
 		cab.add_child(rt)
 		# volta para a cor da Ruiva (fica aceso quando é a original)
 		var orig := Button.new()
@@ -504,6 +516,9 @@ func montar_painel() -> Control:
 			cores_ui[k].append([b, cor])
 			fl.add_child(b)
 		lista.add_child(fl)
+		if k in ABAS_COR:
+			blocos_aba[k] = [cab, fl]
+	mostrar_aba_cor(aba_cor)
 	lista.add_child(Menu.rotulo("Altura", 15, OURO_CLARO))
 	lista.add_child(faixa("altura", float(criador.altura[0]), float(criador.altura[1]), "Baixa", "Alta"))
 	lista.add_child(Menu.rotulo("Rosto", 15, OURO_CLARO))
@@ -533,6 +548,29 @@ func montar_painel() -> Control:
 	baixo.add_child(b_pronto)
 	col.add_child(baixo)
 	return p
+
+func montar_abas_cor() -> Control:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	for k in ABAS_COR:
+		var b := botao(NOMES[k], k == aba_cor, func():
+			if _arrastou:
+				return
+			mostrar_aba_cor(k))
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 38)
+		b.add_theme_font_size_override("font_size", 15)
+		abas_cor_ui[k] = b
+		h.add_child(b)
+	return h
+
+func mostrar_aba_cor(k: String) -> void:
+	aba_cor = k
+	for kk in blocos_aba:
+		for no in blocos_aba[kk]:
+			no.visible = kk == k
+	for kk in abas_cor_ui:
+		Menu.estilo_botao(abas_cor_ui[kk], kk == k)
 
 # linha inteira é um botão: toca para marcar ou desmarcar "Ver equipado"
 func linha_ver_equip() -> Control:
