@@ -3532,7 +3532,13 @@ export const CLAS_NPC_ORDENS = { ligado: true, cada: 900, horasDia: 2, abaixo: 5
   exigir: { ligado: true, niveis: 2, itens: ['lenha', 'pedra', 'minerio_ferro', 'barra_ferro', 'barra_aco', 'minerio_cobre', 'couro', 'cristal'] } }; // peixe é comida: fica com eles
 // limite (André 2026-11-22: "todos os clãs iguais"): CLA.max membros além do líder, contando os fixos (Kira, Rufo e Lis)
 // André 2026-11-22 (níveis): as vagas são o nível do clã (E.nv), contando os fixos
-export const vagasClaNpc = (C, nv = CLA.max) => Math.max(0, Math.min(CLA.max, nv) - C.membros.filter((id) => id !== C.lider).length);
+// André 2026-11-24 ("não quero um clã nível 1 com 3 membros fixos... quando eles estão nível 1, eles não aparecem; quando for
+// pro nível 2 e 3..."; depois: "os bots seguem a mesma lógica do jogador comum... quando ele recrutar, ele pode escolher qual
+// recruta ele quer. E é isso"): depois do "Resetar partida" os fixos ficam fora do clã (E.fora), sem corpo no mundo, e o
+// líder bot monta o clã só recrutando, como um jogador (3 candidatos, escolhe um: passoClasNpc).
+// fixosNpc: os fixos que estão no clã agora (sem E: todos, como antes)
+export const fixosNpc = (C, E) => C.membros.filter((id) => id !== C.lider && !E?.fora?.includes(id));
+export const vagasClaNpc = (C, nv = CLA.max, E = null) => Math.max(0, Math.min(CLA.max, nv) - fixosNpc(C, E).length);
 // a alma que um clã da raça r precisa para subir de nível (a da outra raça)
 export const almaDe = (raca) => (raca === 'geada' ? 'alma_chama' : 'alma_geada');
 export const CLAS_NPC = [

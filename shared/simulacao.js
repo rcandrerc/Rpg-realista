@@ -1481,11 +1481,11 @@ export class Simulacao {
       const ctx = this.amigosIa.find((x) => x.AMIGA.id === lid); if (!ctx) continue;
       nomes.push(ctx.AMIGA.nome);
       const a = ctx.amiga;
-      if (a) { zerar(a.prog); a.progSujo = true; this.aplicarStatus(a, true); this.evento({ t: 'nivel', id: a.id, nivel: 1 }); ctx.guardarAmiga?.(); continue; }
+      if (a) { zerar(a.prog); a.zerado = 1; a.progSujo = true; this.aplicarStatus(a, true); this.evento({ t: 'nivel', id: a.id, nivel: 1 }); ctx.guardarAmiga?.(); continue; }
       const salvo = this.npcSalvos?.get(lid) || (this.lerNpc ? this.lerNpc(lid) : null);
       // sem save nenhum: guarda um mínimo para ele não entrar no nível inicial da lista (nivelInicial)
       const novo = salvo && typeof salvo === 'object' && salvo.prog ? salvo : { ...(salvo || {}), prog: progressoValido(null) };
-      zerar(novo.prog); novo.t = Date.now();
+      zerar(novo.prog); novo.zerado = 1; novo.t = Date.now(); // zerado: a Geada (rival) não volta ao nivelInicial ao entrar
       (this.npcSalvos ||= new Map()).set(lid, novo); (this.npcsMudados ||= new Set()).add(lid);
     }
     this.evento({ t: 'aviso', para: id, texto: `Reset: você e ${nomes.join(', ')} voltaram ao nível 1` });
@@ -3227,6 +3227,17 @@ export class Simulacao {
     const l = [...(this.npcsMudados || [])].map((id) => ({ id, dados: this.npcSalvos.get(id) })).filter((o) => o.dados);
     this.npcsMudados?.clear();
     return l;
+  }
+  // saves de recrutas que saíram de vez (Resetar partida): o servidor apaga 'npc:' + id da tabela mundo
+  npcsParaApagar() { const l = [...(this.npcsApagados || [])]; this.npcsApagados?.clear(); return l; }
+  // os recrutas que ainda existem neste mundo (clãs dos jogadores online e dos bots, corpos no mundo): o save deles fica
+  recrutasVivos() {
+    const v = new Set();
+    for (const j of this.jogadores.values()) for (const m of j.prog?.cla?.m || []) v.add(m.id);
+    for (const c of this.clasFora?.values() || []) for (const m of c.m || []) v.add(m.id);
+    for (const E of Object.values(this.clasNpc || {})) for (const m of E.m || []) v.add(m.id);
+    for (const x of this.amigosIa) if (x.AMIGA.recruta) v.add(x.AMIGA.id);
+    return v;
   }
   carregarNpc(id, dados) { if (dados && typeof dados === 'object') (this.npcSalvos ||= new Map()).set(id, dados); }
   lotesParaSalvar() {

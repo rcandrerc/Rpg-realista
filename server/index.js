@@ -306,7 +306,10 @@ class SalaClareira extends Room {
     this.ouvir('horta', (c, m) => { if (m && typeof m.acao === 'string' && typeof m.c === 'string' && m.c.length < 12) this.sim.horta(c.sessionId, { acao: m.acao, c: m.c, s: typeof m.s === 'string' ? m.s.slice(0, 16) : '' }); });
     this.ouvir('atributo', (c, k) => { if (typeof k === 'string') this.sim.distribuirAtributo(c.sessionId, k); });
     this.ouvir('atributos', (c, m) => this.sim.distribuirAtributos(c.sessionId, m)); // + e − no menu, aplica no Confirmar
-    this.ouvir('resetPartida', (c) => this.sim.resetPartida(c.sessionId)); // só a conta do André (o sim confere j.testador; LIDERES_CLA.reset)
+    this.ouvir('resetPartida', (c) => { // e grava na hora: os saves dos recrutas que saíram e os órfãos somem do banco
+      if (!this.sim.resetPartida(c.sessionId) || !contas) return;
+      try { this.salvarProgressos(); const n = contas.limparRecrutasOrfaos(new Set([...salas].flatMap((o) => [...o.sim.recrutasVivos()]))); console.log(`Resetar partida: ${n} saves de recruta apagados`); } catch (e) { console.error('Resetar partida: limpar falhou', e); }
+    }); // só a conta do André (o sim confere j.testador; LIDERES_CLA.reset)
     this.ouvir('resetLideres', (c) => this.sim.resetLideres(c.sessionId)); // só a conta do André (o sim confere j.testador; LIDERES_CLA.reset)
     this.ouvir('missaoTeste', (c, m) => this.sim.missaoTeste(c.sessionId, m?.acao)); // só a conta do André (o sim confere; CONTA_TESTE.missoes)
     this.ouvir('nivelTeste', (c, m) => this.sim.nivelTeste(c.sessionId, m?.nv, m?.zerar === true)); // só a conta de teste do André (o sim confere)
@@ -384,6 +387,7 @@ class SalaClareira extends Room {
     }
     for (const l of this.sim.lotesParaSalvar()) contas.salvarLote(l); // lotes que mudaram (compra, peça, horta)
     for (const n of this.sim.npcsParaSalvar()) contas.gravarMundo('npc:' + n.id, n.dados); // aventureiros sem casa
+    for (const id of this.sim.npcsParaApagar()) contas.apagarMundo('npc:' + id); // recrutas que saíram de vez (Resetar partida)
     { const v = this.sim.veiosParaSalvar(); if (v) contas.gravarMundo('veios', v); } // árvores cortadas e veios batidos (só quando mudou)
     { const v = this.sim.plantioParaSalvar(); if (v) contas.gravarMundo('plantadas', v); } // árvores plantadas (só quando mudou)
     { const v = this.sim.packsBaseParaSalvar(); if (v) contas.gravarMundo('packs_base', v); } // packs na terra do clã (só quando mudou)
