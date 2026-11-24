@@ -76,3 +76,10 @@ ok(L.pecas.length > p0, `no modo Livre volta a construir a casa (${p0} -> ${L.pe
   j.prog.vigor = { v: 100, t: Date.now() };
   ok(!x.modoLivreAmiga(), 'vigor de volta: obedece de novo');
 }
+// a ferramenta não vai para a loja na volta (André 2026-11-24: "tô achando que ele tá vendendo a picareta")
+{
+  const pk = x.AMIGA.atividades.minerar.ferramenta, mk = x.AMIGA.atividades.lenha.ferramenta;
+  for (const k of [pk, mk]) if (!j.prog.mochila.some((o) => o?.k === k)) j.prog.mochila[j.prog.mochila.findIndex((o) => !o)] = { k, n: 1 };
+  x.arrumarMochilaAmiga(j);
+  ok(j.prog.mochila.some((o) => o?.k === pk) && j.prog.mochila.some((o) => o?.k === mk), 'arrumar a mochila na vila não vende picareta nem machado');
+}
