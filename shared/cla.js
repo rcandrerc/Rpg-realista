@@ -11,9 +11,9 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { CLA, ENCOMENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
+import { LIDERES_CLA, CLA, ENCOMENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
-import { guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tirar, organizar } from './progresso.js';
+import { guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas } from './progresso.js';
 import { fundoAgua } from './transporte.js';
 import { crescerPlanta } from './simulacao.js'; // só usadas em tempo de jogo (progresso.js também importa daqui)
 
@@ -747,6 +747,60 @@ export const Cla = {
     }
     x.guardarAmiga?.();
     return txt;
+  },
+  // Botão "Resetar partida" (André 2026-11-24: "é pra começar tudo do zero, clã volta pro nível 1 sem recruta nenhum, é
+  // como se fosse um reset da partida"; no cartão: "Zera tudo"). Só a conta do André (j.testador, LIDERES_CLA.reset). Ele e
+  // os líderes (Dario, Gael, Kael) voltam a um personagem novo (nível 1, ouro e itens do começo); os clãs dele e dos bots
+  // voltam ao nível 1, sem recruta nenhum, com o cofre e o Baú do Clã vazios; as bases e os lotes deles somem (o líder bot
+  // funda de novo, passoBasesNpc). As missões ficam (o reset delas é outro botão: missaoTeste 'zerar'). Os membros fixos
+  // (Kira, Rufo, Lis, Cecília, Lia) e os outros jogadores não mudam.
+  resetPartida(id) {
+    const j = this.jogadores.get(id); if (!j || j.bot || !j.testador || !LIDERES_CLA.reset) return false;
+    const novoProg = (p, fica) => { // troca por dentro (o mesmo objeto): quem guarda j.prog continua certo
+      const n = progressoValido(null), guarda = Object.fromEntries(fica.filter((k) => p[k] !== undefined).map((k) => [k, p[k]]));
+      for (const k of Object.keys(p)) delete p[k];
+      Object.assign(p, n, guarda);
+    };
+    const agora = Date.now(), bases = new Set(), nomes = [];
+    // você: recrutas fora, clã no 1, personagem novo
+    const c = j.prog.cla;
+    if (c) for (const r of c.m) this.tirarRecruta(r.id, j);
+    this.clasFora?.delete(j.conta);
+    novoProg(j.prog, ['hist', 'cla', 'devPag', 'rgDado']);
+    if (c) { c.m = []; c.nv = 1; c.cofre = 0; c.sem = agora + CLA.semana; delete c.saiu; this.logCla(c, 'Partida resetada: clã de volta ao nível 1'); }
+    const kj = this.chaveBase?.(j); if (kj) bases.add(kj);
+    // os clãs bot: sem recrutas, nível 1, baú vazio, primeira contratação como num servidor novo
+    for (const C of CLAS_NPC) {
+      const E = this.clasNpc?.[C.id]; bases.add('n' + C.id); if (!E) continue;
+      for (const m of E.m) this.tirarRecruta(m.id, j);
+      E.m = []; E.nv = 1; delete E.bau; delete E.ordensT; delete E.visto; delete E.foraFeito;
+      E.prox = agora + CLAS_NPC_REGRAS.primeiro * 3600e3; E.sem = agora + CLA.semana;
+    }
+    // os líderes: personagem novo (a história deles fica), com a roupa do começo
+    for (const lid of LIDERES_CLA.ids()) {
+      const ctx = this.amigosIa.find((x) => x.AMIGA.id === lid); if (!ctx) continue;
+      nomes.push(ctx.AMIGA.nome);
+      const A = ctx.AMIGA, a = ctx.amiga;
+      const vestir = (p) => { for (const [l, it] of Object.entries(A.equip || {})) p.equip[l] = { k: it.k, r: A.justa?.raridade ?? 0 }; if (A.mochila?.paginas) liberarPaginas(p, A.mochila.paginas); };
+      if (a) { novoProg(a.prog, ['hist']); vestir(a.prog); a.progSujo = true; this.aplicarStatus(a, true); this.evento({ t: 'nivel', id: a.id, nivel: 1 }); ctx.guardarAmiga?.(); continue; }
+      const salvo = this.npcSalvos?.get(lid) || (this.lerNpc ? this.lerNpc(lid) : null) || {};
+      const prog = progressoValido(null); if (salvo.prog?.hist) prog.hist = salvo.prog.hist; vestir(prog);
+      (this.npcSalvos ||= new Map()).set(lid, { ...salvo, prog, t: agora }); (this.npcsMudados ||= new Set()).add(lid);
+    }
+    // as bases (sua e dos clãs bot) e os seus terrenos somem
+    for (const [lid, L] of [...(this.lotes || new Map())]) {
+      if (!(bases.has(L.def?.baseK) || L.dono === j.conta)) continue;
+      if (/^[ar]:/.test(String(L.dono))) { this.soltarLoteBot?.(L); continue; }
+      this.lotes.delete(lid); this.lotesMudados?.delete(lid); this.lotesSoltos?.add(lid);
+      this.evento({ t: 'lote', lote: lid, dono: null });
+    }
+    if (this.basesCla) for (const k of bases) { delete this.basesCla[k]; if (this.basesDesenho) delete this.basesDesenho[k]; }
+    this.evento({ t: 'meuLote', para: j.id, lote: '' });
+    this.refazerSolidosLotes?.(); this.avisarBases?.();
+    this.salvarClasNpc();
+    j.progSujo = true; this.aplicarStatus(j, true); this.evento({ t: 'nivel', id: j.id, nivel: 1 }); this.avisarProg(j);
+    this.evento({ t: 'aviso', para: id, texto: `Partida resetada: você e ${nomes.join(', ')} no nível 1, clãs no nível 1 sem recrutas` });
+    return true;
   },
   // tira o corpo de um recruta (dispensado ou foi embora)
   tirarRecruta(rid, j) {
