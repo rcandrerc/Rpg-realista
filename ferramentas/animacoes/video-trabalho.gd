@@ -26,6 +26,17 @@ func _initialize() -> void:
 	if OS.get_environment("HUD") != "1": # sem a interface: só o corpo
 		for c in m.find_children("*", "CanvasLayer", true, false):
 			c.visible = false
+	# André 2026-11-24 ("todos os vídeos ficam com umas explosões"): o aquecer.gd põe todos os efeitos (skills,
+	# meteoro, números) na frente da câmera para montar na placa atrás da capa; o banco esconde a capa, então eles
+	# apareciam no vídeo. Espera o aquecimento acabar (e os efeitos sumirem) antes de gravar qualquer coisa.
+	var espera := 0
+	while m.get("aquecer") != null and m.aquecer != null and not m.aquecer.feito and espera < 30 * 20:
+		await process_frame
+		espera += 1
+		if OS.get_environment("HUD") != "1": # a interface que aparece no meio da espera também fica escondida
+			for c in m.find_children("*", "CanvasLayer", true, false):
+				c.visible = false
+	await esperar(75)
 	if OS.get_environment("ROUPA") != "": # ex.: peitoral1,calca1,botas1 (sem conta logada o corpo vem sem roupa)
 		Armadura.vestir(m.heroi, Armadura.de_texto(OS.get_environment("ROUPA")))
 		await esperar(5)
