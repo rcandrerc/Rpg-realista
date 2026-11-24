@@ -62,15 +62,16 @@ const cec = s.amigosIa.find((x) => x.AMIGA.id === 'cecilia'), geada = s.amigosIa
 const temDario = () => [...s.jogadores.values()].some((o) => o.conta === dario.AMIGA.conta);
 chats.length = 0; s.iaAcabouAte = Date.now() + 3600e3;
 // a saída é sorteada (3-28 s) e espera o fim da briga (até +40 s): espera os dois saírem, sem depender da sorte
-for (let i = 0; i < 120 && (dario.amiga || cec.amiga); i++) esp(1);
-ok(!dario.amiga && !cec.amiga && !temDario(), 'acabou Gemini e Groq: Cecília e Dario saem do jogo');
-const tchau = chats.filter((m) => m.c === dario.AMIGA.conta).at(-1)?.texto;
-ok([...DESCULPAS_SAIR.m.normal, ...DESCULPAS_SAIR.m.cheio].includes(tchau), `Dario se despede com uma desculpa: "${tchau}"`);
-ok(!j.time || !j.time.membros.some((k) => k === d.id), 'e sai do time');
+// André 2026-11-23 ("esses nunca somem"): o Dario é líder de clã (LIDERES_CLA) e fica; a Cecília sai com a desculpa
+for (let i = 0; i < 120 && cec.amiga; i++) esp(1);
+ok(!cec.amiga && dario.amiga && temDario(), 'acabou Gemini e Groq: a Cecília sai do jogo; o Dario (líder) fica');
+const tchau = chats.filter((m) => m.c === cec.AMIGA.conta).at(-1)?.texto;
+ok([...DESCULPAS_SAIR.f.normal, ...DESCULPAS_SAIR.f.cheio].includes(tchau), `Cecília se despede com uma desculpa: "${tchau}"`);
+ok(!chats.some((m) => m.c === dario.AMIGA.conta && [...DESCULPAS_SAIR.m.normal, ...DESCULPAS_SAIR.m.cheio].includes(m.texto)), 'o Dario não se despede');
 ok(geada.every((x) => x.amiga), 'a Geada não tem IA e continua no mundo');
-s.amigosIa.find((x) => x.AMIGA.id === 'dario').amigaEntrar('irmao', true); ok(!dario.amiga, 'quem entra enquanto a IA está fora não traz eles de volta');
+cec.amigaEntrar('irmao', true); ok(!cec.amiga, 'quem entra enquanto a IA está fora não traz a Cecília de volta');
 s.iaAcabouAte = 0;
-// volta na conferência seguinte: até 30 s depois de sair (amigaFora.chk), e a saída pode atrasar até 40 s se ele estava lutando
-for (let i = 0; i < 45 && !(dario.amiga && cec.amiga); i++) esp(1);
-ok(dario.amiga && cec.amiga && temDario(), 'a IA voltou: os dois logam de novo');
-ok(dario.amigaDono === 'andre', 'e voltam a acompanhar quem estava com eles');
+// volta na conferência seguinte: até 30 s depois de sair (amigaFora.chk), e a saída pode atrasar até 40 s se ela estava lutando
+for (let i = 0; i < 45 && !cec.amiga; i++) esp(1);
+ok(dario.amiga && cec.amiga && temDario(), 'a IA voltou: a Cecília loga de novo');
+ok(dario.amigaDono === 'andre', 'o Dario continua acompanhando quem estava com ele');

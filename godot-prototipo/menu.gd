@@ -1907,6 +1907,9 @@ func montar_cla() -> void:
 	if C.is_empty():
 		conteudo.add_child(rotulo("Carregando o clã...", 14, APAGADO))
 		return
+	if m.P.teste_reset: # só a conta do André (2026-11-23): ele e os líderes dos clãs (Dario, Gael, Kael) voltam ao nível 1
+		var br := botao("Resetar líderes (nível 1)", func(): confirmar("Resetar líderes", "Você e os líderes dos clãs (Dario, Gael e Kael) voltam ao nível 1. Itens, ouro, clã e recrutas ficam. Não tem volta.", "Resetar", func(): m.rede("resetLideres", {}), true), 14)
+		conteudo.add_child(br)
 	if int(C.get("sem", 0)) == 1:
 		conteudo.add_child(rotulo("Funde o seu clã", 20, OURO_CLARO))
 		conteudo.add_child(rotulo("Você será o líder. Depois, fale com o Recrutador (Clareira ou Juncal) para contratar soldados.", 14, TEXTO))

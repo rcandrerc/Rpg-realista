@@ -14,7 +14,7 @@
 //   A amizade é de cada um (j.amizades[conta]); j.amizade é a de quem ela acompanha agora.
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, NPC_SOLDADO, CLA, CLAS_NPC_ORDENS } from './dados.js';
+import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, NPC_SOLDADO, CLA, CLAS_NPC_ORDENS, LIDERES_CLA } from './dados.js';
 import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, NPC_CASA_BASE, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO, VEICULOS } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota, terraId } from './rota.js';
@@ -2587,7 +2587,8 @@ export const Amiga = {
   // O servidor marca this.iaAcabouAte (server/ia-amiga.js iaVoltaEm): acabaram o Gemini e o Groq. Os da Chama (Cecília e
   // Dario) dão uma desculpa (AMIGA.desculpas; de saco cheio quando a amizade está baixa ou ela vem de recusa) e saem do jogo
   // como um jogador: somem do mapa e da sala, ficam "fora" na lista. A Geada não tem IA e não sai.
-  iaForaAmiga() { return IA_CONVERSA.ligada && IA_CONVERSA.quem.includes(this.AMIGA.id) && (this.iaAcabouAte || 0) > Date.now(); },
+  // líder de clã (Dario, Gael, Kael) nunca sai do jogo (André 2026-11-23: "esses nunca somem"; LIDERES_CLA)
+  iaForaAmiga() { return IA_CONVERSA.ligada && IA_CONVERSA.quem.includes(this.AMIGA.id) && !(LIDERES_CLA.ligado && LIDERES_CLA.ids().includes(this.AMIGA.id)) && (this.iaAcabouAte || 0) > Date.now(); },
   passoLogAmiga() {
     const a = this.amiga;
     if (!a) { // fora: volta quando a IA volta e tem alguém de verdade na sala

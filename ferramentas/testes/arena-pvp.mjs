@@ -29,7 +29,7 @@ ok(!!M && a.pvp?.M === M, 'depois da espera a partida começa');
 const vidaAntes = a.pvp.de.vida; a.pvp.de.vida = Math.round(a.vidaMax * 0.6);
 const chama = M.ids.filter((id) => s.jogadores.get(id).pvp.time === 'chama'), geada = M.ids.filter((id) => s.jogadores.get(id).pvp.time === 'geada');
 ok(chama.length === 4 && geada.length === 4, `NPCs completam 4x4 (${chama.length}x${geada.length})`);
-ok(geada.every((id) => ['kira', 'rufo', 'lis', 'gael'].includes(s.amigoIaDe(s.jogadores.get(id))?.AMIGA.id)), 'Kira, Rufo, Lis e Gael na Geada');
+ok(geada.every((id) => ['kira', 'rufo', 'lis', 'gael', 'kael'].includes(s.amigoIaDe(s.jogadores.get(id))?.AMIGA.id)), 'Geada sorteada entre Kira, Rufo, Lis, Gael e Kael');
 ok(Math.hypot(a.x - A.x, a.z - A.z) < A.r && a.vida === a.vidaMax, 'foi para a arena com a vida cheia');
 ok(evs((e) => e.t === 'corrigir' && e.para === 'a').length > 0, 'o celular recebe o lugar novo');
 const k = s.jogadores.get(geada[0]);
@@ -90,6 +90,7 @@ ok(progressoValido(JSON.parse(JSON.stringify(a.prog))).pvp?.pts === a.prog.pvp.p
 // sair da fila
 s.arenaPvp('a', { acao: 'fila' }); s.arenaPvp('a', { acao: 'sair' }); ok(!s.filaPvp.length, 'sai da fila');
 // sair do jogo no meio da partida
+a.combateAte = 0; // um bot da Geada no mundo pode ter batido nele depois da volta (5 da Geada desde 2026-11-23)
 s.arenaPvp('a', { acao: 'fila' }); correr(PVP.espera + 0.3);
 ok(a.pvp, 'segunda partida começou');
 s.removerJogador('a'); ok(!a.pvp && Math.hypot(a.x - antes.x, a.z - antes.z) < 0.5, 'saiu do jogo na arena: volta para o lugar de antes');
