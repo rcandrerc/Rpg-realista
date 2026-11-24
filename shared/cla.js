@@ -11,7 +11,7 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
+import { LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS, DESPENSA, BASES_FRIAS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
 import { profNivel, guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
 import { fundoAgua } from './transporte.js';
@@ -64,8 +64,31 @@ export function claValido(c) {
   for (const L of Array.isArray(c.log) ? c.log.slice(-CLA.log) : []) if (L && typeof L.txt === 'string') out.log.push({ t: int(L.t, 0, 9e15, 0), txt: L.txt.slice(0, 80), v: int(L.v, -1e9, 1e9, 0) });
   // nível do clã (vagas): clã de antes começa no nível que cabe quem ele já tem (nada some)
   out.nv = Math.max(int(c.nv, 1, CLA.max, 1), Math.min(CLA.max, out.m.length), 1);
+  const dsp = despensaValida(c.dsp); if (dsp) out.dsp = dsp; // Despensa e lenha (DESPENSA)
   return out;
 }
+// o estado da despensa salvo no clã: t: ms da última hora contada; d: rações devendo (ou de sobra, negativo); fome: ms
+// em que a comida acabou; l: ms da próxima lenha da semana; lf: lenha devendo; frio: ms em que a lenha faltou
+export function despensaValida(d) {
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
+  const ms = (v) => (Number.isFinite(+v) && +v > 0 && +v < 9e15 ? Math.round(+v) : 0);
+  const o = { t: ms(d.t), d: Number.isFinite(+d.d) ? Math.max(-50, Math.min(9999, +d.d)) : 0 };
+  if (ms(d.fome)) o.fome = ms(d.fome);
+  if (ms(d.l)) o.l = ms(d.l);
+  if (Number.isFinite(+d.lf) && +d.lf > 0) o.lf = Math.min(9999, Math.round(+d.lf));
+  if (ms(d.frio)) o.frio = ms(d.frio);
+  return o;
+}
+// rações por dia de um clã com n moradores (DESPENSA.porDia, +extra.por cada um depois do extra.de)
+export const racoesDia = (n) => n * DESPENSA.porDia * (1 + Math.max(0, n - DESPENSA.extra.de) * DESPENSA.extra.por);
+// o que a despensa (o Baú do Clã) tem de comida: { racoes, tipos, k: { item: n } }
+export function estoqueDespensa(itens) {
+  const k = {}; let racoes = 0;
+  for (const o of itens || []) { const r = o && !o.h && DESPENSA.racao[o.k]; if (!r) continue; k[o.k] = (k[o.k] | 0) + (o.n || 1); racoes += r * (o.n || 1); }
+  return { racoes, tipos: Object.keys(k).length, k };
+}
+// lenha da semana da base no nível nv
+export const lenhaSemana = (nv) => DESPENSA.lenha[Math.max(0, Math.min(DESPENSA.lenha.length - 1, nv | 0))] | 0;
 function membroValido(m) {
   const P = CLA.penteados;
   const g = m.g === 'm' ? 'm' : 'f', ap = m.ap && typeof m.ap === 'object' ? m.ap : {};
@@ -147,6 +170,7 @@ export const Cla = {
       funcoes: CLA.funcoes, recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })),
       tiers: CLA.tiers.map((T) => { const n2 = nivelTier(T, nv); return { id: T.id, nome: T.nome, nv: n2, preco: precoTier(T, n2), sem: semanaDe(T, n2), claNv: T.claNv || 1 }; }),
       ...(c.disp?.some((d) => d.ate > Date.now()) ? { disp: c.disp.filter((d) => d.ate > Date.now()).map((d) => ({ id: d.r.id, nome: d.r.nome, nv: d.r.nv, taxa: taxaVolta(d.r) })) } : {}), // chamar de volta (10 min)
+      dsp: this.despensaInfo(c.dsp, this.bauDoCla({ conta: j.conta })?.itens || null, 1 + c.m.length, Bs), // Despensa e lenha (DESPENSA)
       rec, log: c.log.slice(-10).reverse(), dep: CLA.deposito, clas: this.clasNpcInfo(j), base: this.baseInfo?.(j) || null,
       baseNiveis: CLA.base.niveis.slice(1).map((N, i) => ({ nv: i + 1, centro: N.centro, lotes: N.lotes, raio: N.raio, taxa: N.taxa, tem: N.tem })) };
   },
@@ -688,6 +712,19 @@ export const Cla = {
     // a taxa da base (shared/base.js): sai do cofre a cada semana vencida
     const B = this.baseDe?.(j);
     if (B && this.pagarBase(B, (v) => { if (c.cofre < v) return false; c.cofre -= v; this.logCla(c, 'Taxa da base', -v); return true; })) mudou = true;
+    // Despensa e lenha (DESPENSA, André 2026-11-24): a comida e a lenha saem do Baú do Clã
+    const Bd = this.bauDoCla({ conta: j.conta }), D = (c.dsp ||= {}), nD = 1 + c.m.length;
+    const rD = this.passoDespensa(D, Bd?.itens || null, nD, B);
+    if (rD.mudou) mudou = true;
+    if (rD.comeu && Bd) this.mexeuBau(Bd);
+    const eD = this.estadoDespensa(D, Bd?.itens || null, nD);
+    if (eD.nome !== (j.dspNome ?? eD.nome) || (D.frio ? 1 : 0) !== (j.dspFrio ?? (D.frio ? 1 : 0))) {
+      const txt = eD.fome ? `Os recrutas estão ${eD.nome.toLowerCase()}: ponha comida no Baú do Clã` : D.frio && !j.dspFrio ? 'A base está sem lenha: deixou de ser área segura. Ponha lenha no Baú do Clã'
+        : eD.bem ? 'Despensa cheia: os recrutas estão bem alimentados' : !D.frio && j.dspFrio ? 'A base tem lenha de novo' : 'Os recrutas comeram';
+      this.evento({ t: 'aviso', para: j.id, texto: txt });
+    }
+    j.dspNome = eD.nome; j.dspFrio = D.frio ? 1 : 0;
+    this.mesaRecrutas(this.recrutasNoMundo(j), eD);
     if (B) this.baseDoClaMudou(j);
     if (mudou) j.progSujo = true;
     this.aplicarFuncoes(j);
@@ -999,6 +1036,108 @@ export const Cla = {
     this.amigosIa = this.amigosIa.filter((x) => !(x.AMIGA.recruta && !x.AMIGA.clanpc && x.AMIGA.lider === j.conta));
   },
 
+  // ---------- Despensa e lenha do clã (André 2026-11-24, DESPENSA em shared/dados.js) ----------
+  // come da despensa (o Baú do Clã) até pagar o que deve (D.d); come primeiro o mais simples (menos rações: peixe cru,
+  // horta) e guarda os pratos do fogão.
+  // true = comeu alguma coisa
+  comerDespensa(D, itens) {
+    if (!itens || !(D.d > 0)) return false;
+    const R = DESPENSA.racao, ordem = Object.keys(R).filter((k) => ITENS[k] && contar(itens, k) > 0).sort((a, b) => R[a] - R[b] || ITENS[a].venda - ITENS[b].venda);
+    let comeu = false;
+    for (const k of ordem) {
+      if (!(D.d > 0)) break;
+      const n = Math.min(contar(itens, k), Math.ceil(D.d / R[k])); if (!n) continue;
+      tirar(itens, k, n); D.d -= n * R[k]; comeu = true;
+    }
+    return comeu;
+  },
+  // a cada minuto (cobrarCla, passoClasNpc): conta as horas que passaram, come, marca a fome e cobra a lenha da semana.
+  // D: o estado (c.dsp, E.dsp); itens: o Baú do Clã (null = sem baú: sem despensa); n: moradores; B: a base (ou null).
+  passoDespensa(D, itens, n, B, agora = Date.now()) {
+    const r = { mudou: false, comeu: false }; if (!DESPENSA.ligado || !D) return r;
+    const H = 3600e3, dia = racoesDia(n);
+    if (!itens) { if (D.fome || D.d) { delete D.fome; D.d = 0; r.mudou = true; } D.t = agora; } // sem Baú do Clã: sem despensa
+    else {
+      if (!D.t) { D.t = agora; r.mudou = true; }
+      if (agora - D.t > 14 * 24 * H) D.t = agora - 14 * 24 * H;
+      while (D.t + H <= agora) {
+        D.t += H; r.mudou = true;
+        D.d = Math.min(dia, (D.d || 0) + dia / 24); // a fome guardada não passa de um dia: a comida nova não some toda
+        if (this.comerDespensa(D, itens)) r.comeu = true;
+        if (D.d > 0) { if (!D.fome) D.fome = D.t; } else if (D.fome) delete D.fome;
+      }
+      // chegou comida com o clã com fome: come na hora e a fome passa
+      if (D.fome && this.comerDespensa(D, itens)) { r.comeu = r.mudou = true; if (!(D.d > 0)) delete D.fome; }
+    }
+    if (B) { // a lenha da semana da base
+      const q = lenhaSemana(B.nv);
+      if (!D.l) { D.l = agora + CLA.semana; r.mudou = true; }
+      for (let k = 0; D.l <= agora && k < 60; k++) { D.l += CLA.semana; D.lf = Math.min(q * 2, (D.lf | 0) + q); r.mudou = true; }
+      if (D.lf > 0 && itens) { const t = Math.min(D.lf, contar(itens, 'lenha')); if (t > 0) { tirar(itens, 'lenha', t); D.lf -= t; r.comeu = r.mudou = true; } }
+      if (D.lf > 0) { if (!D.frio) { D.frio = agora; r.mudou = true; } }
+      else { delete D.lf; if (D.frio) { delete D.frio; r.mudou = true; } }
+      if (D.frio) BASES_FRIAS.add(B.k); else BASES_FRIAS.delete(B.k);
+    }
+    return r;
+  },
+  // como o clã está de comida: { mult (dano e XP), nome, vigor (fração da volta do vigor), fome?, bem? }
+  estadoDespensa(D, itens, n, agora = Date.now()) {
+    const nada = { mult: 0, nome: '', vigor: 1 };
+    if (!DESPENSA.ligado || !D || !itens) return nada;
+    if (D.fome) { const h = (agora - D.fome) / 3600e3; let F = DESPENSA.fome[0]; for (const f of DESPENSA.fome) if (h >= f.h) F = f; return { mult: F.mult, nome: F.nome, vigor: F.vigor ?? 1, fome: 1 }; }
+    const e = estoqueDespensa(itens), Bm = DESPENSA.bem;
+    return e.racoes >= Bm.dias * racoesDia(n) && e.tipos >= Bm.tipos ? { mult: Bm.mult, nome: Bm.nome, vigor: 1, bem: 1 } : nada;
+  },
+  // o efeito da mesa no corpo de cada recruta: dano e XP (a.mesa: aplicarStatus e ganharXP em simulacao.js) e, faminto,
+  // o vigor volta mais devagar
+  mesaRecrutas(ctxs, est, agora = Date.now()) {
+    for (const x of ctxs) {
+      const a = x.amiga; if (!a) continue;
+      if ((a.mesa || 0) !== est.mult) { if (est.mult) a.mesa = est.mult; else delete a.mesa; this.aplicarStatus?.(a); }
+      const vg = a.prog?.vigor;
+      if (est.vigor < 1 && vg && a.mesaT && agora > a.mesaT) {
+        const m = vg.m || VIGOR.max, v = vigorDe(vg);
+        if (v < m) a.prog.vigor = { ...vg, v: Math.max(0, v - (1 - est.vigor) * VIGOR.max * ((agora - a.mesaT) / 1000) / VIGOR.enche), t: agora };
+      }
+      a.mesaT = agora;
+    }
+  },
+  // o que o app mostra na Despensa (painel do clã)
+  despensaInfo(D, itens, n, B) {
+    if (!DESPENSA.ligado) return null;
+    const e = estoqueDespensa(itens), est = this.estadoDespensa(D, itens, n);
+    return { bau: itens ? 1 : 0, n, dia: Math.ceil(racoesDia(n)), bem: Math.ceil(DESPENSA.bem.dias * racoesDia(n)), tem: e.racoes, tipos: e.tipos, tiposBem: DESPENSA.bem.tipos,
+      k: e.k, racao: DESPENSA.racao, estado: est.nome, mult: est.mult, ...(est.fome ? { fome: 1 } : {}), ...(est.bem ? { bemOk: 1 } : {}),
+      ...(B ? { lenha: { semana: lenhaSemana(B.nv), tem: contar(itens || [], 'lenha'), deve: D?.lf | 0, frio: D?.frio ? 1 : 0 } } : {}) }; // sem tempo que anda: o painel só refaz quando algo muda
+  },
+  // clã bot: quantos moram (líder + fixos + recrutas)
+  moradoresNpc(C, E) { return 1 + E.m.length + fixosNpc(C, E).length; },
+  // clã bot: o que falta na despensa e na lenha ({ peixe, lenha: 0..1 }) para o líder mandar buscar. Às vezes ele
+  // esquece (DESPENSA.bots.esquece), nunca com o clã com fome ou a base fria
+  faltaDespensaNpc(C, E, rnd = Math.random) {
+    const f = {}; if (!DESPENSA.ligado || !E.dsp) return f;
+    const X = DESPENSA.bots, D = E.dsp;
+    if (!D.fome && !D.frio && rnd() < X.esquece) return f;
+    const alvo = X.dias * racoesDia(this.moradoresNpc(C, E)), tem = estoqueDespensa(E.bau).racoes;
+    if (tem < alvo) f.peixe = D.fome ? 1 : 1 - tem / alvo;
+    const B = this.baseDoClaNpc?.(C);
+    if (B) { const q = lenhaSemana(B.nv) + (D.lf | 0), t = contar(E.bau || [], 'lenha'); if (q > 0 && t < q) f.lenha = D.frio ? 1 : 1 - t / q; }
+    return f;
+  },
+  // clã bot com fome ou frio há DESPENSA.bots.compraH horas: o líder compra com o ouro dele (o clã nunca trava)
+  comprarDespensaNpc(E, L, n, agora = Date.now()) {
+    const X = DESPENSA.bots, D = E.dsp, b = E.bau; if (!D || !b || !L) return false;
+    const H = X.compraH * 3600e3; let mexeu = false;
+    const compra = (k, q) => {
+      const preco = Math.max(1, (ITENS[k]?.venda | 0) * X.compraK), pode = Math.min(q, Math.floor((L.prog.ouro | 0) / preco));
+      const g = pode > 0 ? guardarQueCabe(b, { k, n: pode }) : 0;
+      if (g) { L.prog.ouro -= g * preco; mexeu = true; }
+    };
+    if (D.fome && agora - D.fome >= H) compra(X.comida, Math.ceil(racoesDia(n) / DESPENSA.racao[X.comida]));
+    if (D.frio && agora - D.frio >= H && D.lf > 0) compra('lenha', D.lf);
+    return mexeu;
+  },
+
   // ---------- clãs bot (André 2026-11-22: Kira, Rufo, Lis e Gael são o clã inimigo; nada de gente solta) ----------
   // estado: this.clasNpc = { [id]: { m: [membros sorteados como os do jogador], prox: ms (próxima contratação), sem: ms } }
   carregarClasNpc(est) {
@@ -1011,7 +1150,7 @@ export const Cla = {
       const fora = Array.isArray(e?.fora) ? [...new Set(e.fora.filter((id) => C.membros.includes(id) && id !== C.lider))] : [];
       const fixos = fixosNpc(C, { fora }).length, nvC = Math.max(1, Math.min(CLA.max, (e?.nv | 0) || fixos + (v?.m.length || 0)));
       this.clasNpc[C.id] = { nv: nvC, m: v?.m.slice(0, vagasClaNpc(C, nvC, { fora })) || [], ...(fora.length ? { fora } : {}), prox: Number.isFinite(+e?.prox) ? +e.prox : Date.now() + CLAS_NPC_REGRAS.primeiro * 3600e3, sem: v?.sem || Date.now() + CLA.semana,
-        ...(bau ? { bau } : {}), ...(Number.isFinite(+e?.visto) && +e.visto > 0 ? { visto: +e.visto } : {}) };
+        ...(bau ? { bau } : {}), ...(despensaValida(e?.dsp) ? { dsp: despensaValida(e.dsp) } : {}), ...(Number.isFinite(+e?.visto) && +e.visto > 0 ? { visto: +e.visto } : {}) };
     }
     for (const C of CLAS_NPC) for (const m of this.clasNpc[C.id].m) this.criarRecrutaNpc(C, m, false);
   },
@@ -1062,6 +1201,13 @@ export const Cla = {
           if ((L.prog.ouro | 0) >= v) L.prog.ouro -= v; else { E.m.splice(E.m.indexOf(m), 1); this.tirarRecruta(m.id, null); }
         }
       }
+      // Despensa e lenha (DESPENSA, André 2026-11-24: "eles têm que botar"): o clã bot come e queima lenha como o do jogador
+      if (DESPENSA.ligado) {
+        const D = (E.dsp ||= {}), n = this.moradoresNpc(C, E), b = Array.isArray(E.bau) ? E.bau : (E.bau = Array(CLA.bauCla).fill(null));
+        if (this.comprarDespensaNpc(E, L, n)) mudou = true;
+        if (this.passoDespensa(D, b, n, this.baseDoClaNpc?.(C)).mudou) mudou = true;
+        this.mesaRecrutas(ctxs.filter((x) => x.AMIGA.id !== C.lider), this.estadoDespensa(D, b, n));
+      }
       // liderança: contrata o melhor que o ouro paga (deixa a reserva)
       // liderança: clã cheio, sobe de nível quando dá (as mesmas regras do jogador; o ouro é o do líder, com a reserva)
       if (E.m.length >= vagasClaNpc(C, E.nv, E) && CLA.niveis[(E.nv || 1) + 1]) {
@@ -1107,7 +1253,7 @@ export const Cla = {
   exigirRecursosNpc(C, E, L, ctxs) {
     const X = CLAS_NPC_ORDENS.exigir; if (!X?.ligado || !L) return false;
     const b = (Array.isArray(E.bau) ? E.bau : (E.bau = Array(CLA.bauCla).fill(null))), alma = almaDe(C.raca);
-    const pega = new Set([...X.itens, alma]);
+    const pega = new Set([...X.itens, alma, ...(DESPENSA.ligado ? Object.keys(DESPENSA.racao) : [])]); // a comida vai para a despensa (DESPENSA)
     let mexeu = false;
     for (const x of ctxs) {
       const a = x.amiga; if (!a || a.morto || x.AMIGA.id === C.lider) continue;
@@ -1122,6 +1268,7 @@ export const Cla = {
     // o que guardar: o maior pedido de cada material nos próximos níveis (aço conta também como barra e minério de ferro,
     // que a fornalha do líder transforma: fundirBauNpc). Alma nunca vende (não tem preço e o clã sempre precisa).
     const fica = { [alma]: Infinity }, nv = E.nv || 1, max = (k, q) => { fica[k] = Math.max(fica[k] || 0, q); };
+    if (DESPENSA.ligado) { for (const k of Object.keys(DESPENSA.racao)) fica[k] = Infinity; const Bb = this.baseDoClaNpc?.(C); if (Bb) max('lenha', lenhaSemana(Bb.nv) * 2 + (E.dsp?.lf | 0)); } // comida nunca vende; lenha de 2 semanas da base
     for (let n = nv + 1; n <= nv + X.niveis; n++) {
       const N = CLA.niveis[n]; if (!N) break;
       for (const [k, q] of Object.entries(N.mat || {})) {
@@ -1196,6 +1343,7 @@ export const Cla = {
     const O = CLAS_NPC_ORDENS, P = { grind: 1, alma: 1, recurso: 1, fazenda: 1, proteger: 1, ...(O.pesos[C.lider] || {}) };
     const falta = this.faltaClaNpc(C, E, L), ameaca = this.ameacaClaNpc(C, L), nvL = L.prog.nivel | 0, mudou = [];
     const sorte = () => 1 + (rnd() * 2 - 1) * O.sorte;
+    for (const [r, fr] of Object.entries(this.faltaDespensaNpc(C, E, rnd))) falta[r] = Math.max(falta[r] || 0, fr); // comida e lenha (DESPENSA)
     let fazenda = false, protege = 0;
     for (const m of [...E.m, ...this.membrosFixosNpc(C, E)]) {
       const x = ctxs.find((o) => o.AMIGA.id === m.id), a = x?.amiga; if (!a || a.morto) continue;

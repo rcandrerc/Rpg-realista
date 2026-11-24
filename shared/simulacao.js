@@ -1005,6 +1005,7 @@ export class Simulacao {
     const fv = j.vidaMax ? j.vida / j.vidaMax : 1;
     j.pas = passivasDe(j.prog);
     j.st = calcularStatus(j.prog, j.pas);
+    if (j.mesa) { j.st.danoFisico *= 1 + j.mesa; j.st.danoMagico *= 1 + j.mesa; } // recruta com fome ou bem alimentado (DESPENSA, shared/cla.js)
     j.vidaMax = j.st.vidaMax; j.manaMax = j.st.manaMax; j.staMax = j.st.estaminaMax; j.sta = Math.min(j.sta ?? j.staMax, j.staMax);
     if (cheio) { j.vida = j.vidaMax; j.mana = j.manaMax; }
     else { j.vida = Math.min(j.vidaMax, Math.max(j.morto ? 0 : 1, Math.round(fv * j.vidaMax))); j.mana = Math.min(j.mana, j.manaMax); }
@@ -1029,6 +1030,7 @@ export class Simulacao {
     // NPC (André 2026-11-11): nunca passa do jogador mais alto do servidor (nivelTetoNpc vem do banco; sem banco, sem teto)
     if (j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) return;
     const nivelAntes = p.nivel;
+    if (j.mesa && n > 0) n = Math.max(1, Math.round(n * (1 + j.mesa))); // recruta com fome ou bem alimentado (DESPENSA)
     p.xp += n;
     let subiu = false;
     while (p.nivel < NIVEL_MAX && p.xp >= xpProximo(p.nivel) && !(j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc)) { p.xp -= xpProximo(p.nivel); p.nivel++; p.pontos += PONTOS_POR_NIVEL; subiu = true; }
