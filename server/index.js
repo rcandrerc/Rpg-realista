@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, LEILAO_BOT, TIPOS_LEILAO, anuncioParaApp, nomeItem, ehEquip, RARIDADES, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, LEILAO_BOT, TIPOS_LEILAO, anuncioParaApp, nomeItem, ehEquip, RARIDADES, estadoTomo, COR_TOMO, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
 import { Contas, verificadorGoogle, roboCel, roboCarga, ROBO } from './contas.js';
 import { Visao } from './visao.js';
 import { Push } from './push.js'; // avisos no celular do painel do clã (André 2026-11-24)
@@ -661,7 +661,8 @@ class SalaClareira extends Room {
     if (m.acao === 'leilao') {
       if (agora - (u.painelLeilao || 0) < 1500) return; u.painelLeilao = agora;
       const tipo = typeof m.tipo === 'string' && TIPOS_LEILAO[m.tipo] ? m.tipo : undefined, ordem = ['barato', 'caro', 'novo'].includes(m.ordem) ? m.ordem : 'barato';
-      const app = (a) => { const r = ehEquip(a.item.k) ? RARIDADES[a.item.r | 0] : null; return { ...anuncioParaApp(a), nome: nomeItem(a.item), ...(r ? { rar: r.nome, cor: '#' + r.cor.toString(16).padStart(6, '0') } : {}) }; };
+      const hv = heroiDe(kc), prog = hv ? hv.j.prog : contas.lerProgresso(client.auth.id); // Tomo na cor do jogo: pelas skills de quem olha
+      const app = (a) => { const r = ehEquip(a.item.k) ? RARIDADES[a.item.r | 0] : null; return { ...anuncioParaApp(a), nome: nomeItem(a.item), ...(r ? { rar: r.nome, cor: '#' + r.cor.toString(16).padStart(6, '0') } : {}), ...(a.item.k === 'tomo' ? (() => { const e = estadoTomo(prog, a.item); return { cor: COR_TOMO[e], tomo: e }; })() : {}) }; };
       const texto = typeof m.texto === 'string' ? m.texto.slice(0, 24) : undefined; // parte do nome, sem acento nem maiúscula (semAcento)
       return client.send('painelLeilao', { lista: leilao.buscar({ tipo, ordem, texto }, kc).map(app), meus: leilao.meus(kc).map(app), tipos: TIPOS_LEILAO, agora });
     }

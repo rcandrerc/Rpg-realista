@@ -225,7 +225,7 @@ function iconeAnuncio(a, agora) {
   q.append(desenhoItem(a.item.k, a.nome || a.item.k, a.cor));
   if ((a.item.n | 0) > 1) q.append(el('b', null, num(a.item.n)));
   d.title = a.nome;
-  d.onclick = () => aviso(`${a.item.n > 1 ? a.item.n + ' ' : ''}${a.nome}${a.rar ? ` (${a.rar})` : ''} · ${a.preco} de ouro · ${a.casa ? 'da Casa' : a.vendedor}${a.casa ? '' : ` · acaba em ${resta(a.ate - agora)}`}`);
+  d.onclick = () => aviso(`${a.item.n > 1 ? a.item.n + ' ' : ''}${a.nome}${a.rar ? ` (${a.rar})` : ''}${a.tomo != null ? ` (${['não precisa mais', 'dá para usar agora', 'vai precisar'][a.tomo]})` : ''} · ${a.preco} de ouro · ${a.casa ? 'da Casa' : a.vendedor}${a.casa ? '' : ` · acaba em ${resta(a.ate - agora)}`}`);
   d.append(q, el('small', null, num(a.preco)));
   return d;
 }
@@ -337,7 +337,7 @@ let vilaMapa = null;
     const gr = g.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = gr; g.fillRect(0, 0, T, T);
   }
   vilaMapa = c; if (aba === 'mapa') desenharMapa();
-}; im.src = 'painel-vila.jpg'; }
+}; im.src = 'painel-vila.png'; }
 let vista = null; // { cx, cz, span } quando a pessoa mexeu no mapa; null = ajusta sozinho
 const limitar = (v) => { v.span = Math.max(ZOOM.min, Math.min(ZOOM.max, v.span)); v.cx = Math.max(MUNDO.x0, Math.min(MUNDO.x0 + MUNDO.w, v.cx)); v.cz = Math.max(MUNDO.z0, Math.min(MUNDO.z0 + MUNDO.h, v.cz)); return v; };
 let quadro = null; // a vista do último desenho (para o zoom e o arrasto partirem dela)
