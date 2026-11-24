@@ -2192,6 +2192,16 @@ func custo_reset() -> int:
 
 # botão de poção da HUD: a primeira pilha daquela poção na bolsa, pelo mesmo caminho do "Usar" da bolsa (menu.acao_item)
 func beber_pocao(k: String) -> void:
+	# bolso de poções (André 2026-11-24): o slot da HUD é uma bag extra; bebe dele primeiro (o servidor enche de novo da mochila)
+	var bolso: Dictionary = P.prog.get("bolso", {})
+	if int(bolso.get(k, 0)) > 0:
+		if usar_pocao({"k": k, "n": int(bolso[k])}):
+			if on():
+				menu.rede("item", {"acao": "usar", "bolso": k})
+			else:
+				bolso[k] = int(bolso[k]) - 1
+				P.mudou = true
+		return
 	var i := -1
 	for j in P.prog.mochila.size():
 		var it = P.prog.mochila[j]
@@ -4074,7 +4084,7 @@ func _passo_main(dt: float) -> void:
 	for k in ["pocao", "pocao_mana"]:
 		hud.recarga(k, recargas.get("it:" + k, 0.0), recarga_pocao())
 		if q_hud % 6 == 0:
-			hud.contagem(k, P.contar(k))
+			hud.contagem(k, P.contar(k) + int(P.prog.get("bolso", {}).get(k, 0)))
 	hud.recarga("dash", recargas.get("dash", 0.0), D.MOVIMENTO.dash_cd)
 	hud.recarga("rolar", recargas.get("rolar", 0.0), D.HEROI.rolar_cd)
 	tp = Time.get_ticks_usec()
