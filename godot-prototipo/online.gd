@@ -1779,6 +1779,28 @@ func reservar_corpo(vis: String) -> void:
 	o.roupa = "-"
 	_soltar_corpo(o)
 
+# Repor a reserva com o menu aberto (frente "personagens mais leves", André 2026-11-24): quem chega perto e acha a
+# reserva vazia monta um corpo novo, e isso dava 116 a 160 ms num quadro no Poco X7 (o:corpo, registros de 23/11).
+# Montar numa linha de fundo deu erro no servidor de desenho (robô 2, #825). Então, com um menu aberto (o jogo atrás
+# fica parado na tela, ninguém sente o tranco), monta de novo um corpo da reserva que foi usado: no máximo um a cada
+# REPOR_INTERVALO, até RESERVA de cada corpo do criador. Nada muda na tela.
+const REPOR_INTERVALO := 0.5 # s
+var _repor_t := 0.0
+func _repor_reserva(dt: float) -> void:
+	_repor_t -= dt
+	if _repor_t > 0.0 or _cobrindo:
+		return
+	if not ((m.menu and m.menu.aberto()) or (m.menu_topo and m.menu_topo.aberto())):
+		return
+	_repor_t = REPOR_INTERVALO
+	var cri = m.P.dados.get("criador") if m.P.dados is Dictionary else null
+	for c in (cri.get("corpos", ["ruiva"]) if cri is Dictionary else ["ruiva"]):
+		if _guardados.get(str(c), []).size() < RESERVA and ResourceLoader.exists("res://modelos/%s.glb" % str(c)):
+			var tr := Time.get_ticks_usec()
+			reservar_corpo(str(c))
+			_marca("o:repor", tr)
+			return
+
 # saiu da visão: o corpo fica escondido e parado para ser reaproveitado (NPC e, desde 2026-11-13, jogador também)
 func _soltar_corpo(o: Dictionary) -> void:
 	_coleta_fim(o) # a ferramenta da coleta não fica no corpo guardado
@@ -1818,6 +1840,7 @@ func _process_parte(dt: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	_passo(dt)
 	_passo_perigo(dt)
+	_repor_reserva(dt)
 	ms = lerp(ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.05)
 
 func _passo(dt: float) -> void:
