@@ -16,3 +16,12 @@ ok(listaVenda([{ k: 'pocao', n: 3 }, { k: 'pocao_mana', n: 2 }, null, null, null
 ok(listaVenda([{ k: 'pocao', n: 3, cad: 1 }, { k: 'pocao', n: 20, cad: 1 }], protegido).length === 0, 'poção com cadeado nunca vende');
 const eq = Object.keys(ITENS).find((k) => ITENS[k].lugar);
 ok(listaVenda([{ k: eq, n: 1 }, { k: 'couro', n: 50 }, { k: 'couro', n: 50 }, ...Array(6).fill(null)], protegido).join() === '0,2', 'continua vendendo a peça de equipamento e a pilha repetida');
+
+// Ronda 2026-11-24: 175 mortes na guerra numa noite, sempre voltando ao mesmo campo
+import { campoPerigoso, MORTES_TROCA } from '../robo/robo-escolhas.mjs';
+const t0 = 1_000_000, min = 60e3;
+const tres = [{ t: t0, campo: 'A' }, { t: t0 + 2 * min, campo: 'A' }, { t: t0 + 4 * min, campo: 'A' }];
+ok(MORTES_TROCA === 3 && campoPerigoso(tres, 'A', t0 + 5 * min), '3 mortes em 10 min no mesmo campo: troca de campo');
+ok(!campoPerigoso(tres.slice(0, 2), 'A', t0 + 5 * min), '2 mortes ainda não trocam');
+ok(!campoPerigoso(tres, 'A', t0 + 12 * min), 'morte de mais de 10 min atrás não conta');
+ok(!campoPerigoso(tres, 'B', t0 + 5 * min) && !campoPerigoso(tres, null, t0), 'morte em outro campo (ou sem campo) não conta');

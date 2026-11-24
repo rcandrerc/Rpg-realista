@@ -18,7 +18,7 @@ import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS,
 import { xpProximo, reforcoOk } from '../../shared/progresso.js';
 import { noLago } from '../../shared/relevo.js';
 import { planejarRota } from '../../shared/rota.js';
-import { listaVenda as listaVendaDe, POCOES } from './robo-escolhas.mjs';
+import { listaVenda as listaVendaDe, POCOES, campoPerigoso } from './robo-escolhas.mjs';
 import { liberado, zonaFechadaEm } from '../../shared/historia.js';
 
 // ---------- opções ----------
@@ -120,7 +120,7 @@ function lerFoto(txt) {
     const morreu = !eu.morto && j.morto;
     Object.assign(eu, { vida: j.vida, vidaMax: j.vidaMax, mana: j.mana, morto: !!j.morto, montado: j.montado || null });
     if (!eu.pronto || j.morto) { eu.x = j.x; eu.y = j.y; eu.z = j.z; eu.pronto = true; } // morto: o servidor leva para a vila
-    if (morreu) { R.mortes++; rota = null; }
+    if (morreu) { R.mortes++; rota = null; if (campoCaca) { mortesCampo.push({ t: Date.now(), campo: campoCaca.nome }); if (mortesCampo.length > 20) mortesCampo.shift(); } }
     if (j.vidaMax > 0 && !j.morto) R.luta.menorVida = Math.min(R.luta.menorVida, Math.round(j.vida / j.vidaMax * 100) / 100);
   }
   const vistos = new Set();
@@ -248,6 +248,7 @@ function lutar(e, agora) {
 // ---------- caçar (sem missão para o nível dele, ou esperando) ----------
 let campoCaca = null, campoT = 0;
 const camposRuins = new Set(); let campoXp = -2, campoXpT = 0; // campos onde não ganhou XP neste turno
+const mortesCampo = []; // onde e quando morreu caçando (campoPerigoso: 3 mortes em 10 min no mesmo campo, troca)
 function cacar(agora) {
   // ronda 2026-11-17: com raio de 40 m em volta dele, o robô ficava na vila matando Puglin Nv 1 (renasce sempre) e nunca
   // chegava ao campo do nível. Agora: só o que está no campo, ou o que encosta nele (até 5 m) no caminho
@@ -261,6 +262,8 @@ function cacar(agora) {
     if ((prog?.xp ?? -1) !== campoXp) { campoXp = prog?.xp ?? -1; campoXpT = agora; }
     else if (agora - campoXpT > 10 * 60e3) { camposRuins.add(campoCaca.nome); log('campo sem XP há 10 min, troca:', campoCaca.nome); campoCaca = null; campoXpT = agora; }
   }
+  // ronda 2026-11-24: 175 mortes na guerra numa noite voltando sempre ao mesmo campo. Morreu 3 vezes em 10 min nele: troca
+  if (campoCaca && !CAMPO && campoPerigoso(mortesCampo, campoCaca.nome, agora)) { camposRuins.add(campoCaca.nome); log('morreu 3 vezes em 10 min no campo, troca:', campoCaca.nome); campoCaca = null; mortesCampo.length = 0; }
   if (CAMPO) { /* fixo */ }
   else if (!campoCaca || agora - campoT > 20 * 60e3) {
     const nv = prog?.nivel || 1;

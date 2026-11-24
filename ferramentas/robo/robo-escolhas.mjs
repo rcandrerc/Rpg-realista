@@ -32,3 +32,12 @@ export function listaVenda(m, protegido) {
   }
   return l;
 }
+
+// Ronda 2026-11-24: numa noite o robô morreu 175 vezes na guerra (os Lobos da Geada o pegavam caçando, ele levantava na
+// vila e voltava para o mesmo campo). Campo onde ele morreu MORTES_TROCA vezes nos últimos 10 min fica de fora neste
+// turno e ele escolhe outro, como já faz com o campo sem XP. mortes = [{ t, campo }] (t em ms, campo = nome).
+export const MORTES_TROCA = 3;
+export function campoPerigoso(mortes, campo, agora, janela = 10 * 60e3) {
+  if (!campo) return false;
+  return mortes.filter((m) => m.campo === campo && agora - m.t < janela).length >= MORTES_TROCA;
+}
