@@ -3333,6 +3333,7 @@ export const CLA = {
   extra: { de: 3, por: 0.10 }, // cada recruta depois do 3º: +10% na semana toda
   perto: 5, // m do Recrutador para contratar
   log: 20, // linhas do histórico de gastos
+  volta: { min10: 10, parte: 0.5, min: 50 }, // dispensado: min10 minutos para chamar de volta; taxa = parte do preço de contratar de novo (mínimo min). André 2026-11-24
   tiers: [
     { id: 'recruta', nome: 'Recruta', nivel: 'um', preco: 150, porNivel: 0, semana: 22, semanaNivel: 3, claNv: 1 },
     { id: 'veterano', nome: 'Veterano', nivel: 'metade', preco: 0, porNivel: 40, semana: 0, semanaNivel: 6, claNv: 3 },
