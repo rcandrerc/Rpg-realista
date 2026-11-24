@@ -319,7 +319,7 @@ export const Cla = {
     // só o recurso pedido vai para o Baú do Clã, e ele leva andando (André 2026-11-23: "n quero q vá nada somente qd eu
     // solicitar... queria q ele trouxesse n q fosse direto pro baú auto"). O resto fica na bolsa dele.
     ia.levar = fn.k === 'recurso' && RECURSOS_CLA[fn.r]?.item ? { r: fn.r, item: RECURSOS_CLA[fn.r].item, nome: RECURSOS_CLA[fn.r].nome } : null;
-    const treino = fn.k === 'recurso' && this.treinoRecruta(a, fn.r); // sem nível para o pedido: treina no que já dá
+    const treino = fn.k === 'recurso' && !j.bot && this.treinoRecruta(a, fn.r); // sem nível para o pedido: treina no que já dá (só clã de jogador; os clãs bot seguem como estão)
     if (treino) ia.levar = { r: treino, item: RECURSOS_CLA[treino].item, nome: RECURSOS_CLA[treino].nome };
     if (novo) {
       ia.funcaoSt = null; ia.faz = null; ia.fazFer = null; ia.avisou = null;
@@ -361,7 +361,7 @@ export const Cla = {
       if (ia.encomenda?.pronta) ia.encomenda = null; // o que juntou já foi para o baú (ou fica na bolsa dele)
       // clã bot: o líder dá a ferramenta simples para quem ele manda farmar (o jogador compra a dele na loja)
       const fer = j.bot && x.AMIGA.atividades?.[R.coleta]?.ferramenta; if (fer && ITENS[fer] && contar(a.prog.mochila, fer) < 1) guardarQueCabe(a.prog.mochila, { k: fer, n: 1 });
-      if (['minerar', 'lenha', 'pescar'].includes(R.coleta) && vigorDe(a.prog.vigor) < 1) { // sem vigor: modo livre até voltar (André 2026-11-24)
+      if (!j.bot && ['minerar', 'lenha', 'pescar'].includes(R.coleta) && vigorDe(a.prog.vigor) < 1) { // sem vigor: modo livre até voltar (André 2026-11-24)
         this.avisarLiderRecruta(x, j, 'vigor', 'Acabou meu vigor. Vou fazer minhas coisas e, quando ele voltar, volto pro trabalho.');
         if (!a.ia.av || a.ia.av.encomenda) avisa('Sem vigor: no modo livre até o vigor voltar');
         return;
