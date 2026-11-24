@@ -24,7 +24,7 @@ import { HISTORIA } from './dados.js';
 import { LOJA, precoLoja, PLANTIO, RECEITA_ESTACAO, CATALISADOR, LUGARES } from './dados.js';
 import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js';
 import { diaDiarias, premioDiaria } from './diarias.js';
-import { ARVORES_PLANTIO, ENCOMENDA, PROFISSOES, MINA, PACK_BOT, PACKS, PACK_REGRAS, GUERRA } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
+import { ARVORES_PLANTIO, ENCOMENDA, PROFISSOES, MINA, PACK_BOT, PACKS, PACK_REGRAS, GUERRA, PACK_TIME, PALETE } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
 import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera, QUEM_LIBERA, SEM_NEVOA } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
@@ -499,6 +499,7 @@ export const Amiga = {
     if (j.morto) { if (!ia.caiu) { ia.caiu = true; ia.caiuT = this.tempo; this.evolucaoAmiga(j, 'morreu', ia.av?.c?.nome || (j.time ? 'no time' : '')); const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); if (ia.encomenda && !ia.encomenda.pronta) this.fimEncomendaAmiga(j, 'luta'); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
     ia.caiu = false;
     if (j.duelo) return this.passoDueloAmiga(j); // duelando (shared/duelo.js): só luta contra quem chamou
+    if (ia.packOrdem && this.passoOrdemPackAmiga(j, dt)) return; // ordem de pack da barra do time (De → Pra, andando)
     if (this.protegerVeiculoAmiga(j, dt)) return; // "Proteger carrinho / mercante" (painel do clã): antes da guerra, para não perseguir
     if (this.guerraAmiga(j, dt)) return; // Chama x Geada (shared/guerra.js): atacar, ajudar, fugir ou poupar a outra raça
     if (this.protegerAmiga(j, dt)) return; // função "Proteger" do painel do clã (shared/cla.js)
@@ -2634,6 +2635,7 @@ export const Amiga = {
     const a = this.amiga, de = this.jogadores.get(deId), C = COMANDOS_TIME; if (!a || !de || !Object.hasOwn(C.pedido, c)) return false;
     if (!a.time || a.time !== de.time) { this.dizerAmiga(sorteia(C.falas.fora), false, deId); return false; }
     let fala = C.falas[c];
+    a.ia.packOrdem = null; // outro comando da barra desfaz a ordem de pack
     if (c === 'segue') { a.ia.ordem = null; a.ia.atividade = null; if (a.coleta) this.pararColeta(a, null); if (a.pesca) this.pararPesca(a, null); }
     else if (c === 'espera') a.ia.ordem = { tipo: 'espera', ate: this.tempo + C.dura.espera, x: a.x, z: a.z };
     else if (c === 'recua') a.ia.ordem = { tipo: 'recua', ate: this.tempo + C.dura.recua };
@@ -3236,8 +3238,8 @@ export const Amiga = {
     let alvo = null, alcance = 2;
     if (T.tipo === 'pegar') { const g = (this.packsChao || []).find((o) => o.g === T.g && this.podePegarPack(j, o)); if (!g) return fim(F.sumiu); alvo = g; alcance = PACK_REGRAS.pegar; }
     else if (!j.prog.pack) return fim(F.semPack);
-    else if (T.tipo === 'carrinho') { const c = dono.prog.carrinho; alvo = c && !c.quebrado ? (dono.veiculo === 'carrinho' ? dono : c.chao) : null; alcance = VEICULOS.carrinho.carregar - 1; if (!alvo) return fim(F.semCarrinho); }
-    else if (T.tipo === 'navio') { const n = dono.prog.navio; alvo = n ? (dono.veiculo === 'navio' ? dono : n.chao) : null; alcance = VEICULOS.navio.perto - 1; if (!alvo) return fim(F.semNavio); }
+    else if (T.tipo === 'carrinho') { const c = dono.prog.carrinho; alvo = c && !c.quebrado ? (dono.veiculo === 'carrinho' ? dono : c.chao) : null; alcance = PACK_TIME.perto.carrinho; if (!alvo) return fim(F.semCarrinho); } // 2,2 m: antes 7 m, parecia parado
+    else if (T.tipo === 'navio') { const n = dono.prog.navio; alvo = n ? (dono.veiculo === 'navio' ? dono : n.chao) : null; alcance = PACK_TIME.perto.mercante; if (!alvo) return fim(F.semNavio); } // antes 17 m
     else if (T.tipo === 'entregar') { alvo = (this.mapa.npcs || []).find((o) => o.id === T.npc); alcance = PACK_REGRAS.falar - 0.5; }
     else if (T.tipo === 'dar') { alvo = dono; alcance = 2.5; }
     if (!alvo) return fim('');
@@ -3282,6 +3284,129 @@ export const Amiga = {
       this.historia(dono, 'pack', { k: pk.k, npc: n.id, de: 'costas' });
       dono.progSujo = true; this.avisarProg(dono);
       return fim(F.entregou.replace('{ouro}', preco));
+    }
+    return fim('');
+  },
+  // ---------- ordem de pack pela barra do time (André 2026-11-23, PACK_TIME) ----------
+  // de: palete | carrinho | mercante; pra: carrinho | mercante | palete | mercador; 'parar' desfaz. Recruta obedece calado.
+  ordemPackAmiga(deId, de, pra) {
+    const a = this.amiga, dono = this.jogadores.get(deId); if (!a || !dono) return false;
+    const ia = a.ia;
+    if (de === 'parar') { ia.packOrdem = null; ia.packTarefa = null; this.pararAmiga(a); ia.funcaoSt = { txt: 'Parou o pack', ate: this.tempo + 8 }; return true; }
+    if (!PACK_TIME.de.includes(de) || !PACK_TIME.pra.includes(pra) || de === pra || !a.time || a.time !== dono.time || a.morto) return false;
+    ia.ordem = null; ia.packTarefa = null; ia.atividade = null;
+    if (a.coleta) this.pararColeta(a, null); if (a.pesca) this.pararPesca(a, null);
+    ia.packOrdem = { de, pra, para: dono.id, conta: dono.conta, ate: this.tempo + PACK_TIME.dura, trecho: this.tempo + PACK_TIME.trecho, n: 0 };
+    a.montado = null;
+    return true;
+  },
+  // onde está o carrinho / o navio do dono agora (ou null)
+  lugarCarrinhoDono(dono) { const c = dono.prog.carrinho; if (!c || c.quebrado) return null; const pos = dono.veiculo === 'carrinho' ? dono : c.chao; return pos ? { v: c, x: pos.x, z: pos.z } : null; },
+  lugarNavioDono(dono) { const n = dono.prog.navio; if (!n || n.quebrado) return null; const pos = dono.veiculo === 'navio' ? dono : n.chao; if (!pos) return null; n.porao ||= []; return { v: n, x: pos.x, z: pos.z }; },
+  // o pack pra pegar na origem "palete": primeiro os paletes do clã dele perto do dono, senão os soltos perto do dono;
+  // pula os separados por outro bot
+  packOrigemAmiga(j, dono) {
+    const R = (this.reservaPack ||= new Map()), bk = this.chaveClaDe?.(j), livre = (o) => { const r = R.get(o.g); return !r || r.id === j.id || r.ate < this.tempo; };
+    let best = null, bd = Infinity;
+    for (const o of this.packsChao || []) if (o.fica && o.bk && o.bk === bk && livre(o) && Math.hypot(o.x - dono.x, o.z - dono.z) <= PACK_TIME.paleteRaio) { const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < bd) { bd = d; best = o; } }
+    if (best) return best;
+    for (const o of this.packsChao || []) if (!o.fica && this.podePegarPack(j, o) && livre(o) && Math.hypot(o.x - dono.x, o.z - dono.z) <= PACK_TIME.chaoRaio) { const d = Math.hypot(o.x - j.x, o.z - j.z); if (d < bd) { bd = d; best = o; } }
+    return best;
+  },
+  // o palete do clã com lugar livre mais perto dele (perto do dono), sem contar lugares separados por outro bot: { P, bk, sl }
+  paleteDestinoAmiga(j, dono) {
+    const bk = this.chaveClaDe?.(j); if (!bk) return null;
+    const R = (this.reservaPalete ||= new Map());
+    let best = null, bd = Infinity;
+    for (const L of this.lotes?.values?.() || []) for (const P of L.pecas || []) {
+      if (P.k !== 'palete' || Math.hypot(P.x - dono.x, P.z - dono.z) > PACK_TIME.paleteRaio || this.naTerraCla(P.x, P.z) !== bk) continue;
+      const ocup = new Set(this.packsNoPalete(P.id).map((o) => o.sl));
+      const sl = PALETE.lugar.findIndex((_, i) => { if (ocup.has(i)) return false; const r = R.get(P.id + ':' + i); return !r || r.id === j.id || r.ate < this.tempo; });
+      if (sl < 0) continue;
+      const d = Math.hypot(P.x - j.x, P.z - j.z); if (d < bd) { bd = d; best = { P, bk, sl }; }
+    }
+    return best;
+  },
+  mercadorDoDono(dono) {
+    let m = null, md = PACK_TIME.mercadorRaio;
+    for (const o of this.mapa.npcs || []) if (o.funcao === 'pack') { const d = Math.hypot(o.x - dono.x, o.z - dono.z); if (d < md) { md = d; m = o; } }
+    return m;
+  },
+  // um passo da ordem: sem pack, vai à origem e pega um; com pack, leva ao destino e põe. true = cuidou do passo
+  passoOrdemPackAmiga(j, dt) {
+    const ia = j.ia, O = ia.packOrdem, dono = this.jogadores.get(O.para), p = j.prog, T = PACK_TIME;
+    const fim = (txt) => { ia.packOrdem = null; this.reservaPack?.forEach((r, k) => r.id === j.id && this.reservaPack.delete(k)); this.pararAmiga(j); if (txt) ia.funcaoSt = { txt, ate: this.tempo + 20 }; return true; };
+    if (!dono || dono.conta !== O.conta || j.morto || !j.time || j.time !== dono.time) { ia.packOrdem = null; return false; }
+    if (this.tempo > O.ate) return fim('Ordem de pack acabou');
+    if (j.trava > 0) { this.pararAmiga(j); return true; }
+    const andar = (x, z, perto) => { // true = chegou
+      const d = Math.hypot(x - j.x, z - j.z);
+      if (d <= perto) { this.pararAmiga(j); j.ry = Math.atan2(x - j.x, z - j.z); return true; }
+      if (this.tempo > O.trecho) { fim('Não consegui chegar'); return null; }
+      j.montado = null;
+      if (d > 30 && this.irLongeAmiga) this.irLongeAmiga(j, x, z, dt); else this.irDireto(j, x, z, !p.pack && d > 5);
+      return false;
+    };
+    const feito = () => { O.trecho = this.tempo + T.trecho; j.progSujo = true; dono.progSujo = true; this.avisarProg?.(dono); };
+    if (!p.pack) { // ---- vai pegar na origem
+      if (O.de === 'palete') {
+        const g = this.packOrigemAmiga(j, dono); if (!g) return fim(O.n ? `Pronto: levou ${O.n} pack(s)` : 'Sem pack no palete nem no chão');
+        this.reservaPack.set(g.g, { id: j.id, ate: this.tempo + T.reserva });
+        const r = andar(g.x, g.z, PACK_REGRAS.pegar); if (r !== true) return true;
+        const i = this.packsChao.indexOf(g); if (i < 0) return true;
+        this.packsChao.splice(i, 1); this.reservaPack.delete(g.g);
+        p.pack = packValido(g); if (p.pack) { if ((g.ra || 'chama') !== (this.racaDe?.(j) || 'chama')) p.pack.rb = 1; else delete p.pack.rb; }
+      } else {
+        const L = O.de === 'carrinho' ? this.lugarCarrinhoDono(dono) : this.lugarNavioDono(dono);
+        if (!L) return fim(O.de === 'carrinho' ? 'O carrinho não está no chão' : 'O mercante não está na água');
+        const lista = O.de === 'carrinho' ? L.v.packs : L.v.porao;
+        if (!lista.length) return fim(O.n ? `Pronto: levou ${O.n} pack(s)` : (O.de === 'carrinho' ? 'O carrinho está vazio' : 'O porão está vazio'));
+        const r = andar(L.x, L.z, T.perto[O.de]); if (r !== true) return true;
+        p.pack = lista.pop();
+      }
+      j.montado = null; ia.packDe = O.conta; feito();
+      ia.funcaoSt = { txt: 'Levando pack', ate: this.tempo + 60 };
+      return true;
+    }
+    // ---- com pack: leva ao destino
+    const pk = p.pack, solta = () => { p.pack = null; ia.packDe = null; O.n++; feito(); };
+    if (O.pra === 'carrinho' || O.pra === 'mercante') {
+      const L = O.pra === 'carrinho' ? this.lugarCarrinhoDono(dono) : this.lugarNavioDono(dono);
+      if (!L) return fim(O.pra === 'carrinho' ? 'O carrinho não está no chão' : 'O mercante não está na água');
+      const lista = O.pra === 'carrinho' ? L.v.packs : L.v.porao, cap = O.pra === 'carrinho' ? capacidadeCarrinho(L.v) : VEICULOS.navio.porao;
+      if (lista.length >= cap) return fim(`${O.pra === 'carrinho' ? 'Carrinho' : 'Porão'} cheio (${lista.length}/${cap})`);
+      const r = andar(L.x, L.z, T.perto[O.pra]); if (r !== true) return true;
+      lista.push(pk); solta(); return true;
+    }
+    if (O.pra === 'palete') {
+      const A = this.paleteDestinoAmiga(j, dono);
+      if (A) {
+        this.reservaPalete.set(A.P.id + ':' + A.sl, { id: j.id, ate: this.tempo + T.reserva });
+        const q = this.lugaresPalete(A.P)[A.sl], r = andar(q.x, q.z, T.perto.palete); if (r !== true) return true;
+        this.reservaPalete.delete(A.P.id + ':' + A.sl);
+        if (this.packsNoPalete(A.P.id).some((o) => o.sl === A.sl)) return true; // ocuparam: procura outro lugar
+        this.packNoPalete(pk, A); solta(); return true;
+      }
+      // sem palete com lugar: larga no chão do lado do dono
+      const r = andar(dono.x, dono.z, T.perto.chao); if (r !== true) return true;
+      this.packNoChao(pk, j.x - Math.sin(j.ry) * 0.7, j.z - Math.cos(j.ry) * 0.7); solta(); return true;
+    }
+    if (O.pra === 'mercador') { // ouro no cofre do clã (sem clã: pro dono); preço, mercado e pontos de Mercador contam pro dono
+      const n = this.mercadorDoDono(dono); if (!n) return fim('Sem mercador de pack perto de você');
+      if (Math.hypot(n.x - pk.ox, n.z - pk.oz) < PACK_REGRAS.perto) return fim('Esse pack foi feito aqui: leve pra outro mercador');
+      if (this.packDaMissao(dono, pk.k, n.id)) return fim('Esse pack é da sua missão');
+      const r = andar(n.x, n.z, T.perto.mercador); if (r !== true) return true;
+      const dp = dono.prog, agora = Date.now(), k = mercadoK(dp, n.id, pk.k, agora);
+      const preco = Math.max(1, Math.round(precoPack(pk, n, dp.prof.mer) * k * (1 + (this.vantagensDe?.(dono).pack || 0)) * (pk.rb ? 1 + GUERRA.roubado : 1)));
+      mercadoConta(dp, n.id, pk.k, agora);
+      const C = dp.cla;
+      if (C) { C.cofre = (C.cofre || 0) + preco; this.logCla?.(C, `Pack entregue por ${String(j.nome).split(/[ ,]/)[0]}`, preco); }
+      else { dp.ouro = (dp.ouro || 0) + preco; this.caixa?.(dono, 'pack', preco); }
+      this.pontosProf(dono, 'mer', preco / 10);
+      this.evento({ t: 'pack', para: dono.id, acao: 'entregou', k: pk.k, ouro: preco, navio: (pk.nav || 0) >= PACK_REGRAS.navioMin });
+      this.evento({ t: 'aviso', para: dono.id, texto: `${String(j.nome).split(/[ ,]/)[0]} entregou um pack: +${preco} de ouro ${C ? 'no cofre do clã' : 'pra você'}` });
+      this.historia(dono, 'pack', { k: pk.k, npc: n.id, de: 'costas' });
+      solta(); return true;
     }
     return fim('');
   },

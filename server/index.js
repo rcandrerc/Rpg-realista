@@ -210,6 +210,7 @@ class SalaClareira extends Room {
     this.ouvir('ficha', (c, m) => this.sim.fichaJogador(c.sessionId, m)); // a ficha do jogador, opcional (André 2026-11-23)
     this.ouvir('verEquip', (c, m) => { if (m && typeof m.com === 'string' && m.com.length < 40) this.sim.verEquip(c.sessionId, { com: m.com }); }); // ver o equipamento de quem está perto
     this.ouvir('amigo', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.amigo(c.sessionId, { acao: m.acao, com: texto(m.com), c: texto(m.c), nome: texto(m.nome) }); });
+    this.ouvir('packTime', (c, m) => { if (m && typeof m.de === 'string' && m.de.length < 12 && typeof m.pra === 'string' && m.pra.length < 12) this.sim.ordemPackTime(c.sessionId, { de: m.de, pra: m.pra, para: texto(m.para) }); }); // ordem de pack da barra do time (André 2026-11-23)
     this.ouvir('comando', (c, m) => { if (m && typeof m.c === 'string' && m.c.length < 10) this.sim.comandoTime(c.sessionId, { c: m.c, para: texto(m.para) }); }); // comando rápido do time (André 2026-11-19)
     this.ouvir('time', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.time(c.sessionId, { acao: m.acao, com: texto(m.com) }); });
     this.ouvir('pvp', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.arenaPvp(c.sessionId, { acao: m.acao, id: texto(m.id) }); }); // Arena PvP 3x3 (shared/arena.js, André 2026-11-21)
