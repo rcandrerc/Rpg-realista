@@ -334,6 +334,7 @@ export const Base = {
     aviso(`Base do clã ${c.n} fundada! ${nivelBase(B.nv).tem}. ` + (lote ? 'O lote 1 é seu: toque no martelo para construir.' : 'O lote 1 fica seu quando a casa antiga for devolvida.'));
     if (lote) { this.evento({ t: 'meuLote', para: j.id, lote: lote.def.id }); this.avisarLote(lote); }
     this.avisarBases();
+    this.historia?.(j, 'base'); // missão "A base do clã" (André 2026-11-23)
     this.avisarProg(j);
   },
   // a prévia (modo de escolher o lugar no app): pode fundar onde o líder está agora? (o mesmo motivoBase de fundarBase)

@@ -2551,8 +2551,9 @@ export const VILAS_MUNDO = [
       // o Kael passa a morar em Aurora depois da missão "Kael" (depois: o app só mostra para quem já fez; Entrega 5)
       { id: 'v_kael', nome: 'Kael, a Lâmina Cinzenta', visual: 'cabelo_m', onde: 'cidade:kael', depois: 'h14', escala: 1.04, roupa: 'peitoral2,calca2,botas2,capa2', arma: 'espada',
         tinta: { cabelo: 0x9a9aa4, roupa: 0x6a6e78, calca: 0x2e2e34 }, funcao: 'dica', acoes: [], falas: [
-          'Eu devo a esta cidade trezentos anos de silêncio. Vou ficar.',
-          'O Dario ainda me derruba no treino. Não conte para ninguém.'] },
+          'Aurora é terra livre. Aqui eu não levanto a espada. Lá fora, é outra conversa.',
+          'O Dario escolheu a Chama. Pior para ele.',
+          'A Geada não esquece. Nem eu.'] },
       // Aurora viva (André 2026-11-12, esboço aprovado): depois da Vesper (depois: 'f3', a última missão) a cidade tem
       // gente de novo. A Elara muda para o Paço; o mercado abre; moradores na porta de casa.
       { id: 'v_elara_paco', nome: 'Guardiã Elara, a chefe de Aurora', visual: 'shibu', onde: 'cidade:paco', depois: 'f3', escala: 1.03, roupa: 'peitoral3,calca3,botas3,capa3', arma: 'espada', friso: true,
@@ -4541,16 +4542,16 @@ export const CAPITULOS = [
     diario: 'Fiz o Pack de Pérolas com a Maré e o navio da Ordem com a Capitã Odete. Na Gruta da Ilha, o Kael quis a minha estrela. O Dario entrou na frente: "Kael, sou eu." O Kael fugiu e deixou cair uma insígnia de aprendiz da Ordem. No selo vi um rapaz de capa cinza me carregando por uma estrada de névoa: "Aguenta. Tem uma vila logo ali." O Mestre Ivo: "Kael foi meu aprendiz. O melhor que eu tive." Venci o Abissal e levei pérolas no porão até o Cais de Aurora. A Cecília conhece essa cidade sem nunca ter vindo.',
     rumores: [{ nv: 66, quem: 'Sálvio', texto: 'Só a praça de Aurora tem gente. Mas à noite as janelas das casas vazias acendem sozinhas.' }] },
   { n: 14, nome: 'As janelas acesas', nv: 68, ato: 'Ato V · Aurora', frase: 'Alguém acendeu as janelas de Aurora.',
-    diario: 'Em Aurora, de noite, achei três ecos: um brinquedo, uma coroa partida e uma carta da Vesper: "Se eu acender o Coração mais uma vez, todos voltam." A Cecília achou a casa da avó dela, consertamos juntos e ela me deu o Colar de Estrela. A Mirela fez o Catalisador da Memória. Na Gruta da Serra de Aurora, o Dario chamou o irmão e o catalisador fez o resto. O Kael caiu de joelhos: "Dario?" Foi ele que me deixou no poço. Na memória do selo, a Vesper jovem embalava uma luz pequena: "Vou te chamar de Aethra. Como a estrela."',
+    diario: 'Em Aurora, de noite, achei três ecos: um brinquedo, uma coroa partida e uma carta da Vesper: "Se eu acender o Coração mais uma vez, todos voltam." A Cecília achou a casa da avó dela, consertamos juntos e ela me deu o Colar de Estrela. A Mirela fez o Catalisador da Memória. Na Gruta da Serra de Aurora, o Dario chamou o irmão e o catalisador fez o resto. O Kael caiu de joelhos: "Dario?" Foi ele que me deixou no poço. Lembrou de tudo e mesmo assim escolheu a Geada. Fugiu, e eu e o time seguramos o selo. Na memória do selo, a Vesper jovem embalava uma luz pequena: "Vou te chamar de Aethra. Como a estrela."',
     rumores: [{ nv: 81, quem: 'Fagulha', texto: 'Quem anda acendendo as pedras do leste? Toda noite uma acende sozinha.' },
-      { nv: 83, quem: 'Kael', texto: 'O Morro do Véu guarda o último selo. Ela vai estar lá.' }] },
+      { nv: 83, quem: 'Kael', texto: 'O último selo fica no Morro do Véu. A Geada chega lá antes da Chama.' }] },
   { n: 15, nome: 'O último selo', nv: 84, ato: 'Ato V · Aurora', frase: 'O Pico da Névoa chama.',
     diario: 'Levei Brasa Viva da Vila do Véu até a Clareira e o Tomás gravou a estrela na minha lâmina. No Morro do Véu, depois do Arauto, a Vesper apareceu: congelou todo mundo com um gesto e quebrou o último selo. O Mestre Ivo se pôs na minha frente e saiu ferido. A última memória contou a verdade: uma estrela caiu, uma lasca dela virou uma criança de luz, e a Vesper a achou. Eu sou o último fragmento vivo de Aethra. Com o elixir da Lúcia, o Mestre Ivo ficou de pé e abriu o caminho do Pico.',
     rumores: [{ nv: 96, quem: 'Cecília', texto: 'Se ela fizer todo mundo esquecer de você, eu vou lembrar. Prometo.' },
-      { nv: 97, quem: 'Dario', texto: 'Eu e o Kael voltamos a treinar juntos. Ele ainda perde.' },
+      { nv: 97, quem: 'Dario', texto: 'O Kael mandou recado pela Kira: na guerra, não vai me poupar. Nem eu a ele.' },
       { nv: 98, quem: 'Aldo', texto: 'Te achei no poço. Volta pra cá depois, tá? Fale comigo.' }] },
   { n: 16, nome: 'O Coração de Cristal', nv: 98, ato: 'Final · Estrela de Aethra', frase: 'A Névoa acaba onde começou.',
-    diario: 'Me despedi de todos e subi com o time até o Último Pouso. O Kael foi na frente. Na Gruta da Névoa derrubamos o Sentinela de Cristal e, no Coração, a Vesper: fogo, gelo e raio, depois a Névoa fazendo meus amigos esquecerem de mim. A Cecília lembrou primeiro, como prometeu. Caída, a Vesper me olhou: "Aethra... você cresceu." Encostei a marca no Coração e a rachadura fechou com a minha luz. A névoa sumiu do céu. Mas o Mestre Ivo olhou além da cordilheira: a estrela não caiu sozinha. Continua...',
+    diario: 'Me despedi de todos e subi com o time até o Último Pouso. O Kael e a Geada subiram antes, atrás do Coração. Na Gruta da Névoa derrubamos o Sentinela de Cristal e, no Coração, a Vesper: fogo, gelo e raio, depois a Névoa fazendo meus amigos esquecerem de mim. A Cecília lembrou primeiro, como prometeu. Caída, a Vesper me olhou: "Aethra... você cresceu." Encostei a marca no Coração e a rachadura fechou com a minha luz. A névoa sumiu do céu. Mas o Mestre Ivo olhou além da cordilheira: a estrela não caiu sozinha. Continua...',
     rumores: [] },
 ];
 // Cenas da história (André 2026-11-11: "acrescenta cinemáticas em algumas missões"). Não é vídeo gravado: roda dentro
@@ -4645,9 +4646,10 @@ export const CENAS = {
     { d: 3.2, rel: 'heroi', de: { p: [3, 1.4, 4], o: [0, 0.6, 0] }, para: { p: [2.4, 1.2, 4.4], o: [0, 0.5, 0] }, fala: ['', 'O Kael cai de joelhos.'] },
     { d: 2.6, rel: 'heroi', de: { p: [0.3, 1.66, 1.1], o: [0, 1.6, 0] }, para: { p: [0.22, 1.66, 0.95], o: [0, 1.6, 0] }, fala: ['Kael', '"...Dario?"'] },
     { d: 3.8, rel: 'heroi', de: { p: [0.3, 1.66, 1.1], o: [0, 1.6, 0] }, para: { p: [0.22, 1.66, 0.95], o: [0, 1.6, 0] }, fala: ['Kael', '"Fui eu que te deixei no poço. Ela queria você."'] },
+    { d: 3.4, rel: 'heroi', de: { p: [0.3, 1.66, 1.1], o: [0, 1.6, 0] }, para: { p: [0.22, 1.66, 0.95], o: [0, 1.6, 0] }, fala: ['Kael', '"Lembrar não muda nada. Eu sou a Geada."'] },
   ] },
   memoria6: { nome: 'Memória: Aethra', tomadas: [
-    { d: 2.6, rel: 'heroi', fx: 'brilho', de: { p: [0.7, 1.4, 1.0], o: [0, 1.1, 0] }, para: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'O Kael segura o selo junto com você.'] },
+    { d: 2.6, rel: 'heroi', fx: 'brilho', de: { p: [0.7, 1.4, 1.0], o: [0, 1.1, 0] }, para: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'O Kael some na névoa. Você e o time seguram o selo.'] },
     { d: 4.4, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['', 'A Vesper, jovem, embala uma luz pequena no colo.'] },
     { d: 3.6, rel: 'heroi', branco: 0.7, de: { p: [0.55, 1.4, 0.85], o: [0, 1.1, 0] }, fala: ['Vesper', '"Vou te chamar de Aethra. Como a estrela."'] },
     { d: 2.6, rel: 'heroi', de: { p: [0.2, 1.66, 0.85], o: [0, 1.6, 0] }, para: { p: [0.16, 1.66, 0.75], o: [0, 1.6, 0] }, fala: ['{nome}', 'Aethra... sou eu.'] },
@@ -4709,7 +4711,7 @@ export const CHEFES_HISTORIA = {
   // Simulacao.lancarSkillBoss); fases: com essa fração da vida o chefe muda (Simulacao.faseChefe): 'esquecer' = a Névoa
   // faz o time parar e esquecer do herói por uns segundos; 'fundir' = cresce (esc), bate mais forte e chama o covil.
   kael4: { nome: 'Kael, a Lâmina Cinzenta', tipo: 'golem', campo: 'cav_aurora', vida: 10, dano: 1.7, escala: 1, cor: 0xb8c0cc, foge: 0.25,
-    fala: 'O Catalisador da Memória brilha no peito do Kael. Ele larga a espada e cai de joelhos: "...Dario?"',
+    fala: 'O Catalisador da Memória brilha no peito do Kael. Ele cai de joelhos: "...Dario?" Depois levanta: "Lembrar não muda nada. Eu sou a Geada." E some na névoa.',
     humano: { modelo: 'cabelo_m', roupa: 'peitoral2,calca2,botas2,capa2' } },
   arauto: { nome: 'Arauto do Véu', tipo: 'warrok', campo: 'c_a7', vida: 10, dano: 1.7, escala: 2.4, cor: 0x9ad8ff,
     skills: [{ k: 'salto', nome: 'Queda de cristal', cd: 11, aviso: 1.3, r: 6, dano: 1.8, ef: { atordoa: 1.2 } },
@@ -4856,17 +4858,20 @@ export const HISTORIA = [
       { ev: 'pesca', k: 'lambari', n: 4, txt: 'Pesque lambaris num spot do Lago Grande', alvo: 'spot' },
     ],
     pronto: 'Tem jeito para a coisa! Guarde os lambaris: assados, a Irmã Lúcia faz o caldo do remédio.' },
-  { id: 'a12', cap: 4, nv: 8, npc: 'lider', nome: 'Um chão seu', libera: [],
-    pedido: 'Você não pode morar no poço para sempre, e a Lúcia precisa dos peixes assados para o caldo. Compre um terreno nas Terras da Estrada, do lado da Cecília e do Dario. Monte bancada e fogão, e asse dois peixes para ela.',
-    lembra: 'A Lúcia espera os peixes assados. E um teto seu faz bem, viu?',
+  // André 2026-11-23 ("as missões da casa vai ter que mudar... pode ser pra escolher sua base do clã e construir, mas casa
+  // não faz sentido"): no lugar de comprar terreno, fundar o clã e a base (o lote 1 é do líder). Quem já tem terreno
+  // (ja: 'lote', vila ou base) passa direto. Mesmas 5 etapas de antes, para quem está no meio não pular nem travar.
+  { id: 'a12', cap: 4, nv: 8, npc: 'lider', nome: 'A base do clã', libera: [],
+    pedido: 'Você não pode morar no poço para sempre, e a Lúcia precisa dos peixes assados para o caldo. Aqui a Chama vive em clã: funde o seu, escolha um chão firme e erga a base. O lote 1 é seu. Monte bancada e fogão nele e asse dois peixes para ela.',
+    lembra: 'A Lúcia espera os peixes assados. E clã sem base não aguenta a Geada.',
     etapas: [
-      { ev: 'terreno', ja: 'lote', kit: true, txt: 'Compre um terreno nas Terras da Estrada', alvo: 'lote' },
-      { ev: 'construir', k: 'bancada', ja: 'peca', txt: 'Crie e coloque uma bancada no terreno (martelo)', alvo: 'lote' },
+      { ev: 'base', ja: 'lote', txt: 'Funde o seu clã e a base (ícone Clã > Escolher o lugar da base)' },
+      { ev: 'construir', k: 'bancada', ja: 'peca', txt: 'Crie e coloque uma bancada no seu lote da base (martelo)', alvo: 'lote' },
       { ev: 'construir', k: 'fogao', ja: 'peca', txt: 'Crie e coloque um fogão (pede 1 barra de ferro)', alvo: 'lote' },
       { ev: 'criar', k: 'peixe_assado', n: 2, txt: 'Asse 2 peixes no fogão (2 lambaris cada)', alvo: 'lote' },
       { ev: 'falar', npc: 'curandeira', entregar: { peixe_assado: 2 }, txt: 'Leve 2 peixes assados para a Irmã Lúcia' },
     ],
-    pronto: 'O caldo ficou pronto... e funcionou! O aldeão lembrou de uma coisa só: encapuzados de olhos cinzentos levaram a carroça da Rosa para o leste. Ah, a Cecília deixou sementes de cenoura para você: "vizinho sem horta é triste".',
+    pronto: 'O caldo ficou pronto... e funcionou! O aldeão lembrou de uma coisa só: encapuzados de olhos cinzentos levaram a carroça da Rosa para o leste. Ah, a Cecília deixou sementes de cenoura para você: "base sem horta é triste".',
     presente: { pocao_mana: 2, semente_cenoura: 4 } },
   // ---------- Capítulo 5 · A caravana perdida (Nv 12) ----------
   { id: 'a13', cap: 5, nv: 12, npc: 'comerciante', nome: 'Rastros no bosque', libera: [],
@@ -4923,20 +4928,22 @@ export const HISTORIA = [
   // A última missão de cada capítulo herda o id da missão de uma etapa que abria a mesma zona (h6, h7, h8): quem já tinha
   // entregue a de antes não faz o capítulo de novo (shared/historia.js histValida).
   // ---------- Capítulo 6 · Debaixo da montanha (Nv 15) ----------
-  { id: 'b1', cap: 6, nv: 15, npc: 'lider', nome: 'Uma casa que aguenta', libera: [],
-    pedido: 'A Névoa engrossa à noite, e quem dorme sem teto acorda sem lembrar de nada. Não quero perder você assim. Levante uma casa de verdade no seu terreno, com cama e baú, e durma nela.',
-    lembra: 'Cada noite ao relento é um risco. Termine essa casa antes que a Névoa te ache.',
+  // André 2026-11-23 ("casa não faz sentido"): firmar a base do clã no lugar da casa. 8 etapas como antes (quem está no
+  // meio não trava); cofre: a taxa da semana do clã Nv 1 (base com taxa atrasada trava, CLA.base.taxaTrava).
+  { id: 'b1', cap: 6, nv: 15, npc: 'lider', nome: 'Uma base que aguenta', libera: [],
+    pedido: 'A Névoa engrossa à noite, e a Geada não dorme. Base sem defesa cai na primeira noite. Cerque o seu lote, acenda tochas, monte baú, cama, fornalha e bigorna. E deixe a taxa da semana no cofre do clã: base com taxa atrasada trava.',
+    lembra: 'Cada noite com a base aberta é um risco. Termine antes que a Geada ache você.',
     etapas: [
-      { ev: 'construir', k: 'fundacao', n: 4, ja: 'peca', txt: 'Coloque 4 fundações no seu terreno', alvo: 'lote' },
-      { ev: 'construir', k: 'parede', n: 4, ja: 'peca', txt: 'Levante 4 paredes', alvo: 'lote' },
-      { ev: 'construir', k: 'porta', ja: 'peca', txt: 'Coloque uma porta', alvo: 'lote' },
-      { ev: 'construir', k: 'janela', ja: 'peca', txt: 'Coloque uma janela', alvo: 'lote' },
-      { ev: 'construir', k: 'telhado', ja: 'peca', txt: 'Ponha o telhado', alvo: 'lote' },
-      { ev: 'construir', k: 'cama', ja: 'peca', txt: 'Coloque uma cama', alvo: 'lote' },
+      { ev: 'construir', k: 'cerca', n: 4, ja: 'peca', txt: 'Ponha 4 cercas no seu lote da base', alvo: 'lote' },
+      { ev: 'construir', k: 'tocha', n: 2, ja: 'peca', txt: 'Acenda 2 tochas no lote', alvo: 'lote' },
       { ev: 'construir', k: 'bau', ja: 'peca', txt: 'Coloque um baú', alvo: 'lote' },
-      { ev: 'dormir', txt: 'Durma uma noite na sua cama (só à noite)', alvo: 'lote', diz: 'Você dormiu debaixo do seu próprio teto. Acordou lembrando de tudo.' },
+      { ev: 'construir', k: 'cama', ja: 'peca', txt: 'Coloque uma cama', alvo: 'lote' },
+      { ev: 'construir', k: 'fornalha', ja: 'peca', txt: 'Monte uma fornalha', alvo: 'lote' },
+      { ev: 'construir', k: 'bigorna', ja: 'peca', txt: 'Monte uma bigorna', alvo: 'lote' },
+      { ev: 'cofre', min: CLA.base.niveis[1].taxa, ja: 'cofre', txt: `Deixe ${CLA.base.niveis[1].taxa} de ouro no cofre do clã (ícone Clã)` },
+      { ev: 'dormir', txt: 'Durma uma noite na base (só à noite)', alvo: 'lote', diz: 'Você dormiu dentro da sua base. Acordou lembrando de tudo.' },
     ],
-    pronto: 'Agora sim, isso é uma casa! ...Escuta: o Gaspar mandou recado da montanha. A pedra do selo de lá está quente. A Dona Sálvia vai mandar comida para quem descer.' },
+    pronto: 'Agora sim, isso é uma base! ...Escuta: o Gaspar mandou recado da montanha. A pedra do selo de lá está quente. A Dona Sálvia vai mandar comida para quem descer.' },
   { id: 'b2', cap: 6, nv: 15, npc: 'm_horta', nome: 'Provisões', libera: [],
     pedido: 'O Gaspar pediu comida para quem vai descer na montanha, e lá embaixo não tem horta. Faça a enxada e o regador, plante, colha e cozinhe 3 sopas. Leve com uma barra de aço para ele. Tome umas sementes.',
     lembra: 'Ninguém desce na montanha de barriga vazia. O Gaspar espera as sopas e o aço.',
@@ -5325,12 +5332,12 @@ export const HISTORIA = [
       { ev: 'time', txt: 'Chame o Dario (ou um jogador) para o time' },
       { ev: 'matar', campos: ['cav_aurora'], n: 4, txt: 'Entre na Gruta da Serra de Aurora e abra caminho' },
       { ev: 'matar', hc: 'kael4', txt: 'O último duelo com o Kael: com pouca vida, use o Catalisador', cena: 'kael4' },
-      { ev: 'pos', pos: [-383.8, 1299.7, 4], ate: 18, txt: 'Segure o selo do oeste junto com o Kael', alvo: 'pos', marca: true, cena: 'memoria6',
+      { ev: 'pos', pos: [-383.8, 1299.7, 4], ate: 18, txt: 'O Kael fugiu: segure o selo do oeste com o seu time', alvo: 'pos', marca: true, cena: 'memoria6',
         diz: 'Memória: a Vesper, jovem, embala a luz pequena no colo. "Vou te chamar de Aethra. Como a estrela."' },
-      { ev: 'falar', npc: 'v_kael', entregar: { catalisador_memoria: 1 }, txt: 'Fale com o Kael na praça de Aurora',
-        fala: 'Dario... eu lembro do Dario. E de você. Fui eu que te deixei no poço. Ela queria você. Eu ainda lembrava do juramento... só dele. Ela não quer destruir o mundo. Quer devolver Aurora. E para isso precisa da sua estrela.' },
+      { ev: 'falar', npc: 'v_kael', entregar: { catalisador_memoria: 1 }, txt: 'Encare o Kael na praça de Aurora',
+        fala: 'Guarde a mão longe da espada: Aurora é terra livre, aqui ninguém luta. Lembro de tudo agora. Do Dario. De você. Fui eu que te deixei no poço: ela queria você. E lembrar não muda nada. Eu sou a Geada. Você é a Chama.' },
     ],
-    pronto: 'Eu abro o caminho do leste. Fico aqui, em Aurora: devo isso a esta cidade. E a você. Tome a minha espada: ela já te machucou demais, agora vai te proteger.',
+    pronto: 'O caminho do leste está aberto, e a Geada vai chegar lá primeiro. Fique com a minha espada velha: quero te vencer sabendo que você estava armado.',
     presente: { espada: { r: 1, e: 10 }, runa_lendaria: 1 } },
   // ---------- Capítulo 15 · O último selo (Nv 84 a 95) ----------
   { id: 'e4', cap: 15, nv: 84, npc: 'm_brasa', nome: 'Brasa viva', libera: [],
@@ -5353,8 +5360,8 @@ export const HISTORIA = [
         fala: 'Segura firme. ...Pronto. Olha a estrela brilhando no metal. Igual à da sua mão.' },
     ],
     pronto: 'A estrela está na lâmina, e ganhou um reforço de graça. Agora ela é sua de verdade: da Aurora.' },
-  { id: 'e6', cap: 15, nv: 92, npc: 'v_kael', nome: 'O Véu', libera: [],
-    pedido: 'O Morro do Véu guarda o último selo, e ela vai estar lá. Um Warrok coberto de cristal guarda a subida: o Arauto do Véu. Limpe o campo e suba. Eu vou logo atrás.',
+  { id: 'e6', cap: 15, nv: 92, npc: 'v_elara', nome: 'O Véu', libera: [],
+    pedido: 'O Kael passou rindo pela praça: diz que a Geada sobe o Morro do Véu antes da Chama. O último selo está lá, e a Vesper também vai estar. Um Warrok coberto de cristal guarda a subida: o Arauto do Véu. Limpe o campo e suba antes deles.',
     lembra: 'Se a Vesper chegar antes ao último selo, tudo que a gente fez foi à toa.',
     etapas: [
       { ev: 'matar', campos: ['c_a7'], n: 10, txt: 'Derrube 10 monstros no campo Nv 90' },
@@ -5363,8 +5370,8 @@ export const HISTORIA = [
         diz: 'A Vesper congela todo mundo com um gesto e quebra o último selo. O Mestre Ivo chega pelo totem e se põe na sua frente. Sai ferido.' },
       { ev: 'pos', pos: [620, 1360, 12, 45], txt: 'Encoste a marca nos pedaços do último selo', alvo: 'pos', marca: true, cena: 'memoria7',
         diz: 'Memória: uma estrela cai, uma lasca dela vira uma criança de luz, e a Vesper a acha. Você é o último fragmento vivo de Aethra.' },
-      { ev: 'falar', npc: 'v_kael', txt: 'Volte ao Kael, em Aurora',
-        fala: 'Então é isso. Você é a estrela. Por isso ela te quer. E por isso eu te levei para longe dela.' },
+      { ev: 'falar', npc: 'v_elara', txt: 'Volte à Elara, em Aurora',
+        fala: 'Então é isso. Você é a estrela. Por isso ela te quer. E é por isso que o Kael também te quer: a Geada quer a estrela para ela.' },
     ],
     pronto: 'O Mestre Ivo foi levado para a Vila do Véu. Vá vê-lo. Ele quer falar com você antes de tudo.' },
   { id: 'h15', cap: 15, nv: 95, npc: 'reset', nome: 'A bênção da Ordem', libera: ['D3'], titulo: 'Luz de Aurora',
@@ -5394,11 +5401,11 @@ export const HISTORIA = [
       { ev: 'totem', k: 'ultimo_pouso', ja: 'totem', txt: 'Encontre todos no Último Pouso, ao pé do Pico', alvo: 'totem:ultimo_pouso' },
       { ev: 'falar', npc: 'v_celeste', txt: 'Peça a bênção da Irmã Celeste', fala: 'Que a luz que te trouxe até aqui te leve até o fim. As suas armas estão abençoadas.' },
     ],
-    pronto: 'Está todo mundo aqui. O Kael também: ele vai na frente. O caminho da Gruta da Névoa está aberto.',
+    pronto: 'Está todo mundo aqui. O Kael e a Geada subiram antes: querem o Coração para eles. O caminho da Gruta da Névoa está aberto.',
     presente: { pocao: 10, pocao_mana: 10, selo_lendario: 1, runa_lendaria: 1 } },
   { id: 'f2', cap: 16, nv: 100, npc: 'v_rui', nome: 'A Gruta da Névoa', libera: [],
-    pedido: 'A Gruta da Névoa leva à câmara do Coração. Quem a guarda é o Sentinela de Cristal, um golem do tamanho de uma torre. O Kael vai na frente. Fique perto dele.',
-    lembra: 'O Sentinela guarda a câmara do Coração. O Kael espera você na gruta.',
+    pedido: 'A Gruta da Névoa leva à câmara do Coração. Quem a guarda é o Sentinela de Cristal, um golem do tamanho de uma torre. O Kael e a Geada entraram antes. Não deixe eles chegarem primeiro.',
+    lembra: 'O Sentinela guarda a câmara do Coração. A Geada do Kael já está na gruta.',
     etapas: [
       { ev: 'matar', campos: ['cav_nevoa'], n: 6, txt: 'Atravesse a Gruta da Névoa' },
       { ev: 'matar', hc: 'sentinela', txt: 'Derrote o Sentinela de Cristal',
