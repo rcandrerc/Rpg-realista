@@ -70,3 +70,11 @@ s.painelEntrou(conta, cla, 30, new Set(noMundo().map((x) => x.AMIGA.id)));
 ok(!cla.saiu, 'abriu: o tempo fora parou de contar');
 ok(cla.log.some((l) => /^Fora \(/.test(l.txt)), `o tempo fora foi para o registro (${cla.log.map((l) => l.txt).join(' | ')})`);
 ok(!s.eventos?.some?.((e) => e.t === 'aviso' && e.para == null), 'sem aviso para todo mundo');
+
+// revisão de segurança 2026-11-24: semana vencida não trabalha pelo painel; o lugar do líder bot inimigo não vai
+const venc = { ...cla, sem: Date.now() - 1000 };
+r = s.painelFuncao(conta, venc, 'chama', r1.id, { k: 'grind' });
+ok(!r.ok && /venceu/.test(r.texto), 'semana vencida: ordem pelo painel recusada');
+ok(s.painelInfo(conta, venc, 'chama').vencida === 1, 'a página avisa da semana vencida');
+const inf2 = s.painelInfo(conta, cla, 'chama');
+ok(inf2.clas.every((C) => !C.inimigo || C.x == null), 'sem o lugar do líder inimigo');

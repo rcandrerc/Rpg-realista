@@ -159,6 +159,7 @@ function desenharCla() {
   const raiz = $('cla'); raiz.replaceChildren();
   if (info.sem) { raiz.append(el('div', 'vazio', 'Você ainda não tem clã. Funde um no jogo, no painel do Clã.')); return; }
   const t = el('div', 'card');
+  if (info.vencida) t.append(el('div', 'nome', 'A semana dos recrutas venceu. Entre no jogo para pagar; até lá eles não trabalham pelo painel.'));
   t.append(el('div', 'sub', info.jogo ? 'Você está no jogo agora: as ordens vão direto para o seu herói.' : 'Com esta página aberta, seus recrutas contam como se você estivesse online.'));
   const op = el('label', 'opc'), cx = el('input'); cx.type = 'checkbox'; cx.checked = ler('painelTela') === '1';
   cx.onchange = () => { gravar('painelTela', cx.checked ? '1' : null); tela(); };

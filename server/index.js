@@ -581,7 +581,7 @@ class SalaClareira extends Room {
   // clã, só as ordens do painel do jogo (painelFuncao), com limite de pedidos.
   entrarPainel(client, opcoes) {
     const conta = contas ? client.auth : null;
-    if (!conta) { client.leave(4003); return; }
+    if (!conta || conta.robo) { client.leave(4003); return; } // o robô de testes não segura o mundo ligado (revisão 2026-11-24)
     const u = (client.userData ||= {}); u.painel = true; u.sessao = typeof opcoes?.sessao === 'string' ? opcoes.sessao : '';
     for (const s of salas) for (const outro of s.clients) if (outro !== client && outro.auth?.id === conta.id && outro.userData?.painel) { (outro.userData ||= {}).substituido = true; outro.leave(4001); } // um painel por conta
     const k = 'c' + conta.id;
@@ -596,7 +596,10 @@ class SalaClareira extends Room {
     }
     this.sim.lerNpc ||= (id) => contas.lerMundo('npc:' + id);
     const antes = new Set(this.sim.recrutasNoMundo({ conta: k }).filter((x) => x.amiga).map((x) => x.AMIGA.id));
-    try { this.sim.entrarRecrutasSemLider(contas.clasDasContas(), client.sessionId); } catch (e) { console.warn('painel: recrutas sem líder:', e.message); }
+    // revisão 2026-11-24: quem está com o herói em outra sala fica de fora (senão o recruta ganhava corpo nas duas), e o
+    // clã com a semana vencida sem pagar não trabalha pelo painel (a cobrança é no jogo, cobrarCla)
+    const agora = Date.now(), lista = contas.clasDasContas().filter((o) => !heroiDe(o.conta) && !(o.conta === k && o.cla.sem <= agora));
+    try { this.sim.entrarRecrutasSemLider(lista, client.sessionId); } catch (e) { console.warn('painel: recrutas sem líder:', e.message); }
     if (!heroiDe(k)) { // fora do jogo: o tempo fora de quem acabou de entrar vale (como no login) e para de contar
       const prog = contas.lerProgresso(conta.id);
       if (prog?.cla) {
