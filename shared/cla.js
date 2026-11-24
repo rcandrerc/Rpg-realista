@@ -878,9 +878,15 @@ export const Cla = {
     let txt = null;
     if (m.fn.k === 'grind') {
       const teto = Math.max(1, nvLider), antes = a.prog.nivel | 0; if (antes >= teto) return null;
-      let n = F.nivelHora * h, xp = 0, nv = antes, resto = a.prog.xp | 0;
       if ((x.AMIGA.clanpc || this.fixoClaNpc(x)) && CLAS_NPC_ORDENS.ligado) return this.grindForaBot(x, m, h, teto);
-      while (n > 0 && nv < teto) { const prox = xpProximo(nv), falta = prox - resto, q = Math.min(n, falta / prox); xp += Math.round(q * prox); n -= q; resto = 0; nv++; }
+      // André 2026-11-24 (Jeito B): em vez de F.nivelHora níveis por hora, cada hora fora dá o XP de F.mobsHora monstros do
+      // nível em que ele está (puglin do mesmo nível); com a curva nova depois do Nv50 ele vai ficando cada vez mais lento.
+      let xp = 0, nv = antes, resto = a.prog.xp | 0;
+      for (let t = h; t > 0 && nv < teto; t -= 1) {
+        resto += Math.round(Math.min(1, t) * F.mobsHora * xpDoInimigo('puglin', nv, nv, NIVEL_INIMIGO));
+        while (nv < teto && resto >= xpProximo(nv)) { resto -= xpProximo(nv); nv++; }
+      }
+      xp = (nv < teto ? resto : 0) - (a.prog.xp | 0); for (let k = antes; k < nv; k++) xp += xpProximo(k); // no teto não guarda sobra
       if (xp > 0) { this.ganharXP(a, xp); if ((a.prog.nivel | 0) > teto) a.prog.nivel = teto; m.nv = a.prog.nivel | 0; txt = `${m.nome}: caçou e foi do Nv ${antes} ao ${a.prog.nivel}`; }
     } else if (m.fn.k === 'recurso') {
       const R = RECURSOS_CLA[m.fn.r]; if (!R?.item) return null; // Fragmento de Alma: só lutando de verdade
