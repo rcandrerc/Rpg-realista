@@ -602,6 +602,10 @@ const VOLTA_INTEIRA := 50 # fotos (~5 s): de quanto em quanto passa por todas as
 var _fotos_desde_volta := VOLTA_INTEIRA # a primeira foto passa por todas
 var _vagas_antes := {} # vagas de monstro que vieram na foto anterior (v -> true)
 var _novos_foto := 0 # corpos novos montados nesta foto (outro)
+# personagens mais leves (2026-11-24, registros do Poco X7: o:aparencia ~50 ms + o:vestir ~20 + o:juntar ~22 no mesmo
+# quadro): no máximo PESADOS_POR_FOTO trocas de cor/rosto ou de roupa por foto; as outras ficam para a foto seguinte (0,05 s)
+const PESADOS_POR_FOTO := 1
+var _pesados_foto := 0
 var foto_ms := 0 # quando chegou a última foto (lentidao.gd mede o maior tempo sem foto)
 func aplicar_foto(f: Dictionary) -> void:
 	foto_ms = Time.get_ticks_msec()
@@ -617,6 +621,7 @@ func aplicar_foto(f: Dictionary) -> void:
 		no_mapa = f.mapa
 	var tf := Time.get_ticks_usec()
 	_novos_foto = 0
+	_pesados_foto = 0
 	for j0 in f.get("jogadores", []):
 		var j: Dictionary = _juntar(j0, agora) if aoi and str(j0.get("id", "")) != meu_id else j0
 		if j.get("criando", false):
@@ -820,7 +825,8 @@ func outro(j: Dictionary) -> void:
 	var recem: bool = int(o.get("nasceu", -1)) == Engine.get_process_frames()
 	var antes: Vector3 = o.alvo
 	var ap_txt := JSON.stringify(j.get("aparencia"))
-	if ap_txt != o.ap and not recem: # cores, altura e rosto que o jogador escolheu no criador
+	if ap_txt != o.ap and not recem and _pesados_foto < PESADOS_POR_FOTO: # cores, altura e rosto que o jogador escolheu no criador
+		_pesados_foto += 1
 		o.ap = ap_txt
 		# sem esperar o penteado de outro modelo carregar (era a travada de ~1 s da Cecília, 2026-11-13): _detalhe_outros põe
 		# quando chegar
@@ -861,7 +867,8 @@ func outro(j: Dictionary) -> void:
 	var roupa := str(j.get("roupa", ""))
 	if j.get("semCapacete", false) == true: # o dono escondeu o capacete
 		roupa = ",".join(PackedStringArray(Array(roupa.split(",", false)).filter(func(p): return not str(p).begins_with("chapeu"))))
-	if roupa != o.get("roupa", "-") and not recem:
+	if roupa != o.get("roupa", "-") and not recem and _pesados_foto < PESADOS_POR_FOTO:
+		_pesados_foto += 1
 		o.roupa = roupa
 		var tv := Time.get_ticks_usec()
 		m.Armadura.vestir(o.no, m.Armadura.de_texto(roupa))
@@ -870,7 +877,7 @@ func outro(j: Dictionary) -> void:
 		_marca("o:juntar", tv)
 		o.capa_raca = "" # capa nova: pinta de novo (abaixo)
 		o.lod = -1 # peça nova vem com sombra e contorno: o detalhe por distância confere de novo
-	if raca != "" and str(o.get("capa_raca", "")) != raca + roupa and not recem:
+	if raca != "" and str(o.get("capa_raca", "")) != raca + roupa and not recem and o.get("roupa", "-") == roupa: # (roupa ainda na fila: pinta depois dela)
 		o.capa_raca = raca + roupa
 		_pintar_capa(o.no, _raca(raca).get("capa", {}))
 	var mexeu: bool = j.get("_mexeu", true) # área de interesse: sem posição nova, nada de amostra (senão ele tranca)
