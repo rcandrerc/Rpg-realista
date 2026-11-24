@@ -1,0 +1,9 @@
+{
+  "name": "Painel do Clã · Age of Embers",
+  "short_name": "Painel do Clã",
+  "start_url": "./painel.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#14120e",
+  "theme_color": "#14120e"
+}

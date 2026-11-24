@@ -82,6 +82,9 @@ export const DURACAO = {
   // nado do ActorCore (André comprou 2026-11-16): Freestyle (começo, volta e fim), Above Water Float Idle, Dolphin Kick Idle e
   // Submerge (começo, volta e fim), passadas para o esqueleto do Mixamo por ferramentas/assar-animacoes/actorcore.mjs
   crawl_ini: 1.067, crawl: 4.4, crawl_fim: 2.3, boiar_ac: 4.667, golfinho: 3, afundar_ini: 2.2, afundar: 3.233, afundar_fim: 2.3,
+  // trabalho do herói (plano de animações 2026-11-24): KayKit Character Animations (CC0), Rig_Medium_Tools e Simulation,
+  // passadas para o esqueleto do Mixamo por ferramentas/assar-animacoes/kaykit.py
+  kk_pesca_lanca: 1.933, kk_pesca_espera: 2.333, kk_pesca_belisca: 2.233, kk_pesca_puxao: 1.9, kk_pesca_recolhe: 1.6, kk_pesca_briga: 3.433, kk_pesca_pega: 3.233, kk_sentado: 3.6,
 };
 
 // Pedaços de animação: [arquivo, início, fim] em fração da duração. O combo de espada do Mixamo
@@ -166,7 +169,10 @@ export const HABILIDADES = {
   barreira: { nome: 'Barreira Arcana', tipo: 'Magia', anim: A.block, ts: 1, segurar: 2.6, defesa: 0.8, cd: 10, mana: 15, fx: true, desc: 'Uma bolha de luz: recebe 80% menos dano.' },
 };
 // A cura tem botão próprio, fora da build
-export const CURA = { nome: 'Cura', tipo: 'Magia', anim: A.heal, ts: 1.2, at: 0.55, cura: 38, cd: 8, mana: 25, fx: true, time: 0.5, timeR: 8, desc: 'Recupera vida. Quem é do seu time e está perto (8 m) recebe metade.' }; // time: André 2026-11-09
+// André 2026-11-24: a cura escala. Cura = curaVida da vida máxima + curaInt por ponto de Inteligência acima de 3, nunca
+// menos que `cura` (38, o valor fixo de antes). Conta: curaDe() logo abaixo.
+export const CURA = { nome: 'Cura', tipo: 'Magia', anim: A.heal, ts: 1.2, at: 0.55, cura: 38, curaVida: 0.15, curaInt: 3, cd: 8, mana: 25, fx: true, time: 0.5, timeR: 8, desc: 'Recupera 15% da sua vida máxima mais 3 por ponto de Inteligência (no mínimo 38). Quem é do seu time e está perto (8 m) recebe metade.' }; // time: André 2026-11-09
+export const curaDe = (h, vidaMax = 0, int = 3) => Math.max(h.cura, Math.round((h.curaVida || 0) * vidaMax + (h.curaInt || 0) * Math.max(0, (int ?? 3) - 3)));
 export const ESPACOS_ESPADA = 4, ESPACOS_MAGIA = 4; // 4 de espada (modo espada) e 4 de magia (modo magia); o botão Trocar alterna
 export const ESPACOS_BUILD = ESPACOS_ESPADA + ESPACOS_MAGIA;
 // a build é a lista das 8: primeiro as 4 de espada, depois as 4 de magia
@@ -1494,6 +1500,11 @@ export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate:
 // (com 5 de folga e 0,1 por nível: 10 níveis abaixo = metade, 15 ou mais = nada). Ninguém muda de nível, só o XP.
 export const TIME_XP = { nerfLivre: 5, nerfPorNivel: 0.1 };
 export const fatorXpTime = (meu, maior, T = TIME_XP) => Math.max(0, Math.min(1, 1 - T.nerfPorNivel * ((maior | 0) - (meu | 0) - T.nerfLivre)));
+// André 2026-11-24 (opção C): drop cai quando o herói está muito acima do bicho (anti-farm de bicho Nv 1).
+// d = nível do herói - nível do bicho. Até livre níveis: chance cheia; depois cai a cada `degrau` níveis
+// (6-10 acima: 70%, 11-15: 40%, 16+: 25%). Item valioso (valiosos + peça + Tomo) não cai mais com d > valiosoAte.
+// Ouro não muda (já cresce com o nível do bicho). Boss de mundo fica de fora (dropBoss).
+export const DROP_NIVEL = { livre: 5, degrau: 5, chances: [1, 0.7, 0.4, 0.25], valiosoAte: 10, valiosos: ['fragmento', 'cristal'] };
 // Drops: cada herói que ganhou XP com o monstro tira a sua sorte (vai direto para a mochila dele).
 // ouro [mín, máx]; pocao/mana/equip/tomo = chance; raridade = chance de cada raridade da peça (Comum..Mítico)
 // mat: materiais para o alfaiate { item: [chance, quantos] }
@@ -2305,9 +2316,18 @@ export const TOTENS = { toque: 8, usar: 4, canal: 5, taxaNivel: 10, taxaMin: 50,
   { id: 'ultimo_pouso', nome: 'Último Pouso', nivel: 95, faixa: 'Nv 95-100', x: 222, z: 1328 },
 ] };
 // ouro para ir até o totem t
+// Bots e recrutas usam os totens como um jogador (André 2026-11-24: "ele se aproxima de um totem, teleporta para outro
+// totem, em vez de correr o mapa inteiro"; nunca teleporta de qualquer lugar). Na viagem longa (longeAmiga) ele compara:
+// ir de lobo pela estrada até o destino, ou ir até o totem descoberto mais perto dele, canalizar e sair no totem
+// descoberto mais perto do destino. Vale o totem só quando poupa pelo menos `ganho` m de estrada (a canalização conta
+// como `canal` s de galope parado). Mesmas regras do jogador: só totens que ele já tocou, paga a taxa, sem pack nem
+// carrinho, sem zona na névoa. Deu errado (sem ouro, levou dano): tenta de novo só depois de `espera` s.
+export const TOTEM_BOT = { ganho: 80, folga: 3, espera: 45, olhaOutra: 5 };
 export const taxaTotem = (t) => Math.max(TOTENS.taxaMin, TOTENS.taxaNivel * (t?.nivel || 1));
 // o totem a até r m de (x, z), ou null
 export const totemPerto = (x, z, r = TOTENS.usar) => TOTENS.lista.find((t) => Math.hypot(t.x - x, t.z - z) < r) || null;
+// o totem mais próximo de (x, z) (André 2026-11-24: ao morrer renasce no totem mais perto de onde caiu, não no último tocado)
+export const totemMaisPerto = (x, z) => TOTENS.lista.reduce((m, t) => (!m || Math.hypot(t.x - x, t.z - z) < Math.hypot(m.x - x, m.z - z) ? t : m), null);
 // Base do clã segura (André 2026-11-24: "a área dentro da nossa base deve ser safe igual os totens, somente a área da
 // base mesmo, sem raio de segurança"): os retângulos de cada base (o centro no nível de agora e os lotes abertos, sem
 // folga em volta), refeitos por Base.refazerBases (shared/base.js). Valem as mesmas regras do totem (abaixo).
@@ -3328,6 +3348,7 @@ export const CLA = {
   extra: { de: 3, por: 0.10 }, // cada recruta depois do 3º: +10% na semana toda
   perto: 5, // m do Recrutador para contratar
   log: 20, // linhas do histórico de gastos
+  volta: { min10: 10, parte: 0.5, min: 50 }, // dispensado: min10 minutos para chamar de volta; taxa = parte do preço de contratar de novo (mínimo min). André 2026-11-24
   tiers: [
     { id: 'recruta', nome: 'Recruta', nivel: 'um', preco: 150, porNivel: 0, semana: 22, semanaNivel: 3, claNv: 1 },
     { id: 'veterano', nome: 'Veterano', nivel: 'metade', preco: 0, porNivel: 40, semana: 0, semanaNivel: 6, claNv: 3 },
@@ -3386,6 +3407,10 @@ export const CLA = {
   farmar: 40, // quanto ele junta por viagem (o máximo da encomenda); acabou, vai de novo
   // entrega (André 2026-11-23): só o recurso pedido vai para o Baú do Clã, e ele leva andando (perto: m do baú para deixar)
   entrega: { perto: 2.4 },
+  // recall (André 2026-11-24: "além de totem, eles podem usar o recall para guardar as coisas no baú"): longe do Baú do
+  // Clã (mais de `min` m), o recruta que leva o recurso usa a casinha como o jogador (VOLTA_VILA: canaliza parado,
+  // andar ou dano cancela, recarga de 10 min) e aparece na frente do baú. Em recarga: vai andando (ou pelo totem).
+  recall: { min: 100 },
   protegeRaio: 9, // m em volta de quem ele protege: monstro ou inimigo ali dentro, ele ataca
   // Proteger carrinho / mercante (André 2026-11-23: "proteger meu carrinho... proteger meu mercante"; "se esse bicho se
   // afastando, ele não correr atrás. A função dele é só defender"): raio = inimigo a até isso do carrinho, ele ataca sem
@@ -3393,9 +3418,9 @@ export const CLA = {
   // onde ele fica. No mercante ele sobe no convés e não sai do navio (não cai na água no trajeto): bate só no que alcança.
   protegeVeiculo: { raio: 12, coleira: 15, roda: 3 },
   // com o líder fora do jogo (André 2026-11-22: "eqt estou offline ele faz oq eu mandei?"): a sala fecha sem ninguém,
-  // então quando ele volta o servidor conta o tempo fora (até max) e dá o resultado da função: Grind = XP (nivelHora
-  // níveis por hora, nunca passa do nível do líder); Farmar = o que o vigor pagaria (o vigor enche no tempo fora)
-  fora: { minimo: 5 * 60e3, max: 12 * 3600e3, nivelHora: 0.25, peixe: 'tilapia', couroVigor: 3 },
+  // então quando ele volta o servidor conta o tempo fora (até max) e dá o resultado da função: Grind = XP (era nivelHora
+  // níveis por hora; André 2026-11-24, Jeito B: o XP de mobsHora monstros do nível dele por hora; nunca passa do nível do líder); Farmar = o que o vigor pagaria (o vigor enche no tempo fora)
+  fora: { minimo: 5 * 60e3, max: 12 * 3600e3, nivelHora: 0.25, mobsHora: 6, peixe: 'tilapia', couroVigor: 3 },
   // Base do clã (André 2026-11-22: "já pode implantar o lance da base"; shared/base.js). Cada clã tem uma base no mapa:
   // o líder funda onde está. No meio fica o centro (salão do clã, com o Baú do Clã); em volta, os lotes de 10 x 10 m.
   // Sem aluguel: a taxa do clã sai do cofre toda semana (clã bot: do ouro do líder). O nível da base é o nível do clã.
@@ -4354,10 +4379,20 @@ export const NPC_VIDA = {
 // o jeito dele no comércio. O jeito de luta fica em CEREBRO.jeitos, o de guerra em AMIGA.guerra, o horário em NPC_VIDA.rotina.
 export const LEILAO_BOT = {
   olhadasDia: [2, 3], horas: 24, maxAnuncios: 8, compraMax: 2,
+  // André 2026-11-24 ("equipamento pra caramba na bag dele... cheio de tomo"): guarda para o leilão no máximo isso; o resto
+  // vai para a loja na volta. Tomo: 1 de cada habilidade que ainda pode ler fica; os outros vão ao leilão (pelo menos 1 por olhada)
+  guardaEquip: 8, guardaTomos: 4,
   acima: [0.05, 0.15], escasso: 1, // anuncia de 5% a 15% acima do mercado; com até "escasso" anúncio igual, vai no topo
   caroDemais: 1.3, // não paga mais que 30% acima do preço de mercado
   essencial: 0.1, livre: 1.5, metaMin: 300, metaCara: 3,
   reserva: { padrao: 20, pedra: 50, lenha: 50, minerio_ferro: 30, minerio_cobre: 30, carvao: 30, cristal: 20 }, // estoque que guarda de cada material
+  // André 2026-11-24 (mais variedade no leilão, os 4 itens aprovados): das maxAnuncios vagas, `vagas.recurso` são só de
+  // recurso e `vagas.consumivel` de poção/comida (o resto: peça, Tomo, outro material). Antes de vender recurso na loja,
+  // o bot (e o líder com a sobra do baú) olha o leilão: com menos de `pouco` anúncios daquele item, anuncia; senão, loja.
+  // Poção/comida só vai ao leilão o que passa de `guardaConsumivel`.
+  vagas: { recurso: 3, consumivel: 1 }, pouco: 3,
+  recursos: ['minerio_ferro', 'minerio_cobre', 'pedra', 'lenha', 'carvao', 'couro', 'tecido'],
+  guardaConsumivel: { pocao: 30, pocao_mana: 30, comida: 10 },
   farmar: { ouroHoraNivel: 30, unidadesHora: 60, vigorUnidade: 1, semVigor: 5, semVigorX: 2 },
   jeitos: {
     padrao: { poupa: 0.7, ganancia: 1, compra: 1, farma: 1, texto: 'Equilibrado: poupa 70% e anuncia no meio da faixa.' },

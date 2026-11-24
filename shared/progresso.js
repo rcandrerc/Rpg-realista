@@ -26,9 +26,14 @@ export const NIVEL_MAX = 9999;
 // lento"). Até o Nv10 fica igual; dali em diante cada nível pede (1 + (nível - 10) / XP_ESCALA.passo) vezes o de antes,
 // então a quantidade de bichos por nível cresce de verdade (antes ficava quase a mesma do Nv20 ao Nv30).
 // Fórmula de antes: Math.round(16 * nivel ** 1.45 * (1 + Math.max(0, nivel - 30) / 50)).
-export const XP_ESCALA = { desde: 10, passo: 50 };
-export const xpProximo = (nivel) => Math.round(16 * nivel ** 1.45 * (1 + Math.max(0, nivel - 30) / 50)
-  * (1 + Math.max(0, nivel - XP_ESCALA.desde) / XP_ESCALA.passo));
+// André 2026-11-24 (Opção 2, "quem chega no nível 100 tem que ter sofrido"): até o Nv50 nada muda; dali em diante cada
+// nível pede mais um tanto, sem degrau: vezes (1 + a·d + b·d²), d = nível - 50 (x2 no 60, x4 no 75, x9 no 100).
+export const XP_ESCALA = { desde: 10, passo: 50, endgame: 50, a: 0.08, b: 0.0016 };
+export const xpProximo = (nivel) => {
+  const d = Math.max(0, nivel - XP_ESCALA.endgame);
+  return Math.round(16 * nivel ** 1.45 * (1 + Math.max(0, nivel - 30) / 50)
+    * (1 + Math.max(0, nivel - XP_ESCALA.desde) / XP_ESCALA.passo) * (1 + XP_ESCALA.a * d + XP_ESCALA.b * d * d));
+};
 // XP por inimigo derrubado (vai para quem bateu nele ou estava perto)
 export const XP_INIMIGO = { puglin: 6, imp: 8, chefe: 25, sombrio: 6, lider: 20, lobo: 7, golem: 9, maw: 10, warrok: 30 };
 // XP de um monstro de nível nv (campos de caça) para um herói de nível nh: sobe com o nível do bicho e cai quando o
@@ -45,6 +50,13 @@ export const xpNivel = (nv, nh, N) => {
   if (d >= 2) return Math.min(N.xpMax, 1 + N.xpSobe * (d - 1));
   const f = Math.min(1, Math.max(N.xpMin, 1 - N.xpCai * (-d - 2)));
   return N.xpAlem ? f * N.xpAlem ** Math.max(0, -d - N.xpAlemDe) : f;
+};
+// fração da chance de drop de um bicho de nível nv para um herói de nível nh (DROP_NIVEL em shared/dados.js, André 2026-11-24)
+export const fatorDropNivel = (nv, nh, valioso, D) => {
+  const d = (nh || 1) - (nv || 1);
+  if (d <= D.livre) return 1;
+  if (valioso && d > D.valiosoAte) return 0;
+  return D.chances[Math.min(D.chances.length - 1, Math.ceil((d - D.livre) / D.degrau))];
 };
 // monstro batendo no herói: mais forte acima, mais fraco abaixo
 export const danoMonstroNivel = (nv, nh, N) => {
@@ -590,6 +602,8 @@ export function progressoValido(p) {
   for (const k of Object.keys(n.prof)) n.prof[k] = num(p.prof?.[k]) ? Math.min(1e7, Math.max(0, p.prof[k])) : 0;
   // capacete escondido (André 2026-11-03: opção na tela de equipamento); continua equipado e dando o bônus
   n.semCapacete = p.semCapacete === true;
+  // arma na mão ao sair (André 2026-11-24): quem saiu de mago entra de mago; sem o campo = espada
+  if (p.modo === 'Magia' || p.modo === 'Espada') n.modo = p.modo;
   // onde o herói estava ao sair (André 2026-11-03: entra de volta no mesmo lugar; só a morte leva para a vila).
   // A Simulacao confere se o lugar ainda está dentro do mapa. Sem pos = nasce na vila.
   const q = p.pos;

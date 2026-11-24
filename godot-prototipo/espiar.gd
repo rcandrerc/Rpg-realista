@@ -30,6 +30,13 @@ func _ready() -> void:
 	txt.add_theme_color_override("font_color", Color(0.95, 0.82, 0.55))
 	txt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(txt)
+	# André 2026-11-24: "além de ver onde ele está, ter acesso a toda sua interface": o menu dele, só olhando (menu.gd)
+	var bm := Button.new()
+	bm.text = Idioma.frase("Menu dele")
+	bm.add_theme_font_size_override("font_size", 18)
+	bm.custom_minimum_size = Vector2(120, 44)
+	bm.pressed.connect(func(): if id != "" and m.menu: m.menu.pedir_recruta(id, nome, "espiar"))
+	h.add_child(bm)
 	var bt := Button.new()
 	bt.text = Idioma.frase("Voltar")
 	bt.add_theme_font_size_override("font_size", 18)

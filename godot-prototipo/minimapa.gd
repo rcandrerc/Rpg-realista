@@ -66,6 +66,7 @@ var _cache_lugares: Array = [] # _lugares() montada (refeita ao abrir o mapa e a
 var _cache_t := -1.0
 var botao_mais := Rect2()
 var botao_menos := Rect2()
+const ANTES_CACA := 13.0 # m além da borda do spot de monstros onde o "Ir" para (visão dos monstros = 11 m)
 const Z_ABRIR := 1.8 # o mapa já abre maior (André 2026-11-05)
 const Z_MIN := 1.0
 const Z_MAX := 7.0
@@ -607,8 +608,11 @@ func _escolher(l: Dictionary) -> void:
 		return
 	selecionado = str(l.id)
 	_marcar(Vector2(float(l.x), float(l.z)))
-	if l.has("antes") and previa.size() >= 2: # NPC ou oficina: para um pouco antes, do lado de onde chega
+	if l.has("antes") and previa.size() >= 2: # NPC, oficina ou spot de monstros: para um pouco antes, do lado de onde chega
 		var p := Vector2(float(l.x), float(l.z))
+		if str(l.get("tipo", "")) == "caca": # rota curta no fim: tira os pontos que já estão dentro da folga, senão pararia no meio
+			while previa.size() > 2 and previa[previa.size() - 2].distance_to(p) <= float(l.antes):
+				previa.remove_at(previa.size() - 2)
 		var antes: Vector2 = previa[previa.size() - 2]
 		if antes.distance_to(p) > float(l.antes):
 			previa[previa.size() - 1] = p + (antes - p).normalized() * float(l.antes)
@@ -780,14 +784,23 @@ func _lugares_base() -> Array:
 		if tl == "vila" or tl == "porto" or tl == "posto":
 			l.append({"id": str(lm.id), "tipo": "vila", "nome": str(lm.nome), "curto": str(lm.nome), "x": float(lm.x), "z": float(lm.z), "r": float(lm.r)})
 	if m.totem: # totens de teleporte (André 2026-11-10): "Ir para" leva até a pedra
+		# André 2026-11-24: do totem mais perto ao mais longe de onde o herói está, com a distância na linha
+		var hpt: Vector3 = m.heroi.position if m.heroi != null else Vector3.ZERO
+		var tts: Array = []
 		for t in m.totem.T.lista:
-			l.append({"id": "totem_%s" % t.id, "tipo": "totem", "nome": "Totem: %s" % t.nome, "curto": "Totem %s" % t.nome, "x": float(t.x), "z": float(t.z), "r": 4.0})
+			var dt: float = Vector2(float(t.x) - hpt.x, float(t.z) - hpt.z).length()
+			var dtxt := "%d m" % int(dt) if dt < 1000.0 else ("%.1f km" % (dt / 1000.0)).replace(".", ",")
+			tts.append({"d": dt, "it": {"id": "totem_%s" % t.id, "tipo": "totem", "nome": "Totem: %s  (%s)" % [t.nome, dtxt], "curto": "Totem %s" % t.nome, "x": float(t.x), "z": float(t.z), "r": 4.0}})
+		tts.sort_custom(func(a, b): return a.d < b.d)
+		for e in tts:
+			l.append(e.it)
 	var cs: Array = m.mundo.get("caca", []).duplicate()
 	cs.sort_custom(func(a, b): return int(a.get("nivel", 1)) < int(b.get("nivel", 1)))
 	for cc in cs:
 		var vt: String = m.boss_mundo.volta_texto(str(cc.boss)) if cc.has("boss") else "" # boss de mundo caído: quando volta
 		l.append({"id": str(cc.get("id", cc.nome)), "tipo": "caca", "cc": cc, "nome": ("Boss Nv %d  %s" if cc.has("boss") else "Nv %d  %s") % [int(cc.get("nivel", 1)), str(cc.get("nome", ""))] + ("  (%s)" % vt if vt != "" else ""),
-			"curto": "%s Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))], "x": float(cc.x), "z": float(cc.z), "r": float(cc.get("r", 12.0)) + 2.0})
+			"curto": "%s Nv %d" % [NOME_BICHO.get(str(cc.get("bicho", "")), "Monstros"), int(cc.get("nivel", 1))], "x": float(cc.x), "z": float(cc.z), "r": float(cc.get("r", 12.0)) + 2.0,
+			"antes": float(cc.get("r", 12.0)) + ANTES_CACA}) # monstros: o "Ir" para na borda do spot, fora da visão (11 m), não no meio da bicharada (André 2026-11-24)
 	# Recursos (André 2026-11-21: "deixar só veio de ferro, veio de pedra, veio de cobre... só o nome; quando a gente
 	# clica, aparece ir para o mais próximo"): uma linha por minério, que leva ao veio mais perto (grande ou pequeno) que
 	# ainda tem minério. O id da linha é o do minério, então a escolha fica marcada mesmo quando o mais perto muda.

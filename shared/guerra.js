@@ -44,7 +44,10 @@ export const Guerra = {
   // protegido (GUERRA.protecao s depois de levantar da queda): ninguém ataca ele. eu = quem quer bater: a proteção dele
   // não impede (bater acaba com ela, em ferir)
   protegido(a) { return a?.protGuerraAte > this.tempo; },
-  emGuerra(a, b, eu = false) { return a !== b && a?.tipo === 'jogador' && b?.tipo === 'jogador' && !!a.guerra && !!b.guerra && this.racaDe(a) !== this.racaDe(b) && (eu || !this.protegido(a)) && !this.protegido(b); },
+  // robô de testes (contas 'robo:', j.robo) fica fora da guerra (André 2026-11-24: "se quiser deixar um bot imune a PVP,
+  // pode ser também... ele vai morrer o tempo todo"): ninguém da outra raça ataca ele e ele não ataca ninguém. A zona de
+  // guerra (j.guerra) continua valendo para ele nas etapas da história; monstro continua batendo nele
+  emGuerra(a, b, eu = false) { return a !== b && a?.tipo === 'jogador' && b?.tipo === 'jogador' && !a.robo && !b.robo && !!a.guerra && !!b.guerra && this.racaDe(a) !== this.racaDe(b) && (eu || !this.protegido(a)) && !this.protegido(b); },
   // a cada GUERRA.recheca s: quem pode lutar; o jogador de verdade fica sabendo quando entra ou sai da zona de guerra
   // (só quem passou da Trégua e no máximo uma vez a cada GUERRA.aviso s)
   passoGuerra() {

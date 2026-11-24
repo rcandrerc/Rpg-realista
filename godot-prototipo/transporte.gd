@@ -2921,7 +2921,7 @@ func _poses_sentado(sentados: Dictionary) -> void:
 				m.armar(m.h.modo) # sentado: as duas armas nas costas, mãos no volante ou no remo
 			else:
 				_armas_outro(id, true)
-		_alvos_sentado(poses[id].pose, sentados[id])
+		_alvos_sentado(poses[id].pose, sentados[id], id)
 
 # outro jogador sentou ou levantou: online.gd arruma as armas de novo (sentado, as duas nas costas; André 2026-11-13:
 # "a arma que está na minha mão tem que sair da minha mão e ir para minhas costas")
@@ -2938,7 +2938,7 @@ func _esq_de(id: String):
 		return m.online.outros[id].get("esq")
 	return null
 
-func _alvos_sentado(pose, v: Dictionary) -> void:
+func _alvos_sentado(pose, v: Dictionary, id := "") -> void:
 	var corpo: Node3D = v.no.get_node_or_null("corpo")
 	if corpo == null:
 		return
@@ -2965,6 +2965,12 @@ func _alvos_sentado(pose, v: Dictionary) -> void:
 			pose.pegada[i] = T * maos[i]
 		pose.deita = float(v.get("deita", 0.06))
 		pose.torce = float(v.get("torce", 0.0))
+		# o herói pescando com as animações do KayKit (pesca.gd): os braços e o tronco ficam com a animação
+		var pescando: bool = id == "eu" and m.pesca != null and m.pesca.st != "" and m.pesca._kk
+		pose.maos = not pescando
+		if pescando:
+			pose.deita = 0.0
+			pose.torce = 0.0
 
 func _costas(id: String, corpo: Node3D, pk, esq) -> void:
 	var k := ""

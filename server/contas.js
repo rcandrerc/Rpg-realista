@@ -6,7 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { PERSONAGENS, visualValido, buildValida, aparenciaValida, progressoValido, RECOMECO, AMIGA } from '@rpg/shared';
+import { CLA, PERSONAGENS, visualValido, buildValida, aparenciaValida, progressoValido, RECOMECO, AMIGA } from '@rpg/shared';
 
 const DIA = 24 * 3600 * 1000;
 const VALIDADE_SESSAO = 60 * DIA;
@@ -124,6 +124,7 @@ export class Contas {
     this.copiar();
     setInterval(() => this.copiar(), 6 * 3600 * 1000).unref();
     this.recomecar(); // depois da cópia de segurança: o banco de antes do recomeço fica na pasta de cópias
+    try { this.devolverDispensados(); } catch (e) { console.error('Devolver dispensado: falhou', e.message); }
   }
 
   // Recomeço do zero (André 2026-11-11: "zera tudo como se a Cecília tivesse começado hoje; eu também, do zero").
@@ -232,6 +233,8 @@ export class Contas {
   salvarNome(id, nome) { this.q.nome.run(nome, id); this.q.nomeLote.run(nome, 'c' + id); }
   apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); this.q.soltarLotes.run('c' + id); this.q.apagarAmizades.run(id, id); this.q.apagarPedidos.run(id, id); } // conta apagada: o lote volta à venda e some das listas de amigos
   salvarBuild(id, build) { if (buildValida(build)) this.q.build.run(JSON.stringify(build), id); }
+  // o progresso como está no banco (painel do clã com o líder fora do jogo, André 2026-11-24)
+  lerProgresso(id) { try { const r = this.db.prepare('SELECT progresso FROM contas WHERE id = ?').get(id); return r?.progresso ? progressoValido(JSON.parse(r.progresso)) : null; } catch { return null; } }
   salvarProgresso(id, prog) { this.q.progresso.run(JSON.stringify(progressoValido(prog)), id); }
   // chave Groq do jogador (conversa com a Cecília): nunca vai para o celular nem para o código, só o servidor usa
   chaveIa(id) { return this.q.chaveIa.get(id)?.ia_chave || ''; }
@@ -327,6 +330,62 @@ export class Contas {
   salvarLote({ id, dono, nome, dados }) { this.q.gravarLote.run(id, dono, nome || '', JSON.stringify(dados || {}), Date.now()); }
 
   // Cópia de segurança uma vez por dia em dados/copias (guarda as últimas 30)
+  // André 2026-11-24 (11:49 de Brasília): apertou "Dispensar" no recruta achando que era sair do time. Roda uma vez só:
+  // quem foi dispensado hoje entre 09:00 e 11:55 de Brasília volta para o clã de quem dispensou. O registro (aparência,
+  // ficha, função) vem da cópia de segurança mais nova que ainda tinha ele (pasta copias/); sem cópia, monta pelo save
+  // e pelo histórico do clã. O save dele ('npc:' + id: nível, mochila, equipamento, ouro) nunca saiu do banco.
+  devolverDispensados(de = Date.UTC(2026, 10, 24, 12), ate = Date.UTC(2026, 10, 24, 14, 55), CHAVE = 'devolver_dispensado_2026_11_24') {
+    if (this.lerMundo(CHAVE)) return 0;
+    const pasta = path.join(this.pasta, 'copias');
+    let arqs = []; try { arqs = fs.readdirSync(pasta).filter((f) => /^(contas|marco)-.*\.db$/.test(f)).sort((a, b) => (a[0] === b[0] ? b.localeCompare(a) : a[0] === 'c' ? -1 : 1)); } catch { /* sem cópias */ }
+    const bancos = new Map(), daCopia = (arq, id) => {
+      try {
+        if (!bancos.has(arq)) bancos.set(arq, new DatabaseSync(path.join(pasta, arq), { readOnly: true }));
+        return JSON.parse(bancos.get(arq).prepare('SELECT progresso FROM contas WHERE id = ?').get(id)?.progresso || 'null');
+      } catch { return null; }
+    };
+    const todas = this.q.todasContas.all(), emCla = new Set(), voltaram = [];
+    for (const c of todas) { try { for (const m of JSON.parse(c.progresso || 'null')?.cla?.m || []) if (m?.id) emCla.add(String(m.id)); } catch { /* estragado */ } }
+    let saves = null; // 'npc:rc...' (só se precisar montar sem cópia)
+    for (const c of todas) {
+      let prog; try { prog = JSON.parse(c.progresso || 'null'); } catch { continue; }
+      const cla = prog?.cla; if (!cla || !Array.isArray(cla.m) || !Array.isArray(cla.log)) continue;
+      let mudou = false;
+      for (const L of cla.log) {
+        if (!(L?.t >= de && L.t <= ate) || typeof L.txt !== 'string' || !L.txt.startsWith('Dispensou ')) continue;
+        const nome = L.txt.slice(10);
+        if (cla.m.some((o) => o.nome === nome)) continue;
+        let r = null;
+        for (const arq of arqs) { r = (daCopia(arq, c.id)?.cla?.m || []).find((o) => o?.nome === nome && !emCla.has(o.id)); if (r) break; }
+        if (!r) { // sem cópia: o save órfão gravado na hora da dispensa, amigo desta conta
+          saves ||= this.db.prepare("SELECT chave, valor FROM mundo WHERE chave LIKE 'npc:rc%'").all();
+          const cand = saves.map((o) => { try { return { id: o.chave.slice(4), d: JSON.parse(o.valor) }; } catch { return null; } })
+            .filter((o) => o && !emCla.has(o.id) && o.d?.prog && (o.d.amizades?.['c' + c.id] != null || o.d.amigosDe?.['c' + c.id]) && Math.abs((o.d.t || 0) - L.t) < 10 * 60e3)
+            .sort((a, b) => Math.abs(a.d.t - L.t) - Math.abs(b.d.t - L.t));
+          if (cand.length) {
+            const H = [...cla.log].reverse().find((o) => typeof o?.txt === 'string' && o.txt.startsWith(`Contratou ${nome} (`)), T = H && CLA.tiers.find((x) => H.txt.includes(`(${x.nome} Nv`));
+            const nv0 = +(H?.txt.match(/Nv (\d+)\)/)?.[1]) || 1;
+            const g = CLA.nomes.m.includes(nome.split(' ')[0]) ? 'm' : 'f';
+            let h = [...cand[0].id].reduce((x, ch) => (x * 31 + ch.charCodeAt(0)) >>> 0, 7); const sor = (l) => { h = (h * 1103515245 + 12345) >>> 0; return l[h % l.length]; };
+            const K = CLA.cores, ap = { cabelo: sor(K.cabelo), olhos: sor(K.olhos), pele: sor(K.pele), roupa: sor(K.roupa), calca: sor(K.calca), altura: 1, penteado: sor(CLA.penteados[g]) }; // a cara não ficou em lugar nenhum: sorteada pelo id
+            r = { id: cand[0].id, nome, g, tier: T?.id || 'recruta', ap, nv0, nv: cand[0].d.prog.nivel | 0 || nv0, desde: H?.t || L.t };
+          }
+        }
+        if (!r) { console.log(`Devolver dispensado: ${nome} (conta ${c.id}) sem registro para voltar`); continue; }
+        const salvo = this.lerMundo('npc:' + r.id); if (salvo?.prog?.nivel) r.nv = salvo.prog.nivel | 0;
+        r = { ...r }; delete r.pos; delete r.dev;
+        if (cla.m.length < (cla.nv || 1)) cla.m.push(r);
+        else cla.disp = [...(Array.isArray(cla.disp) ? cla.disp : []), { r, ate: Date.now() + 24 * 3600e3 }]; // sem vaga: 24 h para chamar de volta
+        cla.log.push({ t: Date.now(), txt: `${nome} voltou (dispensa sem querer)`, v: 0 });
+        emCla.add(r.id); voltaram.push(`${nome} (conta ${c.id})`); mudou = true;
+      }
+      if (mudou) this.q.progresso.run(JSON.stringify(progressoValido(prog)), c.id);
+    }
+    for (const b of bancos.values()) try { b.close(); } catch { /* já fechado */ }
+    this.gravarMundo(CHAVE, { t: Date.now(), voltaram });
+    console.log(`Devolver dispensado: ${voltaram.length ? voltaram.join(', ') : 'ninguém'}`);
+    return voltaram.length;
+  }
   copiar() {
     try {
       this.q.limpar.run(Date.now());

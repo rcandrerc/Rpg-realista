@@ -335,6 +335,8 @@ func _ready() -> void:
 			grafico.paralelo_confirmar())
 	# cardápio do app no balde da Oracle, sem APK novo (André 2026-11-18): grava o endereço para a próxima abertura
 	add_child(preload("res://balde_cardapio.gd").new())
+	# toda lista rola arrastando o dedo, com inércia (André 2026-11-24, rolagem_toque.gd)
+	add_child(preload("res://rolagem_toque.gd").new())
 	montar_versao()
 	P = Progresso.new()
 	h.vida = P.st.vidaMax
@@ -2364,7 +2366,10 @@ func na_masmorra() -> bool:
 # algum monstro vivo a até 15 m bateu ou apanhou nos últimos segundos (a luta continua mesmo se o herói ficou sem bater)
 func luta_perto() -> bool:
 	for e in _lista_perto(heroi.position, 15.0):
-		if e.estado != "morto" and e.vida > 0.0 and maxf(float(e.get("combate", 0.0)), float(e.get("luta", 0.0))) > tempo and e.no.position.distance_to(heroi.position) < 15.0:
+		# só monstro que lutou COMIGO nos últimos 15 s (e.comigo): o que o Dario está caçando perto não segura a música
+		# (André 2026-11-24)
+		if e.estado != "morto" and e.vida > 0.0 and maxf(float(e.get("combate", 0.0)), float(e.get("luta", 0.0))) > tempo \
+				and float(e.get("comigo", -99.0)) > tempo - 15.0 and e.no.position.distance_to(heroi.position) < 15.0:
 			return true
 	return false
 
@@ -2460,6 +2465,7 @@ func ferir(e: Dictionary, dmg: float, de: Vector3, hab = null) -> void:
 	dmg = max(1.0, round(dmg))
 	e.vida -= dmg
 	e.combate = tempo + 5.0 # nome aparece enquanto está em combate
+	e.comigo = tempo # lutou comigo: segura a música de combate (luta_perto)
 	fx.numero(e.no.position, dmg, Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
 	var basico_hab: bool = hab is Dictionary and hab.has("combo")
 	impacto_golpe(e.no.position, h.golpe_forte or not basico_hab, crit, basico_hab and h.modo == "Espada", tiro_basico(hab))
@@ -3048,9 +3054,11 @@ func _tentar(qual: String) -> bool:
 			rede("habilidade", 9)
 			fx.conjura(heroi, "cura", heroi_anim.get_animation(D.CURA.anim).length / D.CURA.ts, maos)
 			comecar(D.CURA.anim, D.CURA.ts, D.CURA.hits, func(_i):
-				h.vida = min(P.st.vidaMax, h.vida + D.CURA.cura)
+				# André 2026-11-24: 15% da vida máx. + 3 por Int acima de 3, no mínimo 38 (igual curaDe no servidor)
+				var c: int = maxi(int(D.CURA.cura), roundi(D.CURA.cura_vida * float(P.st.vidaMax) + D.CURA.cura_int * maxi(0, int(P.prog.atr.get("int", 3)) - 3)))
+				h.vida = min(P.st.vidaMax, h.vida + c)
 				fx.cura(heroi)
-				fx.numero(heroi.position, D.CURA.cura, Color("7dffa0")))
+				fx.numero(heroi.position, c, Color("7dffa0")))
 		"pular":
 			if not acao.is_empty() and not acao.get("pulo", false):
 				return false
@@ -4087,7 +4095,7 @@ func atualizar_heroi(dt: float) -> void:
 		if h.morto <= 0.0:
 			h.vida = P.st.vidaMax
 			h.mana = P.st.manaMax
-			mov.por_em(totem.onde_renascer(D.NASCIMENTO) if totem else D.NASCIMENTO) # último totem tocado (André 2026-11-10)
+			mov.por_em(totem.onde_renascer(D.NASCIMENTO, heroi.position) if totem else D.NASCIMENTO) # totem mais perto de onde caiu (André 2026-11-24)
 			heroi.position = mov.posicao()
 			cam.colocar(heroi.position)
 			heroi_anim.play("parada", 0.2)
@@ -5203,6 +5211,7 @@ func atualizar_inimigos(dt: float) -> void:
 					var nv_e: int = int(e.get("nivel", P.prog.nivel)) # diferença de nível (Quimera): dano e teto por golpe
 					ferir_heroi(float(e.get("dano", D.INIMIGO.dmg)) * dano_monstro_nivel(nv_e), teto_monstro_nivel(nv_e, e.get("tipo", "") in CHEFES))
 					e.combate = tempo + 5.0
+					e.comigo = tempo
 			if e.golpe > e.golpe_dur:
 				e.golpe = -1.0
 			continue

@@ -20,11 +20,11 @@ import { noLago, AGUA } from './relevo.js';
 import { planejarRota, terraId } from './rota.js';
 import { lugarDoVeiculo, fundoAgua, devolverBarquinho, centroNavio, packValido, precoPack, mercadoK, mercadoConta, capacidadeCarrinho } from './transporte.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
-import { HISTORIA } from './dados.js';
+import { HISTORIA, TOTENS, TOTEM_BOT, taxaTotem } from './dados.js';
 import { LOJA, precoLoja, PLANTIO, RECEITA_ESTACAO, CATALISADOR, LUGARES } from './dados.js';
 import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js';
 import { diaDiarias, premioDiaria } from './diarias.js';
-import { ARVORES_PLANTIO, ENCOMENDA, PROFISSOES, MINA, PACK_BOT, PACKS, PACK_REGRAS, GUERRA, PACK_TIME, PALETE } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
+import { ARVORES_PLANTIO, ENCOMENDA, TITULOS, PROFISSOES, MINA, PACK_BOT, PACKS, PACK_REGRAS, GUERRA, PACK_TIME, PALETE } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
 import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera, QUEM_LIBERA, SEM_NEVOA } from './historia.js';
 import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
@@ -380,7 +380,7 @@ export const Amiga = {
     if (!this.amiga) return;
     if (this.AMIGA.recruta && !this.AMIGA.clanpc) { // recruta do clã (shared/cla.js): sai junto com o líder (ou dispensado), nunca fica sem ele
       // fica no mundo enquanto tiver jogador online, com ou sem o líder (André 2026-11-23: "todos iguais"); sai com o último
-      if (!forcar && [...this.jogadores.values()].some((o) => !o.bot && o.id !== donoId)) return;
+      if (!forcar && this.genteOnline(donoId)) return; // painel do clã aberto também segura (André 2026-11-24)
       if (!forcar) this.foraDesde = Date.now(); // ficou sem o líder e saiu com o servidor vazio: o tempo fora (shared/cla.js foraRecrutas) conta daqui
       this.amigaFalam?.clear();
       if (this.amiga.ia?.atividade) this.fimAtividadeAmiga(this.amiga, false);
@@ -393,7 +393,7 @@ export const Amiga = {
     { const sai = this.jogadores.get(donoId); if (sai) this.diarioAmiga(sai.conta); } // quem saiu: o diário da conversa de hoje
     if (donoId != null) this.amigaFalam?.delete(donoId);
     // André 2026-11-11: ele vive no mundo enquanto tiver gente na sala (com ou sem chave); só sai com o último jogador
-    const fica = [...this.jogadores.values()].some((o) => !o.bot && o.id !== donoId);
+    const fica = this.genteOnline(donoId); // jogador ou painel do clã aberto (André 2026-11-24)
     if (fica && donoId != null && donoId !== this.amigaDono) return this.avisarVirtuaisAmiga(); // saiu outro: ela fica com quem está
     const prox = [...(this.amigaFalam || [])].find((k) => k !== donoId && this.jogadores.has(k));
     if (prox) { // quem ela acompanhava saiu, mas tem outro amigo com chave aqui: ela fica e passa a acompanhar ele
@@ -507,6 +507,7 @@ export const Amiga = {
     if (this.guerraAmiga(j, dt)) return; // Chama x Geada (shared/guerra.js): atacar, ajudar, fugir ou poupar a outra raça
     if (this.protegerAmiga(j, dt)) return; // função "Proteger" do painel do clã (shared/cla.js)
     if (this.almaAmiga(j, dt)) return; // função "Farmar recurso: Fragmento de Alma": caça a outra raça
+    if ((this.AMIGA.recruta || this.fixoClaNpc?.(this)) && this.ferramentaRecruta?.(this, j, dt)) return; // a ordem pede ferramenta que ele não tem: pega no Baú do Clã ou faz (cla.js)
     if ((this.AMIGA.recruta || this.fixoClaNpc?.(this)) && this.passoFazendaRecruta(this, j, dt)) return; // função "Fazenda": canteiros da base do clã
     // subiu de nível: os pontos vão pelo jeito dele (André 2026-11-11): quem gosta de cajado põe em Inteligência, o resto
     // em Força, e todos em Vitalidade (antes era só metade Força e metade Vitalidade)
@@ -547,6 +548,10 @@ export const Amiga = {
     if (ia.fase === 'parada') { if (this.tempo >= ia.ate) ia.fase = 'pensar'; return; }
     if (this.tempo < ia.ate || !L) return;
     if (this.tempo >= (ia.arrumaT || 0)) { ia.arrumaT = this.tempo + this.AMIGA.mochila.arrumar; this.arrumarMochilaAmiga(j); }
+    // recruta do jogador com função no painel (farmar, grind...): casa, horta e passeio só no modo Livre (André 2026-11-24:
+    // "mandei farmar madeira e ele foi construir a casa dele"). Sem dar a função (ex.: sem machado) ele espera na porta do
+    // lote; o aplicarFuncoes tenta a função de novo a cada minuto
+    if (!this.modoLivreAmiga()) return this.irPara(j, L, { x: casaX0(L.def) + this.AMIGA.porta[0] + Math.random() * 2 - 1, z: casaZ0(L.def) + this.AMIGA.porta[1] }, () => { ia.fase = 'parada'; ia.ate = this.tempo + this.AMIGA.passo.passeio; j.ry = 0; });
     // 0) móvel da casa que ficou fora do lugar (a casa andou para a grade, casaX0): leva para o lugar dele antes de
     // construir, senão ele tranca a fundação e a parede. Nada some: a mesma peça (e o que tem no baú) só muda de lugar.
     const mov = this.movelForaAmiga(L);
@@ -665,7 +670,7 @@ export const Amiga = {
       if (noite || livres < A.mochilaLivre) return voltar();
       // a casa no lote da base ainda não está pronta (André 2026-11-23, NPC_CASA_BASE): primeiro vai construir, como um
       // jogador; quem obedece o líder do clã quase nunca fica em casa à toa, então a casa vem antes da próxima saída
-      { const Lc = this.loteDaAmiga(); if (Lc && this.casaFaltaAmiga(j, Lc)) { ia.av = null; ia.fase = 'pensar'; ia.ate = 0; return; } }
+      { const Lc = this.modoLivreAmiga() && this.loteDaAmiga(); if (Lc && this.casaFaltaAmiga(j, Lc)) { ia.av = null; ia.fase = 'pensar'; ia.ate = 0; return; } }
       // André 2026-11-16: grind sozinho limitado por dia real; soldado do clã não tem limite (André 2026-11-22, como no 'ir'
       // logo abaixo). Antes ele passava dos 30 min, escolhia, voltava para a vila e ficava em volta dela o dia todo (23/11).
       const cansouGrind = !sold && this.grindAcabouAmiga(j);
@@ -846,7 +851,11 @@ export const Amiga = {
   modoLivreAmiga() {
     if (!this.AMIGA.recruta || this.AMIGA.clanpc) return true;
     const m = this.claDoRecruta?.(this)?.m?.find((o) => o.id === this.AMIGA.id);
-    return !m?.fn || m.fn.k === 'livre';
+    if (!m?.fn || m.fn.k === 'livre') return true;
+    // acabou o vigor no farm pedido: fica no modo livre até o vigor voltar (André 2026-11-24: "se eu colocar ele para fazer
+    // alguma tarefa e acabar o vigor, ele entra em modo livre... vai fazer o que ele quiser"); o aplicarFuncoes o chama de novo
+    const R = m.fn.k === 'recurso' && ENCOMENDA.recursos[m.fn.r];
+    return !!(R && ['minerar', 'lenha', 'pescar'].includes(R.coleta) && this.amiga && vigorAgora(this.amiga.prog.vigor) < 1);
   },
   // falta alguma peça da casa (que ainda dá para pôr nesta sala) ou um móvel fora do lugar?
   casaFaltaAmiga(j, L) {
@@ -925,7 +934,13 @@ export const Amiga = {
   },
   andarAmiga(j, dt) {
     const ia = j.ia;
-    { const c = ia.rota[0] && this.contornoCasa(this.loteDaAmiga(), j, ia.rota[0]); if (c) { ia.rota.unshift(c); ia.preso = 0; ia.longe = Infinity; } } // a casa no caminho: dá a volta
+    // a casa no caminho: dá a volta. Ping-pong entre os cantos (achado no teste npc-diarias-ajuda, 2026-11-24: o Dario ia e
+    // voltava entre dois cantos sem fim): mais de 6 cantos em 20 s, larga o contorno por 10 s (anda reto; preso, o de sempre)
+    { const c = ia.rota[0] && this.tempo >= (ia.semContorno || 0) && this.contornoCasa(this.loteDaAmiga(), j, ia.rota[0]);
+      if (c) {
+        const K = ia.contornos && this.tempo - ia.contornos.t0 < 20 ? ia.contornos : (ia.contornos = { t0: this.tempo, n: 0 });
+        if (++K.n > 6) { ia.semContorno = this.tempo + 10; ia.contornos = null; } else { ia.rota.unshift(c); ia.preso = 0; ia.longe = Infinity; }
+      } }
     const alvo = ia.rota[0];
     if (!alvo) { this.pararAmiga(j); ia.fase = 'pensar'; ia.ate = this.tempo + 0.3; const f = ia.chegou; ia.chegou = null; f?.(); return; }
     const dx = alvo.x - j.x, dz = alvo.z - j.z, d = Math.hypot(dx, dz);
@@ -1835,12 +1850,79 @@ export const Amiga = {
     const r = planejarRota(this.mapa, j, praia);
     return r.bloqueio ? [praia, fim] : [...r.pontos, fim];
   },
+  // ---------- totens (André 2026-11-24, TOTEM_BOT em shared/dados.js): a viagem pelo totem, ou null se a estrada é melhor.
+  // r = a rota direta (planejarRota). { de, para, rota (até o lado da pedra de `de`), metros (com a canalização) }
+  planoTotemAmiga(j, dono, r) {
+    const ia = j.ia, B = TOTEM_BOT, p = j.prog;
+    if (!dono || this.tempo < (ia.semTotemAte || 0) || j.veiculo || j.bordo || p.pack || this.motivoCarga(j)) return null;
+    const vistos = TOTENS.lista.filter((t) => (p.totens || []).includes(t.id));
+    if (vistos.length < 2) return null;
+    const tj = terraId(j.x, j.z), td = terraId(dono.x, dono.z);
+    if (tj === 0 || td === 0) return null; // no mar: o barco/nado resolve
+    const dd = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+    let de = null, para = null;
+    for (const t of vistos) if (terraId(t.x, t.z) === tj && (!de || dd(t, j) < dd(de, j))) de = t;
+    if (!de) return null;
+    for (const t of vistos) {
+      if (t === de || terraId(t.x, t.z) !== td || (p.ouro || 0) < taxaTotem(t) || zonaFechadaEm(p, t.x, t.z)) continue;
+      if (!para || dd(t, dono) < dd(para, dono)) para = t;
+    }
+    if (!para) return null;
+    const direto = r.bloqueio ? Infinity : r.metros, parado = (TOTENS.canal + B.folga) * MONTARIAS.lobo.correr;
+    // conta rápida em linha reta (sempre menor que pela estrada): se nem assim compensa, nem planeja
+    if (dd(j, de) + dd(para, dono) + parado + B.ganho >= direto) return null;
+    const rA = planejarRota(this.mapa, j, de), rB = planejarRota(this.mapa, para, dono);
+    if (rA.bloqueio || rB.bloqueio) return null;
+    const metros = rA.metros + rB.metros + parado;
+    if (metros + B.ganho >= direto) return null;
+    // o fim da rota fica do lado da pedra (ela bloqueia a passagem), virado para quem chega
+    const rota = rA.pontos.slice(0, -1), q = rota.length ? rota[rota.length - 1] : j, dq = dd(q, de) || 1, l = TOTENS.raio + 1.2;
+    rota.push({ x: de.x + (q.x - de.x) / dq * l, z: de.z + (q.z - de.z) / dq * l });
+    return { de, para, rota, metros };
+  },
+  // em outra terra com barquinho (travessiaAmiga): o totem serve? (olha de `olhaOutra` em `olhaOutra` s)
+  totemOutraTerraAmiga(j, dono) {
+    const ia = j.ia, c = ia.totemOutra;
+    if (ia.viagem?.totem) return true;
+    if (c && this.tempo < c.t && Math.hypot(c.x - dono.x, c.z - dono.z) < 20) return c.ok;
+    const ok = !!this.planoTotemAmiga(j, dono, { bloqueio: 'terra' });
+    ia.totemOutra = { t: this.tempo + TOTEM_BOT.olhaOutra, x: dono.x, z: dono.z, ok };
+    return ok;
+  },
+  // perto da pedra do totem de partida: desce do lobo, para e pede a viagem (o mesmo irTotem do jogador: canaliza
+  // parado, paga a taxa). true = cuidou do passo
+  usarTotemAmiga(j, v) {
+    const T = v.totem, de = TOTENS.lista.find((t) => t.id === T.de);
+    if (!de || Math.hypot(de.x - j.x, de.z - j.z) >= TOTENS.usar) return false;
+    j.montado = null; this.pararAmiga(j);
+    if (T.pediu || !j.chao || j.esc || j.trava > 0) return true;
+    if (j.coleta) this.pararColeta(j, null);
+    if (j.pesca) this.pararPesca(j, null);
+    this.irTotem(j.id, T.para);
+    if (j.vila) T.pediu = true;
+    else { j.ia.semTotemAte = this.tempo + TOTEM_BOT.espera; j.ia.viagem = null; } // não deu (ouro, carga): vai pela estrada
+    return true;
+  },
   longeAmiga(j, dono, d, dt) {
     const V = this.AMIGA.viagem, ia = j.ia;
+    // canalizando no totem: fica parado até chegar no outro (chegarNoTotem) ou cancelar
+    if (j.vila && ia.viagem?.totem) { j.montado = null; this.pararAmiga(j); return true; }
+    // já pediu a viagem e a canalização acabou: chegou (planeja de novo de lá) ou foi cancelada (espera para tentar de novo)
+    if (ia.viagem?.totem?.pediu) {
+      const P = TOTENS.lista.find((t) => t.id === ia.viagem.totem.para);
+      if (!P || Math.hypot(P.x - j.x, P.z - j.z) > TOTENS.toque) ia.semTotemAte = this.tempo + TOTEM_BOT.espera;
+      ia.viagem = null;
+    }
     if (!(ia.viagem ? d > V.chega : d > V.estrada)) { ia.viagem = null; return false; }
     let v = ia.viagem;
     if (!v || (this.tempo >= v.novaEm && Math.hypot(v.fx - dono.x, v.fz - dono.z) > (v.bloqueio ? 2 : V.replanejar))) {
       const r = planejarRota(this.mapa, j, dono), aviso = !v && !!dono && this.tempo >= (ia.avisoViagem || 0);
+      const T = this.planoTotemAmiga(j, dono, r);
+      if (T) {
+        if (aviso && !dono.solo && !ia.vir && d > V.estrada * 3) { ia.avisoViagem = this.tempo + 120; if (this.tempo - (ia.aCaminhoT ?? -1e9) > 600) { ia.aCaminhoT = this.tempo; const L = this.AMIGA.chat.falas.aCaminho, t = sorteia(L.length > 1 ? L.filter((x) => x !== ia.aCaminhoUlt) : L); ia.aCaminhoUlt = t; this.dizerAmiga(t); } }
+        v = ia.viagem = { rota: T.rota, i: 0, fx: dono.x, fz: dono.z, novaEm: this.tempo + V.novaEm, seco: v?.seco ?? V.seco, t: 0, x0: j.x, z0: j.z, desvio: 0, lado: 1, falhas: 0, iFalha: -1, totem: { de: T.de.id, para: T.para.id } };
+        if (ia.vir) ia.vir.ate = Math.max(ia.vir.ate, this.tempo + T.metros / MONTARIAS.lobo.correr * V.folga + V.extra);
+      } else {
       // outra terra sem barco (André 2026-11-23: "eles precisam ir pro mar... nadando, de barco, de navio"): pela estrada
       // até a praia do lado dele e de lá nadando reto até ele (no mar, travessiaAmiga leva até o fim)
       // (bot sozinho na rotina dele continua como antes: sem barquinho, faz um ou escolhe outro campo; recruta nada)
@@ -1858,8 +1940,10 @@ export const Amiga = {
       // a chamada pelo chat espera o tempo da viagem (lobo no galope + folga)
       if (ia.vir) ia.vir.ate = Math.max(ia.vir.ate, this.tempo + r.metros / MONTARIAS.lobo.correr * V.folga + V.extra);
       }
+      }
     }
     if (v.bloqueio) { j.montado = null; this.pararAmiga(j); return true; }
+    if (v.totem && this.usarTotemAmiga(j, v)) return true;
     if (j.trava > 0) return this.pararAmiga(j), true;
     if (j.coleta) this.pararColeta(j, null);
     if (j.pesca) this.pararPesca(j, null);
@@ -1936,7 +2020,7 @@ export const Amiga = {
     // na água: nadando, de barquinho ou no mar (o cais fica sobre o mar); a beira do lago (pescando) não conta
     const naAgua = !ia.atividade && (dono.veiculo === 'barquinho' || fundoAgua(dono.x, dono.z) > AGUA.peito - 0.3 || terraId(dono.x, dono.z) === 0);
     const tj = terraId(j.x, j.z), td = terraId(dono.x, dono.z);
-    const outra = !nav && !naAgua && tj > 0 && td > 0 && tj !== td && contar(j.prog.mochila, 'barquinho') > 0;
+    const outra = !nav && !naAgua && tj > 0 && td > 0 && tj !== td && contar(j.prog.mochila, 'barquinho') > 0 && !this.totemOutraTerraAmiga(j, dono); // totem até a outra terra: vai por ele (longeAmiga)
     ia.outraTerra = outra;
     // ele mesmo no mar (nadando, com ou sem pack nas costas) e o dono longe: nada reto até ele (a estrada não sai do mar)
     const euNaAgua = !ia.atividade && (fundoAgua(j.x, j.z) > AGUA.peito - 0.3 || tj === 0);
@@ -2947,7 +3031,7 @@ export const Amiga = {
     // vale anunciar (peça Rara+, Tomo, material) enquanto houver espaço na mochila
     this.leilaoTalvezAmiga?.(j);
     const livresL = p.mochila.filter((o) => !o).length;
-    const guarda = (it) => daEnc(it) || it.cad || it.k === 'pocao' || it.k.startsWith('semente_') || this.AMIGA.plantas.includes(it.k) || this.AMIGA.pedidos.some((o) => o.k === it.k) || ITENS[it.k].comida || !!this.guardaLeilaoAmiga?.(j, it, livresL);
+    const guarda = (it) => daEnc(it) || it.cad || it.k === 'pocao' || it.k.startsWith('semente_') || this.AMIGA.plantas.includes(it.k) || this.AMIGA.pedidos.some((o) => o.k === it.k) || ITENS[it.k].comida || !!FERRAMENTAS_FAZENDA[it.k] || !!this.guardaLeilaoAmiga?.(j, it, livresL); // ferramenta (picareta, machado, vara...) nunca vai para a loja (André 2026-11-24: "tô achando que ele tá vendendo a picareta")
     let ouro = 0, vendeu = 0;
     for (let i = 0; i < p.mochila.length; i++) {
       const it = itemValido(p.mochila[i]); if (!it) continue;
@@ -2957,8 +3041,20 @@ export const Amiga = {
       ouro += precoVenda(it) * (it.n || 1); p.mochila[i] = null; vendeu++;
     }
     if (vendeu) { p.ouro += ouro; this.aplicarStatus(j); }
+    this.tituloAmiga(j);
     this.guardarAmiga();
     return { vendeu, ouro };
+  },
+  // usa o melhor título que ganhou (André 2026-11-24: "quero que eles usem título também"): farmando, o da profissão do
+  // farm; senão o de luta mais forte (dano e crítico valem mais, depois defesa e vida, depois XP e ouro)
+  tituloAmiga(j) {
+    const p = j.prog, tem = (p.tit?.tem || []).filter((id) => TITULOS[id]); if (!tem.length) return;
+    const ia = j.ia, at = ia?.av?.coleta || (ia?.levar && ENCOMENDA.recursos[ia.levar.r]?.coleta), prof = { minerar: 'min', lenha: 'len', pescar: 'pes' }[at];
+    const peso = { dano: 3, critico: 3, defesa: 2, vida: 2, xp: 1, ouro: 1 };
+    const nota = (id) => { const T = TITULOS[id]; if (T.cond?.prof) return T.cond.prof === prof ? 100 + (T.r | 0) : -1; return Object.entries(T.b || {}).reduce((s, [k, v]) => s + (peso[k] || 0.5) * v, 0) * 100 + (T.r | 0) * 0.01; };
+    const melhor = tem.reduce((m, id) => (nota(id) > nota(m) ? id : m), tem[0]);
+    if (nota(melhor) < 0 || p.tit.uso === melhor) return;
+    p.tit.uso = melhor; this.aplicarStatus(j); j.progSujo = true;
   },
   // o dono quer trocar: abre a janela normal de troca. true = abriu; senão a fala do porquê
   abrirTrocaAmiga(dono) {

@@ -164,7 +164,7 @@ export const MissaoCla = {
     const dest = this.destinoMissao(B); if (!dest) return;
     // todos iguais (André 2026-11-23: "todos online, se tiver algum jogador online"): com jogador no servidor, a escolta é
     // de verdade em qualquer lugar do mapa; contada só sem ninguém (aí nem passo tem)
-    const visto = [...this.jogadores.values()].some((o) => !o.bot);
+    const visto = this.genteOnline(); // jogador ou painel do clã aberto (André 2026-11-24)
     if (visto) { // de verdade: o líder vai para o Baú do Clã e abre como um jogador
       const bau = this.bauBase?.(B) || B;
       if (Math.hypot(L.x - bau.x, L.z - bau.z) <= Mc.abrir) this.iniciarMissaoCla(L, () => {}, B, ctxs);

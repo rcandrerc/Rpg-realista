@@ -59,6 +59,7 @@ static var _foi_desconectado := false # sobrevive ao recarregar a cena: a tela i
 static var _foi_trocado := false # saiu porque a conta entrou em outro aparelho (André 2026-11-13): o aviso diz isso
 static var _conta_antes := {} # nome da conta para o botão "Entrar como…" mesmo com o servidor fora
 var _build_ok := false
+var _modo_ok := true # arma da conta já aplicada neste login
 var _pronto := false
 var _cla_pedido := false # já abriu a janela do nome do clã nesta sessão
 var _nome_recusado := "" # nome que o servidor recusou no criador (já é de outra conta)
@@ -401,7 +402,7 @@ func ao_entrar(id: String, conta: Dictionary) -> void:
 		esconder_login()
 	m.hud.nome = str(conta.get("nome", m.hud.nome))
 	m.hud.aviso("Online!")
-	rede.enviar("modo", m.h.modo)
+	_modo_ok = false # a arma da conta (prog.modo) chega no primeiro "prog" e vale; o cliente não manda a dele antes (André 2026-11-24)
 	rede.enviar("idioma", {"codigo": Idioma.atual}) # Cecília e Dario (IA) respondem em inglês se o jogo está em English
 	for e in m.inimigos:
 		e.estado = "vivo"
@@ -1057,6 +1058,7 @@ func previsto(e: Dictionary, n: float, crit: bool, chave := "golpe") -> void:
 		n = max(1.0, round(float(_media_golpe[chave]) * randf_range(0.85, 1.15) * (2.0 if crit else 1.0)))
 	e.prev.append([m.tempo, n, chave])
 	e.combate = m.tempo + 5.0
+	e.comigo = m.tempo # lutou comigo: segura a música de combate (main.luta_perto)
 	m.fx.numero(e.no.position, n, Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
 	m.trabalho.combate()
 	_barra_prevista(e)
@@ -1123,6 +1125,13 @@ func evento(ev: Dictionary) -> void:
 	match t:
 		"prog": # nível, XP, atributos e skills da conta (o menu do personagem mostra)
 			m.P.do_servidor(ev)
+			if not _modo_ok: # entrou agora: pega a arma em que saiu (mago volta mago)
+				_modo_ok = true
+				var pr = ev.get("prog", {})
+				var mq := str(pr.get("modo", "Espada")) if pr is Dictionary else "Espada"
+				if mq != m.h.modo and mq in ["Espada", "Magia"]:
+					m.armar(mq)
+					m.mostrar_build()
 			# clã (André 2026-11-22): conta sem clã abre a aba Clã uma vez para escolher o nome (depois do criador)
 			if not _cla_pedido and int(m.P.cla.get("sem", 0)) == 1 and m.menu and not (m.criador and m.criador.aberto()):
 				_cla_pedido = true
@@ -1279,6 +1288,8 @@ func evento(ev: Dictionary) -> void:
 				for e in m.inimigos:
 					if e.no == quem:
 						e.combate = m.tempo + 5.0
+						if str(ev.alvo) == meu_id:
+							e.comigo = m.tempo # me bateu: segura a música de combate (main.luta_perto)
 			var no = corpos.get(str(ev.alvo))
 			if str(ev.alvo) == meu_id and outros.has(str(ev.get("de", ""))) and float(ev.get("n", 0)) > 0.0:
 				bateram[str(ev.de)] = m.tempo # jogador ou bot que me bateu: camada 1 do botão Trocar alvo (main.gd trocar_alvo)
@@ -1286,6 +1297,11 @@ func evento(ev: Dictionary) -> void:
 				var eu: bool = str(ev.alvo) == meu_id
 				if eu or meu:
 					m.trabalho.combate()
+				if meu and not eu: # bati nele (boss também, que não passa pelo previsto): segura a música (main.luta_perto)
+					for e in m.inimigos:
+						if e.no == no:
+							e.comigo = m.tempo
+							break
 				var crit: bool = ev.get("crit", false) == true
 				if ev.has("dot"): # sangramento, veneno ou queimadura de skill de boss: só o número, na cor do efeito
 					fx.numero(no.position, ev.n, m.boss_mundo.cor_dot(str(ev.dot)), false)
@@ -1374,6 +1390,10 @@ func evento(ev: Dictionary) -> void:
 		"reforco": # reforço de equipamento: o servidor sorteou (reforco.gd mostra na janelinha)
 			if m.reforco:
 				m.reforco.do_servidor(ev)
+			return
+		"claFicha": # o menu inteiro do recruta, só olhando (menu.gd ver_recruta, André 2026-11-24)
+			if m.menu:
+				m.menu.ver_recruta(ev)
 			return
 		"claCandidatos": # os 3 candidatos do Recrutador, com ficha (troca.gd, André 2026-11-23)
 			if m.troca:
@@ -1505,7 +1525,7 @@ func evento(ev: Dictionary) -> void:
 			return
 	match t:
 		"proj":
-			var info := {"vel": float(ev.vel), "cor": cor(ev.get("cor")), "tam": float(ev.get("tam", 0.24)), "estilo": str(ev.get("estilo", "arcano"))}
+			var info := {"outro": true, "vel": float(ev.vel), "cor": cor(ev.get("cor")), "tam": float(ev.get("tam", 0.24)), "estilo": str(ev.get("estilo", "arcano"))}
 			if ev.get("explosao"):
 				info.explosao = float(ev.explosao)
 			fx.projetil(Vector3(float(ev.x), float(ev.y), float(ev.z)), Vector3(float(ev.dx), float(ev.dy), float(ev.dz)).normalized(), info, 0, 22.0)
@@ -1521,7 +1541,7 @@ func evento(ev: Dictionary) -> void:
 		"meteoro":
 			var x := float(ev.x)
 			var z := float(ev.z)
-			fx.meteoro(x, z, float(ev.r), float(ev.queda), m.chao_em(x, z), func(_p): pass)
+			fx.meteoro(x, z, float(ev.r), float(ev.queda), m.chao_em(x, z), func(_p): pass, false)
 		"cadeia":
 			var x := float(ev.x)
 			var z := float(ev.z)

@@ -183,7 +183,7 @@ func _mostrar_tudo() -> void:
 		fx.gp.acerto(p + Vector3(0, 1.0, 0), 0.3, true)
 	fx.raio(x, z, y)
 	fx.vortice(x, z, 3.0, y)
-	fx.meteoro(x, z, 3.0, 0.3, y, func(_p): pass)
+	fx.meteoro(x, z, 3.0, 0.3, y, func(_p): pass, false) # aquecimento: não vibra
 	fx.cadeia(p + Vector3(-1, 1, 0), p + Vector3(1, 1, 0))
 	fx.cura(_corpo)
 	fx.escudo(_corpo, 0.4)

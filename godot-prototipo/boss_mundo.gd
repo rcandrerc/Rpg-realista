@@ -336,7 +336,7 @@ func _montar_hud() -> void:
 	_painel.anchor_right = 0.5
 	_painel.offset_left = -230
 	_painel.offset_right = 230
-	_painel.offset_top = 64
+	_painel.offset_top = 128 # André 2026-11-24: embaixo do menu do topo (y 70–120, menu_topo.gd MARGEM/TAM); em 64 cobria os ícones
 	_painel.visible = false
 	_hud.add_child(_painel)
 	var col := VBoxContainer.new()
