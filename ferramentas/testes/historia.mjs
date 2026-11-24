@@ -328,8 +328,8 @@ ok(etapa().ev === 'pos', 'duelo conta como vencido');
 ir(196, 202); correr(0.6); falar('reset'); fim('b11');
 falar('lider'); ok(missao() === 'k4' && h().ac, 'Aldo: o fim da Trégua');
 j.guerra = true; s.checarEtapa(j); ok(etapa().ev === 'guerra_matar', 'fora da zona segura, na guerra');
-s.historia(j, 'guerra_matar'); ok(etapa().ev === 'ter', 'derrubou alguém da Geada');
-dar('alma_geada', 1); correr(0.6); falar('lider'); fim('k4'); j.guerra = false;
+s.historia(j, 'guerra_matar'); ok(etapa().ev === 'falar', 'derrubou alguém da Geada');
+falar('lider'); fim('k4'); j.guerra = false;
 ok(s.histInfo(j).titulo === 'Sentinela da Ordem' && contar(p.mochila, 'peitoral') >= 1, 'título do ato e o peitoral Raro +5');
 ok(missao() === 'c1', 'depois do Ato II vem o capítulo 9 (A cidade da ponte)');
 

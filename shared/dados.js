@@ -5076,8 +5076,7 @@ export const HISTORIA = [
     lembra: 'Fora da zona segura, derrube alguém da Geada e guarde o Fragmento de Alma.',
     etapas: [
       { ev: 'guerra', ja: 'guerra', txt: 'Saia da zona segura (fora de vila, totem e campos até Nv 30)' },
-      { ev: 'guerra_matar', txt: 'Derrube alguém da Geada' },
-      { ev: 'ter', itens: { alma_geada: 1 }, txt: 'Guarde 1 Fragmento de Alma Geada na mochila' },
+      { ev: 'guerra_matar', txt: 'Derrube alguém da Geada' }, // o Fragmento de Alma cai sozinho na mochila (fragmentoGuerra)
     ],
     pronto: 'Agora é guerra de verdade. Cada Fragmento de Alma da Geada sobe o seu clã. Leve os seus soldados junto: sozinho, ninguém aguenta a Geada.',
     presente: { pocao: 5, pocao_mana: 3 } },
