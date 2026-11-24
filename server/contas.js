@@ -287,7 +287,7 @@ export class Contas {
     const l = [];
     try {
       for (const r of this.db.prepare("SELECT id, progresso FROM contas WHERE progresso LIKE '%\"cla\"%' AND google NOT LIKE 'robo:%'").all()) {
-        try { const p = progressoValido(JSON.parse(r.progresso)); if (p?.cla?.m?.length) l.push({ conta: 'c' + r.id, cla: p.cla, raca: p.raca }); } catch { /* conta com progresso estragado */ }
+        try { const p = progressoValido(JSON.parse(r.progresso)); if (p?.cla?.m?.length) l.push({ conta: 'c' + r.id, cla: p.cla, raca: p.raca, nivel: p.nivel | 0, ouro: p.ouro | 0, equip: p.equip }); /* nivel/ouro/equip: o relatório (/npcs.json com crachá) */ } catch { /* conta com progresso estragado */ }
       }
     } catch (e) { console.warn('clasDasContas:', e.message); }
     return l;
