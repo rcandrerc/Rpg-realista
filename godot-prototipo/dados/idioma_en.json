@@ -4527,6 +4527,7 @@
 "Líder · Nv %d": "Leader · Lv %d",
 "Sem Baú do Clã: funde a base do clã (o salão tem um na porta) ou crie um na construção (aba Móveis).": "No Clan Chest: found the clan base (the hall has one at the door) or make one in building mode (Furniture tab).",
 "%s %s Nv %d (%s) · líder %s · %d recrutas": "%s %s Lv %d (%s) · leader %s · %d recruits",
+"%s %s Nv %d (%s) · líder %s%s · %d recrutas": "%s %s Lv %d (%s) · leader %s%s · %d recruits",
 "Fale com o Recrutador (Sargento Bruno na Clareira, Sargenta Hela no Juncal).": "Talk to the Recruiter (Sergeant Bruno in Clareira, Sergeant Hela in Juncal).",
 "%s Nv %d · %d de ouro · %d/semana": "%s Lv %d · %d gold · %d/week",
 "%s · só no clã Nv %d": "%s · clan Lv %d only",
