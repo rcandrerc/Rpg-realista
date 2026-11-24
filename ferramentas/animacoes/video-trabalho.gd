@@ -143,9 +143,34 @@ func _pesca(barco: bool, seg: float) -> void:
 				P.evento(roteiro[i][1])
 				i += 1
 			await process_frame
+			_cam_mao()
 			t += 1.0 / 30.0
 		await esperar(10)
 	print(cena, " ok")
+
+# CAM=mao: câmera colada na mão direita (a de verdade, depois dos modificadores), girando em volta dela pelo ANG
+# (graus a partir do lado de fora do braço); para calibrar a vara no punho
+var _cam_m: Camera3D
+func _cam_mao() -> void:
+	if OS.get_environment("CAM") != "mao" or m.pesca._kk_mao == null:
+		return
+	if _cam_m == null:
+		_cam_m = Camera3D.new()
+		_cam_m.fov = 40
+		_cam_m.near = 0.02
+		m.add_child(_cam_m)
+	var p: Vector3 = m.pesca._kk_mao.get_parent().global_position
+	var c: Vector3 = m.heroi.global_position + Vector3(0, p.y - m.heroi.global_position.y, 0)
+	var fora: Vector3 = (p - c)
+	fora.y = 0.0
+	fora = fora.normalized() if fora.length() > 0.01 else Vector3.RIGHT
+	var ang := deg_to_rad(float(OS.get_environment("ANG")) if OS.get_environment("ANG") != "" else 0.0)
+	if OS.get_environment("ANG") == "gira": # dá a volta inteira na mão em 8 s
+		ang = Time.get_ticks_msec() * 0.0 + float(Engine.get_process_frames() % 240) / 240.0 * TAU
+	var d: Vector3 = fora.rotated(Vector3.UP, ang)
+	_cam_m.global_position = p + d * 0.5 + Vector3(0, 0.12, 0)
+	_cam_m.look_at(p)
+	_cam_m.current = true
 
 func _ver(nomes: Array) -> void:
 	var v = null # em terra: ao lado do veio mais perto

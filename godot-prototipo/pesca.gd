@@ -128,6 +128,10 @@ func _kk_passo(dt: float) -> void:
 
 func _init(principal) -> void:
 	m = principal
+	# depois do transporte.gd, que põe o herói no banco do barquinho no mesmo quadro: antes disso a vara era
+	# desenhada na mão de onde o herói estava antes de ir para o banco, 22 cm à frente da mão de verdade
+	# (André 2026-11-24: "a varinha tá longe da mão")
+	process_priority = 1
 
 func _ready() -> void:
 	D = m.P.dados.get("pesca", {})
