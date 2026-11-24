@@ -40,6 +40,7 @@ var aberta := "" # "multi", "config" ou "creditos" ("" = fechada); a conta é um
 var aba_config := "ajustes" # Configurações: "ajustes" (som, câmera, gráficos...) ou "conta"
 var _atualizar_t := 0.0
 var _confirmar_apagar := false # Conta > Apagar personagem: segunda tela pedindo confirmação
+var _confirmar_reset := "" # só a conta do André: "partida" ou "missoes" pedindo o segundo toque
 var _apagando := false
 # configurações
 var volume := 100.0 # 0..100 (volume geral do jogo)
@@ -652,7 +653,40 @@ func montar_config() -> void:
 		montar(), false))
 	conteudo = dir
 	_qualidade_grafica()
+	_resets_teste() # na coluna da direita: embaixo da esquerda ficava cortado no celular (André 2026-11-24, versão 3156)
 	conteudo = principal
+
+# Só na conta do André (André 2026-11-24: "um reset da partida... e põe um reset de missões também, mas separado; coloca os
+# 2 botões na aba configurações"). O servidor confere a conta. Cada um pede um segundo toque antes de valer.
+func _resets_teste() -> void:
+	if m.P == null or not m.P.teste_reset:
+		return
+	_texto("Teste (só na sua conta)", Menu.OURO_CLARO, 17)
+	if _confirmar_reset == "partida":
+		_texto("Resetar a partida? Você e os líderes (Dario, Gael e Kael) voltam ao nível 1 sem ouro nem itens. Os clãs voltam ao nível 1 sem recruta nenhum e as bases somem. As missões ficam. Não tem volta.", Menu.TEXTO, 14)
+		_add(_botao("Sim, resetar a partida", func():
+			_confirmar_reset = ""
+			m.rede("resetPartida", {})
+			montar(), false, true))
+		_add(_botao("Não, manter", func():
+			_confirmar_reset = ""
+			montar()))
+	elif _confirmar_reset == "missoes":
+		_texto("Resetar as missões? A sua história volta para a primeira missão. Nível, itens e clã ficam.", Menu.TEXTO, 14)
+		_add(_botao("Sim, resetar as missões", func():
+			_confirmar_reset = ""
+			m.rede("missaoTeste", {"acao": "zerar"})
+			montar(), false, true))
+		_add(_botao("Não, manter", func():
+			_confirmar_reset = ""
+			montar()))
+	else:
+		_add(_botao("Resetar partida", func():
+			_confirmar_reset = "partida"
+			montar(), false, true))
+		_add(_botao("Resetar missões", func():
+			_confirmar_reset = "missoes"
+			montar(), false, true))
 
 # abas de Configurações (André 2026-11-16): Ajustes e Conta. A escolhida fica dourada, como no Idioma.
 func _abas_config() -> void:
