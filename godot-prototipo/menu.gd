@@ -1932,7 +1932,10 @@ func montar_cla() -> void:
 	var cofre := int(C.get("cofre", 0))
 	var semana := int(C.get("semana", 0))
 	vc.add_child(rotulo("Cofre: %d de ouro · Semana: %d de ouro" % [cofre, semana], 15, OURO))
-	vc.add_child(rotulo("Próxima cobrança em %d d %d h" % [int(falta / 86400000.0), int(fmod(falta, 86400000.0) / 3600000.0)], 12, Color(1.0, 0.55, 0.45) if cofre < semana else APAGADO))
+	_cla_vivos = {}
+	_cla_chave = _chave_cla()
+	_cla_vivos["_cobranca"] = rotulo(_texto_cobranca(falta), 12, Color(1.0, 0.55, 0.45) if cofre < semana else APAGADO)
+	vc.add_child(_cla_vivos["_cobranca"])
 	conteudo.add_child(cab)
 	# sem base ainda (André 2026-11-22: "como é que eu faço para escolher o terreno?"): o botão logo no topo
 	if not (C.get("base") is Dictionary):
@@ -2033,6 +2036,8 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 	v.add_theme_constant_override("separation", 4)
 	card.add_child(v)
 	var on := r == null or int(r.get("on", 0)) == 1
+	var vivo := {} # o que a volta de 3 s troca no lugar (_cla_pintar_vivo)
+	_cla_vivos["eu" if r == null else "r:" + str(r.id)] = vivo
 	var topo := HBoxContainer.new()
 	topo.add_theme_constant_override("separation", 8)
 	var nome := rotulo(str(d.get("nome", "")) + ("" if r != null else " (você)"), 16, OURO_CLARO)
@@ -2055,12 +2060,14 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 			n.custom_minimum_size = Vector2(70, 0)
 			lb.add_child(n)
 			v.add_child(lb)
+			vivo[b[1]] = [barra.get_child(0), n, b[2]]
 	elif not on:
 		v.add_child(rotulo("Fora do mundo", 12, APAGADO))
 	if r == null:
 		return card
 	if r.has("fz"):
-		v.add_child(rotulo("Agora: %s" % str(r.fz), 12, APAGADO.lightened(0.25)))
+		vivo["fz"] = rotulo("Agora: %s" % str(r.fz), 12, APAGADO.lightened(0.25))
+		v.add_child(vivo["fz"])
 	if r.has("dev"):
 		v.add_child(rotulo("Sem pagamento", 12, Color(1.0, 0.55, 0.45)))
 	var rid := str(r.id)
@@ -2122,11 +2129,11 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 	ld.alignment = BoxContainer.ALIGNMENT_END
 	ld.add_theme_constant_override("separation", 6)
 	if r.has("x"): # onde ele está (André 2026-11-23: "ver no mapa onde ele está" e "Ver" só olhando, sem controlar)
-		var rx := Vector2(float(r.x), float(r.z))
 		var rn := str(r.nome)
 		ld.add_child(botao("Ver no mapa", func():
+			var ra := _recruta_agora(rid, r)
 			fechar()
-			m.minimapa.abrir_em(rx, rn, rid), 12))
+			m.minimapa.abrir_em(Vector2(float(ra.get("x", 0)), float(ra.get("z", 0))), rn, rid), 12))
 		ld.add_child(botao("Ver", func():
 			fechar()
 			m.espiar.comecar(rid, rn), 12))
@@ -2146,6 +2153,77 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 	ld.add_child(botao("Dispensar", func(): m.rede("cla", {"acao": "dispensar", "id": rid}), 12))
 	v.add_child(ld)
 	return card
+
+# Aba Clã mais leve (frente "personagens mais leves", 2026-11-24; robô 2: montar a aba com 10 recrutas leva 13 a 34 ms
+# no PC, umas 5 vezes isso no Poco X7): com a aba aberta, a volta de 3 s (_cla_vivo) traz o painel de novo e antes
+# refazia o menu inteiro. Agora, se só mudou o que anda sozinho (HP, mana, vigor, "Agora:", posição e o tempo da
+# cobrança), troca só esses números e barras no lugar. Qualquer outra mudança (recruta, função, cofre, ouro...) refaz tudo.
+var _cla_vivos := {} # "eu" / "r:<id>" -> {hp: [barra, rótulo, chave do máximo], ..., fz: rótulo}; "_cobranca": rótulo
+var _cla_chave := ""
+const CLA_ANDA := ["hp", "mp", "vg", "fz", "x", "z", "morto"]
+
+func _texto_cobranca(falta: float) -> String:
+	return "Próxima cobrança em %d d %d h" % [int(falta / 86400000.0), int(fmod(falta, 86400000.0) / 3600000.0)]
+
+func _sem_o_que_anda(d) -> Dictionary:
+	var c: Dictionary = (d as Dictionary).duplicate() if d is Dictionary else {}
+	for k in CLA_ANDA:
+		if c.has(k):
+			c[k] = 1 # quem tem continua tendo (a linha "Agora:" aparece ou some: aí refaz)
+	return c
+
+func _chave_cla() -> String:
+	var C = m.P.cla
+	if not (C is Dictionary):
+		return ""
+	var c: Dictionary = C.duplicate()
+	c.erase("prox") # o tempo da cobrança anda: vai pelo texto (abaixo)
+	if c.get("eu") is Dictionary:
+		c.eu = _sem_o_que_anda(c.eu)
+	var ms := []
+	for r in c.get("m", []):
+		ms.append(_sem_o_que_anda(r))
+	c.m = ms
+	return JSON.stringify([c, m.P.prog, m.on()])
+
+func _recruta_agora(rid: String, antes: Dictionary) -> Dictionary:
+	if m.P.cla is Dictionary:
+		for r in m.P.cla.get("m", []):
+			if r is Dictionary and str(r.get("id", "")) == rid:
+				return r
+	return antes
+
+# veio do servidor (main.gd, P.mudou): na aba Clã, sem mudança de verdade, só os números; senão o atualizar de sempre
+func atualizar_do_servidor() -> void:
+	if aberto() and aba == "cla" and not _cla_vivos.is_empty() and _cla_chave != "" and _chave_cla() == _cla_chave:
+		_cla_pintar_vivo()
+		return
+	atualizar()
+
+func _cla_pintar_vivo() -> void:
+	var C: Dictionary = m.P.cla
+	var cob = _cla_vivos.get("_cobranca")
+	if is_instance_valid(cob):
+		cob.text = Idioma.frase(_texto_cobranca(maxf(0.0, float(C.get("prox", 0)) - float(Time.get_ticks_msec() - m.P.cla_t))))
+	var membros := {"eu": C.get("eu", {})}
+	for r in C.get("m", []):
+		membros["r:" + str(r.get("id", ""))] = r
+	for id in membros:
+		var vivo = _cla_vivos.get(id)
+		var d = membros[id]
+		if not (vivo is Dictionary) or not (d is Dictionary):
+			continue
+		for k in ["hp", "mp", "vg"]:
+			if not vivo.has(k):
+				continue
+			var par: Array = vivo[k]
+			if not is_instance_valid(par[0]):
+				continue
+			var mx := maxf(1.0, float(d.get(par[2], 1)))
+			par[0].anchor_right = clampf(float(d.get(k, 0)) / mx, 0.0, 1.0)
+			par[1].text = "%d/%d" % [int(d.get(k, 0)), int(mx)]
+		if vivo.has("fz") and is_instance_valid(vivo.fz):
+			vivo.fz.text = Idioma.frase("Agora: %s" % str(d.get("fz", "")))
 
 # com a aba Clã aberta, pede o painel de novo a cada 3 s (HP, mana e vigor andando)
 var _cla_timer := false

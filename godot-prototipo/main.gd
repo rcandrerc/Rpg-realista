@@ -4062,7 +4062,7 @@ func _passo_main(dt: float) -> void:
 		P.mudou = false
 		mostrar_build()
 		if menu:
-			menu.atualizar()
+			menu.atualizar_do_servidor() # aba Clã aberta e só HP/mana/vigor andando: troca os números no lugar (menu.gd)
 		tp = _parte("m:build", tp)
 	hud.recarga("cura", recargas.get("cura", 0.0), D.CURA.cd)
 	for k in ["pocao", "pocao_mana"]:
