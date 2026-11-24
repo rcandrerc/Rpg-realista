@@ -2739,7 +2739,7 @@ export const Amiga = {
   },
   // r = { memorias: [texto], regras: { curaCedo: true } } (da IA): troca a lista dela sobre a pessoa e as dicas
   anotarAmiga(conta, r) {
-    const M = this.AMIGA.memoria, L = this.loteDaAmiga(), a = this.amiga || L?.amiga; if (!a || !r) return; // ela já saiu da sala: grava no terreno
+    const M = this.AMIGA.memoria, L = this.loteDaAmiga(), salvo = this.npcSalvos?.get(this.AMIGA.id), a = this.amiga || salvo || L?.amiga; if (!a || !r) return; // ela já saiu da sala: grava no save dela (tabela mundo desde 2026-11-22; antes, o terreno)
     if (Array.isArray(r.memorias)) {
       const lista = r.memorias.filter(lembrancaBoa).map((t) => t.replace(/\s+/g, ' ').trim().slice(0, M.tamanho)).slice(0, M.max);
       if (lista.length) (a.memorias ||= {})[conta] = lista;
@@ -2757,7 +2757,7 @@ export const Amiga = {
       const atual = ((a.regras ||= {})[conta] ||= {});
       for (const k of Object.keys(M.regras)) if (typeof r.regras[k] === 'boolean') { if (r.regras[k]) atual[k] = true; else delete atual[k]; }
     }
-    if (this.amiga) this.guardarAmiga(); else if (L) this.lotesMudados.add(L.def.id);
+    if (this.amiga) this.guardarAmiga(); else if (salvo) (this.npcsMudados ||= new Set()).add(this.AMIGA.id); else if (L) this.lotesMudados.add(L.def.id);
   },
   // o André escreveu para ela (o servidor chama depois de entregar a mensagem dele)
   ouvirAmiga(id, texto) {

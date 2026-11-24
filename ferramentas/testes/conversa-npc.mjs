@@ -24,7 +24,8 @@ ok(modelosConversa().join() === 'openai/gpt-oss-120b,qwen/qwen3.8-27b,openai/gpt
 const s = new Simulacao(MAPA_CLAREIRA);
 s.adicionarJogador('andre', 'André', 'ruiva', {});
 for (const x of s.amigosIa) x.amigaEntrar('andre', true);
-const lia = s.amigosIa.find((x) => x.AMIGA.id === 'lia'), cec = s.amigosIa.find((x) => x.AMIGA.id === 'cecilia');
+// aventureira sem casa: a Helena (a Lia virou da Guarda da Chama em 2026-11-21, com casa na base)
+const lia = s.amigosIa.find((x) => x.AMIGA.id === 'helena'), cec = s.amigosIa.find((x) => x.AMIGA.id === 'cecilia');
 s.passo(0.05);
 lia.amiga.ia.av = { fase: 'cacar', c: { id: 'caca1', tipo: 'puglin' } };
 const cl = lia.contextoAmiga('andre');

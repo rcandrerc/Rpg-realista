@@ -15,7 +15,7 @@ Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 
 ## Fluxo
 - Agentes efêmeros por cargo: ver `agentes/` e a regra no topo do `CLAUDE.md`.
-- Todo merge: PR, main mais recente, verificação verde, nada some.
+- Todo merge: PR, main mais recente, verificação verde, nada some. Testes (23/11, 110 verdes): o jeito antigo dos bots (amizade, time) importa `_amizade-antiga.mjs`; casa de bot na base via `_lote-base.mjs`; save dos bots em `npcSalvos` (tabela mundo).
 
 ## Feito
 - 23/11: armadura v5 (`LINHA_V5`, `roupa_v5.gdshader`): patrulha ou roupão para moça e rapaz (Aparência > Traje, `aparencia.traje`; padrão moça patrulheira, rapaz roupão); cor de Roupa/Calça da Aparência pinta o pano (`tingir_v5`); capuz entra na gola com cordão. Linha antiga fica atrás da flag.

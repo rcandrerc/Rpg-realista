@@ -1,6 +1,7 @@
 // Revisão antes do lançamento (2026-11-19): guardar() é tudo ou nada. Antes, com a mochila cheia, juntava um pedaço da
 // pilha e devolvia false, e quem chamou ficava com o item inteiro (duplicava minério no Otávio, na síntese e na horta).
 // Uso: node ferramentas/testes/guardar-inteiro.mjs
+import '../../shared/index.js'; // carrega na ordem certa (ciclo progresso/simulacao/cla: 'Amiga' before initialization)
 import { guardar } from '../../shared/progresso.js';
 import { ITENS } from '../../shared/dados.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };

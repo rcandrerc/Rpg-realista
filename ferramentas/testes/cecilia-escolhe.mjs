@@ -2,6 +2,7 @@
 // mesmo" e "tá fazendo o quê? tô indo fazer os imps nível 36. Posso ir com você? Claro, vem. Me dá time. Aí eu aceito".
 // Sem rede (a resposta da IA é simulada). Uso: node ferramentas/testes/cecilia-escolhe.mjs
 import { Simulacao, MAPA_CLAREIRA, DARIO, TIME } from '../../shared/index.js';
+import './_amizade-antiga.mjs'; // o time com a Cecília e o Dario é do jeito antigo (antes do soldado de 2026-11-22)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const novo = (quem = 'cecilia') => {
   const s = new Simulacao(MAPA_CLAREIRA), j = s.adicionarJogador('andre', 'André', 'ruiva', { conta: 7 });
