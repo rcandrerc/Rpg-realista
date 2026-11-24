@@ -357,6 +357,7 @@ func montar_painel() -> Control:
 	linha_equip = linha_ver_equip()
 	col.add_child(linha_equip)
 	rolagem = ScrollContainer.new()
+	rolagem.set_meta("arrasto_proprio", true) # rola pelo _input daqui (rolagem_toque.gd só dá a inércia)
 	rolagem.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	rolagem.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(rolagem)
@@ -1056,9 +1057,13 @@ func _input(ev: InputEvent) -> void:
 	if ev is InputEventScreenTouch:
 		if ev.pressed:
 			_arrasto_dentro = rolagem.get_global_rect().has_point(ev.position)
+			if _arrasto_dentro and Engine.has_meta("rolagem_toque"):
+				Engine.get_meta("rolagem_toque", null).esquecer()
 			_arrasto_soma = 0.0
 			_arrastou = false
 		else:
+			if _arrasto_dentro and _arrastou and Engine.has_meta("rolagem_toque"):
+				Engine.get_meta("rolagem_toque", null).inercia(rolagem) # soltou arrastando: segue deslizando (rolagem_toque.gd)
 			_arrasto_dentro = false
 			if _arrastou:
 				(func(): _arrastou = false).call_deferred()
@@ -1069,6 +1074,8 @@ func _input(ev: InputEvent) -> void:
 		if _arrasto_soma > 12.0:
 			_arrastou = true
 		rolagem.scroll_vertical -= int(round(ev.relative.y))
+		if Engine.has_meta("rolagem_toque"):
+			Engine.get_meta("rolagem_toque", null).anotar(ev.relative.y)
 		get_viewport().set_input_as_handled()
 
 func _process(dt: float) -> void:
