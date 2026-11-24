@@ -2956,7 +2956,7 @@ export const Amiga = {
     // vale anunciar (peça Rara+, Tomo, material) enquanto houver espaço na mochila
     this.leilaoTalvezAmiga?.(j);
     const livresL = p.mochila.filter((o) => !o).length;
-    const guarda = (it) => daEnc(it) || it.cad || it.k === 'pocao' || it.k.startsWith('semente_') || this.AMIGA.plantas.includes(it.k) || this.AMIGA.pedidos.some((o) => o.k === it.k) || ITENS[it.k].comida || !!this.guardaLeilaoAmiga?.(j, it, livresL);
+    const guarda = (it) => daEnc(it) || it.cad || it.k === 'pocao' || it.k.startsWith('semente_') || this.AMIGA.plantas.includes(it.k) || this.AMIGA.pedidos.some((o) => o.k === it.k) || ITENS[it.k].comida || !!FERRAMENTAS_FAZENDA[it.k] || !!this.guardaLeilaoAmiga?.(j, it, livresL); // ferramenta (picareta, machado, vara...) nunca vai para a loja (André 2026-11-24: "tô achando que ele tá vendendo a picareta")
     let ouro = 0, vendeu = 0;
     for (let i = 0; i < p.mochila.length; i++) {
       const it = itemValido(p.mochila[i]); if (!it) continue;
