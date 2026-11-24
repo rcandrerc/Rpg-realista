@@ -4027,7 +4027,7 @@ func _passo_main(dt: float) -> void:
 	hud.mana = h.mana / P.st.manaMax
 	hud.estamina = trabalho.sta / max(1.0, trabalho.sta_max())
 	hud.sem_folego = trabalho.sem_folego
-	hud.vigor = P.vigor() / max(1.0, float(P.dados.vigor.max))
+	hud.vigor = P.vigor() / max(1.0, P.vigor_max())
 	hud.texto_vida = "%d/%d" % [ceil(h.vida), P.st.vidaMax]
 	hud.texto_mana = "%d/%d" % [floor(h.mana), P.st.manaMax]
 	hud.nivel = P.prog.nivel

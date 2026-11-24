@@ -1,4 +1,5 @@
-# MEMORIA (estado do projeto, máx 30 linhas) Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
+# MEMORIA (estado do projeto, máx 30 linhas)
+Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 ## Jogo
 - Age of Embers, mundo Aethra, vilão Vesper. APK Android 10+ 64-bit. Mapa sem mudanças.
 - Sem classe (estilo pela arma). Uma linha de armadura, sem mithril. Herói VRoid "Ruiva".
@@ -7,10 +8,10 @@
 - Clãs (até 10 recrutas; clã Nv 1 a 10, Nv 2-3 sem alma, 4-10 alma crescente, base para no Castelo Nv 6), base/fazenda do clã e arena PvP 4x4 entram desde 20/11.
 - Estratégia (23/11): luta de clãs. André lidera; recrutas pagos (taxa + semanal) obedecem cegamente e só respondem. Jogadores nascem Chama; clãs bot líderes são Geada. Clãs bot (23/11): Geada = Gael (Lobos) e Kael (Lâminas Cinzentas); Chama = Dario. Líderes nunca saem; Configurações > Ajustes (só conta do André): "Resetar partida" (ele e líderes personagem novo Nv1, clãs Nv1 sem recrutas, bases somem; missões ficam) e "Resetar missões". Feito: nunca voltar ao jogo de antes de 20/11.
 ## Foco único até 30/11: desempenho e gráfico
-1. Medir. 2. Personagens leves (23/11: máx. 2 NPCs aparecem/somem por quadro; instanciar corpo em linha de fundo deu erro de RID, não usar). 3. Mundo leve, sem travadas (OOM no S9). 4. Visual com fotos antes/depois, só com OK.
+1. Medir. 2. Personagens leves (23/11: máx. 2 NPCs aparecem/somem por quadro; instanciar corpo em linha de fundo deu erro de RID, não usar; 24/11: reserva de corpos reposta só com menu aberto, `_repor_reserva`). 3. Mundo leve, sem travadas (OOM no S9). 4. Visual com fotos antes/depois, só com OK.
 ## Abortado (não retomar sem pedido): Cecília/Dário, segurança, história/missões, economia/lojas.
-## Rotinas: robô de testes: ronda diária às 9h, um relatório entre 9h e 10h, correção automática com cuidado. Não reduzir bots/recrutas (André quer 50-60 bots para medir o servidor).
-
+## Rotinas
+- Robô de testes: ronda diária às 9h, um relatório entre 9h e 10h, correção automática com cuidado. Não reduzir bots/recrutas (André quer 50-60 bots para medir o servidor).
 ## Fluxo
 - Agentes efêmeros por cargo: ver `agentes/` e a regra no topo do `CLAUDE.md`.
 - Todo merge: PR, main mais recente, verificação verde, nada some. Testes (23/11, 110 verdes): o jeito antigo dos bots (amizade, time) importa `_amizade-antiga.mjs`; casa de bot na base via `_lote-base.mjs`; save dos bots em `npcSalvos` (tabela mundo).
@@ -26,5 +27,4 @@
 - 23/11: cor livre também no Patrulheiro 2 / Roupão 2: Roupa/Calça da Aparência pintam só o pano (`Equip2.tingir`, tipo 2). 24/11: Roupa e Calça em abas na Aparência (4 trajes); Patrulheiro 2/Roupão 2 refeitos na linha do corpo afinado do jogo (`ferramentas/trajes-justos/`: o jogo afina cintura/blusa/manga, os .glb eram do corpo cru). André aprovou pelas fotos.
 - 23/11: história x clãs: Kael (líder da Geada) é rival, nunca aliado (h14, e6 com a Elara, f1, f2, cenas, diário); "A base do clã" (a12: fundar clã e base, ev `base`) e "Uma base que aguenta" (b1: cerca, tocha, baú, cama, fornalha, bigorna, taxa no cofre `cofre`), sem casa. 24/11: Ato do Clã (k1 recruta Nv 12, k2 escolta Nv 18, k3 clã Nv 2 Nv 25, k4 fim da Trégua Nv 30; ev recrutar/escolta/cla_nivel/guerra_matar).
 - 24/11: /npcs.json lê o save da tabela mundo; com crachá traz `recrutas` (clãs dos jogadores: nível, caça, função, preso). Líder bot exige recursos dos membros (nunca ouro), guarda o dos 2 próximos níveis e vende o resto (`CLAS_NPC_ORDENS.exigir`).
-- 24/11 (PR aberto, aguarda OK do André pelas fotos): aura azul incandescente da arma pelo reforço (`brilho_reforco.gdshader`, `Armas.brilho_reforco`, línguas de fogo e fumaça de aura `Armas.faiscas`): tom de azul por faixa de +10, força pelo +N. 24/11 (PR aberto): base do clã é área segura igual ao totem (`naBaseSegura`, `AREAS_SEGURAS_BASE`): só centro do nível atual + lotes abertos, sem raio; PvP/guerra não muda.
-## Próximas tarefas: medição de desempenho -> personagens leves -> mundo leve -> visual.
+- 24/11 (PR aberto, aguarda OK do André pelas fotos): aura azul incandescente da arma pelo reforço (`brilho_reforco.gdshader`, `Armas.brilho_reforco`, línguas de fogo e fumaça de aura `Armas.faiscas`): tom de azul por faixa de +10, força pelo +N. · 24/11: comida não dá vigor; dá buff (`ITENS[k].buff`, um por vez, morrer tira, `bonusComida`). Vigor máximo +1 por nível sem teto (`vigorMax`, `prog.vigor.m`; jogador e recruta); cama não dá vigor (`CAMA.vigor` 0). · 24/11: base do clã é área segura igual ao totem (`naBaseSegura`): só centro do nível + lotes abertos, sem raio; PvP não muda.

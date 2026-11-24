@@ -230,7 +230,11 @@ func agora_ms() -> float:
 
 func vigor() -> float:
 	var s: float = max(0.0, agora_ms() - float(prog.vigor.t)) / 1000.0
-	return min(float(dados.vigor.max), float(prog.vigor.v) + s / float(dados.vigor.enche) * float(dados.vigor.max))
+	return min(vigor_max(), float(prog.vigor.v) + s / float(dados.vigor.enche) * float(dados.vigor.max))
+
+# máximo da conta (André 2026-11-24): sobe com o nível; o servidor grava em prog.vigor.m (shared/progresso.js vigorMax)
+func vigor_max() -> float:
+	return float(prog.vigor.get("m", dados.vigor.max)) if prog.vigor is Dictionary else float(dados.vigor.max)
 
 # ---------- dia e noite (igual a shared/progresso.js horaDoJogo; dados em shared/dados.js DIA e CAMA) ----------
 # hora do jogo (0 a 24) no relógio da conta: prog.dia = {h, t}; conta que nunca dormiu segue o relógio do mundo
@@ -251,7 +255,7 @@ func cama_vigor_em() -> float:
 
 # segundos até o vigor encher
 func vigor_cheio_em() -> float:
-	return (float(dados.vigor.max) - vigor()) / float(dados.vigor.max) * float(dados.vigor.enche)
+	return (vigor_max() - vigor()) / float(dados.vigor.max) * float(dados.vigor.enche)
 
 static func prof_nivel_pts(pts: float, maxn: int) -> int:
 	return min(maxn, int(floor(sqrt(pts / 8.0))) + 1)
