@@ -78,3 +78,16 @@ ok(!r.ok && /venceu/.test(r.texto), 'semana vencida: ordem pelo painel recusada'
 ok(s.painelInfo(conta, venc, 'chama').vencida === 1, 'a página avisa da semana vencida');
 const inf2 = s.painelInfo(conta, cla, 'chama');
 ok(inf2.clas.every((C) => !C.inimigo || C.x == null), 'sem o lugar do líder inimigo');
+// próximo nível e Baú do Clã em ícones (André 2026-11-24: "o que precisa para o próximo nível e o que a gente tem" e
+// "mostrar inventário do clã")
+{
+  const bau = [{ k: 'lenha', n: 30 }, { k: 'lenha', n: 25 }, { k: 'couro', n: 4 }, null];
+  const velho = s.bauDoCla; s.bauDoCla = (K) => (K?.conta === conta ? { itens: bau } : null);
+  const i3 = s.painelInfo(conta, cla, 'chama', null, { nivel: 22, mochila: [{ k: 'couro', n: 6 }] });
+  const L = i3.bau?.find((o) => o.k === 'lenha'), F = i3.sobe?.itens.find((o) => o.k === 'couro');
+  ok(L?.n === 55 && L.nome, 'Baú do Clã: soma as pilhas do mesmo item');
+  ok(i3.sobe?.nv === 4 && i3.sobe.nvLider === 22 && F?.tem === 10 && i3.sobe.cofre === cla.cofre, 'próximo nível: pede e tem (baú + mochila do líder fora do jogo)');
+  s.bauDoCla = () => null;
+  ok(s.painelInfo(conta, cla, 'chama').bau === null, 'sem Baú do Clã: a página avisa');
+  s.bauDoCla = velho;
+}

@@ -778,7 +778,7 @@ export const Cla = {
   // O líder de mentira (sem corpo): só o lugar e a conta, como o de entrarRecrutasSemLider
   liderPainel(conta, c, raca) { return { id: null, conta, bot: false, time: null, raca, prog: { cla: c, nivel: 1 }, x: 0, z: 0 }; },
   // o que a página desenha. heroi: o corpo do líder quando ele está no jogo (aí as ordens vão pelo cla() de sempre)
-  painelInfo(conta, c, raca, heroi = null) {
+  painelInfo(conta, c, raca, heroi = null, prog = null) {
     if (!c) return { sem: 1 };
     const L = heroi || this.liderPainel(conta, c, raca);
     const vivos = new Map(this.recrutasNoMundo(L).filter((x) => x.amiga).map((x) => [x.AMIGA.id, x.amiga]));
@@ -791,7 +791,20 @@ export const Cla = {
         fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, L), ...pos(a) } : {}) }; }),
       log: (c.log || []).slice(-10).reverse(), funcoes: CLA.funcoes.filter((F) => heroi || F.id !== 'seguir'),
       recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })), plantas: Object.entries(PLANTAS).map(([k, P]) => ({ k, nome: P.nome })),
+      // o que pede o próximo nível do clã e o que já tem (Baú do Clã + mochila do líder), igual ao Melhorar clã do jogo
+      sobe: this.subirPainel(conta, c, raca, heroi, prog),
+      bau: this.bauPainel(conta), // o que tem no Baú do Clã (André 2026-11-24: "mostrar inventário do clã"), em ícones
       clas: this.clasNpcInfo(L).map((o, i) => ({ ...o, ...clas[i] })), lugares: (this.lugaresPainel ||= [{ nome: this.mapa.nome || 'Vila', x: 0, z: 0 }, ...LUGARES_MUNDO.filter((o) => o.nome && o.tipo !== 'porto').map((o) => ({ nome: o.nome, x: o.x, z: o.z }))]) };
+  },
+  bauPainel(conta) {
+    const B = this.bauDoCla({ conta }); if (!B) return null;
+    const soma = {}; for (const it of B.itens) if (it) soma[it.k] = (soma[it.k] | 0) + (it.n || 1);
+    return Object.entries(soma).map(([k, n]) => ({ k, n, nome: ITENS[k]?.nome || k, ...(ITENS[k]?.cor ? { cor: ITENS[k].cor } : {}) }));
+  },
+  subirPainel(conta, c, raca, heroi, prog) {
+    const j = heroi || { conta, bot: false, raca, prog: { cla: c, mochila: prog?.mochila, nivel: prog?.nivel | 0 } };
+    const S = this.subirInfo(j); if (!S) return null;
+    return { ...S, nvLider: j.prog.nivel | 0, cofre: c.cofre | 0 };
   },
   // o que o líder de um clã bot está fazendo (linha curta, igual ao fazendoRecruta)
   fazendoBotPainel(B) {
@@ -1331,7 +1344,10 @@ export const Cla = {
     if (!this.clasNpc) this.carregarClasNpc(null);
     const nome = (id) => [...AMIGOS_VIRTUAIS, ...RIVAIS].find((d) => d.id === id)?.nome || id;
     // relação (André 2026-11-22): outra raça = inimigo; mesma raça = neutro (aliança fica para depois)
-    return CLAS_NPC.map((C) => ({ n: C.n, nv: this.clasNpc[C.id].nv || 1, lider: nome(C.lider), inimigo: this.racaDe(j) !== C.raca ? 1 : 0, raca: RACAS[C.raca]?.nome || C.raca, recrutas: fixosNpc(C, this.clasNpc[C.id]).length + this.clasNpc[C.id].m.length, // os fixos contam (André 2026-11-22), os de fora não
-      membros: [...fixosNpc(C, this.clasNpc[C.id]).map(nome), ...this.clasNpc[C.id].m.map((m) => `${m.nome} (${tierDe(m.tier).nome} Nv ${m.nv}${m.fn ? ' · ' + (CLA.funcoes.find((F) => F.id === m.fn.k)?.nome || '') : ''})`)] }));
+    // nível de um bot (André 2026-11-24: "aparecendo o nível do líder", não só o dos recrutas): o corpo no mundo, senão o salvo
+    const nvBot = (id) => (this.amigosIa?.find((x) => x.AMIGA.id === id)?.amiga?.prog?.nivel | 0) || (this.npcSalvos?.get(id)?.prog?.nivel | 0) || 0;
+    const comNv = (id) => { const v = nvBot(id); return v ? `${nome(id)} (Nv ${v})` : nome(id); };
+    return CLAS_NPC.map((C) => ({ n: C.n, nv: this.clasNpc[C.id].nv || 1, lider: nome(C.lider), nvLider: nvBot(C.lider), inimigo: this.racaDe(j) !== C.raca ? 1 : 0, raca: RACAS[C.raca]?.nome || C.raca, recrutas: fixosNpc(C, this.clasNpc[C.id]).length + this.clasNpc[C.id].m.length, // os fixos contam (André 2026-11-22), os de fora não
+      membros: [...fixosNpc(C, this.clasNpc[C.id]).map(comNv), ...this.clasNpc[C.id].m.map((m) => `${m.nome} (${tierDe(m.tier).nome} Nv ${m.nv}${m.fn ? ' · ' + (CLA.funcoes.find((F) => F.id === m.fn.k)?.nome || '') : ''})`)] }));
   },
 };

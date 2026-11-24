@@ -2164,7 +2164,8 @@ func montar_cla() -> void:
 	# os clãs bot (André 2026-11-22): o inimigo (Lobos da Geada, do Gael) e quem mais existir
 	for K in C.get("clas", []):
 		var ini := int(K.get("inimigo", 0)) == 1
-		conteudo.add_child(rotulo("%s %s Nv %d (%s) · líder %s · %d recrutas" % ["Inimigo:" if ini else "Neutro:", str(K.n), int(K.get("nv", 1)), str(K.get("raca", "")), str(K.lider), int(K.get("recrutas", 0))], 16, Color(1.0, 0.55, 0.45) if ini else APAGADO.lightened(0.2)))
+		var nv_l := int(K.get("nvLider", 0)) # André 2026-11-24: o nível do líder também, não só o dos recrutas
+		conteudo.add_child(rotulo("%s %s Nv %d (%s) · líder %s%s · %d recrutas" % ["Inimigo:" if ini else "Neutro:", str(K.n), int(K.get("nv", 1)), str(K.get("raca", "")), str(K.lider), ((" Lv %d" if Idioma.ingles() else " Nv %d") % nv_l) if nv_l > 0 else "", int(K.get("recrutas", 0))], 16, Color(1.0, 0.55, 0.45) if ini else APAGADO.lightened(0.2)))
 		conteudo.add_child(rotulo(", ".join(PackedStringArray(K.get("membros", []))), 12, APAGADO))
 	# Recrutador
 	conteudo.add_child(rotulo("Recrutar", 17, OURO_CLARO))

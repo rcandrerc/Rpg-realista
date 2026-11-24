@@ -616,7 +616,7 @@ class SalaClareira extends Room {
     const conta = client.auth, k = 'c' + conta.id, h = heroiDe(k);
     let info;
     if (h) info = h.s.sim.painelInfo(k, h.j.prog.cla, h.s.sim.racaDe(h.j), h.j);
-    else { const prog = contas.lerProgresso(conta.id); if (prog?.cla) this.sim.clasFora?.set(k, prog.cla); info = this.sim.painelInfo(k, prog?.cla, prog?.raca); }
+    else { const prog = contas.lerProgresso(conta.id); if (prog?.cla) this.sim.clasFora?.set(k, prog.cla); info = this.sim.painelInfo(k, prog?.cla, prog?.raca, null, prog); }
     client.send('painel', { ...info, nome: conta.nome, ...(aviso ? { aviso } : {}) });
   }
   pedidoPainel(client, m) {
