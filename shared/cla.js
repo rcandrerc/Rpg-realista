@@ -346,6 +346,12 @@ export const Cla = {
       if (ia.encomenda?.pronta) ia.encomenda = null; // o que juntou já foi para o baú (ou fica na bolsa dele)
       // clã bot: o líder dá a ferramenta simples para quem ele manda farmar (o jogador compra a dele na loja)
       const fer = j.bot && x.AMIGA.atividades?.[R.coleta]?.ferramenta; if (fer && ITENS[fer] && contar(a.prog.mochila, fer) < 1) guardarQueCabe(a.prog.mochila, { k: fer, n: 1 });
+      if (['minerar', 'lenha', 'pescar'].includes(R.coleta) && vigorDe(a.prog.vigor) < 1) { // sem vigor: modo livre até voltar (André 2026-11-24)
+        this.avisarLiderRecruta(x, j, 'vigor', 'Acabou meu vigor. Vou fazer minhas coisas e, quando ele voltar, volto pro trabalho.');
+        if (!a.ia.av || a.ia.av.encomenda) avisa('Sem vigor: no modo livre até o vigor voltar');
+        return;
+      }
+      if (ia.avisou === 'vigor') ia.avisou = null;
       if (!treino && ia.avisou?.startsWith('treino:') && R.no) this.avisarLiderRecruta(x, j, `nivel:${fn.r}`, `Cheguei no nível! Agora vou pro ${R.palavras[0]}.`);
       if (this.precisaFerRecruta(x, a, R)) { const k = x.AMIGA.atividades[R.coleta].ferramenta; this.avisarLiderRecruta(x, j, `fer:${k}`, `Tô sem ${ITENS[k].nome.toLowerCase()}. Vou pegar no Baú do Clã ou catar galho e pedra no chão pra fazer um.`); return; } // sem a ferramenta: pega no Baú do Clã ou faz (ferramentaRecruta)
       const Rx = treino ? RECURSOS_CLA[treino] : R;

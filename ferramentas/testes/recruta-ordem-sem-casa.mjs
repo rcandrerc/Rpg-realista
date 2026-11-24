@@ -65,3 +65,14 @@ ok(L.pecas.length > p0, `no modo Livre volta a construir a casa (${p0} -> ${L.pe
   j.ia.encomenda = null; j.ia.av = null; s.aplicarFuncao(a, x, m, false);
   ok(j.ia.encomenda?.rec === 'ferro' && j.ia.levar?.r === 'ferro', `com Mineração 5 vai ao ferro (${s.fazendoRecruta(j, a)})`);
 }
+// acabou o vigor na tarefa: modo livre até voltar (André 2026-11-24)
+{
+  m.fn = { k: 'recurso', r: 'lenha' }; s.aplicarFuncao(a, x, m, true);
+  ok(!x.modoLivreAmiga(), 'com vigor: obedece a ordem');
+  j.prog.vigor = { v: 0, t: Date.now() };
+  ok(x.modoLivreAmiga(), 'sem vigor: modo livre');
+  j.ia.encomenda = null; j.ia.av = null; s.aplicarFuncao(a, x, m, false);
+  ok(/vigor/i.test(j.ia.funcaoSt?.txt || ''), `avisa no painel (${j.ia.funcaoSt?.txt})`);
+  j.prog.vigor = { v: 100, t: Date.now() };
+  ok(!x.modoLivreAmiga(), 'vigor de volta: obedece de novo');
+}
