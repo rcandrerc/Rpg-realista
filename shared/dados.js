@@ -4902,6 +4902,19 @@ export const HISTORIA = [
       { ev: 'diaria', txt: 'Termine 1 diária' },
     ],
     pronto: 'Viu? Todo dia tem trabalho e prêmio. Volte amanhã: as Diárias se renovam à meia-noite.' },
+  // ---------- Ato do Clã (André 2026-11-23: "Quero"): uma missão de clã em cada capítulo do Nv 12 ao 30, no meio da
+  // história (nenhuma sai). Ensinam: contratar recruta, a Escolta do Clã, subir o clã e, no Nv 30, o fim da Trégua
+  // (a guerra Chama x Geada). ja: quem já fez passa direto. Quem já passou do lugar delas (hist.u) não volta atrás.
+  { id: 'k1', cap: 5, nv: 12, npc: 'recrutador', nome: 'Soldados da Chama', libera: [],
+    pedido: 'Clã sem soldado é só um nome. Tenho gente boa querendo servir à Chama. Contrate um recruta, chame para o seu time e cacem juntos. E lembre: todo soldado cobra o soldo da semana no cofre.',
+    lembra: 'O seu clã precisa de pelo menos um soldado. Os candidatos estão comigo.',
+    etapas: [
+      { ev: 'recrutar', ja: 'recrutas', txt: 'Contrate um recruta com o Sargento Bruno (Recrutar soldados)', alvo: 'npc:recrutador' },
+      { ev: 'time', txt: 'Chame o recruta para o time' },
+      { ev: 'matar', campos: ['caca5', 'caca6'], n: 8, txt: 'Derrube 8 monstros nas clareiras Nv 10 com o recruta no time' },
+    ],
+    pronto: 'Isso é um soldado da Chama! Ele obedece você e mais ninguém. Cuide do cofre: soldado sem soldo vai embora.',
+    presente: { pocao: 3 } },
   { id: 'a15', cap: 5, nv: 12, npc: 'ferreiro', nome: 'Melhor que novo', libera: [],
     pedido: 'Depois do que fizeram com a carroça, quero as suas peças à altura do que vem por aí. Peça velha não se joga fora: se destrói, e sai catalisador para evoluir outra. Tome um Selo Raro e me mostre um reforço.',
     lembra: 'Os encapuzados não vão esperar você se equipar. Destrua, evolua e reforce.',
@@ -4968,6 +4981,14 @@ export const HISTORIA = [
       { ev: 'falar', npc: 'guardiao', txt: 'Volte ao Gaspar com o time' },
     ],
     pronto: 'Bom. Lá embaixo tem a Galeria dos Golens, o Poço dos Maws e o Trono do Warrok. O selo fica atrás do trono. Quando estiver pronto, fale comigo de novo.' },
+  { id: 'k2', cap: 6, nv: 18, npc: 'recrutador', nome: 'A primeira escolta', libera: [],
+    pedido: 'Recruta novo não aprende caçando atrás de quem já é forte. Leve os seus numa escolta: do Baú do Clã até um totem longe da base, todos vivos. As emboscadas vão primeiro neles. Segure os monstros em você.',
+    lembra: 'A escolta sai do Baú do Clã. Leve os recrutas vivos até o totem.',
+    etapas: [
+      { ev: 'escolta', ja: 'escolta', txt: 'Faça a Escolta do Clã (Baú do Clã > Começar a escolta)' },
+    ],
+    pronto: 'Chegaram todos de pé. Agora eles conhecem a estrada, e você sabe o peso de liderar. A Geada também treina os dela assim.',
+    presente: { pocao: 3, pocao_mana: 2 } },
   { id: 'h6', cap: 6, nv: 20, npc: 'guardiao', nome: 'O Trono vazio', libera: ['1e'], liberaNaEtapa: 0,
     pedido: 'Vá. Use o passe no selo da boca e desça. Se o Warrok ainda estiver no trono, derrube. Se não estiver... aí é pior.',
     lembra: 'Lá embaixo o selo está rachando. Desça e me conte o que viu.',
@@ -5006,6 +5027,14 @@ export const HISTORIA = [
       { ev: 'matar', hc: 'cacador', txt: 'Derrote o Velado Caçador' },
     ],
     pronto: 'Os três vivos, graças a você. Capuz, olhos cinzentos... são os mesmos que levaram a carroça da Rosa. Velados. E os batedores viram mais uma coisa: um brilho no Ninho dos Golens, ao sul.' },
+  { id: 'k3', cap: 7, nv: 25, npc: 'lider', nome: 'Um clã que cresce', libera: [],
+    pedido: 'Uma vaga é pouco para o que vem por aí. Os batedores viram estandartes da Geada perto da divisa. Suba o seu clã de nível e contrate o segundo soldado.',
+    lembra: 'O clã cresce no ícone Clã, com ouro do cofre e material. Depois, mais um soldado.',
+    etapas: [
+      { ev: 'cla_nivel', min: 2, ja: 'cla_nv', txt: 'Suba o clã para o Nv 2 (ícone Clã > Melhorar clã)' },
+      { ev: 'recrutar', min: 2, ja: 'recrutas', txt: 'Contrate o segundo recruta', alvo: 'npc:recrutador' },
+    ],
+    pronto: 'Dois soldados e um clã de verdade. Quando você chegar ao Nv 30, a Trégua acaba. Venha falar comigo antes.' },
   { id: 'h7', cap: 7, nv: 27, npc: 'lider', nome: 'Brasa-Antiga', libera: ['1f'], liberaNaEtapa: 0,
     pedido: 'Um golem com brasa no peito, do tamanho de uma casa, no Ninho dos Golens. Dizem que é ele que segura a névoa do sul. Derrube Brasa-Antiga e depois veja se o Bráulio, que mora por lá, está bem.',
     lembra: 'Faz semanas que ninguém tem notícia do Bráulio. Enquanto a Brasa-Antiga estiver de pé, ninguém passa.',
@@ -5059,6 +5088,15 @@ export const HISTORIA = [
     ],
     pronto: 'Kael. A Lâmina Cinzenta... Então ele está vivo. Escute: eu e o Gaspar somos os últimos Guardiões da Ordem, que fechou a Névoa com sete selos. Essa marca na sua mão é da Ordem. Ou de algo mais velho que ela. A partir de hoje você é uma Sentinela da Ordem.',
     presente: { peitoral: { r: 1, e: 5 } } },
+  { id: 'k4', cap: 8, nv: 30, npc: 'lider', nome: 'O fim da Trégua', libera: [],
+    pedido: 'Nv 30: a Trégua acabou. Fora da vila, do totem e dos campos fracos, a Geada pode te atacar, e você a ela. O Kael, dos Lâminas Cinzentas, já sabe o seu nome. Quem cai da Geada deixa um Fragmento de Alma: com ele o clã sobe.',
+    lembra: 'Fora da zona segura, derrube alguém da Geada e guarde o Fragmento de Alma.',
+    etapas: [
+      { ev: 'guerra', ja: 'guerra', txt: 'Saia da zona segura (fora de vila, totem e campos até Nv 30)' },
+      { ev: 'guerra_matar', txt: 'Derrube alguém da Geada' }, // o Fragmento de Alma cai sozinho na mochila (fragmentoGuerra)
+    ],
+    pronto: 'Agora é guerra de verdade. Cada Fragmento de Alma da Geada sobe o seu clã. Leve os seus soldados junto: sozinho, ninguém aguenta a Geada.',
+    presente: { pocao: 5, pocao_mana: 3 } },
   // ---------- Capítulo 9 · A trilha da serra (Nv 33 a 38; história v2, Entrega 4) ----------
   { id: 'c1', cap: 9, nv: 33, npc: 'andarilho', nome: 'A cidade da ponte', libera: [],
     pedido: 'Com o Warrok caído, a estrada do oeste abriu até o Rio Claro, uma cidade de madeira do lado da ponte. Ninguém de lá aparece faz anos, e eu quero saber por quê. Monte no Presa-de-Prata e vá ver o totem da praça.',

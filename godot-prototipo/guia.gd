@@ -179,6 +179,15 @@ func passos(hi: Dictionary) -> Array:
 			return ["topo:cla", "b:Fundar clã", "b:Escolher o lugar da base"]
 		"cofre":
 			return ["topo:cla", "b^+"]
+		# Ato do Clã (André 2026-11-23): recruta no Sargento Bruno; escolta e nível no ícone Clã; a guerra é só andar
+		"recrutar":
+			return ["ir", "hud:falar", "b^Recrutar soldados"]
+		"escolta":
+			return ["topo:cla", "b:Começar a escolta"]
+		"cla_nivel":
+			return ["topo:cla", "b:Melhorar clã"]
+		"guerra", "guerra_matar":
+			return ["ir"]
 		"dormir":
 			return ["ir", "hud:cama"]
 		"montar":
