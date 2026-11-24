@@ -168,6 +168,7 @@ export const Amiga = {
   // sozinhos"): o NPC fica no mundo para todo mundo da sala; só quem pode conversar vira o "dono" que ele acompanha.
   amigaEntrar(donoId, fala = true) {
     if (this.AMIGA.recruta && !this.AMIGA.clanpc && !this.semLider && this.jogadores.get(donoId)?.conta !== this.AMIGA.lider) return; // recruta do clã (shared/cla.js): só com o líder (ou entrando sem ele: entrarRecrutasSemLider)
+    if (!this.amiga && this.fixoForaNpc?.(this.AMIGA.id)) return; // membro fixo fora do clã depois do reset: só volta recrutado (shared/cla.js)
     if (fala) (this.amigaFalam ||= new Set()).add(donoId); else this.amigaFalam ||= new Set();
     if (!this.amiga && this.iaForaAmiga()) { this.amigaFora ||= { t: this.tempo }; return; } // deslogado até a IA voltar
     if (!this.amiga) {
@@ -216,7 +217,9 @@ export const Amiga = {
       }
       // a Geada (rival) nunca fica abaixo do nível com que foi criada (André 2026-11-22: o Gael veio do save de aventureiro no
       // Nv 20, preso ao teto do servidor; o nível dele é o 44 da lista)
-      if (this.AMIGA.rival && (j.prog.nivel | 0) < this.AMIGA.nivelInicial) { const n = this.AMIGA.nivelInicial; j.prog.pontos += (n - j.prog.nivel) * PONTOS_POR_NIVEL; j.prog.nivel = n; j.prog.xp = 0; }
+      // menos depois do "Resetar partida" (salvo.zerado, André 2026-11-24: "pro zero mesmo"): aí ele começa do Nv 1
+      if (salvo.zerado) j.zerado = 1;
+      if (this.AMIGA.rival && !salvo.zerado && (j.prog.nivel | 0) < this.AMIGA.nivelInicial) { const n = this.AMIGA.nivelInicial; j.prog.pontos += (n - j.prog.nivel) * PONTOS_POR_NIVEL; j.prog.nivel = n; j.prog.xp = 0; }
       if (!j.prog.equip.cajado) j.prog.equip.cajado = { k: 'cajado', r: this.AMIGA.justa.raridade }; // espada E cajado, como todo herói
       for (const b of ['espada', 'cajado']) j.prog.barras[b] = barraValida(CEREBRO.barras[b], b) || j.prog.barras[b]; // as skills novas, como o jogador
       const ferr = this.AMIGA.atividades?.[this.AMIGA.gosto]?.ferramenta; // quem gosta de pescar/minerar/lenha já tem a ferramenta
@@ -446,7 +449,7 @@ export const Amiga = {
   guardarAmiga() {
     const j = this.amiga; if (!j) return;
     const amizades = { ...(j.amizades || {}) }; if (j.donoConta) amizades[j.donoConta] = j.amizade | 0;
-    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, evolucao: j.evolucao || [], ...(this.fazTarefasDef() ? { histReal: 1 } : {}), ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), guerra: j.guerraMem || {}, leilao: j.leilaoBot || null, memorias: j.memorias || {}, fatos: j.fatos || {}, semIa: j.semIa || {}, conversas: this.conversasParaSalvarAmiga(j), registro: j.registro || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(this.AMIGA.recomecoJogo ? { recomecoJogo: this.AMIGA.recomecoJogo } : {}), ...(j.amigaAntesJogo ? { antesJogo: j.amigaAntesJogo } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
+    const dados = { t: Date.now(), prog: j.prog, amizade: j.amizade | 0, amizades, amizadeDia: j.amizadeDia || {}, amigosDe: j.amigosDe || {}, grind: j.grind || null, missaoDia: j.missaoDia || null, evolucao: j.evolucao || [], ...(this.fazTarefasDef() ? { histReal: 1 } : {}), ...(j.amizadeAntiga != null ? { antiga: j.amizadeAntiga } : {}), guerra: j.guerraMem || {}, leilao: j.leilaoBot || null, memorias: j.memorias || {}, fatos: j.fatos || {}, semIa: j.semIa || {}, conversas: this.conversasParaSalvarAmiga(j), registro: j.registro || {}, regras: j.regras || {}, dicas: j.dicas || [], licoes: j.licoes || {}, gostos: j.gostos || {}, pedido: j.pedido || null, justa: 1, ...(j.zerado ? { zerado: 1 } : {}), ...(this.AMIGA.recomeco ? { recomeco: this.AMIGA.recomeco } : {}), ...(this.AMIGA.recomecoJogo ? { recomecoJogo: this.AMIGA.recomecoJogo } : {}), ...(j.amigaAntesJogo ? { antesJogo: j.amigaAntesJogo } : {}), ...(j.amigaAntes ? { antes: j.amigaAntes } : {}) };
     (this.npcSalvos ||= new Map()).set(this.AMIGA.id, dados); (this.npcsMudados ||= new Set()).add(this.AMIGA.id); // tabela mundo do banco (todos, desde 2026-11-22)
   },
   // ---------- a cabeça dela (a cada passo da simulação) ----------
