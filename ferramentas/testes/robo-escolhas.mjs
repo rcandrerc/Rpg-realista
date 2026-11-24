@@ -16,3 +16,20 @@ ok(listaVenda([{ k: 'pocao', n: 3 }, { k: 'pocao_mana', n: 2 }, null, null, null
 ok(listaVenda([{ k: 'pocao', n: 3, cad: 1 }, { k: 'pocao', n: 20, cad: 1 }], protegido).length === 0, 'poção com cadeado nunca vende');
 const eq = Object.keys(ITENS).find((k) => ITENS[k].lugar);
 ok(listaVenda([{ k: eq, n: 1 }, { k: 'couro', n: 50 }, { k: 'couro', n: 50 }, ...Array(6).fill(null)], protegido).join() === '0,2', 'continua vendendo a peça de equipamento e a pilha repetida');
+
+// Ronda 2026-11-24: 175 mortes na guerra numa noite, sempre voltando ao mesmo campo
+import { campoPerigoso, MORTES_TROCA } from '../robo/robo-escolhas.mjs';
+const t0 = 1_000_000, min = 60e3;
+const tres = [{ t: t0, campo: 'A' }, { t: t0 + 2 * min, campo: 'A' }, { t: t0 + 4 * min, campo: 'A' }];
+ok(MORTES_TROCA === 3 && campoPerigoso(tres, 'A', t0 + 5 * min), '3 mortes em 10 min no mesmo campo: troca de campo');
+ok(!campoPerigoso(tres.slice(0, 2), 'A', t0 + 5 * min), '2 mortes ainda não trocam');
+ok(!campoPerigoso(tres, 'A', t0 + 12 * min), 'morte de mais de 10 min atrás não conta');
+ok(!campoPerigoso(tres, 'B', t0 + 5 * min) && !campoPerigoso(tres, null, t0), 'morte em outro campo (ou sem campo) não conta');
+
+// Ronda 2026-11-24: merge do Ato do Clã (k1-k4) no meio do turno; no servidor a e3 foi da posição 51 para a 55
+import { listaMudou } from '../robo/robo-escolhas.mjs';
+const velha = [{ id: 'a1' }, { id: 'e2' }, { id: 'e3' }, { id: 'e6' }], nova = [{ id: 'a1' }, { id: 'k1' }, { id: 'e2' }, { id: 'e3' }, { id: 'e6' }];
+ok(!listaMudou(velha, { p: 2, u: 'e2' }) && !listaMudou(nova, { p: 3, u: 'e2' }), 'mesma lista do servidor: segue normal');
+ok(listaMudou(velha, { p: 3, u: 'e2' }), 'servidor com missão nova no meio: o robô percebe e não lê a e6 no lugar da e3');
+ok(listaMudou(velha, { p: 5, u: 'e6' }), 'servidor com mais missões que o robô: não zera a história');
+ok(!listaMudou(velha, { p: 0 }) && !listaMudou(velha, null) && !listaMudou(velha, { p: 2 }), 'começo da história, sem história ou save sem u: nunca dá lista mudada');
