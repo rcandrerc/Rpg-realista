@@ -11,7 +11,7 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { LIDERES_CLA, CLA, ENCOMENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
+import { LIDERES_CLA, CLA, ENCOMENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
 import { guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas } from './progresso.js';
 import { fundoAgua } from './transporte.js';
@@ -91,6 +91,17 @@ export function sortearRecruta(rnd, T, nvLider, agora) {
 // o recruta com a ficha (FICHA_RECRUTA): o sorteio de antes e, por cima, coragem, cuidado e gosto pelo cajado
 export function sortearComFicha(rnd, T, nvLider, agora) { const r = sortearRecruta(rnd, T, nvLider, agora); r.lu = sortearLuta(rnd, r.jeito); return r; }
 // o que o app mostra de um candidato
+// ---------- a regra única de recrutar (André 2026-11-24: "os bots seguem a mesma lógica do jogador comum... quando eu mudar
+// um, muda para todos"): o jogador (Recrutador) e o líder bot (passoClasNpc) passam por aqui ----------
+// pode contratar no tier T? ocupadas = quem já ocupa vaga (clã bot: recrutas + fixos no clã). Texto do motivo ou null.
+export function regraRecrutar(nvCla, ocupadas, T) {
+  const nv = nvCla || 1;
+  if (ocupadas >= nv) return nv >= CLA.max ? `O clã já tem ${CLA.max} recrutas (o máximo)` : `Clã Nv ${nv}: ${nv} vaga${nv > 1 ? 's' : ''}. Melhore o clã para abrir outra`;
+  if ((T.claNv || 1) > nv) return `${T.nome} só no clã Nv ${T.claNv}`;
+  return null;
+}
+// os candidatos que o Recrutador mostra (FICHA_RECRUTA.candidatos), no nível do tier pelo nível do líder
+export function candidatosRecrutar(T, nvLider, agora, rnd = Math.random) { return Array.from({ length: FICHA_RECRUTA.candidatos }, () => sortearComFicha(rnd, T, nvLider, agora)); }
 const candidatoInfo = (r, T) => ({ nome: r.nome, g: r.g, nv: r.nv, preco: precoTier(T, r.nv), sem: semanaDe(T, r.nv), ap: r.ap, ficha: fichaInfo(r.lu, r.jeito, r.gosto, r.g) });
 
 export const Cla = {
@@ -143,10 +154,9 @@ export const Cla = {
     if (m.acao === 'recrutar' || m.acao === 'candidatos') {
       const T = CLA.tiers.find((x) => x.id === m.tier); if (!T) return;
       if (!this.pertoRecrutador(j)) return aviso('Fale com o Recrutador (Clareira ou Juncal)');
-      if (c.m.length >= (c.nv || 1)) return aviso(c.nv >= CLA.max ? `O clã já tem ${CLA.max} recrutas (o máximo)` : `Clã Nv ${c.nv}: ${c.nv} vaga${c.nv > 1 ? 's' : ''}. Melhore o clã para abrir outra`);
-      if ((T.claNv || 1) > (c.nv || 1)) return aviso(`${T.nome} só no clã Nv ${T.claNv}`);
+      { const nao = regraRecrutar(c.nv, c.m.length, T); if (nao) return aviso(nao); }
       if (m.acao === 'candidatos') {
-        const l = Array.from({ length: FICHA_RECRUTA.candidatos }, () => sortearComFicha(Math.random, T, j.prog.nivel, agora));
+        const l = candidatosRecrutar(T, j.prog.nivel, agora);
         j.candidatosCla = { tier: T.id, l, ate: agora + FICHA_RECRUTA.validade };
         return this.evento({ t: 'claCandidatos', para: id, tier: T.id, nome: T.nome, l: l.map((r) => candidatoInfo(r, T)) });
       }
@@ -754,6 +764,12 @@ export const Cla = {
   // voltam ao nível 1, sem recruta nenhum, com o cofre e o Baú do Clã vazios; as bases e os lotes deles somem (o líder bot
   // funda de novo, passoBasesNpc). As missões ficam (o reset delas é outro botão: missaoTeste 'zerar'). Os membros fixos
   // (Kira, Rufo, Lis, Cecília, Lia) e os outros jogadores não mudam.
+  // André 2026-11-24 (2º pedido: "eu e os bots, os líderes, todo mundo é resetado... pro zero mesmo... o nível do clã dos
+  // inimigos... e também dos neutros não tá resetando, é pra resetar tudo"): os membros fixos também voltam a um personagem
+  // novo (seguem no clã, nível 1); o nível salvo do clã bot vale ao religar o servidor (carregarClasNpc não sobe mais para
+  // o número de fixos); as funções dos fixos (E.fx) e a Escolta do Clã em andamento acabam; o save de cada recruta que saiu
+  // ('npc:' + id na tabela mundo) é apagado (npcsApagados; o servidor também limpa os órfãos: limparRecrutasOrfaos).
+  // Os outros jogadores (gente de verdade) continuam sem mudar.
   resetPartida(id) {
     const j = this.jogadores.get(id); if (!j || j.bot || !j.testador || !LIDERES_CLA.reset) return false;
     const novoProg = (p, fica) => { // troca por dentro (o mesmo objeto): quem guarda j.prog continua certo
@@ -763,8 +779,8 @@ export const Cla = {
     };
     const agora = Date.now(), bases = new Set(), nomes = [];
     // você: recrutas fora, clã no 1, personagem novo
-    const c = j.prog.cla;
-    if (c) for (const r of c.m) this.tirarRecruta(r.id, j);
+    const c = j.prog.cla, foram = new Set();
+    if (c) for (const r of c.m) { this.tirarRecruta(r.id, j); foram.add(r.id); }
     this.clasFora?.delete(j.conta);
     novoProg(j.prog, ['hist', 'cla', 'devPag', 'rgDado']);
     if (c) { c.m = []; c.nv = 1; c.cofre = 0; c.sem = agora + CLA.semana; delete c.saiu; this.logCla(c, 'Partida resetada: clã de volta ao nível 1'); }
@@ -772,20 +788,27 @@ export const Cla = {
     // os clãs bot: sem recrutas, nível 1, baú vazio, primeira contratação como num servidor novo
     for (const C of CLAS_NPC) {
       const E = this.clasNpc?.[C.id]; bases.add('n' + C.id); if (!E) continue;
-      for (const m of E.m) this.tirarRecruta(m.id, j);
-      E.m = []; E.nv = 1; delete E.bau; delete E.ordensT; delete E.visto; delete E.foraFeito;
+      for (const m of E.m) { this.tirarRecruta(m.id, j); foram.add(m.id); }
+      E.m = []; E.nv = 1; delete E.bau; delete E.ordensT; delete E.visto; delete E.foraFeito; delete E.fx;
+      E.fora = C.membros.filter((id) => id !== C.lider); if (!E.fora.length) delete E.fora; // os fixos saem: o líder recruta como um jogador
       E.prox = agora + CLAS_NPC_REGRAS.primeiro * 3600e3; E.sem = agora + CLA.semana;
     }
-    // os líderes: personagem novo (a história deles fica), com a roupa do começo
-    for (const lid of LIDERES_CLA.ids()) {
+    // o save de quem saiu some do banco (antes ficava 'npc:' + id para sempre na tabela mundo)
+    for (const rid of foram) { this.npcSalvos?.delete(rid); this.npcsMudados?.delete(rid); (this.npcsApagados ||= new Set()).add(rid); }
+    // os líderes e os membros fixos (Kira, Rufo, Lis, Cecília, Lia): personagem novo (a história deles fica), roupa do começo
+    for (const lid of new Set([...LIDERES_CLA.ids(), ...CLAS_NPC.flatMap((C) => C.membros)])) {
       const ctx = this.amigosIa.find((x) => x.AMIGA.id === lid); if (!ctx) continue;
-      nomes.push(ctx.AMIGA.nome);
+      if (LIDERES_CLA.ids().includes(lid)) nomes.push(ctx.AMIGA.nome);
       const A = ctx.AMIGA, a = ctx.amiga;
       const vestir = (p) => { for (const [l, it] of Object.entries(A.equip || {})) p.equip[l] = { k: it.k, r: A.justa?.raridade ?? 0 }; if (A.mochila?.paginas) liberarPaginas(p, A.mochila.paginas); };
-      if (a) { novoProg(a.prog, ['hist']); vestir(a.prog); a.progSujo = true; this.aplicarStatus(a, true); this.evento({ t: 'nivel', id: a.id, nivel: 1 }); ctx.guardarAmiga?.(); continue; }
+      if (a) {
+        novoProg(a.prog, ['hist']); vestir(a.prog); a.zerado = 1; a.progSujo = true; this.aplicarStatus(a, true); this.evento({ t: 'nivel', id: a.id, nivel: 1 }); ctx.guardarAmiga?.();
+        if (this.fixoForaNpc(lid)) { if (a.time) this.sairDoTime(a, `${A.nome} saiu do clã`); ctx.amigaSair(null, true); if (ctx.amiga) { this.jogadores.delete(ctx.amiga.id); ctx.amiga = null; ctx.amigaDono = null; } }
+        continue;
+      }
       const salvo = this.npcSalvos?.get(lid) || (this.lerNpc ? this.lerNpc(lid) : null) || {};
       const prog = progressoValido(null); if (salvo.prog?.hist) prog.hist = salvo.prog.hist; vestir(prog);
-      (this.npcSalvos ||= new Map()).set(lid, { ...salvo, prog, t: agora }); (this.npcsMudados ||= new Set()).add(lid);
+      (this.npcSalvos ||= new Map()).set(lid, { ...salvo, prog, zerado: 1, t: agora, ...this.marcasRecomeco(ctx.AMIGA) }); (this.npcsMudados ||= new Set()).add(lid);
     }
     // as bases (sua e dos clãs bot) e os seus terrenos somem
     for (const [lid, L] of [...(this.lotes || new Map())]) {
@@ -794,12 +817,13 @@ export const Cla = {
       this.lotes.delete(lid); this.lotesMudados?.delete(lid); this.lotesSoltos?.add(lid);
       this.evento({ t: 'lote', lote: lid, dono: null });
     }
+    for (const M of [...(this.missoesCla?.values() || [])]) if (bases.has(M.k)) this.fimMissaoCla?.(M, false, 'partida resetada');
     if (this.basesCla) for (const k of bases) { delete this.basesCla[k]; if (this.basesDesenho) delete this.basesDesenho[k]; }
     this.evento({ t: 'meuLote', para: j.id, lote: '' });
     this.refazerSolidosLotes?.(); this.avisarBases?.();
     this.salvarClasNpc();
     j.progSujo = true; this.aplicarStatus(j, true); this.evento({ t: 'nivel', id: j.id, nivel: 1 }); this.avisarProg(j);
-    this.evento({ t: 'aviso', para: id, texto: `Partida resetada: você e ${nomes.join(', ')} no nível 1, clãs no nível 1 sem recrutas` });
+    this.evento({ t: 'aviso', para: id, texto: `Partida resetada: você, ${nomes.join(', ')} e os membros dos clãs no nível 1; todos os clãs (inimigos e neutros) no nível 1 sem recrutas` });
     return true;
   },
   // tira o corpo de um recruta (dispensado ou foi embora)
@@ -843,8 +867,11 @@ export const Cla = {
     for (const C of CLAS_NPC) {
       const e = est?.[C.id], v = claValido({ n: C.n, m: Array.isArray(e?.m) ? e.m : [], sem: e?.sem, cofre: 0 });
       const bau = Array.isArray(e?.bau) ? Array.from({ length: CLA.bauCla }, (_, i) => (e.bau[i] && typeof e.bau[i].k === 'string' && ITENS[e.bau[i].k] ? { k: e.bau[i].k, n: Math.max(1, e.bau[i].n | 0) } : null)) : null;
-      const fixos = C.membros.filter((id) => id !== C.lider).length, nvC = Math.max(1, Math.min(CLA.max, Math.max(e?.nv | 0, fixos + (v?.m.length || 0))));
-      this.clasNpc[C.id] = { nv: nvC, m: v?.m.slice(0, vagasClaNpc(C, nvC)) || [], prox: Number.isFinite(+e?.prox) ? +e.prox : Date.now() + CLAS_NPC_REGRAS.primeiro * 3600e3, sem: v?.sem || Date.now() + CLA.semana,
+      // o nível salvo vale (André 2026-11-24: depois do "Resetar partida" o clã ficava no Nv dos fixos ao religar o servidor);
+      // save sem nível (antigo): conta os fixos e os recrutas, como antes
+      const fora = Array.isArray(e?.fora) ? [...new Set(e.fora.filter((id) => C.membros.includes(id) && id !== C.lider))] : [];
+      const fixos = fixosNpc(C, { fora }).length, nvC = Math.max(1, Math.min(CLA.max, (e?.nv | 0) || fixos + (v?.m.length || 0)));
+      this.clasNpc[C.id] = { nv: nvC, m: v?.m.slice(0, vagasClaNpc(C, nvC, { fora })) || [], ...(fora.length ? { fora } : {}), prox: Number.isFinite(+e?.prox) ? +e.prox : Date.now() + CLAS_NPC_REGRAS.primeiro * 3600e3, sem: v?.sem || Date.now() + CLA.semana,
         ...(bau ? { bau } : {}), ...(Number.isFinite(+e?.visto) && +e.visto > 0 ? { visto: +e.visto } : {}) };
     }
     for (const C of CLAS_NPC) for (const m of this.clasNpc[C.id].m) this.criarRecrutaNpc(C, m, false);
@@ -898,19 +925,22 @@ export const Cla = {
       }
       // liderança: contrata o melhor que o ouro paga (deixa a reserva)
       // liderança: clã cheio, sobe de nível quando dá (as mesmas regras do jogador; o ouro é o do líder, com a reserva)
-      if (E.m.length >= vagasClaNpc(C, E.nv) && CLA.niveis[(E.nv || 1) + 1]) {
+      if (E.m.length >= vagasClaNpc(C, E.nv, E) && CLA.niveis[(E.nv || 1) + 1]) {
         this.fundirBauNpc(E);
         const r = this.subirCla({ nv: E.nv || 1, nvLider: L.prog.nivel | 0, raca: C.raca, ouro: (L.prog.ouro | 0) - R.reserva, fontes: [E.bau || [], L.prog.mochila] }); // e a mochila do líder, como no clã do jogador (André 2026-11-23)
         if (!r.falta) { L.prog.ouro -= r.N.ouro; r.tirar(); E.nv = r.N.nv; mudou = true;
           for (const o of this.jogadores.values()) if (!o.bot) this.evento({ t: 'aviso', para: o.id, texto: `${C.n} subiu para o Nv ${E.nv}` }); }
       }
-      if (agora >= E.prox && E.m.length < vagasClaNpc(C, E.nv)) {
+      // a mesma regra do jogador (regraRecrutar, candidatosRecrutar): o que é só do bot é a decisão (quando: a cada R.entre h;
+      // quanto guarda: R.reserva; qual tier: o melhor que o ouro paga; qual candidato: escolhaLider)
+      const ocupadas = E.m.length + fixosNpc(C, E).length;
+      if (agora >= E.prox && !regraRecrutar(E.nv, ocupadas, CLA.tiers[0])) {
         E.prox = agora + R.entre * 3600e3; mudou = true;
         const nv = L.prog.nivel | 0, livre = (L.prog.ouro | 0) - R.reserva;
-        const T = [...CLA.tiers].reverse().find((T) => (T.claNv || 1) <= (E.nv || 1) && precoTier(T, nivelTier(T, nv)) <= livre);
+        const T = [...CLA.tiers].reverse().find((T) => !regraRecrutar(E.nv, ocupadas, T) && precoTier(T, nivelTier(T, nv)) <= livre);
         if (T) {
           // o líder bot também vê FICHA_RECRUTA.candidatos e escolhe pelo jeito dele (escolhaLider); outro líder: sorteio
-          const l = Array.from({ length: FICHA_RECRUTA.candidatos }, () => sortearComFicha(Math.random, T, nv, agora)), q = FICHA_RECRUTA.escolhaLider[C.lider];
+          const l = candidatosRecrutar(T, nv, agora), q = FICHA_RECRUTA.escolhaLider[C.lider];
           const m = q ? l.reduce((b, r) => (r.lu[q] > b.lu[q] ? r : b)) : l[Math.floor(Math.random() * l.length)];
           m.fn = this.funcaoBotCla(E.m.length, temLote); // o líder já diz o que ele vai fazer
           L.prog.ouro -= precoTier(T, m.nv); E.m.push(m);
@@ -922,6 +952,8 @@ export const Cla = {
     }
     this.passoBasesNpc?.(); // as bases dos clãs bot (shared/base.js)
   },
+  // as marcas de recomeço do bot no save novo (sem elas, amigaEntrar acharia que o recomeço não foi feito e zeraria o save)
+  marcasRecomeco(A) { return { ...(A?.recomeco ? { recomeco: A.recomeco } : {}), ...(A?.recomecoJogo ? { recomecoJogo: A.recomecoJogo } : {}) }; },
   // o líder bot faz o que o jogador faria na fornalha: 3 minérios de ferro viram 1 barra, 2 barras viram 1 de aço
   fundirBauNpc(E) {
     const b = E.bau; if (!b) return;
@@ -973,13 +1005,15 @@ export const Cla = {
   // membros antigos (Kira, Rufo, Lis; Cecília, Lia) obedecem ao líder como os recrutas. Guardam nome, nível, itens e jeito.
   // dá para ter esse bot na lista de amigos? (AMIGOS.soLideres: só o líder de clã bot da raça do jogador)
   amigoBotOk(x, j) { return !AMIGOS.soLideres || CLAS_NPC.some((C) => C.lider === x?.AMIGA?.id && C.raca === this.racaDe(j)); },
-  fixoClaNpc(x) { const A = x?.AMIGA; return !!A && !A.recruta && CLAS_NPC_ORDENS.ligado && CLAS_NPC.some((C) => C.lider !== A.id && C.membros.includes(A.id)); },
+  fixoClaNpc(x) { const A = x?.AMIGA; return !!A && !A.recruta && CLAS_NPC_ORDENS.ligado && CLAS_NPC.some((C) => C.lider !== A.id && C.membros.includes(A.id)) && !this.fixoForaNpc(A.id); },
+  // membro fixo fora do clã (depois do "Resetar partida", até o líder recrutar de novo): sem corpo no mundo
+  fixoForaNpc(id) { return CLAS_NPC.some((C) => this.clasNpc?.[C.id]?.fora?.includes(id)); },
   claBotDe(x) { const A = x?.AMIGA; if (!A) return null; if (A.clanpc) return CLAS_NPC.find((o) => o.id === A.clanpc) || null; return this.fixoClaNpc(x) ? CLAS_NPC.find((C) => C.membros.includes(A.id)) : null; },
   // o registro de cada membro antigo no clã (função dada pelo líder), como o de um recruta (E.m); guardado em E.fx
   membrosFixosNpc(C, E) {
     if (!CLAS_NPC_ORDENS.ligado) return [];
     const fx = (E.fx ||= {}), nome = (id) => [...AMIGOS_VIRTUAIS, ...RIVAIS].find((d) => d.id === id)?.nome || id;
-    return C.membros.filter((id) => id !== C.lider).map((id) => (fx[id] ||= { id, nome: nome(id), fixo: 1 }));
+    return fixosNpc(C, E).map((id) => (fx[id] ||= { id, nome: nome(id), fixo: 1 }));
   },
   // grind de clã bot com o mundo vazio: as horas que sobram da caça do dia (horasDia), abatesHora x o XP real de um bicho
   // do campo que ele escolheria (a curva do jogo: no Nv alto quase nada), sem passar do nível do líder
@@ -1056,7 +1090,7 @@ export const Cla = {
     if (!this.clasNpc) this.carregarClasNpc(null);
     const nome = (id) => [...AMIGOS_VIRTUAIS, ...RIVAIS].find((d) => d.id === id)?.nome || id;
     // relação (André 2026-11-22): outra raça = inimigo; mesma raça = neutro (aliança fica para depois)
-    return CLAS_NPC.map((C) => ({ n: C.n, nv: this.clasNpc[C.id].nv || 1, lider: nome(C.lider), inimigo: this.racaDe(j) !== C.raca ? 1 : 0, raca: RACAS[C.raca]?.nome || C.raca, recrutas: C.membros.filter((id) => id !== C.lider).length + this.clasNpc[C.id].m.length, // os fixos contam (André 2026-11-22)
-      membros: [...C.membros.filter((id) => id !== C.lider).map(nome), ...this.clasNpc[C.id].m.map((m) => `${m.nome} (${tierDe(m.tier).nome} Nv ${m.nv}${m.fn ? ' · ' + (CLA.funcoes.find((F) => F.id === m.fn.k)?.nome || '') : ''})`)] }));
+    return CLAS_NPC.map((C) => ({ n: C.n, nv: this.clasNpc[C.id].nv || 1, lider: nome(C.lider), inimigo: this.racaDe(j) !== C.raca ? 1 : 0, raca: RACAS[C.raca]?.nome || C.raca, recrutas: fixosNpc(C, this.clasNpc[C.id]).length + this.clasNpc[C.id].m.length, // os fixos contam (André 2026-11-22), os de fora não
+      membros: [...fixosNpc(C, this.clasNpc[C.id]).map(nome), ...this.clasNpc[C.id].m.map((m) => `${m.nome} (${tierDe(m.tier).nome} Nv ${m.nv}${m.fn ? ' · ' + (CLA.funcoes.find((F) => F.id === m.fn.k)?.nome || '') : ''})`)] }));
   },
 };
