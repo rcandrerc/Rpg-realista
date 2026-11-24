@@ -2111,16 +2111,31 @@ func montar_cla() -> void:
 		var vs := VBoxContainer.new()
 		vs.add_theme_constant_override("separation", 3)
 		cs.add_child(vs)
-		vs.add_child(rotulo("Melhorar para o clã Nv %d (%d vagas)" % [int(S.nv), int(S.nv)], 16, OURO_CLARO))
 		var nv_ok := int(P_menu.prog.get("nivel", 1)) >= int(S.lider)
 		var ouro_ok := int(C.get("cofre", 0)) >= int(S.ouro)
 		var tudo := nv_ok and ouro_ok
-		vs.add_child(rotulo("Seu nível %d de %d · Cofre %d de %d de ouro" % [int(P_menu.prog.get("nivel", 1)), int(S.lider), int(C.get("cofre", 0)), int(S.ouro)], 13, TEXTO if tudo else Color(1.0, 0.7, 0.6)))
 		for it in S.get("itens", []):
-			var ok := int(it.tem) >= int(it.n)
-			tudo = tudo and ok
-			vs.add_child(rotulo("%s: %d/%d" % [str(it.nome), mini(int(it.tem), int(it.n)), int(it.n)], 13, VERDE_DIARIA if ok else APAGADO))
-		vs.add_child(rotulo("Materiais e fragmentos saem do Baú do Clã ou da sua mochila. Fragmento de Alma: derrube quem é da outra raça.", 11, APAGADO))
+			tudo = tudo and int(it.tem) >= int(it.n)
+		# André 2026-11-24: igual ao painel.html, ícones com tenho/preciso no lugar da lista de texto
+		var tl := HBoxContainer.new()
+		var tt := rotulo("Próximo nível: clã Nv %d (%d vagas)" % [int(S.nv), int(S.nv)], 16, OURO_CLARO)
+		tt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tl.add_child(tt)
+		if tudo:
+			tl.add_child(rotulo("Pronto!", 14, VERDE_DIARIA))
+		vs.add_child(tl)
+		var fi := HFlowContainer.new()
+		fi.add_theme_constant_override("h_separation", 8)
+		fi.add_theme_constant_override("v_separation", 6)
+		fi.add_child(_icone_req_cla(null, "Nv", "Seu nível", int(P_menu.prog.get("nivel", 1)), int(S.lider)))
+		fi.add_child(_icone_req_cla(icone_tex("it_ouro"), "", "Ouro no cofre", int(C.get("cofre", 0)), int(S.ouro)))
+		for it in S.get("itens", []):
+			if P_menu.dados.itens.has(str(it.k)):
+				fi.add_child(icone_material(str(it.k), mini(int(it.tem), int(it.n)), int(it.n)))
+			else:
+				fi.add_child(_icone_req_cla(null, str(it.nome).substr(0, 2), str(it.nome), int(it.tem), int(it.n)))
+		vs.add_child(fi)
+		vs.add_child(rotulo("Conta o Baú do Clã e a sua mochila. Toque num ícone para ver o nome. Fragmento de Alma: derrube quem é da outra raça.", 11, APAGADO))
 		var bm := botao("Melhorar clã", func(): rede("cla", {"acao": "melhorar"}), 15, tudo)
 		bm.custom_minimum_size = Vector2(0, 44)
 		vs.add_child(bm)
@@ -2164,7 +2179,8 @@ func montar_cla() -> void:
 	# os clãs bot (André 2026-11-22): o inimigo (Lobos da Geada, do Gael) e quem mais existir
 	for K in C.get("clas", []):
 		var ini := int(K.get("inimigo", 0)) == 1
-		conteudo.add_child(rotulo("%s %s Nv %d (%s) · líder %s · %d recrutas" % ["Inimigo:" if ini else "Neutro:", str(K.n), int(K.get("nv", 1)), str(K.get("raca", "")), str(K.lider), int(K.get("recrutas", 0))], 16, Color(1.0, 0.55, 0.45) if ini else APAGADO.lightened(0.2)))
+		var nv_l := int(K.get("nvLider", 0)) # André 2026-11-24: o nível do líder também, não só o dos recrutas
+		conteudo.add_child(rotulo("%s %s Nv %d (%s) · líder %s%s · %d recrutas" % ["Inimigo:" if ini else "Neutro:", str(K.n), int(K.get("nv", 1)), str(K.get("raca", "")), str(K.lider), ((" Lv %d" if Idioma.ingles() else " Nv %d") % nv_l) if nv_l > 0 else "", int(K.get("recrutas", 0))], 16, Color(1.0, 0.55, 0.45) if ini else APAGADO.lightened(0.2)))
 		conteudo.add_child(rotulo(", ".join(PackedStringArray(K.get("membros", []))), 12, APAGADO))
 	# Recrutador
 	conteudo.add_child(rotulo("Recrutar", 17, OURO_CLARO))
@@ -3565,6 +3581,46 @@ func linha_criavel_rar(e: Dictionary, fixa := -1) -> Control:
 	return cx
 
 # material como símbolo: ícone com "tem/precisa" embaixo (verde ou vermelho); tocar diz o nome
+# requisito do próximo nível do clã que não é item (nível do líder, ouro do cofre): o mesmo quadradinho do
+# icone_material, com o desenho (ou um texto curto, "Nv") e tenho/preciso embaixo; número grande vira "25k"
+func _icone_req_cla(tex: Texture2D, texto: String, nome: String, tem: int, precisa: int) -> Control:
+	var ok := tem >= precisa
+	var bx := VBoxContainer.new()
+	bx.add_theme_constant_override("separation", 0)
+	bx.custom_minimum_size = Vector2(44, 0)
+	var q := Button.new()
+	q.focus_mode = Control.FOCUS_NONE
+	q.custom_minimum_size = Vector2(40, 40)
+	q.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var st := caixa(Color(0.045, 0.04, 0.036, 1), Color(0.45, 0.78, 0.45, 0.8) if ok else Color(0.88, 0.5, 0.42, 0.8), 1, 6)
+	for e in ["normal", "hover", "pressed"]:
+		q.add_theme_stylebox_override(e, st)
+	if tex != null:
+		var ic := TextureRect.new()
+		ic.texture = tex
+		ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+		ic.offset_left = 4
+		ic.offset_top = 4
+		ic.offset_right = -4
+		ic.offset_bottom = -4
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		q.add_child(ic)
+	else:
+		q.text = texto
+		q.add_theme_font_size_override("font_size", 15)
+		q.add_theme_color_override("font_color", OURO_CLARO)
+	q.pressed.connect(func():
+		if not _arrastou:
+			balao_nome(q, "%s: tem %d, precisa %d" % [Idioma.t(nome), tem, precisa], OURO_CLARO))
+	bx.add_child(q)
+	var curto := func(v: int) -> String: return "%dk" % (v / 1000) if v >= 10000 else str(v)
+	var n := rotulo("%s/%s" % [curto.call(mini(tem, precisa)), curto.call(precisa)], 11, VERDE if ok else Color("e0806a"))
+	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bx.add_child(n)
+	return bx
+
 func icone_material(k: String, tem: int, precisa: int, peca := {}) -> Control:
 	var P = P_menu
 	var alvo: Dictionary = peca if not peca.is_empty() else {"k": k}

@@ -142,13 +142,22 @@ export const LeilaoBots = {
     const quantos = (f) => j.prog.mochila.filter((o) => o && f(o)).length; // o que passa do teto vai para a loja
     if (ehEquip(it.k)) return (it.r | 0) >= 1 && quantos((o) => ehEquip(o.k) && (o.r | 0) >= 1) <= LEILAO_BOT.guardaEquip;
     if (it.k === 'tomo') return quantos((o) => o.k === 'tomo') <= LEILAO_BOT.guardaTomos;
-    return !!ITENS[it.k]?.mat;
+    // material: só guarda para o leilão se lá tem pouco dele (André 2026-11-24: "se tiver muito, vende no NPC")
+    return !!ITENS[it.k]?.mat && (this.leilao?.anunciosDe(it.k) ?? 0) < LEILAO_BOT.pouco;
   },
   // anuncia o que sobra: peça Rara ou melhor, Tomo que não serve e material acima da reserva. Devolve quantos anunciou
   venderLeilaoAmiga(j, L, J, lb, agora) {
     const p = j.prog, B = LEILAO_BOT;
     let vagas = Math.min(B.maxAnuncios, LEILAO.max) - L.meus(j.conta).length; if (vagas <= 0) return 0;
     const quer = this.precisaLeilaoAmiga(j, lb.meta), sobra = [], vistos = new Set();
+    // poção e comida (vaga de consumível, André 2026-11-24): só o que passa de guardaConsumivel
+    const GC = B.guardaConsumivel, consumivel = (k) => k === 'pocao' || k === 'pocao_mana' || !!ITENS[k]?.comida;
+    for (let i = 0; i < p.mochila.length; i++) {
+      const it = itemValido(p.mochila[i]); if (!it || it.cad || !consumivel(it.k) || vistos.has(it.k)) continue;
+      vistos.add(it.k);
+      const tem = contar(p.mochila, it.k), guarda = GC[it.k] ?? GC.comida;
+      if (tem > guarda && L.anunciosDe(it.k, agora) < B.pouco) sobra.push({ k: it.k, n: Math.min(tem - guarda, ITENS[it.k].pilha || 50), it: { k: it.k, n: 1 }, cat: 'consumivel' });
+    }
     for (let i = 0; i < p.mochila.length; i++) {
       const it = itemValido(p.mochila[i]); if (!it || this.naoVendeLeilaoAmiga(j, it)) continue;
       if (ehEquip(it.k)) { if ((it.r | 0) >= 1) sobra.push({ i, it }); continue; }
@@ -161,16 +170,22 @@ export const LeilaoBots = {
       }
       if (!ITENS[it.k]?.mat || vistos.has(it.k)) continue;
       vistos.add(it.k);
+      if (L.anunciosDe(it.k, agora) >= B.pouco) continue; // já tem muito no leilão: esse vai para a loja (arrumar)
       const tem = contar(p.mochila, it.k), guarda = (B.reserva[it.k] ?? B.reserva.padrao) + (quer[it.k] || 0);
-      if (tem > guarda) sobra.push({ k: it.k, n: Math.min(tem - guarda, ITENS[it.k].pilha || 50), it: { k: it.k, n: 1 } });
+      if (tem > guarda) sobra.push({ k: it.k, n: Math.min(tem - guarda, ITENS[it.k].pilha || 50), it: { k: it.k, n: 1 }, cat: B.recursos.includes(it.k) ? 'recurso' : undefined });
     }
     sobra.sort((a, b) => L.precoMercado(b.it, agora) * (b.n || 1) - L.precoMercado(a.it, agora) * (a.n || 1));
     // pelo menos um Tomo vai ao leilão por olhada (André 2026-11-24: "não existe tomo vendendo na Action House"): o mais caro
     // passa à frente das peças, que sempre valiam mais e ocupavam todas as vagas
     { const t = sobra.findIndex((o) => o.tomo); if (t > 0) sobra.unshift(...sobra.splice(t, 1)); }
+    // as vagas (André 2026-11-24): recurso e consumível têm as deles; peça, Tomo e o resto ficam com as outras
+    const V = B.vagas, catDe = (it) => (B.recursos.includes(it.k) ? 'recurso' : consumivel(it.k) ? 'consumivel' : 'outro');
+    const lim = { recurso: V.recurso, consumivel: V.consumivel, outro: Math.max(0, Math.min(B.maxAnuncios, LEILAO.max) - V.recurso - V.consumivel) };
+    const usadas = { recurso: 0, consumivel: 0, outro: 0 }; for (const a of L.meus(j.conta)) usadas[catDe(a.item)]++;
     let n = 0;
     for (const s of sobra) {
       if (vagas <= 0) break;
+      const cat = s.cat || catDe(s.it); if (usadas[cat] >= lim[cat]) continue;
       const item = s.k ? { k: s.k, n: s.n } : s.parte ? { ...s.it, n: s.parte } : { ...s.it }, qtd = item.n || 1, merc = L.precoMercado(item, agora);
       const iguais = L.anuncios.filter((a) => chaveMercado(a.item) === chaveMercado(item)).length;
       const [a0, a1] = B.acima, frac = (iguais <= B.escasso ? a1 : a0 + Math.random() * (a1 - a0)) * J.ganancia; // pouca oferta: no topo
@@ -182,7 +197,7 @@ export const LeilaoBots = {
       if (s.k) tirar(p.mochila, s.k, qtd); else if (s.parte && (p.mochila[s.i].n || 1) > qtd) p.mochila[s.i].n -= qtd; else p.mochila[s.i] = null;
       const r = L.anunciar(j.conta, this.AMIGA.nome, item, preco, B.horas, agora);
       if (typeof r === 'string') { guardar(p.mochila, item); break; }
-      p.ouro -= taxa; vagas--; n++;
+      p.ouro -= taxa; vagas--; n++; usadas[cat]++;
       this.anotarLeilaoAmiga(j, 'anunciou', `${nomeItem(item)} por ${preco} (mercado ${merc * qtd})`);
     }
     return n;

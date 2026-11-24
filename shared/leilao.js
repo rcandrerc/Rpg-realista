@@ -35,6 +35,9 @@ export const LEILAO = {
   // conta esquece uma compra a cada desceHoras (contínuo). 1 compra = 2x, 2 = 4x, 5 = 32x, 10 = 1024x; volta ao
   // normal em 2 h por compra (de 10 compras, 20 h).
   casaSobe: { sobe: 2, desceHoras: 2, max: 1024 },
+  // André 2026-11-24 (aprovado: "tirar o estoque da casa aos poucos"): enquanto houver anúncio de bot ou jogador do mesmo
+  // item, a casa esconde o dela; ela volta quando o item fica `horas` sem nenhum anúncio (ninguém fica travado sem ferro)
+  casaSome: { horas: 24 },
 };
 // a busca por parte do nome: sem maiúscula e sem acento ("ferro" acha "Minério de Ferro", "minerio" também)
 export const semAcento = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -68,12 +71,13 @@ export class Leilao {
     const obj = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
     this.mercado = obj(s.mercado); // chave -> { m, t }: o preço de mercado (m x base x inflação) e a última mexida
     this.ouros = obj(s.ouros); // conta -> { o, t }: o ouro de quem usou o leilão (a inflação)
+    this.casaVisto = obj(s.casaVisto); // item -> última vez (ms) que havia anúncio dele (a casa some até passar casaSome.horas)
     this.casaCompras = obj(s.casaCompras); // conta -> { id do anúncio da casa: { c, t } }: compras recentes (preço sobe)
     this.casa = LEILAO.casa.filter(([k]) => ITENS[k]).map(([k, n], i) => ({ id: 'casa' + i, conta: 'casa', vendedor: 'Casa do Comércio', item: { k, n },
       preco: precoVenda({ k, n: 1 }) * n * LEILAO.casaVezes, ate: 0, casa: true }));
     this.precoCasa();
   }
-  estado() { return { anuncios: this.anuncios, caixa: this.caixa, vendas: this.vendas, seq: this.seq, mercado: this.mercado, ouros: this.ouros, casaCompras: this.casaCompras }; }
+  estado() { return { anuncios: this.anuncios, caixa: this.caixa, vendas: this.vendas, seq: this.seq, mercado: this.mercado, ouros: this.ouros, casaCompras: this.casaCompras, casaVisto: this.casaVisto }; }
   // ---------- o mercado (André 2026-11-21: "flutuação de acordo com o mercado... inflação do jogo") ----------
   verOuro(conta, ouro, agora = Date.now()) { if (conta != null && Number.isFinite(ouro)) this.ouros[conta] = { o: Math.max(0, Math.round(ouro)), t: agora }; }
   inflacao(agora = Date.now()) {
@@ -113,8 +117,17 @@ export class Leilao {
   }
   fatorCasa(conta, id, agora = Date.now()) { const S = LEILAO.casaSobe; return Math.min(S.max, S.sobe ** this.comprasCasa(conta, id, agora)); }
   // o anúncio da casa com o preço DESSA conta (cópia; o da lista fica no preço normal). volta: ms até voltar ao normal
+  // a casa está escondida para esse item? (há anúncio dele agora, ou houve há menos de casaSome.horas)
+  casaEscondida(k, agora = Date.now()) {
+    if (this.anuncios.some((a) => a.item.k === k && !(a.ate && a.ate <= agora))) { this.casaVisto[k] = agora; return true; }
+    const t = this.casaVisto[k]; if (!t) return false;
+    if (agora - t < LEILAO.casaSome.horas * HORA) return true;
+    delete this.casaVisto[k]; return false;
+  }
+  // quantos anúncios (de bot ou jogador) desse item estão no leilão
+  anunciosDe(k, agora = Date.now()) { return this.anuncios.filter((a) => a.item.k === k && !(a.ate && a.ate <= agora)).length; }
   casaPara(conta, agora = Date.now()) {
-    return this.casa.map((a) => {
+    return this.casa.filter((a) => !this.casaEscondida(a.item.k, agora)).map((a) => {
       const c = this.comprasCasa(conta, a.id, agora); if (c <= 0) return a;
       return { ...a, preco: Math.round(a.preco * this.fatorCasa(conta, a.id, agora)), base: a.preco, volta: Math.round(c * LEILAO.casaSobe.desceHoras * HORA) };
     });
