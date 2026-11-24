@@ -611,6 +611,7 @@ func montar_painel_item() -> Control:
 	painel_item.add_theme_stylebox_override("panel", caixa(Color(0.07, 0.062, 0.052, 1), BORDA, 1, 10))
 	painel_item.visible = false
 	painel_rolagem = ScrollContainer.new()
+	painel_rolagem.set_meta("arrasto_proprio", true) # rola pelo _input daqui (rolagem_toque.gd só dá a inércia)
 	painel_rolagem.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	painel_item.add_child(painel_rolagem)
 	painel_corpo = VBoxContainer.new()
@@ -988,6 +989,7 @@ func montar_direita() -> Control:
 	fundo.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	fundo.add_theme_stylebox_override("panel", caixa(Color(0.055, 0.048, 0.04, 1), Color(0.24, 0.2, 0.14), 1, 8))
 	rolagem = ScrollContainer.new()
+	rolagem.set_meta("arrasto_proprio", true)
 	rolagem.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	rolagem.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	fundo.add_child(rolagem)
@@ -1128,12 +1130,16 @@ func _input(ev: InputEvent) -> void:
 	if ev is InputEventScreenTouch:
 		if ev.pressed:
 			_arrasto_dentro = rol.get_global_rect().has_point(ev.position)
+			if _arrasto_dentro and Engine.has_meta("rolagem_toque"):
+				Engine.get_meta("rolagem_toque", null).esquecer() # encostou: a lista que deslizava para
 			var vb := rol.get_v_scroll_bar()
 			if vb.visible and vb.get_global_rect().has_point(ev.position):
 				_arrasto_dentro = false # dedo na barra: a própria barra rola, no sentido dela
 			_arrasto_soma = 0.0
 			_arrastou = false
 		else:
+			if _arrasto_dentro and _arrastou and Engine.has_meta("rolagem_toque"):
+				Engine.get_meta("rolagem_toque", null).inercia(rol) # soltou arrastando: a lista segue deslizando e freia
 			_arrasto_dentro = false
 			if _arrastou: # deixa o soltar passar, mas o botão não dispara (o pressed vem antes de zerar)
 				(func(): _arrastou = false).call_deferred()
@@ -1142,6 +1148,8 @@ func _input(ev: InputEvent) -> void:
 		if _arrasto_soma > 12.0:
 			_arrastou = true
 		rol.scroll_vertical -= int(round(ev.relative.y))
+		if Engine.has_meta("rolagem_toque"):
+			Engine.get_meta("rolagem_toque", null).anotar(ev.relative.y)
 		get_viewport().set_input_as_handled()
 
 func _process(dt: float) -> void:
@@ -5700,6 +5708,7 @@ func montar_janela() -> void:
 		fio.custom_minimum_size = Vector2(0, 1)
 		v.add_child(fio)
 		janela_rolagem = ScrollContainer.new()
+		janela_rolagem.set_meta("arrasto_proprio", true)
 		janela_rolagem.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		janela_rolagem.custom_minimum_size = Vector2(0, min(opcoes.size(), 3) * 56 - 6)
 		v.add_child(janela_rolagem)
