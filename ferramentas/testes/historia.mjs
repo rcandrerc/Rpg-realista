@@ -75,7 +75,7 @@ const verCliente = (lista) => {
   for (const e of lista) if (e.t === 'prog' && e.para === 'A') { cli.hi = e.hi; veio = true; }
   const a = cli.hi?.alvo, M = HISTORIA[h()?.p];
   // etapa que acontece num lugar sem o Ir: o jogador não sabe para onde ir
-  const E = veio && h()?.ac ? etapa() : null, semLugar = ['montar', 'criar', 'destruir', 'reforcar', 'barra', 'atributo', 'pesca', 'noite', 'time', 'arma', 'evoluir', 'resetar', 'leilao', 'sintetizar', 'diaria_vista', 'diaria'];
+  const E = veio && h()?.ac ? etapa() : null, semLugar = ['montar', 'criar', 'destruir', 'reforcar', 'barra', 'atributo', 'pesca', 'noite', 'time', 'arma', 'evoluir', 'resetar', 'leilao', 'sintetizar', 'diaria_vista', 'diaria', 'base', 'cofre'];
   const naMochila = semLugar.includes(cli.hi?.ev) || cli.hi?.ev === 'veiculo' || /^(.*: )?junte ouro/.test(cli.hi?.txt || ''); // o que falta se faz na mochila (destruir, criar ferramenta, radar...)
   if (E && !a && !(semLugar.includes(E.ev) && !E.alvo) && !naMochila) bug(`semIr:${M.id}:${h().e}`, `${M.id} etapa ${h().e + 1} (${E.ev}): o botão Ir não tem para onde levar`);
   if (a && M && zonaFechadaEm(p, a.x, a.z)) bug(`nevoa:${M.id}:${cli.hi.e}`, `${M.id} etapa ${cli.hi.e + 1}: o Ir leva para dentro da névoa (${a.nome})`);
@@ -201,7 +201,7 @@ falar('m_peixe'); ok(missao() === 'a11' && liberado(p, 'pesca'), 'Nico deu a var
 dar('couro', 1); dar('lenha', 3); s.fabricarUm('A', 'vara'); correr(0.1); ok(h().e === 1, 'criou a vara');
 ok(alvoOk(), 'Ir leva a um spot de pesca');
 s.historia(j, 'pesca', { k: 'lambari', n: 4 }); falar('m_peixe'); fim('a11');
-falar('lider'); ok(missao() === 'a12', 'Aldo deu o terreno');
+falar('lider'); ok(missao() === 'a12', 'Aldo pediu a base do clã');
 const L = { def: { id: 'tA', x0: -20, x1: -10, z0: 80, z1: 90 }, dono: j.conta, pecas: [{ k: 'bancada' }], horta: {} }; s.lotes.set('tA', L); correr(0.6);
 ok(h().e === 2, 'já tinha terreno e bancada: as duas etapas passam');
 L.pecas.push({ k: 'fogao' }); correr(0.6); ok(h().e === 3, 'fogão no terreno');
@@ -235,12 +235,16 @@ ok(missao() === 'b1', 'depois do Ato I vem o Ato II com o Aldo');
 
 // ---------- Ato II ----------
 // Capítulo 6
-subir(15); falar('lider'); ok(missao() === 'b1' && h().ac, 'Aldo pediu a casa');
+subir(15); falar('lider'); ok(missao() === 'b1' && h().ac, 'Aldo pediu para firmar a base');
 ok(ev.some((e) => e.t === 'capitulo' && e.fase === 'abre' && e.n === 6), 'cartão do Capítulo 6');
-for (let k = 0; k < 3; k++) L.pecas.push({ k: 'fundacao' }); correr(0.6); ok(h().e === 0 && h().n === 3, 'conta as fundações que já estão no terreno (3/4)');
-L.pecas.push({ k: 'fundacao' }); correr(0.6); ok(h().e === 1, '4 fundações');
-for (const k of ['parede', 'parede', 'parede', 'parede', 'porta', 'janela', 'telhado', 'cama', 'bau']) L.pecas.push({ k });
-correr(0.6); ok(etapa().ev === 'dormir', 'casa pronta: falta dormir');
+for (let k = 0; k < 3; k++) L.pecas.push({ k: 'cerca' }); correr(0.6); ok(h().e === 0 && h().n === 3, 'conta as cercas que já estão no lote (3/4)');
+L.pecas.push({ k: 'cerca' }); correr(0.6); ok(h().e === 1, '4 cercas');
+for (const k of ['tocha', 'tocha', 'bau', 'cama', 'fornalha', 'bigorna']) L.pecas.push({ k });
+correr(0.6); ok(etapa().ev === 'cofre', 'base montada: falta a taxa no cofre');
+p.cla = { n: 'Teste', cofre: 0, m: [], log: [], nv: 1 };
+s.historia(j, 'cofre', { v: 100 }); ok(etapa().ev === 'cofre', 'cofre com menos que a taxa não conta');
+p.cla.cofre = 300; correr(0.6); ok(etapa().ev === 'dormir', 'taxa da semana no cofre');
+delete p.cla;
 s.historia(j, 'dormir'); falar('lider'); fim('b1');
 falar('m_horta'); ok(missao() === 'b2' && contar(p.mochila, 'semente_batata') === 2, 'Sálvia deu as sementes');
 dar('enxada', 1); dar('regador', 1); correr(0.6); ok(etapa().ev === 'plantar', 'já tinha enxada e regador');
@@ -444,9 +448,9 @@ subir(80); falar('v_elara'); ok(missao() === 'h14' && !liberado(p, 'D2'), 'Kael:
 ok(etapa().ev === 'matar', 'com o catalisador e o time, entra na gruta');
 matarEm('cav_aurora', 4); chefe('kael4'); ok(ev.some((e) => e.t === 'aviso' && /Dario\?/.test(e.texto)), 'o catalisador: "Dario?"');
 const selo6 = etapa(); ir(selo6.pos[0], selo6.pos[1], chaoGruta('cav_aurora', selo6.pos[0], selo6.pos[1])); correr(0.6);
-ok(etapa().npc === 'v_kael' && liberado(p, 'D2'), `segurou o selo com o Kael e o leste abriu (y ${j.y.toFixed(1)})`);
+ok(etapa().npc === 'v_kael' && liberado(p, 'D2'), `segurou o selo com o time (o Kael fugiu) e o leste abriu (y ${j.y.toFixed(1)})`);
 ok(ev.some((e) => e.t === 'cena' && e.id === 'memoria6'), 'memória 6');
-falar('v_kael'); fim('h14'); ok(contar(p.mochila, 'catalisador_memoria') === 0 && p.mochila.some((o) => o?.k === 'espada' && o.r === 1 && o.e === 10), 'o Kael pegou o catalisador e deu a espada Rara +10');
+falar('v_kael'); fim('h14'); ok(contar(p.mochila, 'catalisador_memoria') === 0 && p.mochila.some((o) => o?.k === 'espada' && o.r === 1 && o.e === 10), 'o Kael, rival, pegou o catalisador e largou a espada Rara +10');
 // Capítulo 15
 subir(84); ok(ev.some((e) => e.t === 'rumor' && e.quem === 'Kael'), 'rumor do Kael');
 falar('m_brasa'); ok(missao() === 'e4', 'Fagulha: brasa viva');
@@ -456,12 +460,12 @@ subir(88); falar('ferreiro'); ok(missao() === 'e5', 'Tomás: a estrela na lâmin
 p.equip.espada = { k: 'espada', r: 2, e: 0 }; correr(0.6); ok(etapa().ev === 'arma', 'arma Épica não vale');
 p.equip.espada = { k: 'espada', r: 3, e: 4 }; correr(0.6); ok(etapa().ev === 'falar', 'arma Lendária equipada');
 dar('barra_aco', 10); dar('cristal', 10); falar('ferreiro'); falar('ferreiro'); fim('e5'); ok(p.equip.espada.e === 5, 'a estrela gravada: +1 de reforço');
-subir(92); falar('v_kael'); ok(missao() === 'e6', 'Kael: o Véu');
+subir(92); falar('v_elara'); ok(missao() === 'e6', 'Elara: o Véu (o Kael é rival)');
 matarEm('c_a7', 10); chefe('arauto');
 { const a = etapa(); ok(a.ev === 'pos' && !j.morto, `falta subir o morro (morto ${j.morto}, arauto vivo ${s.inimigos.some((e) => e.hc === 'arauto' && !e.morto)})`); ir(a.pos[0], a.pos[1]); correr(0.6); ok(etapa().marca && ev.some((e) => e.t === 'cena' && e.id === 'vesper_veu'), `no alto do Morro do Véu (y ${j.y.toFixed(1)}): a Vesper aparece`);
   correr(0.6); ok(etapa().marca && !ev.some((e) => e.t === 'cena' && e.id === 'memoria7'), 'durante a cena da Vesper a etapa seguinte espera');
-  correr(j.cenaAte - s.tempo + 0.6); ok(etapa().npc === 'v_kael' && ev.some((e) => e.t === 'cena' && e.id === 'memoria7'), 'memória 7: a verdade'); }
-falar('v_kael'); fim('e6');
+  correr(j.cenaAte - s.tempo + 0.6); ok(etapa().npc === 'v_elara' && ev.some((e) => e.t === 'cena' && e.id === 'memoria7'), 'memória 7: a verdade'); }
+falar('v_elara'); fim('e6');
 subir(95); falar('reset'); ok(missao() === 'h15', 'Mestre Ivo: a bênção da Ordem');
 s.historia(j, 'pesca', { k: 'garoupa' }); s.historia(j, 'pesca', { k: 'atum' }); dar('garoupa', 1); dar('atum', 1); falar('curandeira');
 matarEm('c_a8', 12); falar('reset'); fim('h15'); ok(liberado(p, 'D3') && s.histInfo(j).titulo === 'Luz de Aurora', 'o Pico abriu e o título Luz de Aurora');
