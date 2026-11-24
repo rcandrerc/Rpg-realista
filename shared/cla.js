@@ -237,7 +237,7 @@ export const Cla = {
   // confere o próximo nível: { N, falta: texto | null, tirar(): tira os materiais e as almas das fontes }
   subirCla({ nv, nvLider, raca, ouro, fontes }) {
     const N = CLA.niveis[nv + 1]; if (!N) return { falta: 'O clã já está no nível máximo' };
-    const alma = almaDe(raca), precisa = { ...N.mat, [alma]: N.alma }, tem = (k) => fontes.reduce((s, f) => s + contar(f, k), 0);
+    const alma = almaDe(raca), precisa = { ...N.mat, ...(N.alma ? { [alma]: N.alma } : {}) }, tem = (k) => fontes.reduce((s, f) => s + contar(f, k), 0);
     const falta = [];
     if (nvLider < N.lider) falta.push(`líder Nv ${N.lider}`);
     if (ouro < N.ouro) falta.push(`${N.ouro - ouro} de ouro no cofre`);
@@ -249,7 +249,7 @@ export const Cla = {
   subirInfo(j) {
     const c = j.prog.cla, N = CLA.niveis[(c?.nv || 1) + 1]; if (!N) return null;
     const alma = almaDe(this.racaDe(j)), fontes = [this.bauDoCla({ conta: j.conta })?.itens, j.prog.mochila].filter(Boolean), tem = (k) => fontes.reduce((s, f) => s + contar(f, k), 0);
-    const itens = Object.entries({ ...N.mat, [alma]: N.alma }).map(([k, n]) => ({ k, nome: ITENS[k]?.nome || k, n, tem: tem(k) }));
+    const itens = Object.entries({ ...N.mat, ...(N.alma ? { [alma]: N.alma } : {}) }).map(([k, n]) => ({ k, nome: ITENS[k]?.nome || k, n, tem: tem(k) }));
     return { nv: N.nv, lider: N.lider, ouro: N.ouro, itens };
   },
   // derrubou alguém da outra raça (guerra.js morteGuerra): 1 Fragmento de Alma da raça de quem caiu. Jogador: na mochila;

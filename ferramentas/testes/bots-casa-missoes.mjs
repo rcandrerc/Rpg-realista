@@ -18,6 +18,9 @@ const pc = acharLugarBase(-6, 1, 'chama', []); a.x = pc.x; a.z = pc.z; // antes 
 s.eventos = []; s.cla('A', { acao: 'base' }); if (!s.baseDe(a)) console.log('aviso', s.eventos.filter((e) => e.t === 'aviso').map((e) => e.texto), Object.keys(s.basesCla || {}));
 const B = s.baseDe(a); ok(B, 'base do jogador fundada');
 const C = CLAS_NPC.find((K) => K.id === 'geada'), E = s.clasNpc.geada; E.nv = 6; // 6 lotes: Gael, Kira, Rufo, Lis e 2 recrutas
+// o clã agora vai até o Nv 10 (André 2026-11-23): no Nv 6 o líder manda gente caçar alma para o Nv 7 e a Kira pode sair
+// à caça em vez de ficar no lote. Este teste é da casa, não das ordens (cla-ordens.mjs): o clã não persegue o próximo nível.
+s.faltaClaNpc = () => ({});
 { const m = sortearRecruta(Math.random, CLA.tiers[0], 10, Date.now()); m.fn = { k: 'grind' }; E.m.push(m); s.criarRecrutaNpc(C, m, true); }
 s.passoClasNpc(); s.passoBasesNpc();
 const meus = s.recrutasNoMundo(a);
