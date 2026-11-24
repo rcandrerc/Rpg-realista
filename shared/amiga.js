@@ -547,6 +547,10 @@ export const Amiga = {
     if (ia.fase === 'parada') { if (this.tempo >= ia.ate) ia.fase = 'pensar'; return; }
     if (this.tempo < ia.ate || !L) return;
     if (this.tempo >= (ia.arrumaT || 0)) { ia.arrumaT = this.tempo + this.AMIGA.mochila.arrumar; this.arrumarMochilaAmiga(j); }
+    // recruta do jogador com função no painel (farmar, grind...): casa, horta e passeio só no modo Livre (André 2026-11-24:
+    // "mandei farmar madeira e ele foi construir a casa dele"). Sem dar a função (ex.: sem machado) ele espera na porta do
+    // lote; o aplicarFuncoes tenta a função de novo a cada minuto
+    if (!this.modoLivreAmiga()) return this.irPara(j, L, { x: casaX0(L.def) + this.AMIGA.porta[0] + Math.random() * 2 - 1, z: casaZ0(L.def) + this.AMIGA.porta[1] }, () => { ia.fase = 'parada'; ia.ate = this.tempo + this.AMIGA.passo.passeio; j.ry = 0; });
     // 0) móvel da casa que ficou fora do lugar (a casa andou para a grade, casaX0): leva para o lugar dele antes de
     // construir, senão ele tranca a fundação e a parede. Nada some: a mesma peça (e o que tem no baú) só muda de lugar.
     const mov = this.movelForaAmiga(L);
@@ -665,7 +669,7 @@ export const Amiga = {
       if (noite || livres < A.mochilaLivre) return voltar();
       // a casa no lote da base ainda não está pronta (André 2026-11-23, NPC_CASA_BASE): primeiro vai construir, como um
       // jogador; quem obedece o líder do clã quase nunca fica em casa à toa, então a casa vem antes da próxima saída
-      { const Lc = this.loteDaAmiga(); if (Lc && this.casaFaltaAmiga(j, Lc)) { ia.av = null; ia.fase = 'pensar'; ia.ate = 0; return; } }
+      { const Lc = this.modoLivreAmiga() && this.loteDaAmiga(); if (Lc && this.casaFaltaAmiga(j, Lc)) { ia.av = null; ia.fase = 'pensar'; ia.ate = 0; return; } }
       // André 2026-11-16: grind sozinho limitado por dia real; soldado do clã não tem limite (André 2026-11-22, como no 'ir'
       // logo abaixo). Antes ele passava dos 30 min, escolhia, voltava para a vila e ficava em volta dela o dia todo (23/11).
       const cansouGrind = !sold && this.grindAcabouAmiga(j);
