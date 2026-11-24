@@ -2234,7 +2234,9 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 	if r.has("dev"):
 		v.add_child(rotulo("Sem pagamento", 12, Color(1.0, 0.55, 0.45)))
 	var rid := str(r.id)
-	var fn: Dictionary = r.get("fn", {"k": "livre"})
+	var fn_atual: Dictionary = r.get("fn", {"k": "livre"})
+	# André 2026-11-24: marcar a ordem não manda nada; só o botão "Dar ordem" (como no painel.html) envia ao recruta
+	var fn: Dictionary = _ordem_pend.get(rid, fn_atual)
 	var k := str(fn.get("k", "livre"))
 	var lf := HFlowContainer.new()
 	lf.add_theme_constant_override("h_separation", 6)
@@ -2248,7 +2250,7 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 			pedido.p = str(fn.get("p", "lider")) if k == "proteger" else "lider"
 		elif fid == "fazenda":
 			pedido.s = str(fn.get("s", "cenoura")) if k == "fazenda" else "cenoura"
-		lf.add_child(botao(str(F.nome), func(): rede("cla", {"acao": "funcao", "id": rid, "fn": pedido}), 13, fid == k))
+		lf.add_child(botao(str(F.nome), func(): _marcar_ordem(rid, pedido), 13, fid == k))
 	v.add_child(lf)
 	if k == "recurso":
 		var lr := HFlowContainer.new()
@@ -2256,7 +2258,7 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		lr.add_theme_constant_override("v_separation", 6)
 		for R in C.get("recursos", []):
 			var rk := str(R.k)
-			lr.add_child(botao(str(R.nome).capitalize(), func(): rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "recurso", "r": rk}}), 12, rk == str(fn.get("r", ""))))
+			lr.add_child(botao(str(R.nome).capitalize(), func(): _marcar_ordem(rid, {"k": "recurso", "r": rk}), 12, rk == str(fn.get("r", ""))))
 		v.add_child(lr)
 	elif k == "proteger":
 		var lp := HFlowContainer.new()
@@ -2268,12 +2270,12 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 				alvos.append([str(o.id), str(o.nome)])
 		for A in alvos:
 			var pid: String = A[0]
-			lp.add_child(botao(A[1], func(): rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "proteger", "p": pid}}), 12, pid == str(fn.get("p", ""))))
+			lp.add_child(botao(A[1], func(): _marcar_ordem(rid, {"k": "proteger", "p": pid}), 12, pid == str(fn.get("p", ""))))
 		# André 2026-11-23: proteger o carrinho ou o navio mercante (apagado quando não está no mundo; tocar diz o porquê)
 		var vc: Dictionary = C.get("veic", {})
 		for A in [["carrinho", "Carrinho", "Coloque o carrinho no mundo primeiro"], ["mercante", "Mercante", "Coloque o navio mercante na água primeiro"]]:
 			var vid: String = A[0]
-			var bv := botao(A[1], func(): rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "proteger", "p": vid}}), 12, vid == str(fn.get("p", "")))
+			var bv := botao(A[1], func(): _marcar_ordem(rid, {"k": "proteger", "p": vid}), 12, vid == str(fn.get("p", "")))
 			if not int(vc.get(vid, 0)):
 				bv.disabled = true
 				var mot: String = A[2]
@@ -2286,8 +2288,18 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		lpl.add_theme_constant_override("v_separation", 6)
 		for P in C.get("plantas", []):
 			var sk := str(P.k)
-			lpl.add_child(botao(str(P.nome), func(): rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "fazenda", "s": sk}}), 12, sk == str(fn.get("s", ""))))
+			lpl.add_child(botao(str(P.nome), func(): _marcar_ordem(rid, {"k": "fazenda", "s": sk}), 12, sk == str(fn.get("s", ""))))
 		v.add_child(lpl)
+	var lo := HBoxContainer.new()
+	lo.alignment = BoxContainer.ALIGNMENT_END
+	var pendente: bool = _ordem_pend.has(rid) and JSON.stringify(_ordem_pend[rid]) != JSON.stringify(fn_atual)
+	var bo := botao("Dar ordem", func():
+		var pf: Dictionary = _ordem_pend.get(rid, fn)
+		_ordem_pend.erase(rid)
+		rede("cla", {"acao": "funcao", "id": rid, "fn": pf}), 14, pendente)
+	bo.disabled = not pendente
+	lo.add_child(bo)
+	v.add_child(lo)
 	var ld := HBoxContainer.new()
 	ld.alignment = BoxContainer.ALIGNMENT_END
 	ld.add_theme_constant_override("separation", 6)
@@ -2329,6 +2341,11 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 # cobrança), troca só esses números e barras no lugar. Qualquer outra mudança (recruta, função, cofre, ouro...) refaz tudo.
 var _cla_vivos := {} # "eu" / "r:<id>" -> {hp: [barra, rótulo, chave do máximo], ..., fz: rótulo}; "_cobranca": rótulo
 var _cla_chave := ""
+var _ordem_pend := {} # id do recruta -> ordem marcada e ainda não enviada (botão "Dar ordem")
+func _marcar_ordem(rid: String, pedido: Dictionary) -> void:
+	_ordem_pend[rid] = pedido
+	atualizar()
+
 const CLA_ANDA := ["hp", "mp", "vg", "fz", "x", "z", "morto"]
 
 func _texto_cobranca(falta: float) -> String:

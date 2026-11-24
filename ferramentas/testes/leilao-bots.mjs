@@ -132,3 +132,30 @@ ok(LEILAO.taxaAnuncio === 0.02 && LEILAO.taxa === 0.05, 'taxas: 2% para anunciar
   const tomos = s.leilao.meus(a.conta).filter((x) => x.item.k === 'tomo').length;
   ok(tomos >= 1 && p.mochila.some((o) => o?.k === 'tomo' && o.n === 1), `anunciou ${tomos} tomo repetido e guardou 1 para ler depois`);
 }
+// peça Rara não fica presa no preço da Comum da loja (2026-11-24: toda Rara saía a 143 = 150 x 0,95)
+{
+  s.leilao = new Leilao(); p.mochila.fill(null); p.ouro = 5000; a.ia.leilaoT = 0; a.leilaoBot = null;
+  s.leilao.mercado['capa:1'] = { m: 8, t: Date.now() }; // vendeu caro: o mercado da capa Rara está alto
+  const merc = s.leilao.precoMercado({ k: 'capa', r: 1 });
+  for (let i = 0; i < 6; i++) p.mochila[i] = { k: 'capa', r: 1 };
+  C.leilaoBotAmiga(a);
+  const l = s.leilao.meus(a.conta).filter((x) => x.item.k === 'capa');
+  ok(merc > 200 && l.length && l.every((x) => x.preco >= merc * 0.9), `capa Rara anunciada pelo mercado ${merc} (${l.map((x) => x.preco)}), não presa a 143`);
+}
+// vagas (André 2026-11-24): 3 de recurso, 1 de poção/comida, o resto para peça/Tomo; muito anúncio do recurso: não anuncia
+{
+  const { LEILAO_BOT: B } = await import('../../shared/dados.js');
+  s.leilao = new Leilao(); p.mochila.fill(null); p.ouro = 50000; a.ia.leilaoT = 0; a.leilaoBot = null;
+  for (let i = 0; i < 10; i++) p.mochila[i] = { k: 'capa', r: 2 };
+  let i = 10; for (const k of ['minerio_ferro', 'minerio_cobre', 'pedra', 'lenha', 'carvao']) { p.mochila[i++] = { k, n: 50 }; p.mochila[i++] = { k, n: 50 }; }
+  p.mochila[i++] = { k: 'pocao', n: 50 };
+  C.leilaoBotAmiga(a);
+  const meus = s.leilao.meus(a.conta), rec = meus.filter((x) => B.recursos.includes(x.item.k)).length, con = meus.filter((x) => x.item.k === 'pocao').length;
+  ok(rec === B.vagas.recurso && con === 1 && meus.length - rec - con <= B.maxAnuncios - B.vagas.recurso - B.vagas.consumivel, `vagas: ${rec} recurso, ${con} poção, ${meus.length - rec - con} peça`);
+  ok(meus.find((x) => x.item.k === 'pocao')?.item.n === 50 - B.guardaConsumivel.pocao, 'poção: só o que passa de 30 vai ao leilão');
+  // muito ferro anunciado: ele não põe mais ferro
+  s.leilao = new Leilao(); for (let q = 0; q < B.pouco; q++) s.leilao.anunciar('x' + q, 'X', { k: 'minerio_ferro', n: 5 }, 100, 24);
+  p.mochila.fill(null); p.mochila[0] = { k: 'minerio_ferro', n: 50 }; p.mochila[1] = { k: 'minerio_ferro', n: 50 }; a.ia.leilaoT = 0; a.leilaoBot = null;
+  C.leilaoBotAmiga(a);
+  ok(!s.leilao.meus(a.conta).some((x) => x.item.k === 'minerio_ferro') && !C.guardaLeilaoAmiga(a, { k: 'minerio_ferro', n: 1 }, 30), 'muito ferro no leilão: ele não anuncia e o arrumar manda para a loja');
+}

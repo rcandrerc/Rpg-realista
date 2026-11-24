@@ -1,6 +1,7 @@
 // A Casa do Comércio (história v2, Entrega 3): o leilão entre jogadores com o Otávio, no Rio Claro (shared/leilao.js).
 // Uso: node ferramentas/testes/leilao.mjs
 import { Simulacao, MAPA_CLAREIRA, Leilao, LEILAO, contar } from '../../shared/index.js';
+import { nomeItem } from '../../shared/progresso.js';
 import './_tudo-aberto.mjs';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
@@ -50,8 +51,27 @@ B.prog.ouro = 1;
 s.leilaoMsg('B', { acao: 'comprar', id: 'casa0' });
 ok(/Faltam/.test(avisos(ev())), 'sem ouro não compra');
 B.prog.ouro = 10000; const antes = contar(B.prog.mochila, 'minerio_cobre');
-s.leilaoMsg('B', { acao: 'comprar', id: 'casa0' }); ev();
+s.leilaoMsg('B', { acao: 'comprar', id: 'casa0' }); const avCasa = avisos(ev());
 ok(contar(B.prog.mochila, 'minerio_cobre') === antes + 20 && s.leilao.casa.length === LEILAO.casa.length, 'anúncio da casa: compra e ele continua lá');
+// a casa DOBRA a cada compra, por conta, e volta com o tempo (André 2026-11-24)
+{
+  const L2 = s.leilao, p0 = L2.casa[0].preco, t0 = Date.now();
+  ok(L2.achar('casa0', 'c2').preco === p0 * 2, `depois de 1 compra, o próximo lote sai 2x (${p0} -> ${L2.achar('casa0', 'c2').preco})`);
+  ok(L2.achar('casa0', 'c1').preco === p0, 'para outra conta o preço continua normal');
+  { const [, x, y] = avCasa.match(/por (\d+) de ouro\. O próximo sai por (\d+)/) || []; ok(x && +y === 2 * +x, `aviso diz o próximo preço, o dobro (${avCasa})`); }
+  for (let k = 0; k < 4; k++) L2.comprouCasa('c2', 'casa0', t0);
+  ok(Math.abs(L2.fatorCasa('c2', 'casa0', t0) - 32) < 0.01, '5 compras = 32x');
+  ok(Math.abs(L2.fatorCasa('c2', 'casa0', t0 + 2 * 3600e3) - 16) < 0.05, '2 h depois cai uma compra (16x)');
+  ok(L2.fatorCasa('c2', 'casa0', t0 + 10 * 3600e3 + 1) === 1, '10 h depois de 5 compras: preço normal');
+  const l = L2.buscar({}, 'c2').find((a) => a.id === 'casa0');
+  ok(l.preco === Math.round(p0 * L2.fatorCasa('c2', 'casa0')) && l.base === p0 && l.volta > 0, 'a busca mostra o preço dele, o normal e quando volta');
+  ok(JSON.stringify(L2.estado()).includes('casaCompras') && new (L2.constructor)(JSON.parse(JSON.stringify(L2.estado()))).comprasCasa('c2', 'casa0') > 0, 'as compras ficam gravadas');
+  // busca por parte do nome, sem acento
+  ok(L2.buscar({ texto: 'MINERIO' }, 'c9').every((a) => /Min[eé]rio/i.test(nomeItem(a.item))) && L2.buscar({ texto: 'minério' }, 'c9').length >= 2, 'busca sem acento e sem maiúscula');
+  ok(L2.buscar({ texto: 'ferr' }, 'c9').some((a) => a.item.k === 'minerio_ferro'), 'parte do nome acha o item');
+  ok(L2.buscar({ texto: 'iron', ks: ['minerio_ferro'] }, 'c9').some((a) => a.item.k === 'minerio_ferro'), 'nome no idioma do app (chaves que o app manda)');
+  ok(L2.buscar({ texto: 'zzzz' }, 'c9').length === 0, 'texto que não existe: nada');
+}
 // limite de 10 e cancelar
 for (let k = 0; k < 11; k++) { A.prog.mochila[k] = { k: 'lenha', n: 1 }; s.leilaoMsg('A', { acao: 'anunciar', i: k, preco: 5, horas: 24 }); }
 ok(/já tem 10/.test(avisos(ev())) && s.leilao.meus('c1').length === 10, 'até 10 anúncios por vez');
@@ -70,3 +90,14 @@ ok(L2.caixa.c1.itens.length === 9 && L2.vendas.c1 === 4 && L2.seq === s.leilao.s
 s.falar('A', { npc: 'v_otavio' });
 e = ev();
 ok(e.some((x) => x.t === 'fala' && x.abrir === 'leilao') && ultimo(e, 'A'), 'falar com o Otávio abre o leilão');
+// a casa some enquanto houver anúncio do item e volta 24 h depois do último (André 2026-11-24)
+{
+  const L3 = new Leilao(), t0 = Date.now(), H = 3600e3, k = L3.casa[0].item.k;
+  ok(L3.buscar({}, 'z').some((a) => a.id === 'casa0'), 'sem anúncio do item, a casa vende');
+  const an = L3.anunciar('bot1', 'Bot', { k, n: 5 }, 100, 24, t0);
+  ok(!L3.buscar({}, 'z').some((a) => a.id === 'casa0') && L3.achar('casa0', 'z') === null, 'com anúncio do item, a casa esconde o dela');
+  L3.comprar(an.id, 'z');
+  ok(L3.casaEscondida(k, t0 + 23 * H), '23 h sem anúncio: ainda escondida');
+  ok(!L3.casaEscondida(k, t0 + 25 * H), '24 h sem anúncio: a casa volta');
+  ok(L3.anunciosDe('minerio_ferro') === 0, 'conta os anúncios do item');
+}

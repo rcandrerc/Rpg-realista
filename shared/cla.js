@@ -11,7 +11,7 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
+import { VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
 import { profNivel, guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
 import { fundoAgua } from './transporte.js';
@@ -458,6 +458,21 @@ export const Cla = {
     const p = this.loteDaConta(K.conta)?.pecas.find((o) => o.k === 'bau_cla');
     return p ? { x: p.x, z: p.z } : null;
   },
+  // recall até o Baú do Clã (CLA.recall): o mesmo canal e a mesma recarga da casinha do jogador (voltarVila); true = ocupou o
+  // passo (canalizando ou começou agora). Sem recarga pronta, com carga ou perto: false (vai andando ou pelo totem)
+  recallRecruta(x, a, P, d) {
+    if (a.vila) { if (!a.vila.para) return false; a.montado = null; x.pararAmiga(a); return true; }
+    if (d < CLA.recall.min || (a.prog.vilaAte || 0) > Date.now() || a.morto || a.esc || !a.chao || a.veiculo || a.prog.pack || this.motivoCarga(a)) return false;
+    if (a.coleta) this.pararColeta(a, null);
+    if (a.pesca) this.pararPesca(a, null);
+    if (a.canal) this.cancelarCanal(a);
+    a.montado = null; x.pararAmiga(a); a.ia.viagem = null;
+    const v = a.vila = { x: a.x, z: a.z, para: { x: P.x, z: P.z + 2.5, base: true } };
+    this.evento({ t: 'vila', id: a.id, fase: 'comeca', dur: VOLTA_VILA.canal });
+    this.depois(VOLTA_VILA.canal, () => { if (a.vila === v && !a.morto && this.jogadores.get(a.id) === a) this.chegarNaVila(a); });
+    a.ia.funcaoSt = { txt: 'Voltando ao Baú do Clã (casinha)', ate: this.tempo + VOLTA_VILA.canal + 2 };
+    return true;
+  },
   // fase "voltar" de um recruta com recurso pedido: anda até o Baú do Clã e deixa só o que foi pedido; depois a função
   // manda de novo (até o líder pedir outra coisa). true = ocupou o passo. x = o contexto dele, a = o corpo
   levarBauRecruta(x, a, dt) {
@@ -467,6 +482,7 @@ export const Cla = {
     if (P) {
       const d = Math.hypot(P.x - a.x, P.z - a.z);
       if (d > CLA.entrega.perto) {
+        if (this.recallRecruta(x, a, P, d)) return true; // longe: a casinha até o baú, como o jogador
         if (d > 30) x.irLongeAmiga(a, P.x, P.z, dt); else this.irDireto(a, P.x, P.z, d > 6);
         return true;
       }
@@ -1191,9 +1207,12 @@ export const Cla = {
     let mexeu = false;
     for (const x of ctxs) {
       const a = x.amiga; if (!a || a.morto || x.AMIGA.id === C.lider) continue;
+      // André 2026-11-24 ("o que o líder pede, eles fazem e vai para o clã; o que fazem no tempo livre fica para eles e eles
+      // podem vender"): só o recurso da ordem dele (ia.levar) e a Alma; o resto da bolsa é dele
+      const lv = a.ia?.levar, daOrdem = (o) => o.k === alma || (lv && this.ehDoLevar(o, lv));
       const mo = a.prog?.mochila || []; let deu = false;
       for (let i = 0; i < mo.length; i++) {
-        const o = mo[i]; if (!o || o.h || !pega.has(o.k)) continue; // o.h: travado (cadeado), como em contar/tirar
+        const o = mo[i]; if (!o || o.h || !pega.has(o.k) || !daOrdem(o)) continue; // o.h: travado (cadeado), como em contar/tirar
         const n = o.n || 1, q = guardarQueCabe(b, { k: o.k, n }); if (!q) continue; // baú cheio: fica com ele
         mo[i] = q >= n ? null : { ...o, n: n - q }; deu = true;
       }
@@ -1210,10 +1229,20 @@ export const Cla = {
         if (k === 'barra_aco') { max('barra_ferro', 30 + q * 2); max('minerio_ferro', (30 + q * 2) * 3); }
       }
     }
+    // a sobra: com pouco anúncio do item no leilão, o líder anuncia lá (André 2026-11-24); senão vende na loja
     let ouro = 0;
+    const Lei = this.leilao, ctxL = this.amigosIa.find((x) => x.AMIGA.id === C.lider), conta = ctxL?.AMIGA.conta ?? L.conta, agora = Date.now();
     for (const k of pega) {
       const sobra = contar(b, k) - (fica[k] || 0), preco = ITENS[k]?.venda | 0;
       if (!(sobra > 0) || !(preco > 0)) continue;
+      if (Lei && conta != null && Lei.anunciosDe(k, agora) < LEILAO_BOT.pouco && Lei.meus(conta).length < LEILAO_BOT.maxAnuncios) {
+        const n = Math.min(sobra, ITENS[k].pilha || 50), total = Math.max(1, Math.round(Lei.precoMercado({ k, n: 1 }, agora) * 1.1 * n)), taxa = Lei.taxaAnuncio(total);
+        if ((L.prog.ouro | 0) >= taxa && typeof Lei.anunciar(conta, ctxL?.AMIGA.nome || 'Líder', { k, n }, total, LEILAO_BOT.horas, agora) !== 'string') {
+          L.prog.ouro -= taxa; tirar(b, k, n); mexeu = true; this.aoLeilao?.(Lei);
+          if (sobra - n > 0) { tirar(b, k, sobra - n); ouro += (sobra - n) * preco; }
+          continue;
+        }
+      }
       tirar(b, k, sobra); ouro += sobra * preco; mexeu = true;
     }
     if (ouro > 0) L.prog.ouro = (L.prog.ouro | 0) + ouro;
