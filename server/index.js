@@ -993,7 +993,7 @@ app.get('/npcs.json', async (req, res) => {
   for (const D of [...AMIGOS_VIRTUAIS, ...RIVAIS]) {
     const v = vivos.get(D.id);
     let d = v?.a;
-    if (!d && contas) try { d = D.terreno ? contas.loteDoDono(D.conta)?.dados?.amiga : contas.lerMundo('npc:' + D.id); } catch { d = null; }
+    if (!d && contas) try { d = contas.lerMundo('npc:' + D.id) || (D.terreno ? contas.loteDoDono(D.conta)?.dados?.amiga : null); } catch { d = null; } // save na tabela mundo desde 22/11; terreno de reserva
     if (!d) { l.push({ nome: D.nome, id: D.id, salvo: false }); continue; }
     const p = d.prog || {}, h = p.hist || {};
     l.push({ nome: D.nome, id: D.id, ...(D.raca ? { raca: D.raca } : {}), noMundo: !!v, nivel: p.nivel | 0, ouro: p.ouro | 0, ...(cracha ? { missao: h.p ?? null, etapa: h.e ?? null } : {}),
@@ -1003,7 +1003,29 @@ app.get('/npcs.json', async (req, res) => {
       leilao: { jeito: { ...LEILAO_BOT.jeitos.padrao, ...(LEILAO_BOT.jeitos[D.id] || {}) }, meta: (d.leilao || d.leilaoBot)?.meta || null, poupado: (d.leilao || d.leilaoBot)?.poupado | 0, negocios: Array.isArray((d.leilao || d.leilaoBot)?.log) ? (d.leilao || d.leilaoBot).log.slice(-12) : [] },
       ...(cracha ? { evolucao: Array.isArray(d.evolucao) ? d.evolucao.slice(-40) : [] } : {}), ...(v && cracha ? { x: Math.round(v.a.x), z: Math.round(v.a.z), morto: !!v.a.morto, preso: !!v.a.ia?.viagem?.bloqueio } : {}) });
   }
-  res.json({ dia, npcs: l });
+  // os recrutas dos clãs dos jogadores (André 2026-11-24: "3 sim"): nível, caça e missão de hoje, função, se está devendo,
+  // no mundo, morto ou preso. Só com o crachá da ronda (posição e clã de jogador não ficam públicos).
+  let recrutas;
+  if (cracha && contas) try {
+    const vivosR = new Map(), lideres = new Map();
+    for (const s of salas) {
+      for (const ctx of s.sim.amigosIa) if (ctx.amiga && ctx.AMIGA.recruta && !ctx.AMIGA.clanpc) vivosR.set(ctx.AMIGA.id, ctx);
+      for (const j of s.sim.jogadores.values()) if (!j.bot && j.conta) lideres.set(j.conta, j);
+    }
+    const eq = (e) => Object.fromEntries(Object.entries(e || {}).filter(([, it]) => it?.k).map(([s2, it]) => [s2, { k: it.k, r: it.r | 0, ...(it.e ? { e: it.e } : {}) }]));
+    recrutas = contas.clasDasContas().map((K) => {
+      const j = lideres.get(K.conta), c = j?.prog?.cla || K.cla;
+      return { cla: c.n, nv: c.nv || 1, cofre: c.cofre | 0, online: !!j, lider: { nivel: j ? j.prog.nivel | 0 : K.nivel, ouro: j ? j.prog.ouro | 0 : K.ouro, equip: eq(j ? j.prog.equip : K.equip) },
+        membros: (c.m || []).map((m) => {
+          const ctx = vivosR.get(m.id), a = ctx?.amiga || contas.lerMundo('npc:' + m.id);
+          return { nome: m.nome, nv: a?.prog ? a.prog.nivel | 0 : m.nv | 0, funcao: m.fn?.k || 'livre', ...(m.fn?.r ? { recurso: m.fn.r } : {}), ...(m.dev ? { devendo: m.dev } : {}),
+            noMundo: !!ctx, cacaMinHoje: a?.grind?.dia === dia ? Math.round((a.grind.seg || 0) / 60) : 0, missaoMinHoje: a?.missaoDia?.dia === dia ? Math.round((a.missaoDia.seg || 0) / 60) : 0,
+            salvoHa: a?.t ? Math.round((Date.now() - a.t) / 60000) : null,
+            ...(ctx ? { x: Math.round(ctx.amiga.x), z: Math.round(ctx.amiga.z), morto: !!ctx.amiga.morto, preso: !!ctx.amiga.ia?.viagem?.bloqueio } : {}) };
+        }) };
+    });
+  } catch (e) { recrutas = { erro: e.message }; }
+  res.json({ dia, npcs: l, ...(recrutas ? { recrutas } : {}) });
 });
 // Cópia cifrada das contas para fora da máquina (plano v3, frente 2; desenho aprovado pelo Presidente 19/11). Só o
 // workflow contas-copia.yml da main deste repositório (crachá OIDC do GitHub: repositório, ramo main e nome do workflow
@@ -1053,7 +1075,7 @@ app.get('/npcs/conversas.json', async (req, res) => {
   for (const D of AMIGOS_VIRTUAIS) {
     let d = vivos.get(D.id);
     const vivo = !!d;
-    if (!d && contas) try { d = D.terreno ? contas.loteDoDono(D.conta)?.dados?.amiga : contas.lerMundo('npc:' + D.id); } catch { d = null; }
+    if (!d && contas) try { d = contas.lerMundo('npc:' + D.id) || (D.terreno ? contas.loteDoDono(D.conta)?.dados?.amiga : null); } catch { d = null; } // save na tabela mundo desde 22/11; terreno de reserva
     if (!d) { l.push({ nome: D.nome, id: D.id, salvo: false }); continue; }
     const conversas = { ...(d.conversasSalvas || d.conversas || {}) };
     for (const [k, c] of Object.entries(d.ia?.conversas || {})) if (Array.isArray(c) && c.length) conversas[k] = c.map((m) => ({ de: m.de, texto: String(m.texto).slice(0, 300), ...(m.nome ? { nome: m.nome } : {}) }));
