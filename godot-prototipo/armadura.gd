@@ -304,7 +304,16 @@ static func _G() -> Transform3D:
 	return Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO) if _vira else Transform3D.IDENTITY
 
 # ---------- vestir ----------
+# Quanto cada parte do vestir leva (frente "personagens mais leves", 2026-11-24: o robô 2 viu o:vestir de 168 ms num
+# quadro só, sem dizer onde). Parte de 1 ms ou mais vai para o registro das travadas (lentidao.gd ev, "ar:...").
+static func _parte(nome: String, t0: int) -> int:
+	var agora := Time.get_ticks_usec()
+	if agora - t0 >= 1000 and Engine.has_meta("lentidao"):
+		Engine.get_meta("lentidao").ev(nome, t0)
+	return agora
+
 static func vestir(raiz: Node3D, equip) -> void:
+	var tp := Time.get_ticks_usec()
 	var esq: Skeleton3D = _esqueleto(raiz)
 	if esq == null:
 		return
@@ -315,6 +324,7 @@ static func vestir(raiz: Node3D, equip) -> void:
 	# André 2026-11-07: sem peitoral a blusa vira pele (top de biquíni na menina, peito nu no menino), então ela fica
 	# sempre justa como debaixo da armadura (antes, sem peitoral, era a camiseta branca larga)
 	_cintura(raiz, true, equip is Dictionary and equip.get("corpo") is Dictionary and PECAS.has(str(equip.corpo.get("k", ""))))
+	tp = _parte("ar:inicio", tp)
 	var tem_capa := false
 	if equip is Dictionary and equip.get("capa") is Dictionary:
 		tem_capa = PECAS.get(str(equip.capa.get("k", ""))) == "capa"
@@ -344,14 +354,20 @@ static func vestir(raiz: Node3D, equip) -> void:
 		no.set_meta("chave", chave)
 		esq.add_child(no)
 		_montar(raiz, esq, no, str(it.k), int(it.get("r", 0)), tem_capa)
+		tp = _parte("ar:montar_" + str(l), tp)
 	_pele_cheia(raiz)
+	tp = _parte("ar:pele_cheia", tp)
 	_tronco(raiz, esq)
 	_sem_contorno_tronco(raiz, esq)
+	tp = _parte("ar:tronco", tp)
 	_roupa_base(raiz, esq) # antes do _uniforme: ele pinta o short de baixo na cor da calça quando há armadura
+	tp = _parte("ar:roupa_base", tp)
 	_uniforme(raiz, equip if equip is Dictionary else {})
 	_uniforme2(raiz, esq, equip if equip is Dictionary else {})
+	tp = _parte("ar:uniforme", tp)
 	# v5: o capuz é folgado; o cabelo aperta só até a parede de dentro dele (no tamanho do capacete ficava careca)
 	_cabelo(raiz, esq.get_node_or_null("Armadura_cabeca") != null, LINHA_V5)
+	tp = _parte("ar:cabelo", tp)
 	# armas nas costas passam por fora da capa
 	var capa := esq.get_node_or_null("Armadura_capa") != null
 	for ba in esq.get_children():
@@ -359,7 +375,9 @@ static func vestir(raiz: Node3D, equip) -> void:
 			for arma in ba.get_children():
 				costas(esq, arma, capa)
 	preload("res://realista.gd").aplicar(raiz) # pele semi-realista (André 2026-11-07)
+	tp = _parte("ar:realista", tp)
 	tingir_v5(raiz)
+	_parte("ar:tingir", tp)
 
 # André 2026-11-14: o corpo masculino "parece um magrelinho feio que não trabalha": ombros um pouco mais largos.
 # O osso do braço (UpperArm) sai OMBRO_LARGO para fora, na direção do ombro, depois da animação (modificador do
