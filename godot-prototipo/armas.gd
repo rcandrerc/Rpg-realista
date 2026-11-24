@@ -286,3 +286,14 @@ static func faiscas(mg, arma: Node3D, dt: float) -> void:
 			mg.p(mg.LUZ, pos, cima * randf_range(0.6, 1.0) + Vector3(randf_range(-0.25, 0.25), 0, randf_range(-0.25, 0.25)),
 				randf_range(0.4, 0.6), 0.022, 0.006, "ffffff", f[1], 1.0, mg.C_TRACO, 0.5, 1.0, 0.0, 0.02)
 	arma.set_meta("faisca_acum", acum)
+	# fumaça de aura (v3, André: "uma fumaça aura saindo um pouco da arma"): flocos macios na cor da faixa que saem da
+	# lâmina, crescem e se espalham devagar (~1,2 s). ~4 por segundo no +1, ~20 no +40
+	var fum: float = float(arma.get_meta("fumaca_acum", 0.0)) + dt * (4.0 + 16.0 * k)
+	while fum >= 1.0:
+		fum -= 1.0
+		var pf: Vector3 = g * Vector3(randf_range(-0.03, 0.03), randf_range(forma[2], forma[3] + 0.05), randf_range(-0.03, 0.03))
+		var fora := Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)).normalized() * randf_range(0.08, 0.18)
+		mg.p(mg.LUZ, pf, fora + cima * randf_range(0.12, 0.25), randf_range(1.0, 1.5), randf_range(0.07, 0.1) + 0.05 * k,
+			randf_range(0.22, 0.3) + 0.12 * k, f[1], f[1], 0.45 + 0.12 * k, mg.C_FUMACA if randf() < 0.5 else mg.C_FUMACA2, -0.05, 0.9,
+			randf_range(-0.6, 0.6), 0.0)
+	arma.set_meta("fumaca_acum", fum)
