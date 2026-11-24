@@ -1315,6 +1315,7 @@ export const ITENS = {
   cajado: { nome: 'Cajado', lugar: 'cajado', st: { danoMagico: [3, 5, 7, 10, 14], critico: [0.002, 0.003, 0.004, 0.006, 0.008] } },
   pocao: { nome: 'Poção de vida', pilha: 20, usar: { vida: 0.35 }, preco: 20, venda: 5, desc: 'Recupera 35% da vida.' },
   pocao_mana: { nome: 'Poção de mana', pilha: 20, usar: { mana: 0.4 }, preco: 24, venda: 6, desc: 'Recupera 40% da mana.' },
+  pocao_vigor: { nome: 'Poção de vigor', pilha: 20, usar: { vigor: 20 }, venda: 2, desc: 'Recupera 20 de vigor. Sem recarga. Vem das primeiras missões.' }, // André 2026-11-24: começo sem travar por vigor (POCAO_VIGOR_MISSAO)
   tomo: { nome: 'Tomo', pilha: 20, desc: 'Sobe a skill do nível anterior para o deste Tomo quando a barra de usos dela estiver cheia.' },
   // materiais (Parte 3: profissões). mat = não se usa, serve para criar coisas (RECEITAS) ou vender
   minerio_ferro: { nome: 'Minério de ferro', mat: true, pilha: 50, venda: 2, desc: 'Sai dos veios de ferro. Na forja, 3 viram uma barra.' },
@@ -5520,6 +5521,9 @@ export const HISTORIA = [
     presente: { runa_mitica: 1, selo_mitico: 1 } },
 ];
 // Prêmio de cada missão: a que abre região ou recurso (libera) vale xp do XP do nível nv e ouro x nv; as outras, xpEtapa e ouroEtapa
+// Poção de vigor de presente (André 2026-11-24): cada missão do Ato I (capítulos 1 a 5, até o Nv 12) entrega n poções de
+// vigor, para o começo não travar com pouco vigor e sem nível de profissão. Do capítulo 6 em diante acaba. 0 desliga.
+export const POCAO_VIGOR_MISSAO = { ateCap: 5, n: 5 };
 export const HISTORIA_PREMIO = { xp: 0.3, ouro: 25, xpEtapa: 0.12, ouroEtapa: 10 };
 // Desbloqueio por nível do herói (além do nível de cada profissão, que continua igual). As skills já abrem por nível
 // (HABS[k].libera em shared/progresso.js, regra do Quimera) e não mudam aqui.

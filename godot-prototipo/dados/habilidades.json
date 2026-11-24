@@ -716,6 +716,15 @@
    "venda": 6,
    "desc": "Recupera 40% da mana."
   },
+  "pocao_vigor": {
+   "nome": "Poção de vigor",
+   "pilha": 20,
+   "usar": {
+    "vigor": 20
+   },
+   "venda": 2,
+   "desc": "Recupera 20 de vigor. Sem recarga. Vem das primeiras missões."
+  },
   "tomo": {
    "nome": "Tomo",
    "pilha": 20,

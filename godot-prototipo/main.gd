@@ -2214,7 +2214,7 @@ func usar_pocao(it: Dictionary) -> bool:
 		return false
 	var u: Dictionary = P.dados.itens[it.k].get("usar", {})
 	var rc: float = recargas.get("it:" + str(it.k), 0.0)
-	if rc > 0.0 and not P.dados.itens[it.k].get("comida", false):
+	if rc > 0.0 and not P.dados.itens[it.k].get("comida", false) and not u.has("vigor"):
 		hud.aviso("Espere %d s para outra %s" % [int(ceil(rc)), str(P.dados.itens[it.k].nome).to_lower()])
 		hud.negar(it.k)
 		return false
@@ -2243,6 +2243,8 @@ func usar_pocao(it: Dictionary) -> bool:
 			return false
 		if not on():
 			h.mana = min(P.st.manaMax, h.mana + P.st.manaMax * float(u.mana))
+	if u.has("vigor"): # poção de vigor: sem recarga; quem confere e aplica é o servidor (progresso volta no pacote)
+		return true
 	recargas["it:" + str(it.k)] = recarga_pocao() # o mesmo tempo do servidor: o botão da HUD mostra a contagem
 	return true
 

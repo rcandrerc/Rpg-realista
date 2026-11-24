@@ -1,0 +1,22 @@
+// André 2026-11-24: missões do Ato I (capítulos 1 a 5) dão poção de vigor; do capítulo 6 em diante, não. A poção dá vigor sem recarga.
+import { Simulacao, MAPA_CLAREIRA, ITENS, HISTORIA, POCAO_VIGOR_MISSAO, vigorAgora, vigorMax, contar } from '../../shared/index.js';
+import './_tudo-aberto.mjs';
+let falhas = 0;
+const ok = (c, m) => { console.log((c ? 'ok ' : 'FALHOU ') + m); if (!c) falhas++; };
+const s = new Simulacao(MAPA_CLAREIRA);
+const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 }); a.criando = false; const p = a.prog;
+ok(ITENS.pocao_vigor?.usar?.vigor === 20 && !ITENS.pocao_vigor.comida, 'item pocao_vigor existe e dá 20 de vigor');
+const cedo = HISTORIA.find((M) => M.cap === 1), tarde = HISTORIA.find((M) => M.cap === POCAO_VIGOR_MISSAO.ateCap + 1);
+const n0 = contar(p.mochila, 'pocao_vigor');
+s.concluirMissao(a, cedo);
+ok(contar(p.mochila, 'pocao_vigor') === n0 + POCAO_VIGOR_MISSAO.n, `missão do capítulo 1 dá ${POCAO_VIGOR_MISSAO.n} poções`);
+const n1 = contar(p.mochila, 'pocao_vigor');
+s.concluirMissao(a, tarde);
+ok(contar(p.mochila, 'pocao_vigor') === n1, 'missão do capítulo 6 não dá mais');
+const i = p.mochila.findIndex((x) => x && x.k === 'pocao_vigor');
+p.vigor = { v: 10, t: Date.now(), m: vigorMax(p) };
+s.item('A', { acao: 'usar', i }); s.item('A', { acao: 'usar', i });
+ok(Math.abs(vigorAgora(p.vigor) - 50) < 0.5 && contar(p.mochila, 'pocao_vigor') === n1 - 2, 'duas seguidas (sem recarga): +40 de vigor');
+p.vigor = { v: vigorMax(p), t: Date.now(), m: vigorMax(p) };
+s.item('A', { acao: 'usar', i }); ok(contar(p.mochila, 'pocao_vigor') === n1 - 2, 'vigor cheio: não gasta a poção');
+console.log(falhas ? `${falhas} falhas` : 'tudo certo'); process.exit(falhas ? 1 : 0);

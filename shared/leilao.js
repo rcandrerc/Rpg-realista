@@ -37,7 +37,7 @@ export function tipoLeilao(it) {
   if (ehEquip(it.k)) return 'equip';
   if (it.k === 'tomo') return 'tomo';
   const D = ITENS[it.k] || {};
-  if (D.comida || D.usar?.vida || D.usar?.mana) return 'comida';
+  if (D.comida || D.usar?.vida || D.usar?.mana || D.usar?.vigor) return 'comida';
   if (D.mat) return 'mat';
   return 'outro';
 }
