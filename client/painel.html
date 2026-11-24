@@ -44,7 +44,19 @@ button.acao:disabled{opacity:.5}
 .tag{display:inline-block;font-size:.72rem;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin-left:6px}
 .fora{opacity:.7}
 #aviso{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom,0) + 16px);max-width:608px;margin:0 auto;background:#2c2418;border:1px solid rgba(217,165,74,.5);border-radius:10px;padding:10px 12px;z-index:5}
-#mapa{width:100%;aspect-ratio:1;border-radius:12px;border:1px solid var(--line);background:#0c120d;display:block;touch-action:none}
+#mapa{width:100%;aspect-ratio:1;border-radius:12px;border:1px solid var(--line);background:#1a3e66;display:block;touch-action:none;cursor:grab}
+.mapaCx{position:relative}
+.zoom{position:absolute;right:10px;top:10px;display:grid;gap:6px}
+.zoom button{width:44px;height:44px;border-radius:10px;border:1px solid rgba(239,231,214,.35);background:rgba(16,15,12,.82);color:var(--ink);font:600 1.4rem/1 system-ui,sans-serif;cursor:pointer}
+.zoom button:active{background:rgba(217,165,74,.35)}
+.icones{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.ico{width:52px;display:grid;justify-items:center;gap:2px;cursor:pointer}
+.ico .q{width:46px;height:46px;border-radius:8px;background:#0b0a09;border:1px solid rgba(224,128,106,.8);display:grid;place-items:center;overflow:hidden}
+.ico.ok .q{border-color:rgba(115,199,115,.8)}
+.ico img{width:38px;height:38px;object-fit:contain}
+.ico .nvb{font:700 .95rem system-ui,sans-serif;color:var(--gold)}
+.ico small{font-size:.72rem;color:#e0806a;white-space:nowrap}
+.ico.ok small{color:#7fcf7f}
 .legenda{display:flex;flex-wrap:wrap;gap:12px;font-size:.8rem;color:var(--muted)}
 .legenda span::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px;background:var(--c)}
 .log div{padding:6px 0;border-bottom:1px solid var(--line);font-size:.88rem}
@@ -76,7 +88,10 @@ button.acao:disabled{opacity:.5}
 </section>
 <main id="cla"></main>
 <main id="mapaAba" hidden>
-  <canvas id="mapa" width="600" height="600"></canvas>
+  <div class="mapaCx">
+    <canvas id="mapa" width="600" height="600"></canvas>
+    <div class="zoom"><button id="mapaMais" aria-label="Aproximar">+</button><button id="mapaMenos" aria-label="Afastar">−</button><button id="mapaCentro" aria-label="Centralizar no clã">◎</button></div>
+  </div>
   <label class="opc"><input type="checkbox" id="mapaBots"> Mostrar os líderes dos clãs bot</label>
   <div class="legenda"><span style="--c:var(--gold)">Seus recrutas</span><span style="--c:#fff">Você (no jogo)</span><span style="--c:var(--geada)">Líder Geada</span><span style="--c:var(--chama)">Líder Chama</span></div>
 </main>

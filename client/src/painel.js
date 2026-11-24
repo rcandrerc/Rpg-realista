@@ -159,6 +159,29 @@ function cartaoMembro(m) {
   return c;
 }
 
+// próximo nível do clã (André 2026-11-24: "o que precisa para o próximo nível e o que a gente tem... os símbolozinhos dos
+// itens, nada de lista"): igual ao Melhorar clã do jogo, cada coisa é um ícone com tenho/preciso (verde quando já tem)
+const ICONES = new Set(['lenha', 'pedra', 'barra_ferro', 'barra_aco', 'couro', 'cristal', 'ouro', 'alma_geada', 'alma_chama']);
+function icone(k, nome, tem, precisa, texto) {
+  const d = el('div', 'ico' + (tem >= precisa ? ' ok' : '')), q = el('div', 'q');
+  if (ICONES.has(k)) { const i = el('img'); i.src = `painel-icones/${k}.png`; i.alt = nome; i.loading = 'lazy'; q.append(i); } else q.append(el('span', 'nvb', texto || nome.slice(0, 2)));
+  const num = (v) => (v >= 10000 ? `${Math.floor(v / 1000)}k` : String(v));
+  d.title = nome; d.onclick = () => aviso(`${nome}: tem ${tem}, precisa ${precisa}`);
+  d.append(q, el('small', null, `${num(Math.min(tem, precisa))}/${num(precisa)}`));
+  return d;
+}
+function cartaoSobe(S) {
+  const c = el('div', 'card'), l = el('div', 'linha');
+  const pronto = S.nvLider >= S.lider && S.cofre >= S.ouro && S.itens.every((it) => it.tem >= it.n);
+  l.append(el('div', 'nome', `Próximo nível: clã Nv ${S.nv}`), el('div', 'nv', pronto ? 'Pronto!' : '')); c.append(l);
+  const f = el('div', 'icones');
+  f.append(icone('lider', 'Nível do líder', S.nvLider, S.lider, 'Nv'), icone('ouro', 'Ouro no cofre', S.cofre, S.ouro));
+  for (const it of S.itens) f.append(icone(it.k, it.nome, it.tem, it.n));
+  c.append(f);
+  c.append(el('div', 'faz', pronto ? 'Tudo pronto: suba o clã no jogo, no painel do Clã.' : 'Conta o Baú do Clã e a sua mochila. Toque num ícone para ver o nome.'));
+  return c;
+}
+
 function desenharCla() {
   const raiz = $('cla'); limpar(raiz);
   if (info.sem) { raiz.append(el('div', 'vazio', 'Você ainda não tem clã. Funde um no jogo, no painel do Clã.')); return; }
@@ -169,6 +192,7 @@ function desenharCla() {
   cx.onchange = () => { gravar('painelTela', cx.checked ? '1' : null); tela(); };
   op.append(cx, document.createTextNode('Manter a tela ligada (gasta mais bateria)')); t.append(op);
   raiz.append(t);
+  if (info.sobe) raiz.append(cartaoSobe(info.sobe));
   if (!info.m.length) raiz.append(el('div', 'vazio', 'Nenhum recruta ainda. Contrate no Recrutador, no jogo.'));
   for (const m of info.m) raiz.append(cartaoMembro(m));
 }
@@ -179,7 +203,7 @@ function desenharBots() {
     const c = el('div', 'card'), l = el('div', 'linha'), n = el('div', 'nome', C.n);
     n.append(el('span', 'tag', C.raca)); if (C.inimigo) n.append(el('span', 'tag', 'inimigo'));
     l.append(n, el('div', 'nv', `Clã Nv ${C.nv}`)); c.append(l);
-    c.append(el('div', 'faz', `Líder: ${C.lider}${C.fz ? ' · ' + C.fz : ''}`));
+    c.append(el('div', 'faz', `Líder: ${C.lider}${C.nvLider ? ` (Nv ${C.nvLider})` : ''}${C.fz ? ' · ' + C.fz : ''}`));
     for (const m of C.membros || []) c.append(el('div', 'faz', '• ' + m));
     raiz.append(c);
   }
@@ -193,44 +217,96 @@ function desenharLog() {
   raiz.append(c);
 }
 
-// mapinha: só os pontos (sem desenho do terreno, para ficar leve). O quadro se ajusta a quem está no mundo
+// mapinha (André 2026-11-24: "um 2Dzão bem leve, só para ter uma noção" e "mais e menos, pra aproximar"): o mundo de cima
+// num JPEG só (painel-mapa.jpg, ~85 KB, feito por ferramentas/painel/mapa-painel.py com as cores do mapa do jogo) e os
+// pontos por cima. Zoom no + e −, arrastar com o dedo e pinça. Sem mexer, o quadro se ajusta a quem está no mundo.
+const MUNDO = { x0: -560, z0: -540, w: 1524, h: 2044 }; // a grade do mundo (godot-prototipo/dados/mundo_grade.json): nx·passo, nz·passo
+const ZOOM = { min: 40, max: 2200 }; // metros que cabem no lado do quadro
+const fundoMapa = new Image(); fundoMapa.onload = () => { if (aba === 'mapa') desenharMapa(); }; fundoMapa.src = 'painel-mapa.jpg';
+// a Vila de hoje nítida por cima (o mesmo desenho do minimapa do jogo: ferramentas/painel/vila-painel.mjs), com a borda
+// esfumada para casar com o fundo
+const VILA = { x0: -64, z0: -146, tam: 412 }; // MAPA_CLAREIRA.minimapa (shared/dados.js)
+let vilaMapa = null;
+{ const im = new Image(); im.onload = () => {
+  const c = document.createElement('canvas'), T = c.width = c.height = im.naturalWidth, g = c.getContext('2d'), b = T * 0.06;
+  g.drawImage(im, 0, 0); g.globalCompositeOperation = 'destination-in';
+  for (const [x0, y0, x1, y1] of [[0, 0, b, 0], [T, 0, T - b, 0], [0, 0, 0, b], [0, T, 0, T - b]]) {
+    const gr = g.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = gr; g.fillRect(0, 0, T, T);
+  }
+  vilaMapa = c; if (aba === 'mapa') desenharMapa();
+}; im.src = 'painel-vila.jpg'; }
+let vista = null; // { cx, cz, span } quando a pessoa mexeu no mapa; null = ajusta sozinho
+const limitar = (v) => { v.span = Math.max(ZOOM.min, Math.min(ZOOM.max, v.span)); v.cx = Math.max(MUNDO.x0, Math.min(MUNDO.x0 + MUNDO.w, v.cx)); v.cz = Math.max(MUNDO.z0, Math.min(MUNDO.z0 + MUNDO.h, v.cz)); return v; };
+let quadro = null; // a vista do último desenho (para o zoom e o arrasto partirem dela)
+const zoom = (f) => { if (!quadro) return; vista = limitar({ ...quadro, span: quadro.span * f }); desenharMapa(); };
+$('mapaMais').onclick = () => zoom(1 / 1.6);
+$('mapaMenos').onclick = () => zoom(1.6);
+$('mapaCentro').onclick = () => { vista = null; desenharMapa(); };
+{ // arrastar (um dedo ou o mouse) e pinça (dois dedos)
+  const cv = $('mapa'), dedos = new Map(); let ini = null;
+  const estado = () => { const p = [...dedos.values()]; return { p, d: p.length > 1 ? Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) : 0, mx: p.reduce((s, o) => s + o.x, 0) / p.length, my: p.reduce((s, o) => s + o.y, 0) / p.length }; };
+  const comecar = () => { ini = dedos.size && quadro ? { ...estado(), v: { ...quadro } } : null; };
+  cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture?.(e.pointerId); dedos.set(e.pointerId, { x: e.clientX, y: e.clientY }); comecar(); });
+  cv.addEventListener('pointermove', (e) => {
+    if (!dedos.has(e.pointerId) || !ini) return;
+    dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const a = estado(), m = ini.v.span / cv.clientWidth; // metros por pixel da tela
+    const span = a.p.length > 1 && ini.d > 0 && a.d > 0 ? ini.v.span * (ini.d / a.d) : ini.v.span;
+    vista = limitar({ cx: ini.v.cx - (a.mx - ini.mx) * m, cz: ini.v.cz - (a.my - ini.my) * m, span });
+    desenharMapa();
+  });
+  const soltar = (e) => { dedos.delete(e.pointerId); comecar(); };
+  cv.addEventListener('pointerup', soltar); cv.addEventListener('pointercancel', soltar);
+  cv.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY > 0 ? 1.25 : 0.8); }, { passive: false });
+}
+
 function desenharMapa() {
   const cv = $('mapa'), lado = Math.round(cv.clientWidth * Math.min(2, devicePixelRatio || 1)) || 600;
   if (cv.width !== lado) cv.width = cv.height = lado;
   const g = cv.getContext('2d'), W = cv.width;
-  g.fillStyle = '#0c120d'; g.fillRect(0, 0, W, W);
   const pts = [];
-  for (const m of info.m || []) if (m.on && Number.isFinite(m.x)) pts.push({ x: m.x, z: m.z, cor: '#d9a54a', nome: m.nome, r: 6 });
+  for (const m of info.m || []) if (m.on && Number.isFinite(m.x)) pts.push({ x: m.x, z: m.z, cor: '#f2b84b', nome: m.nome, r: 6 });
   if (info.eu) pts.push({ x: info.eu.x, z: info.eu.z, cor: '#ffffff', nome: 'Você', r: 6 });
   const bots = ler('painelBots') === '1';
   if (bots) for (const C of info.clas || []) if (Number.isFinite(C.x)) pts.push({ x: C.x, z: C.z, cor: C.raca === 'Geada' ? '#6fb3e6' : '#e0663a', nome: C.lider, r: 5, losango: true });
-  const base = pts.length ? pts : [{ x: 0, z: 0 }];
   $('mapaBots').checked = bots;
-  let x0 = Math.min(...base.map((p) => p.x)), x1 = Math.max(...base.map((p) => p.x)), z0 = Math.min(...base.map((p) => p.z)), z1 = Math.max(...base.map((p) => p.z));
-  const span = Math.max(150, x1 - x0, z1 - z0) * 1.25, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
-  x0 = cx - span / 2; z0 = cz - span / 2;
+  if (!vista) { // ajusta sozinho a quem está no mundo
+    const base = pts.length ? pts : [{ x: 0, z: 0 }];
+    const x0 = Math.min(...base.map((p) => p.x)), x1 = Math.max(...base.map((p) => p.x)), z0 = Math.min(...base.map((p) => p.z)), z1 = Math.max(...base.map((p) => p.z));
+    quadro = limitar({ cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, span: Math.max(320, (Math.max(x1 - x0, z1 - z0)) * 1.25) }); // de 320 m para cima: dá para ver onde fica
+  } else quadro = vista;
+  const { span } = quadro, x0 = quadro.cx - span / 2, z0 = quadro.cz - span / 2;
   const P = (x, z) => [((x - x0) / span) * W, ((z - z0) / span) * W];
-  // grade de 50 m
-  g.strokeStyle = 'rgba(239,231,214,.06)'; g.lineWidth = 1;
-  for (let v = Math.ceil(x0 / 50) * 50; v < x0 + span; v += 50) { const [a] = P(v, 0); g.beginPath(); g.moveTo(a, 0); g.lineTo(a, W); g.stroke(); }
-  for (let v = Math.ceil(z0 / 50) * 50; v < z0 + span; v += 50) { const [, b] = P(0, v); g.beginPath(); g.moveTo(0, b); g.lineTo(W, b); g.stroke(); }
-  const fonte = Math.round(W / 42);
-  g.font = `${fonte}px system-ui,sans-serif`; g.textAlign = 'center';
+  g.fillStyle = '#1a3e66'; g.fillRect(0, 0, W, W); // fora do mundo: mar fundo
+  if (fundoMapa.complete && fundoMapa.naturalWidth) {
+    const [a, b] = P(MUNDO.x0, MUNDO.z0), k = W / span;
+    g.imageSmoothingEnabled = true; g.drawImage(fundoMapa, a, b, MUNDO.w * k, MUNDO.h * k);
+  }
+  if (vilaMapa) { const [a, b] = P(VILA.x0, VILA.z0); g.drawImage(vilaMapa, a, b, (VILA.tam / span) * W, (VILA.tam / span) * W); }
+  const fonte = Math.round(W / 40);
+  g.font = `600 ${fonte}px system-ui,sans-serif`; g.textAlign = 'center'; g.lineJoin = 'round';
+  const escrever = (txt, a, b, cor) => { g.lineWidth = Math.max(3, fonte / 4); g.strokeStyle = 'rgba(12,10,8,.85)'; g.strokeText(txt, a, b); g.fillStyle = cor; g.fillText(txt, a, b); };
+  const nomes = []; // um nome por cima do outro fica ilegível: o que bate em outro já escrito não aparece
+  const cabe = (txt, a, y) => { const lg = g.measureText(txt).width; if (nomes.some((o) => Math.abs(o.a - a) < (o.lg + lg) / 2 && Math.abs(o.y - y) < fonte)) return false; nomes.push({ a, y, lg }); return true; };
+  const marcas = [];
+  for (const p of pts) { // primeiro os pontos (os nomes deles ganham dos lugares)
+    const [a, b] = P(p.x, p.z), r = p.r * (W / 600);
+    g.fillStyle = p.cor; g.strokeStyle = 'rgba(12,10,8,.9)'; g.lineWidth = Math.max(1.5, W / 400); g.beginPath();
+    if (p.losango) { g.moveTo(a, b - r * 1.3); g.lineTo(a + r * 1.3, b); g.lineTo(a, b + r * 1.3); g.lineTo(a - r * 1.3, b); g.closePath(); } else g.arc(a, b, r, 0, 6.283);
+    g.fill(); g.stroke();
+    marcas.push([p.nome, a, b - r - 5]);
+  }
+  for (const [t, a, y] of marcas) if (cabe(t, a, y)) escrever(t, a, y, '#fff3dc');
   for (const L of info.lugares || []) {
     const [a, b] = P(L.x, L.z); if (a < 0 || b < 0 || a > W || b > W) continue;
-    g.fillStyle = 'rgba(239,231,214,.25)'; g.fillRect(a - 4, b - 4, 8, 8);
-    g.fillStyle = 'rgba(239,231,214,.45)'; g.fillText(L.nome, a, b - 8);
+    g.fillStyle = 'rgba(30,24,16,.8)'; g.beginPath(); g.arc(a, b, Math.max(3, W / 200), 0, 6.283); g.fill();
+    if (cabe(L.nome, a, b - 8)) escrever(L.nome, a, b - 8, '#e8dcc0');
   }
-  const nomes = []; // um nome por cima do outro fica ilegível: o que bate em outro já escrito não aparece
-  for (const p of pts) {
-    const [a, b] = P(p.x, p.z), r = p.r * (W / 600);
-    g.fillStyle = p.cor; g.beginPath();
-    if (p.losango) { g.moveTo(a, b - r * 1.3); g.lineTo(a + r * 1.3, b); g.lineTo(a, b + r * 1.3); g.lineTo(a - r * 1.3, b); } else g.arc(a, b, r, 0, 6.283);
-    g.fill();
-    const lg = g.measureText(p.nome).width, y = b - r - 4;
-    if (nomes.some((o) => Math.abs(o.a - a) < (o.lg + lg) / 2 && Math.abs(o.y - y) < fonte)) continue;
-    nomes.push({ a, y, lg }); g.fillStyle = '#efe7d6'; g.fillText(p.nome, a, y);
-  }
+  // escala: quantos metros vale o traço
+  const m = [10, 20, 50, 100, 200, 500].find((v) => (v / span) * W > W / 6) || 500, px = (m / span) * W, y = W - fonte;
+  g.fillStyle = 'rgba(12,10,8,.7)'; g.fillRect(fonte * 0.6, y - fonte * 1.4, px + fonte * 1.2, fonte * 2);
+  g.fillStyle = '#efe7d6'; g.fillRect(fonte * 1.2, y, px, Math.max(2, W / 300));
+  g.font = `${Math.round(fonte * 0.8)}px system-ui,sans-serif`; g.textAlign = 'left'; g.fillText(`${m} m`, fonte * 1.2, y - fonte * 0.3);
 }
 
 function desenhar() {
