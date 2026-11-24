@@ -10,8 +10,25 @@ static var _feitos := {}
 static var _tingida: Shader
 static var ligado := true # false volta ao visual de desenho
 
+# Pele rosa no Galaxy Note 10 Lite (Mali-G72; André 2026-11-24, "o corpo todo rosa", foto com rosto e mãos rosa-choque
+# e roupa, cabelo e olhos certos): as texturas já vêm pelo arquivo (registro do celular: img arq 89, gpu 0), então quem
+# erra é a placa desenhando o pele_real.gdshader. O rosa começou depois deste shader (07/11; o Note 10 Lite jogava sem
+# rosa no dia 09/11). Nas Mali da primeira leva (G31, G51, G52, G71, G72, as mesmas que o grafico.gd põe na Baixa) a
+# pele fica com o shader de antes (toon do main.pintar ou o da Aparência com a cor escolhida). Nas outras, nada muda.
+static var _placa_ok = null
+
+static func placa_aguenta() -> bool:
+	if _placa_ok == null:
+		_placa_ok = true
+		var r := RegEx.new()
+		r.compile("mali-g(\\d+)")
+		var a := r.search(RenderingServer.get_video_adapter_name().to_lower())
+		if a and int(a.get_string(1)) in [31, 51, 52, 71, 72]:
+			_placa_ok = false
+	return _placa_ok
+
 static func aplicar(no: Node3D) -> void:
-	if not ligado:
+	if not ligado or not placa_aguenta():
 		return
 	for mi in no.find_children("*", "MeshInstance3D", true, false):
 		if mi.mesh == null or str(mi.name).begins_with("Armadura") or mi.material_override != null:
