@@ -161,21 +161,45 @@ function cartaoMembro(m) {
 
 // próximo nível do clã (André 2026-11-24: "o que precisa para o próximo nível e o que a gente tem... os símbolozinhos dos
 // itens, nada de lista"): igual ao Melhorar clã do jogo, cada coisa é um ícone com tenho/preciso (verde quando já tem)
-const ICONES = new Set(['lenha', 'pedra', 'barra_ferro', 'barra_aco', 'couro', 'cristal', 'ouro', 'alma_geada', 'alma_chama']);
-function icone(k, nome, tem, precisa, texto) {
+// o desenho de cada item (client/public/painel-icones, feitos por ferramentas/painel/icones-painel.py com os pintados do
+// jogo); o que não tem pintura cai no parecido, como no jogo (progresso.gd icone_item), ou numa bolinha com a inicial
+const parecido = (k) => (k.startsWith('barra_') ? 'barra_ferro' : k.startsWith('minerio_') ? 'minerio_ferro' : k.startsWith('semente_') ? 'semente' : null);
+function desenhoItem(k, nome, cor) {
+  if (k === 'lider') return el('span', 'nvb', 'Nv');
+  const i = el('img'); i.alt = nome; i.loading = 'lazy'; i.src = `painel-icones/${k}.png`;
+  i.onerror = () => { const p = parecido(k); if (p && !i.src.endsWith(`/${p}.png`)) { i.src = `painel-icones/${p}.png`; return; }
+    const b = el('span', 'nvb', nome.slice(0, 2)); if (cor) b.style.color = cor; i.replaceWith(b); };
+  return i;
+}
+const num = (v) => (v >= 10000 ? `${Math.floor(v / 1000)}k` : String(v));
+function icone(k, nome, tem, precisa, cor) { // com tenho/preciso: borda verde quando já tem
   const d = el('div', 'ico' + (tem >= precisa ? ' ok' : '')), q = el('div', 'q');
-  if (ICONES.has(k)) { const i = el('img'); i.src = `painel-icones/${k}.png`; i.alt = nome; i.loading = 'lazy'; q.append(i); } else q.append(el('span', 'nvb', texto || nome.slice(0, 2)));
-  const num = (v) => (v >= 10000 ? `${Math.floor(v / 1000)}k` : String(v));
+  q.append(desenhoItem(k, nome, cor));
   d.title = nome; d.onclick = () => aviso(`${nome}: tem ${tem}, precisa ${precisa}`);
   d.append(q, el('small', null, `${num(Math.min(tem, precisa))}/${num(precisa)}`));
   return d;
+}
+function iconeQtd(it) { // só a quantidade (o Baú do Clã)
+  const d = el('div', 'ico qtd'), q = el('div', 'q');
+  q.append(desenhoItem(it.k, it.nome, it.cor));
+  d.title = it.nome; d.onclick = () => aviso(`${it.nome}: ${it.n}`);
+  d.append(q, el('small', null, num(it.n)));
+  return d;
+}
+function cartaoBau(itens) {
+  const c = el('div', 'card'), l = el('div', 'linha');
+  l.append(el('div', 'nome', 'Baú do Clã'), el('div', 'nv', itens ? `${itens.length} tipos` : '')); c.append(l);
+  if (!itens) { c.append(el('div', 'faz', 'Sem Baú do Clã: funde a base do clã ou crie um baú na construção.')); return c; }
+  if (!itens.length) { c.append(el('div', 'faz', 'Vazio.')); return c; }
+  const f = el('div', 'icones'); for (const it of itens) f.append(iconeQtd(it)); c.append(f);
+  return c;
 }
 function cartaoSobe(S) {
   const c = el('div', 'card'), l = el('div', 'linha');
   const pronto = S.nvLider >= S.lider && S.cofre >= S.ouro && S.itens.every((it) => it.tem >= it.n);
   l.append(el('div', 'nome', `Próximo nível: clã Nv ${S.nv}`), el('div', 'nv', pronto ? 'Pronto!' : '')); c.append(l);
   const f = el('div', 'icones');
-  f.append(icone('lider', 'Nível do líder', S.nvLider, S.lider, 'Nv'), icone('ouro', 'Ouro no cofre', S.cofre, S.ouro));
+  f.append(icone('lider', 'Nível do líder', S.nvLider, S.lider), icone('ouro', 'Ouro no cofre', S.cofre, S.ouro));
   for (const it of S.itens) f.append(icone(it.k, it.nome, it.tem, it.n));
   c.append(f);
   c.append(el('div', 'faz', pronto ? 'Tudo pronto: suba o clã no jogo, no painel do Clã.' : 'Conta o Baú do Clã e a sua mochila. Toque num ícone para ver o nome.'));
@@ -193,6 +217,7 @@ function desenharCla() {
   op.append(cx, document.createTextNode('Manter a tela ligada (gasta mais bateria)')); t.append(op);
   raiz.append(t);
   if (info.sobe) raiz.append(cartaoSobe(info.sobe));
+  if ('bau' in info) raiz.append(cartaoBau(info.bau));
   if (!info.m.length) raiz.append(el('div', 'vazio', 'Nenhum recruta ainda. Contrate no Recrutador, no jogo.'));
   for (const m of info.m) raiz.append(cartaoMembro(m));
 }

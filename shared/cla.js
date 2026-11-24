@@ -793,7 +793,13 @@ export const Cla = {
       recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })), plantas: Object.entries(PLANTAS).map(([k, P]) => ({ k, nome: P.nome })),
       // o que pede o próximo nível do clã e o que já tem (Baú do Clã + mochila do líder), igual ao Melhorar clã do jogo
       sobe: this.subirPainel(conta, c, raca, heroi, prog),
+      bau: this.bauPainel(conta), // o que tem no Baú do Clã (André 2026-11-24: "mostrar inventário do clã"), em ícones
       clas: this.clasNpcInfo(L).map((o, i) => ({ ...o, ...clas[i] })), lugares: (this.lugaresPainel ||= [{ nome: this.mapa.nome || 'Vila', x: 0, z: 0 }, ...LUGARES_MUNDO.filter((o) => o.nome && o.tipo !== 'porto').map((o) => ({ nome: o.nome, x: o.x, z: o.z }))]) };
+  },
+  bauPainel(conta) {
+    const B = this.bauDoCla({ conta }); if (!B) return null;
+    const soma = {}; for (const it of B.itens) if (it) soma[it.k] = (soma[it.k] | 0) + (it.n || 1);
+    return Object.entries(soma).map(([k, n]) => ({ k, n, nome: ITENS[k]?.nome || k, ...(ITENS[k]?.cor ? { cor: ITENS[k].cor } : {}) }));
   },
   subirPainel(conta, c, raca, heroi, prog) {
     const j = heroi || { conta, bot: false, raca, prog: { cla: c, mochila: prog?.mochila, nivel: prog?.nivel | 0 } };
