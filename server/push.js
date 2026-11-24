@@ -26,7 +26,8 @@ export function assinaturaValida(s) {
   if (u.protocol !== 'https:' || u.port || u.username || !PUSH.hosts.some((r) => r.test(u.hostname))) return null;
   const p256dh = s.keys?.p256dh, auth = s.keys?.auth;
   if (typeof p256dh !== 'string' || typeof auth !== 'string' || p256dh.length > 120 || auth.length > 40) return null;
-  if (deB64u(p256dh).length !== 65 || deB64u(auth).length !== 16) return null;
+  const ua = deB64u(p256dh); if (ua.length !== 65 || ua[0] !== 4 || deB64u(auth).length !== 16) return null;
+  try { const e = crypto.createECDH('prime256v1'); e.generateKeys(); e.computeSecret(ua); } catch { return null; } // ponto fora da curva: nunca abriria
   return { endpoint: u.href, keys: { p256dh, auth } };
 }
 
@@ -55,7 +56,7 @@ export class Push {
       const j = publicKey.export({ format: 'jwk' });
       this.priv = privateKey; this.pub = b64u(Buffer.concat([Buffer.from([4]), deB64u(j.x), deB64u(j.y)]));
     }
-    this.subs = s?.subs && typeof s.subs === 'object' ? s.subs : {}; // conta -> [assinatura]
+    this.subs = s?.priv && s?.subs && typeof s.subs === 'object' ? s.subs : {}; // conta -> [assinatura] (chave nova: as antigas não valem)
     this.fila = new Map(); // conta -> { textos, timer }
     this.ultimo = new Map(); // conta -> quando mandou o último
     if (!s?.priv) this.salvar();
@@ -69,6 +70,7 @@ export class Push {
   }
   sair(conta, endpoint) {
     const l = this.subs[conta]; if (!l) return;
+    try { endpoint = new URL(endpoint).href; } catch { return; }
     this.subs[conta] = l.filter((o) => o.endpoint !== endpoint); if (!this.subs[conta].length) delete this.subs[conta];
     this.salvar();
   }
@@ -96,10 +98,11 @@ export class Push {
     const msg = JSON.stringify({ titulo: 'Seu clã', corpo, t: Date.now() });
     for (const s of [...(this.subs[conta] || [])]) {
       try {
-        const r = await this.enviar(s.endpoint, { method: 'POST', body: cifrar(s, msg), signal: AbortSignal.timeout(10e3),
+        const r = await this.enviar(s.endpoint, { method: 'POST', body: cifrar(s, msg), signal: AbortSignal.timeout(10e3), redirect: 'error',
           headers: { TTL: String(PUSH.ttl), Urgency: 'high', 'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream',
             Authorization: `vapid t=${this.jwt(new URL(s.endpoint).origin)}, k=${this.pub}` } });
-        if (r.status === 404 || r.status === 410) this.sair(conta, s.endpoint); // o celular cancelou: tira da lista
+        r.body?.cancel?.().catch?.(() => {});
+        if ([401, 403, 404, 410].includes(r.status)) this.sair(conta, s.endpoint); // cancelou ou a chave não vale mais: tira da lista
       } catch { /* sem rede agora: o próximo aviso tenta de novo */ }
     }
   }
