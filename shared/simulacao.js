@@ -340,6 +340,9 @@ export class Simulacao {
     this.mapa = mapa;
     this.tempo = 0;
     this.jogadores = new Map();
+    // painel do clã (página leve, André 2026-11-24): sessão -> conta de quem está com o painel aberto. Sem corpo no mundo,
+    // mas conta como gente online (genteOnline): o mundo fica ligado e os recrutas dele ficam no mundo fazendo a ordem
+    this.paineis = new Map();
     this.amiga = null; this.amigaDono = null; this.amigaFalam = new Set(); // Cecília (shared/amiga.js): o corpo dela, quem ela acompanha e quem pode conversar
     this.AMIGA = AMIGA; // a definição dela (dados.js); os outros amigos virtuais (Dario, André 2026-11-11) são contextos com os próprios campos
     this.amigosIa = [this, ...AMIGOS_VIRTUAIS.filter((d) => d !== AMIGA && npcNoMundo(d)).map((d) => contextoDeAmigo(this, d))];
