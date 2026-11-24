@@ -1222,7 +1222,7 @@ func montar_status() -> void:
 		["Dano crítico", "+%d" % int(round(float(st.get("danoCritico", 0))))], # André 2026-11-17: número somado no golpe crítico
 		["Dano físico", P.num(st.danoFisico, 1)], ["Dano mágico", P.num(st.danoMagico, 1)],
 		["Recarga", "-%s%%" % P.num(st.recarga * 100, 0)], ["Regeneração", "%s vida/s · %s mana/s (fora de luta)" % [P.num(st.regenVida, 1), P.num(st.regenMana, 1)]],
-		["Estamina", "%d / %d" % [floor(m.trabalho.sta), m.trabalho.sta_max()]], ["Vigor", "%d / %d" % [floor(P.vigor()), int(P.dados.vigor.max)]],
+		["Estamina", "%d / %d" % [floor(m.trabalho.sta), m.trabalho.sta_max()]], ["Vigor", "%d / %d" % [floor(P.vigor()), int(P.vigor_max())]],
 		["Ouro", str(int(p.ouro))],
 	]
 	# com pontos pendentes, mostra como os números ficam depois de confirmar (em verde)
@@ -1562,7 +1562,7 @@ static func tempo_txt(s: float) -> String:
 func linha_vigor() -> Control:
 	var P = m.P
 	var v: float = P.vigor()
-	var mx := float(P.dados.vigor.max)
+	var mx: float = P.vigor_max()
 	var cx := VBoxContainer.new()
 	cx.add_theme_constant_override("separation", 3)
 	var l := HBoxContainer.new()

@@ -69,19 +69,20 @@ export const golpeHeroiNivel = (nv, nh, N) => {
 // Números do herói a partir do nível, dos atributos e do equipamento (nível 1 com tudo em 3 e sem nada = vida 120, mana 100, dano 10)
 export function calcularStatus(p, passivas = {}) {
   const a = p.atr, n = p.nivel, eq = bonusEquip(p.equip, a), ti = bonusTitulo(p); // ti: título em uso (TITULOS)
+  const co = bonusComida(p); // co: buff da comida (André 2026-11-24)
   const nivelK = 1 + 0.08 * (n - 1);
-  const def = (a.for + (passivas.pele_pedra ? 3 : 0) + eq.defesa) * (1 + (ti.defesa || 0));
+  const def = (a.for + (passivas.pele_pedra ? 3 : 0) + eq.defesa) * (1 + (ti.defesa || 0) + (co.defesa || 0));
   return {
     vidaMax: Math.round((84 + 8 * a.vit + 4 * a.for + 6 * (n - 1) + eq.vida) * (1 + (ti.vida || 0))),
     manaMax: Math.round((82 + 6 * a.int + 2 * (n - 1) + eq.mana) * (passivas.mente_arcana ? 1.1 : 1)),
     // fora de combate (REGEN em shared/dados.js, números do Quimera); em luta a Simulacao aplica vidaCombate/manaCombate
-    regenMana: (REGEN.mana + REGEN.manaNivel * n + REGEN.manaInt * a.int + (passivas.mente_arcana ? REGEN.manaMente : 0)) * (1 + eq.regenManaK),
+    regenMana: (REGEN.mana + REGEN.manaNivel * n + REGEN.manaInt * a.int + (passivas.mente_arcana ? REGEN.manaMente : 0)) * (1 + eq.regenManaK + (co.regenMana || 0)),
     regenVida: REGEN.vida + REGEN.vidaNivel * n + REGEN.vidaVit * a.vit,
     defesa: def,
     reducao: def / (def + 24), // fração do dano que a defesa segura
-    danoFisico: (10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK + (ti.dano || 0)),
-    danoMagico: (10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK + (ti.dano || 0)),
-    critico: Math.min(1, 0.0455 + 0.0015 * a.des + (passivas.sorte_arcana ? 0.02 : 0) + eq.critico + (ti.critico || 0)),
+    danoFisico: (10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0)),
+    danoMagico: (10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0)),
+    critico: Math.min(1, 0.0455 + 0.0015 * a.des + (passivas.sorte_arcana ? 0.02 : 0) + eq.critico + (ti.critico || 0) + (co.critico || 0)),
     danoCritico: eq.danoCritico, // somado no golpe crítico (o dobro + este número), André 2026-11-17
     recarga: Math.min(0.4, 0.0133 * a.des), // fração a menos no tempo de recarga
     areaK: eq.areaK, // área das skills a mais (conjunto de 6 peças)
@@ -89,6 +90,12 @@ export function calcularStatus(p, passivas = {}) {
   };
 }
 
+// ---------- buff da comida (André 2026-11-24, ITENS[k].buff em shared/dados.js) ----------
+// p.buff = { k: item comido, ate: ms do relógio do servidor }. Vale só até "ate"; a Simulacao tira quando acaba.
+export function bonusComida(p, agora = Date.now()) {
+  const B = p?.buff, b = B && ITENS[B.k]?.buff;
+  return b && B.ate > agora ? b.b : {};
+}
 // ---------- títulos (André 2026-11-12, TITULOS em shared/dados.js) ----------
 // p.tit = { tem: [ids ganhos], uso: id em uso ('' = nenhum) } · p.abates = monstros derrubados (conta para os de caça)
 // bônus do título em uso (só vale se ele foi ganho de verdade)
@@ -125,16 +132,20 @@ export const profBonus = (pts) => { const r = profRank(profNivel(pts)); return {
 export const mercador = (pts) => { const k = (profNivel(pts) - 1) / (PROF_MAX - 1); return { venda: MERCADOR.venda * k, compra: MERCADOR.compra * k }; };
 // chance de a peça criada subir de raridade (cada degrau)
 export const chanceRaridade = (pts) => RARIDADE_CRIAR.base + (RARIDADE_CRIAR.max - RARIDADE_CRIAR.base) * (profNivel(pts) - 1) / (PROF_MAX - 1);
+// Vigor máximo da conta (André 2026-11-24): VIGOR.max + VIGOR.porNivel por nível acima do 1, sem teto
+export const vigorMax = (p) => VIGOR.max + Math.max(0, ((p?.nivel | 0) || 1) - 1) * (VIGOR.porNivel || 0);
 // Vigor de agora: { v, t } guarda quanto tinha no instante t (ms); enche VIGOR.max a cada VIGOR.enche segundos
 export function vigorAgora(vg, agora = Date.now()) {
   if (!vg) return VIGOR.max;
+  const mx = vg.m || VIGOR.max; // m: o máximo da conta (vigorMax), gravado junto
   const s = Math.max(0, agora - vg.t) / 1000;
-  return Math.min(VIGOR.max, vg.v + (s / VIGOR.enche) * VIGOR.max);
+  return Math.min(mx, vg.v + (s / VIGOR.enche) * VIGOR.max);
 }
 // Ganha vigor (a cama): nunca passa do máximo nem baixa o que já tinha (igual ao mgVgAdd do Quimera)
 export function ganharVigor(p, n, agora = Date.now()) {
-  const v = vigorAgora(p.vigor, agora), novo = Math.max(v, Math.min(VIGOR.max, v + n));
-  p.vigor = { v: Math.round(novo * 1000) / 1000, t: agora };
+  const mx = vigorMax(p); if (p.vigor) p.vigor.m = mx;
+  const v = vigorAgora(p.vigor, agora), novo = Math.max(v, Math.min(mx, v + n));
+  p.vigor = { v: Math.round(novo * 1000) / 1000, t: agora, m: mx };
   return novo - v;
 }
 // Hora do jogo (0 a 24) no relógio da conta: dia = { h, t } (hora h no instante t, ms); sem ele, o relógio do mundo
@@ -149,7 +160,7 @@ export const camaVigorEm = (p, agora = Date.now()) => Math.max(0, ((p.camaT || 0
 export function gastarVigor(p, n, agora = Date.now()) {
   const v = vigorAgora(p.vigor, agora);
   if (v + 1e-9 < n) return false;
-  p.vigor = { v: Math.round((v - n) * 1000) / 1000, t: agora };
+  p.vigor = { v: Math.round((v - n) * 1000) / 1000, t: agora, m: vigorMax(p) };
   return true;
 }
 
@@ -573,7 +584,9 @@ export function progressoValido(p) {
   }
   // vigor e profissões (conta de antes: vigor cheio e tudo no Nv 1)
   const agora = Date.now(), num = (v) => typeof v === 'number' && Number.isFinite(v);
-  if (p.vigor && num(p.vigor.v) && num(p.vigor.t)) n.vigor = { v: Math.min(VIGOR.max, Math.max(0, p.vigor.v)), t: Math.min(agora, p.vigor.t) };
+  const mxv = vigorMax(n); // André 2026-11-24: o máximo sobe com o nível
+  if (p.vigor && num(p.vigor.v) && num(p.vigor.t)) n.vigor = { v: Math.min(mxv, Math.max(0, p.vigor.v)), t: Math.min(agora, p.vigor.t) };
+  n.vigor.m = mxv;
   for (const k of Object.keys(n.prof)) n.prof[k] = num(p.prof?.[k]) ? Math.min(1e7, Math.max(0, p.prof[k])) : 0;
   // capacete escondido (André 2026-11-03: opção na tela de equipamento); continua equipado e dando o bônus
   n.semCapacete = p.semCapacete === true;
@@ -584,6 +597,8 @@ export function progressoValido(p) {
   // relógio do dia da conta (depois de dormir) e quando a cama deu vigor pela última vez (ms, relógio do servidor)
   if (p.dia && num(p.dia.h) && num(p.dia.t) && p.dia.h >= 0 && p.dia.h < 24) n.dia = { h: p.dia.h, t: Math.min(agora, p.dia.t) };
   if (num(p.camaT) && p.camaT > 0) n.camaT = Math.min(agora, p.camaT);
+  // buff da comida (André 2026-11-24): só item que tem buff e no máximo a duração dele a partir de agora
+  if (p.buff && typeof p.buff.k === 'string' && ITENS[p.buff.k]?.buff && num(p.buff.ate) && p.buff.ate > agora) n.buff = { k: p.buff.k, ate: Math.min(p.buff.ate, agora + ITENS[p.buff.k].buff.dur * 1000) };
   // forninho público da ferraria (André 2026-11-11): o que cada um deixou dentro (a Simulacao confere com fornoValido)
   if (p.fornosPub && typeof p.fornosPub === 'object') {
     const F = {};

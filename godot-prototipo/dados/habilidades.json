@@ -833,44 +833,65 @@
    "pilha": 20,
    "comida": true,
    "usar": {
-    "vida": 0.25,
-    "vigor": 6
+    "vida": 0.25
    },
    "venda": 6,
-   "desc": "Recupera 25% da vida e 6 de vigor."
+   "buff": {
+    "b": {
+     "dano": 0.05
+    },
+    "dur": 600
+   },
+   "desc": "Recupera 25% da vida. Buff: +5% de dano por 10 min."
   },
   "sopa_legumes": {
    "nome": "Sopa de legumes",
    "pilha": 20,
    "comida": true,
    "usar": {
-    "vida": 0.3,
-    "vigor": 10
+    "vida": 0.3
    },
    "venda": 8,
-   "desc": "Recupera 30% da vida e 10 de vigor."
+   "buff": {
+    "b": {
+     "defesa": 0.1
+    },
+    "dur": 600
+   },
+   "desc": "Recupera 30% da vida. Buff: +10% de defesa por 10 min."
   },
   "pao_milho": {
    "nome": "Pão de milho",
    "pilha": 20,
    "comida": true,
    "usar": {
-    "mana": 0.3,
-    "vigor": 8
+    "mana": 0.3
    },
    "venda": 8,
-   "desc": "Recupera 30% da mana e 8 de vigor."
+   "buff": {
+    "b": {
+     "regenMana": 0.2
+    },
+    "dur": 600
+   },
+   "desc": "Recupera 30% da mana. Buff: +20% na volta da mana por 10 min."
   },
   "ensopado": {
    "nome": "Ensopado de carne",
    "pilha": 20,
    "comida": true,
    "usar": {
-    "vida": 0.5,
-    "vigor": 15
+    "vida": 0.5
    },
    "venda": 14,
-   "desc": "Recupera 50% da vida e 15 de vigor."
+   "buff": {
+    "b": {
+     "dano": 0.08,
+     "defesa": 0.05
+    },
+    "dur": 900
+   },
+   "desc": "Recupera 50% da vida. Buff: +8% de dano e +5% de defesa por 15 min."
   },
   "torta_abobora": {
    "nome": "Torta de abóbora",
@@ -878,11 +899,17 @@
    "comida": true,
    "usar": {
     "vida": 0.4,
-    "mana": 0.4,
-    "vigor": 20
+    "mana": 0.4
    },
    "venda": 22,
-   "desc": "Recupera 40% da vida, 40% da mana e 20 de vigor."
+   "buff": {
+    "b": {
+     "critico": 0.03,
+     "dano": 0.05
+    },
+    "dur": 1200
+   },
+   "desc": "Recupera 40% da vida e 40% da mana. Buff: +3% de crítico e +5% de dano por 20 min."
   },
   "catalisador_memoria": {
    "nome": "Catalisador da Memória",
@@ -904,8 +931,7 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.06,
-    "vigor": 1
+    "vida": 0.06
    },
    "venda": 3,
    "desc": "Peixinho de rio e lago. Asse dois no fogão."
@@ -916,8 +942,7 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.1,
-    "vigor": 1
+    "vida": 0.1
    },
    "venda": 6,
    "desc": "Peixe de lago e rio. Vale umas moedas."
@@ -928,8 +953,7 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.14,
-    "vigor": 2
+    "vida": 0.14
    },
    "venda": 11,
    "desc": "Peixe bravo de água doce. Briga muito na linha!"
@@ -940,8 +964,7 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.06,
-    "vigor": 1
+    "vida": 0.06
    },
    "venda": 3,
    "desc": "Peixinho do mar."
@@ -952,8 +975,7 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.14,
-    "vigor": 2
+    "vida": 0.14
    },
    "venda": 9,
    "desc": "Peixe do mar. Ótimo pra moqueca."
@@ -964,8 +986,7 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.2,
-    "vigor": 2
+    "vida": 0.2
    },
    "venda": 18,
    "desc": "Peixe grande do mar. Vale bem."
@@ -976,11 +997,16 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.28,
-    "vigor": 4
+    "vida": 0.28
    },
    "venda": 30,
-   "desc": "Peixe enorme do mar aberto. Raro!"
+   "buff": {
+    "b": {
+     "critico": 0.02
+    },
+    "dur": 300
+   },
+   "desc": "Peixe enorme do mar aberto. Raro! Buff: +2% de crítico por 5 min."
   },
   "dourado": {
    "nome": "Peixe-Dourado",
@@ -988,22 +1014,33 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.6,
-    "vigor": 8
+    "vida": 0.6
    },
    "venda": 160,
-   "desc": "Lendário! Só nas águas em volta da ilha. Vale uma fortuna."
+   "buff": {
+    "b": {
+     "critico": 0.05,
+     "dano": 0.1
+    },
+    "dur": 900
+   },
+   "desc": "Lendário! Só nas águas em volta da ilha. Vale uma fortuna. Buff: +5% de crítico e +10% de dano por 15 min."
   },
   "peixe_assado": {
    "nome": "Peixe assado",
    "pilha": 20,
    "comida": true,
    "usar": {
-    "vida": 0.3,
-    "vigor": 4
+    "vida": 0.3
    },
    "venda": 7,
-   "desc": "Recupera 30% da vida e 4 de vigor."
+   "buff": {
+    "b": {
+     "critico": 0.02
+    },
+    "dur": 600
+   },
+   "desc": "Recupera 30% da vida. Buff: +2% de crítico por 10 min."
   },
   "selo_raro": {
    "nome": "Selo Raro",
@@ -1308,7 +1345,7 @@
    "pilha": 20,
    "venda": 1,
    "obra": "cama",
-   "desc": "Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias e +40 de vigor (a cada 6 h). Coloque no seu terreno pelo modo construção (martelo)."
+   "desc": "Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias. Coloque no seu terreno pelo modo construção (martelo)."
   },
   "obra_tocha": {
    "nome": "Tocha",
@@ -2024,7 +2061,8 @@
  },
  "vigor": {
   "max": 100,
-  "enche": 21600
+  "enche": 21600,
+  "porNivel": 1
  },
  "dia": {
   "horaSeg": 30,
@@ -2042,7 +2080,7 @@
   "acorda": 6.5
  },
  "cama": {
-  "vigor": 40,
+  "vigor": 0,
   "cada": 21600,
   "perigo": 14
  },
@@ -3762,7 +3800,7 @@
    },
    "bancada": true,
    "alto": 0.6,
-   "desc": "Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias e +40 de vigor (a cada 6 h)."
+   "desc": "Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias."
   },
   "tocha": {
    "nome": "Tocha",
