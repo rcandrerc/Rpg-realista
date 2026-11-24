@@ -91,6 +91,17 @@ export function sortearRecruta(rnd, T, nvLider, agora) {
 // o recruta com a ficha (FICHA_RECRUTA): o sorteio de antes e, por cima, coragem, cuidado e gosto pelo cajado
 export function sortearComFicha(rnd, T, nvLider, agora) { const r = sortearRecruta(rnd, T, nvLider, agora); r.lu = sortearLuta(rnd, r.jeito); return r; }
 // o que o app mostra de um candidato
+// ---------- a regra única de recrutar (André 2026-11-24: "os bots seguem a mesma lógica do jogador comum... quando eu mudar
+// um, muda para todos"): o jogador (Recrutador) e o líder bot (passoClasNpc) passam por aqui ----------
+// pode contratar no tier T? ocupadas = quem já ocupa vaga (clã bot: recrutas + fixos no clã). Texto do motivo ou null.
+export function regraRecrutar(nvCla, ocupadas, T) {
+  const nv = nvCla || 1;
+  if (ocupadas >= nv) return nv >= CLA.max ? `O clã já tem ${CLA.max} recrutas (o máximo)` : `Clã Nv ${nv}: ${nv} vaga${nv > 1 ? 's' : ''}. Melhore o clã para abrir outra`;
+  if ((T.claNv || 1) > nv) return `${T.nome} só no clã Nv ${T.claNv}`;
+  return null;
+}
+// os candidatos que o Recrutador mostra (FICHA_RECRUTA.candidatos), no nível do tier pelo nível do líder
+export function candidatosRecrutar(T, nvLider, agora, rnd = Math.random) { return Array.from({ length: FICHA_RECRUTA.candidatos }, () => sortearComFicha(rnd, T, nvLider, agora)); }
 const candidatoInfo = (r, T) => ({ nome: r.nome, g: r.g, nv: r.nv, preco: precoTier(T, r.nv), sem: semanaDe(T, r.nv), ap: r.ap, ficha: fichaInfo(r.lu, r.jeito, r.gosto, r.g) });
 
 export const Cla = {
@@ -143,10 +154,9 @@ export const Cla = {
     if (m.acao === 'recrutar' || m.acao === 'candidatos') {
       const T = CLA.tiers.find((x) => x.id === m.tier); if (!T) return;
       if (!this.pertoRecrutador(j)) return aviso('Fale com o Recrutador (Clareira ou Juncal)');
-      if (c.m.length >= (c.nv || 1)) return aviso(c.nv >= CLA.max ? `O clã já tem ${CLA.max} recrutas (o máximo)` : `Clã Nv ${c.nv}: ${c.nv} vaga${c.nv > 1 ? 's' : ''}. Melhore o clã para abrir outra`);
-      if ((T.claNv || 1) > (c.nv || 1)) return aviso(`${T.nome} só no clã Nv ${T.claNv}`);
+      { const nao = regraRecrutar(c.nv, c.m.length, T); if (nao) return aviso(nao); }
       if (m.acao === 'candidatos') {
-        const l = Array.from({ length: FICHA_RECRUTA.candidatos }, () => sortearComFicha(Math.random, T, j.prog.nivel, agora));
+        const l = candidatosRecrutar(T, j.prog.nivel, agora);
         j.candidatosCla = { tier: T.id, l, ate: agora + FICHA_RECRUTA.validade };
         return this.evento({ t: 'claCandidatos', para: id, tier: T.id, nome: T.nome, l: l.map((r) => candidatoInfo(r, T)) });
       }
@@ -921,13 +931,16 @@ export const Cla = {
         if (!r.falta) { L.prog.ouro -= r.N.ouro; r.tirar(); E.nv = r.N.nv; mudou = true;
           for (const o of this.jogadores.values()) if (!o.bot) this.evento({ t: 'aviso', para: o.id, texto: `${C.n} subiu para o Nv ${E.nv}` }); }
       }
-      if (agora >= E.prox && E.m.length < vagasClaNpc(C, E.nv, E)) {
+      // a mesma regra do jogador (regraRecrutar, candidatosRecrutar): o que é só do bot é a decisão (quando: a cada R.entre h;
+      // quanto guarda: R.reserva; qual tier: o melhor que o ouro paga; qual candidato: escolhaLider)
+      const ocupadas = E.m.length + fixosNpc(C, E).length;
+      if (agora >= E.prox && !regraRecrutar(E.nv, ocupadas, CLA.tiers[0])) {
         E.prox = agora + R.entre * 3600e3; mudou = true;
         const nv = L.prog.nivel | 0, livre = (L.prog.ouro | 0) - R.reserva;
-        const T = [...CLA.tiers].reverse().find((T) => (T.claNv || 1) <= (E.nv || 1) && precoTier(T, nivelTier(T, nv)) <= livre);
+        const T = [...CLA.tiers].reverse().find((T) => !regraRecrutar(E.nv, ocupadas, T) && precoTier(T, nivelTier(T, nv)) <= livre);
         if (T) {
           // o líder bot também vê FICHA_RECRUTA.candidatos e escolhe pelo jeito dele (escolhaLider); outro líder: sorteio
-          const l = Array.from({ length: FICHA_RECRUTA.candidatos }, () => sortearComFicha(Math.random, T, nv, agora)), q = FICHA_RECRUTA.escolhaLider[C.lider];
+          const l = candidatosRecrutar(T, nv, agora), q = FICHA_RECRUTA.escolhaLider[C.lider];
           const m = q ? l.reduce((b, r) => (r.lu[q] > b.lu[q] ? r : b)) : l[Math.floor(Math.random() * l.length)];
           m.fn = this.funcaoBotCla(E.m.length, temLote); // o líder já diz o que ele vai fazer
           L.prog.ouro -= precoTier(T, m.nv); E.m.push(m);
