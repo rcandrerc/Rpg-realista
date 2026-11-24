@@ -66,10 +66,17 @@ func _toque_barra(i: int) -> void:
 		return
 	_abrir_comandos(str(t.id), str(t.get("nome", "")), i)
 
-func _abrir_comandos(id: String, nome: String, i: int) -> void:
+# Pack pela barra do time (André 2026-11-23): dois toques, De e Pra. O bot anda cada trecho (shared/amiga.js
+# passoOrdemPackAmiga); "Time todo" (id "*") manda pra todos os bots do time de uma vez.
+const PACK_DE := [["palete", "Palete/chão", "it_pack"], ["carrinho", "Carrinho", "it_carrinho"], ["mercante", "Mercante", "it_navio"]]
+const PACK_PRA := [["carrinho", "Carrinho", "it_carrinho"], ["mercante", "Mercante", "it_navio"], ["palete", "Palete/chão", "it_pack"], ["mercador", "Mercador (ouro pro clã)", "it_ouro"]]
+const TOPO_TODO := 30.0 # altura do botão "Time todo" em cima das barras
+var _todo: Button = null
+
+func _abrir_comandos(id: String, nome: String, i: int, modo := "", de := "") -> void:
 	_fechar_comandos()
 	_cmd_id = id
-	_cmd_ate = m.tempo + 5.0
+	_cmd_ate = m.tempo + (12.0 if modo != "" else 5.0)
 	_cmd = PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.08, 0.07, 0.06, 0.86)
@@ -82,26 +89,65 @@ func _abrir_comandos(id: String, nome: String, i: int) -> void:
 	v.add_theme_constant_override("separation", 4)
 	_cmd.add_child(v)
 	var cab := Label.new()
-	cab.text = nome.split(",")[0]
+	var quem: String = Idioma.t("Time todo") if id == "*" else nome.split(",")[0]
+	cab.text = quem if modo == "" else "%s · %s" % [quem, Idioma.t("Pack: de onde?") if modo == "de" else Idioma.t("Pack: pra onde?")]
 	cab.add_theme_font_size_override("font_size", 13)
 	cab.add_theme_color_override("font_color", COR_TIME)
 	v.add_child(cab)
-	for c in COMANDOS:
-		var b := Button.new()
-		b.text = Idioma.frase(str(c[1]))
-		b.focus_mode = Control.FOCUS_NONE
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.custom_minimum_size = Vector2(170, 34)
-		b.add_theme_font_size_override("font_size", 14)
-		b.add_theme_constant_override("icon_max_width", 20)
-		b.add_theme_constant_override("h_separation", 8)
-		b.icon = Menu.icone_tex(str(c[2]))
-		Menu.estilo_botao(b, false)
-		b.pressed.connect(_mandar_comando.bind(id, str(c[0])))
-		v.add_child(b)
+	if modo == "":
+		for c in COMANDOS:
+			v.add_child(_botao_cmd(str(c[1]), str(c[2]), _mandar_comando.bind(id, str(c[0]))))
+		if id == "*" or _eh_bot(id):
+			var bp := _botao_cmd("Pack ›", "it_pack", _abrir_comandos.bind(id, nome, i, "de", ""))
+			bp.add_theme_color_override("font_color", Color("ffd98a"))
+			v.add_child(bp)
+	elif modo == "de":
+		for c in PACK_DE:
+			v.add_child(_botao_cmd(str(c[1]), str(c[2]), _abrir_comandos.bind(id, nome, i, "pra", str(c[0]))))
+		v.add_child(_botao_cmd("Parar", "barreira", _mandar_pack.bind(id, "parar", "")))
+	else:
+		for c in PACK_PRA:
+			if str(c[0]) != de:
+				v.add_child(_botao_cmd(str(c[1]), str(c[2]), _mandar_pack.bind(id, de, str(c[0]))))
+		v.add_child(_botao_cmd("Voltar", "desfazer", _abrir_comandos.bind(id, nome, i, "de", "")))
 	_cmd.scale = Vector2(barras_s, barras_s)
-	_cmd.position = BARRAS + barras_d + Vector2(204, i * 40.0) * barras_s
+	_cmd.position = BARRAS + barras_d + Vector2(204, (0.0 if id == "*" else _topo() + i * 40.0)) * barras_s
 	add_child(_cmd)
+
+func _botao_cmd(texto: String, icone: String, acao: Callable) -> Button:
+	var b := Button.new()
+	b.text = Idioma.frase(texto)
+	b.focus_mode = Control.FOCUS_NONE
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(190, 34)
+	b.add_theme_font_size_override("font_size", 14)
+	b.add_theme_constant_override("icon_max_width", 20)
+	b.add_theme_constant_override("h_separation", 8)
+	b.icon = Menu.icone_tex(icone)
+	Menu.estilo_botao(b, false)
+	b.pressed.connect(acao)
+	return b
+
+func _eh_bot(id: String) -> bool:
+	for t in time:
+		if str(t.id) == id:
+			return t.get("bot", 0) == 1 or t.get("bot", false) == true
+	return false
+
+func _tem_bot() -> bool:
+	for t in _ids_barras():
+		if t.get("bot", 0) == 1 or t.get("bot", false) == true:
+			return true
+	return false
+
+# o botão "Time todo" ocupa TOPO_TODO em cima das barras quando há bot no time
+func _topo() -> float:
+	return TOPO_TODO if _tem_bot() and not m.hud.esconder_combate else 0.0
+
+func _mandar_pack(id: String, de: String, pra: String) -> void:
+	m.rede("packTime", {"de": de, "pra": pra, "para": id})
+	m.sons.tocar("q_anel_1", -18.0)
+	_fechar_comandos()
 
 func _mandar_comando(id: String, c: String) -> void:
 	m.rede("comando", {"c": c, "para": id})
@@ -119,7 +165,7 @@ func _arrumar_toques() -> void:
 	for t in _ids_barras():
 		ids.append(str(t.id))
 	var mostra: bool = not m.hud.esconder_combate
-	if _cmd != null and (m.tempo > _cmd_ate or not mostra or not (_cmd_id in ids)):
+	if _cmd != null and (m.tempo > _cmd_ate or not mostra or not (_cmd_id in ids or (_cmd_id == "*" and _tem_bot()))):
 		_fechar_comandos()
 	while _toques.size() < ids.size():
 		var b := Button.new()
@@ -132,12 +178,31 @@ func _arrumar_toques() -> void:
 		b.pressed.connect(_toque_barra.bind(_toques.size()))
 		add_child(b)
 		_toques.append(b)
+	var topo := _topo()
 	for i in _toques.size():
 		var b: Button = _toques[i]
 		b.visible = mostra and i < ids.size()
 		if b.visible:
-			b.position = BARRAS + barras_d + Vector2(0, i * 40.0) * barras_s
+			b.position = BARRAS + barras_d + Vector2(0, topo + i * 40.0) * barras_s
 			b.size = Vector2(196, 36) * barras_s
+	if _todo == null and topo > 0.0:
+		_todo = Button.new()
+		_todo.text = Idioma.frase("Time todo")
+		_todo.focus_mode = Control.FOCUS_NONE
+		_todo.add_theme_font_size_override("font_size", 13)
+		Menu.estilo_botao(_todo, false)
+		_todo.add_theme_color_override("font_color", COR_TIME)
+		_todo.pressed.connect(func():
+			if _cmd != null and _cmd_id == "*":
+				_fechar_comandos()
+			else:
+				_abrir_comandos("*", "", 0))
+		add_child(_todo)
+	if _todo != null:
+		_todo.visible = topo > 0.0
+		_todo.position = BARRAS + barras_d
+		_todo.size = Vector2(196, TOPO_TODO - 4.0)
+		_todo.scale = Vector2(barras_s, barras_s)
 
 func _ready() -> void:
 	_barras = Control.new()
@@ -267,7 +332,7 @@ func linhas_barras(editando := false) -> int:
 	return 0 if m.hud.esconder_combate else n
 
 func altura_barras(editando := false) -> float:
-	return linhas_barras(editando) * 40.0 * barras_s
+	return (linhas_barras(editando) * 40.0 + (_topo() if not editando else 0.0)) * barras_s
 
 # ---------- barras do time (embaixo do painel do herói) ----------
 func _desenhar_barras() -> void:
@@ -276,7 +341,7 @@ func _desenhar_barras() -> void:
 	var f := ThemeDB.fallback_font
 	var eu := str(m.online.meu_id) if m.online else ""
 	_barras.draw_set_transform(BARRAS + barras_d, 0.0, Vector2(barras_s, barras_s))
-	var y := 0.0
+	var y := _topo()
 	for t in time:
 		if str(t.id) == eu:
 			continue
