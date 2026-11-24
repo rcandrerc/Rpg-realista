@@ -651,9 +651,9 @@ func montar_config() -> void:
 	_add(_botao("Créditos e direitos", func():
 		aberta = "creditos"
 		montar(), false))
-	_resets_teste()
 	conteudo = dir
 	_qualidade_grafica()
+	_resets_teste() # na coluna da direita: embaixo da esquerda ficava cortado no celular (André 2026-11-24, versão 3156)
 	conteudo = principal
 
 # Só na conta do André (André 2026-11-24: "um reset da partida... e põe um reset de missões também, mas separado; coloca os
