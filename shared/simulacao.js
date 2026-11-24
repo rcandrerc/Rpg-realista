@@ -4200,12 +4200,16 @@ export class Simulacao {
         const o = this.jogadores.get(k);
         if (o && !o.morto && !o.criando && dist(o, c) < TIME.perto && this.tempo - (o.lutouT ?? -1e9) <= TIME.combate) ganham.add(o);
       }
+      // recruta protegendo outro recruta (painel do clã) conta como time no XP (André 2026-11-24: "contrato 3 nível 1, boto
+      // 90 para proteger, eles vão upar na velocidade do capiroto"): o protetor e quem ele protege dividem como um time
+      // (desconto de quem está muito abaixo e bônus), mesmo fora do time. Vale para todos os clãs.
+      const grupo = this.grupoXpProteger(ganham);
       const doTime = new Map(), maiorDoTime = new Map(); // time -> quantos dele ganharam / o nível mais alto entre eles
-      for (const j of ganham) if (j.time) { doTime.set(j.time, (doTime.get(j.time) || 0) + 1); maiorDoTime.set(j.time, Math.max(maiorDoTime.get(j.time) || 0, j.prog.nivel | 0)); }
+      for (const j of ganham) { const g = grupo(j); if (g) { doTime.set(g, (doTime.get(g) || 0) + 1); maiorDoTime.set(g, Math.max(maiorDoTime.get(g) || 0, j.prog.nivel | 0)); } }
       for (const j of ganham) {
-        const n = j.time ? doTime.get(j.time) : 1;
+        const g = grupo(j), n = g ? doTime.get(g) : 1;
         const xp = Math.round(xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO) * (c.sp?.caverna ? this.dungeon?.def?.forte?.xp || 1 : 1) * (c.bm ? BOSSES_MUNDO[c.bm].xp : 1));
-        const nerf = n > 1 ? fatorXpTime(j.prog.nivel, maiorDoTime.get(j.time)) : 1; // muito abaixo do mais alto do time: menos XP (TIME_XP)
+        const nerf = n > 1 ? fatorXpTime(j.prog.nivel, maiorDoTime.get(g)) : 1; // muito abaixo do mais alto do time: menos XP (TIME_XP)
         const xpT = 1 + (bonusTitulo(j.prog).xp || 0) + this.bonusCla(j); // título em uso e nível do clã: + XP dos monstros
         this.ganharXP(j, Math.round((n > 1 ? Math.round(xp * (1 + TIME.bonus * (n - 1)) * nerf) : xp) * xpT)); this.soltarDrops(c, j);
         this.titulosDaVitoria(j, c); // títulos (André 2026-11-12): conta o monstro, boss de mundo e chefe da história
@@ -4228,6 +4232,15 @@ export class Simulacao {
   }
 
   // ---------- ajudantes ----------
+  // grupo de XP de quem ganhou: o time; sem time, o recruta com "Proteger" outro recruta fica no grupo do protegido (e o
+  // protegido também, quando quem o protege está entre os que ganharam)
+  grupoXpProteger(ganham) {
+    const alvoDe = (j) => { const f = !j.time && j.bot && j.ia?.funcao; return f?.k === 'proteger' && typeof f.p === 'string' && !['lider', 'carrinho', 'mercante'].includes(f.p) ? f.p : null; };
+    const prot = new Set();
+    for (const j of ganham) { const p = alvoDe(j); if (p) prot.add(p); }
+    return (j) => j.time || (alvoDe(j) ? 'protege:' + alvoDe(j) : !j.time && j.bot && prot.has(this.idRecrutaXp(j)) ? 'protege:' + this.idRecrutaXp(j) : null);
+  }
+  idRecrutaXp(j) { return this.amigosIa?.find((x) => x.amiga === j)?.AMIGA.id || null; }
   evento(e) { if (this.ator && e.de === undefined && e.t !== 'aviso' && e.t !== 'fala') e.de = this.ator.id; this.eventos.push(e); }
   // o que roda depois guarda quem agiu (o golpe que acerta 0,3 s depois continua sendo do mesmo herói)
   depois(dt, fn) {
