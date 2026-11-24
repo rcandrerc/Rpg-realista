@@ -1734,12 +1734,19 @@ func vestir_heroi() -> void:
 	var r_arma := func(l: String) -> int:
 		var it = eq.get(l)
 		return (rv if rv >= 0 else int(it.get("r", 0))) if it is Dictionary else -1
+	# brilho do reforço (armas.gd, André 2026-11-24): o +N da espada e do cajado equipados
+	var e_arma := func(l: String) -> int:
+		var it = eq.get(l)
+		return int(it.get("e", 0)) if it is Dictionary else 0
 	k += traje + str(r_arma.call("espada")) + str(r_arma.call("cajado")) + "v" + str(rv)
+	k += "e" + str(e_arma.call("espada")) + "," + str(e_arma.call("cajado"))
 	if k == _roupa:
 		return
 	_roupa = k
 	Armadura.vestir(heroi, eq)
 	Armadura.Equip2.armas(espada, cajado, traje, r_arma.call("espada"), r_arma.call("cajado"))
+	Armas.brilho_reforco(espada, e_arma.call("espada"), "espada")
+	Armas.brilho_reforco(cajado, e_arma.call("cajado"), "cajado")
 
 # sentado no carrinho ou no barquinho (transporte.gd + sentar.gd): as mãos vão no volante ou no remo
 func sentado_veiculo() -> bool:
@@ -4304,6 +4311,9 @@ func atualizar_heroi(dt: float) -> void:
 		cajado.global_transform = Armas.pose_na_mao(heroi_esq, mao_direita, heroi, heroi_anim.peso_guarda())
 		if cajado.visible and heroi.visible:
 			Armas.chama(fx.mg, cajado, dt) # chama pintada no topo do Cajado A
+	if heroi.visible: # faíscas do reforço +20 ou mais (armas.gd), na mão ou nas costas
+		Armas.faiscas(fx.mg, espada, dt)
+		Armas.faiscas(fx.mg, cajado, dt)
 	# rastro da espada durante o golpe e do vento no dash
 	var lamina = null
 	if not acao.is_empty() and acao.get("lamina", false) and h.modo == "Espada" and mov.esc == null:
