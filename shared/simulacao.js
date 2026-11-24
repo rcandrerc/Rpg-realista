@@ -473,7 +473,6 @@ export class Simulacao {
     if (aparencia) j.aparencia = aparenciaValida(aparencia);
     j.conta = conta != null ? 'c' + conta : 'n:' + j.nome; // dono do lote (sem contas: o nome)
     j.prog = progressoValido(progresso);
-    if (!robo) encherBolso(j.prog); // bolso de poções (André 2026-11-24)
     if (testador && CONTA_TESTE.paginas) liberarPaginas(j.prog, MOCHILA_PAGINAS); // conta de teste do André: as 4 páginas da mochila liberadas
     else if (testador && j.prog.devPag !== CONTA_TESTE.devolver) { devolverPaginas(j.prog); j.prog.devPag = CONTA_TESTE.devolver; } // André 2026-11-11: compra como todo mundo
     j.testador = !!testador;
@@ -2016,7 +2015,7 @@ export class Simulacao {
       }
       if (--it.n <= 0 && !bolsoUso) p.mochila[i] = null;
       if (bolsoUso) p.bolso[bolsoUso] = Math.max(0, it.n);
-      if (!j.bot) encherBolso(p); // o bolso gastou: enche da mochila
+      if (bolsoUso && !j.bot) encherBolso(p); // o bolso gastou: enche da mochila
     } else if (m.acao === 'cadeado' && (it || (typeof m.lugar === 'string' && Object.hasOwn(p.equip, m.lugar) && p.equip[m.lugar]))) {
       const o = it || p.equip[m.lugar];
       if (o.cad) delete o.cad; else o.cad = 1;

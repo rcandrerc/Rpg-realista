@@ -1,11 +1,12 @@
 // André 2026-11-24: slot de poção (vida/mana) é uma bag extra: não ocupa mochila, "vender tudo" não toca, enche da mochila ao gastar
 import { Simulacao, MAPA_CLAREIRA, contar } from '../../shared/index.js';
+import { encherBolso } from '../../shared/progresso.js';
 import './_tudo-aberto.mjs';
 let falhas = 0;
 const ok = (c, m) => { console.log((c ? 'ok ' : 'FALHOU ') + m); if (!c) falhas++; };
 const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 }), p = a.prog; a.criando = false;
-ok(p.bolso.pocao === 3 && p.bolso.pocao_mana === 2 && contar(p.mochila, 'pocao') === 0, 'ao entrar, as poções da mochila vão para o bolso');
+encherBolso(p); ok(p.bolso.pocao === 3 && p.bolso.pocao_mana === 2 && contar(p.mochila, 'pocao') === 0, 'varrer o bolso puxa as poções da mochila');
 p.mochila[5] = { k: 'pocao', n: 20 }; p.mochila[6] = { k: 'pocao', n: 5, cad: 1 };
 s.item('A', { acao: 'vender_varios', lista: [5, 6] }); // longe da Rosa: não vende, mas o bolso não entra na conta
 ok(p.bolso.pocao === 3, 'bolso intacto');
