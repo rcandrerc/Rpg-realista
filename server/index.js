@@ -993,7 +993,7 @@ app.get('/npcs.json', async (req, res) => {
   for (const D of [...AMIGOS_VIRTUAIS, ...RIVAIS]) {
     const v = vivos.get(D.id);
     let d = v?.a;
-    if (!d && contas) try { d = D.terreno ? contas.loteDoDono(D.conta)?.dados?.amiga : contas.lerMundo('npc:' + D.id); } catch { d = null; }
+    if (!d && contas) try { d = contas.lerMundo('npc:' + D.id) || (D.terreno ? contas.loteDoDono(D.conta)?.dados?.amiga : null); } catch { d = null; } // save na tabela mundo desde 22/11; terreno de reserva
     if (!d) { l.push({ nome: D.nome, id: D.id, salvo: false }); continue; }
     const p = d.prog || {}, h = p.hist || {};
     l.push({ nome: D.nome, id: D.id, ...(D.raca ? { raca: D.raca } : {}), noMundo: !!v, nivel: p.nivel | 0, ouro: p.ouro | 0, ...(cracha ? { missao: h.p ?? null, etapa: h.e ?? null } : {}),
@@ -1053,7 +1053,7 @@ app.get('/npcs/conversas.json', async (req, res) => {
   for (const D of AMIGOS_VIRTUAIS) {
     let d = vivos.get(D.id);
     const vivo = !!d;
-    if (!d && contas) try { d = D.terreno ? contas.loteDoDono(D.conta)?.dados?.amiga : contas.lerMundo('npc:' + D.id); } catch { d = null; }
+    if (!d && contas) try { d = contas.lerMundo('npc:' + D.id) || (D.terreno ? contas.loteDoDono(D.conta)?.dados?.amiga : null); } catch { d = null; } // save na tabela mundo desde 22/11; terreno de reserva
     if (!d) { l.push({ nome: D.nome, id: D.id, salvo: false }); continue; }
     const conversas = { ...(d.conversasSalvas || d.conversas || {}) };
     for (const [k, c] of Object.entries(d.ia?.conversas || {})) if (Array.isArray(c) && c.length) conversas[k] = c.map((m) => ({ de: m.de, texto: String(m.texto).slice(0, 300), ...(m.nome ? { nome: m.nome } : {}) }));
