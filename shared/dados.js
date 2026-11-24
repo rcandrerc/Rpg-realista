@@ -84,7 +84,7 @@ export const DURACAO = {
   crawl_ini: 1.067, crawl: 4.4, crawl_fim: 2.3, boiar_ac: 4.667, golfinho: 3, afundar_ini: 2.2, afundar: 3.233, afundar_fim: 2.3,
   // trabalho do herói (plano de animações 2026-11-24): KayKit Character Animations (CC0), Rig_Medium_Tools e Simulation,
   // passadas para o esqueleto do Mixamo por ferramentas/assar-animacoes/kaykit.py
-  kk_picareta: 3.733, kk_machado: 1.333, kk_machado_todo: 4.333, kk_pesca_lanca: 1.933, kk_pesca_espera: 2.333, kk_pesca_belisca: 2.233, kk_pesca_puxao: 1.9, kk_pesca_recolhe: 1.6, kk_pesca_briga: 3.433, kk_pesca_pega: 3.233, kk_sentado: 3.6,
+  kk_pesca_lanca: 1.933, kk_pesca_espera: 2.333, kk_pesca_belisca: 2.233, kk_pesca_puxao: 1.9, kk_pesca_recolhe: 1.6, kk_pesca_briga: 3.433, kk_pesca_pega: 3.233, kk_sentado: 3.6,
 };
 
 // Pedaços de animação: [arquivo, início, fim] em fração da duração. O combo de espada do Mixamo

@@ -30,7 +30,6 @@ func _initialize() -> void:
 		Armadura.vestir(m.heroi, Armadura.de_texto(OS.get_environment("ROUPA")))
 		await esperar(5)
 	if OS.get_environment("ANTES") == "1": # o jeito de antes (golpe por código e pesca de pose parada)
-		m.trabalho.TRABALHO_KK = false
 		m.pesca.PESCA_KK = false
 	var seg := float(OS.get_environment("SEG")) if OS.get_environment("SEG") != "" else 9.0
 	match cena:

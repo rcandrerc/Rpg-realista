@@ -16,6 +16,9 @@ var torce := 0.0 # tronco girando em volta da coluna (rad); remando acompanha o 
 var maos := true
 var peito_final := Vector3.ZERO
 var peito_ok := false
+# André 2026-11-24 ("a vara ainda fora da mão, meio voando"): o BoneAttachment3D também lê a mão da animação em pé;
+# a mão direita já sentada fica aqui (espaço do esqueleto) para a pesca.gd pôr a vara na mão de verdade
+var mao_d_final := Transform3D()
 
 func _process_modification() -> void:
 	var s := get_skeleton()
@@ -67,4 +70,5 @@ func _process_modification() -> void:
 		var d: Array = _dedos[osso]
 		s.set_bone_pose_rotation(osso, Quaternion(d[0], d[1]) * s.get_bone_rest(osso).basis.get_rotation_quaternion())
 	peito_final = s.get_bone_global_pose(_o.peito_alto if _o.peito_alto >= 0 else _o.peito).origin
+	mao_d_final = s.get_bone_global_pose(_o.RHand)
 	peito_ok = true
