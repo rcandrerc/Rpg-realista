@@ -18,7 +18,7 @@ import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS,
 import { xpProximo, reforcoOk } from '../../shared/progresso.js';
 import { noLago } from '../../shared/relevo.js';
 import { planejarRota } from '../../shared/rota.js';
-import { listaVenda as listaVendaDe, POCOES, campoPerigoso } from './robo-escolhas.mjs';
+import { listaVenda as listaVendaDe, POCOES, campoPerigoso, listaMudou } from './robo-escolhas.mjs';
 import { liberado, zonaFechadaEm } from '../../shared/historia.js';
 
 // ---------- opções ----------
@@ -143,9 +143,13 @@ function lerEvento(e) {
     if (R.nivel.de == null) R.nivel.de = prog.nivel;
     R.nivel.ate = prog.nivel;
     const h = prog.hist;
-    if (antes && h && h.p > antes.p && !puladaAgora) { R.missoes.feitas++; R.missoes.lista.push(HISTORIA[antes.p]?.id); if (R.missoes.lista.length > 80) R.missoes.lista.shift(); log('missão feita:', HISTORIA[antes.p]?.nome); }
+    // ronda 2026-11-24: lista de missões do servidor diferente da do robô (merge no meio do turno; robo-escolhas.mjs
+    // listaMudou): não conta missão feita, não usa o nome errado e só caça até as listas baterem de novo
+    const mudou = listaMudou(HISTORIA, h);
+    if (mudou && !listaAvisada) { listaAvisada = true; log('a lista de missões do servidor mudou no meio do turno (merge): só caça; última entregue', h.u); }
+    if (antes && h && h.p > antes.p && !puladaAgora && !mudou && !listaMudou(HISTORIA, antes)) { R.missoes.feitas++; R.missoes.lista.push(HISTORIA[antes.p]?.id); if (R.missoes.lista.length > 80) R.missoes.lista.shift(); log('missão feita:', HISTORIA[antes.p]?.nome); }
     puladaAgora = false;
-    R.missoes.agora = HISTORIA[h?.p] ? `${HISTORIA[h.p].id} ${HISTORIA[h.p].nome}${h.ac ? ` · etapa ${h.e + 1}` : ''}` : 'todas feitas';
+    R.missoes.agora = mudou ? `lista de missões do servidor mudou no meio do turno (merge), só caça; última entregue ${h.u}` : HISTORIA[h?.p] ? `${HISTORIA[h.p].id} ${HISTORIA[h.p].nome}${h.ac ? ` · etapa ${h.e + 1}` : ''}` : 'todas feitas';
   } else if (e.t === 'corrigir') {
     if (process.env.ROBO_DEPURAR && R.correcoes % 50 === 0) log('corrigido de', eu.x.toFixed(1), eu.z.toFixed(1), eu.y.toFixed(1), 'para', e.x, e.z, e.y, 'rota', JSON.stringify(rota?.slice(0, 2)));
     eu.x = e.x; eu.y = e.y; eu.z = e.z; corrSeq = e.c; R.correcoes++; correcoesSeguidas++;
@@ -386,7 +390,7 @@ function leilao(agora) {
 }
 
 // ---------- missões ----------
-let xpGrind = -2, etapaK = '', etapaDesde = 0, falarT = 0, puladaAgora = false, naoSabeT = 0, viajandoAte = 0;
+let xpGrind = -2, etapaK = '', etapaDesde = 0, falarT = 0, puladaAgora = false, listaAvisada = false, naoSabeT = 0, viajandoAte = 0;
 const NAO_SABE = new Set(['dormir', 'plantar', 'regar', 'colher', 'construir', 'terreno', 'pack', 'pack_fez', 'veiculo', 'sintetizar', 'destruir', 'evoluir', 'reforcar', 'passe', 'resetar', 'arma', 'ter', 'lote']);
 function pular(motivo) {
   if (!prog?.hist) return;
@@ -400,6 +404,7 @@ function pular(motivo) {
 function receitaDe(k) { if (RECEITAS[k]) return k; return Object.keys(RECEITAS).find((r) => RECEITAS[r].faz === k) || null; }
 function missao(agora) {
   const h = prog?.hist; if (!h) return cacar(agora);
+  if (listaMudou(HISTORIA, h)) return cacar(agora); // lista do servidor mudou no meio do turno: nem missão errada nem zerar
   if (h.p >= HISTORIA.length) { log('fez a história toda: começa de novo'); mandar('missaoTeste', { acao: 'zerar' }); return; }
   // travou: a mesma etapa, o mesmo andamento e o mesmo texto há TRAVA_MIN minutos
   const k = `${h.p}:${h.ac}:${h.e}:${h.n}:${h.m}:${hi?.txt}`;

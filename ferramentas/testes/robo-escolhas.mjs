@@ -25,3 +25,11 @@ ok(MORTES_TROCA === 3 && campoPerigoso(tres, 'A', t0 + 5 * min), '3 mortes em 10
 ok(!campoPerigoso(tres.slice(0, 2), 'A', t0 + 5 * min), '2 mortes ainda não trocam');
 ok(!campoPerigoso(tres, 'A', t0 + 12 * min), 'morte de mais de 10 min atrás não conta');
 ok(!campoPerigoso(tres, 'B', t0 + 5 * min) && !campoPerigoso(tres, null, t0), 'morte em outro campo (ou sem campo) não conta');
+
+// Ronda 2026-11-24: merge do Ato do Clã (k1-k4) no meio do turno; no servidor a e3 foi da posição 51 para a 55
+import { listaMudou } from '../robo/robo-escolhas.mjs';
+const velha = [{ id: 'a1' }, { id: 'e2' }, { id: 'e3' }, { id: 'e6' }], nova = [{ id: 'a1' }, { id: 'k1' }, { id: 'e2' }, { id: 'e3' }, { id: 'e6' }];
+ok(!listaMudou(velha, { p: 2, u: 'e2' }) && !listaMudou(nova, { p: 3, u: 'e2' }), 'mesma lista do servidor: segue normal');
+ok(listaMudou(velha, { p: 3, u: 'e2' }), 'servidor com missão nova no meio: o robô percebe e não lê a e6 no lugar da e3');
+ok(listaMudou(velha, { p: 5, u: 'e6' }), 'servidor com mais missões que o robô: não zera a história');
+ok(!listaMudou(velha, { p: 0 }) && !listaMudou(velha, null) && !listaMudou(velha, { p: 2 }), 'começo da história, sem história ou save sem u: nunca dá lista mudada');
