@@ -3052,9 +3052,11 @@ func _tentar(qual: String) -> bool:
 			rede("habilidade", 9)
 			fx.conjura(heroi, "cura", heroi_anim.get_animation(D.CURA.anim).length / D.CURA.ts, maos)
 			comecar(D.CURA.anim, D.CURA.ts, D.CURA.hits, func(_i):
-				h.vida = min(P.st.vidaMax, h.vida + D.CURA.cura)
+				# André 2026-11-24: 15% da vida máx. + 3 por Int acima de 3, no mínimo 38 (igual curaDe no servidor)
+				var c: int = maxi(int(D.CURA.cura), roundi(D.CURA.cura_vida * float(P.st.vidaMax) + D.CURA.cura_int * maxi(0, int(P.prog.atr.get("int", 3)) - 3)))
+				h.vida = min(P.st.vidaMax, h.vida + c)
 				fx.cura(heroi)
-				fx.numero(heroi.position, D.CURA.cura, Color("7dffa0")))
+				fx.numero(heroi.position, c, Color("7dffa0")))
 		"pular":
 			if not acao.is_empty() and not acao.get("pulo", false):
 				return false

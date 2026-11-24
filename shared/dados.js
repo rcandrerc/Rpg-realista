@@ -166,7 +166,10 @@ export const HABILIDADES = {
   barreira: { nome: 'Barreira Arcana', tipo: 'Magia', anim: A.block, ts: 1, segurar: 2.6, defesa: 0.8, cd: 10, mana: 15, fx: true, desc: 'Uma bolha de luz: recebe 80% menos dano.' },
 };
 // A cura tem botão próprio, fora da build
-export const CURA = { nome: 'Cura', tipo: 'Magia', anim: A.heal, ts: 1.2, at: 0.55, cura: 38, cd: 8, mana: 25, fx: true, time: 0.5, timeR: 8, desc: 'Recupera vida. Quem é do seu time e está perto (8 m) recebe metade.' }; // time: André 2026-11-09
+// André 2026-11-24: a cura escala. Cura = curaVida da vida máxima + curaInt por ponto de Inteligência acima de 3, nunca
+// menos que `cura` (38, o valor fixo de antes). Conta: curaDe() logo abaixo.
+export const CURA = { nome: 'Cura', tipo: 'Magia', anim: A.heal, ts: 1.2, at: 0.55, cura: 38, curaVida: 0.15, curaInt: 3, cd: 8, mana: 25, fx: true, time: 0.5, timeR: 8, desc: 'Recupera 15% da sua vida máxima mais 3 por ponto de Inteligência (no mínimo 38). Quem é do seu time e está perto (8 m) recebe metade.' }; // time: André 2026-11-09
+export const curaDe = (h, vidaMax = 0, int = 3) => Math.max(h.cura, Math.round((h.curaVida || 0) * vidaMax + (h.curaInt || 0) * Math.max(0, (int ?? 3) - 3)));
 export const ESPACOS_ESPADA = 4, ESPACOS_MAGIA = 4; // 4 de espada (modo espada) e 4 de magia (modo magia); o botão Trocar alterna
 export const ESPACOS_BUILD = ESPACOS_ESPADA + ESPACOS_MAGIA;
 // a build é a lista das 8: primeiro as 4 de espada, depois as 4 de magia
