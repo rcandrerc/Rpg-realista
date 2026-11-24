@@ -1177,6 +1177,10 @@ export class Simulacao {
     else if (E.ja === 'carrinho') feito = (p.carrinho?.lv || 0) >= (E.min || 1); // carrinho já no nível pedido
     else if (E.ja === 'totem') feito = (p.totens || []).includes(E.k); // já tocou esse totem antes
     else if (E.ja === 'arma') feito = Math.max(p.equip?.espada?.r ?? -1, p.equip?.cajado?.r ?? -1) >= (E.min || 0); // arma equipada dessa raridade
+    else if (E.ja === 'recrutas') feito = (p.cla?.m?.length || 0) >= (E.min || 1); // Ato do Clã: já tem os recrutas pedidos
+    else if (E.ja === 'cla_nv') feito = !!p.cla && (p.cla.nv || 1) >= (E.min || 1); // o clã já está no nível pedido
+    else if (E.ja === 'escolta') feito = !!this.baseDe?.(j)?.missaoOk; // já cumpriu uma Escolta do Clã
+    else if (E.ja === 'guerra') feito = j.guerra === true; // fora da zona segura, acima da Trégua (shared/guerra.js)
     else if (E.ja === 'cofre') feito = (p.cla?.cofre || 0) >= (E.min || 1); // o cofre do clã já tem o que a etapa pede
     else if (E.ja === 'carro_ok') feito = !!p.carrinho && !p.carrinho.quebrado && p.carrinho.vida >= VEICULOS.carrinho.vida; // inteiro
     if (!feito && E.ev === 'ter') {

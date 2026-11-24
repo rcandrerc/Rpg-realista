@@ -149,6 +149,7 @@ export const MissaoCla = {
     // todos que estiverem no time ganharam um nível, parabéns"): cada recruta pelo nome
     if (L && !L.bot) this.evento({ t: 'missaoCla', para: L.id, fim: 1, ok: 1, nome: M.dest.nome, subiu, ouro, alma: alma ? Mc.alma : 0 });
     this.avisoMissao(M, `Escolta do Clã cumprida! ${nomes.join(', ')} ganharam 1 nível de XP; +${ouro} de ouro no cofre${alma}.`);
+    if (L && !L.bot) this.historia?.(L, 'escolta'); // Ato do Clã: "A primeira escolta"
     if (L && !L.bot) this.avisarProg(L);
   },
   // Clãs bot (regra do André: todo recurso de clã é igual para jogador e bot): a cada CLA.missao.entre o líder bot faz a

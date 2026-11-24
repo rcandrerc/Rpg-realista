@@ -75,7 +75,7 @@ const verCliente = (lista) => {
   for (const e of lista) if (e.t === 'prog' && e.para === 'A') { cli.hi = e.hi; veio = true; }
   const a = cli.hi?.alvo, M = HISTORIA[h()?.p];
   // etapa que acontece num lugar sem o Ir: o jogador não sabe para onde ir
-  const E = veio && h()?.ac ? etapa() : null, semLugar = ['montar', 'criar', 'destruir', 'reforcar', 'barra', 'atributo', 'pesca', 'noite', 'time', 'arma', 'evoluir', 'resetar', 'leilao', 'sintetizar', 'diaria_vista', 'diaria', 'base', 'cofre'];
+  const E = veio && h()?.ac ? etapa() : null, semLugar = ['montar', 'criar', 'destruir', 'reforcar', 'barra', 'atributo', 'pesca', 'noite', 'time', 'arma', 'evoluir', 'resetar', 'leilao', 'sintetizar', 'diaria_vista', 'diaria', 'base', 'cofre', 'escolta', 'cla_nivel', 'guerra', 'guerra_matar'];
   const naMochila = semLugar.includes(cli.hi?.ev) || cli.hi?.ev === 'veiculo' || /^(.*: )?junte ouro/.test(cli.hi?.txt || ''); // o que falta se faz na mochila (destruir, criar ferramenta, radar...)
   if (E && !a && !(semLugar.includes(E.ev) && !E.alvo) && !naMochila) bug(`semIr:${M.id}:${h().e}`, `${M.id} etapa ${h().e + 1} (${E.ev}): o botão Ir não tem para onde levar`);
   if (a && M && zonaFechadaEm(p, a.x, a.z)) bug(`nevoa:${M.id}:${cli.hi.e}`, `${M.id} etapa ${cli.hi.e + 1}: o Ir leva para dentro da névoa (${a.nome})`);
@@ -221,6 +221,13 @@ falar('comerciante'); ok(missao() === 'd1' && h().ac && contar(p.mochila, 'semen
 s.diaria('A', { acao: 'ver' }); ok(etapa().ev === 'diaria', 'abriu a aba Diárias');
 for (let k = 0; k < 5; k++) s.historia(j, 'pesca', { k: 'lambari', n: 1 });
 falar('comerciante'); fim('d1');
+// Ato do Clã (André 2026-11-23): Soldados da Chama, com o Sargento Bruno
+falar('recrutador'); ok(missao() === 'k1' && h().ac, 'Bruno: soldados da Chama');
+p.cla = { n: 'Teste', c: Date.now(), cofre: 0, sem: Date.now() + 1e9, m: [], log: [], nv: 1 }; correr(0.6); ok(h().e === 0, 'clã sem recruta não passa');
+s.historia(j, 'recrutar', { v: 1 }); ok(etapa().ev === 'time', 'contratou o recruta');
+j.time = { lider: 'A', membros: ['A', 'rk1'] }; correr(0.6); ok(etapa().ev === 'matar', 'recruta no time');
+{ const ci = s.cacas.findIndex((c) => c.def.id === 'caca5'); for (let k = 0; k < 8; k++) s.contarHistoria(j, { tipo: s.cacas[ci].def.tipos[0], sp: { caca: ci } }); } falar('recrutador'); fim('k1');
+j.time = null; delete p.cla;
 falar('ferreiro'); ok(missao() === 'a15' && contar(p.mochila, 'selo_raro') >= 1, 'Tomás deu o Selo Raro');
 s.historia(j, 'destruir', {}); s.historia(j, 'evoluir', { v: 0 }); ok(h().e === 1, 'evoluir para Comum não conta');
 s.historia(j, 'evoluir', { v: 1 }); s.historia(j, 'reforcar', { v: 1 }); s.historia(j, 'reforcar', { v: 2 }); falar('ferreiro'); fim('a15');
@@ -258,6 +265,8 @@ subir(18); falar('guardiao'); ok(missao() === 'b3', 'Gaspar deu o passe');
 dar('passe_caverna', 1); correr(0.6); ok(etapa().ev === 'time', 'já tinha o passe: falta o time');
 const B = s.adicionarJogador('B', 'Bia'); B.time = j.time = { lider: 'A', membros: ['A', 'B'] }; correr(0.6); ok(etapa().ev === 'falar', 'com alguém no time');
 falar('guardiao'); fim('b3');
+falar('recrutador'); ok(missao() === 'k2' && h().ac, 'Bruno: a primeira escolta');
+s.historia(j, 'escolta'); ok(etapa().ev === 'falar', 'escolta cumprida'); falar('recrutador'); fim('k2');
 subir(20); ok(!liberado(p, '1e'), 'a caverna ainda fechada');
 falar('guardiao'); ok(missao() === 'h6' && liberado(p, '1e'), 'O Trono vazio: a caverna abre ao aceitar');
 s.historia(j, 'passe', { k: 'usar' }); ok(h().e === 1, 'usou o passe');
@@ -286,6 +295,12 @@ for (const [x, z] of etapa().pontos) { ok(!zonaFechadaEm(p, x, z) && !noLago(x, 
 const ci10 = s.cacas.findIndex((c) => c.def.id === 'caca10');
 for (let k = 0; k < 8; k++) s.contarHistoria(j, { tipo: 'imp', sp: { caca: ci10 } });
 chefe('cacador'); falar('lider'); fim('b6');
+falar('lider'); ok(missao() === 'k3' && h().ac, 'Aldo: um clã que cresce');
+p.cla = { n: 'Teste', c: Date.now(), cofre: 0, sem: Date.now() + 1e9, m: [], log: [], nv: 1 }; p.cla.m.push({ id: 'rk1', nome: 'Rk' }); correr(0.6); ok(h().e === 0, 'clã Nv 1 não passa');
+s.historia(j, 'cla_nivel', { v: 2 }); ok(etapa().ev === 'recrutar', 'clã subiu para o Nv 2');
+s.historia(j, 'recrutar', { v: 1 }); ok(etapa().ev === 'recrutar', 'um recruta só não basta');
+p.cla.m.push({ id: 'rk2', nome: 'Rk2' }); correr(0.6); ok(etapa().ev === 'falar', 'com 2 recrutas passa'); falar('lider'); fim('k3');
+delete p.cla;
 ok(zonaFechadaEm(p, 206, 166), 'o Bráulio ainda está atrás da névoa antes da Brasa-Antiga');
 subir(27); falar('lider'); ok(missao() === 'h7' && liberado(p, '1f'), 'Brasa-Antiga: as Terras dos Golens abrem');
 ok(!zonaFechadaEm(p, 206, 166), 'com a missão aceita, a névoa do Bráulio abre');
@@ -311,6 +326,10 @@ ok(ev.some((e) => e.t === 'aviso' && /Ela vai gostar de saber/.test(e.texto)) &&
 ok(!s.inimigos.some((e) => e.hc === 'kael'), 'o corpo do Kael sumiu');
 ok(etapa().ev === 'pos', 'duelo conta como vencido');
 ir(196, 202); correr(0.6); falar('reset'); fim('b11');
+falar('lider'); ok(missao() === 'k4' && h().ac, 'Aldo: o fim da Trégua');
+j.guerra = true; s.checarEtapa(j); ok(etapa().ev === 'guerra_matar', 'fora da zona segura, na guerra');
+s.historia(j, 'guerra_matar'); ok(etapa().ev === 'ter', 'derrubou alguém da Geada');
+dar('alma_geada', 1); correr(0.6); falar('lider'); fim('k4'); j.guerra = false;
 ok(s.histInfo(j).titulo === 'Sentinela da Ordem' && contar(p.mochila, 'peitoral') >= 1, 'título do ato e o peitoral Raro +5');
 ok(missao() === 'c1', 'depois do Ato II vem o capítulo 9 (A cidade da ponte)');
 
