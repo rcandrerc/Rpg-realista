@@ -8,7 +8,7 @@ import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
 import { Transporte, carrinhoNovo, topoCarrinho, lugarDoVeiculo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
 import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo, IA_CONVERSA, LIDERES_CLA } from './dados.js';
-import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
+import { HISTORIA, HISTORIA_PREMIO, POCAO_VIGOR_MISSAO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito, npcApareceu } from './historia.js'; // progressão (André 2026-11-10)
 import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS, VISAO } from './dados.js'; // bosses de mundo (André 2026-11-11)
 import { ECONOMIA, precoLoja } from './dados.js'; // economia (André 2026-11-16)
@@ -1278,6 +1278,7 @@ export class Simulacao {
     const ouro = (abre ? P.ouro : P.ouroEtapa) * M.nv; p.ouro = (p.ouro || 0) + ouro; this.caixa(j, 'missao', ouro);
     this.evento({ t: 'aviso', para: j.id, texto: `Missão cumprida: ${M.nome} (+${ouro} de ouro)` });
     if (M.presente) this.darItens(j, M.presente);
+    if (M.cap <= POCAO_VIGOR_MISSAO.ateCap && POCAO_VIGOR_MISSAO.n > 0) this.darItens(j, { pocao_vigor: POCAO_VIGOR_MISSAO.n }); // Ato I: poções de vigor (André 2026-11-24)
     if (M.gravar) this.gravarEstrela(j); // capítulo 15: o Tomás grava a estrela na arma (+1 de reforço)
     if (M.titulo) this.evento({ t: 'aviso', para: j.id, texto: `Título novo: ${M.titulo}` }); // título do ato (histInfo.titulo)
     this.evento({ t: 'historia', para: j.id, id: M.id, libera: M.libera });
@@ -1989,7 +1990,7 @@ export class Simulacao {
       } else {
         const u = ITENS[it.k].usar;
         const rc = ((j.pocaoAte ||= {})[it.k] || 0) - this.tempo; // recarga (POCAO_RECARGA)
-        if (rc > 0 && !ITENS[it.k].comida) return aviso(`Espere ${Math.ceil(rc)} s para outra ${ITENS[it.k].nome.toLowerCase()}`);
+        if (rc > 0 && !ITENS[it.k].comida && !u.vigor) return aviso(`Espere ${Math.ceil(rc)} s para outra ${ITENS[it.k].nome.toLowerCase()}`);
         if (ITENS[it.k].comida) {
           // prato do fogão (2026-11-07): vale comer se ao menos uma coisa não está cheia (vida, mana ou vigor)
           // André 2026-11-24: prato com buff sempre vale comer (o buff é o motivo)
@@ -2007,8 +2008,9 @@ export class Simulacao {
         } else {
         if (u.vida) { if (j.vida >= j.vidaMax) return aviso('A vida já está cheia'); const n = Math.min(j.vidaMax - j.vida, Math.round(j.vidaMax * u.vida)); j.vida += n; this.evento({ t: 'cura', alvo: j.id, n }); }
         if (u.mana) { if (j.mana >= j.manaMax) return aviso('A mana já está cheia'); j.mana = Math.min(j.manaMax, j.mana + j.manaMax * u.mana); }
+        if (u.vigor) { const agora = Date.now(); if (vigorAgora(p.vigor, agora) >= vigorMax(p)) return aviso('O vigor já está cheio'); const g = ganharVigor(p, u.vigor, agora); j.progSujo = true; aviso(`+${Math.round(g)} de vigor`); this.avisarProg(j); }
         }
-        if (!ITENS[it.k].comida) j.pocaoAte[it.k] = this.tempo + POCAO_RECARGA; // comida sem recarga (André 2026-11-07: "por enquanto, sem limite")
+        if (!ITENS[it.k].comida && !u.vigor) j.pocaoAte[it.k] = this.tempo + POCAO_RECARGA; // comida sem recarga (André 2026-11-07: "por enquanto, sem limite")
       }
       if (--it.n <= 0) p.mochila[i] = null;
     } else if (m.acao === 'cadeado' && (it || (typeof m.lugar === 'string' && Object.hasOwn(p.equip, m.lugar) && p.equip[m.lugar]))) {
