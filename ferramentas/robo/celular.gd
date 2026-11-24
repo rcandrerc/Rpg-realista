@@ -184,10 +184,15 @@ func _medir_menu(m) -> void:
 		var t2 := Time.get_ticks_usec()
 		m.menu.atualizar()
 		var at := (Time.get_ticks_usec() - t2) / 1000.0
+		var volta := -1.0 # a volta de 3 s da aba Clã (menu.gd atualizar_do_servidor): sem mudança, só os números
+		if m.menu.has_method("atualizar_do_servidor"):
+			var t3 := Time.get_ticks_usec()
+			m.menu.atualizar_do_servidor()
+			volta = (Time.get_ticks_usec() - t3) / 1000.0
 		var nos: int = m.menu.conteudo.get_child_count()
 		m.menu.fechar()
 		m.P.cla = cla_real
-		print("CELULAR menu %s abrir mediana %.1f ms maior %.1f ms, atualizar %.1f ms, %d itens" % [aba, _pct(ds, 0.5), _pct(ds, 1.0), at, nos])
+		print("CELULAR menu %s abrir mediana %.1f ms maior %.1f ms, atualizar %.1f ms, volta do servidor %.1f ms, %d itens" % [aba, _pct(ds, 0.5), _pct(ds, 1.0), at, volta, nos])
 
 func _pct(a: PackedFloat32Array, q: float) -> float:
 	if a.is_empty():
