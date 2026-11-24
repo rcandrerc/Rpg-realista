@@ -4205,6 +4205,7 @@ export class Simulacao {
         this.titulosDaVitoria(j, c); // títulos (André 2026-11-12): conta o monstro, boss de mundo e chefe da história
         this.contarHistoria(j, c); // missão principal (André 2026-11-10)
       }
+      if (c.bm) this.anunciarBoss(c); // boss de mundo: faixa para todos com o que caiu e a janela do loot de quem ganhou
       for (const ctx of this.amigosIa) ctx.cacaJuntosAmiga?.(ganham, c); // caçar junto com a Cecília/Dario sobe a amizade (André 2026-11-14)
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
       if (c.sp.missao) this.mobMissaoMorreu(c); // Escolta do Clã: o corpo some e não volta (shared/missao-cla.js)
@@ -4782,8 +4783,23 @@ export class Simulacao {
     this.aoBosses?.({ ...this.bossVolta });
     c.skillSeq++; c.voando = false;
     const quem = [...(c.atacantes || [])].map((id) => this.jogadores.get(id)?.nome).filter(Boolean);
-    this.anunciarTela('BOSS DE MUNDO DERROTADO', `${B.nome} caiu${quem.length ? ' para ' + quem.slice(0, 5).join(', ') : ''}! Volta em umas ${h.toFixed(1).replace('.', ',').replace(',0', '')} h`, 'caiu');
+    // a faixa sai depois dos drops (anunciarBoss), com o que cada um ganhou (André 2026-11-24)
+    c.anuncioBoss = { titulo: `${B.nome} caiu${quem.length ? ' para ' + quem.slice(0, 5).join(', ') : ''}! Volta em umas ${h.toFixed(1).replace('.', ',').replace(',0', '')} h`, loot: [] };
     this._bossLista = 0;
+  }
+  // André 2026-11-24: "quando matar boss queria anúncio no servidor completo quem matou e o que foi dropado pra todos e pra
+  // quem matou também aparecer uma janela dos itens dropados... só depois que essas coisas baixarem pra não atrasar".
+  // Todo o servidor: a faixa de sempre (quem derrubou, quando volta) com uma linha por herói do que caiu de bom (sem poção).
+  // Quem ganhou drop (jogador ou bot, mesma regra): a janela com tudo o que caiu, DROP_BOSS.janela s depois (o loot já subiu na tela).
+  anunciarBoss(c) {
+    const A = c.anuncioBoss; if (!A) return; delete c.anuncioBoss;
+    const B = BOSSES_MUNDO[c.bm], L = DROP_BOSS.anuncio, bons = (l) => l.itens.filter((it) => !it.comum);
+    const comDrop = A.loot.filter((l) => bons(l).length);
+    const lista = comDrop.slice(0, L.linhas).map((l) => `${l.nome}: ${bons(l).map((it) => (it.n > 1 ? `${it.n}x ` : '') + it.nome).join(', ')}`);
+    if (comDrop.length > L.linhas) lista.push(`e mais ${comDrop.length - L.linhas} herói${comDrop.length - L.linhas > 1 ? 's' : ''}`);
+    const ev = { t: 'anuncio', cab: 'BOSS DE MUNDO DERROTADO', titulo: A.titulo, cor: 'caiu', ...(lista.length ? { lista } : {}) };
+    if (this.aoAnuncioTela) this.aoAnuncioTela(ev); else this.evento(ev);
+    for (const l of A.loot) if (l.itens.length || l.ouro) this.depois(DROP_BOSS.janela, () => this.evento({ t: 'lootBoss', para: l.id, boss: B.nome, ouro: l.ouro, itens: l.itens }));
   }
   // um passo do boss com alvo (ou sem). true = ele está ocupado (lançou uma skill), o resto do passoInimigo não roda
   passoBoss(b, alvo, dt) {
@@ -4927,8 +4943,15 @@ export class Simulacao {
     }
   }
   dropBoss(c, j) {
-    const B = BOSSES_MUNDO[c.bm], D = B.drop, p = j.prog, ganhou = [];
-    const por = (it) => { if (filtrado(p, it)) return; const q = guardarQueCabe(p.mochila, it); if (q) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); if (q < (it.n || 1)) this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
+    const B = BOSSES_MUNDO[c.bm], D = B.drop, p = j.prog, ganhou = [], tudo = [];
+    // tudo: a janela do loot (anunciarBoss). r = cor da raridade (catalisador: a do degrau dele); chao = mochila cheia; comum = poção (fora da faixa)
+    const rarCat = (k) => { const i = Math.max(CATALISADOR.arma.indexOf(k), CATALISADOR.armadura.indexOf(k)); return i >= 0 ? i + 1 : -1; };
+    const por = (it) => {
+      if (filtrado(p, it)) return; const q = guardarQueCabe(p.mochila, it), n = it.n || 1;
+      if (q) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 });
+      if (q < n) this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` });
+      tudo.push({ nome: nomeItem(it), n, r: it.r ?? rarCat(it.k), ...(q < n ? { chao: n - q } : {}), ...(it.k === 'pocao' ? { comum: 1 } : {}) });
+    };
     const ouro = Math.round((c.nivel || 1) * (DROP_BOSS.ouro[0] + Math.random() * (DROP_BOSS.ouro[1] - DROP_BOSS.ouro[0])) * (ECONOMIA.ouroBoss ?? 1));
     if (ouro) { p.ouro += ouro; this.caixa(j, 'boss', ouro); }
     por({ k: 'pocao', n: DROP_BOSS.pocao[0] + Math.floor(Math.random() * (DROP_BOSS.pocao[1] - DROP_BOSS.pocao[0] + 1)) });
@@ -4945,6 +4968,7 @@ export class Simulacao {
       if (sk.length) { const h = sk[Math.floor(Math.random() * sk.length)]; por({ k: 'tomo', h, nv: Math.max(NIVEL_SEM_TOMO + 1, (p.habs[h]?.nv || 1) + 1), n: 1 }); }
     }
     this.evento({ t: 'drop', para: j.id, x: r2(c.x), z: r2(c.z), ouro, itens: ganhou });
+    c.anuncioBoss?.loot.push({ id: j.id, nome: j.nome, ouro, itens: tudo });
     this.avisarProg(j);
   }
 

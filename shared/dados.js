@@ -1582,7 +1582,8 @@ export const BOSSES_MUNDO = {
 // Rara (monstro só solta até Rara: Épico+ só craftando); tomo = chance; cat = raridade do catalisador garantido
 // (1 Épico, 2 Lendário, na lista CATALISADOR: runa ou selo, sorteado); mitico = chance de um catalisador Mítico (runa
 // ou selo). Hoje o Mítico não sai da Mirela: é a fonte nova (André 2026-11-11).
-export const DROP_BOSS = { ouro: [8, 12], tomo: 0.35, pocao: [2, 4] };
+// janela = s depois do boss cair para abrir a janela do loot de quem ganhou; anuncio.linhas = heróis listados na faixa (André 2026-11-24)
+export const DROP_BOSS = { ouro: [8, 12], tomo: 0.35, pocao: [2, 4], janela: 2.5, anuncio: { linhas: 4 } };
 
 // ---------- Dungeon: Caverna da Montanha (pedido do André 2026-11-06) ----------
 // O túnel (forma, chão, teto, porta) fica em shared/caverna.js. Aqui o conteúdo:

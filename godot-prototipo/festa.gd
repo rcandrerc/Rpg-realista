@@ -127,9 +127,35 @@ func do_aviso(t: String) -> bool:
 # Boss de mundo (André 2026-11-12: "quando renascer, foi até anunciar assim na tela mesmo e depois sumir, mas ficar
 # no chat permanente tá poluindo o visual"): o servidor manda a todos online (evento "anuncio") e aqui vira a janelinha
 # do sistema que abre, fica uns segundos e some. Nada vai para o chat.
-func anuncio(cab: String, titulo: String, tom: String) -> void:
+# André 2026-11-24: a do boss derrotado traz uma linha por herói com o que caiu ("Ana: Selo Lendário, Espada Rara").
+func anuncio(cab: String, titulo: String, tom: String, lista: Array = []) -> void:
 	var cor: Color = VERMELHO if tom == "boss" else (OURO if tom == "mitico" else SISTEMA)
-	_faixa({"tipo": "pequena", "cab": cab, "titulo": titulo, "cor": cor, "dur": 3.6, "som": "festa_libera" if tom != "caiu" else "festa_sucesso"})
+	var l := []
+	for x in lista:
+		l.append(Idioma.frase(str(x)))
+	_faixa({"tipo": "pequena", "cab": cab, "titulo": titulo, "cor": cor, "dur": 3.6 + 1.2 * l.size(), "lista": l, "som": "festa_libera" if tom != "caiu" else "festa_sucesso"})
+
+# Janela do loot do boss (André 2026-11-24: "vc mata o Boss e nem sabe direito o que caiu"): só para quem ganhou drop,
+# chega DROP_BOSS.janela s depois da morte (o drop já subiu na tela) e entra na fila depois da faixa de todos. Cada item na
+# cor da raridade; o que não coube na mochila diz "ficou no chão". Fica uns segundos; tocar nela fecha antes (atalho).
+func loot_boss(boss: String, ouro: int, itens: Array) -> void:
+	var l := []
+	if ouro > 0:
+		l.append(["+%d ouro" % ouro, OURO])
+	for it in itens:
+		if not (it is Dictionary):
+			continue
+		var r := int(it.get("r", -1))
+		var cor: Color = Color(m.P.dados.raridades[r].cor) if r >= 0 and m.P and m.P.get("dados") and r < m.P.dados.raridades.size() else Color("e8f0ff")
+		var n := int(it.get("n", 1))
+		var t := ("%dx " % n if n > 1 else "") + Idioma.frase(str(it.get("nome", "")))
+		if int(it.get("chao", 0)) > 0:
+			t += Idioma.frase(" (mochila cheia, ficou no chão)")
+		l.append([t, cor.lerp(Color.WHITE, 0.15)])
+	if l.is_empty():
+		return
+	_faixa({"tipo": "grande", "cab": "ESPÓLIO DO BOSS", "titulo": boss, "sub": "Já está na sua mochila", "lista": l, "cor": OURO, "tit": OURO_CLARO,
+		"dur": 5.0 + 0.6 * l.size(), "som": "festa_missao", "faiscas": 22, "loot": true})
 
 # Subiu de nível (André 2026-11-11: "tem que ser mais pro canto, lá em cima, de maneira que não atrapalhe se o jogador
 # estiver em combate, e já ter um botãozinho de atalho que te leva pra distribuir os pontos"): janelinha do sistema
@@ -180,6 +206,9 @@ func _canto_botao(tam: Vector2) -> Rect2:
 
 # hud.gd pergunta antes de virar câmera/joystick: toque no botão "+N PONTOS" abre a aba Status e fecha a janelinha
 func atalho(p: Vector2) -> bool:
+	if not _atual.is_empty() and _atual.get("loot", false) and _t > 0.4 and _faixa_rect(_tela.size).grow(10.0).has_point(p):
+		_atual.dur = min(float(_atual.dur), _t + 0.22) # janela do loot: toque fecha encolhendo
+		return true
 	if _canto.is_empty() or _canto_pontos() <= 0 or float(_canto.t) < 0.25:
 		return false
 	if not _canto_botao(_tela.size).grow(10.0).has_point(p):
@@ -434,17 +463,31 @@ static func _volta(x: float) -> float: # ease-out com passadinha
 # Janela do "sistema" (estilo anime, André 2026-11-11): painel azul-escuro translúcido com borda azul brilhante,
 # cantoneiras, linhas de varredura fracas. Abre rápido: um risco de luz cresce na horizontal (0,12 s) e o painel abre
 # na vertical (0,14 s); o texto pisca duas vezes ao entrar, como tela ligando. Fecha encolhendo de volta para o risco.
+# tamanho da janela do meio aberta (o toque na janela do loot usa)
+func _faixa_rect(tam: Vector2) -> Rect2:
+	var f := _atual
+	var grande: bool = f.tipo == "grande"
+	var lista: Array = f.get("lista", [])
+	var extra: float = 24.0 * lista.size() + (8.0 if not lista.is_empty() else 0.0)
+	var W: float = min(tam.x * 0.9, 600.0 if grande else 470.0)
+	var H: float = ((138.0 if f.sub != "" else 116.0) if grande else 84.0) + extra
+	var cy: float = tam.y * (0.36 if grande else 0.25)
+	if grande and lista.size() > 3: # lista comprida (loot do boss): sobe para caber na tela
+		cy = max(H * 0.5 + 12.0, min(cy, tam.y - H * 0.5 - 12.0))
+	return Rect2(tam.x * 0.5 - W * 0.5, cy - H * 0.5, W, H)
+
 func _desenhar_faixa(tam: Vector2) -> void:
 	var f := _atual
 	var dur: float = f.dur
 	var grande: bool = f.tipo == "grande"
 	var cor: Color = f.cor
-	var W: float = min(tam.x * 0.9, 600.0 if grande else 470.0)
-	var lista: Array = f.get("lista", []) # linhas a mais embaixo (Escolta do Clã: cada recruta que subiu de nível)
+	var R0 := _faixa_rect(tam)
+	var W: float = R0.size.x
+	var lista: Array = f.get("lista", []) # linhas a mais embaixo (Escolta do Clã: cada recruta que subiu de nível; loot do boss: [texto, cor])
 	var extra: float = 24.0 * lista.size() + (8.0 if not lista.is_empty() else 0.0)
-	var H: float = ((138.0 if f.sub != "" else 116.0) if grande else 84.0) + extra
+	var H: float = R0.size.y
 	var cx: float = tam.x * 0.5
-	var cy: float = tam.y * (0.36 if grande else 0.25)
+	var cy: float = R0.get_center().y
 	# abrir / fechar
 	var risco: float = clamp(_t / 0.12, 0.0, 1.0)
 	var abre: float = clamp((_t - 0.12) / 0.14, 0.0, 1.0)
@@ -500,13 +543,18 @@ func _desenhar_faixa(tam: Vector2) -> void:
 	var t_tit: int = 46 if grande else 26
 	while t_tit > 18 and fonte.get_string_size(titulo, HORIZONTAL_ALIGNMENT_LEFT, -1, t_tit).x > w - 40.0:
 		t_tit -= 2
-	var y_tit: float = (cy - extra * 0.5 + t_tit * 0.42 + 4.0 - (10.0 if f.sub != "" else 0.0)) if grande else cy + t_tit * 0.42 + 8.0
+	var y_tit: float = (cy - extra * 0.5 + t_tit * 0.42 + 4.0 - (10.0 if f.sub != "" else 0.0)) if grande else cy - extra * 0.5 + t_tit * 0.42 + 8.0
 	var esc: float = 1.0 + (1.0 - _volta(clamp(tt / 0.3, 0.0, 1.0))) * 0.12
 	_texto_centro(titulo, Vector2(cx, y_tit), t_tit, f.get("tit", Color(0.93, 0.98, 1.0)), at, esc, 0, cor)
 	if grande and f.sub != "":
 		_texto_centro(f.sub, Vector2(cx, r.end.y - 14.0 - extra), 17, Color(0.72, 0.86, 0.95), at * clamp((tt - 0.25) / 0.2, 0.0, 1.0), 1.0, 0, cor)
 	for i in lista.size():
-		_texto_centro(str(lista[i]), Vector2(cx, r.end.y - extra + 10.0 + 24.0 * i), 18, Color("ffe7a8"), at * clamp((tt - 0.35 - 0.12 * i) / 0.2, 0.0, 1.0), 1.0, 0, cor)
+		var li = lista[i]
+		var txt: String = str(li[0]) if li is Array else str(li)
+		var t_li := 18
+		while t_li > 12 and fonte.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, t_li).x > w - 36.0: # linha comprida (faixa do boss) encolhe
+			t_li -= 1
+		_texto_centro(txt, Vector2(cx, r.end.y - extra + 10.0 + 24.0 * i), t_li, li[1] if li is Array else Color("ffe7a8"), at * clamp((tt - 0.35 - 0.12 * i) / 0.2, 0.0, 1.0), 1.0, 0, cor)
 
 # janelinha do nível no alto (mesmo visual da janela do sistema, pequena): abre num risco de luz, texto à esquerda
 # ("NÍVEL AUMENTOU" / "NÍVEL 12") e, com pontos livres, o botão "+N PONTOS / DISTRIBUIR" à direita, que pulsa de leve

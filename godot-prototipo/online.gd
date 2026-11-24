@@ -1401,9 +1401,13 @@ func evento(ev: Dictionary) -> void:
 			return
 		"anuncio": # boss de mundo apareceu, caiu ou soltou Mítico: faixa na tela que some (festa.gd), fora do chat
 			if m.hud.festa:
-				m.hud.festa.anuncio(str(ev.get("cab", "")), str(ev.get("titulo", "")), str(ev.get("cor", "boss")))
+				m.hud.festa.anuncio(str(ev.get("cab", "")), str(ev.get("titulo", "")), str(ev.get("cor", "boss")), ev.get("lista", []))
 			else:
 				m.hud.aviso(str(ev.get("titulo", "")))
+			return
+		"lootBoss": # boss de mundo que eu ajudei a derrubar: janela com tudo o que caiu (festa.gd), uns segundos depois do drop
+			if m.hud.festa:
+				m.hud.festa.loot_boss(str(ev.get("boss", "")), int(ev.get("ouro", 0)), ev.get("itens", []))
 			return
 		"chat", "chatHist": # chat geral e de amigos (chat.gd)
 			if m.chat:
