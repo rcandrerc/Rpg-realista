@@ -19,6 +19,10 @@ function endereco() {
   const ws = location.protocol === 'https:' ? 'wss' : 'ws', porta = location.port === '5173' ? '2567' : location.port;
   return `${ws}://${location.hostname}${porta ? ':' + porta : ''}`;
 }
+// navegador antigo (tablet do André, 2026-11-24) não tem AbortSignal.timeout: o mesmo com AbortController
+const prazo = (ms) => { const c = new AbortController(); setTimeout(() => c.abort(), ms); return c.signal; };
+// replaceChildren também é novo (Chrome 86): limpa do jeito antigo
+const limpar = (e) => { while (e.firstChild) e.removeChild(e.firstChild); };
 const http = () => endereco().replace(/^ws/, 'http');
 
 function estado(txt, tipo = '') { const e = $('estado'); e.className = 'estado ' + tipo; e.lastElementChild.textContent = txt; }
@@ -29,7 +33,7 @@ function aviso(txt) { const a = $('aviso'); a.textContent = txt; a.hidden = fals
 async function sessaoValida() {
   const s = ler('sessao'); if (!s) return null;
   try {
-    const r = await fetch(http() + '/conta/eu', { headers: { Authorization: 'Bearer ' + s }, signal: AbortSignal.timeout(8000) });
+    const r = await fetch(http() + '/conta/eu', { headers: { Authorization: 'Bearer ' + s }, signal: prazo(8000) });
     if (r.ok) return s;
     if (r.status === 401) gravar('sessao', null);
   } catch { return s; } // sem internet agora: tenta entrar na sala com ela mesmo
@@ -47,7 +51,7 @@ function login() {
       g.initialize({ client_id: GOOGLE_CLIENT_ID, ux_mode: 'popup', callback: async ({ credential }) => {
         $('entrarErro').textContent = 'Entrando…';
         try {
-          const r = await fetch(http() + '/conta/entrar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credencial: credential, modo: 'entrar' }), signal: AbortSignal.timeout(8000) });
+          const r = await fetch(http() + '/conta/entrar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credencial: credential, modo: 'entrar' }), signal: prazo(8000) });
           const d = await r.json().catch(() => ({}));
           if (!r.ok) throw new Error(d.semConta ? 'Essa conta Google ainda não tem personagem. Crie no jogo primeiro.' : d.erro || 'O servidor recusou o login.');
           gravar('sessao', d.sessao);
@@ -133,7 +137,7 @@ function cartaoMembro(m) {
   const o = el('div', 'ordem'), fn = el('select'), extra = el('select');
   for (const F of info.funcoes) fn.append(opcao(F.id, F.nome, (m.fn?.k || 'livre') === F.id));
   const montarExtra = () => {
-    extra.replaceChildren(); extra.hidden = true;
+    limpar(extra); extra.hidden = true;
     if (fn.value === 'recurso') { for (const R of info.recursos) extra.append(opcao(R.k, R.nome, m.fn?.r === R.k)); extra.hidden = false; }
     if (fn.value === 'fazenda') { extra.append(opcao('', 'Só colher e regar', !m.fn?.s)); for (const P of info.plantas) extra.append(opcao(P.k, `Plantar ${P.nome.toLowerCase()}`, m.fn?.s === P.k)); extra.hidden = false; }
     if (fn.value === 'proteger') {
@@ -156,7 +160,7 @@ function cartaoMembro(m) {
 }
 
 function desenharCla() {
-  const raiz = $('cla'); raiz.replaceChildren();
+  const raiz = $('cla'); limpar(raiz);
   if (info.sem) { raiz.append(el('div', 'vazio', 'Você ainda não tem clã. Funde um no jogo, no painel do Clã.')); return; }
   const t = el('div', 'card');
   if (info.vencida) t.append(el('div', 'nome', 'A semana dos recrutas venceu. Entre no jogo para pagar; até lá eles não trabalham pelo painel.'));
@@ -170,7 +174,7 @@ function desenharCla() {
 }
 
 function desenharBots() {
-  const raiz = $('bots'); raiz.replaceChildren();
+  const raiz = $('bots'); limpar(raiz);
   for (const C of info.clas || []) {
     const c = el('div', 'card'), l = el('div', 'linha'), n = el('div', 'nome', C.n);
     n.append(el('span', 'tag', C.raca)); if (C.inimigo) n.append(el('span', 'tag', 'inimigo'));
@@ -182,7 +186,7 @@ function desenharBots() {
 }
 
 function desenharLog() {
-  const raiz = $('log'); raiz.replaceChildren();
+  const raiz = $('log'); limpar(raiz);
   const c = el('div', 'card log');
   if (!info.log?.length) c.append(el('div', 'vazio', 'Nada anotado ainda.'));
   for (const g of info.log || []) { const d = el('div'); d.append(el('small', null, new Date(g.t).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })), document.createTextNode(g.txt)); c.append(d); }
