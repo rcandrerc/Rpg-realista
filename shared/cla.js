@@ -160,6 +160,7 @@ export const Cla = {
       aviso(`${r.nome} entrou no clã! ${T.nome} Nv ${r.nv}. Semana: ${semanaDe(T, r.nv)} de ouro`);
       this.entrarRecrutas(j, r.id); // o novo aparece do lado do líder, no Recrutador
       this.baseDoClaMudou(j); // o próximo lote livre da base é dele (shared/base.js)
+      this.historia?.(j, 'recrutar', { v: c.m.length }); // Ato do Clã: "Soldados da Chama" e "Um clã que cresce"
       return this.avisarProg(j);
     }
     // "Ver" no painel (André 2026-11-23: "não vou controlar eles, mas eu consigo ver"): a visão do servidor (server/visao.js)
@@ -213,6 +214,7 @@ export const Cla = {
       this.logCla(c, `Clã subiu para o Nv ${c.nv}`, -r.N.ouro);
       aviso(`Clã ${c.n} agora é Nv ${c.nv}: ${c.nv} vagas!`);
       this.baseDoClaMudou(j); // a base cresce junto (shared/base.js)
+      this.historia?.(j, 'cla_nivel', { v: c.nv }); // Ato do Clã: "Um clã que cresce"
       return this.avisarProg(j);
     }
     if (m.acao === 'base') return this.fundarBase(j, aviso, m.x != null ? { x: m.x, z: m.z } : null); // funda a base do clã onde o líder está (shared/base.js)

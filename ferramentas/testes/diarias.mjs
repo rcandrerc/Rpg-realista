@@ -105,7 +105,8 @@ for (const D of DIARIAS.lista) {
   // conta que estava no meio da a15 antes da d1 entrar (u = a14, sem at): começa a d1 do zero, sem herdar a etapa
   const h = histValida({ v: 2, p: i, ac: true, e: 1, n: 1, m: 0, u: 'a14' }, 12);
   ok(h.p === i && h.ac === false && h.e === 0, 'quem estava na a15 não herda a etapa na missão nova');
-  const h2 = histValida({ v: 2, p: i + 1, ac: true, e: 1, n: 0, m: 0, u: 'd1', at: 'a15' }, 12);
+  const ia = HISTORIA.findIndex((M) => M.id === 'a15'); // depois da d1 vem a k1 (Ato do Clã, 2026-11-24) e então a a15
+  const h2 = histValida({ v: 2, p: ia, ac: true, e: 1, n: 0, m: 0, u: HISTORIA[ia - 1].id, at: 'a15' }, 12);
   ok(h2.ac && h2.e === 1 && h2.at === 'a15', 'missão aceita com at continua');
   // joga: aceita com a Rosa, abre a aba, faz uma diária, volta
   const t = new Simulacao(MAPA_CLAREIRA); t.relogioMs = () => relogio;

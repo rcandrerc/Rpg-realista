@@ -1177,6 +1177,10 @@ export class Simulacao {
     else if (E.ja === 'carrinho') feito = (p.carrinho?.lv || 0) >= (E.min || 1); // carrinho já no nível pedido
     else if (E.ja === 'totem') feito = (p.totens || []).includes(E.k); // já tocou esse totem antes
     else if (E.ja === 'arma') feito = Math.max(p.equip?.espada?.r ?? -1, p.equip?.cajado?.r ?? -1) >= (E.min || 0); // arma equipada dessa raridade
+    else if (E.ja === 'recrutas') feito = (p.cla?.m?.length || 0) >= (E.min || 1); // Ato do Clã: já tem os recrutas pedidos
+    else if (E.ja === 'cla_nv') feito = !!p.cla && (p.cla.nv || 1) >= (E.min || 1); // o clã já está no nível pedido
+    else if (E.ja === 'escolta') feito = !!this.baseDe?.(j)?.missaoOk; // já cumpriu uma Escolta do Clã
+    else if (E.ja === 'guerra') feito = j.guerra === true; // fora da zona segura, acima da Trégua (shared/guerra.js)
     else if (E.ja === 'cofre') feito = (p.cla?.cofre || 0) >= (E.min || 1); // o cofre do clã já tem o que a etapa pede
     else if (E.ja === 'carro_ok') feito = !!p.carrinho && !p.carrinho.quebrado && p.carrinho.vida >= VEICULOS.carrinho.vida; // inteiro
     if (!feito && E.ev === 'ter') {
@@ -2522,6 +2526,16 @@ export class Simulacao {
   // aparece no chat do time como fala de quem mandou; jogador de verdade recebe também o aviso na tela; NPC obedece.
   comandoTime(id, m) {
     const j = this.jogadores.get(id), C = COMANDOS_TIME, c = typeof m?.c === 'string' ? m.c : '';
+    if (m?.para === '*' && j && !j.bot && j.time && Object.hasOwn(C.pedido, c)) { // "Time todo" (André 2026-11-23): uma fala só, todos obedecem
+      if (this.tempo - (j.comandoT ?? -1e9) < C.entre) return; j.comandoT = this.tempo;
+      const texto = C.pedido[c].replace('{nome}', 'Time');
+      const msg = { canal: 'time', c: j.conta, nome: j.nome, texto, hora: Date.now(), membros: this.contasDoTime(j.time) };
+      if (this.aoChatAmiga) this.aoChatAmiga(msg); else this.receberChat(msg);
+      for (const k of j.time.membros) { const o = k !== j.id && this.jogadores.get(k); if (!o) continue;
+        const npc = this.amigoIaDe(o); if (npc) npc.comandoAmiga(id, c);
+        else if (!o.bot) this.evento({ t: 'comando', para: o.id, de: j.id, nome: j.nome, c, texto: (C.lista.find((x) => x.id === c) || {}).t || c }); }
+      return;
+    }
     const o = typeof m?.para === 'string' ? this.jogadores.get(m.para) : null;
     if (!j || j.bot || !o || o === j || !Object.hasOwn(C.pedido, c) || !j.time || o.time !== j.time) return;
     if (this.tempo - (j.comandoT ?? -1e9) < C.entre) return; j.comandoT = this.tempo;
@@ -2531,6 +2545,17 @@ export class Simulacao {
     const npc = this.amigoIaDe(o);
     if (npc) { npc.ouvirAmiga?.(id, texto); npc.comandoAmiga(id, c); return; }
     if (!o.bot) this.evento({ t: 'comando', para: o.id, de: j.id, nome: j.nome, c, texto: (C.lista.find((x) => x.id === c) || {}).t || c });
+  }
+  // ordem de pack pela barra do time (André 2026-11-23, PACK_TIME): m = { de, pra, para } (para '*' = Time todo; de
+  // 'parar' desfaz). Só os bots do time dele obedecem; cada um anda os trechos (shared/amiga.js passoOrdemPackAmiga).
+  ordemPackTime(id, m) {
+    const j = this.jogadores.get(id), de = String(m?.de || ''), pra = String(m?.pra || ''), para = String(m?.para || '');
+    if (!j || j.bot || !j.time) return;
+    const alvos = j.time.membros.filter((k) => k !== j.id && (para === '*' || k === para)).map((k) => this.jogadores.get(k)).filter((o) => o?.bot);
+    let n = 0;
+    for (const o of alvos) { const ctx = this.amigoIaDe(o); if (ctx?.ordemPackAmiga?.(id, de, pra)) n++; }
+    if (!n) return this.evento({ t: 'aviso', para: id, texto: 'Ninguém do time pode fazer isso agora' });
+    if (de !== 'parar') this.evento({ t: 'aviso', para: id, texto: `Pack: ${n === 1 ? alvos.find((o) => o.ia?.packOrdem)?.nome?.split(/[ ,]/)[0] || '1 bot' : n + ' bots'} indo` });
   }
   time(id, m) {
     const j = this.jogadores.get(id); if (!j || !m) return;
@@ -2613,7 +2638,7 @@ export class Simulacao {
   enviarTime(T) {
     const membros = T.membros.map((k) => this.jogadores.get(k)).filter(Boolean).map((o) => ({
       id: o.id, nome: o.nome, nivel: o.prog.nivel, vida: Math.max(0, Math.round(o.vida)), vidaMax: o.vidaMax, mana: Math.round(o.mana), manaMax: o.manaMax,
-      x: r2(o.x), z: r2(o.z), morto: !!o.morto }));
+      x: r2(o.x), z: r2(o.z), morto: !!o.morto, ...(o.bot ? { bot: 1 } : {}) })); // bot: o app mostra "Time todo" e o Pack (André 2026-11-23)
     for (const k of T.membros) this.evento({ t: 'time', para: k, fase: 'estado', lider: T.lider, membros });
   }
   passoTimes(dt) {
