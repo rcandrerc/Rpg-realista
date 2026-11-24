@@ -876,7 +876,7 @@ export const Cla = {
       // o líder olha o clã e reparte as ordens pelo que falta (CLAS_NPC_ORDENS); quem mudou de ordem larga o que fazia
       const trocou = new Set();
       const cansou = ctxs.some((x) => doM(x)?.fn?.k === 'grind' && this.grindSobraBot(x, x.amiga) <= 0); // acabou a caça do dia: nova ordem já
-      if (CLAS_NPC_ORDENS.ligado && (cansou || !(agora < (E.ordensT || 0)))) { E.ordensT = agora + CLAS_NPC_ORDENS.cada * 1000; for (const id of this.ordensLiderNpc(C, E, L, ctxs, temLote)) trocou.add(id); if (trocou.size) mudou = true; }
+      if (CLAS_NPC_ORDENS.ligado && (cansou || !(agora < (E.ordensT || 0)))) { E.ordensT = agora + CLAS_NPC_ORDENS.cada * 1000; for (const id of this.ordensLiderNpc(C, E, L, ctxs, temLote)) trocou.add(id); if (trocou.size) mudou = true; if (this.exigirRecursosNpc(C, E, L, ctxs)) mudou = true; }
       if (E.visto && !E.foraFeito) {
         E.foraFeito = true;
         const ms = Math.min(CLA.fora.max, agora - E.visto);
@@ -927,6 +927,46 @@ export const Cla = {
     const b = E.bau; if (!b) return;
     const f = Math.floor(contar(b, 'minerio_ferro') / 3); if (f) { tirar(b, 'minerio_ferro', f * 3); guardarQueCabe(b, { k: 'barra_ferro', n: f }); }
     const a = Math.floor(Math.max(0, contar(b, 'barra_ferro') - 30) / 2); if (a) { tirar(b, 'barra_ferro', a * 2); guardarQueCabe(b, { k: 'barra_aco', n: a }); }
+  },
+  // o líder bot exige os recursos (André 2026-11-24: "o líder pode e deve exigir recursos e vender para obter ouro o que
+  // não precisar para upgrade, mas não pedir ouro direto dos recrutas"). A cada rodada de ordens ele recolhe das bolsas dos
+  // membros os materiais de clã (CLAS_NPC_ORDENS.exigir.itens e o Fragmento de Alma que o clã usa) para o Baú do Clã; o
+  // ouro deles fica com eles. Do baú, guarda o que os próximos `niveis` níveis do clã pedem e vende o resto: o ouro vai
+  // para o líder (que paga as semanas, contrata e sobe o clã). Devolve true se mexeu.
+  exigirRecursosNpc(C, E, L, ctxs) {
+    const X = CLAS_NPC_ORDENS.exigir; if (!X?.ligado || !L) return false;
+    const b = (Array.isArray(E.bau) ? E.bau : (E.bau = Array(CLA.bauCla).fill(null))), alma = almaDe(C.raca);
+    const pega = new Set([...X.itens, alma]);
+    let mexeu = false;
+    for (const x of ctxs) {
+      const a = x.amiga; if (!a || a.morto || x.AMIGA.id === C.lider) continue;
+      const mo = a.prog?.mochila || []; let deu = false;
+      for (let i = 0; i < mo.length; i++) {
+        const o = mo[i]; if (!o || o.h || !pega.has(o.k)) continue; // o.h: travado (cadeado), como em contar/tirar
+        const n = o.n || 1, q = guardarQueCabe(b, { k: o.k, n }); if (!q) continue; // baú cheio: fica com ele
+        mo[i] = q >= n ? null : { ...o, n: n - q }; deu = true;
+      }
+      if (deu) { mexeu = true; x.guardarAmiga?.(); }
+    }
+    // o que guardar: o maior pedido de cada material nos próximos níveis (aço conta também como barra e minério de ferro,
+    // que a fornalha do líder transforma: fundirBauNpc). Alma nunca vende (não tem preço e o clã sempre precisa).
+    const fica = { [alma]: Infinity }, nv = E.nv || 1, max = (k, q) => { fica[k] = Math.max(fica[k] || 0, q); };
+    for (let n = nv + 1; n <= nv + X.niveis; n++) {
+      const N = CLA.niveis[n]; if (!N) break;
+      for (const [k, q] of Object.entries(N.mat || {})) {
+        max(k, q);
+        if (k === 'barra_ferro') max('minerio_ferro', q * 3);
+        if (k === 'barra_aco') { max('barra_ferro', 30 + q * 2); max('minerio_ferro', (30 + q * 2) * 3); }
+      }
+    }
+    let ouro = 0;
+    for (const k of pega) {
+      const sobra = contar(b, k) - (fica[k] || 0), preco = ITENS[k]?.venda | 0;
+      if (!(sobra > 0) || !(preco > 0)) continue;
+      tirar(b, k, sobra); ouro += sobra * preco; mexeu = true;
+    }
+    if (ouro > 0) L.prog.ouro = (L.prog.ouro | 0) + ouro;
+    return mexeu;
   },
   // ---------- o líder bot comanda (André 2026-11-23, CLAS_NPC_ORDENS) ----------
   // André 2026-11-23 ("existisse um líder e os outros fossem considerados recrutas também... não é para ser fixo"): os
