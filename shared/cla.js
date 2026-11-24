@@ -47,23 +47,38 @@ const cor = (v) => (Number.isInteger(v) && v >= 0 && v <= 0xffffff ? v : 0x88888
 export function claValido(c) {
   if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
   const n = nomeCla(c.n); if (!n) return null;
-  const P = CLA.penteados, out = { ...(Number.isFinite(+c.saiu) && +c.saiu > 0 ? { saiu: Math.round(+c.saiu) } : {}), n, c: int(c.c, 0, 9e15, Date.now()), cofre: int(c.cofre, 0, 1e9, 0), sem: int(c.sem, 0, 9e15, 0), m: [], log: [] };
+  const out = { ...(Number.isFinite(+c.saiu) && +c.saiu > 0 ? { saiu: Math.round(+c.saiu) } : {}), n, c: int(c.c, 0, 9e15, Date.now()), cofre: int(c.cofre, 0, 1e9, 0), sem: int(c.sem, 0, 9e15, 0), m: [], log: [] };
   for (const m of Array.isArray(c.m) ? c.m.slice(0, CLA.max) : []) {
     if (!m || typeof m.id !== 'string' || !/^rc[a-z0-9]{4,16}$/.test(m.id) || out.m.some((o) => o.id === m.id)) continue;
-    const g = m.g === 'm' ? 'm' : 'f', ap = m.ap && typeof m.ap === 'object' ? m.ap : {};
-    out.m.push({ id: m.id, nome: nomeValido(m.nome) || 'Recruta', g, tier: CLA.tiers.some((T) => T.id === m.tier) ? m.tier : 'recruta',
-      ap: { cabelo: cor(ap.cabelo), olhos: cor(ap.olhos), pele: cor(ap.pele), roupa: cor(ap.roupa), calca: cor(ap.calca),
-        altura: Math.max(CLA.altura[0], Math.min(CLA.altura[1], +ap.altura || 1)), penteado: P[g].includes(ap.penteado) ? ap.penteado : null },
-      jeito: CLA.jeitos.includes(m.jeito) ? m.jeito : CLA.jeitos[0], gosto: CLA.gostos.includes(m.gosto) ? m.gosto : 'cacar',
-      lu: fichaLuta(m), // a ficha (FICHA_RECRUTA); recruta de antes ganha a sorteada pelo id
-      nv0: int(m.nv0, 1, 200, 1), nv: int(m.nv, 1, 200, 1), desde: int(m.desde, 0, 9e15, 0), ...(Number.isFinite(+m.dev) && +m.dev > 0 ? { dev: Math.round(+m.dev) } : {}), ...(funcaoValida(m.fn) ? { fn: funcaoValida(m.fn) } : {}),
-      ...(m.pos && Number.isFinite(+m.pos.x) && Number.isFinite(+m.pos.z) && Math.abs(+m.pos.x) < 1e5 && Math.abs(+m.pos.z) < 1e5 ? { pos: { x: +m.pos.x, z: +m.pos.z } } : {}) }); // onde estava quando o líder saiu
+    out.m.push(membroValido(m));
   }
+  // dispensados há pouco (André 2026-11-24: "você tem até 10 minutos para chamar ele de volta pagando uma taxa"): o
+  // registro inteiro fica guardado até 'ate'; depois disso some
+  const agoraD = Date.now(), disp = [];
+  for (const d of Array.isArray(c.disp) ? c.disp.slice(-CLA.max) : []) {
+    const m = d?.r, ate = +d?.ate;
+    if (!m || typeof m.id !== 'string' || !/^rc[a-z0-9]{4,16}$/.test(m.id) || !(ate > agoraD) || out.m.some((o) => o.id === m.id) || disp.some((o) => o.r.id === m.id)) continue;
+    disp.push({ r: membroValido(m), ate: Math.round(ate) });
+  }
+  if (disp.length) out.disp = disp;
   for (const L of Array.isArray(c.log) ? c.log.slice(-CLA.log) : []) if (L && typeof L.txt === 'string') out.log.push({ t: int(L.t, 0, 9e15, 0), txt: L.txt.slice(0, 80), v: int(L.v, -1e9, 1e9, 0) });
   // nível do clã (vagas): clã de antes começa no nível que cabe quem ele já tem (nada some)
   out.nv = Math.max(int(c.nv, 1, CLA.max, 1), Math.min(CLA.max, out.m.length), 1);
   return out;
 }
+function membroValido(m) {
+  const P = CLA.penteados;
+  const g = m.g === 'm' ? 'm' : 'f', ap = m.ap && typeof m.ap === 'object' ? m.ap : {};
+    return { id: m.id, nome: nomeValido(m.nome) || 'Recruta', g, tier: CLA.tiers.some((T) => T.id === m.tier) ? m.tier : 'recruta',
+      ap: { cabelo: cor(ap.cabelo), olhos: cor(ap.olhos), pele: cor(ap.pele), roupa: cor(ap.roupa), calca: cor(ap.calca),
+        altura: Math.max(CLA.altura[0], Math.min(CLA.altura[1], +ap.altura || 1)), penteado: P[g].includes(ap.penteado) ? ap.penteado : null },
+      jeito: CLA.jeitos.includes(m.jeito) ? m.jeito : CLA.jeitos[0], gosto: CLA.gostos.includes(m.gosto) ? m.gosto : 'cacar',
+      lu: fichaLuta(m), // a ficha (FICHA_RECRUTA); recruta de antes ganha a sorteada pelo id
+      nv0: int(m.nv0, 1, 200, 1), nv: int(m.nv, 1, 200, 1), desde: int(m.desde, 0, 9e15, 0), ...(Number.isFinite(+m.dev) && +m.dev > 0 ? { dev: Math.round(+m.dev) } : {}), ...(funcaoValida(m.fn) ? { fn: funcaoValida(m.fn) } : {}),
+      ...(m.pos && Number.isFinite(+m.pos.x) && Number.isFinite(+m.pos.z) && Math.abs(+m.pos.x) < 1e5 && Math.abs(+m.pos.z) < 1e5 ? { pos: { x: +m.pos.x, z: +m.pos.z } } : {}) }; // onde estava quando o líder saiu
+}
+// a taxa para chamar de volta um dispensado (metade do preço de contratar de novo no nível de agora, mínimo 50)
+export function taxaVolta(m, nv) { const T = tierDe(m.tier); return Math.max(CLA.volta.min, Math.round(precoTier(T, nv || m.nv || 1) * CLA.volta.parte)); }
 export function nomeCla(n) {
   if (typeof n !== 'string') return null;
   const s = n.normalize('NFC').replace(/\s+/g, ' ').trim();
@@ -131,6 +146,7 @@ export const Cla = {
       veic: { carrinho: this.carrinhoFora(j, { k: 'carrinho' }) ? 1 : 0, mercante: this.navioFora(j) ? 1 : 0 }, // Proteger carrinho / mercante: apagado se não está no mundo
       funcoes: CLA.funcoes, recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })),
       tiers: CLA.tiers.map((T) => { const n2 = nivelTier(T, nv); return { id: T.id, nome: T.nome, nv: n2, preco: precoTier(T, n2), sem: semanaDe(T, n2), claNv: T.claNv || 1 }; }),
+      ...(c.disp?.some((d) => d.ate > Date.now()) ? { disp: c.disp.filter((d) => d.ate > Date.now()).map((d) => ({ id: d.r.id, nome: d.r.nome, nv: d.r.nv, taxa: taxaVolta(d.r) })) } : {}), // chamar de volta (10 min)
       rec, log: c.log.slice(-10).reverse(), dep: CLA.deposito, clas: this.clasNpcInfo(j), base: this.baseInfo?.(j) || null,
       baseNiveis: CLA.base.niveis.slice(1).map((N, i) => ({ nv: i + 1, centro: N.centro, lotes: N.lotes, raio: N.raio, taxa: N.taxa, tem: N.tem })) };
   },
@@ -200,9 +216,28 @@ export const Cla = {
     if (m.acao === 'dispensar') {
       const i = c.m.findIndex((o) => o.id === m.id); if (i < 0) return;
       const [r] = c.m.splice(i, 1);
+      const b = this.recrutasNoMundo(j).find((o) => o.AMIGA.id === r.id)?.amiga; if (b?.prog) r.nv = b.prog.nivel | 0 || r.nv; // o nível de agora (a taxa)
       this.tirarRecruta(r.id, j);
+      // André 2026-11-24: 10 minutos para chamar de volta pagando uma taxa (o save dele, 'npc:' + id, fica como estava)
+      c.disp = [...(c.disp || []).filter((d) => d.ate > agora && d.r.id !== r.id), { r, ate: agora + CLA.volta.min10 * 60e3 }].slice(-CLA.max);
       this.logCla(c, `Dispensou ${r.nome}`);
-      aviso(`${r.nome} saiu do clã`);
+      aviso(`${r.nome} saiu do clã. Você tem ${CLA.volta.min10} minutos para chamar de volta (${taxaVolta(r)} de ouro)`);
+      this.baseDoClaMudou(j);
+      return this.avisarProg(j);
+    }
+    // chamar de volta quem foi dispensado há menos de 10 minutos (André 2026-11-24), pagando a taxa da bolsa
+    if (m.acao === 'chamarVolta') {
+      c.disp = (c.disp || []).filter((d) => d.ate > agora);
+      const k = c.disp.findIndex((d) => d.r.id === m.id);
+      if (k < 0) { j.progSujo = true; aviso('Passou o tempo: esse recruta já foi embora'); return this.avisarProg(j); }
+      const r = c.disp[k].r, taxa = taxaVolta(r);
+      if (c.m.length >= (c.nv || 1)) return aviso('O clã está sem vaga: dispense outro ou melhore o clã');
+      if ((j.prog.ouro | 0) < taxa) return aviso(`Falta ouro: chamar ${r.nome} de volta custa ${taxa}`);
+      j.prog.ouro -= taxa; c.disp.splice(k, 1); if (!c.disp.length) delete c.disp;
+      delete r.pos; c.m.push(r); j.progSujo = true;
+      this.logCla(c, `Chamou ${r.nome} de volta`, -taxa);
+      aviso(`${r.nome} voltou para o clã!`);
+      this.entrarRecrutas(j, r.id);
       this.baseDoClaMudou(j);
       return this.avisarProg(j);
     }

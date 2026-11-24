@@ -53,9 +53,85 @@ var _el_ant := 0.3
 var _folga := 0.0 # barriga da linha (sobe e desce devagar, sem pulo)
 var _boia_pend := Vector3.ZERO # boia pendurada na ponta antes de soltar no arremesso
 var _onda_t := 0.0
+# Pesca com as animações do KayKit (plano de animações 2026-11-24; André: "pescar no barquinho tá horrível"): o corpo
+# toca lançar / esperar / puxão / briga / pegar e a vara sai da mão direita da animação (a ponte _kk_mao segue o osso
+# depois do sentar.gd, então no barquinho a vara fica na mão sentada). PESCA_KK = false volta para a pose parada com as
+# mãos levadas por código (duas_maos.gd).
+var PESCA_KK := true # var: o banco de provas desliga para gravar o antes
+const KK_PEGADA := Quaternion(0.0, 0.7071, 0.7071, 0.0) # osso da mão -> handslot do KayKit
+var _kk := false # pescando com as animações do KayKit agora
+# André 2026-11-24: em pé, o começo (lançar e esperar) fica o antigo ("base muito fechada" no KayKit) e a força
+# puxando o peixe (fisgou, briga, pegou) é a do KayKit; no barquinho é KayKit do começo ao fim
+var _kk_ok := false # dá para usar o KayKit nesta pescaria
+const KK_SO_PUXADA := ["fisgou", "briga", "pegou"]
+var _kk_mix := 0.0 # 0 = vara na pose antiga, 1 = vara na mão da animação (troca em 0,25 s, sem pulo)
+var _kk_nome := ""
+var _kk_t := 0.0
+var _kk_mao: Node3D # ponto na mão direita (BoneAttachment3D), +Y = cabo
+# a pose de sentado do herói (sentar.gd) no carrinho ou no barquinho, ou null em pé
+func _sentado():
+	var t = m.transporte
+	if t == null or not t.poses.has("eu"):
+		return null
+	var ps = t.poses["eu"].get("pose")
+	return ps if is_instance_valid(ps) else null
+# o osso da mão do VRoid fica no pulso: a vara vai no meio da palma (60% do caminho até a junta do dedo médio)
+# (André 2026-11-24: "a vara de pescar ainda estava fora da mão do jogador, meio que voando")
+func _kk_pegada() -> Transform3D:
+	var esq: Skeleton3D = m.heroi_esq
+	var dedo := esq.find_bone(String(m.lugar_armas().espadaMao.osso).replace("Hand", "Middle1"))
+	var palma := esq.get_bone_rest(dedo).origin * 0.6 if dedo >= 0 else Vector3.ZERO
+	return Transform3D(Basis(KK_PEGADA), palma)
+func _kk_pode() -> bool:
+	return PESCA_KK and m.heroi_anim != null and m.heroi_anim.has_animation("kk_pesca_espera") and m.heroi_esq != null
+func _kk_ponte() -> Node3D:
+	if _kk_mao != null and is_instance_valid(_kk_mao) and _kk_mao.get_parent() != null and _kk_mao.get_parent().get_parent() == m.heroi_esq:
+		return _kk_mao
+	var ba := BoneAttachment3D.new()
+	ba.bone_name = m.lugar_armas().espadaMao.osso
+	m.heroi_esq.add_child(ba)
+	_kk_mao = Node3D.new()
+	_kk_mao.transform = _kk_pegada()
+	ba.add_child(_kk_mao)
+	return _kk_mao
+# qual animação toca agora e em que tempo: o lançamento vai mais rápido para a vara chicotear quando a boia sai
+# (no meio do "lancar" do servidor); esperar e brigar repetem; puxão e pegar tocam uma vez
+func _kk_passo(dt: float) -> void:
+	var nome := "kk_pesca_espera"
+	var tempo := 0.0
+	var lancar: float = float(D.get("lancar", 0.6))
+	match st:
+		"lancando":
+			nome = "kk_pesca_lanca"
+			var q: float = t / lancar
+			tempo = 0.45 + 1.2 * q if q < 1.0 else minf(1.65 + (t - lancar), 1.93)
+		"espera":
+			_kk_t += dt
+			tempo = fmod(_kk_t, 2.333)
+		"fisgou":
+			nome = "kk_pesca_puxao"
+			tempo = minf(t, 1.9)
+		"briga":
+			nome = "kk_pesca_briga"
+			_kk_t += dt * (0.8 + 0.6 * (1.0 - prog)) # o peixe forte puxa mais rápido
+			tempo = fmod(_kk_t, 3.433)
+		"pegou":
+			nome = "kk_pesca_pega"
+			tempo = minf(t * 1.3, 3.233)
+	if nome != _kk_nome or m.heroi_anim.current_animation != nome:
+		_kk_nome = nome
+		if st == "espera" or st == "briga":
+			_kk_t = 0.0
+			tempo = 0.0
+		m.heroi_anim.play(nome, 0.2, 0.0)
+	m.heroi_anim.seek(tempo, true)
 
 func _init(principal) -> void:
 	m = principal
+	# depois do transporte.gd, que põe o herói no banco do barquinho no mesmo quadro: antes disso a vara era
+	# desenhada na mão de onde o herói estava antes de ir para o banco, 22 cm à frente da mão de verdade
+	# (André 2026-11-24: "a varinha tá longe da mão")
+	process_priority = 1
 
 func _ready() -> void:
 	D = m.P.dados.get("pesca", {})
@@ -337,6 +413,10 @@ func recolher() -> void:
 
 func _fim() -> void:
 	st = ""
+	if _kk and m.heroi_anim != null and m.heroi_anim.current_animation.begins_with("kk_pesca"):
+		m.heroi_anim.play("parada", 0.25)
+	_kk = false
+	_kk_ok = false
 	if m.acao.get("nome", "") == "pesca":
 		m.acao = {}
 	# a vara fica na mão uns segundos (main.gd, segurar_ferramenta_depois); em combate a arma volta na hora
@@ -386,13 +466,24 @@ func evento(ev: Dictionary) -> void:
 			m.acao = {"nome": "pesca", "t": 0.0, "dur": 1e9, "hits": [], "feitos": 0, "fn": func(_i): pass}
 			m.h.pend = null
 			m.armar("Coleta") # espada e cajado nas costas, mãos livres para a vara
-			if m.heroi_anim.has_animation("parada"):
+			_kk_ok = _kk_pode()
+			_kk = _kk_ok and _sentado() != null
+			_kk_mix = 1.0 if _kk else 0.0
+			_kk_nome = ""
+			peso_k = 0.0
+			if _kk_ok:
+				_kk_ponte()
+			if _kk:
+				if m.trabalho.duas != null and is_instance_valid(m.trabalho.duas):
+					m.trabalho.duas.peso = 0.0
+			elif m.heroi_anim.has_animation("parada"):
 				m.heroi_anim.play("parada", 0.2)
 			var d: Vector3 = Vector3(boia_x, 0, boia_z) - m.heroi.position
 			m.mov.ry = atan2(d.x, d.z)
 			m.mov.ry_mira = null
 			m.heroi.rotation.y = m.mov.ry
-			m.trabalho._preparar_duas()
+			if not _kk:
+				m.trabalho._preparar_duas()
 			vara.visible = true
 			boia.visible = true
 			linha.visible = true
@@ -632,6 +723,20 @@ func _pose(dt: float) -> void:
 	var yk: float = clamp(el / 1.4, 0.0, 1.3) # Quimera: os braços sobem junto com a vara
 	var cabo: Vector3 = (frente * cos(el) + cima * sin(el)).normalized()
 	var mao: Vector3 = h.global_position + dir * 0.12 + cima * (0.98 + 0.22 * yk) + frente * (0.3 - 0.08 * yk)
+	var sent = _sentado()
+	if _kk_ok and not _kk and (sent != null or st in KK_SO_PUXADA):
+		_kk = true # em pé: o peixe fisgou, entra a puxada do KayKit (as mãos da pose antiga soltam devagar)
+	if _kk and _kk_mao != null and is_instance_valid(_kk_mao):
+		_kk_passo(dt)
+		var hm: Transform3D = _kk_mao.global_transform
+		if sent != null and sent.peito_ok and not sent.maos: # sentado: a mão de verdade (depois do sentar.gd)
+			hm = sent.get_skeleton().global_transform * sent.mao_d_final * _kk_mao.transform
+		_kk_mix = move_toward(_kk_mix, 1.0, dt * 4.0)
+		var k: float = _kk_mix * _kk_mix * (3.0 - 2.0 * _kk_mix)
+		cabo = cabo.slerp((hm.basis.orthonormalized() * Vector3.UP).normalized(), k).normalized()
+		mao = mao.lerp(hm.origin, k)
+		dir = cabo.cross(cima).normalized() if absf(cabo.dot(cima)) < 0.98 else dir
+		el = asin(clampf(cabo.y, -1.0, 1.0)) # a vara chicoteia pela velocidade de verdade
 	var pe: Vector3 = mao - cabo * 0.2
 	# vara: +Y da malha no cabo, molinete para baixo
 	var bz: Vector3 = cabo.cross(dir).normalized() # +Z da vara para baixo (molinete embaixo)
@@ -672,8 +777,10 @@ func _pose(dt: float) -> void:
 	var ponta: Vector3 = pts[HASTE_N]
 	# mãos na vara: a de cima (direita) no molinete, a esquerda no cabo atrás
 	var duas = m.trabalho.duas
-	if duas != null and is_instance_valid(duas):
-		peso_k = move_toward(peso_k, 1.0, dt * 8.0)
+	if _kk and peso_k <= 0.0:
+		pass # o corpo e as mãos vêm da animação
+	elif duas != null and is_instance_valid(duas):
+		peso_k = move_toward(peso_k, 0.0 if _kk else 1.0, dt * (5.0 if _kk else 8.0))
 		duas.mao_d = pe + cabo * 0.4
 		duas.mao_e = pe + cabo * 0.12
 		duas.cabo = cabo

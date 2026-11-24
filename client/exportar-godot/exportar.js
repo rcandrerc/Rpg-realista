@@ -79,6 +79,8 @@ async function principal() {
     sentado_chao: 'sentado_chao', levantar: 'levantar', // cena de abertura (André 2026-11-11): senta tonta no chão e levanta (KayKit Character Animations, CC0)
     nadar: 'nadar', boiar: 'boiar', sair_agua: 'saiAgua', // lago fundo (André 2026-11-06): nado, boiando parada e saindo da água
     // nado do ActorCore (André 2026-11-16): crawl na superfície, boiando parada, golfinho debaixo d'água e afundando
+    // trabalho (KayKit, CC0; 2026-11-24): minerar, lenha, pesca em pé e sentado no barquinho
+    kk_pesca_lanca: 'kk_pesca_lanca', kk_pesca_espera: 'kk_pesca_espera', kk_pesca_belisca: 'kk_pesca_belisca', kk_pesca_puxao: 'kk_pesca_puxao', kk_pesca_recolhe: 'kk_pesca_recolhe', kk_pesca_briga: 'kk_pesca_briga', kk_pesca_pega: 'kk_pesca_pega', kk_sentado: 'kk_sentado',
     crawl: 'crawl', crawl_ini: 'crawl_ini', crawl_fim: 'crawl_fim', boiar_ac: 'boiar_ac', golfinho: 'golfinho', afundar: 'afundar', afundar_ini: 'afundar_ini', afundar_fim: 'afundar_fim',
     // escalada: o quadril não anda (quem leva o corpo é o caminho ESCALADA[..].traj)
     ...Object.fromEntries(Object.entries(ESCALADA).map(([k, e]) => ['esc_' + k, e.anim])),
