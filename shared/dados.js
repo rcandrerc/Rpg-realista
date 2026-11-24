@@ -2313,8 +2313,13 @@ export const TOTENS = { toque: 8, usar: 4, canal: 5, taxaNivel: 10, taxaMin: 50,
 export const taxaTotem = (t) => Math.max(TOTENS.taxaMin, TOTENS.taxaNivel * (t?.nivel || 1));
 // o totem a até r m de (x, z), ou null
 export const totemPerto = (x, z, r = TOTENS.usar) => TOTENS.lista.find((t) => Math.hypot(t.x - x, t.z - z) < r) || null;
-// dentro da área segura de algum totem?
-export const naAreaSegura = (x, z) => TOTENS.lista.some((t) => Math.abs(t.x - x) < TOTENS.seguro && Math.abs(t.z - z) < TOTENS.seguro && Math.hypot(t.x - x, t.z - z) < TOTENS.seguro);
+// Base do clã segura (André 2026-11-24: "a área dentro da nossa base deve ser safe igual os totens, somente a área da
+// base mesmo, sem raio de segurança"): os retângulos de cada base (o centro no nível de agora e os lotes abertos, sem
+// folga em volta), refeitos por Base.refazerBases (shared/base.js). Valem as mesmas regras do totem (abaixo).
+export const AREAS_SEGURAS_BASE = [];
+export const naBaseSegura = (x, z) => AREAS_SEGURAS_BASE.some((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1);
+// dentro da área segura de algum totem (ou de uma base de clã)?
+export const naAreaSegura = (x, z) => TOTENS.lista.some((t) => Math.abs(t.x - x) < TOTENS.seguro && Math.abs(t.z - z) < TOTENS.seguro && Math.hypot(t.x - x, t.z - z) < TOTENS.seguro) || naBaseSegura(x, z);
 // ---------- Mini vilas do mundo grande (história v2, Entrega 3; André 2026-11-11) ----------
 // Esboço aprovado (com um totem em cada vila): /mnt/project-files/historia/mini-vilas-v2.jpg. Cada vila tem a praça com
 // o totem no meio, casas do Medieval Village MegaKit (godot-prototipo/vilas3d/vilas.glb, feito por

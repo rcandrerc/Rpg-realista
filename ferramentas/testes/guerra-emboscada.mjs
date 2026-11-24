@@ -12,7 +12,7 @@ const d = s.adicionarJogador('andre', 'André', 'ruiva', {}); d.conta = 'c1';
 for (const x of s.amigosIa) x.amigaEntrar('andre');
 const evs = []; { const ev = s.evento.bind(s); s.evento = (e) => { evs.push(e); return ev(e); }; } // s.eventos zera a cada passo
 const ctx = (id) => s.amigoIaDe(id), kira = ctx('kira').amiga, rufo = ctx('rufo').amiga, lis = ctx('lis').amiga;
-const geada = [kira, rufo, lis, ctx('gael').amiga].filter(Boolean); // o Gael (líder) também é da Geada desde 2026-11-22 e entra na emboscada
+const geada = [kira, rufo, lis, ctx('gael').amiga, ctx('kael')?.amiga].filter(Boolean); // o Gael (líder) também é da Geada desde 2026-11-22 e entra na emboscada; o Kael (líder da Geada, 2026-11-23) também: sem ele na lista, o sorteio às vezes contava 1 só
 const nivel = (j, n) => { j.prog.nivel = n; s.aplicarStatus(j); j.vida = j.vidaMax; };
 const por = (j, x, z) => Object.assign(j, { x, z, y: s.terreno.altura(x, z), vy: 0, chao: true });
 const passos = (seg, f) => { for (let i = 0; i < seg * 20; i++) { f?.(); s.passo(0.05); } };

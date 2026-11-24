@@ -8,7 +8,7 @@
 // já no Nv 6).
 // Estado (tabela mundo 'bases_cla'): { [k]: { k, x, z, raca, n (nome do clã), dono (conta do líder ou 'npc:' + id),
 // nomeDono, nv, taxa (ms: semanas pagas até aqui), c (ms) } }. k = 'j' + conta (jogador) ou 'n' + id (clã bot).
-import { CLA, TOTENS, VILAS_MUNDO, VILAS_TERRENO, VILA_LOTES, MAPA_CLAREIRA, AREAS_BASE, CLAS_NPC, fixosNpc, RACAS, AMIGOS_VIRTUAIS, RIVAIS, precoTerreno, BAU, bauLugares, PLANTIO, NPC_CASA_BASE } from './dados.js';
+import { CLA, TOTENS, VILAS_MUNDO, VILAS_TERRENO, VILA_LOTES, MAPA_CLAREIRA, AREAS_BASE, AREAS_SEGURAS_BASE, CLAS_NPC, fixosNpc, RACAS, AMIGOS_VIRTUAIS, RIVAIS, precoTerreno, BAU, bauLugares, PLANTIO, NPC_CASA_BASE } from './dados.js';
 import { guardar } from './progresso.js';
 import { zonaFechadaEm } from './historia.js';
 import { areaPlantio } from './plantio.js';
@@ -223,12 +223,16 @@ export const Base = {
   refazerBases() {
     this.basesCla ||= {};
     AREAS_BASE.length = 0;
+    AREAS_SEGURAS_BASE.length = 0;
     this.basesDesenho = {};
     this.refazerChaoBases();
     for (const B of Object.values(this.basesCla)) {
       const D = montarBase(B);
       this.basesDesenho[B.k] = D;
       AREAS_BASE.push({ x: B.x, z: B.z, r: B_().pegada + 2 });
+      // área segura (igual ao totem): só o centro do nível de agora e os lotes abertos, sem raio a mais
+      const hc = D.centro / 2;
+      AREAS_SEGURAS_BASE.push({ k: B.k, x0: B.x - hc, z0: B.z - hc, x1: B.x + hc, z1: B.z + hc }, ...D.lotes.map((L) => ({ k: B.k, x0: L.x0, z0: L.z0, x1: L.x1, z1: L.z1 })));
     }
     this.solidosBase = Object.values(this.basesDesenho).flatMap((D) => D.sol);
     // as árvores de dentro saem (coleta e batida); volta tudo antes, para refazer do zero
