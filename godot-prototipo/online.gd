@@ -1383,6 +1383,10 @@ func evento(ev: Dictionary) -> void:
 			if m.reforco:
 				m.reforco.do_servidor(ev)
 			return
+		"claFicha": # o menu inteiro do recruta, só olhando (menu.gd ver_recruta, André 2026-11-24)
+			if m.menu:
+				m.menu.ver_recruta(ev)
+			return
 		"claCandidatos": # os 3 candidatos do Recrutador, com ficha (troca.gd, André 2026-11-23)
 			if m.troca:
 				m.troca.mostrar_candidatos(ev)
