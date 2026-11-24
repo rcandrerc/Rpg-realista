@@ -597,6 +597,8 @@ export function progressoValido(p) {
   for (const k of Object.keys(n.prof)) n.prof[k] = num(p.prof?.[k]) ? Math.min(1e7, Math.max(0, p.prof[k])) : 0;
   // capacete escondido (André 2026-11-03: opção na tela de equipamento); continua equipado e dando o bônus
   n.semCapacete = p.semCapacete === true;
+  // arma na mão ao sair (André 2026-11-24): quem saiu de mago entra de mago; sem o campo = espada
+  if (p.modo === 'Magia' || p.modo === 'Espada') n.modo = p.modo;
   // onde o herói estava ao sair (André 2026-11-03: entra de volta no mesmo lugar; só a morte leva para a vila).
   // A Simulacao confere se o lugar ainda está dentro do mapa. Sem pos = nasce na vila.
   const q = p.pos;

@@ -473,6 +473,7 @@ export class Simulacao {
     if (aparencia) j.aparencia = aparenciaValida(aparencia);
     j.conta = conta != null ? 'c' + conta : 'n:' + j.nome; // dono do lote (sem contas: o nome)
     j.prog = progressoValido(progresso);
+    if (j.prog.modo === 'Magia') j.modo = 'Magia'; // entra com a arma da última vez (André 2026-11-24)
     if (testador && CONTA_TESTE.paginas) liberarPaginas(j.prog, MOCHILA_PAGINAS); // conta de teste do André: as 4 páginas da mochila liberadas
     else if (testador && j.prog.devPag !== CONTA_TESTE.devolver) { devolverPaginas(j.prog); j.prog.devPag = CONTA_TESTE.devolver; } // André 2026-11-11: compra como todo mundo
     j.testador = !!testador;
@@ -1019,6 +1020,7 @@ export class Simulacao {
   progressosParaSalvar() {
     const r = [];
     for (const j of this.jogadores.values()) this.guardarPosicao(j);
+    for (const j of this.jogadores.values()) if (!j.bot && j.prog.modo !== j.modo) { j.prog.modo = j.modo; j.progSujo = true; } // arma na mão vai para a conta (André 2026-11-24)
     for (const j of this.jogadores.values()) this.voltarBarquinho(j); // barquinho que ficou fora da mochila cheia
     // dirigindo: grava com o veículo estacionado onde ele está (auditoria 2026-11-13: o navio sumia no reinício do servidor)
     for (const j of this.jogadores.values()) if (j.progSujo || j.veiculo) { j.progSujo = false; r.push({ id: j.id, prog: this.progParaSalvar(j) }); }
