@@ -8,7 +8,7 @@
 // já no Nv 6).
 // Estado (tabela mundo 'bases_cla'): { [k]: { k, x, z, raca, n (nome do clã), dono (conta do líder ou 'npc:' + id),
 // nomeDono, nv, taxa (ms: semanas pagas até aqui), c (ms) } }. k = 'j' + conta (jogador) ou 'n' + id (clã bot).
-import { CLA, TOTENS, VILAS_MUNDO, VILAS_TERRENO, VILA_LOTES, MAPA_CLAREIRA, AREAS_BASE, CLAS_NPC, RACAS, AMIGOS_VIRTUAIS, RIVAIS, precoTerreno, BAU, bauLugares, PLANTIO, NPC_CASA_BASE } from './dados.js';
+import { CLA, TOTENS, VILAS_MUNDO, VILAS_TERRENO, VILA_LOTES, MAPA_CLAREIRA, AREAS_BASE, CLAS_NPC, fixosNpc, RACAS, AMIGOS_VIRTUAIS, RIVAIS, precoTerreno, BAU, bauLugares, PLANTIO, NPC_CASA_BASE } from './dados.js';
 import { guardar } from './progresso.js';
 import { zonaFechadaEm } from './historia.js';
 import { areaPlantio } from './plantio.js';
@@ -557,7 +557,7 @@ export const Base = {
       }
       if (B.nv !== (E.nv || 1)) { B.nv = E.nv || 1; mudou = true; }
       const nome = (id) => this.amigosIa?.find((x) => x.AMIGA.id === id)?.AMIGA.nome || id;
-      if (this.distribuirLotes(B, [...C.membros.filter((id) => id !== C.lider).map((id) => ({ id, nome: nome(id) })), ...E.m.map((m) => ({ id: m.id, nome: m.nome }))])) mudou = true;
+      if (this.distribuirLotes(B, [...fixosNpc(C, E).map((id) => ({ id, nome: nome(id) })), ...E.m.map((m) => ({ id: m.id, nome: m.nome }))])) mudou = true;
       const L = this.liderNpc?.(C);
       if (L && this.pagarBase(B, (v) => { if ((L.prog.ouro | 0) < v) return false; L.prog.ouro -= v; return true; })) mudou = true;
     }
