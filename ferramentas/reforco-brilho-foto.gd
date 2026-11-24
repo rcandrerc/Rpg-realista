@@ -1,5 +1,5 @@
 extends SceneTree
-# Foto do brilho do reforço nas armas (André 2026-11-24): espada e cajado em +0, +9, +10, +20, +30 e +40.
+# Foto da aura do reforço (v2, azul) nas armas (André 2026-11-24): espada e cajado em +0, +9, +10, +20, +30 e +40.
 # Uso: FOTO_SAIDA=/pasta xvfb-run -a godot --path godot-prototipo --rendering-driver opengl3 -s ../ferramentas/reforco-brilho-foto.gd
 var saida := OS.get_environment("FOTO_SAIDA") if OS.get_environment("FOTO_SAIDA") != "" else "/tmp"
 const NIVEIS := [0, 9, 10, 20, 30, 40]
@@ -11,6 +11,8 @@ func _initialize() -> void:
 	DisplayServer.window_set_size(Vector2i(1280, 720))
 	root.size = Vector2i(1280, 720)
 	var Armas = load("res://armas.gd")
+	mg = load("res://magias.gd").new() # as línguas de fogo da aura (Armas.faiscas)
+	root.add_child(mg)
 	var cena := Node3D.new()
 	root.add_child(cena)
 	var amb := WorldEnvironment.new()
@@ -48,7 +50,9 @@ func _initialize() -> void:
 
 func _process(_dt: float) -> bool:
 	quadros += 1
-	if quadros == 40:
+	for a in armas:
+		load("res://armas.gd").faiscas(mg, a, 1.0 / 30.0)
+	if quadros == 60:
 		var img := root.get_texture().get_image()
 		img.save_png(saida + "/reforco-brilho.png")
 		print("foto: ", saida, "/reforco-brilho.png")

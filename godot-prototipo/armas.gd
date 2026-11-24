@@ -198,12 +198,12 @@ static func chama(mg, cajado: Node3D, dt: float) -> void:
 # Sem modelo novo: cada malha da arma ganha uma casca fina (brilho_reforco.gdshader) que soma luz. A cor muda por faixa
 # de +10 e a força cresce com o +N; do +20 em diante saem faíscas da lâmina (Armas.faiscas). +0 = arma como sempre.
 const SH_BRILHO := preload("res://brilho_reforco.gdshader")
-const BRILHO_FAIXAS := [ # [a partir do +N, cor da casca, cor da faísca]
-	[1, "bfdcff", "ffffff"], # branco azulado
-	[10, "3f9cff", "bfe8ff"], # azul
-	[20, "a855ff", "e6c8ff"], # roxo
-	[30, "ffb21a", "fff0a8"], # dourado
-	[40, "ff2e3a", "ffd0a0"], # carmim (máximo)
+const BRILHO_FAIXAS := [ # [a partir do +N, cor da borda/chama, cor do miolo (brasa)]. André: "pode puxar pro azul"
+	[1, "8fc8ff", "ffffff"], # azul gelo
+	[10, "2a86ff", "d8f0ff"], # azul
+	[20, "00b4ff", "c8faff"], # azul ciano elétrico
+	[30, "3a4dff", "d0d8ff"], # azul profundo
+	[40, "5a2cff", "e0f4ff"], # azul violeta, miolo branco (máximo)
 ]
 # no espaço da arma: [comprimento, onde começa o brilho, trecho das faíscas (de, até)]
 const BRILHO_FORMA := {"espada": [0.95, 0.2, 0.25, 0.9], "cajado": [1.1, 0.7, 0.85, 1.05]}
@@ -217,7 +217,7 @@ static func faixa_brilho(e: int) -> Array:
 	return f
 
 static func forca_brilho(e: int) -> float:
-	return 0.0 if e <= 0 else 0.22 + 0.9 * pow(clampf(e / 40.0, 0.0, 1.0), 0.8)
+	return 0.0 if e <= 0 else 0.55 + 1.05 * pow(clampf(e / 40.0, 0.0, 1.0), 0.8)
 
 static func _mat_brilho(e: int, tipo: String) -> ShaderMaterial:
 	var k := "%s%d" % [tipo, e]
@@ -228,11 +228,12 @@ static func _mat_brilho(e: int, tipo: String) -> ShaderMaterial:
 	s.shader = SH_BRILHO
 	s.render_priority = 1
 	s.set_shader_parameter("cor", Color(faixa_brilho(e)[1]))
+	s.set_shader_parameter("miolo", Color(faixa_brilho(e)[2]))
 	s.set_shader_parameter("forca", forca_brilho(e))
 	s.set_shader_parameter("comprimento", forma[0])
 	s.set_shader_parameter("inicio", forma[1])
 	s.set_shader_parameter("onda", 0.8 + e / 40.0 * 0.8)
-	s.set_shader_parameter("casca", 0.004 + 0.008 * clampf(e / 40.0, 0.0, 1.0)) # a aura engrossa com o reforço
+	s.set_shader_parameter("casca", 0.012 + 0.03 * clampf(e / 40.0, 0.0, 1.0)) # a aura engrossa com o reforço
 	_mats_brilho[k] = s
 	return s
 
@@ -261,20 +262,27 @@ static func brilho_reforco(arma: Node3D, e: int, tipo := "espada") -> void:
 		b.material_override = mat
 		b.visible = true
 
-# faíscas saindo da lâmina do +20 em diante (mais com o reforço): ~1 por segundo no +20, ~6 no +40
+# línguas de fogo subindo da lâmina (v2, André: "incandescente como uma aura / fogo"): desde o +1, mais e maiores com o
+# reforço (~6 por segundo no +1, ~50 no +40), na cor da faixa; do +20 em diante também escapam faíscas.
 static func faiscas(mg, arma: Node3D, dt: float) -> void:
 	if mg == null or arma == null or not arma.is_inside_tree() or not arma.is_visible_in_tree():
 		return
 	var e := int(arma.get_meta("reforco_e", 0))
-	if e < 20:
+	if e <= 0:
 		return
-	var acum: float = float(arma.get_meta("faisca_acum", 0.0)) + dt * (e - 15) * 0.25
+	var k := clampf(e / 40.0, 0.0, 1.0)
+	var acum: float = float(arma.get_meta("faisca_acum", 0.0)) + dt * (6.0 + 44.0 * k)
 	var f := faixa_brilho(e)
 	var forma: Array = BRILHO_FORMA.get(String(arma.get_meta("reforco_tipo", "espada")), BRILHO_FORMA.espada)
 	var g := arma.global_transform
+	var cima: Vector3 = Vector3.UP
 	while acum >= 1.0:
 		acum -= 1.0
-		var pos: Vector3 = g * Vector3(randf_range(-0.01, 0.01), randf_range(forma[2], forma[3]), randf_range(-0.01, 0.01))
-		var vel := Vector3(randf_range(-0.15, 0.15), randf_range(0.15, 0.4), randf_range(-0.15, 0.15))
-		mg.p(mg.LUZ, pos, vel, randf_range(0.35, 0.6), randf_range(0.018, 0.028), 0.004, f[2], f[1], 1.0, mg.C_TRACO, -0.2, 1.5, 0.0, 0.0)
+		var pos: Vector3 = g * Vector3(randf_range(-0.02, 0.02), randf_range(forma[2], forma[3]), randf_range(-0.02, 0.02))
+		var vel: Vector3 = cima * randf_range(0.25, 0.45) + Vector3(randf_range(-0.18, 0.18), 0, randf_range(-0.18, 0.18))
+		mg.p(mg.LUZ, pos, vel, randf_range(0.25, 0.4), randf_range(0.05, 0.08) + 0.06 * k, 0.0, f[2], f[1], 1.0,
+			mg.C_FUMACA2 if randf() < 0.5 else mg.C_FUMACA, 0.0, 0.3, randf_range(-0.8, 0.8), 0.12, false, 0.0, -1.0, mg.TOON)
+		if e >= 20 and randf() < 0.12:
+			mg.p(mg.LUZ, pos, cima * randf_range(0.6, 1.0) + Vector3(randf_range(-0.25, 0.25), 0, randf_range(-0.25, 0.25)),
+				randf_range(0.4, 0.6), 0.022, 0.006, "ffffff", f[1], 1.0, mg.C_TRACO, 0.5, 1.0, 0.0, 0.02)
 	arma.set_meta("faisca_acum", acum)
