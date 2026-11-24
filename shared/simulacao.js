@@ -3111,7 +3111,8 @@ export class Simulacao {
     if (j.morto) return;
     let mudou = L.vencer();
     const busca = m.busca && typeof m.busca === 'object' ? { tipo: TIPOS_LEILAO[m.busca.tipo] ? m.busca.tipo : undefined, r: Number.isInteger(m.busca.r) && m.busca.r >= 0 && m.busca.r < RARIDADES.length ? m.busca.r : undefined,
-      ordem: ['barato', 'caro', 'novo'].includes(m.busca.ordem) ? m.busca.ordem : 'barato', texto: typeof m.busca.texto === 'string' ? m.busca.texto.slice(0, 24) : undefined } : {};
+      ordem: ['barato', 'caro', 'novo'].includes(m.busca.ordem) ? m.busca.ordem : 'barato', texto: typeof m.busca.texto === 'string' ? m.busca.texto.slice(0, 24) : undefined,
+      ks: Array.isArray(m.busca.ks) ? m.busca.ks.slice(0, 120).filter((k) => typeof k === 'string' && ITENS[k]) : undefined } : {};
     if (m.acao === 'anunciar') {
       const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < p.mochila.length ? p.mochila[i] : null;
       if (!it) return aviso('Escolha um item da mochila');
@@ -3131,14 +3132,14 @@ export class Simulacao {
       aviso(`${nomeItem(vai)} à venda por ${r.preco} de ouro (${Number(m.horas)} h)${taxaA ? `. Taxa de anúncio: ${taxaA}` : ''}`);
       this.historia(j, 'leilao', { de: 'anunciar' });
     } else if (m.acao === 'comprar' && typeof m.id === 'string') {
-      const a = L.achar(m.id); if (!a) return aviso('Esse anúncio já saiu');
+      const a = L.achar(m.id, j.conta); if (!a) return aviso('Esse anúncio já saiu'); // o da casa vem com o preço dele (sobe a cada compra)
       if (p.ouro < a.preco) return aviso(`Faltam ${a.preco - p.ouro} de ouro`);
       const prova = p.mochila.map((o) => (o ? { ...o } : null)); // cabe na mochila?
       if (!guardar(prova, { ...a.item })) return aviso('Mochila cheia');
       const r = L.comprar(m.id, j.conta);
       if (typeof r === 'string') return aviso(r);
       p.ouro -= a.preco; guardar(p.mochila, { ...a.item }); mudou = mudou || !a.casa; this.caixa(j, a.casa ? 'leilaoCasa' : 'leilaoCompra', -a.preco);
-      aviso(`Comprou ${nomeItem(a.item)} por ${a.preco} de ouro`);
+      aviso(`Comprou ${nomeItem(a.item)} por ${a.preco} de ouro${a.casa ? `. O próximo sai por ${L.achar(a.id, j.conta)?.preco ?? a.preco}` : ''}`);
       this.historia(j, 'leilao', { de: 'comprar' });
       const avisa = this.aoVendaLeilao || ((c, t) => { const v = this.porConta(c); if (v) this.evento({ t: 'aviso', para: v.id, texto: t }); }); // o servidor avisa em qualquer sala
       if (!a.casa) avisa(a.conta, `Vendeu ${nomeItem(a.item)} no leilão: ${r.liquido} de ouro com o Otávio${r.taxa ? ` (taxa ${r.taxa})` : ''}`);

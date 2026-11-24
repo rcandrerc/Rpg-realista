@@ -4649,5 +4649,8 @@
 "Passou o tempo: esse recruta já foi embora": "Time is up: this recruit is gone",
 "O clã está sem vaga: dispense outro ou melhore o clã": "The clan has no free slot: dismiss someone or upgrade the clan",
 "Falta ouro: chamar {1} de volta custa {2}": "Not enough gold: calling {1} back costs {2}",
-"{1} voltou para o clã!": "{1} is back in the clan!"
+"{1} voltou para o clã!": "{1} is back in the clan!",
+"sempre à venda · ×%d · normal (%d) em %d h %02d min": "always for sale · ×%d · normal (%d) in %d h %02d min",
+"Buscar item pelo nome": "Search item by name",
+"Comprou {1} por {2} de ouro. O próximo sai por {3}": "Bought {1} for {2} gold. The next one costs {3}"
 }

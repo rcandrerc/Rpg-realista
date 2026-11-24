@@ -88,7 +88,7 @@ export const LeilaoBots = {
     const farmar = this.custoFarmarAmiga(j, J), livreDe = () => ouro() - Math.max(presa() + essencial(), Math.round(B.livre * (lb.meta?.preco || 0)));
     const pocaoLoja = precoLoja(LOJA.find((o) => o.k === 'pocao'), p.nivel) || ITENS.pocao?.preco || 15;
     const op = [];
-    for (const a of [...L.anuncios, ...L.casa]) {
+    for (const a of [...L.anuncios, ...L.casaPara(j.conta, agora)]) { // a casa com o preço dele (sobe a cada compra)
       if (a.conta === j.conta || a.ate && a.ate <= agora) continue;
       const it = a.item, n = it.n || 1, unit = a.preco / n, merc = L.precoMercado(it, agora), caro = merc * B.caroDemais;
       if (ehEquip(it.k)) {
@@ -115,7 +115,7 @@ export const LeilaoBots = {
     for (const o of op) {
       if (n >= B.compraMax) break;
       const a = o.a;
-      if (!L.achar(a.id) || a.preco > o.teto() || a.preco > ouro()) continue;
+      if (!L.achar(a.id, j.conta) || a.preco > o.teto() || a.preco > ouro()) continue;
       const prova = p.mochila.map((x) => (x ? { ...x } : null)); if (!guardar(prova, { ...a.item })) continue;
       const r = L.comprar(a.id, j.conta); if (typeof r === 'string') continue;
       p.ouro -= a.preco; guardar(p.mochila, { ...a.item }); n++;
@@ -175,7 +175,8 @@ export const LeilaoBots = {
       const iguais = L.anuncios.filter((a) => chaveMercado(a.item) === chaveMercado(item)).length;
       const [a0, a1] = B.acima, frac = (iguais <= B.escasso ? a1 : a0 + Math.random() * (a1 - a0)) * J.ganancia; // pouca oferta: no topo
       // nunca a preço de NPC: no mínimo 1,5x o que a loja paga; o que a loja vende fica um pouco abaixo do preço dela
-      const loja = LOJA.find((o) => o.k === item.k), piso = precoVenda({ ...item, n: 1 }) * 1.5, teto = loja ? (precoLoja(loja, p.nivel) || Infinity) * 0.95 : Infinity;
+      // a loja da mesma raridade (2026-11-24: achava a Comum de 150 para qualquer peça e travava toda Rara em 143)
+      const loja = LOJA.find((o) => o.k === item.k && (o.r == null || o.r === (item.r | 0))), piso = precoVenda({ ...item, n: 1 }) * 1.5, teto = loja ? (precoLoja(loja, p.nivel) || Infinity) * 0.95 : Infinity;
       const preco = Math.min(LEILAO.precoMax, Math.max(1, Math.round(Math.max(piso, Math.min(teto, merc * (1 + frac))) * qtd)));
       const taxa = L.taxaAnuncio(preco); if ((p.ouro | 0) < taxa) break;
       if (s.k) tirar(p.mochila, s.k, qtd); else if (s.parte && (p.mochila[s.i].n || 1) > qtd) p.mochila[s.i].n -= qtd; else p.mochila[s.i] = null;
