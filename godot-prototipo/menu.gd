@@ -4215,6 +4215,8 @@ func montar_mochila() -> void:
 		cont.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		linha.add_child(cont)
 	conteudo.add_child(linha)
+	if vendendo:
+		conteudo.add_child(chips_venda())
 	if pag_mochila >= tem:
 		conteudo.add_child(pagina_trancada(pag_mochila, tem))
 	else:
@@ -4945,6 +4947,63 @@ func barra_venda(l: HBoxContainer) -> void:
 	var pr := botao("Pronto", func(): modo_vender(false), 15)
 	pr.custom_minimum_size = Vector2(90, 38)
 	l.add_child(pr)
+
+# André 2026-11-24: marcar de uma vez no Vender vários. Chips só com ícone + quantidade: equipamento Comum / Raro / Épico (ou
+# melhor) e Recurso. Toque marca tudo que combina (com cadeado e o que está vestido ficam de fora: vestido nem está na mochila);
+# se tudo isso já estava marcado, desmarca. Marcar um por um continua valendo.
+func ids_do_chip(tipo: String) -> Array:
+	var P = P_menu
+	var l: Array = []
+	for i in P.prog.mochila.size():
+		var it = P.prog.mochila[i]
+		if it == null or it.get("cad", false):
+			continue
+		var eq: bool = P.eh_equip(it)
+		if tipo == "rec":
+			if not eq and P.dados.itens.has(it.k) and P.dados.itens[it.k].get("mat", false):
+				l.append(i)
+		elif eq:
+			var r: int = int(it.r)
+			if r == int(tipo) or (int(tipo) == 2 and r > 2):
+				l.append(i)
+	return l
+
+func chips_venda() -> HBoxContainer:
+	var P = P_menu
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	var tipos := [["0", "it_espada", Color(P.dados.raridades[0].cor)], ["1", "it_espada", Color(P.dados.raridades[1].cor)],
+		["2", "it_espada", Color(P.dados.raridades[2].cor)], ["rec", "it_couro", TEXTO]]
+	for t in tipos:
+		var ids: Array = ids_do_chip(t[0])
+		var todos: bool = ids.size() > 0 and ids.all(func(i): return marcados.has(i))
+		var b := Button.new()
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(78, 38)
+		estilo_botao(b, todos)
+		b.disabled = ids.is_empty()
+		b.icon = icone_tex(t[1])
+		b.expand_icon = true
+		b.add_theme_constant_override("icon_max_width", 22)
+		b.text = str(ids.size())
+		b.add_theme_font_size_override("font_size", 15)
+		b.add_theme_color_override("font_color", t[2])
+		b.add_theme_color_override("font_disabled_color", APAGADO)
+		if t[1] == "it_espada":
+			b.add_theme_color_override("icon_normal_color", t[2])
+			b.add_theme_color_override("icon_pressed_color", t[2])
+			b.add_theme_color_override("icon_hover_color", t[2])
+			b.add_theme_color_override("icon_disabled_color", Color(t[2], 0.35))
+		b.pressed.connect(func():
+			for i in ids:
+				if todos:
+					marcados.erase(i)
+				else:
+					marcados[i] = true
+			Input.vibrate_handheld(20)
+			atualizar())
+		h.add_child(b)
+	return h
 
 func modo_vender(ligar: bool) -> void:
 	if ligar and _so_olhando(): # menu do recruta (só olhando)
