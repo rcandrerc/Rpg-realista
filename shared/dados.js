@@ -1330,24 +1330,24 @@ export const ITENS = {
   fragmento: { nome: 'Fragmento rúnico', mat: true, pilha: 50, venda: 4, desc: 'Lasca de pedra com uma runa apagada. Os monstros carregam sem saber. O Gaspar, na boca da caverna da montanha, faz passes com ela.' },
   // carne (2026-11-07): cai dos bichos (Puglin, Lobo, Maw) e vai para o fogão
   carne: { nome: 'Carne crua', mat: true, pilha: 50, venda: 2, desc: 'Carne de caça. No fogão vira carne assada ou ensopado.' },
-  // pratos do fogão (Cozinheiro): comer recupera vida/mana e dá vigor (usar.vigor = pontos); sem recarga nem limite por enquanto (André 2026-11-07)
-  carne_assada: { nome: 'Carne assada', pilha: 20, comida: true, usar: { vida: 0.25, vigor: 6 }, venda: 6, desc: 'Recupera 25% da vida e 6 de vigor.' },
-  sopa_legumes: { nome: 'Sopa de legumes', pilha: 20, comida: true, usar: { vida: 0.3, vigor: 10 }, venda: 8, desc: 'Recupera 30% da vida e 10 de vigor.' },
-  pao_milho: { nome: 'Pão de milho', pilha: 20, comida: true, usar: { mana: 0.3, vigor: 8 }, venda: 8, desc: 'Recupera 30% da mana e 8 de vigor.' },
-  ensopado: { nome: 'Ensopado de carne', pilha: 20, comida: true, usar: { vida: 0.5, vigor: 15 }, venda: 14, desc: 'Recupera 50% da vida e 15 de vigor.' },
-  torta_abobora: { nome: 'Torta de abóbora', pilha: 20, comida: true, usar: { vida: 0.4, mana: 0.4, vigor: 20 }, venda: 22, desc: 'Recupera 40% da vida, 40% da mana e 20 de vigor.' },
+  // pratos do fogão (Cozinheiro): comer recupera vida/mana; André 2026-11-24: comida não dá mais vigor (excesso com os recrutas); sem recarga nem limite por enquanto (André 2026-11-07)
+  carne_assada: { nome: 'Carne assada', pilha: 20, comida: true, usar: { vida: 0.25 }, venda: 6, desc: 'Recupera 25% da vida.' },
+  sopa_legumes: { nome: 'Sopa de legumes', pilha: 20, comida: true, usar: { vida: 0.3 }, venda: 8, desc: 'Recupera 30% da vida.' },
+  pao_milho: { nome: 'Pão de milho', pilha: 20, comida: true, usar: { mana: 0.3 }, venda: 8, desc: 'Recupera 30% da mana.' },
+  ensopado: { nome: 'Ensopado de carne', pilha: 20, comida: true, usar: { vida: 0.5 }, venda: 14, desc: 'Recupera 50% da vida.' },
+  torta_abobora: { nome: 'Torta de abóbora', pilha: 20, comida: true, usar: { vida: 0.4, mana: 0.4 }, venda: 22, desc: 'Recupera 40% da vida e 40% da mana.' },
   catalisador_memoria: { nome: 'Catalisador da Memória', mat: true, pilha: 1, venda: 1, desc: 'Feito pela Mirela com obsidiana, ervas e cristal de Aurora. Devolve a memória a quem a Névoa comeu. Só serve uma vez.' },
   passe_caverna: { nome: 'Passe da Caverna', mat: true, pilha: 20, venda: 10, desc: 'Abre o selo da Caverna da Montanha uma vez. Use na porta (o botão aparece quando você chega perto).' },
   // pescaria (igual ao Quimera, André 2026-11-08): peixes crus (comer recupera um pouco; preço e vigor do Quimera) e o peixe assado do fogão
-  lambari: { nome: 'Lambari', pilha: 99, comida: true, peixe: true, usar: { vida: 0.06, vigor: 1 }, venda: 3, desc: 'Peixinho de rio e lago. Asse dois no fogão.' },
-  tilapia: { nome: 'Tilápia', pilha: 99, comida: true, peixe: true, usar: { vida: 0.1, vigor: 1 }, venda: 6, desc: 'Peixe de lago e rio. Vale umas moedas.' },
-  traira: { nome: 'Traíra', pilha: 99, comida: true, peixe: true, usar: { vida: 0.14, vigor: 2 }, venda: 11, desc: 'Peixe bravo de água doce. Briga muito na linha!' },
-  sardinha: { nome: 'Sardinha', pilha: 99, comida: true, peixe: true, usar: { vida: 0.06, vigor: 1 }, venda: 3, desc: 'Peixinho do mar.' },
-  robalo: { nome: 'Robalo', pilha: 99, comida: true, peixe: true, usar: { vida: 0.14, vigor: 2 }, venda: 9, desc: 'Peixe do mar. Ótimo pra moqueca.' },
-  garoupa: { nome: 'Garoupa', pilha: 99, comida: true, peixe: true, usar: { vida: 0.2, vigor: 2 }, venda: 18, desc: 'Peixe grande do mar. Vale bem.' },
-  atum: { nome: 'Atum', pilha: 99, comida: true, peixe: true, usar: { vida: 0.28, vigor: 4 }, venda: 30, desc: 'Peixe enorme do mar aberto. Raro!' },
-  dourado: { nome: 'Peixe-Dourado', pilha: 99, comida: true, peixe: true, usar: { vida: 0.6, vigor: 8 }, venda: 160, desc: 'Lendário! Só nas águas em volta da ilha. Vale uma fortuna.' },
-  peixe_assado: { nome: 'Peixe assado', pilha: 20, comida: true, usar: { vida: 0.3, vigor: 4 }, venda: 7, desc: 'Recupera 30% da vida e 4 de vigor.' },
+  lambari: { nome: 'Lambari', pilha: 99, comida: true, peixe: true, usar: { vida: 0.06 }, venda: 3, desc: 'Peixinho de rio e lago. Asse dois no fogão.' },
+  tilapia: { nome: 'Tilápia', pilha: 99, comida: true, peixe: true, usar: { vida: 0.1 }, venda: 6, desc: 'Peixe de lago e rio. Vale umas moedas.' },
+  traira: { nome: 'Traíra', pilha: 99, comida: true, peixe: true, usar: { vida: 0.14 }, venda: 11, desc: 'Peixe bravo de água doce. Briga muito na linha!' },
+  sardinha: { nome: 'Sardinha', pilha: 99, comida: true, peixe: true, usar: { vida: 0.06 }, venda: 3, desc: 'Peixinho do mar.' },
+  robalo: { nome: 'Robalo', pilha: 99, comida: true, peixe: true, usar: { vida: 0.14 }, venda: 9, desc: 'Peixe do mar. Ótimo pra moqueca.' },
+  garoupa: { nome: 'Garoupa', pilha: 99, comida: true, peixe: true, usar: { vida: 0.2 }, venda: 18, desc: 'Peixe grande do mar. Vale bem.' },
+  atum: { nome: 'Atum', pilha: 99, comida: true, peixe: true, usar: { vida: 0.28 }, venda: 30, desc: 'Peixe enorme do mar aberto. Raro!' },
+  dourado: { nome: 'Peixe-Dourado', pilha: 99, comida: true, peixe: true, usar: { vida: 0.6 }, venda: 160, desc: 'Lendário! Só nas águas em volta da ilha. Vale uma fortuna.' },
+  peixe_assado: { nome: 'Peixe assado', pilha: 20, comida: true, usar: { vida: 0.3 }, venda: 7, desc: 'Recupera 30% da vida.' },
 };
 // Recarga das poções (André 2026-11-06): segundos entre uma poção e outra do mesmo tipo (vida e mana contam separado).
 export const POCAO_RECARGA = 10;

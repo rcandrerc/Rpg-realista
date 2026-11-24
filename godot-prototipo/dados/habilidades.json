@@ -833,44 +833,40 @@
    "pilha": 20,
    "comida": true,
    "usar": {
-    "vida": 0.25,
-    "vigor": 6
+    "vida": 0.25
    },
    "venda": 6,
-   "desc": "Recupera 25% da vida e 6 de vigor."
+   "desc": "Recupera 25% da vida."
   },
   "sopa_legumes": {
    "nome": "Sopa de legumes",
    "pilha": 20,
    "comida": true,
    "usar": {
-    "vida": 0.3,
-    "vigor": 10
+    "vida": 0.3
    },
    "venda": 8,
-   "desc": "Recupera 30% da vida e 10 de vigor."
+   "desc": "Recupera 30% da vida."
   },
   "pao_milho": {
    "nome": "Pão de milho",
    "pilha": 20,
    "comida": true,
    "usar": {
-    "mana": 0.3,
-    "vigor": 8
+    "mana": 0.3
    },
    "venda": 8,
-   "desc": "Recupera 30% da mana e 8 de vigor."
+   "desc": "Recupera 30% da mana."
   },
   "ensopado": {
    "nome": "Ensopado de carne",
    "pilha": 20,
    "comida": true,
    "usar": {
-    "vida": 0.5,
-    "vigor": 15
+    "vida": 0.5
    },
    "venda": 14,
-   "desc": "Recupera 50% da vida e 15 de vigor."
+   "desc": "Recupera 50% da vida."
   },
   "torta_abobora": {
    "nome": "Torta de abóbora",
@@ -878,11 +874,10 @@
    "comida": true,
    "usar": {
     "vida": 0.4,
-    "mana": 0.4,
-    "vigor": 20
+    "mana": 0.4
    },
    "venda": 22,
-   "desc": "Recupera 40% da vida, 40% da mana e 20 de vigor."
+   "desc": "Recupera 40% da vida e 40% da mana."
   },
   "catalisador_memoria": {
    "nome": "Catalisador da Memória",
@@ -904,8 +899,7 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.06,
-    "vigor": 1
+    "vida": 0.06
    },
    "venda": 3,
    "desc": "Peixinho de rio e lago. Asse dois no fogão."
@@ -916,8 +910,7 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.1,
-    "vigor": 1
+    "vida": 0.1
    },
    "venda": 6,
    "desc": "Peixe de lago e rio. Vale umas moedas."
@@ -928,8 +921,7 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.14,
-    "vigor": 2
+    "vida": 0.14
    },
    "venda": 11,
    "desc": "Peixe bravo de água doce. Briga muito na linha!"
@@ -940,8 +932,7 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.06,
-    "vigor": 1
+    "vida": 0.06
    },
    "venda": 3,
    "desc": "Peixinho do mar."
@@ -952,8 +943,7 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.14,
-    "vigor": 2
+    "vida": 0.14
    },
    "venda": 9,
    "desc": "Peixe do mar. Ótimo pra moqueca."
@@ -964,8 +954,7 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.2,
-    "vigor": 2
+    "vida": 0.2
    },
    "venda": 18,
    "desc": "Peixe grande do mar. Vale bem."
@@ -976,8 +965,7 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.28,
-    "vigor": 4
+    "vida": 0.28
    },
    "venda": 30,
    "desc": "Peixe enorme do mar aberto. Raro!"
@@ -988,8 +976,7 @@
    "comida": true,
    "peixe": true,
    "usar": {
-    "vida": 0.6,
-    "vigor": 8
+    "vida": 0.6
    },
    "venda": 160,
    "desc": "Lendário! Só nas águas em volta da ilha. Vale uma fortuna."
@@ -999,11 +986,10 @@
    "pilha": 20,
    "comida": true,
    "usar": {
-    "vida": 0.3,
-    "vigor": 4
+    "vida": 0.3
    },
    "venda": 7,
-   "desc": "Recupera 30% da vida e 4 de vigor."
+   "desc": "Recupera 30% da vida."
   },
   "selo_raro": {
    "nome": "Selo Raro",
