@@ -174,6 +174,11 @@ func passos(hi: Dictionary) -> Array:
 			return ["ir", "topo:construir", "cons:aba:fazenda", "cons:slot:" + ev, "cons:marcar:" + ev, "cons:salvar"]
 		"terreno":
 			return ["ir", "hud:lote", "cons:comprar"]
+		# André 2026-11-23: a missão da base do clã (fundar o clã e a base) e a taxa no cofre, no ícone Clã
+		"base":
+			return ["topo:cla", "b:Fundar clã", "b:Escolher o lugar da base"]
+		"cofre":
+			return ["topo:cla", "b^+"]
 		"dormir":
 			return ["ir", "hud:cama"]
 		"montar":
