@@ -90,14 +90,11 @@ ok(cec.iaForaAmiga(), 'Cecília continua saindo quando a IA acaba');
   const s2 = new Simulacao(MAPA_CLAREIRA); s2.carregarClasNpc(salvo);
   ok(CLAS_NPC.every((K) => s2.clasNpc[K.id].nv === 1), `clãs bot (inimigos e neutros) no nível 1 ao religar (${CLAS_NPC.map((K) => s2.clasNpc[K.id].nv)})`);
   ok(s2.clasNpc.geada.fora?.length === 3, 'os fixos continuam fora ao religar');
-  // clã Nv 2: o líder recruta um fixo de novo, Nv 1 e personagem novo
+  // o líder bot recruta como um jogador (André 2026-11-24): os fixos não voltam sozinhos; a vaga do Nv 1 é de um sorteado
   {
-    const Eg = s.clasNpc.geada; Eg.nv = 2; Eg.prox = 0; s.npcSalvos.set('kira', { prog: { ...progressoValido(null), nivel: 50 } });
-    const g = s.amigosIa.find((x) => x.AMIGA.id === 'gael').amiga; g.prog.ouro = 5000;
-    ok(s.recrutarFixoNpc(C, Eg, g) === true, 'Gael recruta a Kira de volta');
-    const k2 = s.amigosIa.find((x) => x.AMIGA.id === 'kira');
-    ok(!Eg.fora.includes('kira') && (k2.amiga ? k2.amiga.prog.nivel : s.npcSalvos.get('kira').prog.nivel) === 1, `Kira volta no Nv 1 (${k2.amiga?.prog.nivel})`);
-    ok(s.clasNpcInfo(a).find((K) => K.n === C.n).membros.length === 1, 'menu mostra a Kira no clã');
+    const Eg = s.clasNpc.geada; Eg.prox = 0; const gx = s.amigosIa.find((x) => x.AMIGA.id === 'gael'); gx.amiga.prog.ouro = 5000;
+    s.passoClasNpc();
+    ok(Eg.m.length === 1 && /^rc/.test(Eg.m[0].id) && Eg.fora?.length === 3, `Gael recrutou 1 dos candidatos, os fixos continuam fora (${Eg.m.length})`);
   }
   // o líder que sai e volta (ou o servidor religado) continua no Nv 1: antes a Geada voltava ao nível com que foi criada
   {

@@ -780,7 +780,7 @@ export const Cla = {
       const E = this.clasNpc?.[C.id]; bases.add('n' + C.id); if (!E) continue;
       for (const m of E.m) { this.tirarRecruta(m.id, j); foram.add(m.id); }
       E.m = []; E.nv = 1; delete E.bau; delete E.ordensT; delete E.visto; delete E.foraFeito; delete E.fx;
-      E.fora = C.membros.filter((id) => id !== C.lider); if (!E.fora.length) delete E.fora; // os fixos saem: voltam recrutados (Nv 2+)
+      E.fora = C.membros.filter((id) => id !== C.lider); if (!E.fora.length) delete E.fora; // os fixos saem: o líder recruta como um jogador
       E.prox = agora + CLAS_NPC_REGRAS.primeiro * 3600e3; E.sem = agora + CLA.semana;
     }
     // o save de quem saiu some do banco (antes ficava 'npc:' + id para sempre na tabela mundo)
@@ -921,9 +921,7 @@ export const Cla = {
         if (!r.falta) { L.prog.ouro -= r.N.ouro; r.tirar(); E.nv = r.N.nv; mudou = true;
           for (const o of this.jogadores.values()) if (!o.bot) this.evento({ t: 'aviso', para: o.id, texto: `${C.n} subiu para o Nv ${E.nv}` }); }
       }
-      // o membro fixo que saiu no reset volta recrutado (clã Nv 2+), um por vez, no lugar de um sorteado: Nv 1, personagem novo
-      if (E.fora?.length && (E.nv || 1) >= 2 && agora >= E.prox && E.m.length < vagasClaNpc(C, E.nv, E)) { if (this.recrutarFixoNpc(C, E, L)) { E.prox = agora + R.entre * 3600e3; mudou = true; } }
-      else if (agora >= E.prox && E.m.length < vagasClaNpc(C, E.nv, E)) {
+      if (agora >= E.prox && E.m.length < vagasClaNpc(C, E.nv, E)) {
         E.prox = agora + R.entre * 3600e3; mudou = true;
         const nv = L.prog.nivel | 0, livre = (L.prog.ouro | 0) - R.reserva;
         const T = [...CLA.tiers].reverse().find((T) => (T.claNv || 1) <= (E.nv || 1) && precoTier(T, nivelTier(T, nv)) <= livre);
@@ -943,22 +941,6 @@ export const Cla = {
   },
   // as marcas de recomeço do bot no save novo (sem elas, amigaEntrar acharia que o recomeço não foi feito e zeraria o save)
   marcasRecomeco(A) { return { ...(A?.recomeco ? { recomeco: A.recomeco } : {}), ...(A?.recomecoJogo ? { recomecoJogo: A.recomecoJogo } : {}) }; },
-  // o líder bot recruta de novo um membro fixo que saiu no "Resetar partida" (E.fora): paga como um recruta Nv 1 do primeiro
-  // tier e ele volta personagem novo (André 2026-11-24: "todos os recrutas nível 1 também, quando foi recrutado... nada de
-  // histórico"), com a roupa do começo. Devolve true se recrutou.
-  recrutarFixoNpc(C, E, L) {
-    const id = E.fora?.[0], ctx = id && this.amigosIa.find((x) => x.AMIGA.id === id); if (!ctx) { if (id) E.fora.shift(); return false; }
-    const T = CLA.tiers[0], preco = precoTier(T, 1); if ((L.prog.ouro | 0) - CLAS_NPC_REGRAS.reserva < preco) return false;
-    L.prog.ouro -= preco; E.fora.shift(); if (!E.fora.length) delete E.fora;
-    const A = ctx.AMIGA, prog = progressoValido(null);
-    for (const [l, it] of Object.entries(A.equip || {})) prog.equip[l] = { k: it.k, r: A.justa?.raridade ?? 0 };
-    if (A.mochila?.paginas) liberarPaginas(prog, A.mochila.paginas);
-    const salvo = this.npcSalvos?.get(id) || {};
-    (this.npcSalvos ||= new Map()).set(id, { ...salvo, prog, zerado: 1, t: Date.now(), ...this.marcasRecomeco(A) }); (this.npcsMudados ||= new Set()).add(id);
-    const o = [...this.jogadores.values()].find((x) => !x.bot); if (o && !ctx.amiga) ctx.amigaEntrar(o.id, false);
-    for (const p of this.jogadores.values()) if (!p.bot && this.racaDe(p) !== C.raca) this.evento({ t: 'aviso', para: p.id, texto: `${L.nome || 'O líder'} recrutou ${A.nome} para os ${C.n}` });
-    return true;
-  },
   // o líder bot faz o que o jogador faria na fornalha: 3 minérios de ferro viram 1 barra, 2 barras viram 1 de aço
   fundirBauNpc(E) {
     const b = E.bau; if (!b) return;
