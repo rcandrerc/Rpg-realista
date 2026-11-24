@@ -46,10 +46,13 @@ Object.assign(j, { x: R.x + 3, z: R.z, y: s.terreno.altura(R.x + 2, R.z), vida: 
 Object.assign(b, { x: R.x + 4, z: R.z, y: j.y, casa: { x: R.x + 4, z: R.z } });
 correr(5);
 ok(j.vida === j.vidaMax, 'monstro não bate na área segura');
-// renasce no último totem tocado (Rio Claro), não na vila
-Object.assign(j, { x: 0, z: 1, y: 0 });
+// renasce no totem mais perto de onde caiu (André 2026-11-24), não no último tocado
+Object.assign(j, { x: R.x + 40, z: R.z + 10, y: 0 });
 s.morrer(j); correr(HEROI.renascer + 0.5);
-ok(!j.morto && Math.hypot(j.x - R.x, j.z - R.z) < 5, `renasceu no Rio Claro (${j.x.toFixed(1)}, ${j.z.toFixed(1)})`);
+ok(!j.morto && Math.hypot(j.x - R.x, j.z - R.z) < 5, `caiu perto do Rio Claro e renasceu lá (${j.x.toFixed(1)}, ${j.z.toFixed(1)})`);
+j.prog.totem = 'rio_claro'; Object.assign(j, { x: 3, z: 1, y: 0 });
+s.morrer(j); correr(HEROI.renascer + 0.5);
+ok(!j.morto && Math.hypot(j.x - R.x, j.z - R.z) > 100, `caiu na vila e não foi para o último totem tocado (${j.x.toFixed(1)}, ${j.z.toFixed(1)})`);
 // o progresso guarda (e limpa id que não existe)
 const p = progressoValido({ ...j.prog, totens: ['clareira', 'rio_claro', 'nada'], totem: 'rio_claro' });
 ok(p.totens.join() === 'clareira,rio_claro' && p.totem === 'rio_claro', 'progresso guarda os totens');
