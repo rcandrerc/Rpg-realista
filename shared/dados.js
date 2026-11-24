@@ -2326,6 +2326,8 @@ export const TOTEM_BOT = { ganho: 80, folga: 3, espera: 45, olhaOutra: 5 };
 export const taxaTotem = (t) => Math.max(TOTENS.taxaMin, TOTENS.taxaNivel * (t?.nivel || 1));
 // o totem a até r m de (x, z), ou null
 export const totemPerto = (x, z, r = TOTENS.usar) => TOTENS.lista.find((t) => Math.hypot(t.x - x, t.z - z) < r) || null;
+// o totem mais próximo de (x, z) (André 2026-11-24: ao morrer renasce no totem mais perto de onde caiu, não no último tocado)
+export const totemMaisPerto = (x, z) => TOTENS.lista.reduce((m, t) => (!m || Math.hypot(t.x - x, t.z - z) < Math.hypot(m.x - x, m.z - z) ? t : m), null);
 // Base do clã segura (André 2026-11-24: "a área dentro da nossa base deve ser safe igual os totens, somente a área da
 // base mesmo, sem raio de segurança"): os retângulos de cada base (o centro no nível de agora e os lotes abertos, sem
 // folga em volta), refeitos por Base.refazerBases (shared/base.js). Valem as mesmas regras do totem (abaixo).

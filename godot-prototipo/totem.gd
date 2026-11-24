@@ -67,9 +67,18 @@ func lado(t: Dictionary) -> Vector3:
 	var z := float(t.z) + sin(a) * r
 	return Vector3(x, m.terreno.altura(x, z) if m.terreno else 0.0, z)
 
-# sem internet: onde levanta depois de cair (o último totem tocado; o da vila ou nenhum = a praça, como antes)
-func onde_renascer(padrao: Vector3) -> Vector3:
-	var t := dados(str(m.P.prog.get("totem", "")))
+# sem internet: onde levanta depois de cair (o totem mais perto de onde caiu, André 2026-11-24; o da vila = a praça, como antes)
+func onde_renascer(padrao: Vector3, de: Vector3 = Vector3.INF) -> Vector3:
+	var t := {}
+	if de != Vector3.INF:
+		var melhor := INF
+		for o in T.lista:
+			var d := Vector2(float(o.x) - de.x, float(o.z) - de.z).length()
+			if d < melhor:
+				melhor = d
+				t = o
+	else:
+		t = dados(str(m.P.prog.get("totem", "")))
 	if t.is_empty() or str(t.id) == "clareira":
 		return padrao
 	return lado(t)
