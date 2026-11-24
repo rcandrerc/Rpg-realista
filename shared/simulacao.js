@@ -2,7 +2,7 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos } from './progresso.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos } from './progresso.js';
 import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
@@ -329,6 +329,10 @@ export function naCais(mapa, x, z) {
 
 // quem bateu no NPC por último (aprender com a morte, shared/amiga.js): só o que importa, sem segurar o monstro
 const golpeDe = (e) => ({ tipo: e.tipo, nivel: e.nivel || 1, hc: e.hc || null, bm: !!e.bm });
+
+// texto do buff da comida para o aviso (André 2026-11-24): "+5% de dano e +2% de crítico"
+const NOMES_BUFF = { dano: 'de dano', defesa: 'de defesa', critico: 'de crítico', regenMana: 'na volta da mana' };
+const textoBuff = (B) => Object.entries(B.b).map(([k, v]) => `+${Math.round(v * 100)}% ${NOMES_BUFF[k] || k}`).join(' e ');
 
 export class Simulacao {
   constructor(mapa) {
@@ -1032,6 +1036,8 @@ export class Simulacao {
     if (p.nivel >= NIVEL_MAX) p.xp = 0;
     if (subiu) {
       this.aplicarStatus(j, true);
+      // André 2026-11-24: o vigor máximo sobe VIGOR.porNivel por nível (jogador e recruta) e enche esse tanto a mais
+      if (VIGOR.porNivel) { const g = VIGOR.porNivel * (p.nivel - nivelAntes); ganharVigor(p, g); if (!j.bot) this.evento({ t: 'aviso', para: j.id, texto: `Vigor máximo +${g} (agora ${vigorMax(p)})` }); }
       this.evento({ t: 'nivel', id: j.id, nivel: p.nivel });
       this.evento({ t: 'aviso', para: j.id, texto: `Nível ${p.nivel}! +${PONTOS_POR_NIVEL} pontos de atributo` });
       this.avisarLibera(j, nivelAntes);
@@ -1985,11 +1991,18 @@ export class Simulacao {
         if (rc > 0 && !ITENS[it.k].comida) return aviso(`Espere ${Math.ceil(rc)} s para outra ${ITENS[it.k].nome.toLowerCase()}`);
         if (ITENS[it.k].comida) {
           // prato do fogão (2026-11-07): vale comer se ao menos uma coisa não está cheia (vida, mana ou vigor)
-          const agora = Date.now(), vale = (u.vida && j.vida < j.vidaMax) || (u.mana && j.mana < j.manaMax) || (u.vigor && vigorAgora(p.vigor, agora) < VIGOR.max);
+          // André 2026-11-24: prato com buff sempre vale comer (o buff é o motivo)
+          const agora = Date.now(), Bf = ITENS[it.k].buff, vale = !!Bf || (u.vida && j.vida < j.vidaMax) || (u.mana && j.mana < j.manaMax) || (u.vigor && vigorAgora(p.vigor, agora) < vigorMax(p));
           if (!vale) return aviso('Você já está satisfeito: vida, mana e vigor cheios');
           if (u.vida && j.vida < j.vidaMax) { const n = Math.min(j.vidaMax - j.vida, Math.round(j.vidaMax * u.vida)); j.vida += n; this.evento({ t: 'cura', alvo: j.id, n }); }
           if (u.mana) j.mana = Math.min(j.manaMax, j.mana + j.manaMax * u.mana);
           if (u.vigor) { const g = ganharVigor(p, u.vigor, agora); if (g > 0) aviso(`+${Math.round(g)} de vigor`); }
+          if (Bf) { // um buff por vez: o novo troca o anterior
+            const troca = p.buff && p.buff.k !== it.k && p.buff.ate > agora;
+            p.buff = { k: it.k, ate: agora + Bf.dur * 1000 }; j.progSujo = true;
+            this.aplicarStatus(j); this.avisarProg(j);
+            aviso(`${troca ? 'Buff trocado' : 'Buff'}: ${textoBuff(Bf)} por ${Math.round(Bf.dur / 60)} min`);
+          }
         } else {
         if (u.vida) { if (j.vida >= j.vidaMax) return aviso('A vida já está cheia'); const n = Math.min(j.vidaMax - j.vida, Math.round(j.vidaMax * u.vida)); j.vida += n; this.evento({ t: 'cura', alvo: j.id, n }); }
         if (u.mana) { if (j.mana >= j.manaMax) return aviso('A mana já está cheia'); j.mana = Math.min(j.manaMax, j.mana + j.manaMax * u.mana); }
@@ -3633,8 +3646,8 @@ export class Simulacao {
     p.dia = { h: DIA.acorda, t: agora };
     j.vida = j.vidaMax; j.mana = j.manaMax; j.sta = j.staMax; j.semFolego = false;
     let vigor = 0;
-    const espera = camaVigorEm(p, agora);
-    if (espera <= 0) { vigor = ganharVigor(p, CAMA.vigor, agora); p.camaT = agora; }
+    const espera = CAMA.vigor > 0 ? camaVigorEm(p, agora) : 0; // André 2026-11-24: a cama não dá mais vigor (CAMA.vigor 0)
+    if (CAMA.vigor > 0 && espera <= 0) { vigor = ganharVigor(p, CAMA.vigor, agora); p.camaT = agora; }
     this.evento({ t: 'dormiu', para: id, vigor: Math.round(vigor), espera: Math.ceil(espera) });
     this.historia(j, 'dormir'); // história: dormir uma noite na cama
     this.avisarProg(j);
@@ -4141,6 +4154,7 @@ export class Simulacao {
       const pen = penalidadeMorte(c.prog, { semXp: !!matou, semDesgaste: !!matou }); // André 2026-11-22: guerra não desgasta o equipamento
       if (matou && de === matou) this.morteGuerra(c, matou); // anúncio e memória do NPC só quando foi ele que derrubou (revisão 2026-11-19); o XP segue a regra dos 15 s
       c.pvpDe = null; c.progSujo = true; if (pen?.ouro) this.caixa(c, 'morte', -pen.ouro);
+      if (c.prog.buff) delete c.prog.buff; // morrer tira o buff da comida (André 2026-11-24)
       this.aplicarStatus(c); this.avisarProg(c);
       this.depois(HEROI.renascer, () => {
         // cama no terreno (como no Quimera): renasce do lado dela
@@ -4441,7 +4455,9 @@ export class Simulacao {
     this.timers = this.timers.filter((t) => t.t > this.tempo);
     vencidos.forEach((t) => t.fn());
 
+    const agoraMs = Date.now();
     for (const c of this.todos()) {
+      if (c.prog?.buff && c.prog.buff.ate <= agoraMs) { delete c.prog.buff; c.progSujo = true; this.aplicarStatus(c); this.avisarProg(c); if (!c.bot) this.evento({ t: 'aviso', para: c.id, texto: 'O buff da comida acabou' }); } // André 2026-11-24
       if (c.dash && c.dash.t > 0) { if (!this.guiado(c)) this.mover(c, c.dash.vx * dt, c.dash.vz * dt); c.dash.t -= dt; } // guiado: o celular já fez o avanço
       if (c.trava > 0 && c.trava !== Infinity) {
         c.trava -= dt;

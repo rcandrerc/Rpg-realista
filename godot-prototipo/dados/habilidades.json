@@ -836,7 +836,13 @@
     "vida": 0.25
    },
    "venda": 6,
-   "desc": "Recupera 25% da vida."
+   "buff": {
+    "b": {
+     "dano": 0.05
+    },
+    "dur": 600
+   },
+   "desc": "Recupera 25% da vida. Buff: +5% de dano por 10 min."
   },
   "sopa_legumes": {
    "nome": "Sopa de legumes",
@@ -846,7 +852,13 @@
     "vida": 0.3
    },
    "venda": 8,
-   "desc": "Recupera 30% da vida."
+   "buff": {
+    "b": {
+     "defesa": 0.1
+    },
+    "dur": 600
+   },
+   "desc": "Recupera 30% da vida. Buff: +10% de defesa por 10 min."
   },
   "pao_milho": {
    "nome": "Pão de milho",
@@ -856,7 +868,13 @@
     "mana": 0.3
    },
    "venda": 8,
-   "desc": "Recupera 30% da mana."
+   "buff": {
+    "b": {
+     "regenMana": 0.2
+    },
+    "dur": 600
+   },
+   "desc": "Recupera 30% da mana. Buff: +20% na volta da mana por 10 min."
   },
   "ensopado": {
    "nome": "Ensopado de carne",
@@ -866,7 +884,14 @@
     "vida": 0.5
    },
    "venda": 14,
-   "desc": "Recupera 50% da vida."
+   "buff": {
+    "b": {
+     "dano": 0.08,
+     "defesa": 0.05
+    },
+    "dur": 900
+   },
+   "desc": "Recupera 50% da vida. Buff: +8% de dano e +5% de defesa por 15 min."
   },
   "torta_abobora": {
    "nome": "Torta de abóbora",
@@ -877,7 +902,14 @@
     "mana": 0.4
    },
    "venda": 22,
-   "desc": "Recupera 40% da vida e 40% da mana."
+   "buff": {
+    "b": {
+     "critico": 0.03,
+     "dano": 0.05
+    },
+    "dur": 1200
+   },
+   "desc": "Recupera 40% da vida e 40% da mana. Buff: +3% de crítico e +5% de dano por 20 min."
   },
   "catalisador_memoria": {
    "nome": "Catalisador da Memória",
@@ -968,7 +1000,13 @@
     "vida": 0.28
    },
    "venda": 30,
-   "desc": "Peixe enorme do mar aberto. Raro!"
+   "buff": {
+    "b": {
+     "critico": 0.02
+    },
+    "dur": 300
+   },
+   "desc": "Peixe enorme do mar aberto. Raro! Buff: +2% de crítico por 5 min."
   },
   "dourado": {
    "nome": "Peixe-Dourado",
@@ -979,7 +1017,14 @@
     "vida": 0.6
    },
    "venda": 160,
-   "desc": "Lendário! Só nas águas em volta da ilha. Vale uma fortuna."
+   "buff": {
+    "b": {
+     "critico": 0.05,
+     "dano": 0.1
+    },
+    "dur": 900
+   },
+   "desc": "Lendário! Só nas águas em volta da ilha. Vale uma fortuna. Buff: +5% de crítico e +10% de dano por 15 min."
   },
   "peixe_assado": {
    "nome": "Peixe assado",
@@ -989,7 +1034,13 @@
     "vida": 0.3
    },
    "venda": 7,
-   "desc": "Recupera 30% da vida."
+   "buff": {
+    "b": {
+     "critico": 0.02
+    },
+    "dur": 600
+   },
+   "desc": "Recupera 30% da vida. Buff: +2% de crítico por 10 min."
   },
   "selo_raro": {
    "nome": "Selo Raro",
@@ -1294,7 +1345,7 @@
    "pilha": 20,
    "venda": 1,
    "obra": "cama",
-   "desc": "Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias e +40 de vigor (a cada 6 h). Coloque no seu terreno pelo modo construção (martelo)."
+   "desc": "Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias. Coloque no seu terreno pelo modo construção (martelo)."
   },
   "obra_tocha": {
    "nome": "Tocha",
@@ -2010,7 +2061,8 @@
  },
  "vigor": {
   "max": 100,
-  "enche": 21600
+  "enche": 21600,
+  "porNivel": 1
  },
  "dia": {
   "horaSeg": 30,
@@ -2028,7 +2080,7 @@
   "acorda": 6.5
  },
  "cama": {
-  "vigor": 40,
+  "vigor": 0,
   "cada": 21600,
   "perigo": 14
  },
@@ -3748,7 +3800,7 @@
    },
    "bancada": true,
    "alto": 0.6,
-   "desc": "Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias e +40 de vigor (a cada 6 h)."
+   "desc": "Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias."
   },
   "tocha": {
    "nome": "Tocha",

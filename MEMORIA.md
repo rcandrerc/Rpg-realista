@@ -12,7 +12,6 @@ Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 ## Abortado (não retomar sem pedido): Cecília/Dário, segurança, história/missões, economia/lojas.
 ## Rotinas
 - Robô de testes: ronda diária às 9h, um relatório entre 9h e 10h, correção automática com cuidado. Não reduzir bots/recrutas (André quer 50-60 bots para medir o servidor).
-
 ## Fluxo
 - Agentes efêmeros por cargo: ver `agentes/` e a regra no topo do `CLAUDE.md`.
 - Todo merge: PR, main mais recente, verificação verde, nada some. Testes (23/11, 110 verdes): o jeito antigo dos bots (amizade, time) importa `_amizade-antiga.mjs`; casa de bot na base via `_lote-base.mjs`; save dos bots em `npcSalvos` (tabela mundo).
@@ -27,4 +26,5 @@ Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 - 23/11: aba "Missão do Clã" (Escolta) ao lado de História/Diárias/Guilda; "Fixar no atalho" em toda missão (história, diária, guilda, clã): o cartão da tela mostra a fixada (`missao_ativa.fixa`, guardada no aparelho); Escolta em andamento passa na frente.
 - 23/11: cor livre também no Patrulheiro 2 / Roupão 2: Roupa/Calça da Aparência pintam só o pano (`Equip2.tingir`, tipo 2). 24/11: Roupa e Calça em abas na Aparência (4 trajes); Patrulheiro 2/Roupão 2 refeitos na linha do corpo afinado do jogo (`ferramentas/trajes-justos/`: o jogo afina cintura/blusa/manga, os .glb eram do corpo cru). André aprovou pelas fotos.
 - 23/11: história x clãs: Kael (líder da Geada) é rival, nunca aliado (h14, e6 com a Elara, f1, f2, cenas, diário); "A base do clã" (a12: fundar clã e base, ev `base`) e "Uma base que aguenta" (b1: cerca, tocha, baú, cama, fornalha, bigorna, taxa no cofre `cofre`), sem casa. 24/11: Ato do Clã (k1 recruta Nv 12, k2 escolta Nv 18, k3 clã Nv 2 Nv 25, k4 fim da Trégua Nv 30; ev recrutar/escolta/cla_nivel/guerra_matar).
+- 24/11: comida não dá vigor; dá buff (`ITENS[k].buff`, um por vez, morrer tira, `bonusComida`). Vigor máximo +1 por nível sem teto (`vigorMax`, `prog.vigor.m`; jogador e recruta); cama não dá vigor (`CAMA.vigor` 0).
 ## Próximas tarefas: medição de desempenho -> personagens leves -> mundo leve -> visual.

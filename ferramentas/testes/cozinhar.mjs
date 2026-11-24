@@ -23,14 +23,12 @@ s.criarUm('A', { r: 'sopa_legumes' }); let e = ev();
 ok(contar(a.prog.mochila, 'sopa_legumes') === 1 && contar(a.prog.mochila, 'cenoura') === 1, 'cozinhou a sopa ' + avisos(e));
 ok(a.prog.prof.coz > 0, 'ganhou pontos de Cozinheiro');
 const i = a.prog.mochila.findIndex((o) => o && o.k === 'sopa_legumes');
-// André 2026-11-24: comida não dá mais vigor. Vida cheia: não gasta a sopa e o vigor fica igual
-a.vida = a.vidaMax; a.prog.vigor = { v: 50, t: Date.now() };
+// André 2026-11-24: comida não dá mais vigor; prato com buff vale comer mesmo com a vida cheia (ferramentas/testes/comida-buff.mjs)
+a.vida = a.vidaMax * 0.5; a.prog.vigor = { v: 50, t: Date.now() };
 s.item('A', { acao: 'usar', i }); e = ev();
-ok(Math.abs(vigorAgora(a.prog.vigor) - 50) < 0.1 && contar(a.prog.mochila, 'sopa_legumes') === 1 && avisos(e).includes('satisfeito'), 'vida cheia: não come e não ganha vigor ' + avisos(e));
-a.vida = a.vidaMax * 0.5; s.item('A', { acao: 'usar', i }); e = ev();
 ok(Math.abs(vigorAgora(a.prog.vigor) - 50) < 0.1 && contar(a.prog.mochila, 'sopa_legumes') === 0 && a.vida > a.vidaMax * 0.5, 'comeu, curou a vida e o vigor não subiu ' + avisos(e));
-a.prog.mochila[5] = { k: 'pao_milho', n: 1 }; a.mana = a.manaMax; a.prog.vigor = { v: VIGOR.max, t: Date.now() };
-s.item('A', { acao: 'usar', i: 5 }); ok(avisos(ev()).includes('satisfeito') && contar(a.prog.mochila, 'pao_milho') === 1, 'tudo cheio: não gasta o prato');
+a.prog.mochila[5] = { k: 'tilapia', n: 1 }; a.vida = a.vidaMax; a.prog.vigor = { v: 50, t: Date.now() };
+s.item('A', { acao: 'usar', i: 5 }); ok(avisos(ev()).includes('satisfeito') && contar(a.prog.mochila, 'tilapia') === 1, 'vida cheia e sem buff: não gasta a comida');
 a.prog.mochila[6] = { k: 'pocao', n: 1 }; a.vida = a.vidaMax;
 s.item('A', { acao: 'usar', i: 6 }); ok(avisos(ev()).includes('vida já está cheia'), 'poção continua igual');
 a.prog.mochila[7] = { k: 'carne_assada', n: 3 }; a.prog.vigor = { v: 10, t: Date.now() }; a.vida = 1;

@@ -30,7 +30,7 @@ export const RECURSOS_CLA = { ...ENCOMENDA.recursos,
 const sorteia = (l, r) => l[Math.floor(r() * l.length)];
 const int = (v, a, b, d) => (Number.isFinite(+v) ? Math.max(a, Math.min(b, Math.round(+v))) : d);
 // vigor de agora (igual ao vigorAgora de progresso.js; aqui sem importar para não dar laço)
-const vigorDe = (vg) => (vg ? Math.min(VIGOR.max, vg.v + (Math.max(0, Date.now() - vg.t) / 1000 / VIGOR.enche) * VIGOR.max) : VIGOR.max);
+const vigorDe = (vg) => (vg ? Math.min(vg.m || VIGOR.max, vg.v + (Math.max(0, Date.now() - vg.t) / 1000 / VIGOR.enche) * VIGOR.max) : VIGOR.max); // m: máximo pelo nível (André 2026-11-24)
 // função do recruta (painel): { k, r?: recurso, p?: 'lider' | id de outro recruta }
 export function funcaoValida(fn) {
   if (!fn || typeof fn !== 'object' || !CLA.funcoes.some((F) => F.id === fn.k) || fn.k === 'livre') return null;
@@ -111,7 +111,7 @@ export const Cla = {
     if (temBau) for (const it of Lb.bauCla || []) if (it) bau[it.k] = (bau[it.k] | 0) + (it.n || 1);
     const nv = j.prog.nivel | 0;
     // status de cada um (André 2026-11-22: "eu consigo ver nível Hp mana e vigor"): vida, mana e vigor (0 a 100)
-    const st = (o, prog) => ({ hp: Math.round(o.vida) | 0, hpM: Math.round(o.vidaMax) | 0, mp: Math.round(o.mana) | 0, mpM: Math.round(o.manaMax) | 0, vg: Math.floor(vigorDe(prog.vigor)), vgM: VIGOR.max, morto: o.morto ? 1 : 0 });
+    const st = (o, prog) => ({ hp: Math.round(o.vida) | 0, hpM: Math.round(o.vidaMax) | 0, mp: Math.round(o.mana) | 0, mpM: Math.round(o.manaMax) | 0, vg: Math.floor(vigorDe(prog.vigor)), vgM: prog.vigor?.m || VIGOR.max, morto: o.morto ? 1 : 0 });
     return { n: c.n, cofre: c.cofre, semana: semanaCla(c), prox: Math.max(0, c.sem - Date.now()), max: c.nv || 1, nv: c.nv || 1, sobe: this.subirInfo(j), perto: this.pertoRecrutador(j),
       eu: { nome: j.nome, nv, ...st(j, j.prog) },
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, sem: semanaDe(tierDe(m.tier), a ? a.prog.nivel | 0 : m.nv), on: a ? 1 : 0, ...(m.dev ? { dev: m.dev } : {}), g: m.g,
@@ -482,7 +482,7 @@ export const Cla = {
   cuidarCanteiroCla(x, j, L, c, s, K, agora) {
     const t = L.horta[c]; if (!t) return null;
     crescerPlanta(t, agora);
-    const p = j.prog, gasta = () => { p.vigor = { v: Math.max(0, vigorDe(p.vigor) - HORTA.vigor), t: Date.now() }; };
+    const p = j.prog, gasta = () => { p.vigor = { v: Math.max(0, vigorDe(p.vigor) - HORTA.vigor), t: Date.now(), m: p.vigor?.m || VIGOR.max }; };
     let txt = null;
     if (t.c && fasePlanta(t.g / PLANTAS[t.c].G) >= 4) { // colher: vai para o Baú do Clã (sem baú, a bolsa dele)
       const P = PLANTAS[t.c], n = P.y[0] + Math.floor(Math.random() * (P.y[1] - P.y[0] + 1)), B = this.bauDoCla(K);
@@ -741,7 +741,7 @@ export const Cla = {
       const B = this.bauDoCla(this.claDoRecruta(x)), onde = B ? B.itens : a.prog.mochila;
       let n = Math.floor(vg / custo), dado = 0;
       for (let passo = 50; n > 0 && passo >= 1; passo = Math.floor(passo / 2)) while (n >= passo && guardar(onde, { k: item, n: passo })) { n -= passo; dado += passo; }
-      a.prog.vigor = { v: Math.max(0, Math.min(VIGOR.max, vg - dado * custo)), t: Date.now() };
+      a.prog.vigor = { v: Math.max(0, Math.min(a.prog.vigor?.m || VIGOR.max, vg - dado * custo)), t: Date.now(), m: a.prog.vigor?.m || VIGOR.max };
       if (B && dado) this.mexeuBau(B);
       txt = dado ? `${m.nome}: juntou ${dado} de ${R.nome}${B ? ' (no Baú do Clã)' : ''}` : `${m.nome}: não juntou nada (${B ? 'Baú do Clã' : 'bolsa'} cheio)`;
     }
