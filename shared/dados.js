@@ -2316,6 +2316,13 @@ export const TOTENS = { toque: 8, usar: 4, canal: 5, taxaNivel: 10, taxaMin: 50,
   { id: 'ultimo_pouso', nome: 'Último Pouso', nivel: 95, faixa: 'Nv 95-100', x: 222, z: 1328 },
 ] };
 // ouro para ir até o totem t
+// Bots e recrutas usam os totens como um jogador (André 2026-11-24: "ele se aproxima de um totem, teleporta para outro
+// totem, em vez de correr o mapa inteiro"; nunca teleporta de qualquer lugar). Na viagem longa (longeAmiga) ele compara:
+// ir de lobo pela estrada até o destino, ou ir até o totem descoberto mais perto dele, canalizar e sair no totem
+// descoberto mais perto do destino. Vale o totem só quando poupa pelo menos `ganho` m de estrada (a canalização conta
+// como `canal` s de galope parado). Mesmas regras do jogador: só totens que ele já tocou, paga a taxa, sem pack nem
+// carrinho, sem zona na névoa. Deu errado (sem ouro, levou dano): tenta de novo só depois de `espera` s.
+export const TOTEM_BOT = { ganho: 80, folga: 3, espera: 45, olhaOutra: 5 };
 export const taxaTotem = (t) => Math.max(TOTENS.taxaMin, TOTENS.taxaNivel * (t?.nivel || 1));
 // o totem a até r m de (x, z), ou null
 export const totemPerto = (x, z, r = TOTENS.usar) => TOTENS.lista.find((t) => Math.hypot(t.x - x, t.z - z) < r) || null;
