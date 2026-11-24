@@ -11,7 +11,7 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
+import { VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
 import { profNivel, guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
 import { fundoAgua } from './transporte.js';
@@ -1200,9 +1200,12 @@ export const Cla = {
     let mexeu = false;
     for (const x of ctxs) {
       const a = x.amiga; if (!a || a.morto || x.AMIGA.id === C.lider) continue;
+      // André 2026-11-24 ("o que o líder pede, eles fazem e vai para o clã; o que fazem no tempo livre fica para eles e eles
+      // podem vender"): só o recurso da ordem dele (ia.levar) e a Alma; o resto da bolsa é dele
+      const lv = a.ia?.levar, daOrdem = (o) => o.k === alma || (lv && this.ehDoLevar(o, lv));
       const mo = a.prog?.mochila || []; let deu = false;
       for (let i = 0; i < mo.length; i++) {
-        const o = mo[i]; if (!o || o.h || !pega.has(o.k)) continue; // o.h: travado (cadeado), como em contar/tirar
+        const o = mo[i]; if (!o || o.h || !pega.has(o.k) || !daOrdem(o)) continue; // o.h: travado (cadeado), como em contar/tirar
         const n = o.n || 1, q = guardarQueCabe(b, { k: o.k, n }); if (!q) continue; // baú cheio: fica com ele
         mo[i] = q >= n ? null : { ...o, n: n - q }; deu = true;
       }
@@ -1219,10 +1222,20 @@ export const Cla = {
         if (k === 'barra_aco') { max('barra_ferro', 30 + q * 2); max('minerio_ferro', (30 + q * 2) * 3); }
       }
     }
+    // a sobra: com pouco anúncio do item no leilão, o líder anuncia lá (André 2026-11-24); senão vende na loja
     let ouro = 0;
+    const Lei = this.leilao, ctxL = this.amigosIa.find((x) => x.AMIGA.id === C.lider), conta = ctxL?.AMIGA.conta ?? L.conta, agora = Date.now();
     for (const k of pega) {
       const sobra = contar(b, k) - (fica[k] || 0), preco = ITENS[k]?.venda | 0;
       if (!(sobra > 0) || !(preco > 0)) continue;
+      if (Lei && conta != null && Lei.anunciosDe(k, agora) < LEILAO_BOT.pouco && Lei.meus(conta).length < LEILAO_BOT.maxAnuncios) {
+        const n = Math.min(sobra, ITENS[k].pilha || 50), total = Math.max(1, Math.round(Lei.precoMercado({ k, n: 1 }, agora) * 1.1 * n)), taxa = Lei.taxaAnuncio(total);
+        if ((L.prog.ouro | 0) >= taxa && typeof Lei.anunciar(conta, ctxL?.AMIGA.nome || 'Líder', { k, n }, total, LEILAO_BOT.horas, agora) !== 'string') {
+          L.prog.ouro -= taxa; tirar(b, k, n); mexeu = true; this.aoLeilao?.(Lei);
+          if (sobra - n > 0) { tirar(b, k, sobra - n); ouro += (sobra - n) * preco; }
+          continue;
+        }
+      }
       tirar(b, k, sobra); ouro += sobra * preco; mexeu = true;
     }
     if (ouro > 0) L.prog.ouro = (L.prog.ouro | 0) + ouro;

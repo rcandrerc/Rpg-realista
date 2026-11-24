@@ -4386,6 +4386,13 @@ export const LEILAO_BOT = {
   caroDemais: 1.3, // não paga mais que 30% acima do preço de mercado
   essencial: 0.1, livre: 1.5, metaMin: 300, metaCara: 3,
   reserva: { padrao: 20, pedra: 50, lenha: 50, minerio_ferro: 30, minerio_cobre: 30, carvao: 30, cristal: 20 }, // estoque que guarda de cada material
+  // André 2026-11-24 (mais variedade no leilão, os 4 itens aprovados): das maxAnuncios vagas, `vagas.recurso` são só de
+  // recurso e `vagas.consumivel` de poção/comida (o resto: peça, Tomo, outro material). Antes de vender recurso na loja,
+  // o bot (e o líder com a sobra do baú) olha o leilão: com menos de `pouco` anúncios daquele item, anuncia; senão, loja.
+  // Poção/comida só vai ao leilão o que passa de `guardaConsumivel`.
+  vagas: { recurso: 3, consumivel: 1 }, pouco: 3,
+  recursos: ['minerio_ferro', 'minerio_cobre', 'pedra', 'lenha', 'carvao', 'couro', 'tecido'],
+  guardaConsumivel: { pocao: 30, pocao_mana: 30, comida: 10 },
   farmar: { ouroHoraNivel: 30, unidadesHora: 60, vigorUnidade: 1, semVigor: 5, semVigorX: 2 },
   jeitos: {
     padrao: { poupa: 0.7, ganancia: 1, compra: 1, farma: 1, texto: 'Equilibrado: poupa 70% e anuncia no meio da faixa.' },
