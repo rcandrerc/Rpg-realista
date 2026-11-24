@@ -6,7 +6,7 @@ Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 - Servidor decide o combate (`shared/simulacao.js`); conteúdo em `shared/dados.js`.
 - Câmera lenta/congelada do golpe removida pelo irmão: nunca religar.
 - Clãs (até 10 recrutas; clã Nv 1 a 10, Nv 2-3 sem alma, 4-10 alma crescente, base para no Castelo Nv 6), base/fazenda do clã e arena PvP 4x4 entram desde 20/11.
-- Estratégia (23/11): luta de clãs. André lidera; recrutas pagos (taxa + semanal) obedecem cegamente e só respondem. Jogadores nascem Chama; clãs bot líderes são Geada. Clãs bot (23/11): Geada = Gael (Lobos) e Kael (Lâminas Cinzentas); Chama = Dario. Líderes nunca saem; só o botão "Resetar líderes" (conta do André, painel do Clã) leva ele e os líderes ao nível 1 (itens/clã ficam). Feito: nunca voltar ao jogo de antes de 20/11.
+- Estratégia (23/11): luta de clãs. André lidera; recrutas pagos (taxa + semanal) obedecem cegamente e só respondem. Jogadores nascem Chama; clãs bot líderes são Geada. Clãs bot (23/11): Geada = Gael (Lobos) e Kael (Lâminas Cinzentas); Chama = Dario. Líderes nunca saem; Configurações > Ajustes (só conta do André): "Resetar partida" (ele e líderes personagem novo Nv1, clãs Nv1 sem recrutas, bases somem; missões ficam) e "Resetar missões". Feito: nunca voltar ao jogo de antes de 20/11.
 ## Foco único até 30/11: desempenho e gráfico
 1. Medir. 2. Personagens leves (23/11: máx. 2 NPCs aparecem/somem por quadro; instanciar corpo em linha de fundo deu erro de RID, não usar). 3. Mundo leve, sem travadas (OOM no S9). 4. Visual com fotos antes/depois, só com OK.
 ## Abortado (não retomar sem pedido): Cecília/Dário, segurança, história/missões, economia/lojas.
