@@ -3521,7 +3521,10 @@ export const CLAS_NPC_ORDENS = { ligado: true, cada: 900, horasDia: 2, abaixo: 5
   // ser realista... nos mobs nível 100 eles praticamente não vão ganhar mais XP"): abatesHora monstros por hora de caça
   // (medido no servidor: 33 a 90 por hora de rotina, uns 2/3 dela caçando), cada um com o XP real do campo dele (xpDoInimigo)
   abatesHora: 60,
-  mat: { lenha: 'lenha', pedra: 'pedra', barra_ferro: 'ferro', barra_aco: 'ferro', minerio_ferro: 'ferro', couro: 'couro', cristal: 'cristal' } };
+  mat: { lenha: 'lenha', pedra: 'pedra', barra_ferro: 'ferro', barra_aco: 'ferro', minerio_ferro: 'ferro', couro: 'couro', cristal: 'cristal' },
+  // André 2026-11-24: o líder exige os recursos dos membros (nunca o ouro), guarda o que os próximos `niveis` níveis do clã
+  // pedem e vende o resto para ter ouro (shared/cla.js exigirRecursosNpc). false volta como era.
+  exigir: { ligado: true, niveis: 2, itens: ['lenha', 'pedra', 'minerio_ferro', 'barra_ferro', 'barra_aco', 'minerio_cobre', 'couro', 'cristal'] } }; // peixe é comida: fica com eles
 // limite (André 2026-11-22: "todos os clãs iguais"): CLA.max membros além do líder, contando os fixos (Kira, Rufo e Lis)
 // André 2026-11-22 (níveis): as vagas são o nível do clã (E.nv), contando os fixos
 export const vagasClaNpc = (C, nv = CLA.max) => Math.max(0, Math.min(CLA.max, nv) - C.membros.filter((id) => id !== C.lider).length);
