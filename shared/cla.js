@@ -15,6 +15,7 @@ import { LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, CO
 import { contextoDeAmigo } from './amiga.js';
 import { profNivel, guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
 import { fundoAgua } from './transporte.js';
+import { LUGARES_MUNDO } from './mundo.js';
 import { crescerPlanta } from './simulacao.js'; // só usadas em tempo de jogo (progresso.js também importa daqui)
 
 // o que dá para mandar farmar (painel "Farmar recurso"): os da encomenda e o couro (caça e tira o couro). André
@@ -124,6 +125,13 @@ export const Cla = {
   pertoRecrutador(j) { return (this.mapa.npcs || []).some((n) => n.funcao === 'recrutador' && Math.hypot(n.x - j.x, n.z - j.z) < CLA.perto); },
   logCla(c, txt, v = 0) { c.log.push({ t: Date.now(), txt, v }); if (c.log.length > CLA.log) c.log.splice(0, c.log.length - CLA.log); },
   // o contexto (NPC) de cada recruta deste líder que está no mundo
+  // tem gente de verdade no servidor (fora exceto): um jogador com corpo ou um painel do clã aberto (página leve, André
+  // 2026-11-24: "quando eu deixasse ele aberto, os meus bots contariam como se eu estivesse online")
+  genteOnline(exceto = null) {
+    for (const o of this.jogadores.values()) if (!o.bot && o.id !== exceto) return true;
+    for (const k of this.paineis?.keys() || []) if (k !== exceto) return true;
+    return false;
+  },
   recrutasNoMundo(j) { return (this.amigosIa || []).filter((x) => x.AMIGA.recruta && !x.AMIGA.clanpc && x.AMIGA.lider === j.conta); },
   // o que o app desenha (vai junto do progresso: "cl")
   claInfo(j) {
@@ -747,6 +755,65 @@ export const Cla = {
     }
     j.recrutasOk = true;
   },
+  // ---------- painel do clã (página leve, André 2026-11-24) ----------
+  // "um app só para administrar o clã... quando eu não pudesse logar, só para determinar o que os meus bonequinhos vão
+  // fazer, ver o funcionamento dos bots... no máximo um mapinha". Sem corpo no mundo: o servidor (server/index.js) lê o
+  // clã da conta, e estes métodos montam o que a página mostra e aplicam a ordem nos recrutas que estão no mundo.
+  // O líder de mentira (sem corpo): só o lugar e a conta, como o de entrarRecrutasSemLider
+  liderPainel(conta, c, raca) { return { id: null, conta, bot: false, time: null, raca, prog: { cla: c, nivel: 1 }, x: 0, z: 0 }; },
+  // o que a página desenha. heroi: o corpo do líder quando ele está no jogo (aí as ordens vão pelo cla() de sempre)
+  painelInfo(conta, c, raca, heroi = null) {
+    if (!c) return { sem: 1 };
+    const L = heroi || this.liderPainel(conta, c, raca);
+    const vivos = new Map(this.recrutasNoMundo(L).filter((x) => x.amiga).map((x) => [x.AMIGA.id, x.amiga]));
+    const st = (o, prog) => ({ hp: Math.round(o.vida) | 0, hpM: Math.round(o.vidaMax) | 0, vg: Math.floor(vigorDe(prog.vigor)), vgM: prog.vigor?.m || VIGOR.max, morto: o.morto ? 1 : 0 });
+    const pos = (o) => ({ x: Math.round(o.x), z: Math.round(o.z) });
+    // revisão 2026-11-24: o lugar do líder só dos clãs da sua raça; do inimigo, só o que ele está fazendo (de longe o jogo não mostra)
+    const clas = CLAS_NPC.map((C) => { const B = this.liderNpc(C); return B && !B.morto ? { ...(C.raca === (raca || this.racaDe(L)) ? pos(B) : {}), fz: this.fazendoBotPainel(B) } : {}; });
+    return { n: c.n, nv: c.nv || 1, cofre: c.cofre | 0, semana: semanaCla(c), jogo: heroi ? 1 : 0, ...(!heroi && c.sem <= Date.now() ? { vencida: 1 } : {}), ...(heroi ? { eu: pos(heroi) } : {}),
+      m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, on: a ? 1 : 0, ...(m.dev ? { dev: 1 } : {}),
+        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, L), ...pos(a) } : {}) }; }),
+      log: (c.log || []).slice(-10).reverse(), funcoes: CLA.funcoes.filter((F) => heroi || F.id !== 'seguir'),
+      recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })), plantas: Object.entries(PLANTAS).map(([k, P]) => ({ k, nome: P.nome })),
+      clas: this.clasNpcInfo(L).map((o, i) => ({ ...o, ...clas[i] })), lugares: (this.lugaresPainel ||= [{ nome: this.mapa.nome || 'Vila', x: 0, z: 0 }, ...LUGARES_MUNDO.filter((o) => o.nome && o.tipo !== 'porto').map((o) => ({ nome: o.nome, x: o.x, z: o.z }))]) };
+  },
+  // o que o líder de um clã bot está fazendo (linha curta, igual ao fazendoRecruta)
+  fazendoBotPainel(B) {
+    const ia = B.ia || {};
+    if (ia.atividade) return 'Trabalhando';
+    if (ia.av) return ia.av.fase === 'voltar' ? 'Voltando' : ia.av.coleta ? 'Coletando' : 'Caçando';
+    if (B.guerra || ia.alma?.alvo) return 'Na guerra';
+    return 'Na base';
+  },
+  // ordem pela página com o líder fora do jogo: confere como o cla() 'funcao' e aplica no recruta do mundo (funcaoSemLider).
+  // Proteger carrinho / mercante / você e "Me seguir" pedem o líder no jogo. Devolve { texto, ok }. Muda c (o servidor grava)
+  painelFuncao(conta, c, raca, id, fnBruto) {
+    const r = c?.m?.find((o) => o.id === id); if (!r) return { texto: 'Esse recruta não está no seu clã' };
+    if (c.sem <= Date.now()) return { texto: 'A semana dos recrutas venceu: entre no jogo para pagar' }; // a cobrança é no jogo (cobrarCla)
+    const fn = funcaoValida(fnBruto);
+    if (fnBruto?.k === 'seguir' || (fn?.k === 'proteger' && (fn.p === 'lider' || VEIC_PROTEGE[fn.p]))) return { texto: 'Essa ordem só dá com você no jogo' };
+    if (fnBruto?.k && fnBruto.k !== 'livre' && !fn) return { texto: 'Ordem inválida' };
+    if (fn?.k === 'proteger' && (fn.p === r.id || !c.m.some((o) => o.id === fn.p))) return { texto: 'Escolha outro membro do clã' };
+    if (fn) r.fn = fn; else delete r.fn;
+    (this.clasFora ||= new Map()).set(conta, c);
+    const L = this.liderPainel(conta, c, raca), x = this.recrutasNoMundo(L).find((o) => o.AMIGA.id === r.id);
+    if (x?.amiga && !x.amiga.morto) this.funcaoSemLider(x, x.amiga, fn || { k: 'livre' }, L);
+    const F = CLA.funcoes.find((o) => o.id === (fn?.k || 'livre'));
+    return { ok: true, texto: `${r.nome}: ${F.nome}${fn?.k === 'recurso' ? ` (${RECURSOS_CLA[fn.r].nome})` : fn?.k === 'fazenda' && fn.s ? ` (plantar ${PLANTAS[fn.s].nome.toLowerCase()})` : fn?.k === 'proteger' ? ` ${c.m.find((o) => o.id === fn.p)?.nome || ''}` : ''}` };
+  },
+  // a página abriu com o líder fora do jogo: os recrutas que acabaram de ganhar corpo entregam o tempo fora (foraRecrutas,
+  // anotado no registro do clã) e o tempo fora para de contar. novos: ids que ganharam corpo agora
+  painelEntrou(conta, c, nivel, novos) {
+    if (!c) return;
+    (this.clasFora ||= new Map()).set(conta, c);
+    if (c.saiu) this.foraRecrutas({ id: null, conta, prog: { cla: c, nivel }, semAviso: true }, novos);
+  },
+  // a página fechou com o líder fora do jogo: o tempo fora volta a contar daqui; o nível de quem está no mundo vai junto
+  painelSaiu(conta, c) {
+    if (!c) return;
+    for (const x of this.recrutasNoMundo({ conta })) { const m = x.amiga && c.m.find((o) => o.id === x.AMIGA.id); if (m) m.nv = x.amiga.prog.nivel | 0 || m.nv; }
+    c.saiu = Date.now();
+  },
   // os recrutas de quem está fora do jogo (André 2026-11-23: "todos online, se tiver algum jogador online... sempre, sem
   // exceção"): com qualquer jogador no servidor eles ganham corpo e fazem a função; quando o servidor esvazia, saem
   // (amigaSair) e viram simulação; o líder entrando assume os que já estão no mundo (entrarRecrutas). lista = [{ conta, cla, raca }]
@@ -869,7 +936,7 @@ export const Cla = {
     const horas = hMax >= 1 ? `${Math.floor(hMax)} h` : `${Math.round(hMax * 60)} min`;
     for (const f of feitos) this.logCla(c, `Fora (${horas}): ${f}`);
     // um recruta por linha (André 2026-11-22: "podia descrever por coluna... Gael fez isso, João fez tal"); o aviso (hud.gd) quebra no \n
-    this.evento({ t: 'aviso', para: j.id, texto: `Enquanto você esteve fora:\n${feitos.join('\n')}` });
+    if (!j.semAviso) this.evento({ t: 'aviso', para: j.id, texto: `Enquanto você esteve fora:\n${feitos.join('\n')}` }); // painel do clã: só o registro
   },
   // o que um recruta fez em h horas fora (grind: XP até o nível do líder; farm: o que o vigor paga, direto no Baú do
   // Clã; fazenda: os canteiros crescem sozinhos e ele colhe e replanta quando o líder volta). Texto ou null.
@@ -988,7 +1055,7 @@ export const Cla = {
     }
     // tem outro jogador online: eles ficam no mundo de verdade, fazendo a função (André 2026-11-23: "todos iguais", como os
     // recrutas dos clãs bot); saem só quando o servidor esvaziar (amigaSair do último jogador, shared/amiga.js)
-    if (j?.prog?.cla && [...this.jogadores.values()].some((o) => !o.bot && o.id !== j.id)) {
+    if (j?.prog?.cla && this.genteOnline(j.id)) { // painel do clã aberto conta (André 2026-11-24)
       (this.clasFora ||= new Map()).set(j.conta, j.prog.cla); // a lista e as funções, para quem ficou (claDoRecruta)
       for (const ctx of this.recrutasNoMundo(j)) {
         const a = ctx.amiga; if (!a) continue;
@@ -1034,7 +1101,7 @@ export const Cla = {
   // a cada minuto (passo): o líder contrata quando pode e paga a semana
   passoClasNpc() {
     if (!this.clasNpc) this.carregarClasNpc(null);
-    if (![...this.jogadores.values()].some((o) => !o.bot)) return; // sem ninguém no mundo, o líder não tem corpo
+    if (!this.genteOnline()) return; // sem ninguém no mundo (nem painel do clã aberto), o líder não tem corpo
     const agora = Date.now(), R = CLAS_NPC_REGRAS;
     for (const C of CLAS_NPC) {
       const E = this.clasNpc[C.id], L = this.liderNpc(C); if (!L) continue;

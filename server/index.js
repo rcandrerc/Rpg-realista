@@ -32,7 +32,11 @@ const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0, picoPing: 0, picoPin
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // a conta já está jogando (ligada agora) em alguma sala, por outro aparelho (outra sessão de login: cada aparelho tem a
 // sua). O próprio aparelho com um socket velho que o servidor ainda não viu cair não conta: esse sai como sempre saiu
-const contaLigadaEmOutro = (id, sessao) => [...salas].some((s) => s.clients.some((c) => c.auth?.id === id && c.userData?.sessao !== sessao));
+const contaLigadaEmOutro = (id, sessao) => [...salas].some((s) => s.clients.some((c) => c.auth?.id === id && !c.userData?.painel && c.userData?.sessao !== sessao)); // o painel do clã não é "outro aparelho"
+// o herói da conta no jogo (qualquer sala, inclusive esperando a volta de uma queda): { s: sala, j } ou null
+const heroiDe = (contaId) => { for (const s of salas) for (const j of s.sim.jogadores.values()) if (!j.bot && j.conta === contaId) return { s, j }; return null; };
+// painel do clã (página leve, André 2026-11-24): ver no máximo a cada 2 s e ordem no máximo a cada 0,5 s por página
+const PAINEL = { verMs: 2000, ordemMs: 500, volta: 20 };
 // '__proto__', 'constructor' e 'prototype' como texto ou chave numa mensagem do cliente: nunca é dado de jogo e serve para
 // mexer no Object.prototype (auditoria 2026-11-13). A mensagem inteira é descartada.
 const PROIBIDO = new Set(['__proto__', 'constructor', 'prototype']);
@@ -188,6 +192,7 @@ class SalaClareira extends Room {
     this.ouvir('diaria', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12 && (m.id == null || (typeof m.id === 'string' && m.id.length < 16))) this.sim.diaria(c.sessionId, { acao: m.acao, id: m.id }); }); // missões diárias (aba Diárias)
     this.ouvir('guilda', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12 && (m.id == null || (typeof m.id === 'string' && m.id.length < 8))) this.sim.guilda(c.sessionId, { acao: m.acao, id: m.id }); }); // Guilda dos Aventureiros (mural e aba Guilda)
     // clã e recrutas (André 2026-11-22, shared/cla.js): fundar, recrutar, dispensar, cofre
+    this.ouvir('painel', (c, m) => this.pedidoPainel(c, m)); // painel do clã (página leve, André 2026-11-24)
     this.ouvir('cla', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) this.sim.cla(c.sessionId, { acao: m.acao, nome: typeof m.nome === 'string' ? m.nome.slice(0, 40) : null, tier: typeof m.tier === 'string' ? m.tier.slice(0, 12) : null, id: typeof m.id === 'string' ? m.id.slice(0, 20) : null, ouro: Number(m.ouro) || 0, ...(Number.isFinite(+m.x) && Number.isFinite(+m.z) && m.x != null && m.z != null ? { x: +m.x, z: +m.z } : {}), mudar: m.mudar === true, fn: m.fn && typeof m.fn === 'object' ? { k: String(m.fn.k || '').slice(0, 12), r: String(m.fn.r || '').slice(0, 12), p: String(m.fn.p || '').slice(0, 20), s: String(m.fn.s || '').slice(0, 16) } : null }); });
     this.ouvir('item', (c, m) => this.sim.item(c.sessionId, m)); // mochila: equipar, tirar, usar, comprar, vender
     this.ouvir('leilao', (c, m) => { // Casa do Comércio (Otávio, Rio Claro)
@@ -404,6 +409,7 @@ class SalaClareira extends Room {
       b.n -= custo;
       if (temChavePerigosa(m)) return; // '__proto__' e companhia nunca são dado de jogo (auditoria 2026-11-13)
       if (c.userData.substituido) return; // a conta entrou por outro aparelho: o antigo não mexe em mais nada (revisão 2026-11-19)
+      if (!!c.userData.painel !== (tipo === 'painel')) return; // painel do clã só manda 'painel'; o jogo nunca manda 'painel'
       if (c.auth?.robo && ROBO_NAO.has(tipo) && !(tipo === 'time' && m?.acao === 'sozinho')) return; // robô de testes: não mexe na economia nem fala com ninguém (seguir sozinho na etapa de time pode)
       // mensagem que dá erro não derruba a sala nem desconecta ninguém (André 2026-11-07: "Usar" na bancada desconectava)
       try { const r = fn(c, m); if (r && typeof r.catch === 'function') r.catch((e) => console.error(`mensagem ${tipo} deu erro:`, e)); } catch (e) { console.error(`mensagem ${tipo} deu erro:`, e); }
@@ -427,7 +433,7 @@ class SalaClareira extends Room {
     let fotoJson = null;
     let perto = null; // área de interesse: preparada uma vez por passo, só se alguém pediu
     for (const c of this.clients) {
-      if (c.userData?.substituido) continue; // já saiu do mundo (onJoin): só falta o socket fechar
+      if (c.userData?.substituido || c.userData?.painel) continue; // já saiu do mundo (onJoin): só falta o socket fechar; o painel do clã não recebe o mundo
       if (c.userData?.aoi) {
         perto ??= this.visao.preparar(foto, eventos);
         c.send('mundoJ', this.visao.paraJogador(perto, c.sessionId));
@@ -454,6 +460,7 @@ class SalaClareira extends Room {
   }
 
   onJoin(client, opcoes) {
+    if (opcoes?.painel === true) return this.entrarPainel(client, opcoes);
     if (opcoes?.json === true) (client.userData ||= {}).json = true;
     if (typeof opcoes?.sessao === 'string') (client.userData ||= {}).sessao = opcoes.sessao; // de qual aparelho (contaLigadaEmOutro)
     if (opcoes?.json === true && opcoes?.aoi === true) client.userData.aoi = true; // só o que está perto (server/visao.js)
@@ -461,7 +468,7 @@ class SalaClareira extends Room {
     const velhos = [], fantasmas = []; // sessões antigas da mesma conta: o herói novo fica com o time e os amigos delas (trocarSessao)
     if (conta) {
       // a mesma conta abriu o jogo em outro aparelho ou aba: o antigo sai
-      for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id) {
+      for (const outro of this.clients) if (outro !== client && outro.auth?.id === conta.id && !outro.userData?.painel) { // o painel do clã fica aberto junto
         const vj = this.sim.jogadores.get(outro.sessionId);
         if (vj) { this.sim.saiuComVeiculo(vj); this.sim.guardarPosicao(vj); conta.progresso = vj.prog; saidas.set(conta.id, ultimaNoticia(this.sim, vj)); montSaida.set(conta.id, infoSaida(this.sim, vj)); velhos.push(vj.id); fantasmas.push(vj.id); } // o mais novo vale (com o lugar onde ele estava)
         // revisão de segurança 2026-11-19: o herói antigo sai do mundo já (fantasmas, logo abaixo) e as mensagens do aparelho
@@ -469,7 +476,7 @@ class SalaClareira extends Room {
         (outro.userData ||= {}).substituido = true; outro.leave(4001);
       }
       // a mesma conta numa outra sala (salas cheias abrem outra): também sai, e o progresso dela vem junto
-      for (const s of salas) if (s !== this) for (const outro of s.clients) if (outro.auth?.id === conta.id) {
+      for (const s of salas) if (s !== this) for (const outro of s.clients) if (outro.auth?.id === conta.id && !outro.userData?.painel) {
         const vj = s.sim.jogadores.get(outro.sessionId);
         if (vj) { s.sim.saiuComVeiculo(vj); s.sim.guardarPosicao(vj); conta.progresso = vj.prog; s.tirarDoMundo(vj.id); }
         (outro.userData ||= {}).substituido = true; outro.leave(4001);
@@ -568,7 +575,83 @@ class SalaClareira extends Room {
     } catch (e) { console.warn('npcsForaDoMundo:', e.message); }
   }
 
+  // ---------- painel do clã (página leve, André 2026-11-24) ----------
+  // "quando eu deixasse ele aberto, os meus bots contariam como se eu estivesse online". A página entra na sala sem corpo
+  // (sim.paineis): o mundo fica ligado e os recrutas dele ficam no mundo fazendo a ordem, com XP de verdade. Só manda
+  // 'painel'; não recebe o mundo (tickDeVerdade). Quem decide tudo é o servidor: a sessão da conta (onAuth), só o próprio
+  // clã, só as ordens do painel do jogo (painelFuncao), com limite de pedidos.
+  entrarPainel(client, opcoes) {
+    const conta = contas ? client.auth : null;
+    if (!conta || conta.robo) { client.leave(4003); return; } // o robô de testes não segura o mundo ligado (revisão 2026-11-24)
+    const u = (client.userData ||= {}); u.painel = true; u.sessao = typeof opcoes?.sessao === 'string' ? opcoes.sessao : '';
+    for (const s of salas) for (const outro of s.clients) if (outro !== client && outro.auth?.id === conta.id && outro.userData?.painel) { (outro.userData ||= {}).substituido = true; outro.leave(4001); } // um painel por conta
+    const k = 'c' + conta.id;
+    this.sim.paineis.set(client.sessionId, k);
+    // o mundo como numa entrada normal (entrarAmiga), sem o herói: os NPCs e os recrutas dos clãs de quem está fora
+    for (const ctx of this.sim.amigosIa) {
+      if (!ctx.amiga) {
+        if (ctx.AMIGA.terreno || ctx.fazTarefasDef?.()) { const l = contas.loteDoDono(ctx.AMIGA.conta); if (l) this.sim.carregarLotes([l]); }
+        if (!this.sim.npcSalvos?.has(ctx.AMIGA.id)) this.sim.carregarNpc(ctx.AMIGA.id, contas.lerMundo('npc:' + ctx.AMIGA.id));
+      }
+      ctx.amigaEntrar(client.sessionId, false);
+    }
+    this.sim.lerNpc ||= (id) => contas.lerMundo('npc:' + id);
+    const antes = new Set(this.sim.recrutasNoMundo({ conta: k }).filter((x) => x.amiga).map((x) => x.AMIGA.id));
+    // revisão 2026-11-24: quem está com o herói em outra sala fica de fora (senão o recruta ganhava corpo nas duas), e o
+    // clã com a semana vencida sem pagar não trabalha pelo painel (a cobrança é no jogo, cobrarCla)
+    const agora = Date.now(), lista = contas.clasDasContas().filter((o) => !heroiDe(o.conta) && !(o.conta === k && o.cla.sem <= agora));
+    try { this.sim.entrarRecrutasSemLider(lista, client.sessionId); } catch (e) { console.warn('painel: recrutas sem líder:', e.message); }
+    if (!heroiDe(k)) { // fora do jogo: o tempo fora de quem acabou de entrar vale (como no login) e para de contar
+      const prog = contas.lerProgresso(conta.id);
+      if (prog?.cla) {
+        const novos = new Set(this.sim.recrutasNoMundo({ conta: k }).filter((x) => x.amiga && !antes.has(x.AMIGA.id)).map((x) => x.AMIGA.id));
+        this.sim.painelEntrou(k, prog.cla, prog.nivel | 0, novos);
+        contas.salvarProgresso(conta.id, prog);
+      }
+    }
+    this.enviarPainel(client);
+  }
+  // o que a página mostra: do herói (se ele está no jogo, em qualquer sala) ou do clã gravado na conta
+  enviarPainel(client, aviso = null) {
+    const conta = client.auth, k = 'c' + conta.id, h = heroiDe(k);
+    let info;
+    if (h) info = h.s.sim.painelInfo(k, h.j.prog.cla, h.s.sim.racaDe(h.j), h.j);
+    else { const prog = contas.lerProgresso(conta.id); if (prog?.cla) this.sim.clasFora?.set(k, prog.cla); info = this.sim.painelInfo(k, prog?.cla, prog?.raca); }
+    client.send('painel', { ...info, nome: conta.nome, ...(aviso ? { aviso } : {}) });
+  }
+  pedidoPainel(client, m) {
+    if (!m || typeof m !== 'object' || !contas || !client.auth) return;
+    const u = client.userData, agora = Date.now();
+    if (m.acao === 'ver') {
+      if (agora - (u.painelVer || 0) < PAINEL.verMs) return;
+      u.painelVer = agora; return this.enviarPainel(client);
+    }
+    if (m.acao !== 'funcao' || typeof m.id !== 'string' || m.id.length > 20) return;
+    if (agora - (u.painelOrdem || 0) < PAINEL.ordemMs) return;
+    u.painelOrdem = agora;
+    const fn = m.fn && typeof m.fn === 'object' ? { k: String(m.fn.k || '').slice(0, 12), r: String(m.fn.r || '').slice(0, 12), p: String(m.fn.p || '').slice(0, 20), s: String(m.fn.s || '').slice(0, 16) } : null;
+    const conta = client.auth, k = 'c' + conta.id, h = heroiDe(k);
+    if (h) { h.s.sim.cla(h.j.id, { acao: 'funcao', id: m.id, fn }); return this.enviarPainel(client, 'Ordem dada (você está no jogo)'); } // o mesmo caminho do painel do jogo
+    const prog = contas.lerProgresso(conta.id);
+    if (!prog?.cla) return this.enviarPainel(client, 'Você não tem clã');
+    const r = this.sim.painelFuncao(k, prog.cla, prog.raca, m.id, fn);
+    if (r.ok) contas.salvarProgresso(conta.id, prog);
+    this.enviarPainel(client, r.texto);
+  }
+  async sairPainel(client, consentiu) {
+    if (!consentiu && !client.userData?.substituido) { // internet do celular caiu: segura 20 s, como o jogo
+      try { await this.allowReconnection(client, PAINEL.volta); return; } catch { /* não voltou */ }
+    }
+    this.sim.paineis.delete(client.sessionId);
+    const conta = client.auth, k = conta ? 'c' + conta.id : null;
+    const outroPainel = k && [...salas].some((s) => [...s.sim.paineis.values()].includes(k));
+    if (k && contas && !outroPainel && !heroiDe(k)) { const prog = contas.lerProgresso(conta.id); if (prog?.cla) { this.sim.painelSaiu(k, prog.cla); contas.salvarProgresso(conta.id, prog); } }
+    for (const ctx of this.sim.amigosIa) ctx.amigaSair(client.sessionId); // ninguém mais na sala: todos saem (o tempo fora conta daqui)
+    this.salvarProgressos();
+  }
+
   async onLeave(client, consentiu) {
+    if (client.userData?.painel) return this.sairPainel(client, consentiu);
     // Celular perde conexão o tempo todo: segura o personagem por 20 s para o jogador voltar
     if (!consentiu && !client.userData?.substituido) {
       const espera = this.allowReconnection(client, 20);

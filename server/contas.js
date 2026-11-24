@@ -233,6 +233,8 @@ export class Contas {
   salvarNome(id, nome) { this.q.nome.run(nome, id); this.q.nomeLote.run(nome, 'c' + id); }
   apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); this.q.soltarLotes.run('c' + id); this.q.apagarAmizades.run(id, id); this.q.apagarPedidos.run(id, id); } // conta apagada: o lote volta à venda e some das listas de amigos
   salvarBuild(id, build) { if (buildValida(build)) this.q.build.run(JSON.stringify(build), id); }
+  // o progresso como está no banco (painel do clã com o líder fora do jogo, André 2026-11-24)
+  lerProgresso(id) { try { const r = this.db.prepare('SELECT progresso FROM contas WHERE id = ?').get(id); return r?.progresso ? progressoValido(JSON.parse(r.progresso)) : null; } catch { return null; } }
   salvarProgresso(id, prog) { this.q.progresso.run(JSON.stringify(progressoValido(prog)), id); }
   // chave Groq do jogador (conversa com a Cecília): nunca vai para o celular nem para o código, só o servidor usa
   chaveIa(id) { return this.q.chaveIa.get(id)?.ia_chave || ''; }
