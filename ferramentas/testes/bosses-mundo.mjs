@@ -30,7 +30,7 @@ const s = new Simulacao(MAPA_CLAREIRA);
 let agora = 1e12; s.relogioMs = () => agora;
 let salvo = null; s.aoBosses = (e) => { salvo = e; };
 const chat = []; s.aoAnuncio = (m) => chat.push(m.texto); // o chat não recebe mais boss (André 2026-11-12)
-const tela = []; s.aoAnuncioTela = (e) => tela.push(`${e.cab} ${e.titulo}`);
+const tela = [], telaEv = []; s.aoAnuncioTela = (e) => { tela.push(`${e.cab} ${e.titulo}`); telaEv.push(e); };
 let ev = [];
 const correr = (seg) => { for (let t = 0; t < seg / 0.05; t++) ev.push(...s.passo(0.05)); };
 correr(1.2);
@@ -88,6 +88,13 @@ const volta = salvo?.chifre_ferro;
 ok(volta && volta - agora >= 4 * 3600e3 - 1 && volta - agora <= 6 * 3600e3, `hora de voltar salva (${((volta - agora) / 3600e3).toFixed(2)} h)`);
 ok(tela.some((t) => t.includes('caiu') && t.includes('Ana')), 'faixa na tela avisa quem derrubou');
 ok(!chat.length, 'derrota do boss também fora do chat');
+// André 2026-11-24: a faixa para todos diz o que caiu; quem ganhou recebe a janela do loot uns segundos depois
+{ const f = telaEv.find((e) => e.cab === 'BOSS DE MUNDO DERROTADO');
+  ok(f?.lista?.length === 1 && f.lista[0].startsWith('Ana: ') && /Runa|Selo/.test(f.lista[0]) && !/Poção/.test(f.lista[0]), `faixa lista o drop da Ana (${f?.lista?.[0]})`);
+  ok(!ev.some((e) => e.t === 'lootBoss'), 'janela do loot não abre na hora do golpe');
+  const ev0 = ev.length; correr(3);
+  const jl = ev.slice(ev0).find((e) => e.t === 'lootBoss' && e.para === 'A');
+  ok(!!jl && jl.boss === BOSSES_MUNDO.chifre_ferro.nome && jl.itens.some((it) => /Runa|Selo/.test(it.nome) && it.r >= 1) && jl.itens.some((it) => /Poção/.test(it.nome)), `janela do loot da Ana com tudo (${jl?.itens.map((it) => it.nome).join(', ')})`); }
 correr(10);
 ok(!boss('chifre_ferro'), 'não nasce antes da hora');
 const s2 = new Simulacao(MAPA_CLAREIRA); s2.relogioMs = () => agora + 3600e3; s2.carregarBosses(salvo);
