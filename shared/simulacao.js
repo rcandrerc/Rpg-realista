@@ -2,7 +2,7 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos, fatorDropNivel } from './progresso.js';
+import { bolsoPrimeiro, encherBolso, BOLSO_KS, HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos, fatorDropNivel } from './progresso.js';
 import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, curaDe, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, totemMaisPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
@@ -1946,7 +1946,10 @@ export class Simulacao {
       const lib = motivoLibera(p, 'alquimia'); if (lib) return aviso(`A Mirela só ensina alquimia a partir do nível ${LIBERA_NIVEL.alquimia}`); // progressão (André 2026-11-10)
       if (!j.morto && this.sintetizar(j, m, aviso)) this.avisarProg(j); return;
     }
-    const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < p.mochila.length ? p.mochila[i] : null; // MOCHILA lugares por página comprada
+    const i = Number.isInteger(m.i) ? m.i : -1; // MOCHILA lugares por página comprada
+    let it = i >= 0 && i < p.mochila.length ? p.mochila[i] : null, bolsoUso = null;
+    // bolso de poções (André 2026-11-24): o botão de poção da HUD bebe do bolso: { acao: 'usar', bolso: 'pocao' | 'pocao_mana' }
+    if (m.acao === 'usar' && typeof m.bolso === 'string' && BOLSO_KS.includes(m.bolso) && (p.bolso?.[m.bolso] || 0) > 0) { bolsoUso = m.bolso; it = { k: m.bolso, n: p.bolso[m.bolso] }; }
     // catalisador (André 2026-11-07): { acao: 'destruir', i } (uma peça) ou { acao: 'destruir', raridade } (todas da
     // raridade, sem as com cadeado; uma barrinha por peça, uma depois da outra) · { acao: 'evoluir', i } (sobe a raridade)
     if (m.acao === 'destruir' || m.acao === 'evoluir') return this.comecarCatalisador(j, m, i, it, aviso);
@@ -2012,7 +2015,9 @@ export class Simulacao {
         }
         if (!ITENS[it.k].comida) j.pocaoAte[it.k] = this.tempo + POCAO_RECARGA; // comida sem recarga (André 2026-11-07: "por enquanto, sem limite")
       }
-      if (--it.n <= 0) p.mochila[i] = null;
+      if (--it.n <= 0 && !bolsoUso) p.mochila[i] = null;
+      if (bolsoUso) p.bolso[bolsoUso] = Math.max(0, it.n);
+      if (bolsoUso && !j.bot) encherBolso(p); // o bolso gastou: enche da mochila
     } else if (m.acao === 'cadeado' && (it || (typeof m.lugar === 'string' && Object.hasOwn(p.equip, m.lugar) && p.equip[m.lugar]))) {
       const o = it || p.equip[m.lugar];
       if (o.cad) delete o.cad; else o.cad = 1;
@@ -2084,6 +2089,7 @@ export class Simulacao {
       if (n < pedido) aviso(n >= cabe ? `Só coube ${n} na mochila` : `O ouro deu para ${n}`);
       this.evento({ t: 'compra', para: j.id, i, k: o.k, r: equip ? o.r : -1, n, ouro: total });
       if (n > 0) this.historia(j, 'comprar', { k: o.k, n });
+      if (!j.bot) encherBolso(p);
     } else if (m.acao === 'pagina') {
       const tem = p.paginas || 1;
       if (tem >= MOCHILA_PAGINAS) return aviso('A mochila já tem todas as páginas');
@@ -3831,7 +3837,7 @@ export class Simulacao {
     const d = DROPS[c.tipo]; if (!d) return;
     const p = j.prog, ganhou = [];
     // filtro de coleta (André 2026-11-07): o que ele desmarcou na mochila fica no chão
-    const por = (it) => { if (filtrado(p, it)) return; const q = guardarQueCabe(p.mochila, it); if (q) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); if (q < (it.n || 1)) this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
+    const por = (it) => { if (filtrado(p, it)) return; if (!j.bot) { const nome = nomeItem(it), r = bolsoPrimeiro(p, it); if (!r) { ganhou.push({ nome, r: -1 }); return; } if (r !== it) ganhou.push({ nome, r: -1 }); it = r; } const q = guardarQueCabe(p.mochila, it); if (q) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); if (q < (it.n || 1)) this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
     const ouro = Math.round((d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1))) * ECONOMIA.ouroMonstro * (1 + NIVEL_INIMIGO.ouro * Math.max(0, (c.nivel || 1) - 1)) * (1 + (bonusTitulo(p).ouro || 0) + this.bonusCla(j)));
     if (ouro) { p.ouro += ouro; this.caixa(j, 'monstro', ouro); }
     // bicho muito abaixo do herói solta menos (DROP_NIVEL, André 2026-11-24): comum cai por degrau, valioso some
@@ -4932,7 +4938,7 @@ export class Simulacao {
   }
   dropBoss(c, j) {
     const B = BOSSES_MUNDO[c.bm], D = B.drop, p = j.prog, ganhou = [];
-    const por = (it) => { if (filtrado(p, it)) return; const q = guardarQueCabe(p.mochila, it); if (q) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); if (q < (it.n || 1)) this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
+    const por = (it) => { if (filtrado(p, it)) return; if (!j.bot) { const nome = nomeItem(it), r = bolsoPrimeiro(p, it); if (!r) { ganhou.push({ nome, r: -1 }); return; } if (r !== it) ganhou.push({ nome, r: -1 }); it = r; } const q = guardarQueCabe(p.mochila, it); if (q) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); if (q < (it.n || 1)) this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
     const ouro = Math.round((c.nivel || 1) * (DROP_BOSS.ouro[0] + Math.random() * (DROP_BOSS.ouro[1] - DROP_BOSS.ouro[0])) * (ECONOMIA.ouroBoss ?? 1));
     if (ouro) { p.ouro += ouro; this.caixa(j, 'boss', ouro); }
     por({ k: 'pocao', n: DROP_BOSS.pocao[0] + Math.floor(Math.random() * (DROP_BOSS.pocao[1] - DROP_BOSS.pocao[0] + 1)) });

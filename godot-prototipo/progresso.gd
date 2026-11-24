@@ -109,6 +109,9 @@ func definir(p: Dictionary) -> void:
 		prog.mochila[i] = item_int(prog.mochila[i])
 	prog.ouro = int(prog.get("ouro", 0))
 	prog.semCapacete = prog.get("semCapacete", false) == true
+	# bolso de poções (André 2026-11-24): igual a bolsoValido de shared/progresso.js
+	var bl: Dictionary = prog.get("bolso", {}) if prog.get("bolso") is Dictionary else {}
+	prog.bolso = {"pocao": clampi(int(bl.get("pocao", 0)), 0, 20), "pocao_mana": clampi(int(bl.get("pocao_mana", 0)), 0, 20)}
 	if not (prog.get("equip") is Dictionary):
 		prog.equip = {}
 	for l in dados.lugares:

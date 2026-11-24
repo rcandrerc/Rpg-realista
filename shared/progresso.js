@@ -260,6 +260,37 @@ export function guardarQueCabe(mochila, item) {
   }
   return n;
 }
+// ---------- bolso de poções (André 2026-11-24): o slot de poção de vida/mana da HUD é uma bag extra ----------
+// p.bolso = { pocao: n, pocao_mana: n } (até BOLSO_POCAO). Não ocupa lugar na mochila e o "vender tudo" não toca nele.
+// Poção que cai ou é comprada enche o bolso primeiro; o que sobra vai para a mochila. Quando o bolso gasta, enche da mochila.
+export const BOLSO_POCAO = 20, BOLSO_KS = ['pocao', 'pocao_mana'];
+export const bolsoNovo = () => ({ pocao: 0, pocao_mana: 0 });
+export function bolsoValido(b) {
+  const n = bolsoNovo();
+  for (const k of BOLSO_KS) { const v = b?.[k]; if (Number.isInteger(v) && v > 0) n[k] = Math.min(BOLSO_POCAO, v); }
+  return n;
+}
+// item novo (poção sem cadeado): põe no bolso o que couber e devolve o que sobrou ({k, n}) ou null se coube tudo
+export function bolsoPrimeiro(p, item) {
+  if (!item || !BOLSO_KS.includes(item.k) || item.cad || !(item.n > 0)) return item;
+  const b = (p.bolso ||= bolsoNovo()), cabe = Math.min(item.n, BOLSO_POCAO - (b[item.k] || 0));
+  if (cabe <= 0) return item;
+  b[item.k] = (b[item.k] || 0) + cabe;
+  return cabe >= item.n ? null : { ...item, n: item.n - cabe };
+}
+// enche o bolso com as poções da mochila (pilhas sem cadeado)
+export function encherBolso(p) {
+  const b = (p.bolso ||= bolsoNovo());
+  for (const k of BOLSO_KS) {
+    for (let i = 0; i < p.mochila.length && b[k] < BOLSO_POCAO; i++) {
+      const o = p.mochila[i];
+      if (!o || o.k !== k || o.cad) continue;
+      const t = Math.min(o.n || 1, BOLSO_POCAO - b[k]);
+      b[k] += t; o.n = (o.n || 1) - t;
+      if (o.n <= 0) p.mochila[i] = null;
+    }
+  }
+}
 // ---------- filtro de coleta (André 2026-11-07: "a bag enche muito rápido") ----------
 // prog.filtro = { r: [raridades desmarcadas], k: [recursos desmarcados] }. O que está desmarcado não entra na mochila:
 // peça de equipamento dessa raridade ou recurso (item com mat) que cai do monstro ou sai de bônus na coleta fica no chão.
@@ -561,7 +592,7 @@ export function progressoNovo() {
   // começa com umas poções e um pouco de ouro (conta antiga ganha o mesmo na primeira vez)
   const mochila = mochilaNova(); mochila[0] = { k: 'pocao', n: 3 }; mochila[1] = { k: 'pocao_mana', n: 2 };
   return { nivel: 1, xp: 0, pontos: 0, atr: { for: 3, des: 3, int: 3, vit: 3 }, habs: {}, barras: barrasPadrao(), ouro: 20, mochila, paginas: 1, equip: equipNovo(),
-    vigor: { v: VIGOR.max, t: Date.now() }, prof: profNovo(), semCapacete: false, hist: histNova(), tit: { tem: [], uso: '' }, abates: 0 };
+    vigor: { v: VIGOR.max, t: Date.now() }, prof: profNovo(), semCapacete: false, bolso: bolsoNovo(), hist: histNova(), tit: { tem: [], uso: '' }, abates: 0 };
 }
 export const profNovo = () => Object.fromEntries(Object.keys(PROFISSOES).map((k) => [k, 0]));
 // Confere o que veio da conta (ou de um cliente) e devolve um progresso válido
@@ -602,6 +633,7 @@ export function progressoValido(p) {
   for (const k of Object.keys(n.prof)) n.prof[k] = num(p.prof?.[k]) ? Math.min(1e7, Math.max(0, p.prof[k])) : 0;
   // capacete escondido (André 2026-11-03: opção na tela de equipamento); continua equipado e dando o bônus
   n.semCapacete = p.semCapacete === true;
+  n.bolso = bolsoValido(p.bolso); // bolso de poções (André 2026-11-24)
   // arma na mão ao sair (André 2026-11-24): quem saiu de mago entra de mago; sem o campo = espada
   if (p.modo === 'Magia' || p.modo === 'Espada') n.modo = p.modo;
   // onde o herói estava ao sair (André 2026-11-03: entra de volta no mesmo lugar; só a morte leva para a vila).
