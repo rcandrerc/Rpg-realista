@@ -193,3 +193,88 @@ static func chama(mg, cajado: Node3D, dt: float) -> void:
 	if randf() < dt * 2.5: # faísca escapando de vez em quando
 		mg.p(mg.LUZ, topo + cima * 0.08, cima * randf_range(0.7, 1.1) + Vector3(randf_range(-0.25, 0.25), 0, randf_range(-0.25, 0.25)),
 			randf_range(0.4, 0.6), 0.022, 0.008, "fff2b0", "ff6a1a", 1.0, mg.C_TRACO, 0.5, 1.0, 0.0, 0.02)
+
+# ---------- brilho do reforço (André 2026-11-24: "efeito de brilho nas armas à medida que o reforço aumenta") ----------
+# Sem modelo novo: cada malha da arma ganha uma casca fina (brilho_reforco.gdshader) que soma luz. A cor muda por faixa
+# de +10 e a força cresce com o +N; do +20 em diante saem faíscas da lâmina (Armas.faiscas). +0 = arma como sempre.
+const SH_BRILHO := preload("res://brilho_reforco.gdshader")
+const BRILHO_FAIXAS := [ # [a partir do +N, cor da casca, cor da faísca]
+	[1, "bfdcff", "ffffff"], # branco azulado
+	[10, "3f9cff", "bfe8ff"], # azul
+	[20, "a855ff", "e6c8ff"], # roxo
+	[30, "ffb21a", "fff0a8"], # dourado
+	[40, "ff2e3a", "ffd0a0"], # carmim (máximo)
+]
+# no espaço da arma: [comprimento, onde começa o brilho, trecho das faíscas (de, até)]
+const BRILHO_FORMA := {"espada": [0.95, 0.2, 0.25, 0.9], "cajado": [1.1, 0.7, 0.85, 1.05]}
+static var _mats_brilho := {}
+
+static func faixa_brilho(e: int) -> Array:
+	var f: Array = BRILHO_FAIXAS[0]
+	for x in BRILHO_FAIXAS:
+		if e >= int(x[0]):
+			f = x
+	return f
+
+static func forca_brilho(e: int) -> float:
+	return 0.0 if e <= 0 else 0.22 + 0.9 * pow(clampf(e / 40.0, 0.0, 1.0), 0.8)
+
+static func _mat_brilho(e: int, tipo: String) -> ShaderMaterial:
+	var k := "%s%d" % [tipo, e]
+	if _mats_brilho.has(k):
+		return _mats_brilho[k]
+	var forma: Array = BRILHO_FORMA.get(tipo, BRILHO_FORMA.espada)
+	var s := ShaderMaterial.new()
+	s.shader = SH_BRILHO
+	s.render_priority = 1
+	s.set_shader_parameter("cor", Color(faixa_brilho(e)[1]))
+	s.set_shader_parameter("forca", forca_brilho(e))
+	s.set_shader_parameter("comprimento", forma[0])
+	s.set_shader_parameter("inicio", forma[1])
+	s.set_shader_parameter("onda", 0.8 + e / 40.0 * 0.8)
+	s.set_shader_parameter("casca", 0.004 + 0.008 * clampf(e / 40.0, 0.0, 1.0)) # a aura engrossa com o reforço
+	_mats_brilho[k] = s
+	return s
+
+# põe (ou tira) o brilho do +e na arma. Chamar depois de trocar o modelo (Equip2.armas). As cascas ficam guardadas e só
+# apagam no +0 (não são liberadas: o flash do golpe guarda a lista de malhas do corpo).
+static func brilho_reforco(arma: Node3D, e: int, tipo := "espada") -> void:
+	if arma == null:
+		return
+	arma.set_meta("reforco_e", e)
+	arma.set_meta("reforco_tipo", tipo)
+	var mat: ShaderMaterial = _mat_brilho(e, tipo) if e > 0 else null
+	for mi in arma.find_children("*", "MeshInstance3D", true, false):
+		if mi.name == "BrilhoReforco":
+			continue
+		var b := mi.get_node_or_null("BrilhoReforco") as MeshInstance3D
+		if mat == null:
+			if b:
+				b.visible = false
+			continue
+		if b == null:
+			b = MeshInstance3D.new()
+			b.name = "BrilhoReforco"
+			b.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mi.add_child(b)
+		b.mesh = mi.mesh
+		b.material_override = mat
+		b.visible = true
+
+# faíscas saindo da lâmina do +20 em diante (mais com o reforço): ~1 por segundo no +20, ~6 no +40
+static func faiscas(mg, arma: Node3D, dt: float) -> void:
+	if mg == null or arma == null or not arma.is_inside_tree() or not arma.is_visible_in_tree():
+		return
+	var e := int(arma.get_meta("reforco_e", 0))
+	if e < 20:
+		return
+	var acum: float = float(arma.get_meta("faisca_acum", 0.0)) + dt * (e - 15) * 0.25
+	var f := faixa_brilho(e)
+	var forma: Array = BRILHO_FORMA.get(String(arma.get_meta("reforco_tipo", "espada")), BRILHO_FORMA.espada)
+	var g := arma.global_transform
+	while acum >= 1.0:
+		acum -= 1.0
+		var pos: Vector3 = g * Vector3(randf_range(-0.01, 0.01), randf_range(forma[2], forma[3]), randf_range(-0.01, 0.01))
+		var vel := Vector3(randf_range(-0.15, 0.15), randf_range(0.15, 0.4), randf_range(-0.15, 0.15))
+		mg.p(mg.LUZ, pos, vel, randf_range(0.35, 0.6), randf_range(0.018, 0.028), 0.004, f[2], f[1], 1.0, mg.C_TRACO, -0.2, 1.5, 0.0, 0.0)
+	arma.set_meta("faisca_acum", acum)
