@@ -20,7 +20,7 @@ import { noLago, AGUA } from './relevo.js';
 import { planejarRota, terraId } from './rota.js';
 import { lugarDoVeiculo, fundoAgua, devolverBarquinho, centroNavio, packValido, precoPack, mercadoK, mercadoConta, capacidadeCarrinho } from './transporte.js';
 import { decidir, ordenarRegras, limites, escolherArma, validarRegra, juntarDica } from './cerebro.js';
-import { HISTORIA } from './dados.js';
+import { HISTORIA, TOTENS, TOTEM_BOT, taxaTotem } from './dados.js';
 import { LOJA, precoLoja, PLANTIO, RECEITA_ESTACAO, CATALISADOR, LUGARES } from './dados.js';
 import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js';
 import { diaDiarias, premioDiaria } from './diarias.js';
@@ -934,7 +934,13 @@ export const Amiga = {
   },
   andarAmiga(j, dt) {
     const ia = j.ia;
-    { const c = ia.rota[0] && this.contornoCasa(this.loteDaAmiga(), j, ia.rota[0]); if (c) { ia.rota.unshift(c); ia.preso = 0; ia.longe = Infinity; } } // a casa no caminho: dá a volta
+    // a casa no caminho: dá a volta. Ping-pong entre os cantos (achado no teste npc-diarias-ajuda, 2026-11-24: o Dario ia e
+    // voltava entre dois cantos sem fim): mais de 6 cantos em 20 s, larga o contorno por 10 s (anda reto; preso, o de sempre)
+    { const c = ia.rota[0] && this.tempo >= (ia.semContorno || 0) && this.contornoCasa(this.loteDaAmiga(), j, ia.rota[0]);
+      if (c) {
+        const K = ia.contornos && this.tempo - ia.contornos.t0 < 20 ? ia.contornos : (ia.contornos = { t0: this.tempo, n: 0 });
+        if (++K.n > 6) { ia.semContorno = this.tempo + 10; ia.contornos = null; } else { ia.rota.unshift(c); ia.preso = 0; ia.longe = Infinity; }
+      } }
     const alvo = ia.rota[0];
     if (!alvo) { this.pararAmiga(j); ia.fase = 'pensar'; ia.ate = this.tempo + 0.3; const f = ia.chegou; ia.chegou = null; f?.(); return; }
     const dx = alvo.x - j.x, dz = alvo.z - j.z, d = Math.hypot(dx, dz);
@@ -1844,12 +1850,79 @@ export const Amiga = {
     const r = planejarRota(this.mapa, j, praia);
     return r.bloqueio ? [praia, fim] : [...r.pontos, fim];
   },
+  // ---------- totens (André 2026-11-24, TOTEM_BOT em shared/dados.js): a viagem pelo totem, ou null se a estrada é melhor.
+  // r = a rota direta (planejarRota). { de, para, rota (até o lado da pedra de `de`), metros (com a canalização) }
+  planoTotemAmiga(j, dono, r) {
+    const ia = j.ia, B = TOTEM_BOT, p = j.prog;
+    if (!dono || this.tempo < (ia.semTotemAte || 0) || j.veiculo || j.bordo || p.pack || this.motivoCarga(j)) return null;
+    const vistos = TOTENS.lista.filter((t) => (p.totens || []).includes(t.id));
+    if (vistos.length < 2) return null;
+    const tj = terraId(j.x, j.z), td = terraId(dono.x, dono.z);
+    if (tj === 0 || td === 0) return null; // no mar: o barco/nado resolve
+    const dd = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+    let de = null, para = null;
+    for (const t of vistos) if (terraId(t.x, t.z) === tj && (!de || dd(t, j) < dd(de, j))) de = t;
+    if (!de) return null;
+    for (const t of vistos) {
+      if (t === de || terraId(t.x, t.z) !== td || (p.ouro || 0) < taxaTotem(t) || zonaFechadaEm(p, t.x, t.z)) continue;
+      if (!para || dd(t, dono) < dd(para, dono)) para = t;
+    }
+    if (!para) return null;
+    const direto = r.bloqueio ? Infinity : r.metros, parado = (TOTENS.canal + B.folga) * MONTARIAS.lobo.correr;
+    // conta rápida em linha reta (sempre menor que pela estrada): se nem assim compensa, nem planeja
+    if (dd(j, de) + dd(para, dono) + parado + B.ganho >= direto) return null;
+    const rA = planejarRota(this.mapa, j, de), rB = planejarRota(this.mapa, para, dono);
+    if (rA.bloqueio || rB.bloqueio) return null;
+    const metros = rA.metros + rB.metros + parado;
+    if (metros + B.ganho >= direto) return null;
+    // o fim da rota fica do lado da pedra (ela bloqueia a passagem), virado para quem chega
+    const rota = rA.pontos.slice(0, -1), q = rota.length ? rota[rota.length - 1] : j, dq = dd(q, de) || 1, l = TOTENS.raio + 1.2;
+    rota.push({ x: de.x + (q.x - de.x) / dq * l, z: de.z + (q.z - de.z) / dq * l });
+    return { de, para, rota, metros };
+  },
+  // em outra terra com barquinho (travessiaAmiga): o totem serve? (olha de `olhaOutra` em `olhaOutra` s)
+  totemOutraTerraAmiga(j, dono) {
+    const ia = j.ia, c = ia.totemOutra;
+    if (ia.viagem?.totem) return true;
+    if (c && this.tempo < c.t && Math.hypot(c.x - dono.x, c.z - dono.z) < 20) return c.ok;
+    const ok = !!this.planoTotemAmiga(j, dono, { bloqueio: 'terra' });
+    ia.totemOutra = { t: this.tempo + TOTEM_BOT.olhaOutra, x: dono.x, z: dono.z, ok };
+    return ok;
+  },
+  // perto da pedra do totem de partida: desce do lobo, para e pede a viagem (o mesmo irTotem do jogador: canaliza
+  // parado, paga a taxa). true = cuidou do passo
+  usarTotemAmiga(j, v) {
+    const T = v.totem, de = TOTENS.lista.find((t) => t.id === T.de);
+    if (!de || Math.hypot(de.x - j.x, de.z - j.z) >= TOTENS.usar) return false;
+    j.montado = null; this.pararAmiga(j);
+    if (T.pediu || !j.chao || j.esc || j.trava > 0) return true;
+    if (j.coleta) this.pararColeta(j, null);
+    if (j.pesca) this.pararPesca(j, null);
+    this.irTotem(j.id, T.para);
+    if (j.vila) T.pediu = true;
+    else { j.ia.semTotemAte = this.tempo + TOTEM_BOT.espera; j.ia.viagem = null; } // não deu (ouro, carga): vai pela estrada
+    return true;
+  },
   longeAmiga(j, dono, d, dt) {
     const V = this.AMIGA.viagem, ia = j.ia;
+    // canalizando no totem: fica parado até chegar no outro (chegarNoTotem) ou cancelar
+    if (j.vila && ia.viagem?.totem) { j.montado = null; this.pararAmiga(j); return true; }
+    // já pediu a viagem e a canalização acabou: chegou (planeja de novo de lá) ou foi cancelada (espera para tentar de novo)
+    if (ia.viagem?.totem?.pediu) {
+      const P = TOTENS.lista.find((t) => t.id === ia.viagem.totem.para);
+      if (!P || Math.hypot(P.x - j.x, P.z - j.z) > TOTENS.toque) ia.semTotemAte = this.tempo + TOTEM_BOT.espera;
+      ia.viagem = null;
+    }
     if (!(ia.viagem ? d > V.chega : d > V.estrada)) { ia.viagem = null; return false; }
     let v = ia.viagem;
     if (!v || (this.tempo >= v.novaEm && Math.hypot(v.fx - dono.x, v.fz - dono.z) > (v.bloqueio ? 2 : V.replanejar))) {
       const r = planejarRota(this.mapa, j, dono), aviso = !v && !!dono && this.tempo >= (ia.avisoViagem || 0);
+      const T = this.planoTotemAmiga(j, dono, r);
+      if (T) {
+        if (aviso && !dono.solo && !ia.vir && d > V.estrada * 3) { ia.avisoViagem = this.tempo + 120; if (this.tempo - (ia.aCaminhoT ?? -1e9) > 600) { ia.aCaminhoT = this.tempo; const L = this.AMIGA.chat.falas.aCaminho, t = sorteia(L.length > 1 ? L.filter((x) => x !== ia.aCaminhoUlt) : L); ia.aCaminhoUlt = t; this.dizerAmiga(t); } }
+        v = ia.viagem = { rota: T.rota, i: 0, fx: dono.x, fz: dono.z, novaEm: this.tempo + V.novaEm, seco: v?.seco ?? V.seco, t: 0, x0: j.x, z0: j.z, desvio: 0, lado: 1, falhas: 0, iFalha: -1, totem: { de: T.de.id, para: T.para.id } };
+        if (ia.vir) ia.vir.ate = Math.max(ia.vir.ate, this.tempo + T.metros / MONTARIAS.lobo.correr * V.folga + V.extra);
+      } else {
       // outra terra sem barco (André 2026-11-23: "eles precisam ir pro mar... nadando, de barco, de navio"): pela estrada
       // até a praia do lado dele e de lá nadando reto até ele (no mar, travessiaAmiga leva até o fim)
       // (bot sozinho na rotina dele continua como antes: sem barquinho, faz um ou escolhe outro campo; recruta nada)
@@ -1867,8 +1940,10 @@ export const Amiga = {
       // a chamada pelo chat espera o tempo da viagem (lobo no galope + folga)
       if (ia.vir) ia.vir.ate = Math.max(ia.vir.ate, this.tempo + r.metros / MONTARIAS.lobo.correr * V.folga + V.extra);
       }
+      }
     }
     if (v.bloqueio) { j.montado = null; this.pararAmiga(j); return true; }
+    if (v.totem && this.usarTotemAmiga(j, v)) return true;
     if (j.trava > 0) return this.pararAmiga(j), true;
     if (j.coleta) this.pararColeta(j, null);
     if (j.pesca) this.pararPesca(j, null);
@@ -1945,7 +2020,7 @@ export const Amiga = {
     // na água: nadando, de barquinho ou no mar (o cais fica sobre o mar); a beira do lago (pescando) não conta
     const naAgua = !ia.atividade && (dono.veiculo === 'barquinho' || fundoAgua(dono.x, dono.z) > AGUA.peito - 0.3 || terraId(dono.x, dono.z) === 0);
     const tj = terraId(j.x, j.z), td = terraId(dono.x, dono.z);
-    const outra = !nav && !naAgua && tj > 0 && td > 0 && tj !== td && contar(j.prog.mochila, 'barquinho') > 0;
+    const outra = !nav && !naAgua && tj > 0 && td > 0 && tj !== td && contar(j.prog.mochila, 'barquinho') > 0 && !this.totemOutraTerraAmiga(j, dono); // totem até a outra terra: vai por ele (longeAmiga)
     ia.outraTerra = outra;
     // ele mesmo no mar (nadando, com ou sem pack nas costas) e o dono longe: nada reto até ele (a estrada não sai do mar)
     const euNaAgua = !ia.atividade && (fundoAgua(j.x, j.z) > AGUA.peito - 0.3 || tj === 0);

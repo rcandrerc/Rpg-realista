@@ -11,7 +11,7 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
+import { VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
 import { profNivel, guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
 import { fundoAgua } from './transporte.js';
@@ -458,6 +458,21 @@ export const Cla = {
     const p = this.loteDaConta(K.conta)?.pecas.find((o) => o.k === 'bau_cla');
     return p ? { x: p.x, z: p.z } : null;
   },
+  // recall até o Baú do Clã (CLA.recall): o mesmo canal e a mesma recarga da casinha do jogador (voltarVila); true = ocupou o
+  // passo (canalizando ou começou agora). Sem recarga pronta, com carga ou perto: false (vai andando ou pelo totem)
+  recallRecruta(x, a, P, d) {
+    if (a.vila) { if (!a.vila.para) return false; a.montado = null; x.pararAmiga(a); return true; }
+    if (d < CLA.recall.min || (a.prog.vilaAte || 0) > Date.now() || a.morto || a.esc || !a.chao || a.veiculo || a.prog.pack || this.motivoCarga(a)) return false;
+    if (a.coleta) this.pararColeta(a, null);
+    if (a.pesca) this.pararPesca(a, null);
+    if (a.canal) this.cancelarCanal(a);
+    a.montado = null; x.pararAmiga(a); a.ia.viagem = null;
+    const v = a.vila = { x: a.x, z: a.z, para: { x: P.x, z: P.z + 2.5, base: true } };
+    this.evento({ t: 'vila', id: a.id, fase: 'comeca', dur: VOLTA_VILA.canal });
+    this.depois(VOLTA_VILA.canal, () => { if (a.vila === v && !a.morto && this.jogadores.get(a.id) === a) this.chegarNaVila(a); });
+    a.ia.funcaoSt = { txt: 'Voltando ao Baú do Clã (casinha)', ate: this.tempo + VOLTA_VILA.canal + 2 };
+    return true;
+  },
   // fase "voltar" de um recruta com recurso pedido: anda até o Baú do Clã e deixa só o que foi pedido; depois a função
   // manda de novo (até o líder pedir outra coisa). true = ocupou o passo. x = o contexto dele, a = o corpo
   levarBauRecruta(x, a, dt) {
@@ -467,6 +482,7 @@ export const Cla = {
     if (P) {
       const d = Math.hypot(P.x - a.x, P.z - a.z);
       if (d > CLA.entrega.perto) {
+        if (this.recallRecruta(x, a, P, d)) return true; // longe: a casinha até o baú, como o jogador
         if (d > 30) x.irLongeAmiga(a, P.x, P.z, dt); else this.irDireto(a, P.x, P.z, d > 6);
         return true;
       }
