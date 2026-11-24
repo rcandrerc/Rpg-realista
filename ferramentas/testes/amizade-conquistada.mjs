@@ -25,7 +25,7 @@ ok(dario.ehAmigoAmiga(d) && lista().some((v) => v.c === DARIO.conta), 'amizade 4
 ok(s.chat('andre', { canal: 'pm', para: DARIO.conta, texto: 'e aí' }), 'amigo: manda mensagem privada');
 // salvo no save dele
 dario.guardarAmiga();
-const salvo = dario.loteDaAmiga()?.amiga;
+const salvo = s.npcSalvos?.get(DARIO.id); // tabela mundo (André 2026-11-22)
 ok(salvo?.amigosDe?.[d.conta] === 1, 'a amizade fica gravada no save dele');
 // ocupada lutando: pede para depois
 const c = s.amiga; c.ia.av = { fase: 'cacar', c: { id: 'caca1' } };

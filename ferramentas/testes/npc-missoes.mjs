@@ -13,14 +13,14 @@ ok(b.semTeto, 'Dario é NPC sem teto (faz a própria história)');
 // bug até 2026-11-17 ("como a Cecília fez todas as missões?"): ao entrar, a história deles virava "toda feita"
 const cec0 = s.amigosIa.find((x) => x.AMIGA.id === 'cecilia').amiga;
 ok((b.prog.hist?.p | 0) === 0 && (cec0.prog.hist?.p | 0) === 0, `entram no mundo na missão 1, não com tudo feito (Dario ${b.prog.hist?.p}, Cecília ${cec0.prog.hist?.p})`);
-{ const L = dario.loteDaAmiga(); dario.guardarAmiga(); ok(!L || L.amiga?.histReal === 1, 'o save marca histReal (a história salva vale na próxima entrada)'); }
+{ dario.guardarAmiga(); ok(s.npcSalvos?.get(DARIO.id)?.histReal === 1, 'o save marca histReal (a história salva vale na próxima entrada)'); }
 // recomeço do jogo (André 2026-11-17: "reseta tudo, reseta nível"): save velho (nível 51, história "toda feita") volta ao
 // nível 1 e à missão 1; amizade, lembranças e fatos ficam; o jogo antigo fica guardado
 {
   const { AMIGA } = await import('../../shared/index.js');
   const s2 = new Simulacao(MAPA_CLAREIRA); s2.adicionarJogador('andre', 'André', 'ruiva', { conta: 7 });
   const cx = s2.amigosIa.find((x) => x.AMIGA.id === 'cecilia');
-  const L = cx.loteDaAmiga(true), velho = { nivel: 51, xp: 0, ouro: 288004, pontos: 0, mochila: [], equip: {}, barras: {}, hist: { v: 2, p: HISTORIA.length, ac: false, e: 0, n: 0, m: 0 } };
+  const L = { set amiga(v) { s2.carregarNpc('cecilia', v); }, get amiga() { return s2.npcSalvos?.get('cecilia'); } }, velho = { nivel: 51, xp: 0, ouro: 288004, pontos: 0, mochila: [], equip: {}, barras: {}, hist: { v: 2, p: HISTORIA.length, ac: false, e: 0, n: 0, m: 0 } };
   L.amiga = { t: Date.now(), prog: velho, recomeco: AMIGA.recomeco, amizades: { 7: 6 }, amigosDe: { 7: 1 }, memorias: { 7: ['ele gosta de pescar'] }, fatos: { 7: ['o pai dele morreu'] } };
   cx.amigaEntrar('andre', true); s2.passo(0.05);
   const c = cx.amiga;

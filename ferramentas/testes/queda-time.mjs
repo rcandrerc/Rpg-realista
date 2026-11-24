@@ -3,6 +3,7 @@
 // Segue a ordem do servidor (server/index.js onJoin/onLeave): entra o novo, os amigos entram, trocarSessao, sai o antigo.
 // Uso: node ferramentas/testes/queda-time.mjs
 import { Simulacao, MAPA_CLAREIRA, AMIGA, DARIO } from '../../shared/index.js';
+import './_amizade-antiga.mjs'; // o time com a Cecília e o Dario é do jeito antigo (antes do soldado de 2026-11-22)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 
 function montar() {

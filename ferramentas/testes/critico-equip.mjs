@@ -1,6 +1,7 @@
 // Atributo extra das peças e conjunto novo (André 2026-11-17): capacete e botas dão dano crítico (número), a arma dá
 // chance de crítico; 2/4/6 peças da mesma raridade dão vida / crítico e dano crítico / mais crítico, dano crítico e dano %
 // (só raridade, níveis somam). O CONJUNTO antigo não vale mais.
+import '../../shared/index.js'; // carrega na ordem certa (ciclo progresso/simulacao/cla: 'Amiga' before initialization)
 import assert from 'node:assert/strict';
 import { bonusEquip, conjuntoAtivo, calcularStatus, progressoNovo } from '../../shared/progresso.js';
 

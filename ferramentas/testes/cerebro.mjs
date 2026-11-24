@@ -2,6 +2,7 @@
 // cajado pela situação, recuar do golpe carregado, proteger aliado, poção e Cura. Uso: node ferramentas/testes/cerebro.mjs
 import { Simulacao, MAPA_CLAREIRA, AMIGA, DARIO, CEREBRO } from '../../shared/index.js';
 import { confere, decidir, ordenarRegras, limites, escolherArma } from '../../shared/cerebro.js';
+import './_amizade-antiga.mjs'; // o time com a Cecília e o Dario é do jeito antigo (antes do soldado de 2026-11-22)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 
 // ---------- motor (sem simulação) ----------

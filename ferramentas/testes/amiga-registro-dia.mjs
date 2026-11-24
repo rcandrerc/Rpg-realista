@@ -17,7 +17,7 @@ for (const id of ['cecilia', 'dario']) {
 // IA ligada de novo (André 2026-11-19: "pode deixar aberta a chave pra todos"): todo jogador, só Cecília e Dario
 {
   const { IA_CONVERSA } = await import('../../shared/index.js');
-  ok(IA_CONVERSA.ligada === true && IA_CONVERSA.quem.join() === 'cecilia,dario', 'IA ligada só na Cecília e no Dario');
+  ok(IA_CONVERSA.ligada === true && IA_CONVERSA.quem.join() === 'cecilia,dario,lia', 'IA ligada só na Cecília, no Dario e na Lia (André 2026-11-21)');
   const c = s.amigosIa.find((x) => x.AMIGA.id === 'cecilia'); c.iaPorChave = true;
   ok(c.iaAmiga('andre'), 'sem chave própria, a resposta vem da IA do servidor');
   const g = s.amigosIa.find((x) => x.AMIGA.rival && x.amiga);

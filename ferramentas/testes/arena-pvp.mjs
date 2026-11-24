@@ -3,6 +3,7 @@ import { Simulacao, MAPA_CLAREIRA, PVP, LOJA_PVP } from '../../shared/index.js';
 import { alturaMundo } from '../../shared/mundo.js';
 import { gradeDoMundo } from '../../shared/relevo.js';
 import { progressoValido } from '../../shared/progresso.js';
+import './_relogio-fixo.mjs'; // relógio e sorte fixos: o mesmo resultado em máquina rápida ou lenta (CI)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('a', 'Yukmei', 'ruiva', { conta: 1 });
