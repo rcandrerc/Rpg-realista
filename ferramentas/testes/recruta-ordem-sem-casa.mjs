@@ -50,3 +50,18 @@ ok(L.pecas.length > p0, `no modo Livre volta a construir a casa (${p0} -> ${L.pe
   for (let i = 0; i < 600; i++) s.passo(0.1);
   ok(j.ia.av?.coleta === 'lenha' || j.ia.encomenda, `e depois foi cortar lenha (${s.fazendoRecruta(j, a)})`);
 }
+// sem Mineração 5 para o ferro (André 2026-11-24: "treina minerando pedra e cobre"): minera o que já dá e, no nível, vai ao ferro
+{
+  const pk = x.AMIGA.atividades.minerar.ferramenta;
+  if (!j.prog.mochila.some((o) => o?.k === pk)) j.prog.mochila[j.prog.mochila.findIndex((o) => !o)] = { k: pk, n: 1 };
+  j.prog.prof.min = 0; j.prog.vigor = { v: 100, t: Date.now() };
+  m.fn = { k: 'livre' }; s.aplicarFuncao(a, x, m, true);
+  m.fn = { k: 'recurso', r: 'ferro' }; s.eventos = []; s.aplicarFuncao(a, x, m, true);
+  for (let i = 0; i < 300; i++) s.passo(0.1);
+  const chat = JSON.stringify([...x.chatDeAmiga(a), ...(j.ia.chatFila || [])].filter((e) => /Ainda não tenho/.test(e.texto)).slice(0, 1));
+  ok(/Ainda não tenho nível/.test(chat), `avisa no chat (${chat.slice(0, 200)})`);
+  ok(['pedra', 'cobre'].includes(j.ia.encomenda?.rec) && ['pedra', 'cobre'].includes(j.ia.levar?.r), `ferro sem nível: treina em ${j.ia.encomenda?.rec} (${s.fazendoRecruta(j, a)})`);
+  j.prog.prof.min = 8 * 16 + 1; // Mineração 5
+  j.ia.encomenda = null; j.ia.av = null; s.aplicarFuncao(a, x, m, false);
+  ok(j.ia.encomenda?.rec === 'ferro' && j.ia.levar?.r === 'ferro', `com Mineração 5 vai ao ferro (${s.fazendoRecruta(j, a)})`);
+}
