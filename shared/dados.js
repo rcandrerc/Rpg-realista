@@ -4223,6 +4223,23 @@ export const PACK_BOT = {
     oQue: 'Tô com o {pack} nas costas. Quer que eu ponha no carrinho, no navio, entregue ou te passe?',
   },
 };
+// Ordens de pack pela barra do time (André 2026-11-23: "por toque ali na barra de time"; "Time todo" em cima, ou um por um
+// tocando no nome). Dois toques, De e Pra: de = palete (palete do clã, senão pack solto no chão), carrinho ou mercante
+// (o navio); pra = carrinho, mercante, palete (palete do clã com lugar, senão o chão do lado do dono) ou mercador (entrega,
+// ouro no cofre do clã). O bot ANDA cada trecho, um pack por vez, até a origem esvaziar ou o destino encher ("eu não
+// quero que ... o pack é como se fosse teleportado com eles parados"). Recruta obedece calado: só o status muda.
+export const PACK_TIME = {
+  de: ['palete', 'carrinho', 'mercante'],
+  pra: ['carrinho', 'mercante', 'palete', 'mercador'],
+  // metros de verdade (antes o bot punha no carrinho a 7 m e no navio a 17 m: parecia parado)
+  perto: { carrinho: 2.2, mercante: 6, palete: 1.6, chao: 1.8, mercador: 3.5 },
+  paleteRaio: 80, // m do dono: paletes do clã que contam
+  chaoRaio: 15, // m do dono: packs soltos no chão que contam
+  mercadorRaio: 40, // m do dono: o mercador da entrega
+  trecho: 90, // s pra chegar num trecho; não chegou, para (preso)
+  dura: 1800, // s que a ordem vale no máximo
+  reserva: 30, // s que um pack fica separado pra um bot (dois bots não vão no mesmo)
+};
 export const NPC_VIDA = {
   moradia: [
     { nivel: 1, nome: 'a vila', x: -3.5, z: -7, r: 9 },
