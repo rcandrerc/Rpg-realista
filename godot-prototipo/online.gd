@@ -59,6 +59,7 @@ static var _foi_desconectado := false # sobrevive ao recarregar a cena: a tela i
 static var _foi_trocado := false # saiu porque a conta entrou em outro aparelho (André 2026-11-13): o aviso diz isso
 static var _conta_antes := {} # nome da conta para o botão "Entrar como…" mesmo com o servidor fora
 var _build_ok := false
+var _modo_ok := true # arma da conta já aplicada neste login
 var _pronto := false
 var _cla_pedido := false # já abriu a janela do nome do clã nesta sessão
 var _nome_recusado := "" # nome que o servidor recusou no criador (já é de outra conta)
@@ -401,7 +402,7 @@ func ao_entrar(id: String, conta: Dictionary) -> void:
 		esconder_login()
 	m.hud.nome = str(conta.get("nome", m.hud.nome))
 	m.hud.aviso("Online!")
-	rede.enviar("modo", m.h.modo)
+	_modo_ok = false # a arma da conta (prog.modo) chega no primeiro "prog" e vale; o cliente não manda a dele antes (André 2026-11-24)
 	rede.enviar("idioma", {"codigo": Idioma.atual}) # Cecília e Dario (IA) respondem em inglês se o jogo está em English
 	for e in m.inimigos:
 		e.estado = "vivo"
@@ -1124,6 +1125,13 @@ func evento(ev: Dictionary) -> void:
 	match t:
 		"prog": # nível, XP, atributos e skills da conta (o menu do personagem mostra)
 			m.P.do_servidor(ev)
+			if not _modo_ok: # entrou agora: pega a arma em que saiu (mago volta mago)
+				_modo_ok = true
+				var pr = ev.get("prog", {})
+				var mq := str(pr.get("modo", "Espada")) if pr is Dictionary else "Espada"
+				if mq != m.h.modo and mq in ["Espada", "Magia"]:
+					m.armar(mq)
+					m.mostrar_build()
 			# clã (André 2026-11-22): conta sem clã abre a aba Clã uma vez para escolher o nome (depois do criador)
 			if not _cla_pedido and int(m.P.cla.get("sem", 0)) == 1 and m.menu and not (m.criador and m.criador.aberto()):
 				_cla_pedido = true
