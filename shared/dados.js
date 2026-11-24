@@ -1494,6 +1494,11 @@ export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate:
 // (com 5 de folga e 0,1 por nível: 10 níveis abaixo = metade, 15 ou mais = nada). Ninguém muda de nível, só o XP.
 export const TIME_XP = { nerfLivre: 5, nerfPorNivel: 0.1 };
 export const fatorXpTime = (meu, maior, T = TIME_XP) => Math.max(0, Math.min(1, 1 - T.nerfPorNivel * ((maior | 0) - (meu | 0) - T.nerfLivre)));
+// André 2026-11-24 (opção C): drop cai quando o herói está muito acima do bicho (anti-farm de bicho Nv 1).
+// d = nível do herói - nível do bicho. Até livre níveis: chance cheia; depois cai a cada `degrau` níveis
+// (6-10 acima: 70%, 11-15: 40%, 16+: 25%). Item valioso (valiosos + peça + Tomo) não cai mais com d > valiosoAte.
+// Ouro não muda (já cresce com o nível do bicho). Boss de mundo fica de fora (dropBoss).
+export const DROP_NIVEL = { livre: 5, degrau: 5, chances: [1, 0.7, 0.4, 0.25], valiosoAte: 10, valiosos: ['fragmento', 'cristal'] };
 // Drops: cada herói que ganhou XP com o monstro tira a sua sorte (vai direto para a mochila dele).
 // ouro [mín, máx]; pocao/mana/equip/tomo = chance; raridade = chance de cada raridade da peça (Comum..Mítico)
 // mat: materiais para o alfaiate { item: [chance, quantos] }

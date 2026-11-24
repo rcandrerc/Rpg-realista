@@ -2,7 +2,7 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos } from './progresso.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos, fatorDropNivel } from './progresso.js';
 import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
@@ -14,6 +14,7 @@ import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS, VISAO } from './dados.js'; // bo
 import { ECONOMIA, precoLoja } from './dados.js'; // economia (André 2026-11-16)
 import { CEREBRO, fichaInfo, estiloDe, fichaJogadorValida, fichaJogadorInfo } from './dados.js'; // perfil na janela de equipamento (André 2026-11-23)
 import { AVISO_EVOLUIR } from './dados.js'; // aviso de ir à bigorna/bancada ao evoluir (André 2026-11-21)
+import { DROP_NIVEL } from './dados.js'; // drop menor em bicho muito abaixo do herói (André 2026-11-24)
 import { Economia } from './economia.js';
 import { LUGARES_MUNDO } from './mundo.js'; // os cais: a pesca no mar nasce em volta deles (André 2026-11-13)
 import { Amiga, contextoDeAmigo } from './amiga.js'; // Cecília, a amiga que vive no servidor (André 2026-11-09)
@@ -3831,16 +3832,18 @@ export class Simulacao {
     const por = (it) => { if (filtrado(p, it)) return; const q = guardarQueCabe(p.mochila, it); if (q) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); if (q < (it.n || 1)) this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
     const ouro = Math.round((d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1))) * ECONOMIA.ouroMonstro * (1 + NIVEL_INIMIGO.ouro * Math.max(0, (c.nivel || 1) - 1)) * (1 + (bonusTitulo(p).ouro || 0) + this.bonusCla(j)));
     if (ouro) { p.ouro += ouro; this.caixa(j, 'monstro', ouro); }
-    if (Math.random() < d.pocao) por({ k: 'pocao', n: 1 });
-    if (Math.random() < d.mana) por({ k: 'pocao_mana', n: 1 });
-    for (const [k, [ch, n]] of Object.entries(d.mat || {})) if (Math.random() < ch) por({ k, n });
-    if (Math.random() < d.equip) {
+    // bicho muito abaixo do herói solta menos (DROP_NIVEL, André 2026-11-24): comum cai por degrau, valioso some
+    const fc = fatorDropNivel(c.nivel, p.nivel, false, DROP_NIVEL), fv = fatorDropNivel(c.nivel, p.nivel, true, DROP_NIVEL);
+    for (const [k, [ch, n]] of Object.entries(d.mat || {})) if (Math.random() < ch * (DROP_NIVEL.valiosos.includes(k) ? fv : fc)) por({ k, n });
+    if (Math.random() < d.pocao * fc) por({ k: 'pocao', n: 1 });
+    if (Math.random() < d.mana * fc) por({ k: 'pocao_mana', n: 1 });
+    if (Math.random() < d.equip * fv) {
       let s = Math.random(), r = 0;
       while (r < d.raridade.length - 1 && s >= d.raridade[r]) s -= d.raridade[r++];
       const pecas = Object.keys(ITENS).filter(ehEquip);
       por({ k: pecas[Math.floor(Math.random() * pecas.length)], r });
     }
-    if (Math.random() < d.tomo) { // Tomo de um nível que a skill ainda vai precisar (do VI ao X)
+    if (Math.random() < d.tomo * fv) { // Tomo de um nível que a skill ainda vai precisar (do VI ao X)
       // André 2026-11-07: antes caía só o próximo nível, então quem estava no Nv 5 só via Tomo VI.
       // Agora metade das vezes cai o próximo que a skill precisa e na outra metade um dos seguintes (até o X)
       const sk = Object.keys(HABS).filter((k) => HABS[k].tomo && HABS[k].libera <= p.nivel && (p.habs[k]?.nv || 1) < SKILL_MAX);
