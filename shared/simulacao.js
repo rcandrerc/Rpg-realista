@@ -579,8 +579,9 @@ export class Simulacao {
     return b ? { x: b.x, z: b.z + 2.5, base: true } : this.mapa.nascimento;
   }
   chegarNaVila(j) {
+    const para = j.vila?.para; // recruta indo ao Baú do Clã (recallRecruta, shared/cla.js)
     j.vila = null;
-    const n = this.destinoCasa(j), x0 = j.x, z0 = j.z;
+    const n = para || this.destinoCasa(j), x0 = j.x, z0 = j.z;
     const x = n.x + (Math.random() - 0.5) * 3, z = n.z + (Math.random() - 0.5) * 3, y = this.terreno.altura(x, z);
     Object.assign(j, { x, y, z, vy: 0, chao: true, dash: null, arrancada: null, esc: null, trava: 0, acao: null });
     j.cliente = null; j.orcT = null; // a próxima posição do celular já é a da vila

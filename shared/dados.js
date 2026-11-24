@@ -2316,6 +2316,13 @@ export const TOTENS = { toque: 8, usar: 4, canal: 5, taxaNivel: 10, taxaMin: 50,
   { id: 'ultimo_pouso', nome: 'Último Pouso', nivel: 95, faixa: 'Nv 95-100', x: 222, z: 1328 },
 ] };
 // ouro para ir até o totem t
+// Bots e recrutas usam os totens como um jogador (André 2026-11-24: "ele se aproxima de um totem, teleporta para outro
+// totem, em vez de correr o mapa inteiro"; nunca teleporta de qualquer lugar). Na viagem longa (longeAmiga) ele compara:
+// ir de lobo pela estrada até o destino, ou ir até o totem descoberto mais perto dele, canalizar e sair no totem
+// descoberto mais perto do destino. Vale o totem só quando poupa pelo menos `ganho` m de estrada (a canalização conta
+// como `canal` s de galope parado). Mesmas regras do jogador: só totens que ele já tocou, paga a taxa, sem pack nem
+// carrinho, sem zona na névoa. Deu errado (sem ouro, levou dano): tenta de novo só depois de `espera` s.
+export const TOTEM_BOT = { ganho: 80, folga: 3, espera: 45, olhaOutra: 5 };
 export const taxaTotem = (t) => Math.max(TOTENS.taxaMin, TOTENS.taxaNivel * (t?.nivel || 1));
 // o totem a até r m de (x, z), ou null
 export const totemPerto = (x, z, r = TOTENS.usar) => TOTENS.lista.find((t) => Math.hypot(t.x - x, t.z - z) < r) || null;
@@ -3400,6 +3407,10 @@ export const CLA = {
   farmar: 40, // quanto ele junta por viagem (o máximo da encomenda); acabou, vai de novo
   // entrega (André 2026-11-23): só o recurso pedido vai para o Baú do Clã, e ele leva andando (perto: m do baú para deixar)
   entrega: { perto: 2.4 },
+  // recall (André 2026-11-24: "além de totem, eles podem usar o recall para guardar as coisas no baú"): longe do Baú do
+  // Clã (mais de `min` m), o recruta que leva o recurso usa a casinha como o jogador (VOLTA_VILA: canaliza parado,
+  // andar ou dano cancela, recarga de 10 min) e aparece na frente do baú. Em recarga: vai andando (ou pelo totem).
+  recall: { min: 100 },
   protegeRaio: 9, // m em volta de quem ele protege: monstro ou inimigo ali dentro, ele ataca
   // Proteger carrinho / mercante (André 2026-11-23: "proteger meu carrinho... proteger meu mercante"; "se esse bicho se
   // afastando, ele não correr atrás. A função dele é só defender"): raio = inimigo a até isso do carrinho, ele ataca sem
