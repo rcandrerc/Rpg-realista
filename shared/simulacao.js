@@ -4166,6 +4166,8 @@ export class Simulacao {
     this.tocar(c, A.death, 1);
     c.trava = Infinity;
     if (c.tipo === 'jogador') {
+      // recruta de jogador caiu: aviso no celular do líder (painel do clã, André 2026-11-24; o servidor só manda com ele fora do jogo)
+      if (c.bot && this.aoAvisoCla) { const x = this.amigoIaDe?.(c); if (x?.AMIGA.recruta && !x.AMIGA.clanpc) this.aoAvisoCla(x.AMIGA.lider, `${x.AMIGA.nome} caiu${de?.nome ? ` (${de.nome})` : ''}`); }
       this.cancelarVila(c, null);
       this.morreuComCarga(c); // o pack das costas cai no chão; o veículo fica onde estava
       if (c.caverna) { c.caverna = null; this.evento({ t: 'caverna', id: c.id, aberta: false }); } // morreu: a entrada acabou

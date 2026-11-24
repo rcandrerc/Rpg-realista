@@ -68,12 +68,14 @@ function login() {
 
 // ---------- ligação com o servidor ----------
 const cliente = new Client(endereco());
+let leilaoInfo = null;
 let sala = null, info = null, sessao = null, timer = 0, tentativas = 0, parado = false;
 
 function ligar(s) {
   sala = s; tentativas = 0;
   estado('Online', 'on');
   s.onMessage('painel', (d) => { info = d; desenhar(); if (d.aviso) aviso(d.aviso); });
+  s.onMessage('painelLeilao', (d) => { leilaoInfo = d; if (aba === 'leilao') desenharLeilao(); });
   s.onLeave((codigo) => {
     sala = null;
     if (codigo === 4001) { parado = true; estado('Aberto em outro lugar', 'caiu'); aviso('O painel foi aberto em outro aparelho ou aba.'); return; }
@@ -116,6 +118,7 @@ for (const b of $('abas').querySelectorAll('button')) b.onclick = () => {
   aba = b.dataset.aba;
   for (const o of $('abas').querySelectorAll('button')) o.classList.toggle('ativo', o === b);
   $('cla').hidden = aba !== 'cla'; $('mapaAba').hidden = aba !== 'mapa'; $('bots').hidden = aba !== 'bots'; $('log').hidden = aba !== 'log';
+  $('leilaoAba').hidden = aba !== 'leilao'; if (aba === 'leilao') pedirLeilao();
   desenhar();
 };
 
@@ -127,9 +130,9 @@ function barra(rot, v, max, cor) {
 const opcao = (v, t, sel) => { const o = el('option', null, t); o.value = v; if (sel) o.selected = true; return o; };
 
 function cartaoMembro(m) {
-  const c = el('div', 'card' + (m.on ? '' : ' fora'));
+  const c = el('div', 'card' + (m.on ? '' : ' fora') + (m.cheia ? ' cheio' : ''));
   const l = el('div', 'linha'), n = el('div', 'nome', m.nome);
-  n.append(el('span', 'tag', m.tier)); if (m.dev) n.append(el('span', 'tag', 'devendo'));
+  n.append(el('span', 'tag', m.tier)); if (m.dev) n.append(el('span', 'tag', 'devendo')); if (m.cheia) n.append(el('span', 'tag cheio', 'Mochila cheia'));
   l.append(n, el('div', 'nv', `Nv ${m.nv}`)); c.append(l);
   c.append(el('div', 'faz', m.on ? (m.morto ? 'Caído' : m.fz || '') : 'Fora do mundo'));
   if (m.on) { const b = el('div', 'barras'); b.append(barra('Vida', m.hp, m.hpM, 'var(--hp)'), barra('Vigor', m.vg, m.vgM, 'var(--vg)')); c.append(b); }
@@ -186,9 +189,10 @@ function iconeQtd(it) { // só a quantidade (o Baú do Clã)
   d.append(q, el('small', null, num(it.n)));
   return d;
 }
-function cartaoBau(itens) {
-  const c = el('div', 'card'), l = el('div', 'linha');
-  l.append(el('div', 'nome', 'Baú do Clã'), el('div', 'nv', itens ? `${itens.length} tipos` : '')); c.append(l);
+function cartaoBau(itens, cheio) {
+  const c = el('div', 'card' + (cheio ? ' cheio' : '')), l = el('div', 'linha'), n = el('div', 'nome', 'Baú do Clã');
+  if (cheio) n.append(el('span', 'tag cheio', 'Cheio'));
+  l.append(n, el('div', 'nv', itens ? `${itens.length} tipos` : '')); c.append(l);
   if (!itens) { c.append(el('div', 'faz', 'Sem Baú do Clã: funde a base do clã ou crie um baú na construção.')); return c; }
   if (!itens.length) { c.append(el('div', 'faz', 'Vazio.')); return c; }
   const f = el('div', 'icones'); for (const it of itens) f.append(iconeQtd(it)); c.append(f);
@@ -206,6 +210,68 @@ function cartaoSobe(S) {
   return c;
 }
 
+// ---------- Leilão (André 2026-11-24: "ver o leilão pelo próprio negócio"): só olhar. Comprar e anunciar continuam
+// com o Otávio, no jogo (a regra de ir até a Casa do Comércio não muda). Cada anúncio é o ícone com o preço embaixo.
+let leilaoTipo = '', leilaoOrdem = 'barato';
+const pedirLeilao = () => pedir({ acao: 'leilao', tipo: leilaoTipo || undefined, ordem: leilaoOrdem });
+const resta = (ms) => { const h = Math.max(0, Math.round(ms / 3600e3)); return h >= 1 ? `${h} h` : 'menos de 1 h'; };
+function iconeAnuncio(a, agora) {
+  const d = el('div', 'ico qtd preco'), q = el('div', 'q');
+  if (a.cor) q.style.borderColor = a.cor;
+  q.append(desenhoItem(a.item.k, a.nome || a.item.k, a.cor));
+  if ((a.item.n | 0) > 1) q.append(el('b', null, num(a.item.n)));
+  d.title = a.nome;
+  d.onclick = () => aviso(`${a.item.n > 1 ? a.item.n + ' ' : ''}${a.nome}${a.rar ? ` (${a.rar})` : ''} · ${a.preco} de ouro · ${a.casa ? 'da Casa' : a.vendedor}${a.casa ? '' : ` · acaba em ${resta(a.ate - agora)}`}`);
+  d.append(q, el('small', null, num(a.preco)));
+  return d;
+}
+function desenharLeilao() {
+  const raiz = $('leilaoAba'); limpar(raiz);
+  const top = el('div', 'card'), ch = el('div', 'chips');
+  for (const [k, nome] of [['', 'Tudo'], ...Object.entries(leilaoInfo?.tipos || {})]) {
+    const b = el('button', leilaoTipo === k ? 'ativo' : '', nome); b.onclick = () => { leilaoTipo = k; desenharLeilao(); pedirLeilao(); }; ch.append(b);
+  }
+  const ord = el('select'); for (const [v, t] of [['barato', 'Mais barato'], ['caro', 'Mais caro'], ['novo', 'Mais novo']]) ord.append(opcao(v, t, leilaoOrdem === v));
+  ord.onchange = () => { leilaoOrdem = ord.value; pedirLeilao(); };
+  const linha = el('div', 'ordem'); linha.append(ord);
+  top.append(ch, linha, el('div', 'faz', 'Só para olhar: comprar e anunciar é com o Otávio, na Casa do Comércio. Toque num item para ver quem vende.'));
+  raiz.append(top);
+  if (!leilaoInfo) { raiz.append(el('div', 'vazio', 'Carregando o leilão…')); return; }
+  const agora = leilaoInfo.agora || Date.now();
+  const meus = el('div', 'card'); meus.append(el('div', 'nome', 'Seus anúncios'));
+  if (!leilaoInfo.meus.length) meus.append(el('div', 'faz', 'Nenhum agora.'));
+  else { const f = el('div', 'icones'); for (const a of leilaoInfo.meus) f.append(iconeAnuncio(a, agora)); meus.append(f); }
+  raiz.append(meus);
+  const c = el('div', 'card'); c.append(el('div', 'nome', 'À venda'));
+  if (!leilaoInfo.lista.length) c.append(el('div', 'faz', 'Nada nessa busca.'));
+  else { const f = el('div', 'icones'); for (const a of leilaoInfo.lista) f.append(iconeAnuncio(a, agora)); c.append(f); }
+  raiz.append(c);
+}
+
+// ---------- avisos no celular (Web Push: server/push.js e public/painel-sw.js). Chrome do Android: funciona com a
+// página fechada. iPhone: só com o painel posto na tela de início (Compartilhar > Adicionar à Tela de Início).
+const podeAvisar = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const chaveBytes = (b64) => { const s = atob(b64.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (b64.length % 4)) % 4)); return Uint8Array.from(s, (c) => c.charCodeAt(0)); };
+async function registroAvisos() { return navigator.serviceWorker.register('painel-sw.js', { scope: './painel-sw/' }); }
+async function ligarAvisos(ligar) {
+  try {
+    const reg = await registroAvisos(); await navigator.serviceWorker.ready.catch(() => null);
+    let sub = await reg.pushManager.getSubscription();
+    if (!ligar) { if (sub) { pedir({ acao: 'push', sair: sub.endpoint }); await sub.unsubscribe(); } return; }
+    if ((await Notification.requestPermission()) !== 'granted') return aviso('O navegador bloqueou os avisos. Libere em Configurações do site > Notificações.');
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveBytes(info.push.pub) });
+    pedir({ acao: 'push', sub: sub.toJSON() });
+  } catch (e) { aviso('Não deu para ligar os avisos neste navegador'); }
+}
+function opcaoAvisos() {
+  const op = el('label', 'opc'), cx = el('input'); cx.type = 'checkbox';
+  if (!podeAvisar() || !info.push) { op.append(document.createTextNode('Avisos no celular: este navegador não tem (no iPhone, ponha o painel na tela de início)')); return op; }
+  cx.checked = !!info.push.on && Notification.permission === 'granted';
+  cx.onchange = () => { cx.disabled = true; ligarAvisos(cx.checked).finally(() => { cx.disabled = false; }); };
+  op.append(cx, document.createTextNode('Avisar no celular (recruta caiu, mochila ou baú cheio, venda no leilão)'));
+  return op;
+}
+
 function desenharCla() {
   const raiz = $('cla'); limpar(raiz);
   if (info.sem) { raiz.append(el('div', 'vazio', 'Você ainda não tem clã. Funde um no jogo, no painel do Clã.')); return; }
@@ -215,9 +281,10 @@ function desenharCla() {
   const op = el('label', 'opc'), cx = el('input'); cx.type = 'checkbox'; cx.checked = ler('painelTela') === '1';
   cx.onchange = () => { gravar('painelTela', cx.checked ? '1' : null); tela(); };
   op.append(cx, document.createTextNode('Manter a tela ligada (gasta mais bateria)')); t.append(op);
+  t.append(opcaoAvisos());
   raiz.append(t);
   if (info.sobe) raiz.append(cartaoSobe(info.sobe));
-  if ('bau' in info) raiz.append(cartaoBau(info.bau));
+  if ('bau' in info) raiz.append(cartaoBau(info.bau, info.bauCheio));
   if (!info.m.length) raiz.append(el('div', 'vazio', 'Nenhum recruta ainda. Contrate no Recrutador, no jogo.'));
   for (const m of info.m) raiz.append(cartaoMembro(m));
 }
@@ -337,6 +404,7 @@ function desenharMapa() {
 function desenhar() {
   if (!info) return;
   $('abas').hidden = false;
+  $('abas').querySelector('[data-aba=cla]').classList.toggle('alerta', !!(info.bauCheio || info.m?.some((m) => m.cheia))); // algo cheio: bolinha vermelha na aba
   $('titulo').textContent = info.sem ? 'Painel do Clã' : `${info.n} · Nv ${info.nv}`;
   $('subtitulo').textContent = info.sem ? info.nome || '' : `Líder ${info.nome} · Cofre ${info.cofre} de ouro`;
   const foco = document.activeElement?.tagName === 'SELECT'; // escolhendo uma ordem: não refaz a lista por baixo do dedo

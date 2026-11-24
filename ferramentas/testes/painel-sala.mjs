@@ -82,6 +82,17 @@ try {
   p.send('painel', { acao: 'funcao', id: { __proto__: 1 }, fn: null });
   await esperar(800);
   ok(p.infos.length === antes && p.fechou === null, 'pedidos estranhos: ignorados, sem cair');
+  // leilão só para olhar e avisos no celular (André 2026-11-24)
+  const leiloes = []; p.onMessage('painelLeilao', (d) => leiloes.push(d));
+  p.send('painel', { acao: 'leilao', tipo: 'mat', ordem: 'caro' });
+  await esperar(800);
+  const L = leiloes.at(-1);
+  ok(L && Array.isArray(L.lista) && Array.isArray(L.meus) && L.lista.every((a) => !('conta' in a) && a.nome), `leilão no painel: anúncios sem a conta de ninguém (${L?.lista?.length})`);
+  ok(typeof ultima(p).push?.pub === 'string' && ultima(p).push.on === 0, 'o painel recebe a chave dos avisos');
+  p.send('painel', { acao: 'push', sub: { endpoint: 'https://exemplo.invalid/roubar', keys: { p256dh: 'x', auth: 'y' } } });
+  await esperar(800);
+  ok(/não aceita/.test(ultima(p).aviso || '') && ultima(p).push.on === 0, 'aviso para endereço qualquer: recusado');
+  await esperar(2100);
 
   // 4) a outra conta: só vê o dela (sem clã), nunca o da primeira
   const q = await painel(sessaoB);

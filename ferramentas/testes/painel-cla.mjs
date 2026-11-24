@@ -91,3 +91,22 @@ ok(inf2.clas.every((C) => !C.inimigo || C.x == null), 'sem o lugar do líder ini
   ok(s.painelInfo(conta, cla, 'chama').bau === null, 'sem Baú do Clã: a página avisa');
   s.bauDoCla = velho;
 }
+// aviso no celular quando um recruta cai (André 2026-11-24): a simulação chama aoAvisoCla com a conta do líder
+{
+  const avisos = []; s.aoAvisoCla = (c, t) => avisos.push([c, t]);
+  const x = s.recrutasNoMundo({ conta }).find((o) => o.amiga && !o.amiga.morto);
+  if (x) { s.morrer(x.amiga, null); ok(avisos.some(([c, t]) => c === conta && t.startsWith(x.AMIGA.nome) && t.includes('caiu')), 'recruta caiu: aviso para o líder'); }
+  else ok(false, 'recruta no mundo para o teste do aviso');
+  s.aoAvisoCla = null;
+}
+// mochila de recruta e Baú do Clã cheios: vermelho no painel e lista para o aviso (André 2026-11-24)
+{
+  const x = s.recrutasNoMundo({ conta }).find((o) => o.amiga);
+  const velhaM = x.amiga.prog.mochila; x.amiga.prog.mochila = velhaM.map(() => ({ k: 'pedra', n: 99 }));
+  const velhoB = s.bauDoCla; s.bauDoCla = (K) => (K?.conta === conta ? { itens: Array(4).fill({ k: 'lenha', n: 99 }) } : null);
+  const C = s.cheiosCla(conta), i4 = s.painelInfo(conta, cla, 'chama');
+  ok(C.recrutas.includes(x.AMIGA.nome) && C.bau, 'cheiosCla acha a mochila e o baú cheios');
+  ok(i4.m.find((m) => m.id === x.AMIGA.id)?.cheia === 1 && i4.bauCheio === 1, 'o painel marca a mochila e o baú cheios');
+  x.amiga.prog.mochila = velhaM; s.bauDoCla = velhoB;
+  ok(!s.cheiosCla(conta).recrutas.length, 'com lugar livre não marca');
+}
