@@ -5,6 +5,8 @@ extends SkeletonModifier3D
 # coordenadas do mundo; aqui só se dobra o corpo para chegar lá. peso 0 = animação pura.
 
 var peso := 0.0
+# true: só o corpo (base aberta, quadril descendo, tronco curvando); as mãos ficam com a animação
+var so_corpo := false
 var curva := 0.0 # 0 = em pé, 1 = tronco curvado para a frente no golpe
 var mao_d := Vector3.ZERO # onde a mão direita segura o cabo (mundo)
 var mao_e := Vector3.ZERO # onde a mão esquerda segura (mundo)
@@ -213,6 +215,8 @@ func _process_modification() -> void:
 			var eixo_local: Vector3 = (pg.basis * pose.basis).inverse() * _dir
 			var q: Quaternion = pose.basis.get_rotation_quaternion() * Quaternion(eixo_local.normalized(), -0.3 * curva * peso)
 			s.set_bone_pose_rotation(o, q)
+	if so_corpo: # animação de trabalho de verdade (trabalho.gd TRABALHO_KK): os braços ficam com ela
+		return
 	var ec: Vector3 = (inv.basis * cabo).normalized()
 	var md: Vector3 = inv * mao_d
 	if punho > 0.0: # mão de cima longe demais (ferramenta erguida): escorrega pelo cabo até o braço alcançar

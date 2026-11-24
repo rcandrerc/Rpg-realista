@@ -57,7 +57,7 @@ var _onda_t := 0.0
 # toca lançar / esperar / puxão / briga / pegar e a vara sai da mão direita da animação (a ponte _kk_mao segue o osso
 # depois do sentar.gd, então no barquinho a vara fica na mão sentada). PESCA_KK = false volta para a pose parada com as
 # mãos levadas por código (duas_maos.gd).
-const PESCA_KK := true
+var PESCA_KK := true # var: o banco de provas desliga para gravar o antes
 const KK_PEGADA := Quaternion(0.0, 0.7071, 0.7071, 0.0) # osso da mão -> handslot do KayKit (igual ao trabalho.gd)
 var _kk := false # pescando com as animações do KayKit agora
 var _kk_nome := ""
@@ -455,7 +455,8 @@ func evento(ev: Dictionary) -> void:
 			m.mov.ry_mira = null
 			m.heroi.rotation.y = m.mov.ry
 			if not _kk:
-				m.trabalho._preparar_duas()
+				if m.trabalho._preparar_duas():
+					m.trabalho.duas.so_corpo = false
 			vara.visible = true
 			boia.visible = true
 			linha.visible = true

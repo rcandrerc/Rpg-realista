@@ -942,6 +942,7 @@ func _passo_coleta(dt: float) -> void:
 		bate = float(T[1])
 		if m.heroi_anim.current_animation == coletando.kk:
 			m.heroi_anim.seek(_tempo_kk(T, f), true)
+		_corpo_kk(T, f, o.tipo == "arvore", dt)
 	elif coletando.get("duas", false):
 		_passo_duas(o, f)
 	elif m.heroi_anim.current_animation == "descendente":
@@ -958,12 +959,12 @@ const GOLPE_BATE := 0.55 # fração da batida em que a ponta encosta
 
 # Animações de trabalho do KayKit (CC0), assadas para o corpo por ferramentas/assar-animacoes/kaykit.py.
 # TRABALHO_KK = false volta para o golpe por código (duas_maos.gd) e o golpe de espada picado.
-const TRABALHO_KK := true
+var TRABALHO_KK := true # var: o banco de provas desliga para gravar o antes
 const KK_ANIM := {"min": "kk_picareta", "len": "kk_machado"}
 const KK_PEGADA := Quaternion(0.0, 0.7071, 0.7071, 0.0) # osso da mão -> handslot do KayKit (cabo = +Y da ferramenta)
 # na hora que bate, no corpo do herói: [mão à frente, mão de altura, cabo à frente, cabo de altura] (m e direção)
 const KK_IMPACTO := {"kk_picareta": [0.35, 0.97, 0.99, 0.13], "kk_machado": [0.33, 0.87, 0.9, 0.43]}
-var KK_GIRO := float(OS.get_environment("KK_GIRO")) if OS.get_environment("KK_GIRO") != "" else 0.0
+const KK_GIRO := 0.0 # rad em volta do cabo (0: ponta da picareta e fio do machado para a pedra/tronco)
 # cada batida (meia "dur" do servidor) toca um golpe, em 3 trechos do tempo da animação (s):
 # [fim do 1º trecho (fração), fim do 2º (fração = quando bate), [t0, t1, t2, t3]]: ergue t0->t1, desce t1->t2, depois t2->t3.
 # Picareta (Pickaxing, 2 golpes em 3,73 s): sobe devagar 1,25->1,8; desce rápido 0->0,28 (o topo em 1,8 e em 0 é a
@@ -977,6 +978,31 @@ const KK_TEMPOS := {
 func _anim_kk(prof: String) -> String:
 	var n: String = KK_ANIM.get(prof, "")
 	return n if TRABALHO_KK and n != "" and m.heroi_anim.has_animation(n) else ""
+
+# corpo por cima da animação de trabalho: "baixo" = 0 ferramenta erguida (corpo esticado, arqueado para trás) a 1
+# golpe (agachado, peso na frente, tronco curvado). Picareta curva bem; machado (golpe de lado) curva pouco.
+const KK_CORPO := {"agacha": [0.07, 0.2], "avanco": [-0.04, 0.07], "curva_min": [-0.3, 0.9], "curva_len": [-0.1, 0.45]}
+func _corpo_kk(T: Array, f: float, arvore: bool, dt: float) -> void:
+	if duas == null or not is_instance_valid(duas) or not duas.so_corpo:
+		return
+	var a: float = T[0]
+	var b: float = T[1]
+	var baixo := 0.0
+	if f < a: # erguendo: estica e arqueia
+		baixo = lerp(0.35, 0.0, smoothstep(0.0, 1.0, f / a))
+	elif f < b: # golpe: desce com o corpo todo
+		baixo = (f - a) / (b - a)
+	elif not arvore: # picareta cravada: fica embaixo e solta um pouco no fim
+		baixo = lerp(1.0, 0.35, smoothstep(0.75, 1.0, f))
+	else: # machado volta devagar
+		baixo = lerp(1.0, 0.35, smoothstep(0.0, 1.0, (f - b) / (1.0 - b)))
+	duas.peso = move_toward(duas.peso, 1.0, dt * 4.0)
+	var C: Dictionary = KK_CORPO
+	duas.agacha = lerp(float(C.agacha[0]), float(C.agacha[1]), baixo)
+	duas.avanco = lerp(float(C.avanco[0]), float(C.avanco[1]), baixo)
+	var cv: Array = C.curva_len if arvore else C.curva_min
+	duas.curva = lerp(float(cv[0]), float(cv[1]), baixo)
+	duas.torcao = 0.0
 
 func _tempo_kk(T: Array, f: float) -> float:
 	var a: float = T[0]
@@ -1109,6 +1135,7 @@ func parar(avisar_servidor := false) -> void:
 		m.acao = {}
 	if duas != null and is_instance_valid(duas):
 		duas.peso = 0.0
+		duas.so_corpo = false
 	for d in dedos:
 		if is_instance_valid(d):
 			d.peso = 0.0
@@ -1137,6 +1164,10 @@ func _segurar_ferramenta(prof: String) -> void:
 	if kk != "" and coletando != null:
 		coletando["kk"] = kk
 		m.heroi_anim.play(kk, 0.15, 0.0)
+		# André 2026-11-24 ("posição quase em pé, parece um robô"): o KayKit trabalha de perna reta; por cima entra só o
+		# corpo do duas_maos.gd (base aberta, joelho dobrando, quadril descendo e tronco curvando no golpe)
+		if _preparar_duas():
+			duas.so_corpo = true
 		# na mão do jeito do "handslot" do KayKit: o cabo sai da mão para a frente do golpe (medido com
 		# ferramentas/animacoes/video-trabalho.gd CENA=pegada); KK_GIRO vira a cabeça em volta do cabo
 		var esc: float = f.transform.basis.get_scale().x
@@ -1144,6 +1175,7 @@ func _segurar_ferramenta(prof: String) -> void:
 		return
 	# com as duas mãos: a ferramenta sai da mão e o código leva o cabo pelo golpe; as mãos seguem o cabo
 	if _preparar_duas() and coletando != null:
+		duas.so_corpo = false
 		f.get_parent().remove_child(f)
 		m.add_child(f)
 		coletando["duas"] = true

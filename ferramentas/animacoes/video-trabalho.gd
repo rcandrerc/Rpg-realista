@@ -1,4 +1,5 @@
 extends SceneTree
+const Armadura := preload("res://armadura.gd")
 # Banco de provas das animações (plano de animações, Dia 1): grava o herói minerando, cortando lenha, pescando em pé
 # na beira e pescando no barquinho, com eventos falsos do servidor (o jogo de verdade, sem conectar).
 # Uso (da raiz do repositório):
@@ -13,7 +14,7 @@ func esperar(n: int) -> void:
 		await process_frame
 
 func _initialize() -> void:
-	root.size = Vector2i(960, 540)
+	root.size = Vector2i(1280, 720)
 	cena = OS.get_environment("CENA")
 	m = load("res://main.tscn").instantiate()
 	root.add_child(m)
@@ -25,6 +26,12 @@ func _initialize() -> void:
 	if OS.get_environment("HUD") != "1": # sem a interface: só o corpo
 		for c in m.find_children("*", "CanvasLayer", true, false):
 			c.visible = false
+	if OS.get_environment("ROUPA") != "": # ex.: peitoral1,calca1,botas1 (sem conta logada o corpo vem sem roupa)
+		Armadura.vestir(m.heroi, Armadura.de_texto(OS.get_environment("ROUPA")))
+		await esperar(5)
+	if OS.get_environment("ANTES") == "1": # o jeito de antes (golpe por código e pesca de pose parada)
+		m.trabalho.TRABALHO_KK = false
+		m.pesca.PESCA_KK = false
 	var seg := float(OS.get_environment("SEG")) if OS.get_environment("SEG") != "" else 9.0
 	match cena:
 		"minerar", "lenha":
@@ -59,6 +66,8 @@ func _coleta(arvore: bool, seg: float) -> void:
 	var melhor = null
 	var ref := Vector2(m.mov.x, m.mov.z)
 	for o in T.coletaveis:
+		if OS.get_environment("ALVO") != "" and str(o.id) != OS.get_environment("ALVO"):
+			continue
 		if o.get("solto", false) or (o.tipo == "arvore") != arvore:
 			continue
 		if o.pos.y < m.terreno.altura(o.pos.x, o.pos.z) - 1.0: # caverna
@@ -68,6 +77,10 @@ func _coleta(arvore: bool, seg: float) -> void:
 	if melhor == null:
 		print("sem coletável")
 		return
+	if OS.get_environment("CAM") == "multi": # as outras pedras de perto saem da frente da câmera
+		for o in T.veios:
+			if o != melhor and o.get("no") is Node3D and Vector2(o.pos.x, o.pos.z).distance_to(Vector2(melhor.pos.x, melhor.pos.z)) < 12.0:
+				o.no.visible = false
 	var enc: float = T.ENCOSTO_VEIO if not arvore else float(melhor.r) + 0.5
 	var p: Vector3 = melhor.pos + Vector3(enc, 0, 0)
 	var ry := atan2(melhor.pos.x - p.x, melhor.pos.z - p.z)
@@ -85,7 +98,10 @@ func _coleta(arvore: bool, seg: float) -> void:
 	var dur := 2.2
 	var t := 0.0
 	var prox := 0.0
+	if OS.get_environment("CAM") == "multi": # vários ângulos, dois golpes em cada
+		seg = ANGULOS.size() * dur * 2.0
 	while t < seg:
+		_rig(int(t / (dur * 2.0)))
 		if t >= prox:
 			T.comecou(str(melhor.id), dur, "len" if arvore else "min")
 			prox += dur
@@ -118,14 +134,18 @@ func _pesca(barco: bool, seg: float) -> void:
 	var roteiro := [[0.0, {"st": "lancando", "x": bx2, "z": z}], [0.8, {"st": "espera"}], [3.5, {"st": "fisgou"}],
 		[4.3, {"st": "briga", "prog": 0.3, "tap": 0.1, "dec": 0.05, "max": 6.0}], [6.8, {"st": "pegou", "peixe": "lambari", "nome": "Lambari", "peso": "0,4 kg"}],
 		[8.3, {"st": "fim"}]]
-	var t := 0.0
-	var i := 0
-	while t < seg:
-		while i < roteiro.size() and t >= float(roteiro[i][0]):
-			P.evento(roteiro[i][1])
-			i += 1
-		await process_frame
-		t += 1.0 / 30.0
+	var voltas := ANGULOS.size() if OS.get_environment("CAM") == "multi" else 1 # a pescaria inteira em cada ângulo
+	for v in voltas:
+		var t := 0.0
+		var i := 0
+		_rig(v)
+		while t < seg:
+			while i < roteiro.size() and t >= float(roteiro[i][0]):
+				P.evento(roteiro[i][1])
+				i += 1
+			await process_frame
+			t += 1.0 / 30.0
+		await esperar(10)
 	print(cena, " ok")
 
 func _ver(nomes: Array) -> void:
@@ -200,3 +220,37 @@ func _pegada() -> void:
 		var P: Vector3 = (m.heroi.global_transform.affine_inverse() * esq.global_transform * esq.get_bone_global_pose(osso)).origin
 		print("  mão ", P, " cabo ", H * Basis(Quaternion(0.0, 0.7071, 0.7071, 0.0)) * Vector3.UP)
 		print(c[0], " t=", c[1], " O=", O.get_rotation_quaternion(), " com O da 1a: cabo ", prev, " quer ", y)
+
+# vídeo para o André aprovar (2026-11-24: "em mais de um ângulo, com visão boa"): câmera do teste em ângulos fixos,
+# o nome do ângulo no canto. [graus a partir da frente do herói (+ = esquerda dele), distância, altura da câmera,
+# altura do alvo, nome]. 0° fica do lado da pedra / da água, por isso a frente é de 3/4.
+const ANGULOS := [[90.0, 3.4, 1.25, 0.95, "Lateral"], [140.0, 3.2, 1.6, 0.95, "3/4 de trás"],
+	[-72.0, 3.6, 1.35, 0.95, "3/4 de frente"], [115.0, 1.7, 1.45, 1.15, "Perto: mãos e ferramenta"]]
+var _cam_rig: Camera3D
+var _rotulo: Label
+var _rig_i := -1
+func _rig(i: int) -> void:
+	if OS.get_environment("CAM") != "multi" or i == _rig_i or i >= ANGULOS.size():
+		return
+	_rig_i = i
+	if _cam_rig == null:
+		_cam_rig = Camera3D.new()
+		_cam_rig.fov = 45
+		m.add_child(_cam_rig)
+		var cl := CanvasLayer.new()
+		cl.layer = 50
+		m.add_child(cl)
+		_rotulo = Label.new()
+		_rotulo.position = Vector2(28, 20)
+		_rotulo.add_theme_font_size_override("font_size", 30)
+		_rotulo.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		_rotulo.add_theme_constant_override("outline_size", 8)
+		cl.add_child(_rotulo)
+	var a: Array = ANGULOS[i]
+	var ry: float = m.heroi.global_rotation.y + deg_to_rad(float(a[0]))
+	var h: Vector3 = m.heroi.global_position
+	_cam_rig.global_position = h + Vector3(sin(ry), 0, cos(ry)) * float(a[1]) + Vector3(0, float(a[2]), 0)
+	_cam_rig.look_at(h + Vector3(0, float(a[3]), 0))
+	_cam_rig.current = true
+	_rotulo.text = "%s  ·  %s" % [TITULOS.get(cena, cena), a[4]]
+const TITULOS := {"minerar": "Minerar", "lenha": "Cortar lenha", "pesca": "Pescar na beira", "pesca_barco": "Pescar no barquinho"}
