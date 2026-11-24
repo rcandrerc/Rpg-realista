@@ -22,7 +22,7 @@ const HABILIDADES := {
 	"explosao": {"nome": "Explosão", "tipo": "Magia", "anim": "explosao", "ts": 1.6, "hits": [0.6], "dmg": 34, "area": 3.6, "cd": 7.0, "mana": 25},
 	"meteoros": {"nome": "Chuva de Meteoros", "tipo": "Magia", "anim": "meteoros", "ts": 1.2, "hits": [0.6], "chuva": {"r": 3.4, "ondas": 4, "dmg": 12}, "cd": 10.0, "mana": 30},
 }
-const CURA := {"nome": "Cura", "anim": "cura", "ts": 1.2, "hits": [0.55], "cura": 38, "cd": 8.0, "mana": 25}
+const CURA := {"nome": "Cura", "anim": "cura", "ts": 1.2, "hits": [0.55], "cura": 38, "cura_vida": 0.15, "cura_int": 3, "cd": 8.0, "mana": 25}
 const BUILD_PADRAO := ["investida", "giro", "salto", "relampago", "bola", "raio", "explosao", "meteoros"]
 
 # Bando Sombrio: personagens anime que o jogador não escolhe

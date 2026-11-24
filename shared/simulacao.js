@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos, fatorDropNivel } from './progresso.js';
-import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado } from './dados.js';
+import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, curaDe, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
 import { Transporte, carrinhoNovo, topoCarrinho, lugarDoVeiculo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
@@ -3993,12 +3993,13 @@ export class Simulacao {
       j.escudo = { n: h.escudo.absorve, ate: this.tempo + h.escudo.dur };
       this.evento({ t: 'escudo', id: j.id, n: j.escudo.n, dur: h.escudo.dur });
     } else if (h.cura) {
-      const n = Math.min(h.cura, j.vidaMax - j.vida); j.vida += n;
+      const c = curaDe(h, j.vidaMax, j.prog?.atr?.int); // André 2026-11-24: 15% da vida máx. + 3 por Int (mín. 38)
+      const n = Math.min(c, j.vidaMax - j.vida); j.vida += n;
       this.evento({ t: 'cura', alvo: j.id, n });
       // André 2026-11-09: a cura passa para quem é do time e está perto, mais fraca (h.time da cura)
       if (h.time && j.time) for (const k of j.time.membros) {
         const o = this.jogadores.get(k); if (!o || o === j || o.morto || dist(o, j) > (h.timeR || 8)) continue;
-        const q = Math.min(Math.round(h.cura * h.time), o.vidaMax - o.vida); o.vida += q;
+        const q = Math.min(Math.round(c * h.time), o.vidaMax - o.vida); o.vida += q;
         if (q > 0) this.evento({ t: 'cura', alvo: o.id, n: q });
       }
       this.evento({ t: 'anel', x: j.x, z: j.z, r: h.time && j.time ? (h.timeR || 8) : 1.6, cor: 0x9be08f, dur: 0.8 });
