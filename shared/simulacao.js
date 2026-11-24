@@ -7,7 +7,7 @@ import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, 
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
 import { Transporte, carrinhoNovo, topoCarrinho, lugarDoVeiculo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
-import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo, IA_CONVERSA } from './dados.js';
+import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo, IA_CONVERSA, LIDERES_CLA } from './dados.js';
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito, npcApareceu } from './historia.js'; // progressão (André 2026-11-10)
 import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS, VISAO } from './dados.js'; // bosses de mundo (André 2026-11-11)
@@ -1007,7 +1007,7 @@ export class Simulacao {
   // Manda para o próprio jogador o progresso e os números do herói (o menu do personagem mostra)
   avisarProg(j) {
     const st = Object.fromEntries(Object.entries(j.st).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4]));
-    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), di: j.bot ? null : this.diariasInfo(j), gu: j.bot ? null : this.guildaInfo(j), cl: j.bot ? null : this.claInfo(j), ...(j.testador && CONTA_TESTE.nivel ? { teste: true } : {}), ...(j.testador && CONTA_TESTE.missoes ? { testeMissoes: true } : {}) }); // hi: a etapa da história (app)
+    this.eventos.push({ t: 'prog', para: j.id, prog: j.prog, st, xpProx: xpProximo(j.prog.nivel), agora: Date.now(), hi: j.bot ? null : this.histInfo(j), di: j.bot ? null : this.diariasInfo(j), gu: j.bot ? null : this.guildaInfo(j), cl: j.bot ? null : this.claInfo(j), ...(j.testador && CONTA_TESTE.nivel ? { teste: true } : {}), ...(j.testador && CONTA_TESTE.missoes ? { testeMissoes: true } : {}), ...(j.testador && LIDERES_CLA.reset ? { testeReset: true } : {}) }); // hi: a etapa da história (app)
     j.progSujo = true;
   }
   // O servidor grava na conta quem mudou (index.js chama de tempos em tempos e quando o jogador sai)
@@ -1457,6 +1457,28 @@ export class Simulacao {
     const M = HISTORIA[alvo];
     this.evento({ t: 'aviso', para: id, texto: acao === 'zerar' ? 'Teste: missões zeradas' : `Teste: voltou para ${M ? M.nome : 'a última missão'}` });
     this.avisarProg(j);
+  }
+  // Botão "Resetar líderes" (André 2026-11-23: "um botão de reset onde eu e todos os líderes vão pra nível 1"): só a conta
+  // do André (j.testador). Ele e os líderes dos clãs bot (LIDERES_CLA: Dario, Gael, Kael) voltam ao nível 1, XP 0 e
+  // atributos 3. Itens, ouro, clã, base e recrutas ficam. Líder fora da sala: muda o save (npcSalvos) e ele entra no 1.
+  resetLideres(id) {
+    const j = this.jogadores.get(id); if (!j || j.bot || !j.testador || !LIDERES_CLA.reset) return false;
+    const zerar = (p) => { if (!p) return; p.nivel = 1; p.xp = 0; for (const k of Object.keys(p.atr || {})) p.atr[k] = 3; p.pontos = 0; };
+    const nomes = [];
+    zerar(j.prog); j.progSujo = true; this.aplicarStatus(j, true); this.evento({ t: 'nivel', id: j.id, nivel: 1 }); this.avisarProg(j);
+    for (const lid of LIDERES_CLA.ids()) {
+      const ctx = this.amigosIa.find((x) => x.AMIGA.id === lid); if (!ctx) continue;
+      nomes.push(ctx.AMIGA.nome);
+      const a = ctx.amiga;
+      if (a) { zerar(a.prog); a.progSujo = true; this.aplicarStatus(a, true); this.evento({ t: 'nivel', id: a.id, nivel: 1 }); ctx.guardarAmiga?.(); continue; }
+      const salvo = this.npcSalvos?.get(lid) || (this.lerNpc ? this.lerNpc(lid) : null);
+      // sem save nenhum: guarda um mínimo para ele não entrar no nível inicial da lista (nivelInicial)
+      const novo = salvo && typeof salvo === 'object' && salvo.prog ? salvo : { ...(salvo || {}), prog: progressoValido(null) };
+      zerar(novo.prog); novo.t = Date.now();
+      (this.npcSalvos ||= new Map()).set(lid, novo); (this.npcsMudados ||= new Set()).add(lid);
+    }
+    this.evento({ t: 'aviso', para: id, texto: `Reset: você e ${nomes.join(', ')} voltaram ao nível 1` });
+    return true;
   }
   // Só a conta do robô de testes (j.robo; ferramentas/robo/robo.mjs): 'zerar' = a história do começo (terminou as 59,
   // joga de novo); 'pular' = a missão da vez fica como feita, sem prêmio (etapa que o robô ainda não sabe fazer: terreno,

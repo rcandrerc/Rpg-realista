@@ -1448,7 +1448,7 @@ export const PVP = {
   times: { chama: { nome: 'Chama', cor: 'ff9a3c' }, geada: { nome: 'Geada', cor: '8fd0ff' } },
   // os clãs de cada raça (referência). Desde 2026-11-22 (André: "se eu estiver em time vai meu time, se não vai sorteio entre
   // os bots") quem completa os times é sorteado entre todos os bots da raça (shared/arena.js comecarPvp)
-  npcs: { chama: ['cecilia', 'dario', 'lia'], geada: ['kira', 'rufo', 'lis', 'gael'] },
+  npcs: { chama: ['cecilia', 'dario', 'lia'], geada: ['kira', 'rufo', 'lis', 'gael', 'kael'] },
   travar: 0.5, // atordoar/congelar de jogador em jogador vale essa fração do tempo (igual ao duelo)
 };
 // Loja da Arena (André 2026-11-21: "moeda específica que vai ter item exclusivo de uma loja", "loja pontos fixa"): preço
@@ -3508,7 +3508,7 @@ export const CLAS_NPC_REGRAS = { entre: 6, primeiro: 0.5, reserva: 300 }; // h r
 // líder manda farmar ou proteger.
 // pesos: a personalidade do líder (Gael agressivo: grind e alma; Dario construtor: material e fazenda). Outro líder = 1.
 export const CLAS_NPC_ORDENS = { ligado: true, cada: 900, horasDia: 2, abaixo: 5, sorte: 0.2, raioBase: 60,
-  pesos: { gael: { grind: 1.5, alma: 1.5, recurso: 0.9, fazenda: 0.8, proteger: 1.2 }, dario: { grind: 0.9, alma: 1, recurso: 1.5, fazenda: 1.3, proteger: 1 } },
+  pesos: { gael: { grind: 1.5, alma: 1.5, recurso: 0.9, fazenda: 0.8, proteger: 1.2 }, dario: { grind: 0.9, alma: 1, recurso: 1.5, fazenda: 1.3, proteger: 1 }, kael: { grind: 1.2, alma: 1.3, recurso: 1, fazenda: 0.9, proteger: 1.3 } }, // Kael: luta e protege a base
   // o material que o nível do clã pede -> o recurso que o recruta farma (a fornalha do líder faz as barras: fundirBauNpc)
   // mundo vazio (sem corpo): o grind conta como caça de verdade, pela curva do jogo (André 2026-11-23: "esse grind tem que
   // ser realista... nos mobs nível 100 eles praticamente não vão ganhar mais XP"): abatesHora monstros por hora de caça
@@ -3524,7 +3524,13 @@ export const CLAS_NPC = [
   { id: 'geada', n: 'Lobos da Geada', raca: 'geada', lider: 'gael', membros: ['kira', 'rufo', 'lis', 'gael'], falas: { f: 'kira', m: 'rufo' } },
   // André 2026-11-22 ("eles vão ser clã, mesmo esquema... não somos aliados ainda, somos neutros"): a Chama bot, líder Dario
   { id: 'chama', n: 'Guarda da Chama', raca: 'chama', lider: 'dario', membros: ['cecilia', 'dario', 'lia'], falas: { f: 'lia', m: 'dario' } },
+  // André 2026-11-23 ("eu queria 2 clãs geadas"): o segundo clã da Geada, líder Kael; começa só com ele e contrata recrutas
+  { id: 'geada2', n: 'Lâminas Cinzentas', raca: 'geada', lider: 'kael', membros: ['kael'], falas: { f: 'kira', m: 'rufo' } },
 ];
+// Líderes dos clãs (André 2026-11-23: "esses nunca somem, só resetam se eu apertar o botão"): Dario, Gael e Kael não saem do
+// jogo quando a IA acaba (iaForaAmiga) e só voltam ao nível 1 pelo botão "Resetar líderes" da conta do André (resetLideres).
+// O botão leva o André e os líderes ao nível 1 (atributos de volta para 3); itens, ouro, clã e recrutas ficam.
+export const LIDERES_CLA = { ligado: true, reset: true, ids: () => CLAS_NPC.map((C) => C.lider) };
 // Soldados, não amigos (André 2026-11-22: "remover esse esquema de amizade... eles parem de ficar mandando msg pra mim e só
 // me respondam o que é necessário; se eu puxar assunto eles desenvolvem"). Ligado: os bots não puxam assunto, não chamam, não
 // reagem sozinhos no chat; obedecem a quem é da raça deles (sem sorteio de vontade nem amizade); a IA responde curto.
@@ -3956,7 +3962,17 @@ export const GAEL = rivalGeada(DARIO, 'gael', 'Gael Lobo', 'o caçador da Geada'
   equip: { corpo: { k: 'peitoral', r: 2 }, pernas: { k: 'calca', r: 2 }, pes: { k: 'botas', r: 2 }, capa: { k: 'capa', r: 2 }, espada: { k: 'espada', r: 1 } },
   guerra: { coragem: 0.8, honra: 0.5, paciencia: 0.6 },
 });
-export const RIVAIS = [KIRA, RUFO, LIS, GAEL];
+// Kael, a Lâmina Cinzenta, líder do segundo clã da Geada (André 2026-11-23: "eu queria 2 clãs geadas... pode Kael... melhor
+// manter como líderes"): o mesmo Kael da história, agora também bot de clã (mesmo código do Gael; o chefe dele nas missões
+// e o Kael de Aurora continuam). Cor da roupa do Kael de Aurora (v_kael); fala como o Gael (falas: 'gael' em FALAS_GUERRA).
+export const KAEL = rivalGeada(DARIO, 'kael', 'Kael', 'a Lâmina Cinzenta, líder das Lâminas Cinzentas', {
+  genero: 'm', visual: 'cabelo_m', nivelInicial: 44, falas: 'gael',
+  persona: 'Kael, a Lâmina Cinzenta, líder do segundo clã da Geada: frio, sério, de poucas palavras; respeita quem luta bem',
+  aparencia: { cabelo: 0x9a9aa4, olhos: 0x8a96a0, roupa: 0x6a6e78, calca: 0x2e2e34, altura: 1.04 },
+  equip: { corpo: { k: 'peitoral', r: 2 }, pernas: { k: 'calca', r: 2 }, pes: { k: 'botas', r: 2 }, capa: { k: 'capa', r: 2 }, espada: { k: 'espada', r: 1 } },
+  guerra: { coragem: 0.75, honra: 0.8, paciencia: 0.8 },
+});
+export const RIVAIS = [KIRA, RUFO, LIS, GAEL, KAEL];
 // O Dario é o líder da Chama (André 2026-11-18): defende os seus. Só o jeito na guerra (as falas estão em FALAS_GUERRA).
 DARIO.guerra = { coragem: 0.7, honra: 0.85, paciencia: 0.5 };
 // Lia Brasa (André 2026-11-21): a aventureira pronta (linha 'lia' em AV) virou bot completo da Chama, igual à Cecília e
