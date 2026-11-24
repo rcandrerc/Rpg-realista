@@ -122,3 +122,13 @@ C.guardarAmiga();
 const salvo = C.npcSalvos?.get(C.AMIGA.id); // o save de todos fica na tabela mundo (André 2026-11-22)
 ok(salvo?.leilao?.log?.length > 0, 'a poupança e os negócios ficam salvos com ela');
 ok(LEILAO.taxaAnuncio === 0.02 && LEILAO.taxa === 0.05, 'taxas: 2% para anunciar e 5% na venda');
+// pelo menos um Tomo vai ao leilão (André 2026-11-24: "não existe tomo vendendo na Action House"), mesmo com peças caras
+{
+  s.leilao = new Leilao(); p.mochila.fill(null); p.ouro = 5000; a.ia.leilaoT = 0; a.leilaoBot = null;
+  const { HABS } = await import('../../shared/progresso.js'); const h = Object.keys(HABS).find((k) => HABS[k].tomo);
+  for (let i = 0; i < 10; i++) p.mochila[i] = { k: 'capa', r: 2 };
+  p.mochila[10] = { k: 'tomo', h, nv: 7, n: 2 }; // repetido: um fica, o outro vai
+  C.leilaoBotAmiga(a);
+  const tomos = s.leilao.meus(a.conta).filter((x) => x.item.k === 'tomo').length;
+  ok(tomos >= 1 && p.mochila.some((o) => o?.k === 'tomo' && o.n === 1), `anunciou ${tomos} tomo repetido e guardou 1 para ler depois`);
+}

@@ -430,6 +430,7 @@ export const Cla = {
       x.pararAmiga(a);
     } // sem baú no mapa (clã bot sem base): o baú dele é só o estado do clã, guarda ali mesmo
     const n = this.depositarRecruta(x);
+    x.arrumarMochilaAmiga(a); // na base: vende o que não usa, como na volta para a vila (André 2026-11-24: a mochila enchia de peça no farm)
     a.ia.av = null; a.ia.fase = 'pensar'; a.ia.encomenda = null;
     if (n) a.ia.funcaoSt = { txt: `Deixou ${n} de ${a.ia.levar.nome} no Baú do Clã`, ate: this.tempo + 20 };
     else if (this.temLevar(a)) a.ia.funcaoSt = { txt: 'O Baú do Clã está cheio', ate: this.tempo + 90 };

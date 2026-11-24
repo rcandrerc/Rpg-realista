@@ -83,3 +83,18 @@ ok(L.pecas.length > p0, `no modo Livre volta a construir a casa (${p0} -> ${L.pe
   x.arrumarMochilaAmiga(j);
   ok(j.prog.mochila.some((o) => o?.k === pk) && j.prog.mochila.some((o) => o?.k === mk), 'arrumar a mochila na vila não vende picareta nem machado');
 }
+// tomo no leilão, teto de peças guardadas e título (André 2026-11-24)
+{
+  const { LEILAO_BOT, TITULOS } = await import('../../shared/dados.js');
+  j.prog.mochila = j.prog.mochila.map((o) => (o && (o.k === 'tomo' || o.k === 'espada') ? null : o));
+  const vaga = () => j.prog.mochila.findIndex((o) => !o);
+  for (let i = 0; i < 12; i++) j.prog.mochila[vaga()] = { k: 'espada', r: 1, n: 1 };
+  x.arrumarMochilaAmiga(j);
+  const pecas = j.prog.mochila.filter((o) => o?.k === 'espada').length;
+  ok(pecas <= LEILAO_BOT.guardaEquip, `guarda no máximo ${LEILAO_BOT.guardaEquip} peças para o leilão (${pecas})`);
+  // título: ganhou dois, usa o de luta mais forte
+  j.prog.tit = { tem: ['cacador_novato', 'cacador'], uso: '' }; j.ia.av = null; j.ia.levar = null;
+  x.tituloAmiga(j);
+  ok(j.prog.tit.uso === 'cacador', `usa o melhor título (${j.prog.tit.uso})`);
+  ok(TITULOS.cacador, 'título existe');
+}
