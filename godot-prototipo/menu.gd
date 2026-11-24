@@ -2128,6 +2128,15 @@ func montar_cla() -> void:
 	for r in ms:
 		conteudo.add_child(_cartao_cla(r, "%s Nv %d · %d/semana" % [str(r.tier), int(r.nv), int(r.sem)], r, ms, C))
 	_cla_vivo()
+	# dispensados há pouco (André 2026-11-24): 10 minutos para chamar de volta pagando a taxa
+	for dd in C.get("disp", []):
+		var did := str(dd.id)
+		var bv := botao("Chamar %s de volta (Nv %d) · %d de ouro" % [str(dd.nome), int(dd.get("nv", 1)), int(dd.get("taxa", 0))], func(): rede("cla", {"acao": "chamarVolta", "id": did}), 14)
+		bv.disabled = int(P_menu.prog.get("ouro", 0)) < int(dd.get("taxa", 0))
+		bv.custom_minimum_size = Vector2(0, 44)
+		conteudo.add_child(bv)
+	if not C.get("disp", []).is_empty():
+		conteudo.add_child(rotulo("Dispensado há pouco: até 10 minutos depois de dispensar, dá para chamar de volta.", 12, APAGADO))
 	# recursos nas bolsas dos recrutas
 	var rec: Dictionary = C.get("rec", {})
 	if not rec.is_empty():
@@ -2298,7 +2307,10 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 			ld.add_child(botao("Sair do time", func(): rede("time", {"acao": "expulsar", "com": bid}), 12))
 		else:
 			ld.add_child(botao("Time", func(): rede("time", {"acao": "convidar", "com": bid}), 12))
-	ld.add_child(botao("Dispensar", func(): rede("cla", {"acao": "dispensar", "id": rid}), 12))
+	# André 2026-11-24: apertou Dispensar achando que era sair do time; agora pergunta antes (e dá 10 min para chamar de volta)
+	var rnd := str(r.nome)
+	ld.add_child(botao("Dispensar", func():
+		confirmar("Dispensar %s" % rnd, "Tem certeza? Você perderá este recruta para sempre.\n(Até 10 minutos depois, dá para chamar de volta pagando uma taxa.)\nPara só tirar do grupo, use \"Sair do time\".", "Dispensar", func(): rede("cla", {"acao": "dispensar", "id": rid}), true), 12))
 	v.add_child(ld)
 	return card
 
