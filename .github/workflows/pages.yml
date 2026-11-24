@@ -141,12 +141,24 @@ jobs:
           path: client/dist
       - id: deploy
         uses: actions/deploy-pages@v4
+        # 2026-11-24: às vezes o deploy logo após o envio falha com "No artifacts named github-pages were found" (o
+        # artefato de ~690 MB ainda não aparece para o GitHub). 3162 não chegou ao celular por isso. Então não para
+        # aqui: espera 45 s e tenta de novo (passo "deploy2").
+        continue-on-error: true
         # O GitHub identifica cada publicação pelo commit: a segunda publicação do MESMO commit (a que o apk.yml chama
         # depois de subir o pacote novo) dava "sucesso" mas o site continuava com a primeira, que ainda tinha o
         # conteudo.json da versão anterior. Resultado: o celular ficava sempre uma versão atrás (2026-11-09: 1731 não
         # chegava). Com o número da execução junto, cada publicação vale.
         env:
           GITHUB_SHA: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Espera o artefato aparecer (deploy falhou)
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 45
+      - id: deploy2
+        if: steps.deploy.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        env:
+          GITHUB_SHA: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-b
       # Cota de artefatos (portão 10/12): o site inteiro vira um artefato de ~690 MB a cada publicação. Com o
       # repositório fechado isso conta na cota; o Pages só precisa dele durante o deploy, então apaga logo depois.
       - name: Apaga o artefato do site (já publicado)
