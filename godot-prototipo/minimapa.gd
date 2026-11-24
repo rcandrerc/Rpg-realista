@@ -780,8 +780,16 @@ func _lugares_base() -> Array:
 		if tl == "vila" or tl == "porto" or tl == "posto":
 			l.append({"id": str(lm.id), "tipo": "vila", "nome": str(lm.nome), "curto": str(lm.nome), "x": float(lm.x), "z": float(lm.z), "r": float(lm.r)})
 	if m.totem: # totens de teleporte (André 2026-11-10): "Ir para" leva até a pedra
+		# André 2026-11-24: do totem mais perto ao mais longe de onde o herói está, com a distância na linha
+		var hpt: Vector3 = m.heroi.position if m.heroi != null else Vector3.ZERO
+		var tts: Array = []
 		for t in m.totem.T.lista:
-			l.append({"id": "totem_%s" % t.id, "tipo": "totem", "nome": "Totem: %s" % t.nome, "curto": "Totem %s" % t.nome, "x": float(t.x), "z": float(t.z), "r": 4.0})
+			var dt: float = Vector2(float(t.x) - hpt.x, float(t.z) - hpt.z).length()
+			var dtxt := "%d m" % int(dt) if dt < 1000.0 else ("%.1f km" % (dt / 1000.0)).replace(".", ",")
+			tts.append({"d": dt, "it": {"id": "totem_%s" % t.id, "tipo": "totem", "nome": "Totem: %s  (%s)" % [t.nome, dtxt], "curto": "Totem %s" % t.nome, "x": float(t.x), "z": float(t.z), "r": 4.0}})
+		tts.sort_custom(func(a, b): return a.d < b.d)
+		for e in tts:
+			l.append(e.it)
 	var cs: Array = m.mundo.get("caca", []).duplicate()
 	cs.sort_custom(func(a, b): return int(a.get("nivel", 1)) < int(b.get("nivel", 1)))
 	for cc in cs:

@@ -4093,7 +4093,7 @@ func atualizar_heroi(dt: float) -> void:
 		if h.morto <= 0.0:
 			h.vida = P.st.vidaMax
 			h.mana = P.st.manaMax
-			mov.por_em(totem.onde_renascer(D.NASCIMENTO) if totem else D.NASCIMENTO) # último totem tocado (André 2026-11-10)
+			mov.por_em(totem.onde_renascer(D.NASCIMENTO, heroi.position) if totem else D.NASCIMENTO) # totem mais perto de onde caiu (André 2026-11-24)
 			heroi.position = mov.posicao()
 			cam.colocar(heroi.position)
 			heroi_anim.play("parada", 0.2)
