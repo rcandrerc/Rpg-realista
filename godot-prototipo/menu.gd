@@ -125,6 +125,119 @@ var janela_nome := ""
 var janela_rolagem: ScrollContainer
 var quadradinhos: Array = [] # "Mostrar capacete" (André 2026-11-03: quadradinho marcado = capacete aparece; desmarcado = rosto à mostra, a peça continua vestida)
 var _sel = null # botão da barra escolhido para trocar de lugar: [barra, i]
+# Menu do recruta (André 2026-11-24: "no 'ver' recruta... ter acesso a toda sua interface, poder entrar nos status, no
+# inventário, verificar profissões, tudo, só não vou poder editar nada, somente visual... vou precisar de um botão sair
+# porque agora todo o menu vai ser dele"). O servidor manda o progresso do recruta (shared/cla.js fichaVer, evento
+# claFicha); o menu inteiro lê P_menu, que é o progresso dele enquanto ver_rec está ligado. Só olhando: nada sai para o
+# servidor (rede) e nenhuma ação muda nada (_so_olhando). "Sair" volta para o seu menu.
+const Progresso = preload("res://progresso.gd")
+const Aparencia = preload("res://aparencia.gd")
+const ABAS_RECRUTA := ["status", "habilidades", "profissoes", "titulos", "mochila", "criar", "recipedia"]
+var ver_rec := {} # {id, nome, visual, aparencia, mundo} do recruta aberto; vazio = o seu menu
+var _pede_rec := {} # {id, nome, de: "cla" | "espiar"}: pedido feito, esperando o servidor
+var P_rec = null # progresso.gd do recruta (cópia, nunca grava)
+var cab_titulo: Label
+var bt_sair: Button
+var P_menu:
+	get:
+		return P_rec if P_rec != null and not ver_rec.is_empty() else m.P
+
+func vendo_recruta() -> bool:
+	return P_rec != null and not ver_rec.is_empty()
+
+# ação no menu do recruta: só avisa (nada muda, nada vai para o servidor)
+func _so_olhando() -> bool:
+	if not vendo_recruta():
+		return false
+	_avisar_motivo("Só olhando: o menu de %s não pode ser mudado" % str(ver_rec.get("nome", "")))
+	return true
+
+# tudo que o menu manda ao servidor passa aqui; no menu do recruta não sai nada
+func rede(tipo: String, dados = null) -> void:
+	if _so_olhando():
+		return
+	m.rede(tipo, dados)
+
+# "Ver menu" no painel do clã ou "Menu dele" na faixa do Ver: pede o progresso dele ao servidor
+func pedir_recruta(rid: String, nome: String, de: String) -> void:
+	if not m.on():
+		m.hud.aviso("O menu do recruta só abre online")
+		return
+	_pede_rec = {"id": rid, "nome": nome, "de": de}
+	m.rede("cla", {"acao": "fichaVer", "id": rid})
+
+# chegou do servidor (online.gd, evento claFicha)
+func ver_recruta(ev: Dictionary) -> void:
+	if _pede_rec.is_empty() or str(_pede_rec.get("id", "")) != str(ev.get("rid", "")):
+		if not (vendo_recruta() and str(ver_rec.get("id", "")) == str(ev.get("rid", ""))):
+			return # pedido velho (já saiu ou pediu outro)
+	var de := str(_pede_rec.get("de", ver_rec.get("de", "cla")))
+	_pede_rec = {}
+	var p = ev.get("prog")
+	if not (p is Dictionary):
+		return
+	var R = Progresso.new()
+	if ev.has("agora"):
+		R.relogio = float(ev.agora) - Time.get_unix_time_from_system() * 1000.0
+	R.definir(p.duplicate(true))
+	if ev.get("st") is Dictionary:
+		for k in ev.st:
+			R.st[k] = float(ev.st[k])
+	R.carrinho_no_mundo() # (estático) volta ao do herói no Sair
+	P_rec = R
+	var ap = ev.get("aparencia")
+	ver_rec = {"id": str(ev.rid), "nome": str(ev.get("nome", "Recruta")), "de": de, "mundo": bool(ev.get("mundo", false)),
+		"visual": m.corpo_valido(str(ev.get("visual", "ruiva"))) if m.has_method("corpo_valido") else str(ev.get("visual", "ruiva")),
+		"aparencia": Aparencia.valida(ap, m.P.dados.criador) if ap is Dictionary else {}}
+	sel_mochila = -1
+	sel_equip = ""
+	_sel = null
+	_pend.clear()
+	fechar_confirma()
+	fechar_janela(false)
+	vendendo = false
+	marcados = {}
+	consertando = false
+	marc_conserto = {}
+	trocar_boneco()
+	if aberto():
+		aba = "status"
+		atualizar()
+		rolagem.scroll_vertical = 0
+	else:
+		abrir("status")
+
+# Sair: volta para o seu menu (veio do painel do clã: a aba Clã; veio do Ver: fecha e continua vendo ele)
+func sair_recruta(fechar_tudo := false) -> void:
+	if not vendo_recruta():
+		return
+	var de := str(ver_rec.get("de", "cla"))
+	_limpar_recruta()
+	if fechar_tudo:
+		return
+	if de == "cla":
+		abrir("cla")
+	else:
+		fechar()
+
+func _limpar_recruta() -> void:
+	ver_rec = {}
+	_pede_rec = {}
+	P_rec = null
+	m.P.carrinho_no_mundo() # o carrinho/navio "no mundo" é estático em progresso.gd: volta ao do herói
+	sel_mochila = -1
+	sel_equip = ""
+	_sel = null
+	fechar_confirma()
+	fechar_janela(false)
+	trocar_boneco()
+
+# o corpo do boneco do menu: o do recruta enquanto vê o menu dele
+func _visual_boneco() -> String:
+	return str(ver_rec.get("visual", m.visual)) if vendo_recruta() else str(m.visual)
+
+func _aparencia_boneco() -> Dictionary:
+	return ver_rec.get("aparencia", {}) if vendo_recruta() else m.aparencia
 var _arrastou := false # o dedo arrastou a lista: o botão embaixo dele não vale
 var _arrasto_dentro := false
 var _arrasto_soma := 0.0
@@ -412,7 +525,15 @@ func montar_esquerda() -> Control:
 	col.custom_minimum_size = Vector2(430, 0)
 	col.add_theme_constant_override("separation", 6)
 	var cab := HBoxContainer.new()
-	cab.add_child(rotulo("PERSONAGEM", 13, OURO))
+	cab.add_theme_constant_override("separation", 10)
+	cab_titulo = rotulo("PERSONAGEM", 13, OURO)
+	cab_titulo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cab_titulo.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cab.add_child(cab_titulo)
+	bt_sair = botao("Sair", func(): sair_recruta(), 15, true) # menu do recruta: volta para o seu (André 2026-11-24)
+	bt_sair.custom_minimum_size = Vector2(110, 38)
+	bt_sair.visible = false
+	cab.add_child(bt_sair)
 	col.add_child(cab)
 	var linha_nome := HBoxContainer.new()
 	titulo_nivel = rotulo("", 20, TEXTO)
@@ -622,19 +743,19 @@ var _vestido := "" # o que o boneco do menu está vestindo (atualizar_slots)
 func atualizar_slots() -> void:
 	quadradinhos = quadradinhos.filter(func(q): return is_instance_valid(q))
 	for q in quadradinhos:
-		q.marcado = not m.P.prog.get("semCapacete", false)
+		q.marcado = not P_menu.prog.get("semCapacete", false)
 		q.queue_redraw()
 	if boneco:
 		# o boneco veste o mesmo que o herói (capacete escondido também). Refaz só quando muda a roupa, a aparência
 		# ou o corpo: vestir custava ~4 ms no PC (~13 ms no celular) e rodava 2 vezes a cada abrir
-		var eq: Dictionary = m.P.equip_visivel()
-		var chave := "%d|%s|%s" % [boneco.get_instance_id(), str(eq), str(m.aparencia)]
+		var eq: Dictionary = P_menu.equip_visivel()
+		var chave := "%d|%s|%s" % [boneco.get_instance_id(), str(eq), str(_aparencia_boneco())]
 		if chave != _vestido:
 			_vestido = chave
 			Armadura.vestir(boneco, eq)
 	for id in slots_ui:
 		var u: Dictionary = slots_ui[id]
-		var it = m.P.prog.equip.get(lugar_de(id))
+		var it = P_menu.prog.equip.get(lugar_de(id))
 		var escolhido: bool = (sel_equip != "" and sel_equip == lugar_de(id)) or (janela_lugar != "" and janela_lugar == lugar_de(id)) \
 			or (consertando and marc_conserto.has("l:" + lugar_de(id)))
 		if u.has("reforco"):
@@ -642,11 +763,11 @@ func atualizar_slots() -> void:
 		if u.has("dur_num"):
 			_durabilidade_slot(u, it)
 		if it != null:
-			var c: Color = m.P.cor_item(it)
-			u.icone.texture = icone_tex(m.P.icone_item(it))
+			var c: Color = P_menu.cor_item(it)
+			u.icone.texture = icone_tex(P_menu.icone_item(it))
 			u.icone.modulate = c if u.icone.texture and u.icone.texture.resource_path.ends_with(".svg") else Color.WHITE
 			u.painel.add_theme_stylebox_override("panel", caixa(Color(0.05, 0.045, 0.04, 1), Color(0, 0, 0, 0), 0, int(MEDALHAO * 0.5)))
-			moldurar(u.painel, PIOR if m.P.quebrado(it) else c, escolhido, true, int(MEDALHAO * 0.5), janela_lugar == lugar_de(id))
+			moldurar(u.painel, PIOR if P_menu.quebrado(it) else c, escolhido, true, int(MEDALHAO * 0.5), janela_lugar == lugar_de(id))
 		else:
 			u.icone.texture = icone_tex("basico" if id == "arma" and boneco_modo == "Espada" else "magia" if id == "arma" else "eq_" + id)
 			u.icone.modulate = Color(0.85, 0.75, 0.55, 0.45 if id == "arma" else 0.25)
@@ -655,7 +776,7 @@ func atualizar_slots() -> void:
 
 # durabilidade no medalhão (só aparece depois da primeira pancada; quebrada fica vermelha mesmo vestida)
 func _durabilidade_slot(u: Dictionary, it) -> void:
-	var P = m.P
+	var P = P_menu
 	var mx := int(P.morte_dados().durMax)
 	var gasta: bool = it != null and P.eh_equip(it) and P.durab(it) < mx
 	var du: int = P.durab(it) if gasta else mx
@@ -710,7 +831,7 @@ func _desenhar_fios() -> void:
 		var centro := no.position + no.size * 0.5
 		var dir := (alvo - centro).normalized()
 		var ini := centro + dir * MEDALHAO * 0.5
-		var tem: bool = m.P.prog.equip.get(lugar_de(d[0])) != null
+		var tem: bool = P_menu.prog.equip.get(lugar_de(d[0])) != null
 		var cor := Color(OURO.r, OURO.g, OURO.b, 0.55 if tem else 0.22)
 		# fio com um cotovelo: sai reto para o lado e desce/sobe até a parte do corpo
 		var cot := Vector2(lerpf(ini.x, alvo.x, 0.45), alvo.y)
@@ -770,7 +891,7 @@ func montar_palco() -> void:
 	aro.scale.y = 0.3
 	aro.position.y = 0.0
 	vp.add_child(aro)
-	boneco = m.modelo(m.visual)
+	boneco = m.modelo(_visual_boneco())
 	boneco.get_parent().remove_child(boneco)
 	vp.add_child(boneco)
 	boneco.position = Vector3.ZERO
@@ -788,14 +909,14 @@ func trocar_boneco() -> void:
 		if a.get_parent():
 			a.get_parent().remove_child(a)
 	boneco.queue_free()
-	boneco = m.modelo(m.visual)
+	boneco = m.modelo(_visual_boneco())
 	boneco.get_parent().remove_child(boneco)
 	pai.add_child(boneco)
 	boneco.position = Vector3.ZERO
 	boneco.rotation.y = ry
 	boneco_anim = boneco.find_child("AnimationPlayer", true, false)
 	boneco_modo = ""
-	m.Aparencia.aplicar(boneco, m.aparencia)
+	m.Aparencia.aplicar(boneco, _aparencia_boneco())
 	armar_boneco()
 
 func armar_boneco() -> void:
@@ -878,6 +999,8 @@ func montar_direita() -> Control:
 	return col
 
 func trocar_aba(a: String) -> void:
+	if vendo_recruta() and not (a in ABAS_RECRUTA):
+		return
 	if a == "aparencia": # abre o criador de personagem (sem o nome), como o botão de antes
 		fechar()
 		m.abrir_aparencia()
@@ -891,13 +1014,13 @@ func trocar_aba(a: String) -> void:
 # missão "Confira sua barra de habilidades" (André 2026-11-14): abrir a aba Habilidades já conta; não precisa tirar
 # uma skill que já está no lugar e pôr de novo. Quem decide é o servidor (shared/historia.js, etapa com ver)
 func _viu_barra() -> void:
-	if aba == "habilidades" and str(m.P.hist_info.get("ev", "")) == "barra":
-		m.rede("barra_vista")
+	if aba == "habilidades" and str(P_menu.hist_info.get("ev", "")) == "barra":
+		rede("barra_vista")
 
 # missão "Tarefas do dia" (Rosa): abrir a aba Diárias conta. Quem decide é o servidor (shared/diarias.js, acao "ver")
 func _viu_diarias() -> void:
-	if aba == "diarias" and str(m.P.hist_info.get("ev", "")) in ["diaria_vista", "diaria"]:
-		m.rede("diaria", {"acao": "ver"})
+	if aba == "diarias" and str(P_menu.hist_info.get("ev", "")) in ["diaria_vista", "diaria"]:
+		rede("diaria", {"acao": "ver"})
 
 func trocar_sub_prof(k: String) -> void:
 	sub_prof = k
@@ -925,11 +1048,11 @@ func abrir(qual := "", sub := "") -> void:
 		if qual == "diarias":
 			_viu_diarias.call_deferred()
 		if qual == "guilda" and m.on(): # o "perto do mural" e os contratos do dia vêm do servidor na hora
-			m.rede("guilda", {"acao": "ver"})
+			rede("guilda", {"acao": "ver"})
 		if qual == "cla_missoes" and m.on(): # a escolta e o tempo da próxima vêm do servidor na hora
-			m.rede("cla", {"acao": "ver"})
+			rede("cla", {"acao": "ver"})
 		if qual == "cla" and m.on(): # o "perto do Recrutador" e o cofre vêm do servidor na hora
-			m.rede("cla", {"acao": "ver"})
+			rede("cla", {"acao": "ver"})
 	elif aba in ABAS_BOLSA or aba in ABAS_MISSOES or aba in ABAS_CLA: # barra de vida: só o menu do personagem
 		aba = "status"
 	sel_mochila = -1
@@ -975,6 +1098,8 @@ func abrir_bolsa() -> void:
 	abrir(aba if aba in ["mochila", "criar", "recipedia"] else "mochila")
 
 func fechar() -> void:
+	if vendo_recruta(): # o X no menu do recruta: sai dele e fecha
+		_limpar_recruta()
 	_pend.clear() # fechou sem confirmar: nada foi gasto
 	fechar_confirma()
 	fechar_janela(false)
@@ -1035,8 +1160,14 @@ func _process_parte(dt: float) -> void:
 func atualizar() -> void:
 	if not aberto():
 		return
-	var P = m.P
-	titulo_nivel.text = tr("%s  ·  Nível %d") % [m.hud.nome, P.prog.nivel]
+	var P = P_menu
+	var vr := vendo_recruta()
+	titulo_nivel.text = tr("%s  ·  Nível %d") % [str(ver_rec.nome) if vr else m.hud.nome, P.prog.nivel]
+	cab_titulo.text = Idioma.frase("MENU DE %s  ·  SÓ OLHANDO" % str(ver_rec.nome).to_upper()) if vr else Idioma.frase("PERSONAGEM")
+	cab_titulo.add_theme_color_override("font_color", Color(0.55, 0.78, 1.0) if vr else OURO)
+	bt_sair.visible = vr
+	if vr and not (aba in ABAS_RECRUTA):
+		aba = "status"
 	for c in ouro_esq.get_children():
 		ouro_esq.remove_child(c)
 		c.queue_free()
@@ -1045,16 +1176,16 @@ func atualizar() -> void:
 		ferramentas_bolsa.remove_child(c)
 		c.queue_free()
 	mostrar_painel(null)
-	if aba == "loja" and not m.perto_da_loja():
+	if aba == "loja" and (not m.perto_da_loja() or vendo_recruta()):
 		aba = "mochila"
 	if esquerda != null:
 		esquerda.visible = not (aba in ABAS_CLA)
-	var grupo: Array = ABAS_BOLSA if aba in ABAS_BOLSA else (ABAS_MISSOES if aba in ABAS_MISSOES else (ABAS_CLA if aba in ABAS_CLA else ABAS_PERSONAGEM))
+	var grupo: Array = ABAS_RECRUTA if vr else (ABAS_BOLSA if aba in ABAS_BOLSA else (ABAS_MISSOES if aba in ABAS_MISSOES else (ABAS_CLA if aba in ABAS_CLA else ABAS_PERSONAGEM)))
 	for k in botoes_aba:
 		_estilo_se_mudou(botoes_aba[k], k == aba)
 		botoes_aba[k].visible = k in grupo
-		botoes_aba[k].custom_minimum_size.x = 104 if grupo == ABAS_BOLSA else (170 if k == "cla_missoes" else 126)
-	botoes_aba.loja.visible = aba in ABAS_BOLSA and m.perto_da_loja()
+		botoes_aba[k].custom_minimum_size.x = 104 if grupo == ABAS_BOLSA or vr else (170 if k == "cla_missoes" else 126)
+	botoes_aba.loja.visible = aba in ABAS_BOLSA and m.perto_da_loja() and not vr
 	_bolinha_diarias()
 	linha_criar.visible = false # a fileira de submenus deu lugar às estações e aos grupos sanfona (André 2026-11-09)
 	var est_aqui := estacoes_perto()
@@ -1139,7 +1270,7 @@ func barra_prog(frac: float, cor: Color, alto := 8.0) -> Control:
 	return fundo
 
 func montar_status() -> void:
-	var P = m.P
+	var P = P_menu
 	var p: Dictionary = P.prog
 	separador("Nível")
 	var lv := HBoxContainer.new()
@@ -1153,8 +1284,8 @@ func montar_status() -> void:
 		tl.add_theme_constant_override("separation", 8)
 		tl.add_child(rotulo("Teste de nível:", 14, APAGADO))
 		for d in [-10, -1, 1, 10]:
-			tl.add_child(botao(("%+d" % d), func(): m.rede("nivelTeste", {"nv": int(p.nivel) + d}), 14))
-		tl.add_child(botao("Zerar pontos", func(): m.rede("nivelTeste", {"nv": int(p.nivel), "zerar": true}), 14))
+			tl.add_child(botao(("%+d" % d), func(): rede("nivelTeste", {"nv": int(p.nivel) + d}), 14))
+		tl.add_child(botao("Zerar pontos", func(): rede("nivelTeste", {"nv": int(p.nivel), "zerar": true}), 14))
 		conteudo.add_child(tl)
 	separador("Atributos")
 	# André 2026-11-06: + e − só mexem nos pontos pendentes; nada muda até apertar Confirmar (Desfazer zera).
@@ -1257,7 +1388,8 @@ func montar_status() -> void:
 			c.add_child(rotulo("  → %s" % depois[it[0]], 14, VERDE))
 		g.add_child(c)
 	conteudo.add_child(g)
-	_minha_ficha()
+	if not vendo_recruta(): # a ficha do recruta aparece no painel do clã e no equipamento
+		_minha_ficha()
 
 # Minha ficha (André 2026-11-23: "no jogador também tem esse espaço... a gente preenche se quiser, pode deixar em branco"):
 # as mesmas escolhas da ficha do recruta (FICHA_RECRUTA em shared/dados.js, na mesma ordem); o servidor confere.
@@ -1268,7 +1400,7 @@ const FICHA_GOSTOS := [["cacar", "Caçar"], ["minerar", "Minerar"], ["lenha", "C
 func _minha_ficha() -> void:
 	separador("Minha ficha")
 	conteudo.add_child(rotulo("Opcional: aparece para quem vê o seu equipamento. Toque para trocar.", 12, APAGADO))
-	var fic: Dictionary = m.P.prog.get("fic", {}) if m.P.prog.get("fic") is Dictionary else {}
+	var fic: Dictionary = P_menu.prog.get("fic", {}) if P_menu.prog.get("fic") is Dictionary else {}
 	var f := 0 if str(m.visual) == "cabelo_m" else 1 # o corpo do herói (main.gd)
 	var j := int(fic.get("j", -1))
 	var e := -1
@@ -1296,21 +1428,25 @@ func _minha_ficha() -> void:
 		conteudo.add_child(h)
 
 func _mudar_ficha(fic: Dictionary, k: String, v) -> void:
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
 	var novo := fic.duplicate()
 	if v == null or (v is int and v < 0):
 		novo.erase(k)
 	else:
 		novo[k] = v
-	m.P.prog["fic"] = novo # já mostra; o servidor confere e devolve o progresso
-	m.rede("ficha", novo)
+	P_menu.prog["fic"] = novo # já mostra; o servidor confere e devolve o progresso
+	rede("ficha", novo)
 	atualizar()
 
 # Mestre Ivo (NPC de resetar a build): janela pequena para confirmar. Online quem confere e cobra é o servidor.
 var _reset: Control
 func perguntar_reset(custo: int) -> void:
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
 	if _reset:
 		_reset.queue_free()
-	var gastos: int = m.P.pontos_gastos()
+	var gastos: int = P_menu.pontos_gastos()
 	_reset = Control.new()
 	_reset.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_reset)
@@ -1334,7 +1470,7 @@ func perguntar_reset(custo: int) -> void:
 	col.add_child(t)
 	var d := Label.new()
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	d.text = Idioma.frase("Seus atributos voltam pro começo e os %d pontos voltam pra você distribuir de novo. As skills não mudam.\nCusta %d de ouro (você tem %d)." % [gastos, custo, int(m.P.prog.get("ouro", 0))]) if gastos > 0 else "Você ainda não gastou nenhum ponto."
+	d.text = Idioma.frase("Seus atributos voltam pro começo e os %d pontos voltam pra você distribuir de novo. As skills não mudam.\nCusta %d de ouro (você tem %d)." % [gastos, custo, int(P_menu.prog.get("ouro", 0))]) if gastos > 0 else "Você ainda não gastou nenhum ponto."
 	d.add_theme_font_size_override("font_size", 15)
 	d.add_theme_color_override("font_color", TEXTO)
 	col.add_child(d)
@@ -1351,9 +1487,9 @@ func perguntar_reset(custo: int) -> void:
 		linha.add_child(botao("Resetar (%d de ouro)" % custo, func():
 			fechar_r.call()
 			if m.on():
-				m.rede("resetar") # o servidor confere a distância e o ouro e manda o progresso novo
+				rede("resetar") # o servidor confere a distância e o ouro e manda o progresso novo
 			else:
-				m.hud.aviso(m.P.resetar(custo))
+				m.hud.aviso(P_menu.resetar(custo))
 				atualizar(), 15, true))
 
 # Pontos ainda não confirmados, por atributo ({"for": 2}). Some ao confirmar, desfazer ou fechar o menu.
@@ -1361,7 +1497,7 @@ var _pend := {}
 
 # Se os pontos livres mudaram por fora (reset no Mestre Ivo, outro aparelho) e não cabem mais, zera o pendente.
 func _pend_validos() -> Dictionary:
-	if _soma_pend() > int(m.P.prog.pontos):
+	if _soma_pend() > int(P_menu.prog.pontos):
 		_pend.clear()
 	return _pend
 
@@ -1372,8 +1508,10 @@ func _soma_pend() -> int:
 	return t
 
 func mudar_pend(k: String, d: int) -> void:
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
 	var atual: int = int(_pend.get(k, 0))
-	if d > 0 and _soma_pend() >= int(m.P.prog.pontos):
+	if d > 0 and _soma_pend() >= int(P_menu.prog.pontos):
 		return
 	if d < 0 and atual <= 0:
 		return # o − só tira o que ainda não foi confirmado
@@ -1385,28 +1523,32 @@ func mudar_pend(k: String, d: int) -> void:
 	atualizar()
 
 func confirmar_pontos() -> void:
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
 	var envio := _pend_validos().duplicate()
 	_pend.clear()
 	if envio.is_empty():
 		atualizar()
 		return
 	if m.on():
-		m.rede("atributos", envio) # o servidor confere tudo de uma vez e devolve o progresso novo
+		rede("atributos", envio) # o servidor confere tudo de uma vez e devolve o progresso novo
 		atualizar()
 	else:
 		for k in envio:
 			for i in int(envio[k]):
-				m.P.distribuir(k)
+				P_menu.distribuir(k)
 		atualizar()
 
 func distribuir(k: String) -> void:
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
 	if m.on():
-		m.rede("atributo", k) # o servidor confere e devolve o progresso novo
-	elif m.P.distribuir(k):
+		rede("atributo", k) # o servidor confere e devolve o progresso novo
+	elif P_menu.distribuir(k):
 		atualizar()
 
 func montar_habilidades() -> void:
-	var P = m.P
+	var P = P_menu
 	for b in (["espada", "cajado"] if arvore == "geral" else [arvore]):
 		separador("Barra da espada" if b == "espada" else "Barra do cajado")
 		conteudo.add_child(linha_barra(b))
@@ -1442,7 +1584,7 @@ func montar_habilidades() -> void:
 		conteudo.add_child(l)
 
 func linha_skill(id: String) -> Control:
-	var P = m.P
+	var P = P_menu
 	var base: Dictionary = P.habs[id]
 	var livre: bool = P.liberada(id)
 	var nv: int = P.nivel_de(id)
@@ -1560,7 +1702,7 @@ static func tempo_txt(s: float) -> String:
 
 # vigor (energia para trabalhar) e ouro, em cima das profissões e das receitas
 func linha_vigor() -> Control:
-	var P = m.P
+	var P = P_menu
 	var v: float = P.vigor()
 	var mx: float = P.vigor_max()
 	var cx := VBoxContainer.new()
@@ -1589,7 +1731,7 @@ func linha_vigor() -> Control:
 	return cx
 
 func montar_profissoes() -> void:
-	var P = m.P
+	var P = P_menu
 	conteudo.add_child(linha_vigor())
 	var grupo := ""
 	for k in P.dados.profissoes:
@@ -1629,7 +1771,7 @@ func grupo_titulo(T: Dictionary) -> String:
 	return "historia"
 
 func montar_titulos() -> void:
-	var P = m.P
+	var P = P_menu
 	var todos: Dictionary = Titulos.dados_de(P)
 	var tit = P.prog.get("tit")
 	var tem: Array = tit.get("tem", []) if tit is Dictionary else []
@@ -1678,7 +1820,7 @@ func card_titulo(id: String, T: Dictionary, ganho: bool, em_uso: bool) -> Contro
 		nome.add_theme_color_override("font_outline_color", Titulos.CONTORNO[r])
 		nome.add_theme_constant_override("outline_size", 4)
 	txt.add_child(nome)
-	var raridade: String = str(m.P.dados.raridades[r].nome) if r < m.P.dados.raridades.size() else ""
+	var raridade: String = str(P_menu.dados.raridades[r].nome) if r < P_menu.dados.raridades.size() else ""
 	var dsc := rotulo("%s · %s" % [str(T.como), str(T.txt)], 12, TEXTO if ganho else APAGADO)
 	dsc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	txt.add_child(dsc)
@@ -1711,7 +1853,7 @@ const VERDE_DIARIA := Color(0.6, 0.9, 0.55)
 var _bolinha: PanelContainer = null
 func diarias_prontas() -> int:
 	var n := 0
-	for d in m.P.diarias.get("l", []):
+	for d in P_menu.diarias.get("l", []):
 		if int(d.n) >= int(d.t) and not d.get("r", false):
 			n += 1
 	return n
@@ -1738,11 +1880,11 @@ func _bolinha_diarias() -> void:
 		lb.text = str(n)
 
 func montar_diarias() -> void:
-	var D: Dictionary = m.P.diarias
+	var D: Dictionary = P_menu.diarias
 	if D.is_empty() or not D.has("l"):
 		conteudo.add_child(rotulo("Diárias abrem no Nv %d." % 8, 14, APAGADO))
 		return
-	var falta := maxf(0.0, float(D.get("fim", 0)) - float(Time.get_ticks_msec() - m.P.diarias_t))
+	var falta := maxf(0.0, float(D.get("fim", 0)) - float(Time.get_ticks_msec() - P_menu.diarias_t))
 	conteudo.add_child(rotulo("Novas em %d h %d min" % [int(falta / 3600000.0), int(fmod(falta, 3600000.0) / 60000.0)], 13, APAGADO))
 	var feitas := 0
 	for d in D.l:
@@ -1779,9 +1921,9 @@ func montar_diarias() -> void:
 			bt = botao("Recebida", func(): pass, 15)
 			bt.disabled = true
 		elif ok:
-			bt = botao("Receber", func(): m.rede("diaria", {"acao": "receber", "id": id}), 15, true)
+			bt = botao("Receber", func(): rede("diaria", {"acao": "receber", "id": id}), 15, true)
 		else:
-			bt = botao("Ir", func(): m.rede("diaria", {"acao": "ir", "id": id}), 15)
+			bt = botao("Ir", func(): rede("diaria", {"acao": "ir", "id": id}), 15)
 		bt.custom_minimum_size = Vector2(110, 44)
 		bt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		h.add_child(bt)
@@ -1833,7 +1975,7 @@ func _escolta_cla(vs: VBoxContainer, Mi) -> void:
 		vs.add_child(rotulo("Próxima escolta em %s." % _tempo_cla(int(Mi.espera)), 12, APAGADO))
 	else:
 		vs.add_child(rotulo("Leve os recrutas vivos até o totem mais perto (300 m ou mais) em 10 min. No caminho vêm 4 emboscadas no seu nível, e os monstros vão primeiro nos recrutas: bata neles para segurar. Quem chegar ganha 1 nível de XP; o cofre ganha ouro e você, 1 Fragmento de Alma. Abra no Baú do Clã, com os recrutas perto. Cumprida, a próxima abre em 6 h; se falhar, pode tentar de novo na hora.", 12, APAGADO))
-		var be := botao("Começar a escolta", func(): m.rede("cla", {"acao": "missao"}), 15, true)
+		var be := botao("Começar a escolta", func(): rede("cla", {"acao": "missao"}), 15, true)
 		be.custom_minimum_size = Vector2(0, 44)
 		vs.add_child(be)
 
@@ -1900,7 +2042,7 @@ func _tempo_cla(ms: int) -> String:
 	return "%d dia%s" % [int(hs / 24), "s" if int(hs / 24) != 1 else ""] if hs >= 24 else "%d h" % maxi(1, hs)
 
 func montar_cla() -> void:
-	var C: Dictionary = m.P.cla
+	var C: Dictionary = P_menu.cla
 	if not m.on():
 		conteudo.add_child(rotulo("O clã só funciona online.", 14, APAGADO))
 		return
@@ -1917,7 +2059,7 @@ func montar_cla() -> void:
 		_cla_nome.custom_minimum_size = Vector2(0, 48)
 		_cla_nome.add_theme_font_size_override("font_size", 18)
 		conteudo.add_child(_cla_nome)
-		var bf := botao("Fundar clã", func(): m.rede("cla", {"acao": "fundar", "nome": _cla_nome.text.strip_edges()}), 17, true)
+		var bf := botao("Fundar clã", func(): rede("cla", {"acao": "fundar", "nome": _cla_nome.text.strip_edges()}), 17, true)
 		bf.custom_minimum_size = Vector2(0, 50)
 		conteudo.add_child(bf)
 		return
@@ -1928,7 +2070,7 @@ func montar_cla() -> void:
 	cab.add_child(vc)
 	vc.add_child(rotulo("Clã %s" % str(C.get("n", "")), 20, OURO_CLARO))
 	vc.add_child(rotulo("Clã Nv %d · Líder: você · %d/%d recrutas" % [int(C.get("nv", 1)), (C.get("m", []) as Array).size(), int(C.get("max", 6))], 13, TEXTO))
-	var falta := maxf(0.0, float(C.get("prox", 0)) - float(Time.get_ticks_msec() - m.P.cla_t))
+	var falta := maxf(0.0, float(C.get("prox", 0)) - float(Time.get_ticks_msec() - P_menu.cla_t))
 	var cofre := int(C.get("cofre", 0))
 	var semana := int(C.get("semana", 0))
 	vc.add_child(rotulo("Cofre: %d de ouro · Semana: %d de ouro" % [cofre, semana], 15, OURO))
@@ -1947,8 +2089,8 @@ func montar_cla() -> void:
 	var lc := HBoxContainer.new()
 	lc.add_theme_constant_override("separation", 6)
 	for v in C.get("dep", [100, 1000]):
-		lc.add_child(botao("+%d" % int(v), func(): m.rede("cla", {"acao": "depositar", "ouro": int(v)}), 14))
-	lc.add_child(botao("Sacar 100", func(): m.rede("cla", {"acao": "sacar", "ouro": 100}), 14))
+		lc.add_child(botao("+%d" % int(v), func(): rede("cla", {"acao": "depositar", "ouro": int(v)}), 14))
+	lc.add_child(botao("Sacar 100", func(): rede("cla", {"acao": "sacar", "ouro": 100}), 14))
 	conteudo.add_child(lc)
 	# nível do clã (André 2026-11-22: "fosse uma coisa progressiva"): o que o próximo pede e o que já tem
 	if C.get("sobe") is Dictionary:
@@ -1959,16 +2101,16 @@ func montar_cla() -> void:
 		vs.add_theme_constant_override("separation", 3)
 		cs.add_child(vs)
 		vs.add_child(rotulo("Melhorar para o clã Nv %d (%d vagas)" % [int(S.nv), int(S.nv)], 16, OURO_CLARO))
-		var nv_ok := int(m.P.prog.get("nivel", 1)) >= int(S.lider)
+		var nv_ok := int(P_menu.prog.get("nivel", 1)) >= int(S.lider)
 		var ouro_ok := int(C.get("cofre", 0)) >= int(S.ouro)
 		var tudo := nv_ok and ouro_ok
-		vs.add_child(rotulo("Seu nível %d de %d · Cofre %d de %d de ouro" % [int(m.P.prog.get("nivel", 1)), int(S.lider), int(C.get("cofre", 0)), int(S.ouro)], 13, TEXTO if tudo else Color(1.0, 0.7, 0.6)))
+		vs.add_child(rotulo("Seu nível %d de %d · Cofre %d de %d de ouro" % [int(P_menu.prog.get("nivel", 1)), int(S.lider), int(C.get("cofre", 0)), int(S.ouro)], 13, TEXTO if tudo else Color(1.0, 0.7, 0.6)))
 		for it in S.get("itens", []):
 			var ok := int(it.tem) >= int(it.n)
 			tudo = tudo and ok
 			vs.add_child(rotulo("%s: %d/%d" % [str(it.nome), mini(int(it.tem), int(it.n)), int(it.n)], 13, VERDE_DIARIA if ok else APAGADO))
 		vs.add_child(rotulo("Materiais e fragmentos saem do Baú do Clã ou da sua mochila. Fragmento de Alma: derrube quem é da outra raça.", 11, APAGADO))
-		var bm := botao("Melhorar clã", func(): m.rede("cla", {"acao": "melhorar"}), 15, tudo)
+		var bm := botao("Melhorar clã", func(): rede("cla", {"acao": "melhorar"}), 15, tudo)
 		bm.custom_minimum_size = Vector2(0, 44)
 		vs.add_child(bm)
 		conteudo.add_child(cs)
@@ -1988,14 +2130,14 @@ func montar_cla() -> void:
 	if not rec.is_empty():
 		var partes := []
 		for k in rec:
-			partes.append("%s %d" % [str(m.P.nome_item({"k": str(k)})), int(rec[k])])
+			partes.append("%s %d" % [str(P_menu.nome_item({"k": str(k)})), int(rec[k])])
 		conteudo.add_child(rotulo("Recursos com os recrutas: " + ", ".join(partes), 13, TEXTO))
 	# Baú do Clã (base no seu terreno, André 2026-11-22)
 	if C.get("bauCla") is Dictionary:
 		var bc: Dictionary = C.bauCla
 		var pb := []
 		for k in bc:
-			pb.append("%s %d" % [str(m.P.nome_item({"k": str(k)})), int(bc[k])])
+			pb.append("%s %d" % [str(P_menu.nome_item({"k": str(k)})), int(bc[k])])
 		conteudo.add_child(rotulo("Baú do Clã: " + (", ".join(pb) if not pb.is_empty() else "vazio"), 13, TEXTO))
 	else:
 		conteudo.add_child(rotulo("Sem Baú do Clã: funde a base do clã (o salão tem um na porta) ou crie um na construção (aba Móveis).", 12, APAGADO))
@@ -2012,12 +2154,12 @@ func montar_cla() -> void:
 	var cheio := ms.size() >= int(C.get("max", 6))
 	for T in C.get("tiers", []):
 		var tid := str(T.id)
-		var bt := botao("%s Nv %d · %d de ouro · %d/semana" % [str(T.nome), int(T.nv), int(T.preco), int(T.sem)], func(): m.rede("cla", {"acao": "candidatos", "tier": tid}), 15, perto) # 3 candidatos com ficha (troca.gd)
+		var bt := botao("%s Nv %d · %d de ouro · %d/semana" % [str(T.nome), int(T.nv), int(T.preco), int(T.sem)], func(): rede("cla", {"acao": "candidatos", "tier": tid}), 15, perto) # 3 candidatos com ficha (troca.gd)
 		bt.custom_minimum_size = Vector2(0, 46)
 		var trava := int(T.get("claNv", 1)) > int(C.get("nv", 1))
 		if trava:
 			bt.text = Idioma.frase("%s · só no clã Nv %d" % [str(T.nome), int(T.claNv)])
-		bt.disabled = not perto or cheio or trava or int(m.P.prog.get("ouro", 0)) < int(T.preco)
+		bt.disabled = not perto or cheio or trava or int(P_menu.prog.get("ouro", 0)) < int(T.preco)
 		conteudo.add_child(bt)
 	conteudo.add_child(rotulo("Cada recruta depois do 3º deixa a semana toda 10% mais cara. 7 dias sem pagamento, ele vai embora.", 12, APAGADO))
 	# gastos
@@ -2085,7 +2227,7 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 			pedido.p = str(fn.get("p", "lider")) if k == "proteger" else "lider"
 		elif fid == "fazenda":
 			pedido.s = str(fn.get("s", "cenoura")) if k == "fazenda" else "cenoura"
-		lf.add_child(botao(str(F.nome), func(): m.rede("cla", {"acao": "funcao", "id": rid, "fn": pedido}), 13, fid == k))
+		lf.add_child(botao(str(F.nome), func(): rede("cla", {"acao": "funcao", "id": rid, "fn": pedido}), 13, fid == k))
 	v.add_child(lf)
 	if k == "recurso":
 		var lr := HFlowContainer.new()
@@ -2093,7 +2235,7 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		lr.add_theme_constant_override("v_separation", 6)
 		for R in C.get("recursos", []):
 			var rk := str(R.k)
-			lr.add_child(botao(str(R.nome).capitalize(), func(): m.rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "recurso", "r": rk}}), 12, rk == str(fn.get("r", ""))))
+			lr.add_child(botao(str(R.nome).capitalize(), func(): rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "recurso", "r": rk}}), 12, rk == str(fn.get("r", ""))))
 		v.add_child(lr)
 	elif k == "proteger":
 		var lp := HFlowContainer.new()
@@ -2105,12 +2247,12 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 				alvos.append([str(o.id), str(o.nome)])
 		for A in alvos:
 			var pid: String = A[0]
-			lp.add_child(botao(A[1], func(): m.rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "proteger", "p": pid}}), 12, pid == str(fn.get("p", ""))))
+			lp.add_child(botao(A[1], func(): rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "proteger", "p": pid}}), 12, pid == str(fn.get("p", ""))))
 		# André 2026-11-23: proteger o carrinho ou o navio mercante (apagado quando não está no mundo; tocar diz o porquê)
 		var vc: Dictionary = C.get("veic", {})
 		for A in [["carrinho", "Carrinho", "Coloque o carrinho no mundo primeiro"], ["mercante", "Mercante", "Coloque o navio mercante na água primeiro"]]:
 			var vid: String = A[0]
-			var bv := botao(A[1], func(): m.rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "proteger", "p": vid}}), 12, vid == str(fn.get("p", "")))
+			var bv := botao(A[1], func(): rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "proteger", "p": vid}}), 12, vid == str(fn.get("p", "")))
 			if not int(vc.get(vid, 0)):
 				bv.disabled = true
 				var mot: String = A[2]
@@ -2123,7 +2265,7 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		lpl.add_theme_constant_override("v_separation", 6)
 		for P in C.get("plantas", []):
 			var sk := str(P.k)
-			lpl.add_child(botao(str(P.nome), func(): m.rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "fazenda", "s": sk}}), 12, sk == str(fn.get("s", ""))))
+			lpl.add_child(botao(str(P.nome), func(): rede("cla", {"acao": "funcao", "id": rid, "fn": {"k": "fazenda", "s": sk}}), 12, sk == str(fn.get("s", ""))))
 		v.add_child(lpl)
 	var ld := HBoxContainer.new()
 	ld.alignment = BoxContainer.ALIGNMENT_END
@@ -2137,6 +2279,9 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		ld.add_child(botao("Ver", func():
 			fechar()
 			m.espiar.comecar(rid, rn), 12))
+	# André 2026-11-24: o menu inteiro dele (status, mochila, profissões, habilidades, Tomos), só olhando; no mundo ou fora
+	var rnv := str(r.nome)
+	ld.add_child(botao("Ver menu", func(): pedir_recruta(rid, rnv, "cla"), 12))
 	# André 2026-11-23: os recrutas saíram da lista de amigos; a mensagem (texto e voz, com os comandos) e o time ficam aqui
 	if r.has("c") and m.chat:
 		var rc := str(r.c)
@@ -2147,10 +2292,10 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 	if r.has("bid"):
 		var bid := str(r.bid)
 		if int(r.get("time", 0)) == 1:
-			ld.add_child(botao("Sair do time", func(): m.rede("time", {"acao": "expulsar", "com": bid}), 12))
+			ld.add_child(botao("Sair do time", func(): rede("time", {"acao": "expulsar", "com": bid}), 12))
 		else:
-			ld.add_child(botao("Time", func(): m.rede("time", {"acao": "convidar", "com": bid}), 12))
-	ld.add_child(botao("Dispensar", func(): m.rede("cla", {"acao": "dispensar", "id": rid}), 12))
+			ld.add_child(botao("Time", func(): rede("time", {"acao": "convidar", "com": bid}), 12))
+	ld.add_child(botao("Dispensar", func(): rede("cla", {"acao": "dispensar", "id": rid}), 12))
 	v.add_child(ld)
 	return card
 
@@ -2173,7 +2318,7 @@ func _sem_o_que_anda(d) -> Dictionary:
 	return c
 
 func _chave_cla() -> String:
-	var C = m.P.cla
+	var C = P_menu.cla
 	if not (C is Dictionary):
 		return ""
 	var c: Dictionary = C.duplicate()
@@ -2184,11 +2329,11 @@ func _chave_cla() -> String:
 	for r in c.get("m", []):
 		ms.append(_sem_o_que_anda(r))
 	c.m = ms
-	return JSON.stringify([c, m.P.prog, m.on()])
+	return JSON.stringify([c, P_menu.prog, m.on()])
 
 func _recruta_agora(rid: String, antes: Dictionary) -> Dictionary:
-	if m.P.cla is Dictionary:
-		for r in m.P.cla.get("m", []):
+	if P_menu.cla is Dictionary:
+		for r in P_menu.cla.get("m", []):
 			if r is Dictionary and str(r.get("id", "")) == rid:
 				return r
 	return antes
@@ -2201,10 +2346,10 @@ func atualizar_do_servidor() -> void:
 	atualizar()
 
 func _cla_pintar_vivo() -> void:
-	var C: Dictionary = m.P.cla
+	var C: Dictionary = P_menu.cla
 	var cob = _cla_vivos.get("_cobranca")
 	if is_instance_valid(cob):
-		cob.text = Idioma.frase(_texto_cobranca(maxf(0.0, float(C.get("prox", 0)) - float(Time.get_ticks_msec() - m.P.cla_t))))
+		cob.text = Idioma.frase(_texto_cobranca(maxf(0.0, float(C.get("prox", 0)) - float(Time.get_ticks_msec() - P_menu.cla_t))))
 	var membros := {"eu": C.get("eu", {})}
 	for r in C.get("m", []):
 		membros["r:" + str(r.get("id", ""))] = r
@@ -2247,7 +2392,7 @@ func _cla_vivo() -> void:
 	get_tree().create_timer(3.0).timeout.connect(func():
 		_cla_timer = false
 		if aberto() and (aba == "cla" or aba == "cla_missoes") and m.on():
-			m.rede("cla", {"acao": "ver"}))
+			rede("cla", {"acao": "ver"}))
 
 # Fixar no atalho (André 2026-11-23: "qualquer missão, da guilda ou do clã, eu posso marcar para ficar aparecendo no
 # atalho de missões"): o botão de cada missão. Fixada, o cartão da tela (missao_ativa.gd) mostra ela no lugar da história.
@@ -2267,7 +2412,7 @@ func botao_fixar(tipo: String, id: String) -> Button:
 
 # aba Missão do Clã (André 2026-11-23: "a missão do clã também aparece na aba de missões"): hoje a Escolta do Clã
 func montar_cla_missoes() -> void:
-	var C: Dictionary = m.P.cla
+	var C: Dictionary = P_menu.cla
 	if not m.on():
 		conteudo.add_child(rotulo("As missões do clã só funcionam online.", 14, APAGADO))
 		return
@@ -2298,7 +2443,7 @@ func montar_cla_missoes() -> void:
 const COR_RANK := {"F": Color(0.62, 0.62, 0.62), "E": Color(0.5, 0.72, 0.38), "D": Color(0.35, 0.66, 0.78), "C": Color(0.3, 0.45, 0.85),
 	"B": Color(0.6, 0.38, 0.85), "A": Color(0.88, 0.56, 0.18), "S": Color(0.88, 0.3, 0.25), "SS": Color(1.0, 0.84, 0.32)}
 func montar_guilda() -> void:
-	var G: Dictionary = m.P.guilda
+	var G: Dictionary = P_menu.guilda
 	if G.is_empty() or not G.has("l"):
 		conteudo.add_child(rotulo("A Guilda abre no Nv 30, no Rio Claro.", 14, APAGADO))
 		return
@@ -2339,14 +2484,14 @@ func montar_guilda() -> void:
 	if G.get("pv", false) == true:
 		conteudo.add_child(rotulo("Prova aceita: vença o elite vermelho num campo da sua faixa.", 14, Color(1.0, 0.55, 0.45)))
 	elif G.get("prova", false) == true:
-		var bpv := botao("Fazer a Prova do rank %s" % str(prox.rank), func(): m.rede("guilda", {"acao": "prova"}), 16, true)
+		var bpv := botao("Fazer a Prova do rank %s" % str(prox.rank), func(): rede("guilda", {"acao": "prova"}), 16, true)
 		bpv.disabled = not perto
 		bpv.custom_minimum_size = Vector2(0, 48)
 		conteudo.add_child(bpv)
 		if not perto:
 			conteudo.add_child(rotulo("A Prova se pega no mural.", 12, APAGADO))
 	montar_vantagens_guilda(G, prox)
-	var falta := maxf(0.0, float(G.get("fim", 0)) - float(Time.get_ticks_msec() - m.P.guilda_t))
+	var falta := maxf(0.0, float(G.get("fim", 0)) - float(Time.get_ticks_msec() - P_menu.guilda_t))
 	conteudo.add_child(rotulo("Cada um: %d ouro · %d XP · %d pontos" % [int(G.get("ouro", 0)), int(G.get("xp", 0)), int(G.get("pgGanha", 0))], 13, OURO))
 	if G.get("cat", false) == true:
 		conteudo.add_child(rotulo("Chance de runa ou selo", 12, OURO))
@@ -2388,16 +2533,16 @@ func montar_guilda() -> void:
 				bt = botao("Recebido", func(): pass, 15)
 				bt.disabled = true
 			"feito":
-				bt = botao("Receber", func(): m.rede("guilda", {"acao": "receber", "id": id}), 15, true)
+				bt = botao("Receber", func(): rede("guilda", {"acao": "receber", "id": id}), 15, true)
 			"ativo":
-				bt = botao("Ir", func(): m.rede("guilda", {"acao": "ir", "id": id}), 15)
+				bt = botao("Ir", func(): rede("guilda", {"acao": "ir", "id": id}), 15)
 			_:
-				bt = botao("Pegar", func(): m.rede("guilda", {"acao": "aceitar", "id": id}), 15, perto)
+				bt = botao("Pegar", func(): rede("guilda", {"acao": "aceitar", "id": id}), 15, perto)
 				bt.disabled = not perto
 		bt.custom_minimum_size = Vector2(110, 44)
 		bt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		if e == "livre" and troca > 0: # vantagem A: troca um contrato livre por outro
-			var btr := botao("Trocar", func(): m.rede("guilda", {"acao": "trocar", "id": id}), 15)
+			var btr := botao("Trocar", func(): rede("guilda", {"acao": "trocar", "id": id}), 15)
 			btr.custom_minimum_size = Vector2(96, 44)
 			btr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			h.add_child(btr)
@@ -2442,7 +2587,7 @@ func montar_vantagens_guilda(G: Dictionary, prox) -> void:
 			lx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			conteudo.add_child(lx)
 	if float(v.get("voltar", -1)) >= 0.0:
-		var falta_v := maxf(0.0, float(v.voltar) - float(Time.get_ticks_msec() - m.P.guilda_t))
+		var falta_v := maxf(0.0, float(v.voltar) - float(Time.get_ticks_msec() - P_menu.guilda_t))
 		var perto: bool = G.get("perto", false) == true
 		var txt := "Voltar à Guilda" if falta_v <= 0.0 else "Voltar à Guilda · %d min" % int(ceil(falta_v / 60000.0))
 		var bv := botao(txt, func(): fechar(); m.volta.pedir_guilda(), 15, falta_v <= 0.0 and not perto)
@@ -2471,14 +2616,14 @@ func montar_missoes() -> void:
 	var caps: Array = nv.H.get("capitulos", [])
 	var feitas: int = nv.feitas()
 	var h: Dictionary = nv.hist()
-	if m.P.teste_missoes: # só na conta do André, temporário (2026-11-14): refazer missões sem apagar o personagem
+	if P_menu.teste_missoes: # só na conta do André, temporário (2026-11-14): refazer missões sem apagar o personagem
 		var tm := HBoxContainer.new()
 		tm.add_theme_constant_override("separation", 8)
 		tm.add_child(rotulo("Teste:", 14, APAGADO))
-		tm.add_child(botao("Voltar 1 missão", func(): m.rede("missaoTeste", {"acao": "voltar"}), 14))
-		tm.add_child(botao("Zerar missões", func(): m.rede("missaoTeste", {"acao": "zerar"}), 14))
+		tm.add_child(botao("Voltar 1 missão", func(): rede("missaoTeste", {"acao": "voltar"}), 14))
+		tm.add_child(botao("Zerar missões", func(): rede("missaoTeste", {"acao": "zerar"}), 14))
 		conteudo.add_child(tm)
-	var titulo := str(m.P.hist_info.get("titulo", "")) if m.P.hist_info.get("titulo") != null else ""
+	var titulo := str(P_menu.hist_info.get("titulo", "")) if P_menu.hist_info.get("titulo") != null else ""
 	if titulo != "": # título do ato (Ato II: Sentinela da Ordem), vem do servidor (histInfo)
 		conteudo.add_child(rotulo("Título: %s" % titulo, 15, Color("f3d27a")))
 	var d := rotulo("A história principal abre o mapa: cada capítulo tira a névoa de uma região ou abre um recurso. O nível sobe caçando; a história chama quando você chega no nível do próximo capítulo.", 12, APAGADO)
@@ -2528,7 +2673,7 @@ func _card_escolta() -> void:
 	conteudo.add_child(pc)
 
 func _card_capitulo(C: Dictionary, idx: Array, ms: Array, feitas: int, h: Dictionary, feito: bool, atual: bool) -> Control:
-	var nivel := int(m.P.prog.nivel)
+	var nivel := int(P_menu.prog.nivel)
 	var cedo: bool = nivel < int(C.nv) and not feito and not atual
 	var pc := PanelContainer.new()
 	var borda := Color(0.45, 0.75, 0.4) if feito else (LILAS if atual else Color(0.3, 0.26, 0.2))
@@ -2563,7 +2708,7 @@ func _card_capitulo(C: Dictionary, idx: Array, ms: Array, feitas: int, h: Dictio
 func _card_missao(M: Dictionary, i: int, feitas: int, h: Dictionary) -> Control:
 	var feita := i < feitas
 	var atual := i == feitas
-	var cedo: bool = int(m.P.prog.nivel) < int(M.nv)
+	var cedo: bool = int(P_menu.prog.nivel) < int(M.nv)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 2)
 	var topo := rotulo("%s%s   ·   Nv %d" % ["✓ " if feita else ("▸ " if atual else "○ "), M.nome, int(M.nv)], 14, Color(0.6, 0.9, 0.55) if feita else (Color("e6dcff") if atual else (APAGADO if cedo else TEXTO)))
@@ -2585,7 +2730,7 @@ func _card_missao(M: Dictionary, i: int, feitas: int, h: Dictionary) -> Control:
 	v.add_child(l)
 	if h.get("ac", false): # as etapas: feitas, a da vez (com o texto do servidor) e as próximas
 		var e := int(h.get("e", 0))
-		var hi: Dictionary = m.P.hist_info
+		var hi: Dictionary = P_menu.hist_info
 		var etapas: Array = M.get("etapas", [])
 		for k in etapas.size():
 			var txt: String = str(etapas[k])
@@ -2610,7 +2755,7 @@ func _ir_missao() -> void:
 	m.missao_ativa.ir()
 
 func linha_prof_card(k: String) -> Control:
-	var P = m.P
+	var P = P_menu
 	var pf: Dictionary = P.dados.profissoes[k]
 	var nv: int = P.prof_nivel(k)
 	var pts: float = float(P.prog.prof.get(k, 0.0))
@@ -2664,7 +2809,7 @@ func linha_prof_card(k: String) -> Control:
 
 # receitas do Ferreiro (forja do Tomás) ou do Alfaiate (banca da Rosa)
 func montar_receitas(prof: String) -> void:
-	var P = m.P
+	var P = P_menu
 	conteudo.add_child(linha_vigor())
 	var of: Dictionary = P.dados.oficina[prof]
 	var aqui: bool = m.trabalho.perto_oficina(prof)
@@ -2681,7 +2826,7 @@ func montar_receitas(prof: String) -> void:
 			conteudo.add_child(linha_receita(r, R, aqui or (na_estacao and m.construcao.estacao_perto([m.construcao.estacao_da_receita(R)]))))
 
 func linha_receita(r: String, R: Dictionary, aqui: bool) -> Control:
-	var P = m.P
+	var P = P_menu
 	var faz := {"k": str(R.faz), "r": 0} if P.dados.itens[str(R.faz)].has("lugar") else {"k": str(R.faz), "n": 1}
 	var nv_ok: bool = P.prof_ok(str(R.prof), int(R.nivel), str(R.faz))
 	var custo: float = P.custo_vigor(R.prof, float(R.vigor))
@@ -2752,7 +2897,7 @@ func _avisar_motivo(t: String) -> void:
 
 # primeiro motivo que impede criar ("" = dá)
 func motivo_receita(aqui: bool, onde: String, nv_ok: bool, nv_txt: String, usa: Dictionary, custo: float) -> String:
-	var P = m.P
+	var P = P_menu
 	if not nv_ok:
 		return "Nível baixo: precisa de %s" % nv_txt
 	if not aqui:
@@ -2765,25 +2910,27 @@ func motivo_receita(aqui: bool, onde: String, nv_ok: bool, nv_txt: String, usa: 
 	return ""
 
 func criar(r: String, rar := 0) -> void:
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
 	if not m.on():
 		m.hud.aviso("Criar só funciona online (a peça fica na sua conta)")
 		return
 	if rar > 0: # Raro em diante: evolui a peça da raridade de baixo (a janelinha de sempre pergunta e mostra a chance)
-		var i: int = m.P.peca_para_evoluir(str(m.P.dados.receitas[r].faz), rar)
+		var i: int = P_menu.peca_para_evoluir(str(P_menu.dados.receitas[r].faz), rar)
 		if i < 0:
-			_avisar_motivo("Precisa de %s na mochila" % m.P.nome_item({"k": str(m.P.dados.receitas[r].faz), "r": rar - 1}))
+			_avisar_motivo("Precisa de %s na mochila" % P_menu.nome_item({"k": str(P_menu.dados.receitas[r].faz), "r": rar - 1}))
 			return
 		perguntar_evoluir(i)
 		return
 	if m.construcao: # janelinha de quantas + barrinha (André 2026-11-05)
 		m.construcao.pedir_criar("receita", r)
 		return
-	m.rede("criar", {"r": r})
+	rede("criar", {"r": r})
 
 # ---------- aba Criar (André 2026-11-04): tudo o que se cria, em submenus ----------
 # receitas das profissões (Ferreiro, Alfaiate) e peças da construção / ferramentas da fazenda, cada uma com onde se cria
 func itens_criar(cat: String) -> Array:
-	var P = m.P
+	var P = P_menu
 	var D: Dictionary = P.dados
 	var lista := []
 	for r in D.receitas:
@@ -2844,6 +2991,8 @@ func linha_fornalha() -> Control:
 	return cx
 
 func ir_fornalha() -> void:
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
 	var cons = m.construcao
 	if cons == null:
 		return
@@ -2905,7 +3054,7 @@ func montar_criar_aqui() -> void:
 # as peças da mochila e as vestidas que esta estação melhora (bigorna/forja do Tomás: armas; bancada/banca da Rosa:
 # armaduras e colar). Evoluir e Reforçar são os mesmos do cartão da peça na mochila (que continua igual); o servidor confere.
 func montar_melhorar_aqui(ests: Array, so_tipo := "", so_reforco := false) -> bool:
-	var P = m.P
+	var P = P_menu
 	var D: Dictionary = P.dados
 	if not D.has("catalisador"):
 		return false
@@ -2988,7 +3137,7 @@ func montar_melhorar_aqui(ests: Array, so_tipo := "", so_reforco := false) -> bo
 
 # estação que o item pede ("" = cria em qualquer lugar). A mesma conta de linha_criavel.
 func estacao_do_item(e: Dictionary) -> String:
-	var D: Dictionary = m.P.dados
+	var D: Dictionary = P_menu.dados
 	if e.tipo == "receita":
 		var R: Dictionary = D.receitas[e.k]
 		var faz_s := str(R.faz)
@@ -3065,7 +3214,7 @@ func tocar_chip_estacao(est: String) -> void:
 
 # o que entra num grupo: [{e, rar}] (arma e armadura: uma linha por raridade), já filtrado pela estação e pela busca
 func entradas_grupo(g: String) -> Array:
-	var D: Dictionary = m.P.dados
+	var D: Dictionary = P_menu.dados
 	var out := []
 	var q := busca_criar.strip_edges().to_lower()
 	for e in itens_criar(g):
@@ -3075,7 +3224,7 @@ func entradas_grupo(g: String) -> Array:
 			continue
 		var equip: bool = e.tipo == "receita" and D.has("catalisador") and D.itens[str(D.receitas[e.k].faz)].has("lugar")
 		for r in (D.raridades.size() if equip else 1):
-			var nome: String = m.P.nome_item({"k": str(D.receitas[e.k].faz), "r": r}) if equip else str(e.nome)
+			var nome: String = P_menu.nome_item({"k": str(D.receitas[e.k].faz), "r": r}) if equip else str(e.nome)
 			if q != "" and not (q in nome.to_lower()) and not (q in str(e.nome).to_lower()):
 				continue
 			out.append({"e": e, "rar": r if equip else -1})
@@ -3083,7 +3232,7 @@ func entradas_grupo(g: String) -> Array:
 
 # dá para criar agora? (a mesma conta do botão Criar da linha)
 func pode_criar_ja(x: Dictionary) -> bool:
-	var P = m.P
+	var P = P_menu
 	var D: Dictionary = P.dados
 	var e: Dictionary = x.e
 	var cons = m.construcao
@@ -3257,7 +3406,7 @@ func cabeca_grupo(k: String, nome: String, prontas: int, total: int) -> Control:
 
 # arma e armadura: linha com as 5 raridades; o resto, a linha de sempre
 func linha_do_criar(e: Dictionary) -> Control:
-	var D: Dictionary = m.P.dados
+	var D: Dictionary = P_menu.dados
 	if e.tipo == "receita" and D.has("catalisador") and D.itens[str(D.receitas[e.k].faz)].has("lugar"):
 		return linha_criavel_rar(e)
 	return linha_criavel(e)
@@ -3267,7 +3416,7 @@ func linha_do_criar(e: Dictionary) -> Control:
 # diz o nome). Comum é a receita de sempre (com a sorte de sair melhor); as outras saem certinho nela e pedem o
 # Selo/Runa da raridade e o material de evoluir (shared/simulacao.js receitaNaRaridade).
 func linha_criavel_rar(e: Dictionary, fixa := -1) -> Control:
-	var P = m.P
+	var P = P_menu
 	var D: Dictionary = P.dados
 	var cons = m.construcao
 	var R0: Dictionary = D.receitas[e.k]
@@ -3377,7 +3526,7 @@ func linha_criavel_rar(e: Dictionary, fixa := -1) -> Control:
 
 # material como símbolo: ícone com "tem/precisa" embaixo (verde ou vermelho); tocar diz o nome
 func icone_material(k: String, tem: int, precisa: int, peca := {}) -> Control:
-	var P = m.P
+	var P = P_menu
 	var alvo: Dictionary = peca if not peca.is_empty() else {"k": k}
 	var bx := VBoxContainer.new()
 	bx.add_theme_constant_override("separation", 0)
@@ -3414,7 +3563,7 @@ func icone_material(k: String, tem: int, precisa: int, peca := {}) -> Control:
 # uma linha da aba Criar: ícone, nome, onde se cria (verde se você está lá), materiais e o botão Criar.
 # Longe da estação certa o botão vira uma plaquinha com o nome dela: dá para ver a receita, mas não criar.
 func linha_criavel(e: Dictionary) -> Control:
-	var P = m.P
+	var P = P_menu
 	var D: Dictionary = P.dados
 	var cons = m.construcao
 	var usa: Dictionary
@@ -3570,7 +3719,7 @@ func montar_recipedia() -> void:
 
 # tudo o que se cria num grupo da aba Criar, mais barras e carvão (fornalha) em Materiais
 func itens_recipedia(g: String) -> Array:
-	var D: Dictionary = m.P.dados
+	var D: Dictionary = P_menu.dados
 	var l := itens_criar(g)
 	if g == "materiais":
 		for r in D.receitas:
@@ -3581,7 +3730,7 @@ func itens_recipedia(g: String) -> Array:
 
 # mercadores de pack do mundo: [[nome, k do pack]] (sem mundo carregado: um "Mercador" por pack)
 func mercadores_pack() -> Array:
-	var PK: Dictionary = m.P.dados.get("packs", {})
+	var PK: Dictionary = P_menu.dados.get("packs", {})
 	var out := []
 	var npcs = m.get("npcs")
 	for n in (npcs if npcs is Array else []):
@@ -3602,7 +3751,7 @@ func preencher_recipedia() -> void:
 	for c in lista_rec.get_children():
 		lista_rec.remove_child(c)
 		c.queue_free()
-	var D: Dictionary = m.P.dados
+	var D: Dictionary = P_menu.dados
 	var q := busca_rec.strip_edges().to_lower()
 	var buscando := q != ""
 	var algum := false
@@ -3654,14 +3803,14 @@ func preencher_recipedia() -> void:
 
 # materiais da receita (na raridade escolhida) ou do pack: {k: n}
 func materiais_rec(x: Dictionary) -> Dictionary:
-	var D: Dictionary = m.P.dados
+	var D: Dictionary = P_menu.dados
 	if x.has("pack"):
 		if m.get("transporte") != null: # já com o desconto da profissão Mercador (transporte.gd custo)
 			return m.transporte.custo(x.pack)
 		return D.packs[x.pack].custo
 	var e: Dictionary = x.e
 	if e.tipo == "receita":
-		return m.P.receita_na_raridade(e.k, int(rar_rec.get(e.k, 0))).usa
+		return P_menu.receita_na_raridade(e.k, int(rar_rec.get(e.k, 0))).usa
 	var cons = m.get("construcao")
 	var C: Dictionary = cons.dados_criar(e.k) if cons != null else D.get("construcoes", {}).get(e.k, D.get("ferramentas", {}).get(e.k, {}))
 	return C.get("custo", {})
@@ -3669,7 +3818,7 @@ func materiais_rec(x: Dictionary) -> Dictionary:
 func tem_material_rec(x: Dictionary) -> bool:
 	var usa := materiais_rec(x)
 	for k in usa:
-		if m.P.contar(k) < int(usa[k]):
+		if P_menu.contar(k) < int(usa[k]):
 			return false
 	return true
 
@@ -3694,7 +3843,7 @@ func cabeca_grupo_rec(k: String, nome: String, prontas: int, total: int) -> Cont
 
 # onde se cria, com o ícone da estação: "Bigorna ou a forja do Tomás"
 func onde_rec(e: Dictionary) -> Array:
-	var D: Dictionary = m.P.dados
+	var D: Dictionary = P_menu.dados
 	var est := estacao_do_item(e)
 	if est == "":
 		return ["", "Em qualquer lugar (aba Criar)"]
@@ -3725,7 +3874,7 @@ func linha_onde_rec(icone: String, texto: String) -> Control:
 
 # uma receita para consultar: peça, nome, profissão e nível, onde se cria, raridades (arma e armadura) e materiais
 func linha_receita_rec(e: Dictionary) -> Control:
-	var P = m.P
+	var P = P_menu
 	var D: Dictionary = P.dados
 	var equip: bool = e.tipo == "receita" and D.has("catalisador") and D.itens[str(D.receitas[e.k].faz)].has("lugar")
 	var rar: int = clampi(int(rar_rec.get(e.k, 0)), 0, D.raridades.size() - 1) if equip else 0
@@ -3799,7 +3948,7 @@ func linha_receita_rec(e: Dictionary) -> Control:
 
 # um pack para consultar: o pack (na cor dele), o mercador que faz, o material e o vigor
 func linha_pack_rec(k: String, merc: String) -> Control:
-	var P = m.P
+	var P = P_menu
 	var D: Dictionary = P.dados
 	var PKk: Dictionary = D.packs[k]
 	var cx := PanelContainer.new()
@@ -3843,6 +3992,8 @@ func linha_pack_rec(k: String, merc: String) -> Control:
 	return cx
 
 func criar_item(e: Dictionary) -> void:
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
 	if _arrastou:
 		return
 	if e.tipo == "receita":
@@ -3854,7 +4005,7 @@ func criar_item(e: Dictionary) -> void:
 	if m.construcao: # janelinha de quantas + barrinha (André 2026-11-05)
 		m.construcao.pedir_criar("obra", e.k)
 		return
-	m.rede("fabricar", {"k": e.k})
+	rede("fabricar", {"k": e.k})
 
 # ---------- mochila e loja ----------
 func linha_ouro(tam := 16) -> Control:
@@ -3867,7 +4018,7 @@ func linha_ouro(tam := 16) -> Control:
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	l.add_child(ic)
-	l.add_child(rotulo("%d de ouro" % int(m.P.prog.ouro), tam, Color("ffd36a")))
+	l.add_child(rotulo("%d de ouro" % int(P_menu.prog.ouro), tam, Color("ffd36a")))
 	return l
 
 # quadradinho de item: moldura e ícone na cor da raridade, quantidade no canto
@@ -3896,7 +4047,7 @@ static func barra_agua(b: Control, frac: float) -> void:
 	fundo.add_child(agua)
 
 func celula(it, escolhido: bool, fn: Callable, tam := 56, marcado := false) -> Button:
-	var P = m.P
+	var P = P_menu
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(tam, tam)
@@ -3982,7 +4133,7 @@ const CEL_MOCHILA := 58
 # André 2026-11-12: a ficha por cima do boneco cobria o personagem; preferiu embaixo da grade (false). true = painel da esquerda
 const PAINEL_AO_LADO := false
 func montar_mochila() -> void:
-	var P = m.P
+	var P = P_menu
 	var cheios: int = P.prog.mochila.filter(func(x): return x != null).size()
 	# fileira das abas: Organizar, Filtro e (perto de quem compra) Vender vários
 	# André 2026-11-07: botão Organizar (junta as pilhas e põe em ordem de tipo, raridade e nome; quem decide é o servidor)
@@ -4100,7 +4251,7 @@ func montar_mochila() -> void:
 
 # célula da mochila: tocar escolhe (ou marca, no Vender vários); segurar perto de quem compra liga o Vender vários
 func celula_mochila(i: int, compra: bool) -> Button:
-	var P = m.P
+	var P = P_menu
 	var marcada: bool = marcados.has(i) or marc_conserto.has("i:%d" % i)
 	var b := celula(P.prog.mochila[i], i == sel_mochila or marcada, func():
 		if Time.get_ticks_msec() - _segurou_ms < 600: # o soltar do segurar não desmarca
@@ -4118,7 +4269,7 @@ func celula_mochila(i: int, compra: bool) -> Button:
 # André 2026-11-12: setinha no canto da peça da bag: verde ▲ = melhor que a vestida, vermelha ▼ = pior,
 # amarela = melhor/pior só em parte, nada = igual. Lugar vazio no corpo conta como melhor.
 func seta_comparar(b: Control, it) -> void:
-	var P = m.P
+	var P = P_menu
 	if not P.eh_equip(it):
 		return
 	var atual = P.prog.equip.get(P.dados.itens[it.k].lugar)
@@ -4149,7 +4300,9 @@ func seta_comparar(b: Control, it) -> void:
 	b.add_child(pc)
 
 func segurar_item(i: int) -> void:
-	var it = m.P.prog.mochila[i]
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
+	var it = P_menu.prog.mochila[i]
 	_segurou_ms = Time.get_ticks_msec()
 	modo_vender(true)
 	if it != null and it.get("cad", false):
@@ -4163,7 +4316,7 @@ func segurar_item(i: int) -> void:
 # prog.filtro = { r: [raridades desmarcadas], k: [recursos desmarcados] }; sem o campo = pega tudo.
 # Online quem decide é o servidor (filtrado() em shared/progresso.js): o desmarcado que cai do monstro fica no chão.
 func filtro_atual() -> Dictionary:
-	var f = m.P.prog.get("filtro")
+	var f = P_menu.prog.get("filtro")
 	var r: Array = []
 	var k: Array = []
 	if f is Dictionary:
@@ -4177,7 +4330,7 @@ func mandar_filtro(r: Array, k: Array) -> void:
 	acao_item({"acao": "filtro", "r": r, "k": k})
 
 func recursos_do_jogo() -> Array:
-	var itens: Dictionary = m.P.dados.itens
+	var itens: Dictionary = P_menu.dados.itens
 	var l: Array = itens.keys().filter(func(k): return itens[k].get("mat", false))
 	l.sort_custom(func(a, b):
 		var sa: bool = str(a).begins_with("semente_")
@@ -4246,7 +4399,7 @@ func marca_filtro(texto: String, cor: Color, marcado: bool, fn: Callable, icone 
 	return b
 
 func montar_filtro() -> void:
-	var P = m.P
+	var P = P_menu
 	var f := filtro_atual()
 	separador("Filtro de coleta")
 	var d := rotulo("O que estiver desmarcado não entra na mochila: fica no chão. Ouro, poções e Tomos sempre entram, e o recurso do veio ou da árvore que você está coletando também.", 12, APAGADO)
@@ -4297,7 +4450,7 @@ func montar_filtro() -> void:
 
 # bônus de conjunto: peças da mesma raridade (ou melhor), como o Set de Bruxa do Quimera
 func montar_conjunto() -> void:
-	var P = m.P
+	var P = P_menu
 	separador("Conjunto")
 	var n: Array = P.pecas_conjunto()
 	var ativo: Dictionary = P.conjunto_ativo()
@@ -4326,7 +4479,7 @@ func montar_conjunto() -> void:
 # bônus de conjunto de uma raridade no cartão da peça: verde quando já tem as peças vestidas (dessa raridade ou
 # melhor), cinza quando ainda falta. Os de vida/dano/área (2, 3, 6) e os de crítico (2, 4, 6)
 func lista_conjunto(r: int, compacto := false) -> Control:
-	var P = m.P
+	var P = P_menu
 	var n: int = P.pecas_conjunto()[r]
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 0)
@@ -4362,7 +4515,7 @@ func trocar_pagina(n: int) -> void:
 
 # página ainda não comprada: cadeado, preço e o botão de comprar (só a próxima da fila)
 func pagina_trancada(n: int, tem: int) -> Control:
-	var P = m.P
+	var P = P_menu
 	var cx := PanelContainer.new()
 	cx.add_theme_stylebox_override("panel", caixa(Color(0.08, 0.07, 0.058, 1), Color(0.3, 0.25, 0.17), 1, 8))
 	var v := VBoxContainer.new()
@@ -4403,20 +4556,20 @@ func tocar_mochila(i: int) -> void:
 	if vendendo:
 		if marcados.has(i):
 			marcados.erase(i)
-		elif m.P.prog.mochila[i] != null and m.P.prog.mochila[i].get("cad", false):
+		elif P_menu.prog.mochila[i] != null and P_menu.prog.mochila[i].get("cad", false):
 			m.hud.aviso("Item com cadeado: não vende. Abra o cadeado para vender")
-		elif m.P.prog.mochila[i] != null:
+		elif P_menu.prog.mochila[i] != null:
 			marcados[i] = true
 		atualizar()
 		return
 	sel_equip = ""
-	sel_mochila = -1 if sel_mochila == i or m.P.prog.mochila[i] == null else i
+	sel_mochila = -1 if sel_mochila == i or P_menu.prog.mochila[i] == null else i
 	atualizar()
 
 # cartão do item escolhido: nome na cor da raridade, o que faz, comparação com a peça do corpo e os botões
 # peça gasta: filete de durabilidade no pé da célula (âmbar; vermelho quando está no fim). Quebrada: véu vermelho
 func _marca_durabilidade(b: Control, it, tam: int) -> void:
-	var P = m.P
+	var P = P_menu
 	var k: float = clamp(float(P.durab(it)) / float(P.morte_dados().durMax), 0.0, 1.0)
 	if k <= 0.0:
 		var veu := ColorRect.new()
@@ -4459,7 +4612,7 @@ func _marca_durabilidade(b: Control, it, tam: int) -> void:
 	b.add_child(nu)
 
 func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
-	var P = m.P
+	var P = P_menu
 	# compacto (André 2026-11-12, segunda versão): a ficha deitada embaixo da grade, sem cobrir o personagem:
 	# ícone, textos no meio e os botões numa grade de 3 colunas à direita. Tudo igual, só arrumado para caber.
 	var fonte := 14 if compacto else 16
@@ -4735,7 +4888,7 @@ func _fechar_mais(botoes: Array) -> void:
 # fora do modo: botão "Vender vários". No modo: Selecionar tudo / Desmarcar, Vender N · ouro e Pronto.
 # O preço é o mesmo do Vender de um em um (cada pilha vende inteira); online o servidor confere tudo (vender_varios).
 func preco_marcados() -> Array: # [itens, ouro, raros (Épico ou melhor)]
-	var P = m.P
+	var P = P_menu
 	var n := 0
 	var ouro := 0
 	var raros := 0
@@ -4753,7 +4906,7 @@ func preco_marcados() -> Array: # [itens, ouro, raros (Épico ou melhor)]
 
 # André 2026-11-12: os botões do modo ficam na linha das páginas (o "Vender vários" de entrar subiu para as abas)
 func barra_venda(l: HBoxContainer) -> void:
-	var P = m.P
+	var P = P_menu
 	var cheios: Array = []
 	for i in P.prog.mochila.size():
 		if P.prog.mochila[i] != null and not P.prog.mochila[i].get("cad", false): # com cadeado fica de fora do Selecionar tudo
@@ -4779,6 +4932,8 @@ func barra_venda(l: HBoxContainer) -> void:
 	l.add_child(pr)
 
 func modo_vender(ligar: bool) -> void:
+	if ligar and _so_olhando(): # menu do recruta (só olhando)
+		return
 	vendendo = ligar
 	marcados = {}
 	sel_mochila = -1
@@ -4788,6 +4943,8 @@ func modo_vender(ligar: bool) -> void:
 	atualizar()
 
 func perguntar_vender_varios() -> void:
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
 	var r: Array = preco_marcados()
 	if r[0] == 0:
 		return
@@ -4804,9 +4961,13 @@ func perguntar_vender_varios() -> void:
 # numa peça gasta da mochila) marca; embaixo ficam Consertar marcadas · ouro, Consertar tudo · ouro e Pronto. Cada peça
 # volta inteira ou não é consertada (nunca pela metade). Online o servidor confere e cobra (shared/progresso.js).
 func abrir_conserto() -> void:
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
 	modo_consertar(true)
 
 func modo_consertar(ligar: bool) -> void:
+	if ligar and _so_olhando(): # menu do recruta (só olhando)
+		return
 	consertando = ligar
 	marc_conserto = {}
 	vendendo = false
@@ -4822,7 +4983,7 @@ func _chave_conserto(onde: Dictionary) -> String:
 	return ("l:%s" % onde.lugar) if onde.has("lugar") else ("i:%d" % int(onde.i))
 
 func marcar_conserto(onde: Dictionary) -> void:
-	var P = m.P
+	var P = P_menu
 	var k := _chave_conserto(onde)
 	if marc_conserto.has(k):
 		marc_conserto.erase(k)
@@ -4835,7 +4996,7 @@ func marcar_conserto(onde: Dictionary) -> void:
 	atualizar()
 
 func barra_conserto(l: HBoxContainer) -> void:
-	var P = m.P
+	var P = P_menu
 	for k in marc_conserto.keys(): # consertou, vendeu ou mudou de lugar: sai da marcação
 		if P.custo_conserto(P.peca_em(marc_conserto[k])) <= 0:
 			marc_conserto.erase(k)
@@ -4860,6 +5021,8 @@ func barra_conserto(l: HBoxContainer) -> void:
 
 # [] = Consertar tudo (corpo e mochila); senão só as marcadas
 func consertar_lista(lista: Array) -> void:
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
 	var msg := {"acao": "consertar"}
 	if not lista.is_empty():
 		msg["lista"] = lista.duplicate(true)
@@ -4869,7 +5032,7 @@ func consertar_lista(lista: Array) -> void:
 	if m.on(): # o progresso novo chega um instante depois: a barra mostra o preço que sobrou
 		await get_tree().create_timer(0.6).timeout
 	if consertando and aberto():
-		if m.P.pecas_gastas().is_empty():
+		if P_menu.pecas_gastas().is_empty():
 			modo_consertar(false)
 		else:
 			atualizar()
@@ -4879,22 +5042,24 @@ func consertar_lista(lista: Array) -> void:
 const RAR_F := ["Comum", "Rara", "Épica", "Lendária", "Mítica"] # "peça Rara"
 const RAR_FP := ["Comuns", "Raras", "Épicas", "Lendárias", "Míticas"]
 func tipo_catalisador(k: String) -> String:
-	return "arma" if str(m.P.dados.itens[k].lugar) in ["espada", "cajado"] else "armadura"
+	return "arma" if str(P_menu.dados.itens[k].lugar) in ["espada", "cajado"] else "armadura"
 
 # o que destruir a peça pode dar, em texto ("1 Selo Raro (às vezes 0, 2 ou 3) · 25% de 1 Selo Épico")
 func texto_destruir(it) -> String:
-	var C: Dictionary = m.P.dados.catalisador
+	var C: Dictionary = P_menu.dados.catalisador
 	var r := int(it.r)
 	if r < 1:
-		return "1 %s (às vezes nada, 2 ou 3)" % m.P.dados.itens[C.comum].nome
+		return "1 %s (às vezes nada, 2 ou 3)" % P_menu.dados.itens[C.comum].nome
 	var lista: Array = C[tipo_catalisador(it.k)]
-	var t := "1 %s (às vezes nada, 2 ou 3)" % m.P.dados.itens[lista[maxi(1, r - 1) - 1]].nome
+	var t := "1 %s (às vezes nada, 2 ou 3)" % P_menu.dados.itens[lista[maxi(1, r - 1) - 1]].nome
 	if r > 1 and float(C.extra[r]) > 0:
-		t += "\n%d%% de chance de mais 1 %s" % [roundi(float(C.extra[r]) * 100), m.P.dados.itens[lista[r - 1]].nome]
+		t += "\n%d%% de chance de mais 1 %s" % [roundi(float(C.extra[r]) * 100), P_menu.dados.itens[lista[r - 1]].nome]
 	return t
 
 func perguntar_destruir(i: int) -> void:
-	var P = m.P
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
+	var P = P_menu
 	var it = P.prog.mochila[i]
 	if it == null or not P.eh_equip(it):
 		return
@@ -4917,7 +5082,9 @@ func perguntar_destruir(i: int) -> void:
 	confirmar("Destruir peça", txt, "Só esta", func(): acao_item({"acao": "destruir", "i": i}), true, todas_txt, todas)
 
 func perguntar_destruir_todas(r: int) -> void:
-	var P = m.P
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
+	var P = P_menu
 	var n := 0
 	var reforcadas := 0
 	for o in P.prog.mochila:
@@ -4940,7 +5107,9 @@ func perguntar_destruir_todas(r: int) -> void:
 	confirmar("Destruir todas", txt, "Destruir %d" % n, func(): acao_item({"acao": "destruir", "raridade": r}), true)
 
 func perguntar_evoluir(i: int) -> void:
-	var P = m.P
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
+	var P = P_menu
 	var it = P.prog.mochila[i]
 	if it == null or not P.eh_equip(it):
 		return
@@ -5000,7 +5169,7 @@ func aviso_evoluir_longe(prof: String) -> String:
 
 # conteúdo desenhado da janelinha de evoluir
 func corpo_evoluir(it, r: int, usa: Dictionary, falha: float, sorte: float, onde: String) -> Control:
-	var P = m.P
+	var P = P_menu
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
 	# 1) peça de agora -> peça nova
@@ -5068,7 +5237,7 @@ func corpo_evoluir(it, r: int, usa: Dictionary, falha: float, sorte: float, onde
 
 # quadrado do item (moldura da raridade, +N no canto) com o nome embaixo na cor da raridade
 func peca_com_nome(it) -> Control:
-	var P = m.P
+	var P = P_menu
 	var bx := VBoxContainer.new()
 	bx.add_theme_constant_override("separation", 4)
 	bx.custom_minimum_size = Vector2(120, 0)
@@ -5097,7 +5266,7 @@ func faixa_titulo(t: String, conteudo: Control) -> Control:
 
 # "● Falha 14,6%" com a explicação curtinha embaixo
 func selo_chance(nome: String, v: float, cor: Color, explica: String) -> Control:
-	var P = m.P
+	var P = P_menu
 	var bx := VBoxContainer.new()
 	bx.add_theme_constant_override("separation", 0)
 	bx.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -5123,7 +5292,9 @@ func faixa_aviso(t: String, cor: Color) -> Control:
 	return pc
 
 func perguntar_apagar(i: int) -> void:
-	var P = m.P
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
+	var P = P_menu
 	var it = P.prog.mochila[i]
 	if it == null:
 		return
@@ -5139,6 +5310,8 @@ func fechar_confirma() -> void:
 		_confirma = null
 
 func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo := false, extra := "", fn_extra := Callable(), conteudo: Control = null) -> void:
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
 	fechar_confirma()
 	_confirma = Control.new()
 	_confirma.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -5196,7 +5369,7 @@ func confirmar(titulo: String, texto: String, sim: String, fn: Callable, perigo 
 # na janelinha de reforçar e nos avisos. Aqui só um aviso curto quando a peça reforçada não pode ser usada (Quimera).
 # explica o botão "Até o máximo" (antes "Até cancelar"): tenta de novo sozinho, cada tentativa cobra o ouro
 func texto_ate_maximo(it) -> String:
-	return Idioma.t("Tenta de novo sozinho até +%d, até o ouro acabar ou até você tocar em Cancelar") % int(m.P.reforco_max(it))
+	return Idioma.t("Tenta de novo sozinho até +%d, até o ouro acabar ou até você tocar em Cancelar") % int(P_menu.reforco_max(it))
 
 func dica_ate_maximo(it) -> Control:
 	var d := rotulo(texto_ate_maximo(it), 11, APAGADO)
@@ -5205,7 +5378,7 @@ func dica_ate_maximo(it) -> Control:
 	return d
 
 func linha_reforco(it) -> Control:
-	var P = m.P
+	var P = P_menu
 	var l := rotulo("", 12, PIOR)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.visible = false
@@ -5217,6 +5390,9 @@ func linha_reforco(it) -> Control:
 func botao_acao(t: String, msg: Dictionary, ativo := true) -> Button:
 	var b := botao(t, func(): acao_item(msg), 14, ativo)
 	b.custom_minimum_size = Vector2(120, 36)
+	if vendo_recruta(): # menu do recruta: aparece, mas travado (só olhando)
+		b.disabled = true
+		ao_tocar_travado(b, func(): _so_olhando())
 	return b
 
 # ---------- janela da peça do corpo (André 2026-11-03) ----------
@@ -5238,7 +5414,7 @@ func linha_mostrar_capacete(tam := 13) -> Control:
 	l.mouse_filter = Control.MOUSE_FILTER_STOP
 	var q := Quadradinho.new()
 	q.lado = tam + 6
-	q.marcado = not m.P.prog.get("semCapacete", false)
+	q.marcado = not P_menu.prog.get("semCapacete", false)
 	q.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	l.add_child(q)
 	quadradinhos.append(q)
@@ -5248,7 +5424,7 @@ func linha_mostrar_capacete(tam := 13) -> Control:
 	l.add_child(t)
 	l.gui_input.connect(func(ev):
 		if toque(ev):
-			acao_item({"acao": "capacete", "mostrar": m.P.prog.get("semCapacete", false)}))
+			acao_item({"acao": "capacete", "mostrar": P_menu.prog.get("semCapacete", false)}))
 	return l
 
 func janela_aberta() -> bool:
@@ -5267,10 +5443,10 @@ func fechar_janela(refazer := true) -> void:
 # números da peça: {"defesa": 4.0, ...}; null = nada
 func st_item(it) -> Dictionary:
 	var r := {}
-	if m.P.eh_equip(it):
-		var st: Dictionary = m.P.dados.itens[it.k].st
+	if P_menu.eh_equip(it):
+		var st: Dictionary = P_menu.dados.itens[it.k].st
 		for c in st:
-			r[c] = float(st[c][int(it.r)]) * m.P.reforco_k(it, c) # com o reforço (+N)
+			r[c] = float(st[c][int(it.r)]) * P_menu.reforco_k(it, c) # com o reforço (+N)
 	return r
 
 # diferença da peça nova para a vestida: {"defesa": +2, "mana": -3}
@@ -5316,7 +5492,7 @@ func texto_diferenca(d: Dictionary) -> RichTextLabel:
 	chaves.sort_custom(func(a, b): return (d[a] > 0) and not (d[b] > 0))
 	for c in chaves:
 		var v: float = d[c]
-		var txt: String = m.P.texto_st(c, abs(v)).substr(1) # tira o "+" (o sinal vem abaixo)
+		var txt: String = P_menu.texto_st(c, abs(v)).substr(1) # tira o "+" (o sinal vem abaixo)
 		p.append("[color=#%s]%s %s%s[/color]" % [(MELHOR if v > 0 else PIOR).to_html(false), "▲" if v > 0 else "▼", "+" if v > 0 else "−", txt])
 	t.text = "  ".join(p) if not p.is_empty() else "[color=#%s]%s[/color]" % [APAGADO.to_html(false), tr("Mesmos números")]
 	return t
@@ -5330,7 +5506,7 @@ func montar_janela() -> void:
 		janela_rolagem = null
 	if janela_lugar == "" or not aberto():
 		return
-	var P = m.P
+	var P = P_menu
 	var l := janela_lugar
 	var atual = P.prog.equip.get(l)
 	janela = Control.new()
@@ -5478,7 +5654,7 @@ func _posicionar_janela(cx: Control) -> void:
 
 # uma peça da mochila numa linha: ícone, nome + Melhor/Pior, o que ganha e perde, e Trocar (ou Vestir)
 func linha_opcao(o: Dictionary, tem_atual: bool) -> Control:
-	var P = m.P
+	var P = P_menu
 	var l := HBoxContainer.new()
 	l.add_theme_constant_override("separation", 10)
 	var c := celula(o.it, false, func(): pass, 48)
@@ -5509,7 +5685,7 @@ func linha_opcao(o: Dictionary, tem_atual: bool) -> Control:
 	return l
 
 func montar_loja() -> void:
-	var P = m.P
+	var P = P_menu
 	var topo := HBoxContainer.new()
 	topo.add_child(linha_ouro())
 	conteudo.add_child(topo)
@@ -5556,7 +5732,7 @@ var _qtd_vezes := 0
 
 # quantos desse item ainda cabem na mochila (igual ao servidor: pilhas iguais com espaço + lugares vazios)
 func cabe_na_mochila(o: Dictionary) -> int:
-	var P = m.P
+	var P = P_menu
 	var equip: bool = P.dados.itens[str(o.k)].has("lugar")
 	var pilha: int = 1 if equip else int(P.dados.itens[str(o.k)].get("pilha", 1))
 	var n := 0
@@ -5568,7 +5744,9 @@ func cabe_na_mochila(o: Dictionary) -> int:
 	return n
 
 func escolher_quantidade(i: int) -> void:
-	var P = m.P
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
+	var P = P_menu
 	var o: Dictionary = P.dados.loja[i]
 	var equip: bool = P.dados.itens[str(o.k)].has("lugar")
 	var it := {"k": str(o.k), "r": int(o.r)} if equip else {"k": str(o.k), "n": 1}
@@ -5580,7 +5758,7 @@ func escolher_quantidade(i: int) -> void:
 		return
 	_qtd = 1
 	# missão pede comprar N (André 2026-11-16: "não fala a quantidade, então eu compro um"): já abre com o que falta
-	var hi_q: Dictionary = m.P.hist_info
+	var hi_q: Dictionary = P_menu.hist_info
 	if not equip and str(hi_q.get("ev", "")) == "comprar" and str(hi_q.get("k", "")) == str(o.k):
 		_qtd = clampi(int(hi_q.get("qtd", 1)), 1, _qtd_max)
 	fechar_confirma()
@@ -5684,10 +5862,12 @@ func mudar_qtd(d: int) -> void:
 var _qtd_campo: LineEdit
 
 func pedir_qtd(it: Dictionary, maximo: int, verbo: String, feito: Callable) -> void:
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
 	if maximo <= 1:
 		feito.call(maxi(1, maximo))
 		return
-	var P = m.P
+	var P = P_menu
 	_qtd_max = maximo
 	_qtd = 1
 	fechar_confirma()
@@ -5814,7 +5994,7 @@ func botao_repete(t: String, sinal: int) -> Button:
 
 # o servidor confirmou a compra (evento 'compra' em online.gd): som de moedas e o "+n Item" subindo, com o ouro gasto
 func comprou(ev: Dictionary) -> void:
-	var P = m.P
+	var P = P_menu
 	if m.sons:
 		m.sons.tocar("moedas", -2.0, 0.05)
 	var it := {"k": str(ev.k), "r": int(ev.r)} if int(ev.get("r", -1)) >= 0 else {"k": str(ev.k), "n": int(ev.n)}
@@ -5854,7 +6034,7 @@ func comprou(ev: Dictionary) -> void:
 
 # aprendeu com o Tomo (André 2026-11-07): faixa pequena e dourada, "Parabéns! Você liberou X Nv N", some sozinha
 func aprendeu(id: String, nv: int) -> void:
-	var P = m.P
+	var P = P_menu
 	if not P.habs.has(id):
 		return
 	if m.sons:
@@ -5895,7 +6075,9 @@ func aprendeu(id: String, nv: int) -> void:
 
 # online o servidor confere e devolve a mochila nova; sem internet muda só neste celular (a loja só funciona online)
 func acao_item(msg: Dictionary) -> void:
-	var P = m.P
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
+	var P = P_menu
 	var i: int = msg.get("i", -1)
 	if msg.acao == "usar" and i >= 0 and P.prog.mochila[i] != null and P.prog.mochila[i].k != "tomo":
 		if not m.usar_pocao(P.prog.mochila[i]): # vida/mana cheia: nem gasta
@@ -5916,7 +6098,7 @@ func acao_item(msg: Dictionary) -> void:
 			P.prog.filtro = {"r": msg.r.duplicate(), "k": msg.k.duplicate()}
 		P.mudou = true
 	if m.on():
-		m.rede("item", msg)
+		rede("item", msg)
 		if msg.acao == "filtro":
 			atualizar()
 		return
@@ -5979,7 +6161,7 @@ func acao_item(msg: Dictionary) -> void:
 
 # a barra (6 botões): toque em um e depois em outro para trocar de lugar; Padrão volta ao começo
 func linha_barra(barra: String) -> Control:
-	var P = m.P
+	var P = P_menu
 	var bt := HBoxContainer.new()
 	bt.add_theme_constant_override("separation", 8)
 	var lista: Array = P.prog.barras[barra]
@@ -6026,12 +6208,14 @@ func linha_barra(barra: String) -> Control:
 	return bt
 
 func tocar_barra(barra: String, i: int) -> void:
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
 	if _sel == null or _sel[0] != barra:
 		_sel = [barra, i]
 	elif _sel[1] == i:
 		_sel = null
 	else:
-		var b: Array = m.P.prog.barras[barra]
+		var b: Array = P_menu.prog.barras[barra]
 		var t = b[i]
 		b[i] = b[_sel[1]]
 		b[_sel[1]] = t
@@ -6040,21 +6224,27 @@ func tocar_barra(barra: String, i: int) -> void:
 	atualizar()
 
 func barra_padrao(barra: String) -> void:
-	m.P.prog.barras[barra] = m.P.dados.botoesPadrao[barra].duplicate()
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
+	P_menu.prog.barras[barra] = P_menu.dados.botoesPadrao[barra].duplicate()
 	_sel = null
 	mandar_barra(barra)
 	atualizar()
 
 func por_no_botao(id: String, barra: String, i: int) -> void:
-	var b: Array = m.P.prog.barras[barra]
-	m.P.por_no_botao("" if b[i] == id else id, barra, i)
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
+	var b: Array = P_menu.prog.barras[barra]
+	P_menu.por_no_botao("" if b[i] == id else id, barra, i)
 	_sel = null
 	mandar_barra(barra)
 	atualizar()
 
 func mandar_barra(barra: String) -> void:
-	m.P.mudou = true
-	m.rede("barra", {"barra": barra, "lista": m.P.prog.barras[barra]})
+	if _so_olhando(): # menu do recruta (só olhando)
+		return
+	P_menu.mudou = true
+	rede("barra", {"barra": barra, "lista": P_menu.prog.barras[barra]})
 
 # X de fechar desenhado (sem depender de símbolo na fonte)
 class Quadradinho extends Control:
