@@ -13,6 +13,9 @@ for (const x of s.amigosIa) x.amigaEntrar('andre', false);
 const ctx = s.amigosIa.find((x) => x.AMIGA.id === 'maya'), b = ctx.amiga; // rotina.campo 'alto'
 const R = ctx.rotinaAmiga(), dia = () => { b.prog.dia = { h: (R.saiDe + 1) % 24, t: Date.now() }; }; dia(); ctx.grindAcabouAmiga = () => false; // sempre de dia, sem limite de grind
 b.prog.nivel = 58; s.aplicarStatus(b); b.vida = b.vidaMax;
+// o teste é do caminho de barco, não do combate: se cair, levanta no mesmo lugar (antes o renascer agendado o mandava
+// de volta para a vila no meio da viagem e o teste falhava por sorte, ~1 em 10)
+const morrer = s.morrer.bind(s); s.morrer = (c, de) => { if (c === b) { b.vida = b.vidaMax; return; } return morrer(c, de); };
 for (let i = 0; i < 5; i++) guardar(b.prog.mochila, { k: 'pocao', n: 5 });
 let c = null; for (let i = 0; i < 20 && !(c && terraId(c.x, c.z) === 2); i++) c = ctx.campoAmiga(b);
 ok(c && terraId(c.x, c.z) === 2, `o campo do nível dele é na Ilha do Meio: ${c?.nome}`);
