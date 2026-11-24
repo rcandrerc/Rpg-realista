@@ -4640,5 +4640,14 @@
 "Esse recruta não está no seu clã": "That recruit isn't in your clan",
 "{1} ainda não tem ficha salva": "{1} has no saved sheet yet",
 "Ver menu": "View menu",
-"Menu dele": "Their menu"
+"Menu dele": "Their menu",
+"Chamar {1} de volta (Nv {2}) · {3} de ouro": "Call {1} back (Lv {2}) · {3} gold",
+"Dispensado há pouco: até 10 minutos depois de dispensar, dá para chamar de volta.": "Recently dismissed: up to 10 minutes after dismissing, you can call them back.",
+"Tem certeza? Você perderá este recruta para sempre.\n(Até 10 minutos depois, dá para chamar de volta pagando uma taxa.)\nPara só tirar do grupo, use \"Sair do time\".": "Are you sure? You will lose this recruit forever.\n(For up to 10 minutes you can call them back for a fee.)\nTo just remove them from the party, use \"Leave party\".",
+"Dispensar {1}": "Dismiss {1}",
+"{1} saiu do clã. Você tem {2} minutos para chamar de volta ({3} de ouro)": "{1} left the clan. You have {2} minutes to call them back ({3} gold)",
+"Passou o tempo: esse recruta já foi embora": "Time is up: this recruit is gone",
+"O clã está sem vaga: dispense outro ou melhore o clã": "The clan has no free slot: dismiss someone or upgrade the clan",
+"Falta ouro: chamar {1} de volta custa {2}": "Not enough gold: calling {1} back costs {2}",
+"{1} voltou para o clã!": "{1} is back in the clan!"
 }
