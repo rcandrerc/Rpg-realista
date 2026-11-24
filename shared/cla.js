@@ -754,6 +754,12 @@ export const Cla = {
   // voltam ao nível 1, sem recruta nenhum, com o cofre e o Baú do Clã vazios; as bases e os lotes deles somem (o líder bot
   // funda de novo, passoBasesNpc). As missões ficam (o reset delas é outro botão: missaoTeste 'zerar'). Os membros fixos
   // (Kira, Rufo, Lis, Cecília, Lia) e os outros jogadores não mudam.
+  // André 2026-11-24 (2º pedido: "eu e os bots, os líderes, todo mundo é resetado... pro zero mesmo... o nível do clã dos
+  // inimigos... e também dos neutros não tá resetando, é pra resetar tudo"): os membros fixos também voltam a um personagem
+  // novo (seguem no clã, nível 1); o nível salvo do clã bot vale ao religar o servidor (carregarClasNpc não sobe mais para
+  // o número de fixos); as funções dos fixos (E.fx) e a Escolta do Clã em andamento acabam; o save de cada recruta que saiu
+  // ('npc:' + id na tabela mundo) é apagado (npcsApagados; o servidor também limpa os órfãos: limparRecrutasOrfaos).
+  // Os outros jogadores (gente de verdade) continuam sem mudar.
   resetPartida(id) {
     const j = this.jogadores.get(id); if (!j || j.bot || !j.testador || !LIDERES_CLA.reset) return false;
     const novoProg = (p, fica) => { // troca por dentro (o mesmo objeto): quem guarda j.prog continua certo
@@ -763,8 +769,8 @@ export const Cla = {
     };
     const agora = Date.now(), bases = new Set(), nomes = [];
     // você: recrutas fora, clã no 1, personagem novo
-    const c = j.prog.cla;
-    if (c) for (const r of c.m) this.tirarRecruta(r.id, j);
+    const c = j.prog.cla, foram = new Set();
+    if (c) for (const r of c.m) { this.tirarRecruta(r.id, j); foram.add(r.id); }
     this.clasFora?.delete(j.conta);
     novoProg(j.prog, ['hist', 'cla', 'devPag', 'rgDado']);
     if (c) { c.m = []; c.nv = 1; c.cofre = 0; c.sem = agora + CLA.semana; delete c.saiu; this.logCla(c, 'Partida resetada: clã de volta ao nível 1'); }
@@ -772,14 +778,16 @@ export const Cla = {
     // os clãs bot: sem recrutas, nível 1, baú vazio, primeira contratação como num servidor novo
     for (const C of CLAS_NPC) {
       const E = this.clasNpc?.[C.id]; bases.add('n' + C.id); if (!E) continue;
-      for (const m of E.m) this.tirarRecruta(m.id, j);
-      E.m = []; E.nv = 1; delete E.bau; delete E.ordensT; delete E.visto; delete E.foraFeito;
+      for (const m of E.m) { this.tirarRecruta(m.id, j); foram.add(m.id); }
+      E.m = []; E.nv = 1; delete E.bau; delete E.ordensT; delete E.visto; delete E.foraFeito; delete E.fx;
       E.prox = agora + CLAS_NPC_REGRAS.primeiro * 3600e3; E.sem = agora + CLA.semana;
     }
-    // os líderes: personagem novo (a história deles fica), com a roupa do começo
-    for (const lid of LIDERES_CLA.ids()) {
+    // o save de quem saiu some do banco (antes ficava 'npc:' + id para sempre na tabela mundo)
+    for (const rid of foram) { this.npcSalvos?.delete(rid); this.npcsMudados?.delete(rid); (this.npcsApagados ||= new Set()).add(rid); }
+    // os líderes e os membros fixos (Kira, Rufo, Lis, Cecília, Lia): personagem novo (a história deles fica), roupa do começo
+    for (const lid of new Set([...LIDERES_CLA.ids(), ...CLAS_NPC.flatMap((C) => C.membros)])) {
       const ctx = this.amigosIa.find((x) => x.AMIGA.id === lid); if (!ctx) continue;
-      nomes.push(ctx.AMIGA.nome);
+      if (LIDERES_CLA.ids().includes(lid)) nomes.push(ctx.AMIGA.nome);
       const A = ctx.AMIGA, a = ctx.amiga;
       const vestir = (p) => { for (const [l, it] of Object.entries(A.equip || {})) p.equip[l] = { k: it.k, r: A.justa?.raridade ?? 0 }; if (A.mochila?.paginas) liberarPaginas(p, A.mochila.paginas); };
       if (a) { novoProg(a.prog, ['hist']); vestir(a.prog); a.progSujo = true; this.aplicarStatus(a, true); this.evento({ t: 'nivel', id: a.id, nivel: 1 }); ctx.guardarAmiga?.(); continue; }
@@ -794,12 +802,13 @@ export const Cla = {
       this.lotes.delete(lid); this.lotesMudados?.delete(lid); this.lotesSoltos?.add(lid);
       this.evento({ t: 'lote', lote: lid, dono: null });
     }
+    for (const M of [...(this.missoesCla?.values() || [])]) if (bases.has(M.k)) this.fimMissaoCla?.(M, false, 'partida resetada');
     if (this.basesCla) for (const k of bases) { delete this.basesCla[k]; if (this.basesDesenho) delete this.basesDesenho[k]; }
     this.evento({ t: 'meuLote', para: j.id, lote: '' });
     this.refazerSolidosLotes?.(); this.avisarBases?.();
     this.salvarClasNpc();
     j.progSujo = true; this.aplicarStatus(j, true); this.evento({ t: 'nivel', id: j.id, nivel: 1 }); this.avisarProg(j);
-    this.evento({ t: 'aviso', para: id, texto: `Partida resetada: você e ${nomes.join(', ')} no nível 1, clãs no nível 1 sem recrutas` });
+    this.evento({ t: 'aviso', para: id, texto: `Partida resetada: você, ${nomes.join(', ')} e os membros dos clãs no nível 1; todos os clãs (inimigos e neutros) no nível 1 sem recrutas` });
     return true;
   },
   // tira o corpo de um recruta (dispensado ou foi embora)
@@ -843,7 +852,9 @@ export const Cla = {
     for (const C of CLAS_NPC) {
       const e = est?.[C.id], v = claValido({ n: C.n, m: Array.isArray(e?.m) ? e.m : [], sem: e?.sem, cofre: 0 });
       const bau = Array.isArray(e?.bau) ? Array.from({ length: CLA.bauCla }, (_, i) => (e.bau[i] && typeof e.bau[i].k === 'string' && ITENS[e.bau[i].k] ? { k: e.bau[i].k, n: Math.max(1, e.bau[i].n | 0) } : null)) : null;
-      const fixos = C.membros.filter((id) => id !== C.lider).length, nvC = Math.max(1, Math.min(CLA.max, Math.max(e?.nv | 0, fixos + (v?.m.length || 0))));
+      // o nível salvo vale (André 2026-11-24: depois do "Resetar partida" o clã ficava no Nv dos fixos ao religar o servidor);
+      // save sem nível (antigo): conta os fixos e os recrutas, como antes
+      const fixos = C.membros.filter((id) => id !== C.lider).length, nvC = Math.max(1, Math.min(CLA.max, (e?.nv | 0) || fixos + (v?.m.length || 0)));
       this.clasNpc[C.id] = { nv: nvC, m: v?.m.slice(0, vagasClaNpc(C, nvC)) || [], prox: Number.isFinite(+e?.prox) ? +e.prox : Date.now() + CLAS_NPC_REGRAS.primeiro * 3600e3, sem: v?.sem || Date.now() + CLA.semana,
         ...(bau ? { bau } : {}), ...(Number.isFinite(+e?.visto) && +e.visto > 0 ? { visto: +e.visto } : {}) };
     }

@@ -70,6 +70,18 @@ ok(cec.iaForaAmiga(), 'Cecília continua saindo quando a IA acaba');
   ok(CLAS_NPC.every((K) => s.clasNpc[K.id].nv === 1 && s.clasNpc[K.id].m.length === 0), 'clãs bot no nível 1, sem recrutas');
   ok(!s.basesCla.ngeada, 'a base do clã bot sumiu');
   ok(gael.prog.nivel === 1 && gael.prog.ouro <= 20 && gael.prog.hist.p === 9 && gael.prog.equip.corpo?.k === 'peitoral', `Gael: nível 1, ouro do começo, roupa do começo, história fica (${gael.prog.ouro})`);
-  ok(s.amigosIa.find((x) => x.AMIGA.id === 'kira')?.amiga?.prog.nivel > 1, 'Kira (membro fixo) não muda');
+  // André 2026-11-24 (2º pedido: "todo mundo é resetado... pro zero mesmo"): os membros fixos também voltam ao nível 1
+  const kiraR = s.amigosIa.find((x) => x.AMIGA.id === 'kira');
+  ok(!kiraR?.amiga || kiraR.amiga.prog.nivel === 1, `Kira (membro fixo) no nível 1 (${kiraR?.amiga?.prog.nivel})`);
+  ok(!s.clasNpc.geada.fx, 'as funções dos membros fixos do clã bot zeram');
+  const apagar = s.npcsParaApagar();
+  ok(apagar.length === 4 && apagar.every((rid) => !s.npcSalvos?.has(rid)), `o save dos 4 recrutas que saíram vai ser apagado do banco (${apagar.length})`);
+  ok(s.recrutasVivos().size === 0, 'nenhum recruta vivo depois do reset');
+  // religar o servidor: o nível salvo vale (antes a Geada voltava no Nv 3 e a Chama no Nv 2, pelos membros fixos)
+  let salvo = null; s.aoClasNpc = (est) => { salvo = JSON.parse(JSON.stringify(est)); }; s.salvarClasNpc();
+  const s2 = new Simulacao(MAPA_CLAREIRA); s2.carregarClasNpc(salvo);
+  ok(CLAS_NPC.every((K) => s2.clasNpc[K.id].nv === 1), `clãs bot (inimigos e neutros) no nível 1 ao religar (${CLAS_NPC.map((K) => s2.clasNpc[K.id].nv)})`);
+  const s3 = new Simulacao(MAPA_CLAREIRA); s3.carregarClasNpc({ geada: { m: [] } });
+  ok(s3.clasNpc.geada.nv === 3, 'save antigo sem nível: conta os fixos como antes');
   s.passoBasesNpc?.(); ok(true, 'passo das bases depois do reset sem erro');
 }

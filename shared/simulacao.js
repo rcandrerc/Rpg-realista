@@ -3215,6 +3215,17 @@ export class Simulacao {
     this.npcsMudados?.clear();
     return l;
   }
+  // saves de recrutas que saíram de vez (Resetar partida): o servidor apaga 'npc:' + id da tabela mundo
+  npcsParaApagar() { const l = [...(this.npcsApagados || [])]; this.npcsApagados?.clear(); return l; }
+  // os recrutas que ainda existem neste mundo (clãs dos jogadores online e dos bots, corpos no mundo): o save deles fica
+  recrutasVivos() {
+    const v = new Set();
+    for (const j of this.jogadores.values()) for (const m of j.prog?.cla?.m || []) v.add(m.id);
+    for (const c of this.clasFora?.values() || []) for (const m of c.m || []) v.add(m.id);
+    for (const E of Object.values(this.clasNpc || {})) for (const m of E.m || []) v.add(m.id);
+    for (const x of this.amigosIa) if (x.AMIGA.recruta) v.add(x.AMIGA.id);
+    return v;
+  }
   carregarNpc(id, dados) { if (dados && typeof dados === 'object') (this.npcSalvos ||= new Map()).set(id, dados); }
   lotesParaSalvar() {
     const l = [...this.lotesMudados].filter((id) => this.lotes.has(id)).map((id) => {
