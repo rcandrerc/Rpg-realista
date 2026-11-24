@@ -940,6 +940,7 @@ func _girar(ev: InputEvent) -> void:
 func montar_direita() -> Control:
 	var col := VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.clip_contents = true # nada passa da borda: a mochila nunca fica cortada
 	col.add_theme_constant_override("separation", 8)
 	var abas := HBoxContainer.new()
 	abas.add_theme_constant_override("separation", 6)
@@ -1184,7 +1185,9 @@ func atualizar() -> void:
 	for k in botoes_aba:
 		_estilo_se_mudou(botoes_aba[k], k == aba)
 		botoes_aba[k].visible = k in grupo
-		botoes_aba[k].custom_minimum_size.x = 104 if grupo == ABAS_BOLSA or vr else (170 if k == "cla_missoes" else 126)
+		botoes_aba[k].custom_minimum_size.x = 0 if vr else (104 if grupo == ABAS_BOLSA else (170 if k == "cla_missoes" else 126))
+		# no menu do recruta são 7 abas + Sair: fonte menor e sem largura mínima, senão a coluna passa da tela e entorta a mochila
+		botoes_aba[k].add_theme_font_size_override("font_size", legivel(13 if vr else 16))
 	botoes_aba.loja.visible = aba in ABAS_BOLSA and m.perto_da_loja() and not vr
 	_bolinha_diarias()
 	linha_criar.visible = false # a fileira de submenus deu lugar às estações e aos grupos sanfona (André 2026-11-09)
