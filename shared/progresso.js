@@ -46,6 +46,13 @@ export const xpNivel = (nv, nh, N) => {
   const f = Math.min(1, Math.max(N.xpMin, 1 - N.xpCai * (-d - 2)));
   return N.xpAlem ? f * N.xpAlem ** Math.max(0, -d - N.xpAlemDe) : f;
 };
+// fração da chance de drop de um bicho de nível nv para um herói de nível nh (DROP_NIVEL em shared/dados.js, André 2026-11-24)
+export const fatorDropNivel = (nv, nh, valioso, D) => {
+  const d = (nh || 1) - (nv || 1);
+  if (d <= D.livre) return 1;
+  if (valioso && d > D.valiosoAte) return 0;
+  return D.chances[Math.min(D.chances.length - 1, Math.ceil((d - D.livre) / D.degrau))];
+};
 // monstro batendo no herói: mais forte acima, mais fraco abaixo
 export const danoMonstroNivel = (nv, nh, N) => {
   const d = (nv || 1) - (nh || 1);

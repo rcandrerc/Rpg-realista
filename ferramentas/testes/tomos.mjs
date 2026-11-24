@@ -9,7 +9,7 @@ const viu = new Set(), r = Math.random;
 let n = 0; Math.random = () => (n++ % 7 === 0 ? 0 : r()); // força a sorte do Tomo de vez em quando
 for (let i = 0; i < 400; i++) {
   j.prog.mochila.fill(null);
-  s.soltarDrops({ x: 0, z: 0, tipo: 'lobo', nivel: 5 }, j);
+  s.soltarDrops({ x: 0, z: 0, tipo: 'lobo', nivel: 30 }, j); // bicho no nível do herói (DROP_NIVEL corta Tomo de bicho >10 abaixo)
   for (const it of j.prog.mochila) if (it?.k === 'tomo') viu.add(it.nv);
 }
 Math.random = r;

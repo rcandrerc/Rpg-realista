@@ -1497,6 +1497,11 @@ export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate:
 // (com 5 de folga e 0,1 por nível: 10 níveis abaixo = metade, 15 ou mais = nada). Ninguém muda de nível, só o XP.
 export const TIME_XP = { nerfLivre: 5, nerfPorNivel: 0.1 };
 export const fatorXpTime = (meu, maior, T = TIME_XP) => Math.max(0, Math.min(1, 1 - T.nerfPorNivel * ((maior | 0) - (meu | 0) - T.nerfLivre)));
+// André 2026-11-24 (opção C): drop cai quando o herói está muito acima do bicho (anti-farm de bicho Nv 1).
+// d = nível do herói - nível do bicho. Até livre níveis: chance cheia; depois cai a cada `degrau` níveis
+// (6-10 acima: 70%, 11-15: 40%, 16+: 25%). Item valioso (valiosos + peça + Tomo) não cai mais com d > valiosoAte.
+// Ouro não muda (já cresce com o nível do bicho). Boss de mundo fica de fora (dropBoss).
+export const DROP_NIVEL = { livre: 5, degrau: 5, chances: [1, 0.7, 0.4, 0.25], valiosoAte: 10, valiosos: ['fragmento', 'cristal'] };
 // Drops: cada herói que ganhou XP com o monstro tira a sua sorte (vai direto para a mochila dele).
 // ouro [mín, máx]; pocao/mana/equip/tomo = chance; raridade = chance de cada raridade da peça (Comum..Mítico)
 // mat: materiais para o alfaiate { item: [chance, quantos] }
@@ -2311,8 +2316,13 @@ export const TOTENS = { toque: 8, usar: 4, canal: 5, taxaNivel: 10, taxaMin: 50,
 export const taxaTotem = (t) => Math.max(TOTENS.taxaMin, TOTENS.taxaNivel * (t?.nivel || 1));
 // o totem a até r m de (x, z), ou null
 export const totemPerto = (x, z, r = TOTENS.usar) => TOTENS.lista.find((t) => Math.hypot(t.x - x, t.z - z) < r) || null;
-// dentro da área segura de algum totem?
-export const naAreaSegura = (x, z) => TOTENS.lista.some((t) => Math.abs(t.x - x) < TOTENS.seguro && Math.abs(t.z - z) < TOTENS.seguro && Math.hypot(t.x - x, t.z - z) < TOTENS.seguro);
+// Base do clã segura (André 2026-11-24: "a área dentro da nossa base deve ser safe igual os totens, somente a área da
+// base mesmo, sem raio de segurança"): os retângulos de cada base (o centro no nível de agora e os lotes abertos, sem
+// folga em volta), refeitos por Base.refazerBases (shared/base.js). Valem as mesmas regras do totem (abaixo).
+export const AREAS_SEGURAS_BASE = [];
+export const naBaseSegura = (x, z) => AREAS_SEGURAS_BASE.some((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1);
+// dentro da área segura de algum totem (ou de uma base de clã)?
+export const naAreaSegura = (x, z) => TOTENS.lista.some((t) => Math.abs(t.x - x) < TOTENS.seguro && Math.abs(t.z - z) < TOTENS.seguro && Math.hypot(t.x - x, t.z - z) < TOTENS.seguro) || naBaseSegura(x, z);
 // ---------- Mini vilas do mundo grande (história v2, Entrega 3; André 2026-11-11) ----------
 // Esboço aprovado (com um totem em cada vila): /mnt/project-files/historia/mini-vilas-v2.jpg. Cada vila tem a praça com
 // o totem no meio, casas do Medieval Village MegaKit (godot-prototipo/vilas3d/vilas.glb, feito por
@@ -3535,7 +3545,13 @@ export const CLAS_NPC_ORDENS = { ligado: true, cada: 900, horasDia: 2, abaixo: 5
   exigir: { ligado: true, niveis: 2, itens: ['lenha', 'pedra', 'minerio_ferro', 'barra_ferro', 'barra_aco', 'minerio_cobre', 'couro', 'cristal'] } }; // peixe é comida: fica com eles
 // limite (André 2026-11-22: "todos os clãs iguais"): CLA.max membros além do líder, contando os fixos (Kira, Rufo e Lis)
 // André 2026-11-22 (níveis): as vagas são o nível do clã (E.nv), contando os fixos
-export const vagasClaNpc = (C, nv = CLA.max) => Math.max(0, Math.min(CLA.max, nv) - C.membros.filter((id) => id !== C.lider).length);
+// André 2026-11-24 ("não quero um clã nível 1 com 3 membros fixos... quando eles estão nível 1, eles não aparecem; quando for
+// pro nível 2 e 3..."; depois: "os bots seguem a mesma lógica do jogador comum... quando ele recrutar, ele pode escolher qual
+// recruta ele quer. E é isso"): depois do "Resetar partida" os fixos ficam fora do clã (E.fora), sem corpo no mundo, e o
+// líder bot monta o clã só recrutando, como um jogador (3 candidatos, escolhe um: passoClasNpc).
+// fixosNpc: os fixos que estão no clã agora (sem E: todos, como antes)
+export const fixosNpc = (C, E) => C.membros.filter((id) => id !== C.lider && !E?.fora?.includes(id));
+export const vagasClaNpc = (C, nv = CLA.max, E = null) => Math.max(0, Math.min(CLA.max, nv) - fixosNpc(C, E).length);
 // a alma que um clã da raça r precisa para subir de nível (a da outra raça)
 export const almaDe = (raca) => (raca === 'geada' ? 'alma_chama' : 'alma_geada');
 export const CLAS_NPC = [

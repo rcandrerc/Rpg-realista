@@ -293,6 +293,16 @@ export class Contas {
     return l;
   }
   lerMundo(chave) { try { const r = this.db.prepare('SELECT valor FROM mundo WHERE chave = ?').get(chave); return r ? JSON.parse(r.valor) : null; } catch { return null; } }
+  apagarMundo(chave) { this.db.prepare('DELETE FROM mundo WHERE chave = ?').run(chave); }
+  // saves de recrutas sem clã (André 2026-11-24, "Resetar partida"): 'npc:rc...' que nenhum clã guarda mais. Fica o de quem
+  // está em algum clã gravado nas contas (jogadores offline) ou em vivos (o que o mundo tem agora). Devolve quantos apagou.
+  limparRecrutasOrfaos(vivos = new Set()) {
+    const fica = new Set(vivos);
+    for (const c of this.q.todasContas.all()) { try { for (const m of JSON.parse(c.progresso || 'null')?.cla?.m || []) if (m?.id) fica.add(String(m.id)); } catch { /* progresso estragado: não conta */ } }
+    let n = 0;
+    for (const { chave } of this.db.prepare("SELECT chave FROM mundo WHERE chave LIKE 'npc:rc%'").all()) if (!fica.has(chave.slice(4))) { this.apagarMundo(chave); n++; }
+    return n;
+  }
   gravarMundo(chave, valor) { this.db.prepare('INSERT INTO mundo (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor').run(chave, JSON.stringify(valor)); }
   lotes() { return this.q.lotes.all().map(linhaLote); }
   lote(id) { const l = this.q.lote.get(id); return l ? linhaLote(l) : null; }
