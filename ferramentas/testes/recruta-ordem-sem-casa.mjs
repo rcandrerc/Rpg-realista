@@ -25,7 +25,28 @@ m.fn = { k: 'recurso', r: 'lenha' }; s.aplicarFuncao(a, x, m, true);
 const p0 = L.pecas.length;
 for (let i = 0; i < 10 * 600; i++) s.passo(0.1); // 10 min
 ok(L.pecas.length === p0, `com ordem de lenha e sem machado não constrói a casa (${p0} -> ${L.pecas.length} peças)`);
-ok(j.ia.anim !== 'construir' && !j.ia.av?.coleta, 'fica esperando (não sai fazendo outra coisa)');
+ok(j.ia.anim !== 'construir', 'não fica trabalhando na casa');
 m.fn = { k: 'livre' }; s.aplicarFuncao(a, x, m, true);
 for (let i = 0; i < 15 * 600; i++) s.passo(0.1);
 ok(L.pecas.length > p0, `no modo Livre volta a construir a casa (${p0} -> ${L.pecas.length} peças)`);
+// sem machado (André 2026-11-24: "se tiver no baú do clã ele pega, se não tiver ele pega as pedras e madeira no chão")
+{
+  const K = s.claDoRecruta(x), B = s.bauDoCla(K);
+  const semFer = () => { j.prog.mochila = j.prog.mochila.map((o) => (o && (o.k === fer || o.k === 'lenha' || o.k === 'pedra') ? null : o)); };
+  // a) no Baú do Clã
+  semFer(); m.fn = { k: 'livre' }; s.aplicarFuncao(a, x, m, true);
+  if (B) { const i = B.itens.findIndex((o) => !o); B.itens[i] = { k: fer, n: 1 }; }
+  m.fn = { k: 'recurso', r: 'lenha' }; s.aplicarFuncao(a, x, m, true);
+  ok(j.ia.fazFer?.k === fer, 'sem machado: vai atrás da ferramenta');
+  for (let i = 0; i < 3 * 600 && !j.prog.mochila.some((o) => o?.k === fer); i++) s.passo(0.1);
+  ok(!B || (j.prog.mochila.some((o) => o?.k === fer) && !B.itens.some((o) => o?.k === fer)), `pegou o machado no Baú do Clã (${B ? 'tem baú' : 'sem baú'})`);
+  for (let i = 0; i < 600; i++) s.passo(0.1);
+  ok(j.ia.av?.coleta === 'lenha' || j.ia.encomenda, `com o machado foi cortar lenha (${s.fazendoRecruta(j, a)})`);
+  // b) baú vazio: cata galho e pedra no chão e fabrica
+  semFer(); m.fn = { k: 'livre' }; s.aplicarFuncao(a, x, m, true);
+  m.fn = { k: 'recurso', r: 'lenha' }; s.aplicarFuncao(a, x, m, true);
+  for (let i = 0; i < 8 * 600 && !j.prog.mochila.some((o) => o?.k === fer); i++) s.passo(0.1);
+  ok(j.prog.mochila.some((o) => o?.k === fer), `sem nada: catou no chão e fez o machado (${s.fazendoRecruta(j, a)})`);
+  for (let i = 0; i < 600; i++) s.passo(0.1);
+  ok(j.ia.av?.coleta === 'lenha' || j.ia.encomenda, `e depois foi cortar lenha (${s.fazendoRecruta(j, a)})`);
+}

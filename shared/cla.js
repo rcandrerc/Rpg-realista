@@ -11,7 +11,7 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { LIDERES_CLA, CLA, ENCOMENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
+import { LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
 import { guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas } from './progresso.js';
 import { fundoAgua } from './transporte.js';
@@ -305,7 +305,7 @@ export const Cla = {
     // solicitar... queria q ele trouxesse n q fosse direto pro baú auto"). O resto fica na bolsa dele.
     ia.levar = fn.k === 'recurso' && RECURSOS_CLA[fn.r]?.item ? { r: fn.r, item: RECURSOS_CLA[fn.r].item, nome: RECURSOS_CLA[fn.r].nome } : null;
     if (novo) {
-      ia.funcaoSt = null; ia.faz = null;
+      ia.funcaoSt = null; ia.faz = null; ia.fazFer = null;
       // proteger você, o carrinho ou o mercante: continua no time (André 2026-11-23: "larguei eles no mercante, eles já
       // saíram do meu time"); as outras funções tiram do time para trabalhar sozinhos
       const fica = fn.k === 'seguir' || (fn.k === 'proteger' && ['lider', 'carrinho', 'mercante'].includes(fn.p));
@@ -344,6 +344,7 @@ export const Cla = {
       if (ia.encomenda?.pronta) ia.encomenda = null; // o que juntou já foi para o baú (ou fica na bolsa dele)
       // clã bot: o líder dá a ferramenta simples para quem ele manda farmar (o jogador compra a dele na loja)
       const fer = j.bot && x.AMIGA.atividades?.[R.coleta]?.ferramenta; if (fer && ITENS[fer] && contar(a.prog.mochila, fer) < 1) guardarQueCabe(a.prog.mochila, { k: fer, n: 1 });
+      if (this.precisaFerRecruta(x, a, R)) return; // sem a ferramenta: pega no Baú do Clã ou faz (ferramentaRecruta)
       const verbo = R.coleta === 'pescar' ? 'pesca' : R.coleta === 'lenha' ? 'corta' : 'minera';
       const fala = x.encomendaAmiga(a, j, `${verbo} ${CLA.farmar} ${R.palavras[0]} pra mim`);
       if (!(ia.encomenda && !ia.encomenda.pronta)) avisa(String(fala || 'Não dá agora').replace(/^[^:]*: /, '').slice(0, 60));
@@ -408,6 +409,62 @@ export const Cla = {
     else if (this.temLevar(a)) a.ia.funcaoSt = { txt: 'O Baú do Clã está cheio', ate: this.tempo + 90 };
     const mm = K.m?.find((o) => o.id === x.AMIGA.id); if (n && K.corpo && mm) this.aplicarFuncao(K.corpo, x, mm, false); // já volta a farmar
     else if (n && !K.corpo && !K.bot && mm) this.funcaoSemLider(x, a, mm.fn || { k: 'livre' }, { id: null, conta: K.conta, bot: false, time: null, prog: { cla: { m: K.m } } }); // líder fora: também
+    return true;
+  },
+  // ---------- a ferramenta da ordem (André 2026-11-24: "se tiver no baú do clã ele pega, se não tiver ele pega as pedras
+  // e madeira no chão e fabrica"; nada de comprar pronto). Antes, sem machado, a ordem falhava e ele ia cuidar da casa.
+  // true = falta a ferramenta: marca ia.fazFer e o ferramentaRecruta (no passo dele) cuida até ter
+  precisaFerRecruta(x, a, R) {
+    const k = x.AMIGA.atividades?.[R?.coleta]?.ferramenta;
+    if (!k || !ITENS[k] || !FERRAMENTAS_FAZENDA[k] || contar(a.prog.mochila, k) > 0) { a.ia.fazFer = null; return false; }
+    if (a.ia.fazFer?.k !== k) { a.ia.fazFer = { k }; a.ia.funcaoSt = { txt: `Sem ${ITENS[k].nome.toLowerCase()}: vou pegar no Baú do Clã ou fazer`, ate: this.tempo + 30 }; }
+    a.ia.av = null; return true;
+  },
+  // 1) Baú do Clã: anda até ele e pega; 2) tem o material: fabrica; 3) pedra e galho soltos no chão (mão); 4) não achou:
+  // espera e diz o que falta (a função tenta de novo a cada minuto). true = ocupou o passo
+  ferramentaRecruta(x, a, dt) {
+    const ia = a.ia, F = ia?.fazFer; if (!F || a.morto) return false;
+    const nome = ITENS[F.k].nome.toLowerCase(), st = (txt) => { ia.funcaoSt = { txt, ate: this.tempo + 30 }; };
+    const ir = (P, perto) => { const d = Math.hypot(P.x - a.x, P.z - a.z); if (d <= perto) { x.pararAmiga(a); return false; } if (d > 30) x.irLongeAmiga(a, P.x, P.z, dt); else this.irDireto(a, P.x, P.z, d > 6); return true; };
+    const seguir = () => { // tem a ferramenta: volta para a ordem
+      ia.fazFer = null; ia.fase = 'pensar';
+      const K = this.claDoRecruta(x), mm = K?.m?.find((o) => o.id === x.AMIGA.id); if (!mm) return;
+      if (K.corpo) this.aplicarFuncao(K.corpo, x, mm, false);
+      else if (!K.bot) this.funcaoSemLider(x, a, mm.fn || { k: 'livre' }, { id: null, conta: K.conta, bot: false, time: null, prog: { cla: { m: K.m } } });
+    };
+    if (a.fabrica) return true; // criando (a barrinha)
+    if (contar(a.prog.mochila, F.k) > 0) { seguir(); return true; }
+    const K = this.claDoRecruta(x), B = this.bauDoCla(K);
+    const i = B && !F.semBau ? B.itens.findIndex((o) => o?.k === F.k) : -1;
+    if (i >= 0) {
+      const P = this.lugarBauCla(K);
+      if (P && ir(P, CLA.entrega.perto)) { st(`Indo pegar ${nome} no Baú do Clã`); return true; }
+      const o = B.itens[i];
+      if (guardarQueCabe(a.prog.mochila, { ...o, n: 1 })) { if ((o.n || 1) > 1) o.n--; else B.itens[i] = null; this.mexeuBau(B); st(`Pegou ${nome} no Baú do Clã`); seguir(); return true; }
+      F.semBau = true; // mochila cheia: tenta fazer
+    }
+    const falta = Object.entries(FERRAMENTAS_FAZENDA[F.k].custo).map(([c, n]) => [c, n - contar(a.prog.mochila, c)]).filter(([, n]) => n > 0);
+    if (!falta.length) {
+      x.pararAmiga(a); this.fabricar(a.id, { k: F.k });
+      if (a.fabrica) { st(`Fazendo ${nome}`); return true; }
+      ia.fazFer = null; return false; // não deu para criar (bancada, mochila...): a função tenta de novo daqui a pouco
+    }
+    if ((F.espera || 0) > this.tempo) return x.pararAmiga(a), true;
+    const serve = (no) => { const C = no && COLETA[no.tipo]; return !!C?.mao && falta.some(([c]) => C.da?.[c]) && this.cargas(a, no) > 0 && !F.ruins?.has(no.id); };
+    let solto = this.coletaveis.get(F.no);
+    if (!serve(solto)) { // procura uma vez (não a cada passo): o solto mais perto que dá o que falta
+      solto = null; let md = Infinity;
+      for (const no of this.coletaveis.values()) { if (!serve(no)) continue; const d = Math.hypot(no.x - a.x, no.z - a.z); if (d < md) { md = d; solto = no; } }
+      F.no = solto?.id || null;
+    }
+    if (solto) {
+      if (ir(solto, solto.r + 1.2)) { st(`Sem ${nome}: catando ${falta.map(([c]) => ITENS[c].nome.toLowerCase()).join(' e ')} no chão`); return true; }
+      this.coletar(a.id, { no: solto.id });
+      if (this.cargas(a, solto) > 0) (F.ruins ||= new Set()).add(solto.id); // não deu para pegar esse: outro
+      F.no = null; return true;
+    }
+    F.espera = this.tempo + 15; x.pararAmiga(a);
+    st(`Sem ${nome}: falta ${falta.map(([c, n]) => `${n} ${ITENS[c].nome.toLowerCase()}`).join(' e ')} (pode pôr no Baú do Clã)`);
     return true;
   },
   // deixa no Baú do Clã só o recurso pedido que ele carrega (chamado ao chegar no baú)
@@ -669,6 +726,7 @@ export const Cla = {
     if (!(ia.levar && this.levandoRecruta(a))) ia.av = null;
     if (ia.av) return; // indo deixar no Baú do Clã: termina a entrega
     const R = fn.k === 'recurso' ? RECURSOS_CLA[fn.r] : null;
+    if (R && R.coleta !== 'cacar' && this.precisaFerRecruta(ctx, a, R)) return;
     if (R && R.coleta !== 'cacar') { const cc = ctx.lugarColetaAmiga?.(a, R.coleta); if (cc) ia.av = { fase: 'ir', c: cc, coleta: R.coleta, ate: this.tempo + 900 }; }
     else if (R) { const v = this.cacarDrop(ctx, a, L, R.item); if (v && !v.ok) ia.av = null; }
     else if (fn.k === 'grind') { const v = ctx.sairCacarAmiga?.(a, L); if (v && !v.ok) ia.av = null; }

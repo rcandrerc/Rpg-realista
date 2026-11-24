@@ -507,6 +507,7 @@ export const Amiga = {
     if (this.guerraAmiga(j, dt)) return; // Chama x Geada (shared/guerra.js): atacar, ajudar, fugir ou poupar a outra raça
     if (this.protegerAmiga(j, dt)) return; // função "Proteger" do painel do clã (shared/cla.js)
     if (this.almaAmiga(j, dt)) return; // função "Farmar recurso: Fragmento de Alma": caça a outra raça
+    if ((this.AMIGA.recruta || this.fixoClaNpc?.(this)) && this.ferramentaRecruta?.(this, j, dt)) return; // a ordem pede ferramenta que ele não tem: pega no Baú do Clã ou faz (cla.js)
     if ((this.AMIGA.recruta || this.fixoClaNpc?.(this)) && this.passoFazendaRecruta(this, j, dt)) return; // função "Fazenda": canteiros da base do clã
     // subiu de nível: os pontos vão pelo jeito dele (André 2026-11-11): quem gosta de cajado põe em Inteligência, o resto
     // em Força, e todos em Vitalidade (antes era só metade Força e metade Vitalidade)
