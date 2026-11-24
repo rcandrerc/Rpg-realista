@@ -11,6 +11,9 @@ var torce := 0.0 # tronco girando em volta da coluna (rad); remando acompanha o 
 # André 2026-11-21 ("o pack nas costas está muito alto quando sentado no barquinho"): fora daqui o
 # get_bone_global_pose devolve a pose da animação (em pé), sem o quadril no banco. O peito de cima já sentado fica
 # guardado aqui (espaço do esqueleto) para o transporte.gd _costas pôr o pack no lugar certo.
+# false: os braços ficam com a animação (pescando sentado no barquinho, pesca.gd com o KayKit): só o quadril e as
+# pernas vão para o banco e o tronco não rema
+var maos := true
 var peito_final := Vector3.ZERO
 var peito_ok := false
 
@@ -50,7 +53,7 @@ func _process_modification() -> void:
 		_arco(s, _o[l + "Foot"], gt.origin - gf.origin, fr * 0.95 - cm * 0.25)
 	# braços: mãos no volante ou no remo, cotovelos para baixo e um pouco para fora
 	var peito := s.get_bone_global_pose(_o.peito_alto if _o.peito_alto >= 0 else _o.peito).origin
-	for i in 2:
+	for i in (2 if maos else 0):
 		var l: String = ["L", "R"][i]
 		var sup: int = _o[l + "UpperArm"]
 		var S := s.get_bone_global_pose(sup).origin

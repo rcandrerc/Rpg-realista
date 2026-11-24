@@ -929,15 +929,24 @@ func _passo_coleta(dt: float) -> void:
 	var n := int(coletando.t / meio)
 	if n != coletando.n and n < 2:
 		coletando.n = n
-		if not coletando.get("duas", false) and m.heroi_anim.has_animation("descendente") and m.heroi_anim.current_animation != "descendente":
+		if coletando.has("kk"):
+			if m.heroi_anim.current_animation != coletando.kk:
+				m.heroi_anim.play(coletando.kk, 0.12, 0.0)
+		elif not coletando.get("duas", false) and m.heroi_anim.has_animation("descendente") and m.heroi_anim.current_animation != "descendente":
 			m.heroi_anim.play("descendente", 0.12, 0.0)
 		coletando["bateu"] = false
 	var f: float = clamp(fmod(coletando.t, meio) / meio, 0.0, 1.0) if n < 2 else 1.0
-	if coletando.get("duas", false):
+	var bate: float = (float(LADO_T.bate) if o.tipo == "arvore" else float(PEDRA_T.bate)) if coletando.get("duas", false) else GOLPE_BATE
+	if coletando.has("kk"):
+		var T: Array = KK_TEMPOS[coletando.kk]
+		bate = float(T[1])
+		if m.heroi_anim.current_animation == coletando.kk:
+			m.heroi_anim.seek(_tempo_kk(T, f), true)
+	elif coletando.get("duas", false):
 		_passo_duas(o, f)
 	elif m.heroi_anim.current_animation == "descendente":
 		m.heroi_anim.seek(_tempo_golpe(f), true)
-	if not coletando.get("bateu", true) and f >= ((float(LADO_T.bate) if o.tipo == "arvore" else float(PEDRA_T.bate)) if coletando.get("duas", false) else GOLPE_BATE):
+	if not coletando.get("bateu", true) and f >= bate:
 		coletando.bateu = true
 		_impacto(o)
 
@@ -946,6 +955,38 @@ const GOLPE_PRONTO := 0.40
 const GOLPE_ALTO := 0.58
 const GOLPE_PEDRA := 0.667
 const GOLPE_BATE := 0.55 # fração da batida em que a ponta encosta
+
+# Animações de trabalho do KayKit (CC0), assadas para o corpo por ferramentas/assar-animacoes/kaykit.py.
+# TRABALHO_KK = false volta para o golpe por código (duas_maos.gd) e o golpe de espada picado.
+const TRABALHO_KK := true
+const KK_ANIM := {"min": "kk_picareta", "len": "kk_machado"}
+const KK_PEGADA := Quaternion(0.0, 0.7071, 0.7071, 0.0) # osso da mão -> handslot do KayKit (cabo = +Y da ferramenta)
+# na hora que bate, no corpo do herói: [mão à frente, mão de altura, cabo à frente, cabo de altura] (m e direção)
+const KK_IMPACTO := {"kk_picareta": [0.35, 0.97, 0.99, 0.13], "kk_machado": [0.33, 0.87, 0.9, 0.43]}
+var KK_GIRO := float(OS.get_environment("KK_GIRO")) if OS.get_environment("KK_GIRO") != "" else 0.0
+# cada batida (meia "dur" do servidor) toca um golpe, em 3 trechos do tempo da animação (s):
+# [fim do 1º trecho (fração), fim do 2º (fração = quando bate), [t0, t1, t2, t3]]: ergue t0->t1, desce t1->t2, depois t2->t3.
+# Picareta (Pickaxing, 2 golpes em 3,73 s): sobe devagar 1,25->1,8; desce rápido 0->0,28 (o topo em 1,8 e em 0 é a
+# mesma pose); fica cravada 0,28->1,25 (parada, por isso pode pular). Machado (Chopping, 1,33 s): arma 0->0,22, golpe
+# 0,22->0,42 e volta devagar 0,42->1,33 (termina na pose do começo).
+const KK_TEMPOS := {
+	"kk_picareta": [0.35, 0.55, [1.25, 1.8, 0.0, 0.28, 1.25]],
+	"kk_machado": [0.42, 0.52, [0.0, 0.22, 0.22, 0.42, 1.333]],
+}
+
+func _anim_kk(prof: String) -> String:
+	var n: String = KK_ANIM.get(prof, "")
+	return n if TRABALHO_KK and n != "" and m.heroi_anim.has_animation(n) else ""
+
+func _tempo_kk(T: Array, f: float) -> float:
+	var a: float = T[0]
+	var b: float = T[1]
+	var t: Array = T[2]
+	if f < a: # ergue devagar, ganhando força
+		return lerp(float(t[0]), float(t[1]), smoothstep(0.0, 1.0, f / a))
+	if f < b: # desce rápido
+		return lerp(float(t[2]), float(t[3]), (f - a) / (b - a))
+	return lerp(float(t[3]), float(t[4]), (f - b) / (1.0 - b)) # cravada / volta devagar
 
 func _tempo_golpe(f: float) -> float:
 	if f < 0.45: # ergue devagar
@@ -1090,6 +1131,17 @@ func _segurar_ferramenta(prof: String) -> void:
 	m.armar("Coleta") # as duas armas nas costas, cruzadas em X
 	m.prender(m.heroi_esq, f, L.espadaMao)
 	f.visible = true
+	# animação de trabalho de verdade (KayKit, plano de animações 2026-11-24): a ferramenta fica na mão e a animação
+	# leva o corpo todo (golpe rápido, volta devagar, quadril girando); o golpe por código fica para corpo sem ela
+	var kk := _anim_kk(prof)
+	if kk != "" and coletando != null:
+		coletando["kk"] = kk
+		m.heroi_anim.play(kk, 0.15, 0.0)
+		# na mão do jeito do "handslot" do KayKit: o cabo sai da mão para a frente do golpe (medido com
+		# ferramentas/animacoes/video-trabalho.gd CENA=pegada); KK_GIRO vira a cabeça em volta do cabo
+		var esc: float = f.transform.basis.get_scale().x
+		f.transform = Transform3D(Basis(KK_PEGADA).rotated(Basis(KK_PEGADA) * Vector3.UP, KK_GIRO).scaled(Vector3.ONE * esc), f.transform.origin)
+		return
 	# com as duas mãos: a ferramenta sai da mão e o código leva o cabo pelo golpe; as mãos seguem o cabo
 	if _preparar_duas() and coletando != null:
 		f.get_parent().remove_child(f)
@@ -1201,6 +1253,10 @@ func _cabeca_golpe(o: Dictionary) -> Vector2:
 	var f: Node3D = ferramentas.get("len" if o.tipo == "arvore" else "min")
 	var P: Dictionary = _pose_golpe(o)
 	var comp: float = float(f.get_meta("topo", 0.8)) - float(f.get_meta("base", 0.0)) - 0.07 if f else 0.7
+	var kk := _anim_kk("len" if o.tipo == "arvore" else "min")
+	if kk != "": # animação do KayKit: a mão e o cabo na hora que bate (medidos com CENA=pegada)
+		var I: Array = KK_IMPACTO[kk]
+		return Vector2(float(I[0]) + float(I[2]) * comp, float(I[1]) + float(I[3]) * comp)
 	var a: float = deg_to_rad(float(P.ang))
 	var g: float = deg_to_rad(float(P.get("giro", 0.0)))
 	return Vector2(P.pe.z + cos(a) * cos(g) * comp, P.pe.y + sin(a) * comp)
