@@ -7,9 +7,10 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, LEILAO_BOT, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, LEILAO_BOT, TIPOS_LEILAO, anuncioParaApp, nomeItem, ehEquip, RARIDADES, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
 import { Contas, verificadorGoogle, roboCel, roboCarga, ROBO } from './contas.js';
 import { Visao } from './visao.js';
+import { Push } from './push.js'; // avisos no celular do painel do clã (André 2026-11-24)
 import { gerarCopia, limparSobrasCopia, chaveAssinaturaCopia, CHAVE_COPIA } from './copia-contas.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { iaEsgotada, iaVoltaEm, podeIaJogador, puxarAssunto, pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
@@ -62,6 +63,25 @@ const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID;
 const contas = CLIENT_ID ? new Contas({ pasta: path.resolve(process.env.DADOS || 'dados'), verificar: verificadorGoogle(CLIENT_ID) }) : null;
 // a Casa do Comércio (shared/leilao.js; história v2, Entrega 3): um leilão só para todas as salas, guardado no banco
 const leilao = new Leilao(contas?.lerMundo('leilao'));
+// avisos do painel do clã no celular (Web Push): a chave nasce sozinha e fica na tabela mundo
+const push = contas ? new Push({ ler: (k) => contas.lerMundo(k), gravar: (k, v) => contas.gravarMundo(k, v) }) : null;
+// mochila de recruta ou Baú do Clã encheu (André 2026-11-24): a cada minuto olha quem tem aviso ligado e está fora do
+// jogo; avisa só quando passa de "tem lugar" para "cheio" (encheu de novo depois de esvaziar: avisa de novo)
+const cheiosAvisados = new Map(); // conta -> Set('r:nome' | 'bau')
+function olharCheios() {
+  if (!push) return;
+  for (const conta of Object.keys(push.subs)) {
+    const antes = cheiosAvisados.get(conta) || new Set(), agora = new Set();
+    if (!heroiDe(conta)) for (const s of salas) {
+      const C = s.sim.cheiosCla?.(conta); if (!C) continue;
+      for (const n of C.recrutas) agora.add('r:' + n);
+      if (C.bau) agora.add('bau');
+    }
+    for (const k of agora) if (!antes.has(k)) push.avisar(conta, k === 'bau' ? 'O Baú do Clã está cheio' : `A mochila de ${k.slice(2)} está cheia`);
+    if (agora.size) cheiosAvisados.set(conta, agora); else cheiosAvisados.delete(conta);
+  }
+}
+setInterval(olharCheios, 60e3).unref?.();
 // Páginas que podem pedir login a este servidor (o jogo no GitHub Pages e o "npm run dev")
 const ORIGENS = [/^https:\/\/rcandrerc\.github\.io$/, /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/];
 
@@ -172,7 +192,11 @@ class SalaClareira extends Room {
     // leilão: o mesmo em todas as salas; mudou, grava. Vendeu: avisa o dono, esteja em que sala estiver
     this.sim.leilao = leilao;
     if (contas) this.sim.aoLeilao = (L) => contas.gravarMundo('leilao', L.estado());
-    this.sim.aoVendaLeilao = (conta, texto) => { for (const s of salas) { const v = s.sim.porConta(conta); if (v) s.sim.evento({ t: 'aviso', para: v.id, texto }); } };
+    this.sim.aoVendaLeilao = (conta, texto) => {
+      let achou = false; for (const s of salas) { const v = s.sim.porConta(conta); if (v) { achou = true; s.sim.evento({ t: 'aviso', para: v.id, texto }); } }
+      if (!achou && !heroiDe(conta)) push?.avisar(conta, texto); // fora do jogo: aviso no celular (painel do clã)
+    };
+    this.sim.aoAvisoCla = (conta, texto) => { if (!heroiDe(conta)) push?.avisar(conta, texto); }; // recruta caiu, foi embora...
     this.sim.aoAnuncio = (msg) => {
       const h = historicoChat.geral; h.push(msg); if (h.length > CHAT.historico) h.shift();
       for (const s of salas) s.sim.receberChat(msg);
@@ -617,7 +641,7 @@ class SalaClareira extends Room {
     let info;
     if (h) info = h.s.sim.painelInfo(k, h.j.prog.cla, h.s.sim.racaDe(h.j), h.j);
     else { const prog = contas.lerProgresso(conta.id); if (prog?.cla) this.sim.clasFora?.set(k, prog.cla); info = this.sim.painelInfo(k, prog?.cla, prog?.raca, null, prog); }
-    client.send('painel', { ...info, nome: conta.nome, ...(aviso ? { aviso } : {}) });
+    client.send('painel', { ...info, nome: conta.nome, ...(push ? { push: { pub: push.pub, on: push.temAviso(k) ? 1 : 0 } } : {}), ...(aviso ? { aviso } : {}) });
   }
   pedidoPainel(client, m) {
     if (!m || typeof m !== 'object' || !contas || !client.auth) return;
@@ -625,6 +649,20 @@ class SalaClareira extends Room {
     if (m.acao === 'ver') {
       if (agora - (u.painelVer || 0) < PAINEL.verMs) return;
       u.painelVer = agora; return this.enviarPainel(client);
+    }
+    const kc = 'c' + client.auth.id;
+    // avisos no celular: guarda (ou tira) a assinatura do navegador. Só serviços de push dos navegadores (server/push.js)
+    if (m.acao === 'push') {
+      if (agora - (u.painelPush || 0) < 2000 || !push) return; u.painelPush = agora;
+      if (typeof m.sair === 'string') { push.sair(kc, m.sair.slice(0, 600)); return this.enviarPainel(client, 'Avisos desligados neste celular'); }
+      return this.enviarPainel(client, push.assinar(kc, m.sub) ? 'Avisos ligados: o celular avisa quando um recruta cair ou algo vender no leilão' : 'Este navegador não aceita avisos');
+    }
+    // leilão (só olhar: comprar e anunciar continuam com o Otávio, no jogo). Os anúncios e os seus, sem a conta de ninguém
+    if (m.acao === 'leilao') {
+      if (agora - (u.painelLeilao || 0) < 1500) return; u.painelLeilao = agora;
+      const tipo = typeof m.tipo === 'string' && TIPOS_LEILAO[m.tipo] ? m.tipo : undefined, ordem = ['barato', 'caro', 'novo'].includes(m.ordem) ? m.ordem : 'barato';
+      const app = (a) => { const r = ehEquip(a.item.k) ? RARIDADES[a.item.r | 0] : null; return { ...anuncioParaApp(a), nome: nomeItem(a.item), ...(r ? { rar: r.nome, cor: '#' + r.cor.toString(16).padStart(6, '0') } : {}) }; };
+      return client.send('painelLeilao', { lista: leilao.buscar({ tipo, ordem }, kc).map(app), meus: leilao.meus(kc).map(app), tipos: TIPOS_LEILAO, agora });
     }
     if (m.acao !== 'funcao' || typeof m.id !== 'string' || m.id.length > 20) return;
     if (agora - (u.painelOrdem || 0) < PAINEL.ordemMs) return;

@@ -707,6 +707,7 @@ export const Cla = {
     for (const m of [...c.m]) if (m.dev && agora - m.dev >= CLA.calote) {
       c.m.splice(c.m.indexOf(m), 1); this.tirarRecruta(m.id, j); mudou = true;
       this.logCla(c, `${m.nome} foi embora sem pagamento`);
+      this.aoAvisoCla?.(j.conta, `${m.nome} foi embora do clã: 7 dias sem pagamento`);
       this.evento({ t: 'aviso', para: j.id, texto: `${m.nome} foi embora do clã: 7 dias sem pagamento` });
     }
     // a taxa da base (shared/base.js): sai do cofre a cada semana vencida
@@ -788,13 +789,20 @@ export const Cla = {
     const clas = CLAS_NPC.map((C) => { const B = this.liderNpc(C); return B && !B.morto ? { ...(C.raca === (raca || this.racaDe(L)) ? pos(B) : {}), fz: this.fazendoBotPainel(B) } : {}; });
     return { n: c.n, nv: c.nv || 1, cofre: c.cofre | 0, semana: semanaCla(c), jogo: heroi ? 1 : 0, ...(!heroi && c.sem <= Date.now() ? { vencida: 1 } : {}), ...(heroi ? { eu: pos(heroi) } : {}),
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, on: a ? 1 : 0, ...(m.dev ? { dev: 1 } : {}),
-        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, L), ...pos(a) } : {}) }; }),
+        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, L), ...pos(a), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length && !a.prog.mochila.some((o) => !o) ? { cheia: 1 } : {}) } : {}) }; }),
       log: (c.log || []).slice(-10).reverse(), funcoes: CLA.funcoes.filter((F) => heroi || F.id !== 'seguir'),
       recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })), plantas: Object.entries(PLANTAS).map(([k, P]) => ({ k, nome: P.nome })),
       // o que pede o próximo nível do clã e o que já tem (Baú do Clã + mochila do líder), igual ao Melhorar clã do jogo
       sobe: this.subirPainel(conta, c, raca, heroi, prog),
-      bau: this.bauPainel(conta), // o que tem no Baú do Clã (André 2026-11-24: "mostrar inventário do clã"), em ícones
+      bau: this.bauPainel(conta), ...(this.cheiosCla(conta).bau ? { bauCheio: 1 } : {}), // o que tem no Baú do Clã (André 2026-11-24: "mostrar inventário do clã"), em ícones
       clas: this.clasNpcInfo(L).map((o, i) => ({ ...o, ...clas[i] })), lugares: (this.lugaresPainel ||= [{ nome: this.mapa.nome || 'Vila', x: 0, z: 0 }, ...LUGARES_MUNDO.filter((o) => o.nome && o.tipo !== 'porto').map((o) => ({ nome: o.nome, x: o.x, z: o.z }))]) };
+  },
+  // o que está cheio no clã (André 2026-11-24: "quando ficar cheio... ficar vermelho... e notificação"): recruta com a
+  // mochila sem lugar livre e o Baú do Clã sem lugar livre. { recrutas: [nome], bau: bool }
+  cheiosCla(conta) {
+    const semLugar = (l) => Array.isArray(l) && l.length > 0 && !l.some((o) => !o);
+    const recrutas = this.recrutasNoMundo({ conta }).filter((x) => x.amiga && semLugar(x.amiga.prog.mochila)).map((x) => x.AMIGA.nome);
+    return { recrutas, bau: semLugar(this.bauDoCla({ conta })?.itens) };
   },
   bauPainel(conta) {
     const B = this.bauDoCla({ conta }); if (!B) return null;
