@@ -1940,17 +1940,25 @@ func _passo(dt: float) -> void:
 			_coleta_quadro(o)
 		if o.get("pesca") != null:
 			_pesca_quadro(o, dt)
+		var v_o: float = Vector2(o.no.position.x - antes.x, o.no.position.z - antes.z).length() / max(dt_pos, 0.001)
+		o.vel_m = lerp(float(o.get("vel_m", 0.0)), min(v_o, 12.0), min(1.0, dt_pos * 6.0))
 		if o.get("montaria") != null: # o lobo anda no ritmo do que o corpo andou de verdade neste quadro
-			var v: float = Vector2(o.no.position.x - antes.x, o.no.position.z - antes.z).length() / max(dt_pos, 0.001)
-			o.vel_m = lerp(float(o.get("vel_m", 0.0)), min(v, 12.0), min(1.0, dt_pos * 6.0))
 			o.montaria.passo(dt, o.vel_m)
+		else:
+			_passo_no_ritmo(o.anim, o.vel_m, PASSO_HUMANO[0], PASSO_HUMANO[1])
 	tp = _marca("on:outros", tp)
 	_lista_mexem()
 	for e in _mexem:
 		if e.estado == "morto" and not e.no.visible: # escondido (longe ou vaga vazia): nada para mexer
 			continue
 		if e.has("alvo"): # morto também: o golpe final joga o corpo para trás (o servidor manda onde ele cai)
+			var antes_e: Vector3 = e.no.position
 			_interpolar(e, e.no, dt_pos)
+			var v_e: float = Vector2(e.no.position.x - antes_e.x, e.no.position.z - antes_e.z).length() / max(dt_pos, 0.001)
+			e.vel_m = lerp(float(e.get("vel_m", 0.0)), min(v_e, 12.0), min(1.0, dt_pos * 6.0))
+			if e.estado != "morto":
+				var ref: Array = PASSO_MONSTRO.get(str(e.get("tipo", "")), [float(D.COMBATE.chegar), float(D.COMBATE.perseguir)])
+				_passo_no_ritmo(e.anim, e.vel_m, ref[0], ref[1])
 			e.uma_vez = max(0.0, e.get("uma_vez", 0.0) - dt)
 			if e.get("prep_fim", -1.0) > 0.0 and m.tempo >= e.prep_fim: # fim do preparo: o golpe sai rápido
 				e.prep_fim = -1.0
@@ -1981,6 +1989,29 @@ func _passo(dt: float) -> void:
 	if _status_t <= 0.0:
 		_status_t = 0.5
 		atualizar_status()
+
+# Plano de animações, passo 3 (André 2026-11-24): o pé não desliza mais. Antes o andar e a corrida dos outros tocavam
+# num ritmo fixo e o corpo andava na velocidade que o servidor mandasse (rodeando devagar, chegando, parando no meio):
+# o pé escorregava no chão. Agora o ritmo segue a velocidade de verdade (medida da posição, suavizada), entre 0,6x e
+# 2,2x. ref_andar / ref_corrida = a velocidade em que o pé apoiado fica parado com o laço a 1x, medida no banco de
+# provas (ferramentas/animacoes/video-trabalho.gd CENA=passos CALIBRA=1: varre velocidades e acha a de menor deslize).
+# Humanos: medido já com o ritmo() do herói por cima. Monstro sem medida: chegar e perseguir do COMBATE_INIMIGO.
+# Só muda o speed_scale: sem custo de quadro.
+const PASSO_HUMANO := [1.9, 6.0]
+const PASSO_MONSTRO := {"lobo": [1.2, 2.8], "puglin": [0.8, 1.2], "imp": [0.8, 1.4], "golem": [1.8, 2.8], "maw": [0.8, 4.0]}
+func _passo_no_ritmo(an: AnimationPlayer, v: float, ref_andar: float, ref_corrida: float) -> void:
+	if an == null or an.speed_scale == 0.0: # congelado: parado de propósito
+		return
+	var a := an.current_animation
+	var k := 1.0
+	if a == "andar" or a == "lado_e_andar" or a == "lado_d_andar" or a == "tras_andar":
+		k = clampf(v / ref_andar, 0.6, 2.2)
+	elif a == "trote":
+		k = clampf(v / m.mov.TROTE, 0.6, 2.2)
+	elif a == "corrida" or a == "lado_e_correr" or a == "lado_d_correr" or a == "tras_correr":
+		k = clampf(v / ref_corrida, 0.6, 2.2)
+	if absf(an.speed_scale - k) > 0.01:
+		an.speed_scale = k
 
 # monstros que o quadro mexe (ver _mexem): fora da lista só fica quem está morto e escondido (vaga vazia, longe)
 func _lista_mexem() -> void:
