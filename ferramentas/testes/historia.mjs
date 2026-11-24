@@ -119,7 +119,7 @@ const dar = (k, n) => {
   s.avisarProg(j);
 };
 const subir = (nv) => { while (p.nivel < nv) s.ganharXP(j, xpProximo(p.nivel) - p.xp); correr(0.1); };
-const fim = (id) => { const i = HISTORIA.findIndex((M) => M.id === id); ok(h().p === i + 1 && !h().ac, `${id} entregue (${HISTORIA[i].nome}) | ${avisos()}`); ev = []; };
+const fim = (id) => { const i = HISTORIA.findIndex((M) => M.id === id); ok(h().p === i + 1 && !h().ac, `${id} entregue (${HISTORIA[i].nome}) | ${avisos()}`); ev = []; p.mochila.forEach((x, k) => { if (x?.k === 'pocao_vigor') p.mochila[k] = null; }); }; // poções de vigor do Ato I: o teste "bebe" para a mochila não encher
 const alvoOk = () => { const a = s.histInfo(j).alvo; return !etapa() || ['montar', 'criar', 'destruir', 'reforcar', 'barra', 'atributo', 'pesca', 'noite'].includes(etapa().ev) && !etapa().alvo || !!a; };
 const chefe = (id) => { // chega no campo (ou na sala da caverna), o chefe aparece e cai
   const C = CHEFES_HISTORIA[id], c = C.sala ? MAPA_CLAREIRA.dungeon.salas.find((o) => o.id === C.sala).pontos[0] : CACA.find((o) => o.id === C.campo);
