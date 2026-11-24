@@ -15,6 +15,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { iaEsgotada, iaVoltaEm, podeIaJogador, puxarAssunto, pensarAmiga, testarChaveGroq, escreverDiario, dicaParaRegra } from './ia-amiga.js';
 import { ligarAtualizacaoTrancada, proximoReinicio } from './atualizar.js';
 import { reserva, vigiarReserva } from './caddy-reserva.js'; // caminho reserva pelo IP (André 2026-11-16, sslip.io bloqueado no celular)
+import { CARGA_DIA, CARGA_DIA_MAX, juntarLeitura, fecharAmostra, resumoDia } from './carga-dia.js'; // bots x passo x memória (André 2026-11-24)
 
 const { Server, Room, ServerError } = colyseus;
 const { WebSocketTransport } = wsTransport;
@@ -852,14 +853,31 @@ app.get('/lentidao/celulares', async (req, res) => {
 const SAUDE_JANELA = 60e3;
 const relogioSrv = { sim: null, t: 0 };
 let saudeAnterior = { pico: 0, silencioMs: 0, engasgos: 0, correcoes: 0, relogio: null };
+// carga do dia (André 2026-11-24, server/carga-dia.js): bots em jogo x passo x memória, uma leitura por minuto e uma
+// amostra a cada CARGA_DIA.amostraMin min, guardadas em dados/carga.jsonl (CARGA_DIA.guardaH h; reinício não apaga)
+const CARGA_ARQ = path.resolve(process.env.DADOS || 'dados', 'carga.jsonl');
+const cargaDia = []; let cargaAmostra = {};
+try { for (const l of fs.readFileSync(CARGA_ARQ, 'utf8').trim().split('\n').slice(-CARGA_DIA_MAX)) if (l) cargaDia.push(JSON.parse(l)); } catch { /* ainda não tem */ }
+function guardarCarga(a) {
+  cargaDia.push(a); if (cargaDia.length > CARGA_DIA_MAX) cargaDia.splice(0, cargaDia.length - CARGA_DIA_MAX);
+  fs.writeFile(CARGA_ARQ, cargaDia.map((x) => JSON.stringify(x)).join('\n') + '\n', () => {});
+}
 setInterval(() => {
   let correcoes = 0; for (const s of salas) { correcoes += s.sim.correcoes || 0; s.sim.correcoes = 0; }
   const s0 = [...salas][0], agoraR = Date.now(); let relogio = null;
   if (s0) { if (relogioSrv.sim != null && agoraR > relogioSrv.t) relogio = +((s0.sim.tempo - relogioSrv.sim) / ((agoraR - relogioSrv.t) / 1000)).toFixed(3); relogioSrv.sim = s0.sim.tempo; relogioSrv.t = agoraR; }
   else relogioSrv.sim = null;
+  let bots = 0, jogadores = 0; for (const s of salas) { jogadores += s.clients.length; for (const j of s.sim.jogadores.values()) if (j.bot) bots++; }
+  juntarLeitura(cargaAmostra, { bots, jogadores, passoMs: carga.ms, picoMs: carga.pico, memMb: Math.round(process.memoryUsage().rss / 1048576), orcamentoMs: TICK * 1000 });
+  if (cargaAmostra.n >= CARGA_DIA.amostraMin) { const a = fecharAmostra(cargaAmostra, agoraR); cargaAmostra = {}; if (a) guardarCarga(a); }
   saudeAnterior = { pico: carga.pico, silencioMs: carga.silencioMs, engasgos: carga.engasgos, correcoes, relogio };
   carga.pico = 0; carga.silencioMs = 0; carga.engasgos = 0;
 }, SAUDE_JANELA).unref();
+// resumo das últimas CARGA_DIA.mostraH h (ronda das 9h): só números do servidor, nada de jogador. orcamentoMs = um passo
+app.get('/saude/dia', (_req, res) => {
+  const agora = Date.now();
+  res.json({ ...resumoDia(cargaDia, agora), orcamentoMs: TICK * 1000, amostraMin: CARGA_DIA.amostraMin, lista: cargaDia.filter((c) => c.t >= agora - CARGA_DIA.mostraH * 3600e3) });
+});
 app.get('/saude', (_req, res) => {
   let jogadores = 0, agora = 0; for (const s of salas) { jogadores += s.clients.length; agora += s.sim.correcoes || 0; }
   const A = saudeAnterior;
