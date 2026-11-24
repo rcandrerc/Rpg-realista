@@ -26,6 +26,17 @@ func _initialize() -> void:
 	if OS.get_environment("HUD") != "1": # sem a interface: só o corpo
 		for c in m.find_children("*", "CanvasLayer", true, false):
 			c.visible = false
+	# André 2026-11-24 ("todos os vídeos ficam com umas explosões"): o aquecer.gd põe todos os efeitos (skills,
+	# meteoro, números) na frente da câmera para montar na placa atrás da capa; o banco esconde a capa, então eles
+	# apareciam no vídeo. Espera o aquecimento acabar (e os efeitos sumirem) antes de gravar qualquer coisa.
+	var espera := 0
+	while m.get("aquecer") != null and m.aquecer != null and not m.aquecer.feito and espera < 30 * 20:
+		await process_frame
+		espera += 1
+		if OS.get_environment("HUD") != "1": # a interface que aparece no meio da espera também fica escondida
+			for c in m.find_children("*", "CanvasLayer", true, false):
+				c.visible = false
+	await esperar(75)
 	if OS.get_environment("ROUPA") != "": # ex.: peitoral1,calca1,botas1 (sem conta logada o corpo vem sem roupa)
 		Armadura.vestir(m.heroi, Armadura.de_texto(OS.get_environment("ROUPA")))
 		await esperar(5)
@@ -41,6 +52,8 @@ func _initialize() -> void:
 			await _pesca(true, seg)
 		"pegada":
 			await _pegada()
+		"passos": # plano, passo 3: um NPC e um monstro andando e correndo em várias velocidades (o pé desliza?)
+			await _passos()
 		"ver": # ANIM=nome1,nome2: toca cada animação do corpo (sem ferramenta), uma depois da outra
 			await _ver(OS.get_environment("ANIM").split(","))
 	quit()
@@ -171,6 +184,119 @@ func _cam_mao() -> void:
 	_cam_m.global_position = p + d * 0.5 + Vector3(0, 0.12, 0)
 	_cam_m.look_at(p)
 	_cam_m.current = true
+
+# CENA=passos: o mesmo que online.gd faz com quem vem do servidor (anda entre as fotos e toca andar/corrida), aqui
+# com a velocidade escolhida. ANTES=1: o ritmo fixo de antes (speed_scale 1); senão online._passo_no_ritmo.
+# VISUAL=cabelo_m|ruiva (o NPC), MONSTRO=lobo|puglin|... (o monstro mais perto desse tipo)
+const PASSOS_H := [["andar", 1.0, "NPC andando devagar (1,0 m/s)"], ["andar", 1.8, "NPC andando (1,8 m/s)"],
+	["corrida", 4.4, "NPC correndo leve (4,4 m/s)"], ["corrida", 5.4, "NPC correndo (5,4 m/s)"]]
+const PASSOS_M := [["andar", 1.6, "Monstro rodeando (1,6 m/s)"], ["andar", 2.2, "Monstro chegando (2,2 m/s)"],
+	["corrida", 3.6, "Monstro perseguindo (3,6 m/s)"], ["corrida", 1.8, "Monstro lento, gelo (1,8 m/s)"]]
+func _passos() -> void:
+	var antes := OS.get_environment("ANTES") == "1"
+	var x0 := -36.0
+	var z0 := 190.0
+	_por_em(x0, z0 + 16.0, 0.0) # atrás da câmera: o capim alto (mato.gd) nasce em volta do herói e escondia os pés
+	m.heroi.visible = false
+	var vis := OS.get_environment("VISUAL") if OS.get_environment("VISUAL") != "" else "cabelo_m"
+	var o: Dictionary = m.online._montar_corpo(vis, Vector3(x0, m.terreno.altura(x0, z0), z0), PI * 0.5, "Aldeão")
+	if OS.get_environment("ROUPA") != "":
+		Armadura.vestir(o.no, Armadura.de_texto(OS.get_environment("ROUPA")))
+	# o monstro: o mais perto do tipo pedido, parado pela IA (parado = para sempre) e trazido para cá
+	var tipo := OS.get_environment("MONSTRO") if OS.get_environment("MONSTRO") != "" else "lobo"
+	var e = null
+	for c in m.inimigos:
+		if str(c.get("tipo", "")) == tipo and not c.get("vazio", false):
+			e = c
+			break
+	if e == null and m.inimigos.size() > 0:
+		e = m.inimigos[0]
+	if e != null and e.get("vazio", false):
+		m.materializar(e)
+	await esperar(30)
+	var cam := Camera3D.new()
+	cam.fov = 40
+	m.add_child(cam)
+	var cl := CanvasLayer.new()
+	cl.layer = 50
+	m.add_child(cl)
+	var rot := Label.new()
+	rot.position = Vector2(28, 20)
+	rot.add_theme_font_size_override("font_size", 30)
+	rot.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	rot.add_theme_constant_override("outline_size", 8)
+	cl.add_child(rot)
+	for quem in [0, 1]:
+		var lista: Array = PASSOS_H if quem == 0 else PASSOS_M
+		var no: Node3D = o.no if quem == 0 else e.no
+		var an: AnimationPlayer = o.anim if quem == 0 else e.anim
+		if quem == 1:
+			e.parado = 1e12
+			e.estado = "andando"
+			o.no.visible = false
+			no.visible = true
+		var x := x0 - 6.0
+		# medida do deslize: pés (ossos com foot/Foot/paw no nome, sem "toe"), velocidade no chão enquanto apoiado
+		var esq: Skeleton3D = m.esqueleto(no)
+		var pes: Array = []
+		for b in esq.get_bone_count():
+			var bn := esq.get_bone_name(b).to_lower()
+			if (bn.contains("foot") or bn.contains("paw") or bn.contains("ankle") or bn.contains("toe") or bn.begins_with("pata")) and not bn.contains("end"):
+				pes.append(b)
+		if OS.get_environment("OSSOS") == "1":
+			var nomes := []
+			for b in esq.get_bone_count():
+				nomes.append(esq.get_bone_name(b))
+			print("OSSOS ", nomes)
+		if OS.get_environment("CALIBRA") != "": # varre velocidades com o laço a 1x: a de menor deslize é a do laço
+			lista = []
+			for nm in ["andar", "corrida"]:
+				for i in range(4, 72, 4):
+					lista.append([nm, i / 10.0, "%s %.1f" % [nm, i / 10.0]])
+		for passo in lista:
+			var nome: String = passo[0]
+			var v: float = passo[1]
+			rot.text = "%s  ·  %s" % [passo[2], "ANTES" if antes else "DEPOIS"]
+			x = x0 - 6.0
+			no.rotation.y = PI * 0.5
+			var t := 0.0
+			var vm := v
+			an.play(nome, 0.15, m.ritmo(nome) if quem == 0 else 1.0)
+			var ant := {}
+			var soma := 0.0
+			var nq := 0
+			var miny := {}
+			while t < (1.6 if OS.get_environment("CALIBRA") != "" else 3.0):
+				if t > 0.6: # já no laço: pés no chão (perto do ponto mais baixo deles) e quanto andaram no mundo
+					for b in pes:
+						var pw: Vector3 = esq.global_transform * esq.get_bone_global_pose(b).origin
+						if ant.has(b): # velocidade do osso no mundo; o apoio é o trecho mais lento (20% menor) de cada pé
+							if not miny.has(b):
+								miny[b] = []
+							miny[b].append(Vector2(pw.x - ant[b].x, pw.z - ant[b].z).length() * 30.0)
+						ant[b] = pw
+				x += v / 30.0
+				no.position = Vector3(x, m.terreno.altura(x, z0), z0)
+				if not antes:
+					if quem == 0:
+						m.online._passo_no_ritmo(an, vm, m.online.PASSO_HUMANO[0], m.online.PASSO_HUMANO[1])
+					else:
+						var ref: Array = m.online.PASSO_MONSTRO.get(str(e.get("tipo", "")), [2.2, 3.6])
+						m.online._passo_no_ritmo(an, vm, ref[0], ref[1])
+				else:
+					an.speed_scale = 1.0
+				# câmera de lado, um pouco baixa, seguindo devagar: o pé no chão aparece bem
+				cam.global_position = Vector3(x, no.position.y + 2.2, z0 + 3.6) # de cima: o capim não esconde o pé
+				cam.look_at(Vector3(x, no.position.y + 0.3, z0))
+				cam.current = true
+				await process_frame
+				t += 1.0 / 30.0
+			for b in miny:
+				var l: Array = miny[b]
+				l.sort()
+				soma += float(l[int(l.size() * 0.2)])
+				nq += 1
+			print("DESLIZE %s %s v=%.1f pe_apoiado_escorrega=%.2f m/s (%d pés)" % ["antes" if antes else "depois", passo[2], v, soma / max(1, nq), nq])
 
 func _ver(nomes: Array) -> void:
 	var v = null # em terra: ao lado do veio mais perto
