@@ -4175,7 +4175,7 @@ export class Simulacao {
       this.depois(HEROI.renascer, () => {
         // cama no terreno (como no Quimera): renasce do lado dela
         // totem de teleporte (André 2026-11-10): renasce no mais próximo de onde caiu (André 2026-11-24); o da vila deixa a cama valer
-        const T = totemMorte && totemMorte.id !== 'clareira' ? totemMorte : null;
+        const T = c.bot ? TOTENS.lista.find((t) => t.id === c.prog.totem && t.id !== 'clareira') : totemMorte && totemMorte.id !== 'clareira' ? totemMorte : null; // bot (IA do shared/amiga.js) segue como antes
         const L = !T && this.loteDe(c), cama = L && L.pecas.find((o) => o.k === 'cama');
         const casaRaca = !T && !cama && RACAS[this.racaDe(c)]?.casa; // a Geada renasce no Juncal (Chama x Geada, André 2026-11-18)
         const n = T ? this.ladoDoTotem(T) : cama ? { x: cama.x + ((cama.r & 1) ? 0 : 1.5), z: cama.z + ((cama.r & 1) ? 1.5 : 0) } : casaRaca ? { x: casaRaca.x + 3, z: casaRaca.z + 3 } : this.mapa.nascimento;
