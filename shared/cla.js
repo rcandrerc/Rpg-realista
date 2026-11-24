@@ -187,6 +187,7 @@ export const Cla = {
       if (dep) { j.prog.ouro -= q; c.cofre += q; } else { c.cofre -= q; j.prog.ouro += q; }
       this.logCla(c, dep ? 'Depósito no cofre' : 'Saque do cofre', dep ? q : -q);
       this.pagarDevendo(j);
+      if (dep) this.historia?.(j, 'cofre', { v: c.cofre }); // missão "Uma base que aguenta": a taxa da semana no cofre
       return this.avisarProg(j);
     }
     if (m.acao === 'funcao') {
