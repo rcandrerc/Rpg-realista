@@ -934,7 +934,13 @@ export const Amiga = {
   },
   andarAmiga(j, dt) {
     const ia = j.ia;
-    { const c = ia.rota[0] && this.contornoCasa(this.loteDaAmiga(), j, ia.rota[0]); if (c) { ia.rota.unshift(c); ia.preso = 0; ia.longe = Infinity; } } // a casa no caminho: dá a volta
+    // a casa no caminho: dá a volta. Ping-pong entre os cantos (achado no teste npc-diarias-ajuda, 2026-11-24: o Dario ia e
+    // voltava entre dois cantos sem fim): mais de 6 cantos em 20 s, larga o contorno por 10 s (anda reto; preso, o de sempre)
+    { const c = ia.rota[0] && this.tempo >= (ia.semContorno || 0) && this.contornoCasa(this.loteDaAmiga(), j, ia.rota[0]);
+      if (c) {
+        const K = ia.contornos && this.tempo - ia.contornos.t0 < 20 ? ia.contornos : (ia.contornos = { t0: this.tempo, n: 0 });
+        if (++K.n > 6) { ia.semContorno = this.tempo + 10; ia.contornos = null; } else { ia.rota.unshift(c); ia.preso = 0; ia.longe = Infinity; }
+      } }
     const alvo = ia.rota[0];
     if (!alvo) { this.pararAmiga(j); ia.fase = 'pensar'; ia.ate = this.tempo + 0.3; const f = ia.chegou; ia.chegou = null; f?.(); return; }
     const dx = alvo.x - j.x, dz = alvo.z - j.z, d = Math.hypot(dx, dz);
