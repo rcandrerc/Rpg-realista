@@ -4533,5 +4533,9 @@
 "Em emboscada! Não dá pra guardar agora: defenda a carga ou fuja.": "Ambushed! Can't put it away now: defend the cargo or flee.",
 "Em combate não dá pra consertar. Afaste os inimigos primeiro.": "Can't repair during combat. Drive the enemies off first.",
 "Pra consertar o navio: {1}": "To repair the ship: {1}",
-"Navio consertado!": "Ship repaired!"
+"Navio consertado!": "Ship repaired!",
+"Resetar líderes (nível 1)": "Reset leaders (level 1)",
+"Resetar líderes": "Reset leaders",
+"Você e os líderes dos clãs (Dario, Gael e Kael) voltam ao nível 1. Itens, ouro, clã e recrutas ficam. Não tem volta.": "You and the clan leaders (Dario, Gael and Kael) go back to level 1. Items, gold, clan and recruits stay. This cannot be undone.",
+"Resetar": "Reset"
 }
