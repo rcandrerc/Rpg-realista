@@ -56,7 +56,7 @@ const ok = (c, t) => { if (!c) { console.error('FALHOU', t); process.exit(1); } 
   s.item('A', { acao: 'comprar', i: 0, n: 10 });
   ok(p.ouro === 1000 && p.mochila[0].n === 3, 'nada coube: não cobra nada');
   p.mochila[1] = null; s.item('A', { acao: 'comprar', i: 0, n: 2 });
-  const pocoes = p.mochila.filter((o) => o && o.k === 'pocao' && !o.cad).reduce((a, o) => a + o.n, 0);
+  const pocoes = p.mochila.filter((o) => o && o.k === 'pocao' && !o.cad).reduce((a, o) => a + o.n, 0) + (p.bolso?.pocao || 0); // a compra enche o bolso de poções (André 2026-11-24)
   ok(pocoes === 2 && p.ouro === 1000 - 2 * s.precoCompra(A, LOJA[0]), 'com lugar: entrega 2 e cobra 2');
 }
 
