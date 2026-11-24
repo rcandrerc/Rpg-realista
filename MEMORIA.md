@@ -10,8 +10,7 @@ Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 ## Foco único até 30/11: desempenho e gráfico
 1. Medir. 2. Personagens leves (23/11: máx. 2 NPCs aparecem/somem por quadro; instanciar corpo em linha de fundo deu erro de RID, não usar). 3. Mundo leve, sem travadas (OOM no S9). 4. Visual com fotos antes/depois, só com OK.
 ## Abortado (não retomar sem pedido): Cecília/Dário, segurança, história/missões, economia/lojas.
-## Rotinas
-- Robô de testes: ronda diária às 9h, um relatório entre 9h e 10h, correção automática com cuidado. Não reduzir bots/recrutas (André quer 50-60 bots para medir o servidor).
+## Rotinas: robô de testes: ronda diária às 9h, um relatório entre 9h e 10h, correção automática com cuidado. Não reduzir bots/recrutas (André quer 50-60 bots para medir o servidor).
 
 ## Fluxo
 - Agentes efêmeros por cargo: ver `agentes/` e a regra no topo do `CLAUDE.md`.
@@ -27,5 +26,5 @@ Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 - 23/11: aba "Missão do Clã" (Escolta) ao lado de História/Diárias/Guilda; "Fixar no atalho" em toda missão (história, diária, guilda, clã): o cartão da tela mostra a fixada (`missao_ativa.fixa`, guardada no aparelho); Escolta em andamento passa na frente.
 - 23/11: cor livre também no Patrulheiro 2 / Roupão 2: Roupa/Calça da Aparência pintam só o pano (`Equip2.tingir`, tipo 2). 24/11: Roupa e Calça em abas na Aparência (4 trajes); Patrulheiro 2/Roupão 2 refeitos na linha do corpo afinado do jogo (`ferramentas/trajes-justos/`: o jogo afina cintura/blusa/manga, os .glb eram do corpo cru). André aprovou pelas fotos.
 - 23/11: história x clãs: Kael (líder da Geada) é rival, nunca aliado (h14, e6 com a Elara, f1, f2, cenas, diário); "A base do clã" (a12: fundar clã e base, ev `base`) e "Uma base que aguenta" (b1: cerca, tocha, baú, cama, fornalha, bigorna, taxa no cofre `cofre`), sem casa. 24/11: Ato do Clã (k1 recruta Nv 12, k2 escolta Nv 18, k3 clã Nv 2 Nv 25, k4 fim da Trégua Nv 30; ev recrutar/escolta/cla_nivel/guerra_matar).
-- 24/11 (PR aberto, aguarda OK do André pelas fotos): aura azul incandescente da arma pelo reforço (`brilho_reforco.gdshader`, `Armas.brilho_reforco`, línguas de fogo e fumaça de aura `Armas.faiscas`): tom de azul por faixa de +10, força pelo +N.
+- 24/11 (PR aberto, aguarda OK do André pelas fotos): aura azul incandescente da arma pelo reforço (`brilho_reforco.gdshader`, `Armas.brilho_reforco`, línguas de fogo e fumaça de aura `Armas.faiscas`): tom de azul por faixa de +10, força pelo +N. 24/11 (PR aberto): base do clã é área segura igual ao totem (`naBaseSegura`, `AREAS_SEGURAS_BASE`): só centro do nível atual + lotes abertos, sem raio; PvP/guerra não muda.
 ## Próximas tarefas: medição de desempenho -> personagens leves -> mundo leve -> visual.
