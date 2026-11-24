@@ -966,7 +966,8 @@ func chuva(x: float, z: float, r: float, ondas: int, ao_cair: Callable) -> void:
 const METEORO_RAIO := 1.45 # m: a rocha (o herói tem 1,65 m de altura)
 const METEORO_CAI := 0.85 # s caindo (o resto da "queda" é o aviso no chão)
 const METEORO_ALTO := 22.0 # m de onde ela começa a cair
-func meteoro(x: float, z: float, r: float, queda: float, y: float, ao_cair: Callable) -> void:
+# meu = false: meteoro de outro jogador ou bot (online.gd): treme a câmera perto, mas o celular não vibra
+func meteoro(x: float, z: float, r: float, queda: float, y: float, ao_cair: Callable, meu := true) -> void:
 	var cores := cor_de("meteoros")
 	# runa de aviso: vermelho-escuro, só linhas, entra em 0,15 s, no máximo 0,5 e some em 0,3 s depois do impacto
 	var m := circulo_malha(true)
@@ -997,7 +998,7 @@ func meteoro(x: float, z: float, r: float, queda: float, y: float, ao_cair: Call
 	o.visible = false
 	var cai: float = min(METEORO_CAI, queda)
 	_som("q_meteoro_cai", alvo, 1.0, 0.03)
-	meteoros.append({"o": o, "de": de, "para": alvo, "t": -(queda - cai), "dur": cai, "cb": cores[0], "cc": cores[1], "fn": ao_cair, "r_imp": r,
+	meteoros.append({"o": o, "de": de, "para": alvo, "t": -(queda - cai), "dur": cai, "cb": cores[0], "cc": cores[1], "fn": ao_cair, "r_imp": r, "meu": meu,
 		"forte": 1.6, "gigante": true, "rocha": rocha, "gira": Vector3(randf_range(2, 4), randf_range(-2, 2), randf_range(1, 3))})
 	luz(cores[1], 2.0, r * 2.0, queda).l.global_position = alvo + Vector3(0, 1.0, 0)
 
@@ -1019,7 +1020,7 @@ func meteoro_portal(x: float, z: float, y: float, dur: float) -> void:
 
 # a rocha bateu: clarão, cúpula de fogo, onda de choque, anel de chamas correndo para fora, pedras voando,
 # coluna de fumaça e a cratera em brasa que esfria devagar. Tremida e vibração para quem está perto.
-func meteoro_impacto(p: Vector3, r: float) -> void:
+func meteoro_impacto(p: Vector3, r: float, meu := true) -> void:
 	var cores := cor_de("meteoros")
 	_som("q_meteoro_impacto", p, 3.0, 0.04)
 	mg.meteoro_impacto(p, r)
@@ -1098,7 +1099,7 @@ func meteoro_impacto(p: Vector3, r: float) -> void:
 		if dist < 28.0:
 			var q: float = 1.0 - dist / 28.0
 			mundo.cam.tremer(0.75 * q)
-			if mundo.has_method("vibrar"):
+			if meu and mundo.has_method("vibrar"): # vibra só no meu meteoro (André 2026-11-24)
 				mundo.vibrar(int(30 + 70 * q))
 
 # Raio em Cadeia: zigue-zague de luz da mão (ou do último alvo) até o próximo alvo
@@ -1995,7 +1996,12 @@ func _passo(dt: float) -> void:
 		var acabou: bool = p.andou > p.alcance
 		if mundo != null:
 			var alvo = mundo.inimigo_em(o, 0.7)
-			if alvo:
+			# tiro de outro jogador ou bot (online.gd "proj", info.outro): só some no monstro. Antes passava por
+			# mundo.ferir como se fosse meu e o celular vibrava e entrava a música de combate com o Dario caçando a 30 m
+			# (André 2026-11-24). O dano dele quem mostra é o servidor (evento "dano").
+			if alvo and p.info.get("outro", false):
+				acabou = true
+			elif alvo:
 				mundo.ferir(alvo, p.dmg, o, p.info.get("hab"))
 				if p.info.has("explosao"):
 					mundo.dano_area(o, p.info.explosao, p.dmg * 0.6, p.info.get("hab"))
@@ -2030,7 +2036,7 @@ func _passo(dt: float) -> void:
 			if u >= 1:
 				q.o.queue_free()
 				meteoros.remove_at(i)
-				meteoro_impacto(q.para, q.r_imp)
+				meteoro_impacto(q.para, q.r_imp, q.get("meu", true))
 				if q.fn.is_valid():
 					q.fn.call(q.para)
 			i -= 1

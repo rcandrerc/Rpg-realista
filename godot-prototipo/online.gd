@@ -1057,6 +1057,7 @@ func previsto(e: Dictionary, n: float, crit: bool, chave := "golpe") -> void:
 		n = max(1.0, round(float(_media_golpe[chave]) * randf_range(0.85, 1.15) * (2.0 if crit else 1.0)))
 	e.prev.append([m.tempo, n, chave])
 	e.combate = m.tempo + 5.0
+	e.comigo = m.tempo # lutou comigo: segura a música de combate (main.luta_perto)
 	m.fx.numero(e.no.position, n, Color(1, 0.72, 0.25) if crit else Color(1, 0.95, 0.6), crit)
 	m.trabalho.combate()
 	_barra_prevista(e)
@@ -1279,6 +1280,8 @@ func evento(ev: Dictionary) -> void:
 				for e in m.inimigos:
 					if e.no == quem:
 						e.combate = m.tempo + 5.0
+						if str(ev.alvo) == meu_id:
+							e.comigo = m.tempo # me bateu: segura a música de combate (main.luta_perto)
 			var no = corpos.get(str(ev.alvo))
 			if str(ev.alvo) == meu_id and outros.has(str(ev.get("de", ""))) and float(ev.get("n", 0)) > 0.0:
 				bateram[str(ev.de)] = m.tempo # jogador ou bot que me bateu: camada 1 do botão Trocar alvo (main.gd trocar_alvo)
@@ -1286,6 +1289,11 @@ func evento(ev: Dictionary) -> void:
 				var eu: bool = str(ev.alvo) == meu_id
 				if eu or meu:
 					m.trabalho.combate()
+				if meu and not eu: # bati nele (boss também, que não passa pelo previsto): segura a música (main.luta_perto)
+					for e in m.inimigos:
+						if e.no == no:
+							e.comigo = m.tempo
+							break
 				var crit: bool = ev.get("crit", false) == true
 				if ev.has("dot"): # sangramento, veneno ou queimadura de skill de boss: só o número, na cor do efeito
 					fx.numero(no.position, ev.n, m.boss_mundo.cor_dot(str(ev.dot)), false)
@@ -1505,7 +1513,7 @@ func evento(ev: Dictionary) -> void:
 			return
 	match t:
 		"proj":
-			var info := {"vel": float(ev.vel), "cor": cor(ev.get("cor")), "tam": float(ev.get("tam", 0.24)), "estilo": str(ev.get("estilo", "arcano"))}
+			var info := {"outro": true, "vel": float(ev.vel), "cor": cor(ev.get("cor")), "tam": float(ev.get("tam", 0.24)), "estilo": str(ev.get("estilo", "arcano"))}
 			if ev.get("explosao"):
 				info.explosao = float(ev.explosao)
 			fx.projetil(Vector3(float(ev.x), float(ev.y), float(ev.z)), Vector3(float(ev.dx), float(ev.dy), float(ev.dz)).normalized(), info, 0, 22.0)
@@ -1521,7 +1529,7 @@ func evento(ev: Dictionary) -> void:
 		"meteoro":
 			var x := float(ev.x)
 			var z := float(ev.z)
-			fx.meteoro(x, z, float(ev.r), float(ev.queda), m.chao_em(x, z), func(_p): pass)
+			fx.meteoro(x, z, float(ev.r), float(ev.queda), m.chao_em(x, z), func(_p): pass, false)
 		"cadeia":
 			var x := float(ev.x)
 			var z := float(ev.z)
