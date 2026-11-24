@@ -87,7 +87,8 @@ static func aplicar(no: Node3D, ap, esperar := true) -> void:
 	# cor livre no pano da armadura v5 (André 2026-11-23): Roupa e Calça da Aparência; sem escolha = cor do set
 	var cr = _cor(int(a.roupa)) if a.get("roupa") != null else null
 	var cc = _cor(int(a.calca)) if a.get("calca") != null else cr
-	if no.get_meta("cor_roupa", null) != cr or no.get_meta("cor_calca", null) != cc:
+	# (has_meta antes: get_meta com padrão null dá ERROR no log a cada chamada; centenas por partida no robô 2, 24/11)
+	if (no.get_meta("cor_roupa") if no.has_meta("cor_roupa") else null) != cr or (no.get_meta("cor_calca") if no.has_meta("cor_calca") else null) != cc:
 		no.set_meta("cor_roupa", cr)
 		no.set_meta("cor_calca", cc)
 		load("res://armadura.gd").tingir_v5(no)

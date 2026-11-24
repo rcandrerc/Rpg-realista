@@ -3494,8 +3494,8 @@ const TINTA_CALCA := ["v5_calca", "calca"]
 static func tingir_v5(raiz: Node3D) -> void:
 	if not LINHA_V5:
 		return
-	var cr = raiz.get_meta("cor_roupa", null)
-	var cc = raiz.get_meta("cor_calca", null)
+	var cr = (raiz.get_meta("cor_roupa") if raiz.has_meta("cor_roupa") else null)
+	var cc = (raiz.get_meta("cor_calca") if raiz.has_meta("cor_calca") else null)
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
 		if mi.has_meta("capa_pano"):
 			# capa de pano: o PanoCapa guarda o material dela e mexe nele todo quadro (grade do balanço). Trocar por uma
