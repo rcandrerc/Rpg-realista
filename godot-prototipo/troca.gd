@@ -373,6 +373,9 @@ func ficha_ui(p: Dictionary, largura := 500.0) -> Control:
 var cand_jan: PanelContainer
 
 func mostrar_candidatos(ev: Dictionary) -> void:
+	# André 2026-11-24: a janela do menu (camada 20) ficava na frente dos candidatos (camada 18): fecha o menu antes
+	if m.menu != null and m.menu.aberto():
+		m.menu.fechar()
 	if cand_jan == null:
 		cand_jan = PanelContainer.new()
 		cand_jan.add_theme_stylebox_override("panel", Menu.caixa(Menu.FUNDO, Menu.OURO.darkened(0.25), 2, 12, 14))

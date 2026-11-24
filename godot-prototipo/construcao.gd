@@ -4394,9 +4394,13 @@ func _input(ev: InputEvent) -> void:
 				var vb: VScrollBar = sc.get_v_scroll_bar()
 				if sc.is_visible_in_tree() and sc.get_global_rect().has_point(ev.position) and not (vb.visible and vb.get_global_rect().has_point(ev.position)):
 					_bau_dentro = sc # na barra não: a própria barra rola
+			if _bau_dentro != null and Engine.has_meta("rolagem_toque"):
+				Engine.get_meta("rolagem_toque", null).esquecer()
 			_bau_soma = 0.0
 			_bau_arrastou = false
 		else:
+			if _bau_dentro != null and _bau_arrastou and Engine.has_meta("rolagem_toque"):
+				Engine.get_meta("rolagem_toque", null).inercia(_bau_dentro) # soltou arrastando: segue deslizando (rolagem_toque.gd)
 			_bau_dentro = null
 			if _bau_arrastou: # o soltar passa, mas o item não dispara
 				(func(): _bau_arrastou = false).call_deferred()
@@ -4405,6 +4409,8 @@ func _input(ev: InputEvent) -> void:
 		if _bau_soma > 12.0:
 			_bau_arrastou = true
 		_bau_dentro.scroll_vertical -= int(round(ev.relative.y))
+		if Engine.has_meta("rolagem_toque"):
+			Engine.get_meta("rolagem_toque", null).anotar(ev.relative.y)
 		get_viewport().set_input_as_handled()
 
 func _montar_tela_bau() -> void:
@@ -4458,6 +4464,7 @@ func _montar_tela_bau() -> void:
 		Menu.barra_larga(sc)
 		c.add_child(sc)
 		rolar_bau.append(sc)
+		sc.set_meta("arrasto_proprio", true) # rola pelo _input daqui (rolagem_toque.gd só dá a inércia)
 		var margem := MarginContainer.new() # respiro entre os itens e a barra: o dedo não pega item ao mirar na barra
 		margem.add_theme_constant_override("margin_right", 12)
 		sc.add_child(margem)
@@ -4825,6 +4832,7 @@ func _montar_tela_forno() -> void:
 	Menu.barra_larga(sc)
 	col.add_child(sc)
 	rolar_bau.append(sc) # arrastar em cima dos itens também rola
+	sc.set_meta("arrasto_proprio", true)
 	var margem := MarginContainer.new()
 	margem.add_theme_constant_override("margin_right", 12)
 	sc.add_child(margem)
