@@ -785,7 +785,7 @@ setInterval(() => {
   if (s0) { if (relogioSrv.sim != null && agoraR > relogioSrv.t) relogio = +((s0.sim.tempo - relogioSrv.sim) / ((agoraR - relogioSrv.t) / 1000)).toFixed(3); relogioSrv.sim = s0.sim.tempo; relogioSrv.t = agoraR; }
   else relogioSrv.sim = null;
   let bots = 0, jogadores = 0; for (const s of salas) { jogadores += s.clients.length; for (const j of s.sim.jogadores.values()) if (j.bot) bots++; }
-  juntarLeitura(cargaAmostra, { bots, jogadores, passoMs: carga.ms, picoMs: carga.pico, memMb: Math.round(process.memoryUsage().rss / 1048576) });
+  juntarLeitura(cargaAmostra, { bots, jogadores, passoMs: carga.ms, picoMs: carga.pico, memMb: Math.round(process.memoryUsage().rss / 1048576), orcamentoMs: TICK * 1000 });
   if (cargaAmostra.n >= CARGA_DIA.amostraMin) { const a = fecharAmostra(cargaAmostra, agoraR); cargaAmostra = {}; if (a) guardarCarga(a); }
   saudeAnterior = { pico: carga.pico, silencioMs: carga.silencioMs, engasgos: carga.engasgos, correcoes, relogio };
   carga.pico = 0; carga.silencioMs = 0; carga.engasgos = 0;

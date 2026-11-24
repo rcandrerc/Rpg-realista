@@ -7,11 +7,16 @@
 export const CARGA_DIA = { amostraMin: 10, guardaH: 48, mostraH: 24 };
 export const CARGA_DIA_MAX = (CARGA_DIA.guardaH * 60) / CARGA_DIA.amostraMin; // amostras guardadas (48 h de 10 em 10 min)
 
-// junta a leitura de 1 min na amostra em andamento: bots, jogadores, pico e memória ficam no maior; o passo, na média
-export function juntarLeitura(a, { bots = 0, jogadores = 0, passoMs = 0, picoMs = 0, memMb = 0 } = {}) {
+// junta a leitura de 1 min na amostra em andamento: bots, jogadores, pico e memória ficam no maior; o passo, na média.
+// acima = minutos em que algum passo passou do orçamento (um passo do servidor; acima disso ele atrasa todo mundo). O pico
+// sozinho engana: o servidor reinicia a cada merge (#750) e a largada dá um tranco (teste local de 24/11: 68 ms quando a
+// sala nasce e 172 ms um minuto depois, e depois disso no máximo 38 ms). Os minutos acima mostram se o tranco virou rotina.
+export function juntarLeitura(a, { bots = 0, jogadores = 0, passoMs = 0, picoMs = 0, memMb = 0, orcamentoMs = 50 } = {}) {
+  const pico = Number(picoMs) || 0;
   a.n = (a.n || 0) + 1;
   a.soma = (a.soma || 0) + (Number(passoMs) || 0);
-  a.pico = Math.max(a.pico || 0, Number(picoMs) || 0);
+  a.pico = Math.max(a.pico || 0, pico);
+  a.acima = (a.acima || 0) + (pico > orcamentoMs ? 1 : 0);
   a.bots = Math.max(a.bots || 0, bots | 0);
   a.jog = Math.max(a.jog || 0, jogadores | 0);
   a.mem = Math.max(a.mem || 0, memMb | 0);
@@ -21,11 +26,12 @@ export function juntarLeitura(a, { bots = 0, jogadores = 0, passoMs = 0, picoMs 
 // fecha a amostra (t = quando fechou, em ms); sem leitura nenhuma, null
 export function fecharAmostra(a, t) {
   if (!a?.n) return null;
-  return { t, bots: a.bots, jog: a.jog, passo: +(a.soma / a.n).toFixed(2), pico: +a.pico.toFixed(1), mem: a.mem };
+  return { t, bots: a.bots, jog: a.jog, passo: +(a.soma / a.n).toFixed(2), pico: +a.pico.toFixed(1), acima: a.acima, mem: a.mem };
 }
 
 // resumo das últimas `horas` h: o máximo de bots e de jogadores juntos, o passo médio (só das amostras com bot em jogo,
-// que é a carga que interessa; sem nenhuma, de todas), o pico do passo, a memória máxima e a amostra com mais bots
+// que é a carga que interessa; sem nenhuma, de todas), o pico do passo, os minutos com passo acima do orçamento (de
+// `minutos` lidos), a memória máxima e a amostra com mais bots
 export function resumoDia(lista, agora, horas = CARGA_DIA.mostraH) {
   const l = (lista || []).filter((c) => c && c.t >= agora - horas * 3600e3 && c.t <= agora);
   const max = (k) => l.reduce((m, c) => Math.max(m, c[k] || 0), 0);
@@ -39,6 +45,8 @@ export function resumoDia(lista, agora, horas = CARGA_DIA.mostraH) {
     jogadoresMax: max('jog'),
     passoMedioMs: base.length ? +(base.reduce((s, c) => s + (c.passo || 0), 0) / base.length).toFixed(2) : null,
     passoPicoMs: max('pico'),
+    minAcima: l.reduce((s, c) => s + (c.acima || 0), 0),
+    minutos: l.length * CARGA_DIA.amostraMin,
     memMaxMb: max('mem'),
     comMaisBots: topo ? { t: topo.t, bots: topo.bots, jog: topo.jog, passo: topo.passo, pico: topo.pico, mem: topo.mem } : null,
   };
