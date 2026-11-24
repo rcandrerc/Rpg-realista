@@ -44,5 +44,7 @@ r.vida = r.vidaMax; longe(r); rufo.ia.guerra = null; rufo.vida = rufo.vidaMax;
 por(d, v5.x, v5.z); por(rufo, v5.x + 20, v5.z);
 s.guerraT = 0; passos(1.5);
 ok(s.emGuerra(rufo, d, true) && rufo.ia.guerra?.alvo === d.id, 'controle: o André no mesmo campo continua em guerra e o Rufo parte para cima dele');
+// o Rufo já pode ter batido (e até matado) o André durante os passos: o golpe de controle parte de vida cheia
+d.morto = false; d.vida = d.vidaMax;
 const vd = d.vida; s.ferir(d, 100, rufo);
 ok(d.vida < vd, 'controle: golpe da Geada no André tira vida');

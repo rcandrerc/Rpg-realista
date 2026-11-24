@@ -335,6 +335,8 @@ func _ready() -> void:
 			grafico.paralelo_confirmar())
 	# cardápio do app no balde da Oracle, sem APK novo (André 2026-11-18): grava o endereço para a próxima abertura
 	add_child(preload("res://balde_cardapio.gd").new())
+	# toda lista rola arrastando o dedo, com inércia (André 2026-11-24, rolagem_toque.gd)
+	add_child(preload("res://rolagem_toque.gd").new())
 	montar_versao()
 	P = Progresso.new()
 	h.vida = P.st.vidaMax
