@@ -502,6 +502,7 @@ export const Amiga = {
     if (j.morto) { if (!ia.caiu) { ia.caiu = true; ia.caiuT = this.tempo; this.evolucaoAmiga(j, 'morreu', ia.av?.c?.nome || (j.time ? 'no time' : '')); const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); if (ia.encomenda && !ia.encomenda.pronta) this.fimEncomendaAmiga(j, 'luta'); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
     ia.caiu = false;
     if (j.duelo) return this.passoDueloAmiga(j); // duelando (shared/duelo.js): só luta contra quem chamou
+    if (ia.jantar && this.jantarAmiga?.(j, dt)) return; // chamado para o jantar do clã: anda até a Mesa do Clã e senta (shared/jantar.js)
     if (ia.packOrdem && this.passoOrdemPackAmiga(j, dt)) return; // ordem de pack da barra do time (De → Pra, andando)
     if (this.protegerVeiculoAmiga(j, dt)) return; // "Proteger carrinho / mercante" (painel do clã): antes da guerra, para não perseguir
     if (this.guerraAmiga(j, dt)) return; // Chama x Geada (shared/guerra.js): atacar, ajudar, fugir ou poupar a outra raça

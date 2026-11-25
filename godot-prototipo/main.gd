@@ -71,6 +71,7 @@ const Rota = preload("res://rota.gd")
 const Seguir = preload("res://seguir.gd") # botão Seguir da Cecília (André 2026-11-17)
 const Construcao = preload("res://construcao.gd")
 const BaseCla = preload("res://base_cla.gd") # base do clã no mapa (André 2026-11-22)
+const Jantar = preload("res://jantar.gd") # jantar do clã na Mesa do Clã (André 2026-11-25)
 const EditarHud = preload("res://editar_hud.gd")
 const RetratoHeroi = preload("res://retrato_heroi.gd")
 const Montaria = preload("res://montaria.gd")
@@ -189,6 +190,7 @@ var minimapa # minimapa.gd: minimapa no canto de cima à direita; tocar abre o m
 var voz # voz.gd: comando de voz no celular (Configurações > Comando de voz; André 2026-11-14)
 var construcao # construcao.gd: Vila dos Lotes (comprar lote, modo construção e horta, como no Quimera)
 var base_cla # base_cla.gd: as bases dos clãs (salão, torre, paliçada, lotes)
+var jantar # jantar.gd: o jantar do clã (a janela, a comida na mesa e o herói sentado)
 var editar_hud # editar_hud.gd: segurar o painel de vida e mana abre o modo de editar a interface
 var retrato_heroi # retrato_heroi.gd: rosto do herói no painel
 var vibracao := true # Configurações: vibrar no golpe e no dano
@@ -542,6 +544,8 @@ func _ready() -> void:
 	add_child(construcao)
 	base_cla = BaseCla.new(self)
 	add_child(base_cla)
+	jantar = Jantar.new(self)
+	add_child(jantar)
 	hud.construcao = construcao
 	hud.tocou.connect(construcao.tocou_tela) # modo construção: tocar no chão leva a mira para lá
 	editar_hud = EditarHud.new(self) # por último: lê o layout guardado e passa para todos os elementos
@@ -2992,7 +2996,7 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif not qual in ["troca", "menu", "coletar", "falar", "selo", "disparada", "montar", "construir", "lote", "bancada", "bau", "forno", "cama", "encher"]:
+	elif not qual in ["troca", "menu", "coletar", "falar", "selo", "disparada", "montar", "construir", "lote", "bancada", "bau", "forno", "cama", "encher", "jantar"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # 3ª velocidade (André 2026-11-03): o botão liga a corrida que gasta estamina (andar.gd disparada).
@@ -3136,6 +3140,8 @@ func _tentar(qual: String) -> bool:
 			construcao.tocar_estacao("bau") # 2026-11-07: longe ou do lado de fora da parede, anda até ele e abre
 		"encher": # perto do poço da vila ou na beira do lago (André 2026-11-07): enche o regador
 			construcao.encher_regador()
+		"jantar": # perto da Mesa do Clã (jantar.gd, André 2026-11-25): abre a janela do jantar
+			jantar.abrir()
 		"cama": # à noite, perto da minha cama (construcao.gd, dia e noite do Quimera 2026-11-07): anda até ela e dorme
 			construcao.tocar_estacao("cama")
 		"forno": # a minha fornalha (construcao.gd, 2026-11-07): anda até o lado dela e abre a janela de combustível + material
@@ -4233,6 +4239,8 @@ func atualizar_heroi(dt: float) -> void:
 		desliza = desliza.lerp(Vector3.ZERO, minf(1.0, dt * 12.0))
 		if desliza.length_squared() < 0.0004:
 			desliza = Vector3.ZERO
+	if jantar != null and jantar.sentado_ok(): # sentado na Mesa do Clã (jantar.gd): fica no lugar; o joystick levanta
+		jantar.prender_heroi(forca)
 	heroi.position = mov.posicao() + desliza
 	heroi.rotation.y = mov.ry
 	passo_encostar(dt)
@@ -4285,6 +4293,8 @@ func atualizar_heroi(dt: float) -> void:
 			a = "sair_agua" # termina de ficar de pé antes de andar
 		elif _nadando:
 			a = "andar" if mov.velocidade() > 0.3 else "parada" # quem troca para nadar/boiar é o anim_heroi.gd (nome para o servidor)
+		elif jantar != null and jantar.sentado_ok():
+			a = "parada" # sentado na Mesa do Clã: o jantar.gd põe o quadril no banco (sentar.gd) por cima da parada
 		elif montaria != null:
 			a = "parada" # montado: quem anda é o lobo (cavalgar.gd põe o corpo na sela por cima)
 		elif not mov.veiculo.is_empty():

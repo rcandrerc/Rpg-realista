@@ -1,6 +1,6 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { fichaJogadorValida } from './dados.js';
+import { fichaJogadorValida, JANTAR } from './dados.js';
 import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS, TITULOS, HISTORIA } from './dados.js';
 import { packValido, carrinhoValido, navioValido } from './transporte.js';
 import { histNova, histValida } from './historia.js';
@@ -82,6 +82,7 @@ export const golpeHeroiNivel = (nv, nh, N) => {
 export function calcularStatus(p, passivas = {}) {
   const a = p.atr, n = p.nivel, eq = bonusEquip(p.equip, a), ti = bonusTitulo(p); // ti: título em uso (TITULOS)
   const co = bonusComida(p); // co: buff da comida (André 2026-11-24)
+  const bq = p.banq?.ate > Date.now() ? JANTAR.buff.dano : 0; // Banquete do clã: o líder que sentou no jantar (André 2026-11-25); soma com a comida
   const nivelK = 1 + 0.08 * (n - 1);
   const def = (a.for + (passivas.pele_pedra ? 3 : 0) + eq.defesa) * (1 + (ti.defesa || 0) + (co.defesa || 0));
   return {
@@ -92,8 +93,8 @@ export function calcularStatus(p, passivas = {}) {
     regenVida: REGEN.vida + REGEN.vidaNivel * n + REGEN.vidaVit * a.vit,
     defesa: def,
     reducao: def / (def + 24), // fração do dano que a defesa segura
-    danoFisico: (10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0)),
-    danoMagico: (10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0)),
+    danoFisico: (10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
+    danoMagico: (10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
     critico: Math.min(1, 0.0455 + 0.0015 * a.des + (passivas.sorte_arcana ? 0.02 : 0) + eq.critico + (ti.critico || 0) + (co.critico || 0)),
     danoCritico: eq.danoCritico, // somado no golpe crítico (o dobro + este número), André 2026-11-17
     recarga: Math.min(0.4, 0.0133 * a.des), // fração a menos no tempo de recarga
@@ -646,6 +647,7 @@ export function progressoValido(p) {
   if (p.dia && num(p.dia.h) && num(p.dia.t) && p.dia.h >= 0 && p.dia.h < 24) n.dia = { h: p.dia.h, t: Math.min(agora, p.dia.t) };
   if (num(p.camaT) && p.camaT > 0) n.camaT = Math.min(agora, p.camaT);
   // buff da comida (André 2026-11-24): só item que tem buff e no máximo a duração dele a partir de agora
+  if (p.banq && num(p.banq.ate) && p.banq.ate > agora) n.banq = { ate: Math.min(p.banq.ate, agora + JANTAR.buff.dur * 1000) }; // Banquete do clã (shared/jantar.js)
   if (p.buff && typeof p.buff.k === 'string' && ITENS[p.buff.k]?.buff && num(p.buff.ate) && p.buff.ate > agora) n.buff = { k: p.buff.k, ate: Math.min(p.buff.ate, agora + ITENS[p.buff.k].buff.dur * 1000) };
   // forninho público da ferraria (André 2026-11-11): o que cada um deixou dentro (a Simulacao confere com fornoValido)
   if (p.fornosPub && typeof p.fornosPub === 'object') {

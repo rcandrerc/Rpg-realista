@@ -12,7 +12,7 @@
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
 import { VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS, DESPENSA, BASES_FRIAS, MORAL } from './dados.js';
-import { contextoDeAmigo } from './amiga.js';
+import { contextoDeAmigo, pecaDaCasa, mesmaPeca } from './amiga.js';
 import { profNivel, guardar, guardarQueCabe, moverQtd, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
 import { fundoAgua } from './transporte.js';
 import { LUGARES_MUNDO } from './mundo.js';
@@ -68,6 +68,7 @@ export function claValido(c) {
   // nível do clã (vagas): clã de antes começa no nível que cabe quem ele já tem (nada some)
   out.nv = Math.max(int(c.nv, 1, CLA.max, 1), Math.min(CLA.max, out.m.length), 1);
   const dsp = despensaValida(c.dsp); if (dsp) out.dsp = dsp; // Despensa e lenha (DESPENSA)
+  if (typeof c.jd === 'string' && /^\d{4}-\d\d-\d\d$/.test(c.jd)) out.jd = c.jd; // o dia (Brasília) do último jantar do clã (shared/jantar.js)
   if (Number.isFinite(+c.vis) && +c.vis > 0 && +c.vis < 9e15) out.vis = Math.round(+c.vis); // a última vez do líder no jogo (MORAL)
   return out;
 }
@@ -221,7 +222,7 @@ export const Cla = {
       tiers: CLA.tiers.map((T) => { const n2 = nivelTier(T, nv); return { id: T.id, nome: T.nome, nv: n2, preco: precoTier(T, n2), sem: semanaDe(T, n2), claNv: T.claNv || 1 }; }),
       ...(c.disp?.some((d) => d.ate > Date.now()) ? { disp: c.disp.filter((d) => d.ate > Date.now()).map((d) => ({ id: d.r.id, nome: d.r.nome, nv: d.r.nv, taxa: taxaVolta(d.r) })) } : {}), // chamar de volta (10 min)
       dsp: this.despensaInfo(c.dsp, this.bauDoCla({ conta: j.conta })?.itens || null, 1 + c.m.length, Bs), // Despensa e lenha (DESPENSA)
-      rec, log: c.log.slice(-10).reverse(), dep: CLA.deposito, clas: this.clasNpcInfo(j), base: this.baseInfo?.(j) || null,
+      rec, log: c.log.slice(-10).reverse(), dep: CLA.deposito, clas: this.clasNpcInfo(j), base: this.baseInfo?.(j) || null, jantar: this.jantarResumo?.(j) || null,
       baseNiveis: CLA.base.niveis.slice(1).map((N, i) => ({ nv: i + 1, centro: N.centro, lotes: N.lotes, raio: N.raio, taxa: N.taxa, tem: N.tem })) };
   },
   // pedido do app: { acao: 'fundar' | 'recrutar' | 'dispensar' | 'depositar' | 'sacar' | 'ver' | 'funcao', nome, tier, id, ouro, fn }
@@ -356,6 +357,7 @@ export const Cla = {
     if (m.acao === 'mudarBase') return this.moverBase(j, aviso, m.x != null ? { x: m.x, z: m.z } : null); // realocar (shared/base.js)
     if (m.acao === 'baseVer') return this.verLugarBase(j, m.x != null ? { x: m.x, z: m.z, mudar: !!m.mudar } : null); // a prévia da base (André 2026-11-22: "pode escolher exatamente onde")
     if (m.acao === 'missao') { const r = this.iniciarMissaoCla(j, aviso, this.baseDe?.(j), this.recrutasNoMundo(j)); if (r) this.avisarProg(j); return; } // Escolta do Clã (shared/missao-cla.js)
+    if (m.acao === 'jantar') return this.jantarAcao(j, m, aviso); // jantar do clã na Mesa do Clã (shared/jantar.js)
     if (m.acao === 'ver') return this.avisarProg(j);
   },
   // ---------- nível do clã (André 2026-11-22) ----------
@@ -1061,9 +1063,13 @@ export const Cla = {
     const feitos = []; let hMax = 0;
     for (const x of this.recrutasNoMundo(j)) {
       if (novos && !novos.has(x.AMIGA.id)) continue;
-      const m = x.amiga && c.m.find((o) => o.id === x.AMIGA.id); if (!m?.fn || m.dev) continue; // devendo não trabalha
+      const m = x.amiga && c.m.find((o) => o.id === x.AMIGA.id); if (!m || m.dev) continue; // devendo não trabalha
       const t0 = Math.max(saiu, +x.foraDesde || 0), ms = Math.min(F.max, Date.now() - t0); if (!(ms >= F.minimo)) continue;
-      const h = ms / 3600e3; hMax = Math.max(hMax, h);
+      const h = ms / 3600e3;
+      // modo Livre fora do jogo (André 2026-11-25: "deixei em modo livre por muito tempo e o telhado não foi construído...
+      // eu estava off"): ele levanta a casa dele no lote, uma peça a cada passo.obra s (como no jogo), até acabar
+      if (!m.fn) { const f = this.casaFora(x, ms / 1000); if (f) { hMax = Math.max(hMax, h); feitos.push(f); } continue; }
+      hMax = Math.max(hMax, h);
       const f = this.trabalhoFora(x, m, h, j.prog.nivel | 0); if (f) feitos.push(f);
     }
     if (!feitos.length) return;
@@ -1071,6 +1077,21 @@ export const Cla = {
     for (const f of feitos) this.logCla(c, `Fora (${horas}): ${f}`);
     // um recruta por linha (André 2026-11-22: "podia descrever por coluna... Gael fez isso, João fez tal"); o aviso (hud.gd) quebra no \n
     if (!j.semAviso) this.evento({ t: 'aviso', para: j.id, texto: `Enquanto você esteve fora:\n${feitos.join('\n')}` }); // painel do clã: só o registro
+  },
+  // peças da casa que o recruta em modo Livre põe em seg segundos fora do jogo (a ordem de construir é a mesma do jogo)
+  casaFora(x, seg) {
+    const L = x.loteDaAmiga?.(); if (!L || !x.amiga) return null;
+    let n = Math.floor(seg / (x.AMIGA.passo.obra * 1.3)), feitas = 0;
+    const A = x.AMIGA;
+    while (n-- > 0) {
+      const mov = x.movelForaAmiga(L); if (mov) { x.moverMovelAmiga(L, mov); continue; }
+      const falta = A.casa.map((q) => pecaDaCasa(L.def, q)).find((q) => !L.pecas.some((o) => mesmaPeca(o, q)) && !x.amiga.ia.pulas?.has(`${q.k}:${q.x},${q.z}`));
+      if (!falta) break;
+      const antes = L.pecas.length; x.colocarPeca(L, falta); if (L.pecas.length > antes) feitas++;
+    }
+    if (!feitas) return null;
+    x.guardarAmiga?.();
+    return `${x.AMIGA.nome}: construiu ${feitas} peça${feitas > 1 ? 's' : ''} da casa`;
   },
   // o que um recruta fez em h horas fora (grind: XP até o nível do líder; farm: o que o vigor paga, direto no Baú do
   // Clã; fazenda: os canteiros crescem sozinhos e ele colhe e replanta quando o líder volta). Texto ou null.
@@ -1400,7 +1421,7 @@ export const Cla = {
       const fixos = fixosNpc(C, { fora }).length, nvC = Math.max(1, Math.min(CLA.max, (e?.nv | 0) || fixos + (v?.m.length || 0)));
       this.clasNpc[C.id] = { nv: nvC, m: v?.m.slice(0, vagasClaNpc(C, nvC, { fora })) || [], ...(fora.length ? { fora } : {}), prox: Number.isFinite(+e?.prox) ? +e.prox : Date.now() + CLAS_NPC_REGRAS.primeiro * 3600e3, sem: v?.sem || Date.now() + CLA.semana,
         ...(bau ? { bau } : {}), ...(despensaValida(e?.dsp) ? { dsp: despensaValida(e.dsp) } : {}), ...(Number.isFinite(+e?.visto) && +e.visto > 0 ? { visto: +e.visto } : {}),
-        ...(e?.mo && typeof e.mo === 'object' ? { mo: Object.fromEntries(Object.entries(e.mo).slice(0, 40).filter(([id]) => /^[a-z0-9_]{2,24}$/i.test(id)).map(([id, o]) => [id, moralValida(o)])) } : {}) }; // moral (MORAL)
+        ...(e?.mo && typeof e.mo === 'object' ? { mo: Object.fromEntries(Object.entries(e.mo).slice(0, 40).filter(([id]) => /^[a-z0-9_]{2,24}$/i.test(id)).map(([id, o]) => [id, moralValida(o)])) } : {}), ...(typeof e?.jd === 'string' && /^\d{4}-\d\d-\d\d$/.test(e.jd) ? { jd: e.jd } : {}) }; // moral (MORAL)
     }
     for (const C of CLAS_NPC) for (const m of this.clasNpc[C.id].m) this.criarRecrutaNpc(C, m, false);
   },
@@ -1441,6 +1462,7 @@ export const Cla = {
       if (!E.visto || agora - E.visto > 600e3) { E.visto = agora; mudou = true; }
       for (const x of ctxs) { const m = doM(x); if (m?.fn) this.aplicarFuncao(L, x, m, trocou.has(m.id)); }
       this.missaoClaNpc?.(C, L, ctxs); // Escolta do Clã: o clã bot faz a dele também (shared/missao-cla.js)
+      this.jantarNpc?.(C, E, ctxs); // jantar do clã, uma vez por dia (shared/jantar.js)
       for (const x of this.amigosIa) { const m = x.AMIGA.clanpc === C.id && x.amiga && E.m.find((o) => o.id === x.AMIGA.id); if (m && m.nv !== (x.amiga.prog.nivel | 0)) { m.nv = x.amiga.prog.nivel | 0; mudou = true; } }
       // a semana: sai do ouro do líder; sem ouro, o mais caro vai embora
       for (let k = 0; E.sem <= agora && k < 60; k++) {

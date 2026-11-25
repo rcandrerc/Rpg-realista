@@ -63,7 +63,7 @@ func itens(bf) -> Array:
 		var fim := float(b[1])
 		var falta := -1.0
 		if fim > 0.0:
-			if k == "co":
+			if k == "co" or k == "banq": # comida e Banquete do clã: fim em ms do relógio
 				falta = (fim - ms) / 1000.0
 			elif ts >= 0.0:
 				falta = fim - ts
@@ -84,7 +84,7 @@ func itens(bf) -> Array:
 	return r
 
 func _bom(k: String, v) -> bool:
-	if k in ["cla", "co", "escudo"]:
+	if k in ["cla", "co", "escudo", "banq"]:
 		return true
 	if k == "mesa":
 		return float(v) > 0.0
@@ -190,6 +190,9 @@ func _icone(ci: CanvasItem, c: Vector2, r: float, it: Dictionary) -> void:
 				_tigela(ci, c, ri)
 		"mesa":
 			_tigela(ci, c, ri)
+		"banq": # Banquete do clã: a tigela com a chama do clã em cima
+			_tigela(ci, c + Vector2(0, ri * 0.2), ri * 0.85)
+			_chama(ci, c - Vector2(0, ri * 0.45), ri * 0.5, Color(1.0, 0.5, 0.12), Color(1.0, 0.88, 0.4))
 		"escudo":
 			_escudo(ci, c, ri, Color(0.45, 0.72, 1.0), Color(0.12, 0.25, 0.5))
 		"atordoa":
@@ -345,6 +348,8 @@ func texto(it: Dictionary) -> Array:
 			if float(v) > 0.0:
 				return [Idioma.frase("Bem alimentado"), Idioma.frase("+%s de dano e XP") % _pct(v)]
 			return [Idioma.frase("Com fome") if float(v) > -0.2 else Idioma.frase("Faminto"), Idioma.frase("-%s de dano e XP") % _pct(v)]
+		"banq":
+			return [Idioma.frase("Banquete do clã"), Idioma.frase("+%s de dano e XP") % _pct(v)]
 		"co":
 			var I = m.P.dados.itens.get(str(v), {}) if m.P else {}
 			var partes: Array = []
