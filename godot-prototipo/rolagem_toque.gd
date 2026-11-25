@@ -40,6 +40,24 @@ func _novo_no(n: Node) -> void:
 		n.add_to_group("rolagem_toque")
 		# o arrasto nativo do Godot só pega no fundo vazio e somaria com o daqui: fica com este
 		(func(): if is_instance_valid(n) and not n.has_meta("arrasto_proprio"): n.scroll_deadzone = 1000000).call_deferred()
+		# celular (André 2026-11-25: "o botãozinho do lado direito para arrastar é horrível no celular, quero igual
+		# Instagram"): a barra vira só um risquinho que mostra onde está; o dedo em cima dela também arrasta a lista.
+		if NO_CELULAR:
+			(func(): if is_instance_valid(n): so_indicador(n)).call_deferred()
+
+static var NO_CELULAR: bool = OS.has_feature("mobile")
+
+static func so_indicador(sc: ScrollContainer) -> void:
+	for barra in [sc.get_v_scroll_bar(), sc.get_h_scroll_bar()]:
+		barra.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if barra is VScrollBar:
+			barra.custom_minimum_size.x = 6
+		else:
+			barra.custom_minimum_size.y = 6
+
+# a barra ainda é para pegar com o dedo/mouse? (no celular não: só indica)
+static func barra_pega(barra: ScrollBar, p: Vector2) -> bool:
+	return barra.visible and barra.mouse_filter != Control.MOUSE_FILTER_IGNORE and barra.get_global_rect().has_point(p)
 
 # lista que pode rolar sob o ponto: a de cima na tela (camada maior; empate, a que vem depois na árvore = desenhada por cima / mais por dentro)
 func _lista_em(p: Vector2) -> ScrollContainer:
@@ -106,7 +124,7 @@ func _input(ev: InputEvent) -> void:
 			if _sc == null:
 				return
 			var barra: ScrollBar = _sc.get_v_scroll_bar()
-			if barra.visible and barra.get_global_rect().has_point(ev.position):
+			if barra_pega(barra, ev.position):
 				_sc = null # dedo na barra: a barra rola, como antes
 				return
 			_dedo = ev.index
