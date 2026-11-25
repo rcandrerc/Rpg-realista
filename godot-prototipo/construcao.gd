@@ -132,8 +132,8 @@ var txt_compra_tit: Label
 var painel_bau: PanelContainer
 var grade_bau: GridContainer
 var grade_mochila: GridContainer
-var tipos_bau: HBoxContainer # o que aparece (menu.gd botoes_ver) e Tirar/Guardar tudo em cima de cada grade
-var tipos_mochila: HBoxContainer
+var tipos_bau: VBoxContainer # o que aparece (menu.gd botoes_ver) e Tirar/Guardar tudo em cima de cada grade
+var tipos_mochila: VBoxContainer
 var txt_bau: Label
 var bau_itens: Array = []
 var bau_slots := 40 # lugares do baú (André 2026-11-07: Melhorar 40 → 60 → 80)
@@ -4372,6 +4372,7 @@ func do_bau(ev: Dictionary) -> void:
 	var t0 := Time.get_ticks_usec()
 	var abriu: bool = ev.get("abrir", false)
 	if abriu:
+		m.menu.limpar_ver() # o filtro do que aparece é só do momento (André 2026-11-25)
 		painel_bau.visible = true
 		m.sons.tocar("pano", -6.0)
 	if painel_bau.visible:
@@ -4382,6 +4383,7 @@ func do_bau(ev: Dictionary) -> void:
 
 func fechar_bau() -> void:
 	painel_bau.visible = false
+	m.menu.limpar_ver()
 
 # baú ou fornalha aberta: arrastar o dedo para cima/baixo em cima dos itens rola a lista; um toque parado ainda guarda/tira
 func _input(ev: InputEvent) -> void:
@@ -4461,7 +4463,8 @@ func _montar_tela_bau() -> void:
 		org.custom_minimum_size = Vector2(118, 38)
 		cab.add_child(org)
 		# André 2026-11-25: o mesmo filtro da mochila, venda e troca (2 botões) e o Tirar/Guardar tudo do que aparece
-		var tipos := HBoxContainer.new()
+		var tipos := VBoxContainer.new()
+		tipos.add_theme_constant_override("separation", 6)
 		c.add_child(tipos)
 		if qual == "bau":
 			tipos_bau = tipos
@@ -4506,13 +4509,20 @@ func _montar_bau() -> void:
 		for n in g.get_children():
 			n.queue_free()
 	# o mesmo filtro da mochila, venda e troca (menu.gd botoes_ver) + "Tirar tudo" / "Guardar tudo" do que aparece
-	for lado in [[tipos_bau, bau_itens, "Tirar tudo", "tirar"], [tipos_mochila, m.P.prog.get("mochila", []), "Guardar tudo", "guardar"]]:
-		lado[0].add_child(m.menu.botoes_ver(lado[1], _montar_bau, 88))
+	for lado in [[tipos_bau, bau_itens, "Tirar tudo", "tirar", "bau"], [tipos_mochila, m.P.prog.get("mochila", []), "Guardar tudo", "guardar", "moch"]]:
+		var fila := HBoxContainer.new()
+		fila.add_theme_constant_override("separation", 6)
+		fila.add_child(m.menu.botoes_ver(lado[1], _montar_bau, 88, lado[4]))
 		var vis: Array = m.menu.ids_visiveis(lado[1], true)
 		var bt := _botao(lado[2], func(): _rede_bau({"acao": lado[3], "lista": vis}), false, 15)
 		bt.custom_minimum_size = Vector2(150, 38)
 		bt.disabled = vis.is_empty()
-		lado[0].add_child(bt)
+		fila.add_child(bt)
+		lado[0].add_child(fila)
+		var pv = m.menu.painel_ver(lado[1], _montar_bau, lado[4]) # a lista por nome, ali mesmo
+		if pv != null:
+			pv.custom_minimum_size.x = 7 * 60
+			lado[0].add_child(pv)
 	var cheios := 0
 	if bau_prox != null:
 		var partes: Array = []

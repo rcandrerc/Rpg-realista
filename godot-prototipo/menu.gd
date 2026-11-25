@@ -1104,6 +1104,7 @@ func fechar() -> void:
 	if vendo_recruta(): # o X no menu do recruta: sai dele e fecha
 		_limpar_recruta()
 	_pend.clear() # fechou sem confirmar: nada foi gasto
+	limpar_ver() # o filtro do que aparece é só do momento (André 2026-11-25)
 	fechar_confirma()
 	fechar_janela(false)
 	raiz.visible = false
@@ -4316,6 +4317,11 @@ func montar_mochila() -> void:
 		var bv := botao("Vender vários", func(): modo_vender(true), 15, true)
 		bv.custom_minimum_size = Vector2(132, 40)
 		ferramentas_bolsa.add_child(bv)
+		# André 2026-11-25: "desmarco o que não quero, aperto vender tudo, só vende o que tá aparecendo"
+		var vt := botao("Vender tudo", func(): perguntar_vender_tudo(), 15, filtrando())
+		vt.custom_minimum_size = Vector2(124, 40)
+		vt.disabled = ids_visiveis(P.prog.mochila).is_empty() or vendo_recruta()
+		ferramentas_bolsa.add_child(vt)
 	if filtro_aberto:
 		montar_filtro()
 		return
@@ -4357,6 +4363,9 @@ func montar_mochila() -> void:
 	conteudo.add_child(linha)
 	if vendendo:
 		conteudo.add_child(botoes_ver(P.prog.mochila, atualizar))
+	var pv := painel_ver(P.prog.mochila, atualizar) # a lista por nome aberta ali mesmo, em cima da grade
+	if pv != null:
+		conteudo.add_child(pv)
 	if filtrando():
 		var gf := GridContainer.new()
 		gf.columns = 10
@@ -5114,12 +5123,18 @@ func barra_venda(l: HBoxContainer) -> void:
 # André 2026-11-24: marcar de uma vez no Vender vários. Chips só com ícone + quantidade: equipamento Comum / Raro / Épico (ou
 # melhor) e Recurso. Toque marca tudo que combina (com cadeado e o que está vestido ficam de fora: vestido nem está na mochila);
 # se tudo isso já estava marcado, desmarca. Marcar um por um continua valendo.
-# ---------- o que aparece (André 2026-11-25: "deixava só 2 botões, um de arma e armadura e um de recurso"; "desmarcar
-# ferro, aí aparecer tudo menos ferro; vender tudo só vende o que tá aparecendo") ----------
-# Um filtro só, o mesmo na mochila, na venda, no baú (os dois lados) e na troca. Equipamento: marca o tipo de peça (calça,
-# peitoral, espada...) e a raridade. Recurso: marca cada item (madeira, ferro, carne, poção...). O "tudo" de cada tela
-# (Selecionar tudo da venda, Guardar/Tirar tudo do baú, Pôr tudo da troca) só pega o que está aparecendo.
-var ver_fora := {"k": {}, "r": {}} # desmarcados: k = item, r = raridade da peça (vale enquanto o jogo está aberto)
+# ---------- o que aparece (André 2026-11-25: "deixava só 2 botões, um de arma e armadura e um de recurso"; depois:
+# "lista por nome, raro azulzinho, comum cinzinha"; "o filtro dentro da minha bag mesmo, só aparece o que eu marquei";
+# "se eu fechar a bag e abrir de novo, esse filtro não fica salvo"; "vender tudo só vende o que tá aparecendo") ----------
+# Um filtro só, igual na mochila, na venda, no baú (os dois lados) e na troca. O botão abre a lista por nome ali mesmo
+# (sem janela por cima): Equipamento = raridades (na cor) e tipos de peça; Recurso = cada item. Desmarcado some da grade.
+# Fecha a mochila, o baú ou a troca: tudo volta a aparecer (limpar_ver). O "tudo" de cada tela só pega o que aparece.
+var ver_fora := {"k": {}, "r": {}} # desmarcados: k = item, r = raridade da peça
+var ver_aberto := "" # lista aberta: "<lado>:eq" ou "<lado>:rec" ("" = fechada)
+
+func limpar_ver() -> void:
+	ver_fora = {"k": {}, "r": {}}
+	ver_aberto = ""
 
 func filtrando() -> bool:
 	return not ver_fora.k.is_empty() or not ver_fora.r.is_empty()
@@ -5141,14 +5156,15 @@ func ids_visiveis(lista: Array, com_cadeado := false) -> Array:
 			l.append(i)
 	return l
 
-# os 2 botões: ícone + quantos itens aparecem; dourado quando algo do grupo está desmarcado
-func botoes_ver(lista: Array, ao_mudar: Callable, larg := 96) -> HBoxContainer:
+# os 2 botões (peitoral = equipamento, couro = recurso) com quantos aparecem; dourado quando algo está escondido.
+# Tocar abre/fecha a lista embaixo deles (painel_ver); ao_mudar remonta a tela.
+func botoes_ver(lista: Array, ao_mudar: Callable, larg := 96, lado := "") -> HBoxContainer:
 	var P = P_menu
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 6)
 	for eq in [true, false]:
 		var q := 0
-		var fora := false
+		var fora: bool = eq and not ver_fora.r.is_empty()
 		for it in lista:
 			if it == null or P.eh_equip(it) != eq:
 				continue
@@ -5156,142 +5172,89 @@ func botoes_ver(lista: Array, ao_mudar: Callable, larg := 96) -> HBoxContainer:
 				q += 1 if eq else maxi(1, int(it.get("n", 1)))
 			else:
 				fora = true
-		if eq and not ver_fora.r.is_empty():
-			fora = true
+		var chave := lado + (":eq" if eq else ":rec")
 		var b := Button.new()
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2(larg, 38)
-		estilo_botao(b, fora)
-		b.icon = icone_tex("it_espada" if eq else "it_couro")
+		estilo_botao(b, fora or ver_aberto == chave)
+		b.icon = icone_tex(P.icone_item({"k": "peitoral", "r": 1}) if eq else P.icone_item({"k": "couro", "n": 1}))
 		b.expand_icon = true
-		b.add_theme_constant_override("icon_max_width", 22)
-		b.text = str(q)
+		b.add_theme_constant_override("icon_max_width", 26)
+		b.text = str(q) + ("  ▴" if ver_aberto == chave else "  ▾")
 		b.add_theme_font_size_override("font_size", 15)
 		b.add_theme_color_override("font_color", OURO_CLARO if fora else TEXTO)
-		b.pressed.connect(func(): abrir_ver(lista, eq, ao_mudar))
+		b.pressed.connect(func():
+			ver_aberto = "" if ver_aberto == chave else chave
+			ao_mudar.call())
 		h.add_child(b)
 	return h
 
-# janelinha da escolha: um quadradinho por tipo (ícone + quantos tem); apagado = não aparece
-func abrir_ver(lista: Array, eq: bool, ao_mudar: Callable) -> void:
+# a lista aberta, por nome (null se nenhuma lista deste lado está aberta)
+func painel_ver(lista: Array, ao_mudar: Callable, lado := "") -> Control:
+	if not ver_aberto.begins_with(lado + ":"):
+		return null
 	var P = P_menu
-	fechar_confirma()
-	_confirma = Control.new()
-	_confirma.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(_confirma)
-	var escuro := ColorRect.new()
-	escuro.color = Color(0, 0, 0, 0.5)
-	escuro.set_anchors_preset(Control.PRESET_FULL_RECT)
-	escuro.gui_input.connect(func(ev): if (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed): fechar_confirma())
-	_confirma.add_child(escuro)
-	var cx := PanelContainer.new()
-	cx.add_theme_stylebox_override("panel", caixa(FUNDO, OURO.darkened(0.25), 2, 10, 14))
-	cx.set_anchors_preset(Control.PRESET_CENTER)
-	cx.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	cx.grow_vertical = Control.GROW_DIRECTION_BOTH
-	_confirma.add_child(cx)
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 10)
-	cx.add_child(col)
-	col.add_child(rotulo("Equipamento: o que aparece" if eq else "Recursos: o que aparece", 18, OURO))
-	var reabrir := func():
-		ao_mudar.call()
-		abrir_ver(lista, eq, ao_mudar)
+	var eq := ver_aberto.ends_with(":eq")
+	var f := HFlowContainer.new()
+	f.add_theme_constant_override("h_separation", 6)
+	f.add_theme_constant_override("v_separation", 6)
+	var marca := func(texto: String, cor: Color, liga: bool, fn: Callable, icone := "") -> Button:
+		var b := Button.new()
+		b.focus_mode = Control.FOCUS_NONE
+		b.text = ("✓ " if liga else "   ") + texto
+		if icone != "": # recurso: o símbolo pequeno ao lado do nome (André 2026-11-25)
+			b.icon = icone_tex(icone)
+			b.expand_icon = false
+			b.add_theme_constant_override("icon_max_width", 24)
+			if not liga:
+				b.add_theme_color_override("icon_normal_color", Color(1, 1, 1, 0.35))
+		b.custom_minimum_size = Vector2(0, 36)
+		estilo_botao(b, liga)
+		b.add_theme_font_size_override("font_size", 15)
+		b.add_theme_color_override("font_color", cor if liga else Color(cor, 0.4))
+		b.add_theme_color_override("font_hover_color", cor)
+		b.pressed.connect(func():
+			fn.call()
+			ao_mudar.call())
+		return b
 	# tipos que existem nesta lista (e os desmarcados, para dar para marcar de volta)
 	var ks: Array = []
-	var qt := {}
 	for it in lista:
-		if it == null or P.eh_equip(it) != eq:
-			continue
-		var k := str(it.k)
-		if not qt.has(k):
-			ks.append(k)
-			qt[k] = 0
-		qt[k] += 1 if eq else maxi(1, int(it.get("n", 1)))
+		if it != null and P.eh_equip(it) == eq and not ks.has(str(it.k)):
+			ks.append(str(it.k))
 	for k in ver_fora.k.keys():
-		if not qt.has(k) and P.dados.itens.has(k) and P.eh_equip({"k": k, "r": 0}) == eq:
+		if not ks.has(k) and P.dados.itens.has(k) and P.eh_equip({"k": k, "r": 0}) == eq:
 			ks.append(k)
-			qt[k] = 0
-	if eq: # raridades em cima
-		var lr := HBoxContainer.new()
-		lr.add_theme_constant_override("separation", 6)
+	if eq: # raridades pelo nome, na cor (Comum cinza, Raro azul...)
 		for r in P.dados.raridades.size():
-			var cor := Color(P.dados.raridades[r].cor)
-			var n := 0
-			for it in lista:
-				if it != null and P.eh_equip(it) and int(it.get("r", 0)) == r:
-					n += 1
-			var b := Button.new()
-			b.focus_mode = Control.FOCUS_NONE
-			b.custom_minimum_size = Vector2(72, 40)
 			var liga: bool = not ver_fora.r.has(r)
-			estilo_botao(b, liga)
-			b.icon = icone_tex("it_espada")
-			b.expand_icon = true
-			b.add_theme_constant_override("icon_max_width", 22)
-			for c in ["icon_normal_color", "icon_pressed_color", "icon_hover_color"]:
-				b.add_theme_color_override(c, cor if liga else Color(cor, 0.3))
-			b.text = str(n)
-			b.add_theme_font_size_override("font_size", 15)
-			b.add_theme_color_override("font_color", cor if liga else APAGADO)
-			b.pressed.connect(func():
+			f.add_child(marca.call(str(P.dados.raridades[r].nome), Color(P.dados.raridades[r].cor), liga, func():
 				if liga:
 					ver_fora.r[r] = true
 				else:
-					ver_fora.r.erase(r)
-				reabrir.call())
-			lr.add_child(b)
-		col.add_child(lr)
-	var g := GridContainer.new()
-	g.columns = 8
-	g.add_theme_constant_override("h_separation", 6)
-	g.add_theme_constant_override("v_separation", 6)
-	for k in ks:
+					ver_fora.r.erase(r)))
+	for k in ([] if eq else ks): # set: só a raridade (André 2026-11-25); recurso: nome + símbolo
 		var liga: bool = not ver_fora.k.has(k)
-		var it := {"k": k, "r": 0} if eq else {"k": k, "n": int(qt[k])}
-		var c := celula(it, liga, func():
+		var it := {"k": k, "n": 1}
+		var troca := func():
 			if liga:
 				ver_fora.k[k] = true
 			else:
 				ver_fora.k.erase(k)
-			reabrir.call(), 60, liga)
-		if eq: # peça não tem número: quantas peças desse tipo
-			var nl := rotulo(str(qt[k]), 13, TEXTO)
-			nl.add_theme_constant_override("outline_size", 4)
-			nl.add_theme_color_override("font_outline_color", Color.BLACK)
-			nl.position = Vector2(40, 38)
-			nl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			c.add_child(nl)
-		if not liga:
-			c.modulate = Color(1, 1, 1, 0.3)
-		g.add_child(c)
-	if ks.is_empty():
-		col.add_child(rotulo("Nada desse tipo aqui.", 14, APAGADO))
-	else:
-		col.add_child(g)
-	var bl := HBoxContainer.new()
-	bl.add_theme_constant_override("separation", 8)
-	var todos := botao("Todos", func():
+		f.add_child(marca.call(P.nome_item(it), P.cor_item(it), liga, troca, P.icone_item(it)))
+	f.add_child(marca.call("Todos", OURO_CLARO, true, func():
 		for k in ks:
 			ver_fora.k.erase(k)
 		if eq:
-			ver_fora.r = {}
-		reabrir.call(), 15)
-	todos.custom_minimum_size = Vector2(110, 44)
-	bl.add_child(todos)
-	var nenhum := botao("Nenhum", func():
-		for k in ks:
-			ver_fora.k[k] = true
-		reabrir.call(), 15)
-	nenhum.custom_minimum_size = Vector2(110, 44)
-	bl.add_child(nenhum)
-	var esp := Control.new()
-	esp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bl.add_child(esp)
-	var pronto := botao("Pronto", fechar_confirma, 16, true)
-	pronto.custom_minimum_size = Vector2(120, 44)
-	bl.add_child(pronto)
-	col.add_child(bl)
+			ver_fora.r = {}))
+	f.add_child(marca.call("Nenhum", APAGADO, false, func():
+		if eq:
+			for r in P.dados.raridades.size():
+				ver_fora.r[r] = true
+		else:
+			for k in ks:
+				ver_fora.k[k] = true))
+	return f
 
 # André 2026-11-25: o mesmo item (mesmo k, lugar rápido, nível e cadeado) espalhado em várias pilhas. A janelinha da
 # quantidade (pedir_qtd) aceita até a soma de todas: número maior que a pilha puxa das outras (o servidor faz igual).
@@ -5333,6 +5296,29 @@ func modo_vender(ligar: bool) -> void:
 	if aba != "mochila":
 		aba = "mochila"
 	atualizar()
+
+# Vender tudo: tudo que aparece na mochila agora (sem cadeado), com a mesma pergunta do Vender vários
+func perguntar_vender_tudo() -> void:
+	if _so_olhando():
+		return
+	var P = P_menu
+	var lista: Array = ids_visiveis(P.prog.mochila)
+	var n := 0
+	var ouro := 0
+	var raros := 0
+	for i in lista:
+		var it = P.prog.mochila[i]
+		var q: int = 1 if P.eh_equip(it) else maxi(1, int(it.get("n", 1)))
+		n += q
+		ouro += P.preco_venda(it) * q
+		if P.eh_equip(it) and int(it.r) >= 2:
+			raros += 1
+	if n == 0:
+		return
+	var txt := "Vender tudo que aparece: %d %s por %d de ouro?" % [n, "item" if n == 1 else "itens", ouro]
+	if raros > 0:
+		txt += "\nAtenção: %d %s Épica%s ou melhor." % [raros, "peça é" if raros == 1 else "peças são", "" if raros == 1 else "s"]
+	confirmar("Vender tudo", txt, "Vender", func(): acao_item({"acao": "vender_varios", "lista": lista}))
 
 func perguntar_vender_varios() -> void:
 	if _so_olhando(): # menu do recruta (só olhando)

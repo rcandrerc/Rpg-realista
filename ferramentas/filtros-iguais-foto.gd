@@ -37,62 +37,49 @@ func _initialize() -> void:
 			print("sem item ", p[1].k)
 	P.prog.mochila = moch
 	P.prog.ouro = 1250
-	# 1) venda (Vender vários): botões de tipo + mochila + a janelinha "Vender"
-	var fundo := ColorRect.new()
-	fundo.color = Color(0.09, 0.08, 0.07)
-	fundo.size = Vector2(W, H)
-	root.add_child(fundo)
-	var tela := VBoxContainer.new()
-	tela.position = Vector2(40, 20)
-	tela.add_theme_constant_override("separation", 10)
-	root.add_child(tela)
-	tela.add_child(M.rotulo("Mochila · Vender vários", 20, M.OURO))
-	M.vendendo = true
-	M.marcados = {0: true, 1: true, 3: true, 7: true}
-	var linha := HBoxContainer.new()
-	linha.add_theme_constant_override("separation", 6)
-	linha.custom_minimum_size = Vector2(700, 0)
-	M.barra_venda(linha)
-	tela.add_child(linha)
-	M.ver_fora = {"k": {"barra_ferro": true, "minerio_cobre": true}, "r": {}}
-	tela.add_child(M.botoes_ver(moch, func(): pass))
-	var g := GridContainer.new()
-	g.columns = 10
-	g.add_theme_constant_override("h_separation", 6)
-	g.add_theme_constant_override("v_separation", 6)
-	for i in M.ids_visiveis(moch, true):
-		g.add_child(M.celula_mochila(i, true))
-	tela.add_child(g)
-	var camada := CanvasLayer.new()
-	camada.layer = 20
-	root.add_child(camada)
-	M.vender_qtd(1)
-	var c: Control = M._confirma
-	M.remove_child(c)
-	camada.add_child(c)
-	M._qtd = 120
-	(c.get_meta("mostrar") as Callable).call()
-	await esperar(15)
-	await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png(saida + "/1-venda.png")
-	M.fechar_confirma()
-	for eq in [false, true]:
-		var cam := CanvasLayer.new()
-		cam.layer = 20
-		root.add_child(cam)
-		M.abrir_ver(moch, eq, func(): pass)
-		var cv: Control = M._confirma
-		M.remove_child(cv)
-		cam.add_child(cv)
-		await esperar(10)
+	# 1) mochila na frente da Rosa: os 2 botões, a lista por nome aberta ali mesmo e só o que aparece
+	for caso in [["rec", {"barra_ferro": true, "minerio_cobre": true, "pocao": true}, {}, "1-mochila-recursos.png"],
+			["eq", {}, {1: true, 2: true, 3: true, 4: true}, "2-mochila-equipamento.png"]]:
+		var fundo := ColorRect.new()
+		fundo.color = Color(0.09, 0.08, 0.07)
+		fundo.size = Vector2(W, H)
+		root.add_child(fundo)
+		M.ver_fora = {"k": caso[1], "r": caso[2]}
+		M.ver_aberto = ":" + caso[0]
+		var tela := VBoxContainer.new()
+		tela.position = Vector2(40, 20)
+		tela.custom_minimum_size = Vector2(700, 0)
+		tela.add_theme_constant_override("separation", 10)
+		root.add_child(tela)
+		var topo := HBoxContainer.new()
+		topo.add_theme_constant_override("separation", 6)
+		topo.add_child(M.rotulo("Mochila", 20, M.OURO))
+		var esp := Control.new()
+		esp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		topo.add_child(esp)
+		for t in ["Organizar", "Filtro", "Vender vários"]:
+			topo.add_child(M.botao(t, func(): pass, 15, t != "Organizar"))
+		topo.add_child(M.botao("Vender tudo", func(): pass, 15, true))
+		tela.add_child(topo)
+		var linha := HBoxContainer.new()
+		linha.add_child(M.botoes_ver(moch, func(): pass, 90))
+		tela.add_child(linha)
+		tela.add_child(M.painel_ver(moch, func(): pass))
+		var g := GridContainer.new()
+		g.columns = 10
+		g.add_theme_constant_override("h_separation", 6)
+		g.add_theme_constant_override("v_separation", 6)
+		for i in M.ids_visiveis(moch, true):
+			g.add_child(M.celula_mochila(i, true))
+		tela.add_child(g)
+		await esperar(12)
 		await RenderingServer.frame_post_draw
-		root.get_texture().get_image().save_png(saida + ("/1b-escolher-equipamento.png" if eq else "/1a-escolher-recursos.png"))
-		M.fechar_confirma()
-		cam.queue_free()
-		await esperar(2)
-	camada.queue_free()
-	tela.queue_free()
-	await esperar(3)
+		root.get_texture().get_image().save_png(saida + "/" + caso[3])
+		tela.queue_free()
+		fundo.queue_free()
+		await esperar(3)
+	M.ver_fora = {"k": {"barra_ferro": true, "minerio_cobre": true}, "r": {}}
+	M.ver_aberto = "moch:rec"
 	# 2) Baú do Clã: os dois lados com os botões de tipo + a janelinha "Guardar"
 	var C = load("res://construcao.gd").new(falso)
 	C.tela = CanvasLayer.new()
@@ -114,41 +101,21 @@ func _initialize() -> void:
 	C.painel_bau.visible = true
 	C._montar_bau()
 	await esperar(5)
-	var camada2 := CanvasLayer.new()
-	camada2.layer = 20
-	root.add_child(camada2)
-	M.pedir_qtd(moch[0], M.total_igual(moch, 0), "Guardar", func(n): print("guardar ", n))
-	var c2: Control = M._confirma
-	M.remove_child(c2)
-	camada2.add_child(c2)
-	M._qtd = 173
-	(c2.get_meta("mostrar") as Callable).call()
-	await esperar(15)
+	await esperar(10)
 	await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png(saida + "/2-bau-do-cla.png")
-	M.fechar_confirma()
-	camada2.queue_free()
-	await esperar(3)
-	root.get_texture().get_image().save_png(saida + "/2b-bau-sem-janela.png")
+	root.get_texture().get_image().save_png(saida + "/3-bau-do-cla.png")
 	C.tela.queue_free()
 	await esperar(3)
 	# 3) troca: botões de tipo em cima da mochila + a janelinha "Pôr"
 	var T = load("res://troca.gd").new(falso)
 	root.add_child(T)
 	await process_frame
+	M.ver_fora = {"k": {}, "r": {2: true, 3: true, 4: true}}
+	M.ver_aberto = "troca:eq"
 	T.estado = {"nome": "Dário", "eu": {"itens": [{"i": 2, "n": 37, "it": moch[2]}], "ouro": 0}, "ele": {"itens": [], "ouro": 0}}
 	T.raiz.visible = true
 	T.montar()
-	var camada3 := CanvasLayer.new()
-	camada3.layer = 20
-	root.add_child(camada3)
-	M.pedir_qtd(moch[0], M.total_igual(moch, 0), "Pôr", func(n): print("pôr ", n))
-	var c3: Control = M._confirma
-	M.remove_child(c3)
-	camada3.add_child(c3)
-	M._qtd = 80
-	(c3.get_meta("mostrar") as Callable).call()
-	await esperar(15)
+	await esperar(10)
 	await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png(saida + "/3-troca.png")
+	root.get_texture().get_image().save_png(saida + "/4-troca.png")
 	quit()

@@ -475,6 +475,7 @@ func do_servidor(ev: Dictionary) -> void:
 			fechar()
 
 func abrir() -> void:
+	m.menu.limpar_ver() # o filtro do que aparece é só do momento (André 2026-11-25)
 	esconder_cartao()
 	sel = -1
 	pag = 0
@@ -498,6 +499,7 @@ func fechar() -> void:
 	if raiz == null or not raiz.visible:
 		return
 	raiz.visible = false
+	m.menu.limpar_ver()
 	m.hud.esconder_combate = false
 	if not m.menu.aberto() and not m.conversa.aberto():
 		m.hud.bloqueado = false
@@ -575,7 +577,7 @@ func coluna_mochila() -> Control:
 	# (André 2026-11-25: os 2 botões de equipamento e recurso escolhem o que aparece; Pôr tudo põe só o que aparece)
 	var lf := HBoxContainer.new()
 	lf.add_theme_constant_override("separation", 6)
-	lf.add_child(m.menu.botoes_ver(P.prog.mochila, montar, 88))
+	lf.add_child(m.menu.botoes_ver(P.prog.mochila, montar, 88, "troca"))
 	if not eu_tranquei():
 		var vis: Array = m.menu.ids_visiveis(P.prog.mochila).filter(func(i): return posto(i) < int(P.prog.mochila[i].get("n", 1)))
 		var bt: Button = m.menu.botao("Pôr tudo", func(): _por({"acao": "por", "lista": vis}), 13)
@@ -583,6 +585,9 @@ func coluna_mochila() -> Control:
 		bt.disabled = vis.is_empty()
 		lf.add_child(bt)
 	v.add_child(lf)
+	var pv = m.menu.painel_ver(P.prog.mochila, montar, "troca") # a lista por nome, ali mesmo
+	if pv != null:
+		v.add_child(pv)
 	var g := GridContainer.new()
 	g.columns = 10
 	g.add_theme_constant_override("h_separation", 4)
