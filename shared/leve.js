@@ -8,7 +8,7 @@
 import { planejarRota, terraId } from './rota.js';
 import { TUNEL } from './caverna.js';
 import { LUGARES_MUNDO } from './mundo.js';
-import { RECEITAS, CRIAR_OBRA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
+import { RECEITAS, CRIAR_OBRA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
 import { liberado } from './historia.js';
@@ -29,6 +29,8 @@ export const LEVE = {
   chat: 30, // mensagens do chat que a página guarda
   longe: 2500, // m: destino mais longe que isso não vale
   packsChao: 20, // m: packs no chão que aparecem (pegar)
+  reto: 30, // m do monstro: o Atacar deixa a estrada e vai reto até ele
+  encosta: 2, // m do monstro: o Atacar para aqui (alcance do golpe é 2,3 m)
   montaDe: 25, // m de caminho: daqui pra cima o "Ir para" sobe no lobo sozinho (como no jogo)
 };
 // quem a página mostra como lugar no mapa (as janelas do jogo de cada um)
@@ -59,6 +61,8 @@ export const Leve = {
     if (j.coleta) this.pararColeta(j, null);
     if (j.pesca) this.pararPesca(j, null);
     j.leveRota = { pontos: r.pontos, i: 0, t: 0, ux: j.x, uz: j.z, presas: 0, nome: typeof m.nome === 'string' ? m.nome.slice(0, 40) : '' };
+    // Atacar (André 2026-11-25: "combate... sem automático"): só anda até o monstro e para do lado; cada golpe é um toque
+    if (typeof m.alvo === 'string') j.leveRota.alvo = m.alvo;
     // como o "Ir para" do mapa do jogo (rota.gd, André 2026-11-09: "sempre que eu usar o autopath já entra na montaria"):
     // viagem de verdade sobe no lobo sozinho, só quando o jogo deixaria (montar: sem pack, fora de combate, lobo liberado).
     // Desceu do lobo no meio do caminho: segue a pé até o próximo destino.
@@ -80,6 +84,19 @@ export const Leve = {
     // recall (casinha) ou totem: a caminhada acaba aqui; senão, ao chegar na base ele voltava a andar até o destino antigo
     // (André 2026-11-25: "o botão voltar pra base tá indo pra casinha antiga")
     if (j.vila) return this.leveParar(j.id, null);
+    if (R.alvo != null) { // indo atacar: segue o monstro (ele anda) e para a LEVE.encosta m dele
+      const e = this.inimigos.find((o) => o.id === R.alvo);
+      if (!e || e.morto) return this.leveParar(j.id, 'O alvo sumiu');
+      const de = Math.hypot(e.x - j.x, e.z - j.z);
+      if (de < LEVE.encosta) { j.montado = null; return this.leveChegou(j); }
+      // perto (a estrada acaba antes do mato onde ele está): vai reto até ele, como o jogador no joystick
+      if (de < LEVE.reto) { j.entrada = { mx: (e.x - j.x) / de, mz: (e.z - j.z) / de, correr: !j.semFolego && !j.veiculo }; return; }
+      const fim = R.pontos[R.pontos.length - 1];
+      if (Math.hypot(e.x - fim.x, e.z - fim.z) > 3 && this.tempo - (R.refez ?? -9) > 1) {
+        const r = planejarRota(this.mapa, j, { x: e.x, z: e.z }); R.refez = this.tempo;
+        if (!r.bloqueio && r.pontos.length) { R.pontos = r.pontos; R.i = 0; this.evento({ t: 'leveRota', para: j.id, pontos: r.pontos.map((p) => [Math.round(p.x), Math.round(p.z)]), nome: R.nome }); }
+      }
+    }
     if (j.trava > 0 || j.canal) { j.entrada = parado; return; } // canalizando: espera
     const P = R.pontos, ult = P.length - 1;
     while (R.i <= ult && Math.hypot(P[R.i].x - j.x, P[R.i].z - j.z) < (R.i === ult ? LEVE.chega : LEVE.meio)) R.i++;
@@ -236,13 +253,22 @@ export const Leve = {
     const m = [];
     for (const e of this.inimigos) {
       if (e.morto || Math.hypot(e.x - j.x, e.z - j.z) > LEVE.bichos) continue;
-      m.push([r1(e.x), r1(e.z), e.nivel | 0, Math.round((e.vida / (e.vidaMax || 1)) * 100)]);
+      m.push([r1(e.x), r1(e.z), e.nivel | 0, Math.round((e.vida / (e.vidaMax || 1)) * 100), e.id, e.nome || '']);
       if (m.length >= LEVE.max) break;
     }
     return {
       eu: [r1(j.x), r1(j.z), Math.round(j.vida), Math.round(j.vidaMax), Math.round(j.mana), Math.round(j.manaMax), j.morto ? 1 : 0, j.prog.ouro | 0, j.prog.nivel | 0, j.prog.pack ? 1 : 0, j.montado ? 1 : 0, Math.floor(Math.min(vigorAgora(j.prog.vigor), vigorMax(j.prog))), vigorMax(j.prog)], // vigor (André 2026-11-25: "adiciona a barra de vigor"): agora e máximo; montado: o lobo (botão Montar, a mesma mensagem e regra do jogo)
       ...(R ? { r: [Math.round(falta), Math.round(falta / (v || 1))] } : {}),
-      g, m,
+      g, m, hb: this.habLeve(j),
     };
+  },
+  // os botões de luta do modo leve (André 2026-11-25): os mesmos do jogo, do modo da arma (Espada: golpe + 4 de espada;
+  // Magia: disparo + 4 de magia) e a cura. [i da mensagem 'habilidade', nome, recarga que falta (s), mana]
+  habLeve(j) {
+    const mg = j.modo === 'Magia', l = [], um = (i, chave, h) => { if (h) l.push([i, h.nome, Math.max(0, Math.ceil((j.cds[chave] || 0) - this.tempo)), h.mana || 0]); };
+    um(mg ? 10 : 0, mg ? 'magia' : 'basico', mg ? BASICO_MAGIA : BASICO);
+    for (let k = 0; k < ESPACOS_ESPADA; k++) { const i = (mg ? ESPACOS_ESPADA : 0) + k + 1, c = j.build?.[i - 1]; if (c) um(i, c, HABILIDADES[c]); }
+    um(9, 'cura', CURA);
+    return { mg: mg ? 1 : 0, l };
   },
 };

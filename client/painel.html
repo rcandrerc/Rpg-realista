@@ -163,6 +163,25 @@ button.acao.cinza{background:#26231d;border-color:var(--line)}
 .janelaLeve .extra input,.janelaLeve .extra select{min-height:44px;border-radius:8px;border:1px solid var(--line);background:#0b0a09;color:var(--ink);font:500 1rem system-ui,sans-serif;padding:0 8px;width:110px}
 .janelaLeve button.acao{min-height:54px;font-size:1.05rem}
 .janelaLeve .dica{text-align:left;line-height:1.55;font-size:.95rem}
+/* combate e time no modo leve (André 2026-11-25) */
+#jogarAba.tela .alvoLeve,#jogarAba.tela .geadaLeve{align-self:flex-start;width:calc(100% - 64px);max-width:440px;margin:0 0 0 6px;padding:6px 10px;background:rgba(60,14,10,.92);border:1px solid #d9362b;color:var(--ink);border-radius:10px}
+.geadaLeve{font:700 .85rem system-ui,sans-serif;background:rgba(20,40,70,.94)!important;border-color:#6fb3e6!important}
+.alvoLeve .linha{display:flex;align-items:center;gap:8px}.alvoLeve .linha b{flex:1}.alvoLeve .linha small{color:var(--muted)}
+.alvoLeve .fecha{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:#26231d;color:var(--ink);cursor:pointer}
+.alvoLeve .barra{margin:5px 0}.alvoLeve button.acao{width:100%;min-height:46px;margin-top:4px}
+.habLeve{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:auto}
+.habLeve button{position:relative;min-height:58px;border-radius:12px;border:1px solid var(--line);background:rgba(22,20,16,.94);color:var(--ink);font:600 .66rem system-ui,sans-serif;cursor:pointer;padding:2px;overflow:hidden;touch-action:manipulation}
+.habLeve button i{display:block;font-style:normal;font-size:1.35rem;line-height:1.2}
+.habLeve button span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.habLeve button.grande{grid-column:span 2;background:rgba(160,82,45,.92);border-color:var(--gold);font-size:.9rem}
+.habLeve button.espera{opacity:.45}
+.habLeve .cd{position:absolute;inset:0;display:grid;place-items:center;font-size:1.3rem;color:#fff;text-shadow:0 0 4px #000;pointer-events:none}
+.habLeve button:active{transform:scale(.96)}
+.recLeve{display:flex;align-items:center;gap:8px;background:#26231d;border:1px solid var(--line);border-radius:9px;padding:8px;margin:5px 0}
+.recLeve .n{flex:1;min-width:0}.recLeve small{display:block;color:var(--muted)}
+.recLeve button{min-height:40px;min-width:92px;border-radius:999px;border:1px solid var(--line);background:#26231d;color:var(--ink);font:700 .82rem system-ui,sans-serif;cursor:pointer}
+.recLeve button.on{background:#3c7a3c;border-color:#7fcf7f}
+.recLeve button:disabled{opacity:.4}
 </style>
 </head>
 <body>
