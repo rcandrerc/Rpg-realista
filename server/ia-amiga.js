@@ -197,8 +197,15 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
 // André 2026-11-13 ("acabou de me negar e duas falas depois me chama pra caçar"): a decisão de caçar/entrar no time já está
 // tomada pelo jogo (decisaoTimeAmiga) e vale por uns minutos; a IA fica sabendo e fala de acordo, sem mudar de ideia.
 const MOTIVOS = { cansada: 'está cansad{o} e com pouca vida', horta: 'a horta precisa de você agora', noite: 'é noite e você prefere não sair', perigo: '{ele} está forte demais pra você acompanhar', fraco: '{ele} está bem abaixo do seu nível e você quer upar no seu ritmo', vontade: 'não está no clima agora' };
-function humorTime(ctx) {
+// André 2026-11-25 (o Dario topou o time depois de um "por favor": "não no mesmo time"): soldado de clã bot com quem não é o
+// líder dele nunca entra no time. A IA sabe o motivo de verdade e não inventa outro, nem promete o time.
+const NUNCA = { lider: 'você é líder do clã {cla}: não entra no time de ninguém, o seu time é o seu clã', cla: 'você é do clã {cla} e só anda com o seu clã' };
+export function humorTime(ctx) {
   const h = ctx.humor; if (!h) return '';
+  if (h.sempre) {
+    const m = (NUNCA[h.motivo] || 'você não entra no time de ninguém agora').replace('clã {cla}', h.cla ? `clã ${h.cla}` : 'seu clã');
+    return `Você NUNCA entra no time de ${ctx.amigo} (${m}). É regra do clã: não muda com "por favor", missão nem insistência. Não toque nesse assunto se ele não chamar; se ${ctx.amigo} chamar para o time ou para caçar junto, recuse curto dizendo esse motivo, sem inventar outro e sem prometer para depois. Use "nada" como ação.`;
+  }
   const fraco = ctx.acima >= 5 ? ` ${ctx.amigo} está ${ctx.acima} níveis abaixo de você: se for junto, comente isso de leve e com carinho de amigo (sem grosseria), tipo "vou porque você é meu amigo, mas bora te upar".` : '';
   if (h.aceita) return (h.combinado ? `Vocês já combinaram de caçar juntos: falta ${ctx.amigo} mandar o convite do time.` : `Agora você está a fim de caçar/entrar no time se ${ctx.amigo} chamar.`) + fraco;
   const m = (MOTIVOS[h.motivo] || MOTIVOS.vontade).replace('{o}', ctx.genero === 'm' ? 'o' : 'a').replace('{ele}', ctx.amigo);

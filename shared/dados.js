@@ -2985,6 +2985,9 @@ export const AMIGA = {
       cheio: 'Seu time tá lotado! Não cabe mais ninguém.',
       vontade: 'Hoje não tô no clima, desculpa! Me chama mais tarde?',
       jaFalei: 'Já te falei, daqui a pouco! Paciência, guerreiro.',
+      // soldado de clã bot com quem não é o líder dele (André 2026-11-25: o Dario, "não no mesmo time"); {cla} = nome do clã
+      lider: 'Sou líder do clã {cla}, não entro no time de ninguém. Meu time é o meu clã.',
+      cla: 'Sou do clã {cla}. Só ando com o meu clã, no seu time eu não entro.',
     },
     caiu: 'Ai... essa doeu. Vou pra casa me recuperar e já volto pro time.',
     voltou: 'Valeu pela caçada! Vou cuidar da minha horta.',
@@ -3225,6 +3228,8 @@ export const DARIO = mesclarAmigo(AMIGA, {
       noite: 'De noite eu prefiro guardar a casa. Amanhã cedo a gente vai.',
       vontade: 'Hoje não tô no clima. Me chama mais tarde?',
       jaFalei: 'Já te falei, daqui a pouco. Paciência, guerreiro.',
+      lider: 'Sou o líder do clã {cla}. Não entro no time de ninguém: meu time é o meu clã.', // André 2026-11-25
+      cla: 'Sou do clã {cla}. Só ando com o meu clã, no seu time eu não entro.',
     },
     caiu: 'Argh... essa pegou. Vou pra casa me recuperar e já volto pro time.',
     voltou: 'Boa caçada! Vou cuidar das minhas coisas.',
