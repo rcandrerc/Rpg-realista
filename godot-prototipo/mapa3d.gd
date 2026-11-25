@@ -1373,8 +1373,9 @@ func _simbolos(c: Control, tam: Vector2, em: Callable, k: float, longe: bool) ->
 			mm._marca_casa(c, qa, t + 2.0)
 			mm._texto(c, qa + Vector2(0, t + 16.0), "Sua casa", 15, Color("ffb39a"))
 	# a base do clã (centro): escudo dourado maior que a casinha, com o nome do clã
-	var bcla: Dictionary = mm._minha_base_cla()
-	if not bcla.is_empty() and mm.filtro.ok("vilas"):
+	for bcla in mm._bases_cla():
+		if not mm.filtro.ok("vilas"):
+			break
 		var qb := _em(bcla.x, bcla.z, 8.0)
 		if _na_tela_ok(qb, tam):
 			_sombra(c, qb, t * 1.5)

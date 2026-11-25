@@ -392,8 +392,8 @@ function desenharMapa() {
   const nomes = []; // um nome por cima do outro fica ilegível: o que bate em outro já escrito não aparece
   const cabe = (txt, a, y) => { const lg = g.measureText(txt).width; if (nomes.some((o) => Math.abs(o.a - a) < (o.lg + lg) / 2 && Math.abs(o.y - y) < fonte)) return false; nomes.push({ a, y, lg }); return true; };
   const marcas = [];
-  if (info.base && Number.isFinite(info.base.x)) { // a base do clã: escudo dourado com chama, maior que tudo, com o nome (nunca some atrás de recruta)
-    const [a, b] = P(info.base.x, info.base.z), r = Math.max(11, W / 38), cor = info.base.raca === 'Geada' ? '#6fd8ff' : '#ff9a2e';
+  for (const bs of [info.base, ...(info.bases || [])]) if (bs && Number.isFinite(bs.x)) { // a base do clã (e as aliadas, da mesma facção): escudo dourado com chama, maior que tudo, com o nome (nunca some atrás de recruta)
+    const [a, b] = P(bs.x, bs.z), r = Math.max(11, W / 38), cor = bs.raca === 'Geada' ? '#6fd8ff' : '#ff9a2e';
     g.fillStyle = 'rgba(233,196,106,.22)'; g.beginPath(); g.arc(a, b, r * 1.8, 0, 6.283); g.fill();
     const escudo = (k) => { g.beginPath(); g.moveTo(a - r * k, b - r * 0.9 * k); g.lineTo(a + r * k, b - r * 0.9 * k); g.lineTo(a + r * k, b + r * 0.1 * k); g.lineTo(a + r * 0.55 * k, b + r * 0.75 * k); g.lineTo(a, b + r * 1.15 * k); g.lineTo(a - r * 0.55 * k, b + r * 0.75 * k); g.lineTo(a - r * k, b + r * 0.1 * k); g.closePath(); };
     escudo(1.2); g.fillStyle = 'rgba(12,10,8,.95)'; g.fill();
@@ -405,7 +405,7 @@ function desenharMapa() {
     const f2 = Math.round(fonte * 1.1); g.font = `700 ${f2}px system-ui,sans-serif`;
     escrever('Base do Clã', a, b + r * 1.15 + f2 + 2, '#e9c46a'); nomes.push({ a, y: b + r * 1.15 + f2 + 2, lg: g.measureText('Base do Clã').width });
     g.font = `600 ${fonte}px system-ui,sans-serif`;
-    if (info.base.n) { escrever(info.base.n, a, b + r * 1.15 + f2 + fonte + 4, '#fff3dc'); nomes.push({ a, y: b + r * 1.15 + f2 + fonte + 4, lg: g.measureText(info.base.n).width }); }
+    if (bs.n) { escrever(bs.n, a, b + r * 1.15 + f2 + fonte + 4, '#fff3dc'); nomes.push({ a, y: b + r * 1.15 + f2 + fonte + 4, lg: g.measureText(bs.n).width }); }
   }
   for (const p of pts) { // primeiro os pontos (os nomes deles ganham dos lugares)
     const [a, b] = P(p.x, p.z), r = p.r * (W / 600);

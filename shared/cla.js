@@ -795,7 +795,8 @@ export const Cla = {
       // o que pede o próximo nível do clã e o que já tem (Baú do Clã + mochila do líder), igual ao Melhorar clã do jogo
       sobe: this.subirPainel(conta, c, raca, heroi, prog),
       bau: this.bauPainel(conta), ...(this.cheiosCla(conta).bau ? { bauCheio: 1 } : {}), // o que tem no Baú do Clã (André 2026-11-24: "mostrar inventário do clã"), em ícones
-      ...(this.baseDe?.(L) ? { base: { x: Math.round(this.baseDe(L).x), z: Math.round(this.baseDe(L).z), nv: this.baseDe(L).nv | 0, n: this.baseDe(L).n || c.n, raca: this.baseDe(L).raca || '' } } : {}), // a base do clã no mapa do painel (só a do próprio clã)
+      ...(this.baseDe?.(L) ? { base: { x: Math.round(this.baseDe(L).x), z: Math.round(this.baseDe(L).z), nv: this.baseDe(L).nv | 0, n: this.baseDe(L).n || c.n, raca: this.baseDe(L).raca || '' } } : {}), // a base do clã no mapa do painel
+      ...(this.basesCla ? { bases: Object.values(this.basesCla).filter((B) => B.raca === (raca || this.racaDe(L)) && B.k !== this.baseDe?.(L)?.k).map((B) => ({ x: Math.round(B.x), z: Math.round(B.z), n: B.n || '', raca: B.raca })) } : {}), // as bases aliadas (mesma facção); da facção inimiga nada vai
       clas: this.clasNpcInfo(L).map((o, i) => ({ ...o, ...clas[i] })), lugares: (this.lugaresPainel ||= [{ nome: this.mapa.nome || 'Vila', x: 0, z: 0 }, ...LUGARES_MUNDO.filter((o) => o.nome && o.tipo !== 'porto').map((o) => ({ nome: o.nome, x: o.x, z: o.z }))]) };
   },
   // o que está cheio no clã (André 2026-11-24: "quando ficar cheio... ficar vermelho... e notificação"): recruta com a

@@ -678,16 +678,24 @@ func _marca_casa(c: Control, q: Vector2, t: float) -> void:
 # 2026-11-25 (André: "mostra a casinha, mas deveria mostrar o centro da base... parece que minha casa é mais importante
 # que a base do clã"): a base do clã (centro dela, base_cla.gd) ganha marca própria, maior que a casinha: escudo dourado
 # com a chama do clã (Geada azul, Chama laranja), nome do clã embaixo. A casa continua aparecendo. {} sem base.
-func _minha_base_cla() -> Dictionary:
+func _bases_cla() -> Array:
 	var bc = m.get("base_cla")
+	var r: Array = []
 	if bc == null:
-		return {}
-	var B: Dictionary = bc.minha()
-	if B.is_empty():
-		return {}
-	var nome := str(B.get("n", ""))
-	return {"x": float(B.x), "z": float(B.z), "nome": nome if nome != "" else "Base do Clã", "raca": str(B.get("raca", "")),
-		"raio": float(B.get("centro", 20.0)) * 0.5}
+		return r
+	# a minha primeiro; depois só as da minha facção (o servidor manda as chaves em `amigas`): a inimiga nunca ganha marca
+	for B in bc.bases:
+		var k := str(B.get("k", ""))
+		if k != str(bc.meu) and not bc.amigas.has(k):
+			continue
+		var nome := str(B.get("n", ""))
+		var d := {"id": k, "meu": k == str(bc.meu), "x": float(B.x), "z": float(B.z), "nome": nome if nome != "" else "Base do Clã", "raca": str(B.get("raca", "")),
+			"raio": float(B.get("centro", 20.0)) * 0.5}
+		if d.meu:
+			r.push_front(d)
+		else:
+			r.append(d)
+	return r
 
 # escudo dourado com a chama (t = meia largura em px); cor da chama pela raça do clã
 func _marca_base_cla(c: Control, q: Vector2, t: float, raca := "") -> void:
@@ -797,9 +805,8 @@ func _montar_lugares() -> Array:
 # os lugares de antes: as vilas, as clareiras de caça (por nível) e os veios
 func _lugares_base() -> Array:
 	var l: Array = []
-	var base := _minha_base_cla()
-	if not base.is_empty(): # a base do clã antes de tudo: o centro dela
-		l.append({"id": "base_cla", "tipo": "base", "nome": "Base do clã: " + base.nome, "curto": "Base do clã", "x": base.x, "z": base.z, "r": maxf(8.0, base.raio)})
+	for base in _bases_cla(): # a base do clã antes de tudo: o centro dela (e as aliadas)
+		l.append({"id": "base_" + str(base.id), "tipo": "base", "nome": "Base do clã: " + base.nome, "curto": "Base do clã", "x": base.x, "z": base.z, "r": maxf(8.0, base.raio), "raca": base.raca})
 	var casa := _minha_casa()
 	if not casa.is_empty(): # o meu terreno em primeiro: "Ir para" leva para casa
 		l.append({"id": "casa", "tipo": "casa", "nome": "Sua casa", "curto": "Sua casa", "x": casa.x, "z": casa.z, "r": 4.0})
@@ -1314,8 +1321,7 @@ func _desenhar_mini() -> void:
 		if dc.length() > RAIO - 11.0:
 			dc = dc.normalized() * (RAIO - 11.0)
 		_marca_casa(c, meio + dc, 6.0)
-	var bcla := _minha_base_cla()
-	if not bcla.is_empty(): # a base do clã (centro): escudo maior que a casinha, na beirada quando está longe
+	for bcla in _bases_cla(): # a base do clã (centro): escudo maior que a casinha, na beirada quando está longe
 		var db: Vector2 = Vector2(bcla.x - p.x, bcla.z - p.z) * k
 		if db.length() > RAIO - 12.0:
 			db = db.normalized() * (RAIO - 12.0)
@@ -1659,8 +1665,7 @@ func _desenhar_mapa() -> void:
 		var baixo: float = maxf(cantos[2].y, cantos[0].y) # o nome fica embaixo do contorno
 		if not tm:
 			_texto(c, Vector2(qa.x, maxf(qa.y + 24.0, baixo + 12.0)), "Sua casa", 15, Color("ffb39a"))
-	var bcla := _minha_base_cla()
-	if not bcla.is_empty(): # a base do clã: o escudo no centro dela, com o nome do clã
+	for bcla in _bases_cla(): # a base do clã: o escudo no centro dela, com o nome do clã
 		var qb: Vector2 = em.call(bcla.x, bcla.z)
 		_marca_base_cla(c, qb, 20.0, bcla.raca)
 		if not tm:
@@ -1918,7 +1923,7 @@ func _linha_lugar(c: Control, l: Dictionary, x0: float, y: float, larg: float, t
 			"casa": # o meu terreno: casinha de telhado vermelho
 				_marca_casa(c, qi + Vector2(0, 1), 6.5)
 			"base": # a base do clã: escudo dourado com a chama
-				_marca_base_cla(c, qi, 8.5, str(_minha_base_cla().get("raca", "")))
+				_marca_base_cla(c, qi, 8.5, str(l.get("raca", "")))
 			"totem":
 				_marca_totem(c, qi, 6.0, m.totem.descoberto(str(l.id).trim_prefix("totem_")))
 			"lago": # gota d'água azul
