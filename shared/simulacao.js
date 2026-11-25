@@ -4949,6 +4949,7 @@ export class Simulacao {
       j.presoAte = Math.max(j.presoAte || 0, this.tempo + preso);
       if (j.canal) this.cancelarCanal(j.id, 'Atordoado');
       j.trava = Math.max(j.trava || 0, preso); j.acao = null; j.fila = null; j.montado = null;
+      j.presoEf = ef.congela ? 'congela' : ef.derruba ? 'derruba' : 'atordoa'; // o ícone em cima da barra de vida (bfJogador)
       this.evento({ t: 'efeito', id: j.id, ef: ef.congela ? 'congela' : ef.derruba ? 'derruba' : 'atordoa', dur: preso });
     }
     if (ef.lento) { j.lentoH = { k: ef.lento.k, ate: this.tempo + ef.lento.dur }; this.evento({ t: 'efeito', id: j.id, ef: 'lento', k: ef.lento.k, dur: ef.lento.dur }); }
@@ -4997,11 +4998,37 @@ export class Simulacao {
     this.avisarProg(j);
   }
 
+  // ---------- buffs e debuffs na barra de vida (André 2026-11-25) ----------
+  // Lista curta [código, fim, valor] por corpo. "fim" é absoluto (s do relógio da Simulacao; comida em ms do relógio do
+  // servidor), assim a lista só muda quando o efeito entra, renova ou sai: a foto por área de interesse (server/visao.js,
+  // parte FIXO) manda de novo só nessa hora. fim 0 = enquanto durar (clã, mesa). O app desenha o ícone e a dica (buffs.gd).
+  bfJogador(j) {
+    const t = this.tempo, r = [], f1 = (x) => Math.round(x * 10) / 10;
+    if (!(j._bfT > t)) { j._bfT = t + 2; j._bfCla = this.nivelClaDe?.(j) || 0; } // o nível do clã muda raro: confere a cada 2 s
+    if (j._bfCla >= 2) r.push(['cla', 0, j._bfCla, Math.round((j._bfCla - 1) * CLA.bonusNivel * 1000) / 1000]); // nível e o bônus (+XP e +ouro)
+    if (j.mesa) r.push(['mesa', 0, j.mesa]); // recruta: despensa cheia (+) ou com fome (-), shared/cla.js
+    const B = j.prog?.buff; if (B && ITENS[B.k]?.buff && B.ate > (this._bfMs ||= Date.now())) r.push(['co', B.ate, B.k]);
+    if (j.escudo && j.escudo.ate > t) r.push(['escudo', f1(j.escudo.ate), j.escudo.n]);
+    if ((j.presoAte || 0) > t) r.push([j.presoEf || 'atordoa', f1(j.presoAte), 0]);
+    if (j.lentoH && j.lentoH.ate > t) r.push(['lento', f1(j.lentoH.ate), j.lentoH.k]);
+    if (j.vuln && j.vuln.ate > t) r.push(['vuln', f1(j.vuln.ate), j.vuln.k]);
+    if (j.dots?.length) { const v = {}; for (const d of j.dots) if (d.ate > t) { const o = (v[d.k] ||= [d.k, 0, 0]); o[1] = Math.max(o[1], f1(d.ate)); o[2]++; } r.push(...Object.values(v)); }
+    return r;
+  }
+  bfInimigo(e) {
+    const t = this.tempo, r = [], f1 = (x) => Math.round(x * 10) / 10;
+    if (e.parado > t && e.ef) r.push([e.ef === 'congelado' ? 'congela' : 'atordoa', f1(e.parado), 0]);
+    if (e.lento?.ate > t) r.push(['lento', f1(e.lento.ate), e.lento.k]);
+    if (e.vuln?.ate > t) r.push(['vuln', f1(e.vuln.ate), e.vuln.k]);
+    return r;
+  }
+
   // ---------- o que vai para a tela ----------
   foto() {
     const roupa = (eq) => ['cabeca', 'corpo', 'pernas', 'pes', 'capa'].map((l) => (eq?.[l] ? eq[l].k + eq[l].r : '')).filter(Boolean).join(',');
     const corpo = (c) => ({ id: c.id, x: r2(c.x), y: r2(c.y), z: r2(c.z), ry: r2(((c.ry % TAU) + TAU) % TAU), vida: c.vida, vidaMax: c.vidaMax,
       morto: c.morto, anim: c.anim, acao: c.acao, acaoSeq: c.acaoSeq, nome: c.nome });
+    this._bfMs = Date.now(); // bfJogador: o relógio da comida, uma vez por foto
     return {
       tempo: r2(this.tempo),
       jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), vida: Math.round(j.vida), criando: !!j.criando, mana: Math.round(j.mana), manaMax: j.manaMax, nivel: j.prog.nivel, sta: Math.round(j.sta), staMax: j.staMax, coleta: j.coleta?.no || null,
@@ -5013,9 +5040,9 @@ export class Simulacao {
         ...(j.prog.guilda?.r >= 7 && this.vantagensDe(j).marca ? { gss: 1 } : {}), // vantagem SS da Guilda: "SS" no nome para todos
         pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, ...((bd) => (bd ? { bd } : {}))(j.bordo ? this.fotoBordo(j) : null), // bd: o lugar no navio (fotoBordo) // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
-        cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])), ...(j.bot ? { bot: 1 } : {}),
+        cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])), bf: this.bfJogador(j), ...(j.bot ? { bot: 1 } : {}),
         ...(this.racaDe(j) !== RACA_PADRAO ? { raca: this.racaDe(j) } : {}), guerra: j.guerra ? 1 : 0, prot: this.protegido(j) ? 1 : 0, ...(j.radarGuerraAte > this.tempo && !j.bot ? { rg: Math.ceil(j.radarGuerraAte - this.tempo) } : {}) })), // guerra/prot sempre (0 ou 1): a foto por área de interesse só manda o que mudou, e o app mira na outra raça por eles (André 2026-11-22) // Chama x Geada: a raça (só quem não é da Chama) e se está na zona de guerra // bot: a Cecília (só o dono conversa)
-      inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ...(e.hc ? { hc: e.hc, esc: e.esc, cor: e.cor } : {}), ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
+      inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ...(e.hc ? { hc: e.hc, esc: e.esc, cor: e.cor } : {}), ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null, bf: this.bfInimigo(e) })),
       // veios das zonas de mineração e árvores já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
       veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),
       // árvores plantadas (shared/plantio.js): server/visao.js manda só as de perto, uma vez, com o tempo para ficar adulta
