@@ -517,9 +517,9 @@ async function entrarLeve() {
   leve.entrando = false; leve.sujo = true; desenharJogar();
 }
 function ligarLeve(s) {
-  leve.sala = s;
+  leve.sala = s; if (criarAberto) s.send('leveReceitas', { ver: true }); // voltou da queda com o Criar aberto
   s.onMessage('leve', (d) => {
-    leve.f = d.f; if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa;
+    leve.f = d.f; if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa;
     for (const e of d.ev || []) eventoLeve(e);
     if (aba === 'jogar') { desenharMapa(); desenharJogar(); }
   });
@@ -528,7 +528,7 @@ function ligarLeve(s) {
   s.onMessage('*', () => {}); // o resto que o servidor manda a todo jogador: não serve aqui
   s.onLeave(async (codigo) => {
     const token = s.reconnectionToken;
-    leve.sala = null; leve.f = null; leve.rota = null; leve.leilao = null; leve.bau = null; leve.sel = null; leve.sujo = true;
+    leve.sala = null; leve.rc = null; leve.f = null; leve.rota = null; leve.leilao = null; leve.bau = null; leve.sel = null; leve.sujo = true;
     if (codigo === 4001) aviso('Seu herói entrou pelo jogo: o modo leve saiu.');
     else if (!leve.saindo && codigo !== 4003) { // queda de internet: tenta voltar no mesmo herói
       try { ligarLeve(await cliente.reconnect(token)); return; } catch { aviso('O modo leve caiu. Toque em Entrar no mundo.'); }
@@ -798,6 +798,33 @@ function cartaoMochila() {
   return c;
 }
 
+// Criar (André 2026-11-25): mesmas receitas e regras do jogo; o servidor manda a lista (leveReceitas) e confere tudo de novo
+// ao criar. Recolhido por padrão; só pede a lista enquanto está aberto. Precisa estar perto da estação (bigorna, bancada...).
+let criarAberto = false, criarSel = '';
+function pedirReceitas(ver) { mandar('leveReceitas', { ver }); if (!ver) leve.rc = null; }
+function cartaoCriar() {
+  const c = el('div', 'card sanfona'), cab = el('button', 'cab'), RC = leve.rc;
+  cab.append(el('span', null, `${criarAberto ? '▾' : '▸'} Criar`), el('small', 'faz', criarAberto ? '' : 'ferreiro, alfaiate, cozinha'));
+  cab.onclick = () => { criarAberto = !criarAberto; pedirReceitas(criarAberto); leve.sujo = true; desenharJogar(); };
+  c.append(cab);
+  if (!criarAberto) return c;
+  if (!RC) { c.append(el('div', 'faz', 'Abrindo…')); return c; }
+  if (leve.fab) c.append(el('div', 'nome', `Fazendo ${leve.fab.nome}…`), bt('Parar', () => mandar('fabricar', { parar: true }), true));
+  let est = '';
+  for (const [r, nome, usa, , estNome, perto, motivo, seg] of RC.r) {
+    if (estNome !== est) { est = estNome; c.append(el('div', 'faz', `${estNome}${RC.r.find((o) => o[4] === est && o[5]) ? ' · perto' : ' · longe'}`)); }
+    const sel = criarSel === r, ruim = motivo || !perto;
+    const b = el('button', 'linha' + (sel ? ' ativo' : '')); b.append(el('span', null, nome), el('span', null, ruim ? '✕' : `${seg} s`));
+    b.onclick = () => { criarSel = sel ? '' : r; leve.sujo = true; desenharJogar(); };
+    c.append(b);
+    if (!sel) continue;
+    const f = el('div', 'icones'); for (const [k, n, q] of usa) f.append(icone(k, n, temMo(k), q)); c.append(f);
+    if (motivo) c.append(el('div', 'faz', motivo)); else if (!perto) c.append(el('div', 'faz', `Chegue perto de ${estNome.toLowerCase()} (veja em Lugares > Oficinas)`));
+    if (!ruim && !leve.fab) c.append(linhaQtd((n) => `Criar ${n}`, 1, (n) => mandar('criar', { r, n: Math.min(RC.max, n) })));
+  }
+  return c;
+}
+
 let lugaresAberto = false, secAberta = ''; // tudo fechado; uma seção aberta por vez (como no jogo: toca abre, toca de novo fecha)
 function cartaoLugares(M) {
   const c = el('div', 'card sanfona'), cab = el('button', 'cab');
@@ -878,6 +905,7 @@ function desenharJogar() {
   const cg = cartaoCarga(P); if (cg) raiz.append(cg);
   if (!P.npc && !P.bau && !P.totem && !cg) raiz.append(el('div', 'vazio', 'Chegue perto de uma loja, do leilão, de um baú ou de um totem para usar.'));
   if (leve.mo) raiz.append(cartaoMochila());
+  if (leve.mo) raiz.append(cartaoCriar());
   if (leve.mapa?.lug) raiz.append(cartaoLugares(leve.mapa)); // depois do que está perto (abre sem empurrar a loja)
 }
 
