@@ -502,7 +502,7 @@ function desenharMapa() {
 // vender itens... rodar num celular muito vagabundo"). Uma segunda ligação, agora COM corpo (shared/leve.js): o herói de
 // verdade fica no mundo, os outros veem, a Geada pode atacar. A página manda o destino e o servidor anda o herói pela
 // estrada; loja, leilão, baú e totem usam as mesmas mensagens e regras do jogo. A cada 0,5 s chega uma foto pequena.
-const leve = { sala: null, f: null, mapa: null, mo: null, pk: null, fab: null, rota: null, rotaI: 0, rotaNome: '', leilao: null, bau: null, sel: null, entrando: false, saindo: false, chave: '', sujo: true, busca: '', anunciar: false };
+const leve = { sala: null, f: null, mapa: null, mo: null, pk: null, fab: null, rec: 0, rota: null, rotaI: 0, rotaNome: '', leilao: null, bau: null, sel: null, entrando: false, saindo: false, chave: '', sujo: true, busca: '', anunciar: false };
 const LUGAR_COR = { loja: '#f2c14e', compra: '#d9a54a', leilao: '#c58bff', pack: '#b07a46', ferreiro: '#9aa3ad', habilidades: '#9aa3ad', alquimia: '#6fcf8a', totem: '#6fd8ff' };
 const LUGAR_NOME = { loja: 'Loja', compra: 'Compra itens', leilao: 'Leilão', pack: 'Pack', ferreiro: 'Ferreiro', habilidades: 'Ferreiro', alquimia: 'Alquimia' };
 const PERTO = { npc: 4.2, leilao: 4.3, bau: 2.4, totem: 3.8, pack: 3.8, carrinho: 3.6, chao: 2.6 }; // m (o servidor confere de novo com as regras do jogo)
@@ -541,6 +541,7 @@ function eventoLeve(e) {
   else if (e.t === 'leveRota') { leve.rota = e.pontos.length ? e.pontos : null; leve.rotaI = 0; if (e.pontos.length) leve.rotaNome = e.nome || ''; if (e.texto) aviso(e.texto); }
   else if (e.t === 'leilao') { leve.leilao = e; leve.sujo = true; }
   else if (e.t === 'bau') { leve.bau = e; leve.sujo = true; }
+  else if (e.t === 'vila') { leve.rec = e.fase === 'comeca' ? Date.now() + (e.dur || 0) * 1000 : 0; leve.sujo = true; }
   else if (e.t === 'fabricando') { leve.fab = e.fim ? null : { nome: e.nome, ate: Date.now() + (e.dur || 0) * 1000 }; leve.sujo = true; }
   else if (e.t === 'chat') chatLeve([e]);
   else if (e.t === 'chatHist') { leve.chat = []; chatLeve(e.l); }
@@ -762,14 +763,7 @@ function cartaoCarga(P) {
       c.append(f);
     }
   } else if (K.tem) { const b = el('div', 'bts'); b.append(bt('Colocar carrinho', () => mandar('veiculo', { acao: 'colocar', k: 'carrinho' }))); c.append(b); }
-  if (K.e?.length) { // onde entregar: quem paga mais primeiro (costas + carrinho)
-    c.append(el('div', 'faz', 'Entregar em (toque para ir)'));
-    const ch = el('div', 'chips');
-    for (const [id, nome, x, z, a, b2] of [...K.e].sort((p, q) => q[4] + q[5] - p[4] - p[5])) {
-      const b = el('button', '', `${nome} · ${a + b2} de ouro · ${metros({ x, z })}`); b.onclick = () => irLeve({ x, z, nome }); ch.append(b);
-    }
-    c.append(ch);
-  }
+  // onde entregar: na lista Lugares > Mercadores, com quanto cada um paga (André 2026-11-25: "um milhão de botões isolados")
   if (K.tb) { // as ordens de pack do time (as mesmas da barra do time no jogo)
     c.append(el('div', 'faz', 'Pack do time (seus bots)'));
     const l = el('div', 'qtd-linha'), de = el('select'), pra = el('select');
@@ -787,6 +781,22 @@ function cartaoCarga(P) {
 const SECOES = [['vilas', 'Vilas e cidades'], ['totens', 'Totens'], ['caca', 'Caçada'], ['boss', 'Bosses'], ['dungeon', 'Dungeons'],
   ['recursos', 'Recursos'], ['pesca', 'Pescaria'], ['oficinas', 'Oficinas'], ['npcs', 'NPCs'], ['mercadores', 'Mercadores (entregas)']];
 const PERTO_PRIMEIRO = new Set(['totens', 'recursos', 'oficinas', 'npcs', 'mercadores']);
+// Mochila (André 2026-11-25: "pra aparecer nosso inventário"): recolhível como a lista Lugares; só mostra, tocar diz o
+// nome e quantos. Vender, guardar e anunciar continuam nos cartões da loja, do baú e do leilão (perto deles)
+let mochilaAberta = false;
+function cartaoMochila() {
+  const c = el('div', 'card sanfona'), cab = el('button', 'cab'), it = leve.mo?.it || [];
+  cab.append(el('span', null, `${mochilaAberta ? '▾' : '▸'} Mochila`), el('small', 'faz', `${it.length}/${leve.mo?.l || 0}`));
+  cab.onclick = () => { mochilaAberta = !mochilaAberta; leve.sujo = true; desenharJogar(); };
+  c.append(cab);
+  if (!mochilaAberta) return c;
+  const f = el('div', 'icones');
+  for (const [, k, n, nome, cor] of it) f.append(itemLeve(k, nome, cor, n, null, false, () => aviso(`${nome}: ${n}`)));
+  if (!it.length) f.append(el('div', 'faz', 'Mochila vazia.'));
+  c.append(f);
+  return c;
+}
+
 let lugaresAberto = false, secAberta = ''; // tudo fechado; uma seção aberta por vez (como no jogo: toca abre, toca de novo fecha)
 function cartaoLugares(M) {
   const c = el('div', 'card sanfona'), cab = el('button', 'cab');
@@ -836,6 +846,7 @@ function desenharJogar() {
   limpar(st);
   const vm = el('div', 'vm'); vm.append(barra('Vida', hp, hpM, 'var(--hp)'), barra('Mana', mn, mnM, '#3d7fd0')); for (const d of vm.children) d.style.flex = '1'; st.append(vm);
   st.append(el('div', 'faz', `Nv ${nv} · ${ouro} de ouro${pack ? ' · pack nas costas' : ''}${montado ? ' · no lobo' : ''}${leve.pk?.car?.onde === 2 ? ' · no carrinho' : ''}`));
+  if (leve.rec > Date.now()) st.append(el('div', 'nome', `Recall para a base do clã… ${Math.ceil((leve.rec - Date.now()) / 1000)} s (toque de novo para desistir)`));
   if (leve.fab) { const s = Math.max(0, Math.ceil((leve.fab.ate - Date.now()) / 1000)); st.append(el('div', 'nome', `Fazendo ${leve.fab.nome}… ${s} s (fique perto)`)); }
   const R = leve.f.r;
   if (morto) st.append(el('div', 'nome', 'Você caiu. Espere renascer no totem.'));
@@ -846,7 +857,7 @@ function desenharJogar() {
   if (R) { const p = el('button', 'acao cinza', 'Parar'); p.onclick = () => mandar('leveParar'); bt.append(p); }
   // montaria (André 2026-11-25): a mesma mensagem do jogo ('montar'); com pack, em combate ou antes de liberar o servidor recusa
   if (!leve.pk?.car || leve.pk.car.onde !== 2) { const mt = el('button', 'acao cinza', montado ? 'Descer do lobo' : 'Montar no lobo'); mt.onclick = () => mandar('montar'); bt.append(mt); }
-  const casa = el('button', 'acao cinza', 'Voltar à base'); casa.onclick = () => mandar('vila'); bt.append(casa);
+  const casa = el('button', 'acao cinza', 'Recall: base do clã'); casa.onclick = () => mandar('vila'); // o mesmo da casinha do jogo (Simulacao.voltarVila): canaliza e aparece no Baú do Clã bt.append(casa);
   const sai = el('button', 'acao cinza', 'Sair do mundo'); sai.onclick = sairLeve; bt.append(sai);
   st.append(bt);
   const P = pertoAgora(), chave = [P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(',')].join('|');
@@ -865,6 +876,7 @@ function desenharJogar() {
   if (P.totem) raiz.append(cartaoTotem(P.totem));
   const cg = cartaoCarga(P); if (cg) raiz.append(cg);
   if (!P.npc && !P.bau && !P.totem && !cg) raiz.append(el('div', 'vazio', 'Chegue perto de uma loja, do leilão, de um baú ou de um totem para usar.'));
+  if (leve.mo) raiz.append(cartaoMochila());
   if (leve.mapa?.lug) raiz.append(cartaoLugares(leve.mapa)); // depois do que está perto (abre sem empurrar a loja)
 }
 
