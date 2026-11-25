@@ -23,6 +23,7 @@ h1{font-size:1.1rem;margin:0;color:var(--gold);letter-spacing:.02em;overflow:hid
 .estado i{width:9px;height:9px;border-radius:50%;background:#666;display:inline-block}
 .estado.on i{background:#5fbf5a;box-shadow:0 0 6px #5fbf5a}
 .estado.caiu i{background:#d0903a}
+.wiki{color:var(--gold);text-decoration:none;font:600 .8rem system-ui,sans-serif;border:1px solid var(--line);border-radius:999px;padding:4px 10px}
 nav{display:flex;gap:4px;margin-top:8px;overflow-x:auto}
 nav button{flex:1;min-height:40px;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);font:600 .9rem system-ui,sans-serif;cursor:pointer;white-space:nowrap}
 nav button.ativo{color:var(--ink);border-bottom-color:var(--gold)}
@@ -86,7 +87,7 @@ input.busca:focus{outline:none;border-color:var(--gold)}
 <header>
   <div class="topo">
     <div style="min-width:0"><h1 id="titulo">Painel do Clã</h1><div class="sub" id="subtitulo">Age of Embers</div></div>
-    <div class="estado" id="estado"><i></i><span>Ligando…</span></div>
+    <div style="display:flex;align-items:center;gap:10px;flex:none"><a class="wiki" href="wiki/" target="_blank" rel="noopener" title="Wiki: como jogar">📖 Wiki</a><div class="estado" id="estado"><i></i><span>Ligando…</span></div></div>
   </div>
   <nav id="abas" hidden>
     <button data-aba="cla" class="ativo">Clã</button>
