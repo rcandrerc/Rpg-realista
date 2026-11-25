@@ -4391,12 +4391,14 @@ func _input(ev: InputEvent) -> void:
 		return
 	if m.menu != null and m.menu._confirma != null: # a janelinha da quantidade (menu.gd pedir_qtd) está por cima
 		return
+	if m.menu != null and m.menu.menu_ver_aberto(): # o menuzinho do filtro está por cima: ele é que rola
+		return
 	if ev is InputEventScreenTouch:
 		if ev.pressed:
 			_bau_dentro = null
 			for sc in rolar_bau:
 				var vb: VScrollBar = sc.get_v_scroll_bar()
-				if sc.is_visible_in_tree() and sc.get_global_rect().has_point(ev.position) and not (vb.visible and vb.get_global_rect().has_point(ev.position)):
+				if sc.is_visible_in_tree() and sc.get_global_rect().has_point(ev.position) and not (vb.visible and vb.mouse_filter != Control.MOUSE_FILTER_IGNORE and vb.get_global_rect().has_point(ev.position)):
 					_bau_dentro = sc # na barra não: a própria barra rola
 			if _bau_dentro != null and Engine.has_meta("rolagem_toque"):
 				Engine.get_meta("rolagem_toque", null).esquecer()
