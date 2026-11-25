@@ -5191,51 +5191,52 @@ func abrir_menu_ver(b: Control, lista: Array, eq: bool, ao_mudar: Callable) -> v
 	pm.clear()
 	for c in pm.id_pressed.get_connections():
 		pm.id_pressed.disconnect(c.callable)
-	# o que existe nesta lista (e o que está desmarcado, para dar para marcar de volta)
+	# o que existe nesta lista (e o que está desmarcado, para dar para marcar de volta). Equipamento: Raridade e, embaixo,
+	# Peça (André 2026-11-25: "além da raridade, a especificidade: só tops, só calças, só arma"). Recurso: cada item.
 	var ks: Array = []
-	if not eq:
-		for it in lista:
-			if it != null and not P.eh_equip(it) and not ks.has(str(it.k)):
-				ks.append(str(it.k))
-		for k in ver_fora.k.keys():
-			if not ks.has(k) and P.dados.itens.has(k) and not P.eh_equip({"k": k, "r": 0}):
-				ks.append(k)
-	var n: int = P.dados.raridades.size() if eq else ks.size()
-	for x in n:
-		if eq:
+	for it in lista:
+		if it != null and P.eh_equip(it) == eq and not ks.has(str(it.k)):
+			ks.append(str(it.k))
+	for k in ver_fora.k.keys():
+		if not ks.has(k) and P.dados.itens.has(k) and P.eh_equip({"k": k, "r": 0}) == eq:
+			ks.append(k)
+	var ent: Array = [] # [id, "r" ou "k", raridade ou item]
+	if eq:
+		pm.add_separator(tr("Raridade"))
+		for x in P.dados.raridades.size():
 			pm.add_icon_check_item(icone_tex("it_espada"), str(P.dados.raridades[x].nome), x)
-			pm.set_item_icon_modulate(x, Color(P.dados.raridades[x].cor))
-			pm.set_item_checked(x, not ver_fora.r.has(x))
-		else:
-			pm.add_icon_check_item(icone_tex(P.icone_item({"k": ks[x], "n": 1})), P.nome_item({"k": ks[x], "n": 1}), x)
-			pm.set_item_checked(x, not ver_fora.k.has(ks[x]))
-	if n == 0:
+			pm.set_item_icon_modulate(pm.item_count - 1, Color(P.dados.raridades[x].cor))
+			pm.set_item_checked(pm.item_count - 1, not ver_fora.r.has(x))
+			ent.append([x, "r", x])
+		if not ks.is_empty():
+			pm.add_separator(tr("Peça"))
+	for x in ks.size():
+		var it := {"k": ks[x], "r": 0} if eq else {"k": ks[x], "n": 1}
+		pm.add_icon_check_item(icone_tex(P.icone_item(it)), P.nome_item({"k": ks[x], "n": 1}) if not eq else str(P.dados.itens[ks[x]].nome), 100 + x)
+		pm.set_item_checked(pm.item_count - 1, not ver_fora.k.has(ks[x]))
+		ent.append([100 + x, "k", ks[x]])
+	if ent.is_empty():
 		pm.add_item(tr("Nada aqui"), 9998)
-		pm.set_item_disabled(0, true)
+		pm.set_item_disabled(pm.item_count - 1, true)
 	else:
 		pm.add_separator()
 		pm.add_item(tr("Marcar todos"), 9000)
 		pm.add_item(tr("Desmarcar todos"), 9001)
+	var por := func(e: Array, liga: bool):
+		var d: Dictionary = ver_fora.r if e[1] == "r" else ver_fora.k
+		if liga:
+			d.erase(e[2])
+		else:
+			d[e[2]] = true
+		pm.set_item_checked(pm.get_item_index(e[0]), liga)
 	pm.id_pressed.connect(func(id: int):
 		if id == 9000 or id == 9001:
-			for x in n:
-				if eq:
-					if id == 9000: ver_fora.r.erase(x)
-					else: ver_fora.r[x] = true
-				else:
-					if id == 9000: ver_fora.k.erase(ks[x])
-					else: ver_fora.k[ks[x]] = true
-				pm.set_item_checked(pm.get_item_index(x), id == 9000)
-		elif id < n:
-			var liga := not pm.is_item_checked(pm.get_item_index(id))
-			pm.set_item_checked(pm.get_item_index(id), liga)
-			if eq:
-				if liga: ver_fora.r.erase(id)
-				else: ver_fora.r[id] = true
-			elif liga:
-				ver_fora.k.erase(ks[id])
-			else:
-				ver_fora.k[ks[id]] = true
+			for e in ent:
+				por.call(e, id == 9000)
+		else:
+			for e in ent:
+				if e[0] == id:
+					por.call(e, not pm.is_item_checked(pm.get_item_index(id)))
 		ao_mudar.call())
 	pm.reset_size()
 	var r := b.get_global_rect()
