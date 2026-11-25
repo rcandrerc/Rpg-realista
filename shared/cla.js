@@ -17,6 +17,8 @@ import { profNivel, guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tir
 import { fundoAgua } from './transporte.js';
 import { LUGARES_MUNDO } from './mundo.js';
 import { crescerPlanta } from './simulacao.js'; // só usadas em tempo de jogo (progresso.js também importa daqui)
+// lugares ocupados/total de uma mochila ou baú (André 2026-11-24: "40/60 lá no site")
+const lugares = (l) => [l.filter(Boolean).length, l.length];
 
 // o que dá para mandar farmar (painel "Farmar recurso"): os da encomenda e o couro (caça e tira o couro). André
 // 2026-11-23: "somente qd eu solicitar em comando tipo preciso de ferro couro ou madeira aí ele trará"
@@ -789,12 +791,12 @@ export const Cla = {
     const clas = CLAS_NPC.map((C) => { const B = this.liderNpc(C); return B && !B.morto ? { ...(C.raca === (raca || this.racaDe(L)) ? pos(B) : {}), fz: this.fazendoBotPainel(B) } : {}; });
     return { n: c.n, nv: c.nv || 1, cofre: c.cofre | 0, semana: semanaCla(c), jogo: heroi ? 1 : 0, ...(!heroi && c.sem <= Date.now() ? { vencida: 1 } : {}), ...(heroi ? { eu: pos(heroi) } : {}),
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, on: a ? 1 : 0, ...(m.dev ? { dev: 1 } : {}),
-        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, L), ...pos(a), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length && !a.prog.mochila.some((o) => !o) ? { cheia: 1 } : {}) } : {}) }; }),
+        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, L), ...pos(a), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length && !a.prog.mochila.some((o) => !o) ? { cheia: 1 } : {}), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length ? { mo: lugares(a.prog.mochila) } : {}) } : {}) }; }),
       log: (c.log || []).slice(-10).reverse(), funcoes: CLA.funcoes.filter((F) => heroi || F.id !== 'seguir'),
       recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })), plantas: Object.entries(PLANTAS).map(([k, P]) => ({ k, nome: P.nome })),
       // o que pede o próximo nível do clã e o que já tem (Baú do Clã + mochila do líder), igual ao Melhorar clã do jogo
       sobe: this.subirPainel(conta, c, raca, heroi, prog),
-      bau: this.bauPainel(conta), ...(this.cheiosCla(conta).bau ? { bauCheio: 1 } : {}), // o que tem no Baú do Clã (André 2026-11-24: "mostrar inventário do clã"), em ícones
+      bau: this.bauPainel(conta), ...(this.cheiosCla(conta).bau ? { bauCheio: 1 } : {}), ...(this.bauDoCla({ conta })?.itens ? { bauLug: lugares(this.bauDoCla({ conta }).itens) } : {}), // ocupado/total, como o jogo (40/60) // o que tem no Baú do Clã (André 2026-11-24: "mostrar inventário do clã"), em ícones
       clas: this.clasNpcInfo(L).map((o, i) => ({ ...o, ...clas[i] })), lugares: (this.lugaresPainel ||= [{ nome: this.mapa.nome || 'Vila', x: 0, z: 0 }, ...LUGARES_MUNDO.filter((o) => o.nome && o.tipo !== 'porto').map((o) => ({ nome: o.nome, x: o.x, z: o.z }))]) };
   },
   // o que está cheio no clã (André 2026-11-24: "quando ficar cheio... ficar vermelho... e notificação"): recruta com a

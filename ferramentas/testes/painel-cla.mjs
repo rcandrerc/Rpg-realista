@@ -107,6 +107,7 @@ ok(inf2.clas.every((C) => !C.inimigo || C.x == null), 'sem o lugar do líder ini
   const C = s.cheiosCla(conta), i4 = s.painelInfo(conta, cla, 'chama');
   ok(C.recrutas.includes(x.AMIGA.nome) && C.bau, 'cheiosCla acha a mochila e o baú cheios');
   ok(i4.m.find((m) => m.id === x.AMIGA.id)?.cheia === 1 && i4.bauCheio === 1, 'o painel marca a mochila e o baú cheios');
+  { const mm = i4.m.find((m) => m.id === x.AMIGA.id); ok(Array.isArray(mm?.mo) && mm.mo[0] === mm.mo[1] && mm.mo[1] > 0 && Array.isArray(i4.bauLug) && i4.bauLug[0] === i4.bauLug[1], `lugares ocupados/total no painel (mochila ${mm?.mo}, baú ${i4.bauLug})`); }
   x.amiga.prog.mochila = velhaM; s.bauDoCla = velhoB;
   ok(!s.cheiosCla(conta).recrutas.length, 'com lugar livre não marca');
 }
