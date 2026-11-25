@@ -230,6 +230,7 @@ func _carregar_modelos() -> void:
 	_modelos["cama"] = _modelo_gltf("res://construcao3d/Bed_Twin1.gltf", 1.0)
 	_modelos["tocha"] = _modelo_tocha()
 	_modelos["palete"] = _modelo_palete() # palete de packs (André 2026-11-23): os packs ficam em cima e não somem
+	_modelos["mesa_cla"] = _modelo_mesa_cla() # Mesa do Clã (André 2026-11-25): 8 lugares para o jantar do clã (jantar.gd)
 	for k in _modelos:
 		juntar_malhas(_modelos[k]) # FPS (2026-11-07): a peça vira 1 ou 2 malhas, com o mesmo visual
 		_alcance_peca(_modelos[k], k)
@@ -443,6 +444,82 @@ func _modelo_palete() -> Node3D:
 		var x := -0.69 + i * 0.23
 		_caixa(r, Vector3(0.19, 0.035, 1.2), Vector3(x, 0.1425, 0), madeira, Vector3(0, 0, 0.004 * (i % 3 - 1)))
 	return r # a marca pintada no chão é do grupo todo (_marca_paletes): encostados viram uma área só
+
+# Mesa do Clã (André 2026-11-25: "aumentar aquela mesa ali do clã... bastante, pra que dê um clã inteiro"; "3 de um lado,
+# 3 do outro e a cabeceira"): tampo de tábuas grossas de 3,6 x 1,1 m em cavaletes, um banco comprido de cada lado (3
+# lugares) e uma cadeira de espaldar em cada cabeceira (a do líder em +x, com o pano do clã). Os lugares batem com
+# JANTAR.lugares (shared/dados.js): lados em z = ±1,0, cabeceiras em x = ±2,35. Assento a MESA_ASSENTO m (a pose
+# kk_sentado do KayKit apoia o quadril aí). Caminho de mesa vermelho com borda dourada e dois castiçais.
+const MESA_ASSENTO := 0.46
+const MESA_TAMPO := 0.78
+func _modelo_mesa_cla() -> Node3D:
+	var r := Node3D.new()
+	var madeira := _mat_tex("medieval_wood", Color("8a6446"), 1.0)
+	var escura := _mat_tex("medieval_wood", Color("5a3f2b"), 1.0)
+	var pano := _mat_cor(Color(0.55, 0.1, 0.08))
+	var ouro := _mat_cor(Color(0.85, 0.66, 0.25))
+	var ferro := _mat_cor(Color(0.16, 0.15, 0.14))
+	# tampo: 5 tábuas ao comprido, com fresta, em duas travessas
+	for i in 5:
+		var z := -0.44 + i * 0.22
+		_caixa(r, Vector3(3.6, 0.07, 0.205), Vector3(0, MESA_TAMPO - 0.035, z), madeira, Vector3(0.0, 0.0, 0.003 * (i % 3 - 1)))
+	for x in [-1.45, 0.0, 1.45]:
+		_caixa(r, Vector3(0.12, 0.08, 1.0), Vector3(x, MESA_TAMPO - 0.11, 0), escura)
+	# cavaletes em X nas duas pontas e uma viga no meio, embaixo
+	for x in [-1.45, 1.45]:
+		for lado in [-1.0, 1.0]:
+			_caixa(r, Vector3(0.09, 0.86, 0.09), Vector3(x, (MESA_TAMPO - 0.14) / 2.0, 0), escura, Vector3(lado * 0.62, 0, 0))
+		_caixa(r, Vector3(0.1, 0.07, 0.9), Vector3(x, 0.04, 0), escura)
+	_caixa(r, Vector3(2.9, 0.1, 0.1), Vector3(0, 0.3, 0), escura)
+	# caminho de mesa do clã: vermelho com a borda dourada, caindo um pouco nas cabeceiras
+	_caixa(r, Vector3(3.9, 0.012, 0.42), Vector3(0, MESA_TAMPO + 0.006, 0), pano)
+	for z in [-0.22, 0.22]:
+		_caixa(r, Vector3(3.9, 0.014, 0.03), Vector3(0, MESA_TAMPO + 0.008, z), ouro)
+	for x in [-1.95, 1.95]:
+		_caixa(r, Vector3(0.012, 0.22, 0.42), Vector3(x, MESA_TAMPO - 0.1, 0), pano)
+	# bancos compridos (3 lugares cada): assento de duas tábuas e três pés de cada lado
+	for lz in [-1.0, 1.0]:
+		var z: float = lz * 1.02
+		for k in 2:
+			_caixa(r, Vector3(3.2, 0.05, 0.17), Vector3(0, MESA_ASSENTO - 0.025, z + (k - 0.5) * 0.18), madeira)
+		for x in [-1.45, 0.0, 1.45]:
+			for dz in [-0.13, 0.13]:
+				_caixa(r, Vector3(0.07, MESA_ASSENTO - 0.05, 0.07), Vector3(x, (MESA_ASSENTO - 0.05) / 2.0, z + dz), escura)
+		_caixa(r, Vector3(3.0, 0.06, 0.05), Vector3(0, 0.14, z), escura)
+	# cadeiras das cabeceiras (espaldar alto; a do líder, em +x, com o pano do clã e o friso dourado)
+	for sx in [1.0, -1.0]:
+		var cx: float = sx * 2.4
+		_caixa(r, Vector3(0.46, 0.06, 0.5), Vector3(cx, MESA_ASSENTO - 0.03, 0), madeira)
+		for p in [Vector2(-0.2, -0.21), Vector2(-0.2, 0.21), Vector2(0.2, -0.21), Vector2(0.2, 0.21)]:
+			_caixa(r, Vector3(0.06, MESA_ASSENTO - 0.06, 0.06), Vector3(cx + p.x, (MESA_ASSENTO - 0.06) / 2.0, p.y), escura)
+		var alto := 1.25 if sx > 0.0 else 1.0
+		for dz in [-0.22, 0.22]:
+			_caixa(r, Vector3(0.07, alto - MESA_ASSENTO, 0.07), Vector3(cx + sx * 0.21, MESA_ASSENTO + (alto - MESA_ASSENTO) / 2.0, dz), escura)
+		for k in 3:
+			_caixa(r, Vector3(0.04, 0.07, 0.42), Vector3(cx + sx * 0.21, MESA_ASSENTO + 0.18 + k * (alto - MESA_ASSENTO - 0.2) / 2.0, 0), madeira)
+		if sx > 0.0:
+			_caixa(r, Vector3(0.015, 0.5, 0.3), Vector3(cx + sx * 0.18, alto - 0.33, 0), pano)
+			_caixa(r, Vector3(0.017, 0.05, 0.3), Vector3(cx + sx * 0.18, alto - 0.07, 0), ouro)
+			_caixa(r, Vector3(0.08, 0.08, 0.08), Vector3(cx + sx * 0.21, alto + 0.04, -0.22), ouro)
+			_caixa(r, Vector3(0.08, 0.08, 0.08), Vector3(cx + sx * 0.21, alto + 0.04, 0.22), ouro)
+	# dois castiçais de ferro com vela (a chama brilha; sem luz, pelo FPS)
+	for x in [-0.8, 0.8]:
+		_caixa(r, Vector3(0.12, 0.02, 0.12), Vector3(x, MESA_TAMPO + 0.02, 0), ferro)
+		_caixa(r, Vector3(0.03, 0.14, 0.03), Vector3(x, MESA_TAMPO + 0.09, 0), ferro)
+		_caixa(r, Vector3(0.05, 0.12, 0.05), Vector3(x, MESA_TAMPO + 0.22, 0), _mat_cor(Color(0.95, 0.92, 0.82)))
+		var ch := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.025
+		sm.height = 0.07
+		sm.radial_segments = 6
+		sm.rings = 3
+		ch.mesh = sm
+		ch.material_override = _mat_cor(Color(1.0, 0.72, 0.3), 3.0)
+		ch.position = Vector3(x, MESA_TAMPO + 0.31, 0)
+		ch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		ch.name = "chama"
+		r.add_child(ch)
+	return r
 
 func _modelo_tocha() -> Node3D:
 	var r := Node3D.new()

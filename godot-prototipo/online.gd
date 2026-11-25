@@ -963,6 +963,11 @@ func animar(o: Dictionary, c: Dictionary) -> void:
 		return
 	o.uma_vez = 0.0
 	var nome := str(c.get("anim", "Idle"))
+	# sentado na Mesa do Clã (jantar.gd): o servidor manda kk_sentado; aqui vai a parada e o jantar.gd põe o quadril no
+	# banco (sentar.gd), como no carrinho. A animação sentada do KayKit deixava o corpo VRoid flutuando atrás do banco
+	o.mesa_sent = nome == "kk_sentado"
+	if o.mesa_sent:
+		nome = "Idle"
 	# outro jogador parado com o cajado na mão: a mesma guarda de mago do herói (o servidor manda só "parada")
 	if o.get("modo", "") == "Magia" and not o.get("sentado", false) and animacao(nome) == "parada" and an.has_animation("cajado_parada"):
 		nome = "cajado_parada"
@@ -1476,6 +1481,10 @@ func evento(ev: Dictionary) -> void:
 		"comando": # comando rápido do time (André 2026-11-19): alguém do time mandou "Espera aqui", "Me segue"...
 			m.hud.comando(str(ev.get("nome", "")), str(ev.get("texto", "")))
 			m.sons.tocar("q_anel_1", -12.0)
+		"jantar", "jantarInfo", "jantarSentar": # jantar do clã (jantar.gd, shared/jantar.js): a comida na mesa, a janela e o herói sentado
+			if m.jantar != null:
+				m.jantar.do_servidor(ev)
+			return
 		"balao": # chat Local (André 2026-11-18): a frase em cima da cabeça de quem falou, por uns segundos
 			_balao(str(ev.get("id", "")), str(ev.get("texto", "")), int(ev.get("npc", 0)) == 1, str(ev.get("lingua", "")) != "")
 			return
@@ -1972,6 +1981,8 @@ func _passo(dt: float) -> void:
 		_pos_t = 0.05
 		var p: Vector3 = m.heroi.position - m.desliza # o lugar de verdade (sem o deslize da correção na tela)
 		var a: String = para_servidor.get(m.heroi_anim.current_animation, {"freada": "Walk", "meia_volta": "Run"}.get(m.heroi_anim.current_animation, "Idle"))
+		if m.jantar != null and m.jantar.sentado_ok(): # sentado na Mesa do Clã: os outros veem sentado (jantar.gd)
+			a = "kk_sentado"
 		if m.montaria != null: # montado: vai o passo do lobo (o site e os outros apps põem o lobo andando ou galopando)
 			a = "Run" if m.mov.velocidade() > 4.4 else ("Walk" if m.mov.velocidade() > 0.35 else "Idle")
 		# e: 1 = este app conhece a estamina (o servidor só deixa correr com fôlego)

@@ -8,7 +8,7 @@
 // já no Nv 6).
 // Estado (tabela mundo 'bases_cla'): { [k]: { k, x, z, raca, n (nome do clã), dono (conta do líder ou 'npc:' + id),
 // nomeDono, nv, taxa (ms: semanas pagas até aqui), c (ms) } }. k = 'j' + conta (jogador) ou 'n' + id (clã bot).
-import { CLA, TOTENS, VILAS_MUNDO, VILAS_TERRENO, VILA_LOTES, MAPA_CLAREIRA, AREAS_BASE, AREAS_SEGURAS_BASE, CLAS_NPC, fixosNpc, RACAS, AMIGOS_VIRTUAIS, RIVAIS, precoTerreno, BAU, bauLugares, PLANTIO, NPC_CASA_BASE } from './dados.js';
+import { CLA, TOTENS, VILAS_MUNDO, VILAS_TERRENO, VILA_LOTES, MAPA_CLAREIRA, AREAS_BASE, AREAS_SEGURAS_BASE, CLAS_NPC, fixosNpc, RACAS, AMIGOS_VIRTUAIS, RIVAIS, precoTerreno, BAU, bauLugares, PLANTIO, NPC_CASA_BASE, JANTAR } from './dados.js';
 import { guardar } from './progresso.js';
 import { zonaFechadaEm } from './historia.js';
 import { areaPlantio } from './plantio.js';
@@ -175,7 +175,17 @@ export function montarBase(B) {
   // a fogueira do meio saiu (André 2026-11-23: "tira essa fogueira... impede eu de construir em volta")
   enfeite('barris', S.w / 2 + 1.6, sz - S.d / 4);
   enfeite('caixotes', -(S.w / 2 + 1.7), sz - S.d / 4);
-  if (nv >= 2) { casa('aurora_torre', h - 3, h - 3); enfeite('mesa', -(h - 3.5), Math.min(h - 3.5, bz + 2)); } // torre de vigia no canto da frente (atrás não cabe com o salão)
+  if (nv >= 2) casa('aurora_torre', h - 3, h - 3); // torre de vigia no canto da frente (atrás não cabe com o salão)
+  // a Mesa do Clã (André 2026-11-25: "aumentar aquela mesa ali do clã... bastante, pra que dê um clã inteiro"): no lugar
+  // da mesinha de antes (Nv 2+), agora desde o Nv 1, à esquerda da frente do salão, com 8 lugares (JANTAR.lugares). O app
+  // desenha (godot-prototipo/construcao.gd mesa_cla); só o tampo é sólido. Recolhida (Mudar de lugar, B.mesaSolta), vira a
+  // peça mesa_cla do lote 1, como o Baú do Clã
+  let mesa = null;
+  if (!B.mesaSolta) {
+    const mx = -(h - 3.3), mz = Math.min(h - 1.6, bz + 2.8);
+    mesa = { x: r2(x0 + mx), z: r2(z0 + mz), ry: 0, y: baixo(mx, mz, 2.4) };
+    caixa(mesa.x, mesa.z, 0, 1.8, 0.55, mesa.y + 0.78);
+  }
   let forja = null;
   if (nv >= 4) {
     // André 2026-11-23 ("a bigorna está dentro da casinha"; "o fogão sumiu de novo"): a fornalha fica no fundo do galpão
@@ -202,7 +212,7 @@ export function montarBase(B) {
   }
   // os lotes abertos (1 a N.lotes): retângulo inteiro (o lote do jogo usa o mesmo); os fechados não aparecem
   const lotes = P.lugares.slice(0, N.lotes).map(([dx, dz], i) => ({ i: i + 1, x0: x0 + dx - P.lote / 2, z0: z0 + dz - P.lote / 2, x1: x0 + dx + P.lote / 2, z1: z0 + dz + P.lote / 2 }));
-  return { nv, centro: N.centro, raio: N.raio, pecas, sol, bau, frente, forja, lotes };
+  return { nv, centro: N.centro, raio: N.raio, pecas, sol, bau, frente, forja, lotes, mesa };
 }
 
 export const Base = {
@@ -212,7 +222,7 @@ export const Base = {
     for (const [k, b] of Object.entries(est && typeof est === 'object' ? est : {})) {
       if (!b || !/^[jn][\w:.-]{1,40}$/.test(k) || !Number.isFinite(+b.x) || !Number.isFinite(+b.z)) continue;
       this.basesCla[k] = { k, x: Math.round(+b.x), z: Math.round(+b.z), raca: RACAS[b.raca] ? b.raca : 'chama', n: String(b.n || '').slice(0, 24), dono: String(b.dono || ''), nomeDono: String(b.nomeDono || '').slice(0, 24),
-        nv: Math.max(1, Math.min(CLA.max, b.nv | 0)), taxa: Number.isFinite(+b.taxa) ? +b.taxa : Date.now(), c: +b.c || Date.now(), donos: {}, ...(b.sorteou ? { sorteou: 1 } : {}), ...(b.bauSolto ? { bauSolto: 1 } : {}), ...(b.mudou > 0 ? { mudou: b.mudou | 0, mudouEm: +b.mudouEm || 0 } : {}), ...(b.livres > 0 ? { livres: Math.min(20, b.livres | 0) } : {}), ...(b.missaoEm > 0 ? { missaoEm: +b.missaoEm } : {}), ...(b.missaoOk > 0 ? { missaoOk: +b.missaoOk } : {}) };
+        nv: Math.max(1, Math.min(CLA.max, b.nv | 0)), taxa: Number.isFinite(+b.taxa) ? +b.taxa : Date.now(), c: +b.c || Date.now(), donos: {}, ...(b.sorteou ? { sorteou: 1 } : {}), ...(b.bauSolto ? { bauSolto: 1 } : {}), ...(b.mesaSolta ? { mesaSolta: 1 } : {}), ...(b.mudou > 0 ? { mudou: b.mudou | 0, mudouEm: +b.mudouEm || 0 } : {}), ...(b.livres > 0 ? { livres: Math.min(20, b.livres | 0) } : {}), ...(b.missaoEm > 0 ? { missaoEm: +b.missaoEm } : {}), ...(b.missaoOk > 0 ? { missaoOk: +b.missaoOk } : {}) };
       for (const [i, o] of Object.entries(b.donos && typeof b.donos === 'object' ? b.donos : {})) if (/^[2-9]$/.test(i) && o && typeof o.id === 'string') this.basesCla[k].donos[i] = { id: o.id.slice(0, 24), nome: String(o.nome || '').slice(0, 24) };
     }
     this.refazerBases();
@@ -269,7 +279,7 @@ export const Base = {
   // o que o app recebe: todas as bases (o desenho pronto) e qual é a minha
   dadosBase(B) {
     const D = this.basesDesenho?.[B.k] || montarBase(B), N = nivelBase(B.nv);
-    return { k: B.k, n: B.n, raca: B.raca, x: B.x, z: B.z, nv: B.nv, lider: B.nomeDono, centro: D.centro, raio: D.raio, pecas: D.pecas, sol: D.sol, bau: D.bau, frente: D.frente, forja: D.forja,
+    return { k: B.k, n: B.n, raca: B.raca, x: B.x, z: B.z, nv: B.nv, lider: B.nomeDono, centro: D.centro, raio: D.raio, pecas: D.pecas, sol: D.sol, bau: D.bau, frente: D.frente, forja: D.forja, mesa: this.mesaBase(B),
       lotes: D.lotes.map((l) => [l.i, l.x0, l.z0, l.x1, l.z1, l.i === 1 ? B.nomeDono : B.donos?.[l.i]?.nome || '']), arvores: D.arvores || [], taxa: N.taxa, atraso: this.semanasBase(B),
       chao: this.chaoBase(B) };
   },
@@ -281,6 +291,7 @@ export const Base = {
   enviarBases(id) {
     const j = this.jogadores.get(id); if (!j) return;
     this.evento({ t: 'bases', para: id, meu: this.baseDe(j)?.k || '', amigas: Object.values(this.basesCla || {}).filter((B) => B.raca === this.racaDe(j)).map((B) => B.k), lista: Object.values(this.basesCla || {}).map((B) => this.dadosBase(B)) });
+    this.enviarJantares?.(id); // os jantares do clã que estão acontecendo (shared/jantar.js)
   },
   // a área da base onde o lote 1 (do líder) também constrói (shared/simulacao.js naAreaBase): dentro da paliçada (1 m de
   // folga), sem o salão, as torres e os enfeites (sol) e sem o corredor do portão (só a faixa de lado por onde o "Ir" passa, x+0,9 a x+2,5: André 2026-11-24 não conseguia pôr o baú na frente da casa, no meio)
@@ -471,6 +482,26 @@ export const Base = {
     this.avisarBases();
     this.avisarProg(j);
     aviso('Baú do Clã recolhido: está na mochila. Ponha onde quiser na base (martelo, Móveis). Nada de dentro se perdeu');
+  },
+  // onde está a Mesa do Clã da base: a da frente do salão ou, recolhida, a peça mesa_cla do lote 1 ({ x, z, ry, y })
+  mesaBase(B) {
+    const D = B && this.basesDesenho?.[B.k]; if (!D) return null;
+    if (D.mesa) return D.mesa;
+    const p = this.lotes?.get('q' + B.k.slice(0, 20) + '_1')?.pecas.find((o) => o.k === 'mesa_cla');
+    return p ? { x: p.x, z: p.z, ry: r2(((p.r | 0) & 3) * Math.PI / 2), y: r2(this.terreno ? this.terreno.altura(p.x, p.z) : 0), peca: p.id } : null;
+  },
+  // o líder recolhe a mesa da frente do salão: vira a peça mesa_cla na mochila (põe onde quiser na base, como o baú)
+  recolherMesaBase(j, aviso) {
+    const B = this.baseDe(j), D = B && this.basesDesenho?.[B.k]; if (!D?.mesa) return aviso('Essa mesa já foi recolhida');
+    if (this.jantares?.has(B.k)) return aviso('Termine o jantar antes de mudar a mesa de lugar');
+    if (Math.hypot(D.mesa.x - j.x, D.mesa.z - j.z) > JANTAR.perto) return aviso('Chegue perto da Mesa do Clã');
+    const prova = j.prog.mochila.map((o) => (o ? { ...o } : null));
+    if (!guardar(prova, { k: 'obra_mesa_cla', n: 1 })) return aviso('Mochila cheia: a mesa não cabe');
+    j.prog.mochila = prova;
+    B.mesaSolta = 1;
+    this.avisarBases();
+    this.avisarProg(j);
+    aviso('Mesa do Clã recolhida: está na mochila. Ponha onde quiser na base (martelo, Móveis)');
   },
   fornalhaBasePerto(j) {
     const B = this.baseDe(j), D = B && this.basesDesenho?.[B.k];
