@@ -266,10 +266,32 @@ function listaLeilao(raiz) {
 // página fechada. iPhone: só com o painel posto na tela de início (Compartilhar > Adicionar à Tela de Início).
 const podeAvisar = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 const chaveBytes = (b64) => { const s = atob(b64.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (b64.length % 4)) % 4)); return Uint8Array.from(s, (c) => c.charCodeAt(0)); };
-async function registroAvisos() { return navigator.serviceWorker.register('painel-sw.js', { scope: './painel-sw/' }); }
+// o service worker fica num escopo só dele ('./painel-sw/'), então navigator.serviceWorker.ready NUNCA resolve nesta página
+// (ela não está no escopo): era isso que travava o "ligar avisos" e nenhum aviso chegava (André 2026-11-25). Espera o
+// próprio registro ficar ativo.
+async function registroAvisos() {
+  const reg = await navigator.serviceWorker.register('painel-sw.js', { scope: './painel-sw/' });
+  if (reg.active) return reg;
+  const w = reg.installing || reg.waiting;
+  if (w) await new Promise((ok) => { const f = () => { if (w.state === 'activated' || w.state === 'redundant') ok(); }; w.addEventListener('statechange', f); f(); setTimeout(ok, 10e3); });
+  return reg;
+}
+// ao abrir o painel: se o celular já tem os avisos ligados (permissão dada e assinatura no navegador) mas o servidor não
+// sabe (assinatura perdida ou ligada pela versão que travava), manda de novo, sem perguntar nada
+let avisosConferidos = false;
+async function conferirAvisos() {
+  if (avisosConferidos || !podeAvisar() || !info.push || info.push.on || Notification.permission !== 'granted') return;
+  avisosConferidos = true;
+  try {
+    const reg = await registroAvisos();
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveBytes(info.push.pub) });
+    pedir({ acao: 'push', sub: sub.toJSON() });
+  } catch { /* fica como está: o André liga pela caixinha */ }
+}
 async function ligarAvisos(ligar) {
   try {
-    const reg = await registroAvisos(); await navigator.serviceWorker.ready.catch(() => null);
+    const reg = await registroAvisos();
     let sub = await reg.pushManager.getSubscription();
     if (!ligar) { if (sub) { pedir({ acao: 'push', sair: sub.endpoint }); await sub.unsubscribe(); } return; }
     if ((await Notification.requestPermission()) !== 'granted') return aviso('O navegador bloqueou os avisos. Libere em Configurações do site > Notificações.');
@@ -281,6 +303,7 @@ function opcaoAvisos() {
   const op = el('label', 'opc'), cx = el('input'); cx.type = 'checkbox';
   if (!podeAvisar() || !info.push) { op.append(document.createTextNode('Avisos no celular: este navegador não tem (no iPhone, ponha o painel na tela de início)')); return op; }
   cx.checked = !!info.push.on && Notification.permission === 'granted';
+  conferirAvisos();
   cx.onchange = () => { cx.disabled = true; ligarAvisos(cx.checked).finally(() => { cx.disabled = false; }); };
   op.append(cx, document.createTextNode('Avisar no celular (recruta caiu, mochila ou baú cheio, venda no leilão)'));
   return op;
