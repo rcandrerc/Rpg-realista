@@ -179,7 +179,7 @@ func _texto(c: CanvasItem, fonte: Font, pos: Vector2, t: String, tam: int, cor: 
 # mm = minimapa.gd (desenha os símbolos do mapa do mesmo jeito que no mapa). Fechada vira só o botão "Legenda".
 func legenda(c: CanvasItem, mm, fonte: Font, tam_janela: Vector2) -> void:
 	var linha := 19.0
-	var mapa := [["totem", "Totem de teleporte"], ["casa", "Sua casa"], ["caca", "Caça (nível)"], ["boss", "Chefe do mundo"], ["veio", "Veio de minério"]]
+	var mapa := [["totem", "Totem de teleporte"], ["base", "Base do clã"], ["casa", "Sua casa"], ["caca", "Caça (nível)"], ["boss", "Chefe do mundo"], ["veio", "Veio de minério"]]
 	var col_w := 150.0
 	var n_npc := ORDEM.size()
 	var linhas: int = maxi(n_npc, mapa.size())
@@ -217,6 +217,7 @@ func legenda(c: CanvasItem, mm, fonte: Font, tam_janela: Vector2) -> void:
 		var q := pos + Vector2(col_w + 20.0, 38.0 + i * linha)
 		match mapa[i][0]:
 			"totem": mm._marca_totem(c, q, 7.0, true)
+			"base": mm._marca_base_cla(c, q, 6.0)
 			"casa": mm._marca_casa(c, q + Vector2(0, 1), 5.5)
 			"caca": mm._marca_clareira(c, q, {"bicho": "lobo", "nivel": 5}, 6.5, true)
 			"boss": _escudo(c, q, 6.5)

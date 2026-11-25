@@ -1372,6 +1372,16 @@ func _simbolos(c: Control, tam: Vector2, em: Callable, k: float, longe: bool) ->
 			_sombra(c, qa, t)
 			mm._marca_casa(c, qa, t + 2.0)
 			mm._texto(c, qa + Vector2(0, t + 16.0), "Sua casa", 15, Color("ffb39a"))
+	# a base do clã (centro): escudo dourado maior que a casinha, com o nome do clã
+	var bcla: Dictionary = mm._minha_base_cla()
+	if not bcla.is_empty() and mm.filtro.ok("vilas"):
+		var qb := _em(bcla.x, bcla.z, 8.0)
+		if _na_tela_ok(qb, tam):
+			_sombra(c, qb, t * 1.5)
+			mm._marca_base_cla(c, qb, t * 2.0 + 2.0, bcla.raca)
+			mm._texto(c, qb + Vector2(0, t * 2.0 + 24.0), "Base do Clã", 17, mm.COR_OURO)
+			if not longe:
+				mm._texto(c, qb + Vector2(0, t * 2.0 + 42.0), bcla.nome, 14, Color("fff3dc"))
 	# clareiras de caça (bolinha na cor do bicho com o nível) e os chefes do mundo (escudo)
 	for cc in m.mundo.get("caca", []):
 		if not mm.filtro.ok("boss" if cc.has("boss") else "caca"):
