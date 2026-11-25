@@ -2048,6 +2048,63 @@ func _base_cla(C: Dictionary) -> void:
 		vs.add_child(rotulo("\n".join(PackedStringArray(tab)), 11, APAGADO))
 	conteudo.add_child(cs)
 
+# fila de símbolos que quebra a linha sozinha (materiais, estoque)
+func _fila_icones() -> HFlowContainer:
+	var f := HFlowContainer.new()
+	f.add_theme_constant_override("h_separation", 6)
+	f.add_theme_constant_override("v_separation", 4)
+	return f
+
+# { item: quantidade } em símbolos com a quantidade embaixo
+func _icones_estoque(d: Dictionary) -> HFlowContainer:
+	var f := _fila_icones()
+	for k in d:
+		if P_menu.dados.itens.has(str(k)):
+			f.add_child(icone_material(str(k), int(d[k]), 0, {}, "", true))
+	return f
+
+# Despensa do clã (André 2026-11-24, DESPENSA em shared/dados.js e shared/cla.js): a comida do Baú do Clã em símbolos
+# com a quantidade, as rações (tenho/o que 2 dias pedem) e a lenha da semana da base (tenho/preciso). Nada de lista.
+func _despensa_cla(C: Dictionary) -> void:
+	if not (C.get("dsp") is Dictionary):
+		return
+	var D: Dictionary = C.dsp
+	var cs := PanelContainer.new()
+	var fome := int(D.get("fome", 0)) == 1 or (D.get("lenha") is Dictionary and int(D.lenha.get("frio", 0)) == 1)
+	cs.add_theme_stylebox_override("panel", caixa(FUNDO2, Color(0.88, 0.5, 0.42, 0.9) if fome else OURO.darkened(0.35), 1, 10))
+	var vs := VBoxContainer.new()
+	vs.add_theme_constant_override("separation", 4)
+	cs.add_child(vs)
+	vs.add_child(rotulo("Despensa", 16, OURO_CLARO))
+	if int(D.get("bau", 0)) == 0:
+		vs.add_child(rotulo("Sem Baú do Clã não há despensa: funde a base do clã.", 12, APAGADO))
+		conteudo.add_child(cs)
+		return
+	var est := str(D.get("estado", ""))
+	var mult := float(D.get("mult", 0))
+	if est != "":
+		vs.add_child(rotulo("%s: %s%d%% de dano e XP nos recrutas" % [est, "+" if mult > 0 else "", roundi(mult * 100)], 14, VERDE if mult > 0 else Color(1.0, 0.55, 0.45)))
+	var f := _fila_icones()
+	# rações: o que tem / o que 2 dias pedem (bem alimentados); tocar explica
+	var rac: Dictionary = D.get("racao", {})
+	f.add_child(icone_material("carne_assada", int(D.get("tem", 0)), int(D.get("bem", 0)), {},
+		"Rações: %d moradores comem %d por dia. %d (2 dias) e %d comidas diferentes = Bem alimentados" % [int(D.get("n", 1)), int(D.get("dia", 0)), int(D.get("bem", 0)), int(D.get("tiposBem", 3))]))
+	if D.get("lenha") is Dictionary:
+		var Lw: Dictionary = D.lenha
+		var pede := int(Lw.get("semana", 0)) + int(Lw.get("deve", 0))
+		f.add_child(icone_material("lenha", int(Lw.get("tem", 0)), pede, {}, "Lenha da base: %d por semana%s" % [int(Lw.get("semana", 0)), (", faltam %d" % int(Lw.get("deve", 0))) if int(Lw.get("deve", 0)) > 0 else ""]))
+	var kk: Dictionary = D.get("k", {})
+	for k in kk:
+		if P_menu.dados.itens.has(str(k)):
+			var r := int(rac.get(k, 1))
+			f.add_child(icone_material(str(k), int(kk[k]), 0, {}, "%s · %d %s" % [str(P_menu.dados.itens[k].nome), r, "ração" if r == 1 else "rações"], true))
+	vs.add_child(f)
+	if D.get("lenha") is Dictionary and int(D.lenha.get("frio", 0)) == 1:
+		vs.add_child(rotulo("Base sem lenha: deixou de ser área segura. Ponha lenha no Baú do Clã.", 12, Color(1.0, 0.55, 0.45)))
+	elif kk.is_empty():
+		vs.add_child(rotulo("Ponha comida no Baú do Clã. Prato do fogão rende mais que peixe cru.", 12, APAGADO))
+	conteudo.add_child(cs)
+
 func _tempo_cla(ms: int) -> String:
 	var hs := int(ms / 3600000)
 	return "%d dia%s" % [int(hs / 24), "s" if int(hs / 24) != 1 else ""] if hs >= 24 else "%d h" % maxi(1, hs)
@@ -2141,6 +2198,7 @@ func montar_cla() -> void:
 		vs.add_child(bm)
 		conteudo.add_child(cs)
 	_base_cla(C)
+	_despensa_cla(C)
 	# membros (André 2026-11-22: "apareça eu no painel... nível Hp mana e vigor... determinar funções")
 	conteudo.add_child(rotulo("Membros", 17, OURO_CLARO))
 	var ms: Array = C.get("m", [])
@@ -2161,19 +2219,17 @@ func montar_cla() -> void:
 	if not C.get("disp", []).is_empty():
 		conteudo.add_child(rotulo("Dispensado há pouco: até 10 minutos depois de dispensar, dá para chamar de volta.", 12, APAGADO))
 	# recursos nas bolsas dos recrutas
+	# (André 2026-11-24: nada de lista: cada item no símbolo com a quantidade)
 	var rec: Dictionary = C.get("rec", {})
 	if not rec.is_empty():
-		var partes := []
-		for k in rec:
-			partes.append("%s %d" % [str(P_menu.nome_item({"k": str(k)})), int(rec[k])])
-		conteudo.add_child(rotulo("Recursos com os recrutas: " + ", ".join(partes), 13, TEXTO))
+		conteudo.add_child(rotulo("Recursos com os recrutas", 13, TEXTO))
+		conteudo.add_child(_icones_estoque(rec))
 	# Baú do Clã (base no seu terreno, André 2026-11-22)
 	if C.get("bauCla") is Dictionary:
 		var bc: Dictionary = C.bauCla
-		var pb := []
-		for k in bc:
-			pb.append("%s %d" % [str(P_menu.nome_item({"k": str(k)})), int(bc[k])])
-		conteudo.add_child(rotulo("Baú do Clã: " + (", ".join(pb) if not pb.is_empty() else "vazio"), 13, TEXTO))
+		conteudo.add_child(rotulo("Baú do Clã" if not bc.is_empty() else "Baú do Clã: vazio", 13, TEXTO))
+		if not bc.is_empty():
+			conteudo.add_child(_icones_estoque(bc))
 	else:
 		conteudo.add_child(rotulo("Sem Baú do Clã: funde a base do clã (o salão tem um na porta) ou crie um na construção (aba Móveis).", 12, APAGADO))
 	# os clãs bot (André 2026-11-22): o inimigo (Lobos da Geada, do Gael) e quem mais existir
@@ -3621,7 +3677,8 @@ func _icone_req_cla(tex: Texture2D, texto: String, nome: String, tem: int, preci
 	bx.add_child(n)
 	return bx
 
-func icone_material(k: String, tem: int, precisa: int, peca := {}) -> Control:
+# material como símbolo (acima): balao: outro texto ao tocar; so_qtd: só a quantidade (estoque, sem pedido), com a borda neutra
+func icone_material(k: String, tem: int, precisa: int, peca := {}, balao := "", so_qtd := false) -> Control:
 	var P = P_menu
 	var alvo: Dictionary = peca if not peca.is_empty() else {"k": k}
 	var bx := VBoxContainer.new()
@@ -3631,7 +3688,7 @@ func icone_material(k: String, tem: int, precisa: int, peca := {}) -> Control:
 	q.focus_mode = Control.FOCUS_NONE
 	q.custom_minimum_size = Vector2(40, 40)
 	q.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	var st := caixa(Color(0.045, 0.04, 0.036, 1), Color(0.45, 0.78, 0.45, 0.8) if tem >= precisa else Color(0.88, 0.5, 0.42, 0.8), 1, 6)
+	var st := caixa(Color(0.045, 0.04, 0.036, 1), OURO.darkened(0.3) if so_qtd else (Color(0.45, 0.78, 0.45, 0.8) if tem >= precisa else Color(0.88, 0.5, 0.42, 0.8)), 1, 6)
 	for e in ["normal", "hover", "pressed"]:
 		q.add_theme_stylebox_override(e, st)
 	var ic := TextureRect.new()
@@ -3646,12 +3703,12 @@ func icone_material(k: String, tem: int, precisa: int, peca := {}) -> Control:
 	ic.modulate = tinta(ic.texture, P.cor_item(alvo))
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	q.add_child(ic)
-	var nome: String = str(P.nome_item(alvo)) if not peca.is_empty() else str(P.dados.itens[k].nome)
+	var nome: String = balao if balao != "" else (str(P.nome_item(alvo)) if not peca.is_empty() else str(P.dados.itens[k].nome))
 	q.pressed.connect(func():
 		if not _arrastou:
 			balao_nome(q, nome, P.cor_item(alvo)))
 	bx.add_child(q)
-	var n := rotulo("%d/%d" % [tem, precisa], 11, VERDE if tem >= precisa else Color("e0806a"))
+	var n := rotulo(("%d" % tem) if so_qtd else ("%d/%d" % [tem, precisa]), 11, TEXTO if so_qtd else (VERDE if tem >= precisa else Color("e0806a")))
 	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	bx.add_child(n)
 	return bx
