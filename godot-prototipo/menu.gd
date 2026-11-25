@@ -2281,6 +2281,8 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 	var nome := rotulo(str(d.get("nome", "")) + ("" if r != null else " (você)"), 16, OURO_CLARO)
 	nome.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	topo.add_child(nome)
+	if r != null and r.has("re"): # moral (MORAL, André 2026-11-25): ícone da produção ~N/h + seta e % que rende
+		_moral_ui(topo, r, vivo)
 	topo.add_child(rotulo(sub, 12, TEXTO))
 	v.add_child(topo)
 	if on and d.has("hpM"):
@@ -2378,6 +2380,8 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 	var ld := HBoxContainer.new()
 	ld.alignment = BoxContainer.ALIGNMENT_END
 	ld.add_theme_constant_override("separation", 6)
+	if r.has("el"): # Elogiar (MORAL): só no jogo, perto dele, 1 vez a cada 8 h
+		ld.add_child(botao("Elogiar", func(): rede("cla", {"acao": "elogiar", "id": rid}), 12, true))
 	if r.has("x"): # onde ele está (André 2026-11-23: "ver no mapa onde ele está" e "Ver" só olhando, sem controlar)
 		var rn := str(r.nome)
 		ld.add_child(botao("Ver no mapa", func():
@@ -2421,7 +2425,7 @@ func _marcar_ordem(rid: String, pedido: Dictionary) -> void:
 	_ordem_pend[rid] = pedido
 	atualizar()
 
-const CLA_ANDA := ["hp", "mp", "vg", "fz", "x", "z", "morto"]
+const CLA_ANDA := ["hp", "mp", "vg", "fz", "x", "z", "morto", "ml", "re", "seta", "cor", "ph"]
 
 func _texto_cobranca(falta: float) -> String:
 	return "Próxima cobrança em %d d %d h" % [int(falta / 86400000.0), int(fmod(falta, 86400000.0) / 3600000.0)]
@@ -2485,6 +2489,7 @@ func _cla_pintar_vivo() -> void:
 			par[1].text = "%d/%d" % [int(d.get(k, 0)), int(mx)]
 		if vivo.has("fz") and is_instance_valid(vivo.fz):
 			vivo.fz.text = Idioma.frase("Agora: %s" % str(d.get("fz", "")))
+		_moral_pintar(vivo, d)
 
 # com a aba Clã aberta, pede o painel de novo a cada 3 s (HP, mana e vigor andando)
 var _cla_timer := false
@@ -3643,6 +3648,78 @@ func linha_criavel_rar(e: Dictionary, fixa := -1) -> Control:
 # material como símbolo: ícone com "tem/precisa" embaixo (verde ou vermelho); tocar diz o nome
 # requisito do próximo nível do clã que não é item (nível do líder, ouro do cofre): o mesmo quadradinho do
 # icone_material, com o desenho (ou um texto curto, "Nv") e tenho/preciso embaixo; número grande vira "25k"
+# moral do recruta (MORAL, André 2026-11-25: "setinha verde pra cima... no meio amarelo, seta pro lado... lá embaixo
+# vermelha pra baixo... e o percentual do lado"; "mais ou menos 20 mobs por hora"): pouca coisa na tela do celular:
+# [ícone da ordem ~20/h] [seta 99%]. Tocar explica com um aviso.
+func _moral_ui(fila: HBoxContainer, r: Dictionary, vivo: Dictionary) -> void:
+	var ph := HBoxContainer.new()
+	ph.add_theme_constant_override("separation", 2)
+	var ti := TextureRect.new()
+	ti.custom_minimum_size = Vector2(20, 20)
+	ti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ti.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	ph.add_child(ti)
+	var tl := rotulo("", 13, TEXTO)
+	ph.add_child(tl)
+	fila.add_child(ph)
+	var mb := Button.new() # a seta e o % (tocar: o que sobe e o que desce)
+	mb.flat = true
+	mb.focus_mode = Control.FOCUS_NONE
+	var mh := HBoxContainer.new()
+	mh.add_theme_constant_override("separation", 3)
+	mh.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mh.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var seta := Control.new()
+	seta.custom_minimum_size = Vector2(16, 16)
+	seta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	seta.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	seta.draw.connect(func(): _desenhar_seta(seta))
+	mh.add_child(seta)
+	var ml := rotulo("", 15, TEXTO)
+	ml.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mh.add_child(ml)
+	mb.add_child(mh)
+	mb.custom_minimum_size = Vector2(64, 26)
+	var rid := str(r.get("id", ""))
+	mb.pressed.connect(func():
+		if _arrastou:
+			return
+		var d := _recruta_agora(rid, r)
+		m.hud.aviso("Moral %d: rende %d%%. Sobe: perto de você ou no seu time, Livre, Elogiar. Desce: 3 h seguidas trabalhando, 12 h sem você no jogo." % [int(d.get("ml", 0)), int(d.get("re", 100))]))
+	fila.add_child(mb)
+	vivo["moral"] = [seta, ml, ti, tl, ph]
+	_moral_pintar(vivo, r)
+
+func _moral_pintar(vivo: Dictionary, d: Dictionary) -> void:
+	var q = vivo.get("moral")
+	if not (q is Array) or not is_instance_valid(q[0]) or not d.has("re"):
+		return
+	var cor := Color.html(str(d.get("cor", "#9ad86a")))
+	q[0].set_meta("seta", str(d.get("seta", "cima")))
+	q[0].set_meta("cor", cor)
+	q[0].queue_redraw()
+	q[1].text = "%d%%" % int(d.get("re", 100))
+	q[1].add_theme_color_override("font_color", cor)
+	var ph = d.get("ph")
+	q[4].visible = ph is Dictionary
+	if ph is Dictionary:
+		q[2].texture = icone_tex("it_" + str(ph.get("i", "")))
+		q[3].text = "~%d/h" % int(ph.get("n", 0))
+
+func _desenhar_seta(c: Control) -> void:
+	var s := c.size
+	var cor: Color = c.get_meta("cor", Color(0.6, 0.85, 0.4))
+	var k := str(c.get_meta("seta", "cima"))
+	var pts: PackedVector2Array
+	if k == "cima":
+		pts = PackedVector2Array([Vector2(s.x * 0.5, 1), Vector2(s.x - 1, s.y * 0.55), Vector2(s.x * 0.68, s.y * 0.55), Vector2(s.x * 0.68, s.y - 1), Vector2(s.x * 0.32, s.y - 1), Vector2(s.x * 0.32, s.y * 0.55), Vector2(1, s.y * 0.55)])
+	elif k == "baixo":
+		pts = PackedVector2Array([Vector2(s.x * 0.5, s.y - 1), Vector2(1, s.y * 0.45), Vector2(s.x * 0.32, s.y * 0.45), Vector2(s.x * 0.32, 1), Vector2(s.x * 0.68, 1), Vector2(s.x * 0.68, s.y * 0.45), Vector2(s.x - 1, s.y * 0.45)])
+	else:
+		pts = PackedVector2Array([Vector2(s.x - 1, s.y * 0.5), Vector2(s.x * 0.45, 1), Vector2(s.x * 0.45, s.y * 0.32), Vector2(1, s.y * 0.32), Vector2(1, s.y * 0.68), Vector2(s.x * 0.45, s.y * 0.68), Vector2(s.x * 0.45, s.y - 1)])
+	c.draw_colored_polygon(pts, cor)
+
 func _icone_req_cla(tex: Texture2D, texto: String, nome: String, tem: int, precisa: int) -> Control:
 	var ok := tem >= precisa
 	var bx := VBoxContainer.new()

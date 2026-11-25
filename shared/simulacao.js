@@ -1148,6 +1148,7 @@ export class Simulacao {
   }
   // Algo aconteceu com j (ev e dados d): conta na etapa da vez se casar (shared/historia.js casaEtapa)
   historia(j, ev, d = {}) {
+    if (ev === 'matar' && j?.bot) j.mortesProd = (j.mortesProd | 0) + 1; // produção do recruta por hora (MORAL.prod, shared/cla.js)
     if (ev !== 'diaria' && ev !== 'diaria_vista') { this.contarDiaria(j, ev, d); this.contarGuilda(j, ev, d); } // diárias e contratos da Guilda contam pelo mesmo funil
     const p = j?.prog, h = p?.hist; if (!h?.ac || j.bot) return;
     const M = HISTORIA[h.p], E = M && etapasDe(M)[h.e]; if (!E) return;
@@ -2862,7 +2863,7 @@ export class Simulacao {
     return s.n;
   }
   proximaBatida(j, no) {
-    const C = COLETA[no.tipo], dur = C.tempo / profBonus(j.prog.prof[C.prof]).rapidez;
+    const C = COLETA[no.tipo], dur = C.tempo / profBonus(j.prog.prof[C.prof]).rapidez / (j.rende || 1); // j.rende: moral x mesa do recruta (MORAL)
     j.coleta = { no: no.id, x: j.x, z: j.z, fim: this.tempo + dur };
     this.evento({ t: 'coleta', id: j.id, no: no.id, dur: r2(dur), prof: C.prof });
   }
@@ -4532,7 +4533,7 @@ export class Simulacao {
     }
     this.passoMissoesCla(); // Escolta do Clã (shared/missao-cla.js)
     this.passoGuerra(); this.passoDuplasGuerra(); // Chama x Geada (shared/guerra.js): quem pode lutar agora e as falas de quem avistou alguém
-    if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); this.passoRecrutasSemLider?.(); } // a semana do clã (shared/cla.js)
+    if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); this.passoRecrutasSemLider?.(); this.passoProdRecrutas?.(); } // a semana do clã (shared/cla.js)
     for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
     for (const j of this.jogadores.values()) this.passoJogador(j, dt);
     this.passoTrocas();
