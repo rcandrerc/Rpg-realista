@@ -89,3 +89,13 @@ ok(!noTime(rx.amiga) && av9.some((t) => t.startsWith(`${rx.AMIGA.nome} é do cl�
   s2.time('L', { acao: 'convidar', com: x.amiga.id });
   ok(x.amiga.time && x.amiga.time === L.time, 'recruta entra no time do líder pelo botão');
 }
+
+// 10) a ajuda na missão dele (André 2026-11-21, "eu poder me oferecer pra ajudar") continua: ele chama o jogador para o
+// time dele enquanto dura a ajuda; acabou a ajuda, a regra do clã volta
+a.ia.missaoJunto = { id: 'Q', ate: s.tempo + 60, p: null };
+ok(dario.foraDoTimeAmiga(q) === '', 'ajudando a missão dele: o time da ajuda vale');
+a.ia.missaoJunto = { id: 'Q', ate: s.tempo - 1, p: null };
+ok(dario.foraDoTimeAmiga(q) === 'lider', 'a ajuda acabou: volta a recusar');
+a.ia.missaoJunto = { id: 'outro', ate: s.tempo + 60, p: null };
+ok(dario.foraDoTimeAmiga(q) === 'lider', 'ajuda combinada com outro jogador não abre o time para este');
+a.ia.missaoJunto = null;

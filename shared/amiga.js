@@ -289,6 +289,9 @@ export const Amiga = {
   foraDoTimeAmiga(j) {
     const A = this.AMIGA;
     if (!NPC_SOLDADO.ligado || (A.recruta && !A.clanpc && j?.conta === A.lider)) return '';
+    // ele se ofereceu para a missão dela (André 2026-11-21, "eu poder me oferecer pra ajudar"): ela chama ele para o time
+    // dela durante a ajuda, como era antes desta regra
+    const MJ = this.amiga?.ia?.missaoJunto; if (j && MJ?.id === j.id && !(this.tempo > MJ.ate)) return '';
     const m = this.motivoSoldadoAmiga(); return m === 'ocupada' ? '' : m;
   },
   // líder de clã bot (Dario, Gael, Kael, Varek), membro de clã bot (recruta dele ou membro fixo) ou outro
