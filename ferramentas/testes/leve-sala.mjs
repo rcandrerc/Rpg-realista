@@ -107,7 +107,8 @@ try {
       const e2 = eu(s), mp = Math.hypot(e2[0] - a2[0], e2[1] - a2[1]) / ((Date.now() - t2) / 1000) / 2; // m a cada 0,5 s, na média
       const f1 = s.fotos.at(-1).r?.[0];
       ok(f0 > 0 && f1 < f0 - 10, `rumo ao totem ${T.n} (${Math.round(d(T))} m): faltava ${f0}, falta ${f1}`);
-      ok(mp < 4, `na velocidade de gente (maior passo em 0,5 s: ${Math.round(mp * 10) / 10} m)`);
+      ok(eu(s)[10] === 1, 'viagem longa: sobe no lobo sozinho, como o "Ir para" do jogo');
+      ok(mp < (eu(s)[10] ? 5.2 : 4), `na velocidade do jogo (lobo 9 m/s; maior passo em 0,5 s: ${Math.round(mp * 10) / 10} m)`);
     } else console.log('  (sem totem a 100-400 m)');
   }
 
@@ -118,6 +119,12 @@ try {
   await esperar(800);
   const p1 = eu(s); await esperar(1000); const p2 = eu(s);
   ok(!s.fotos.at(-1).r && Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) < 0.3, 'Parar: o herói fica');
+  // 5b) recall (casinha) no meio do caminho: a caminhada acaba; ao chegar na base ele não volta a andar para o destino antigo
+  s.send('leveIr', { x: x0 + 40, z: z0 }); await esperar(1200);
+  s.send('vila'); await esperar(1200);
+  const q1 = eu(s); await esperar(1000); const q2 = eu(s);
+  ok(!s.fotos.at(-1).r && Math.hypot(q2[0] - q1[0], q2[1] - q1[1]) < 0.3 && s.ev.some((e) => e.t === 'vila' && e.fase === 'comeca'), 'recall no caminho: para e canaliza');
+  s.send('vila'); await esperar(400); // toca de novo: desiste do recall
   // destino absurdo: ignorado sem cair
   s.send('leveIr', { x: 'a', z: null }); s.send('leveIr', { x: 1e9, z: 0 }); s.send('leveIr', null);
   await esperar(600);

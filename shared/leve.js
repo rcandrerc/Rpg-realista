@@ -11,6 +11,7 @@ import { LUGARES_MUNDO } from './mundo.js';
 import { ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
+import { liberado } from './historia.js';
 
 export const LEVE = {
   envio: 0.5, // s entre as fotos para a página
@@ -28,6 +29,7 @@ export const LEVE = {
   chat: 30, // mensagens do chat que a página guarda
   longe: 2500, // m: destino mais longe que isso não vale
   packsChao: 20, // m: packs no chão que aparecem (pegar)
+  montaDe: 25, // m de caminho: daqui pra cima o "Ir para" sobe no lobo sozinho (como no jogo)
 };
 // quem a página mostra como lugar no mapa (as janelas do jogo de cada um)
 const FUNCOES = new Set(['loja', 'leilao', 'pack', 'ferreiro', 'habilidades', 'alquimia']);
@@ -57,6 +59,11 @@ export const Leve = {
     if (j.coleta) this.pararColeta(j, null);
     if (j.pesca) this.pararPesca(j, null);
     j.leveRota = { pontos: r.pontos, i: 0, t: 0, ux: j.x, uz: j.z, presas: 0, nome: typeof m.nome === 'string' ? m.nome.slice(0, 40) : '' };
+    // como o "Ir para" do mapa do jogo (rota.gd, André 2026-11-09: "sempre que eu usar o autopath já entra na montaria"):
+    // viagem de verdade sobe no lobo sozinho, só quando o jogo deixaria (montar: sem pack, fora de combate, lobo liberado).
+    // Desceu do lobo no meio do caminho: segue a pé até o próximo destino.
+    let tam = 0, q = j; for (const p of r.pontos) { tam += Math.hypot(p.x - q.x, p.z - q.z); q = p; }
+    if (tam > LEVE.montaDe && !j.montado && !j.veiculo && !this.motivoCarga?.(j) && liberado(j.prog, 'lobo') && !((j.pvpT ?? -1e9) + GUERRA.montaria > this.tempo && !j.pvp) && !(j.trava > 0) && !j.esc) { j.montado = 'lobo'; this.historia?.(j, 'montar'); }
     this.evento({ t: 'leveRota', para: id, pontos: r.pontos.map((p) => [Math.round(p.x), Math.round(p.z)]), nome: j.leveRota.nome });
   },
   leveParar(id, texto = 'Parou') {
@@ -70,7 +77,10 @@ export const Leve = {
     const R = j.leveRota; if (!R) return;
     if (j.morto) return this.leveParar(j.id, null);
     const parado = { mx: 0, mz: 0, correr: false };
-    if (j.trava > 0 || j.canal || j.vila) { j.entrada = parado; return; } // canalizando (totem, casinha): espera
+    // recall (casinha) ou totem: a caminhada acaba aqui; senão, ao chegar na base ele voltava a andar até o destino antigo
+    // (André 2026-11-25: "o botão voltar pra base tá indo pra casinha antiga")
+    if (j.vila) return this.leveParar(j.id, null);
+    if (j.trava > 0 || j.canal) { j.entrada = parado; return; } // canalizando: espera
     const P = R.pontos, ult = P.length - 1;
     while (R.i <= ult && Math.hypot(P[R.i].x - j.x, P[R.i].z - j.z) < (R.i === ult ? LEVE.chega : LEVE.meio)) R.i++;
     if (R.i > ult) return this.leveChegou(j);
@@ -139,6 +149,7 @@ export const Leve = {
     // chat: só o texto (a página mostra as últimas LEVE.chat)
     if (e.t === 'chat') return { t: 'chat', k: e.canal, n: e.nome, x: e.texto, ...(e.meu ? { meu: 1 } : {}) };
     if (e.t === 'chatHist') return { t: 'chatHist', l: (e.lista || []).slice(-LEVE.chat).map((m) => ({ k: m.canal, n: m.nome, x: m.texto, ...(m.meu ? { meu: 1 } : {}) })) };
+    if (e.t === 'vila') return { t: 'vila', fase: e.fase, ...(e.dur ? { dur: e.dur } : {}) }; // recall ou totem: só a fase (o painel mostra a contagem)
     if (e.t === 'fabricando') return { t: 'fabricando', nome: e.nome || ITENS[e.k]?.nome || '', dur: e.dur, ...(e.fim ? { fim: 1 } : {}) };
     if (e.t === 'bau') return { t: 'bau', cla: e.cla ? 1 : 0, l: (e.itens || []).length, it: listaLeve(e.itens) };
     return e;

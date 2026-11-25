@@ -39,7 +39,7 @@ const heroiDe = (contaId) => { for (const s of salas) for (const j of s.sim.joga
 // painel do clã (página leve, André 2026-11-24): ver no máximo a cada 2 s e ordem no máximo a cada 0,5 s por página
 const PAINEL = { verMs: 2000, ordemMs: 500, volta: 20 };
 // modo leve: os avisos do herói que a página usa (o resto do jogo, como o 'prog' inteiro, não vai: pesa no celular fraco)
-const LEVE_EVENTOS = new Set(['aviso', 'leilao', 'bau', 'compra', 'leveRota', 'chat', 'chatHist', 'fabricando', 'pack', 'veiculo']);
+const LEVE_EVENTOS = new Set(['aviso', 'leilao', 'bau', 'compra', 'leveRota', 'chat', 'chatHist', 'fabricando', 'pack', 'veiculo', 'vila']);
 // '__proto__', 'constructor' e 'prototype' como texto ou chave numa mensagem do cliente: nunca é dado de jogo e serve para
 // mexer no Object.prototype (auditoria 2026-11-13). A mensagem inteira é descartada.
 const PROIBIDO = new Set(['__proto__', 'constructor', 'prototype']);
@@ -617,7 +617,7 @@ class SalaClareira extends Room {
   enviarLeve(c, eventos) {
     const u = c.userData, j = this.sim.jogadores.get(c.sessionId); if (!j) return;
     const ev = (u.leveEv ||= []);
-    for (const e of eventos) if (e.para === c.sessionId && LEVE_EVENTOS.has(e.t)) ev.push(this.sim.leveEvento(e));
+    for (const e of eventos) if ((e.para === c.sessionId || (e.t === 'vila' && e.id === c.sessionId)) && LEVE_EVENTOS.has(e.t)) ev.push(this.sim.leveEvento(e));
     if (ev.length > 30) ev.splice(0, ev.length - 30);
     u.leveT = (u.leveT || 0) + TICK; if (u.leveT < LEVE.envio && !ev.some((e) => e.t !== 'aviso')) return;
     u.leveT = 0;

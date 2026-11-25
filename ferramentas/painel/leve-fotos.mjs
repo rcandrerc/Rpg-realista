@@ -34,7 +34,7 @@ await pg.evaluate((s) => localStorage.setItem('sessao', s), a.sessao);
 await pg.reload(); await esperar(3000);
 const irPara = async (sec, txt) => { // a lista Lugares em sanfona: abre a seção e toca no lugar
   const linha = pg.locator('.sanfona .linha', { hasText: txt });
-  if (!(await pg.locator('.sanfona>button.sec').count())) { await pg.locator('.sanfona .cab').click(); await esperar(800); }
+  if (!(await pg.locator('.sanfona>button.sec').count())) { await pg.locator('.sanfona .cab', { hasText: 'Lugares' }).click(); await esperar(800); }
   if (!(await linha.count())) { await pg.locator('.sanfona>button.sec', { hasText: sec }).click(); await esperar(800); }
   await linha.first().click();
 };
