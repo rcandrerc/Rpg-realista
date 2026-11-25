@@ -13,7 +13,7 @@
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
 import { VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS, DESPENSA, BASES_FRIAS } from './dados.js';
 import { contextoDeAmigo } from './amiga.js';
-import { profNivel, guardar, guardarQueCabe, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
+import { profNivel, guardar, guardarQueCabe, moverQtd, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
 import { fundoAgua } from './transporte.js';
 import { LUGARES_MUNDO } from './mundo.js';
 import { crescerPlanta } from './simulacao.js'; // só usadas em tempo de jogo (progresso.js também importa daqui)
@@ -617,18 +617,22 @@ export const Cla = {
     if (!Array.isArray(L.bauCla)) L.bauCla = Array(CLA.bauCla).fill(null);
     const p = j.prog, i = m.i | 0;
     if (m.acao === 'guardar') {
-      const o = p.mochila[i]; if (!o) return;
-      if (o.h && o.k !== 'tomo') return aviso('Tire o item do lugar rápido antes de guardar');
-      const tem = o.n || 1, n = o.n && Number.isInteger(m.n) && m.n > 0 ? Math.min(m.n, tem) : tem;
-      const bau = L.bauCla.map((q) => (q ? { ...q } : null));
-      if (!guardar(bau, o.n ? { ...o, n } : { ...o })) return aviso('O Baú do Clã está cheio');
-      L.bauCla = bau; p.mochila[i] = n < tem ? { ...o, n: tem - n } : null;
+      const o = p.mochila[i]; if (!o && !Array.isArray(m.lista)) return;
+      if (o && !Array.isArray(m.lista) && o.h && o.k !== 'tomo') return aviso('Tire o item do lugar rápido antes de guardar');
+      // André 2026-11-25: n maior que a pilha puxa das pilhas iguais; lista = várias pilhas inteiras (os botões de tipo)
+      let foi = 0;
+      for (const x of Array.isArray(m.lista) ? [...new Set(m.lista.slice(0, 400))].filter((x) => Number.isInteger(x) && p.mochila[x] && !(p.mochila[x].h && p.mochila[x].k !== 'tomo')) : [i]) {
+        const r = moverQtd(p.mochila, L.bauCla, x, Array.isArray(m.lista) ? undefined : m.n); if (!r) break;
+        p.mochila = r.de; L.bauCla = r.para; foi += r.n;
+      }
+      if (!foi) return aviso('O Baú do Clã está cheio');
     } else if (m.acao === 'tirar') {
-      const o = L.bauCla[i]; if (!o) return;
-      const tem = o.n || 1, n = o.n && Number.isInteger(m.n) && m.n > 0 ? Math.min(m.n, tem) : tem;
-      const prova = p.mochila.map((q) => (q ? { ...q } : null));
-      if (!guardar(prova, o.n ? { ...o, n } : { ...o })) return aviso('Mochila cheia');
-      p.mochila = prova; L.bauCla[i] = n < tem ? { ...o, n: tem - n } : null;
+      let foi = 0;
+      for (const x of Array.isArray(m.lista) ? [...new Set(m.lista.slice(0, 400))].filter((x) => Number.isInteger(x) && L.bauCla[x]) : [i]) {
+        const r = moverQtd(L.bauCla, p.mochila, x, Array.isArray(m.lista) ? undefined : m.n); if (!r) break;
+        L.bauCla = r.de; p.mochila = r.para; foi += r.n;
+      }
+      if (!foi) return aviso('Mochila cheia');
     } else if (m.acao === 'organizar') L.bauCla = organizar(L.bauCla);
     else if (m.acao !== 'abrir') return aviso('O Baú do Clã tem tamanho fixo');
     this.lotesMudados.add(L.def.id);

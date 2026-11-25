@@ -572,6 +572,10 @@ func coluna_mochila() -> Control:
 			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			abas.add_child(b)
 		v.add_child(abas)
+	# André 2026-11-25: os mesmos botões de tipo da venda e do baú (toque = põe tudo daquele tipo na troca)
+	if not eu_tranquei():
+		v.add_child(m.menu.chips_tipo(P.prog.mochila, func(ids: Array): return ids.all(func(i): return posto(i) >= int(P.prog.mochila[i].get("n", 1))),
+			func(ids: Array, _a): _por({"acao": "por", "lista": ids}), 70))
 	var g := GridContainer.new()
 	g.columns = 10
 	g.add_theme_constant_override("h_separation", 4)
@@ -634,7 +638,9 @@ func tocar_item(i: int) -> void:
 	if eu_tranquei():
 		m.hud.aviso("Sua oferta está trancada. Destranque para mudar")
 		return
-	var resta := int(it.get("n", 1)) - posto(i)
+	var resta := 0 # André 2026-11-25: soma das pilhas iguais que ainda não foram (o número pode passar da pilha)
+	for x in m.menu.pilhas_iguais(m.P.prog.mochila, i):
+		resta += maxi(0, int(m.P.prog.mochila[x].get("n", 1)) - posto(x))
 	if resta <= 0:
 		m.hud.aviso("Você já pôs tudo desse item")
 		return
