@@ -395,6 +395,21 @@ function desenharMapa() {
   const nomes = []; // um nome por cima do outro fica ilegível: o que bate em outro já escrito não aparece
   const cabe = (txt, a, y) => { const lg = g.measureText(txt).width; if (nomes.some((o) => Math.abs(o.a - a) < (o.lg + lg) / 2 && Math.abs(o.y - y) < fonte)) return false; nomes.push({ a, y, lg }); return true; };
   const marcas = [];
+  for (const bs of [info.base, ...(info.bases || [])]) if (bs && Number.isFinite(bs.x)) { // a base do clã (e as aliadas, da mesma facção): escudo dourado com chama, maior que tudo, com o nome (nunca some atrás de recruta)
+    const [a, b] = P(bs.x, bs.z), r = Math.max(11, W / 38), cor = bs.raca === 'Geada' ? '#6fd8ff' : '#ff9a2e';
+    g.fillStyle = 'rgba(233,196,106,.22)'; g.beginPath(); g.arc(a, b, r * 1.8, 0, 6.283); g.fill();
+    const escudo = (k) => { g.beginPath(); g.moveTo(a - r * k, b - r * 0.9 * k); g.lineTo(a + r * k, b - r * 0.9 * k); g.lineTo(a + r * k, b + r * 0.1 * k); g.lineTo(a + r * 0.55 * k, b + r * 0.75 * k); g.lineTo(a, b + r * 1.15 * k); g.lineTo(a - r * 0.55 * k, b + r * 0.75 * k); g.lineTo(a - r * k, b + r * 0.1 * k); g.closePath(); };
+    escudo(1.2); g.fillStyle = 'rgba(12,10,8,.95)'; g.fill();
+    escudo(1); g.fillStyle = '#c9a35a'; g.fill();
+    escudo(0.78); g.fillStyle = '#21170f'; g.fill();
+    g.fillStyle = cor; g.beginPath(); g.moveTo(a, b - r * 0.7); g.lineTo(a + r * 0.38, b - r * 0.12); g.lineTo(a + r * 0.3, b + r * 0.4); g.lineTo(a, b + r * 0.62); g.lineTo(a - r * 0.3, b + r * 0.4); g.lineTo(a - r * 0.38, b - r * 0.12); g.closePath(); g.fill();
+    g.fillStyle = '#fff3c0'; g.beginPath(); g.moveTo(a, b - r * 0.15); g.lineTo(a + r * 0.16, b + r * 0.2); g.lineTo(a, b + r * 0.45); g.lineTo(a - r * 0.16, b + r * 0.2); g.closePath(); g.fill();
+    escudo(1); g.strokeStyle = '#e9c46a'; g.lineWidth = Math.max(1.5, W / 400); g.stroke();
+    const f2 = Math.round(fonte * 1.1); g.font = `700 ${f2}px system-ui,sans-serif`;
+    escrever('Base do Clã', a, b + r * 1.15 + f2 + 2, '#e9c46a'); nomes.push({ a, y: b + r * 1.15 + f2 + 2, lg: g.measureText('Base do Clã').width });
+    g.font = `600 ${fonte}px system-ui,sans-serif`;
+    if (bs.n) { escrever(bs.n, a, b + r * 1.15 + f2 + fonte + 4, '#fff3dc'); nomes.push({ a, y: b + r * 1.15 + f2 + fonte + 4, lg: g.measureText(bs.n).width }); }
+  }
   for (const p of pts) { // primeiro os pontos (os nomes deles ganham dos lugares)
     const [a, b] = P(p.x, p.z), r = p.r * (W / 600);
     g.fillStyle = p.cor; g.strokeStyle = 'rgba(12,10,8,.9)'; g.lineWidth = Math.max(1.5, W / 400); g.beginPath();

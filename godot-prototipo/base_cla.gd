@@ -9,6 +9,7 @@ const Idioma = preload("res://idioma.gd") # inglês (idioma.gd)
 var m # main.gd
 var bases: Array = [] # as bases do servidor (dicionários do evento)
 var meu := "" # a chave da minha base ("" = não tenho)
+var amigas: Array = [] # chaves das bases da minha facção (o servidor manda: só elas ganham marca no mapa)
 var _sol: Array = [] # os sólidos das bases no terreno.gd (para tirar quando mudar)
 var _nos: Array = [] # baús, estacas e nomes
 const VE_NOME := 60.0
@@ -19,6 +20,7 @@ func _init(principal) -> void:
 func do_servidor(ev: Dictionary) -> void:
 	bases = ev.get("lista", []) if ev.get("lista") is Array else []
 	meu = str(ev.get("meu", ""))
+	amigas = ev.get("amigas", []) if ev.get("amigas") is Array else []
 	_chao_das_bases() # antes de tudo: as peças e as estacas ficam no chão novo
 	_por_solidos()
 	_por_vilas()

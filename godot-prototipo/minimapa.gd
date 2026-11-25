@@ -675,6 +675,48 @@ func _marca_casa(c: Control, q: Vector2, t: float) -> void:
 	c.draw_colored_polygon(teto, COR_CASA)
 	c.draw_polyline(teto, esc, 1.5, true)
 
+# 2026-11-25 (André: "mostra a casinha, mas deveria mostrar o centro da base... parece que minha casa é mais importante
+# que a base do clã"): a base do clã (centro dela, base_cla.gd) ganha marca própria, maior que a casinha: escudo dourado
+# com a chama do clã (Geada azul, Chama laranja), nome do clã embaixo. A casa continua aparecendo. {} sem base.
+func _bases_cla() -> Array:
+	var bc = m.get("base_cla")
+	var r: Array = []
+	if bc == null:
+		return r
+	# a minha primeiro; depois só as da minha facção (o servidor manda as chaves em `amigas`): a inimiga nunca ganha marca
+	for B in bc.bases:
+		var k := str(B.get("k", ""))
+		if k != str(bc.meu) and not bc.amigas.has(k):
+			continue
+		var nome := str(B.get("n", ""))
+		var d := {"id": k, "meu": k == str(bc.meu), "x": float(B.x), "z": float(B.z), "nome": nome if nome != "" else "Base do Clã", "raca": str(B.get("raca", "")),
+			"raio": float(B.get("centro", 20.0)) * 0.5}
+		if d.meu:
+			r.push_front(d)
+		else:
+			r.append(d)
+	return r
+
+# escudo dourado com a chama (t = meia largura em px); cor da chama pela raça do clã
+func _marca_base_cla(c: Control, q: Vector2, t: float, raca := "") -> void:
+	var esc := Color(0.05, 0.04, 0.03, 0.95)
+	var chama := Color("5ad8ff") if raca == "Geada" else Color("ff9a2e")
+	var forma := PackedVector2Array([q + Vector2(-t, -t * 0.9), q + Vector2(t, -t * 0.9), q + Vector2(t, t * 0.1), q + Vector2(t * 0.55, t * 0.75), q + Vector2(0, t * 1.15), q + Vector2(-t * 0.55, t * 0.75), q + Vector2(-t, t * 0.1)])
+	c.draw_circle(q, t * 1.7, Color(COR_OURO, 0.28)) # halo: chama a atenção de longe
+	var sombra := PackedVector2Array()
+	for v in forma:
+		sombra.append(q + (v - q) * 1.22)
+	c.draw_colored_polygon(sombra, esc)
+	c.draw_colored_polygon(forma, Color("c9a35a"))
+	var miolo := PackedVector2Array()
+	for v in forma:
+		miolo.append(q + (v - q) * 0.78)
+	c.draw_colored_polygon(miolo, Color(0.13, 0.09, 0.07))
+	var f := PackedVector2Array([q + Vector2(0, -t * 0.7), q + Vector2(t * 0.38, -t * 0.12), q + Vector2(t * 0.3, t * 0.4), q + Vector2(0, t * 0.62), q + Vector2(-t * 0.3, t * 0.4), q + Vector2(-t * 0.38, -t * 0.12)])
+	c.draw_colored_polygon(f, chama)
+	c.draw_colored_polygon(PackedVector2Array([q + Vector2(0, -t * 0.15), q + Vector2(t * 0.16, t * 0.2), q + Vector2(0, t * 0.45), q + Vector2(-t * 0.16, t * 0.2)]), Color(1, 0.95, 0.75))
+	c.draw_polyline(forma + PackedVector2Array([forma[0]]), COR_OURO, 1.5, true)
+
 # totem de teleporte: losango azul com o miolo claro; ainda não visitado, cinza
 func _marca_totem(c: Control, q: Vector2, r: float, aceso: bool) -> void:
 	var cor := Color("5ad8ff") if aceso else Color(0.62, 0.66, 0.72)
@@ -694,7 +736,7 @@ func _lugares() -> Array:
 const NOME_MINERIO := {"pedra": "Veio de pedra", "cobre": "Veio de cobre", "ferro": "Veio de ferro", "cristal": "Veio de cristal"}
 const NOME_DROP := {"couro": "Couro (monstros)", "carne": "Carne crua (monstros)", "tecido": "Tecido (monstros)", "cristal": "Cristal (monstros)"}
 const NOME_COLETA := {"arvore": "Árvore (madeira)", "galho": "Galho no chão", "pedrinha": "Pedra solta"}
-const SECAO_DO_TIPO := {"coleta": "recursos", "casa": "vilas", "vila": "vilas", "totem": "totens", "caverna": "dungeon", "lago": "pesca", "mina": "recursos", "drop": "recursos", "peixe": "pesca",
+const SECAO_DO_TIPO := {"coleta": "recursos", "casa": "vilas", "base": "vilas", "vila": "vilas", "totem": "totens", "caverna": "dungeon", "lago": "pesca", "mina": "recursos", "drop": "recursos", "peixe": "pesca",
 	"oficina": "oficinas", "npc": "npcs", "mercador": "mercadores"}
 
 func _montar_lugares() -> Array:
@@ -763,6 +805,8 @@ func _montar_lugares() -> Array:
 # os lugares de antes: as vilas, as clareiras de caça (por nível) e os veios
 func _lugares_base() -> Array:
 	var l: Array = []
+	for base in _bases_cla(): # a base do clã antes de tudo: o centro dela (e as aliadas)
+		l.append({"id": "base_" + str(base.id), "tipo": "base", "nome": "Base do clã: " + base.nome, "curto": "Base do clã", "x": base.x, "z": base.z, "r": maxf(8.0, base.raio), "raca": base.raca})
 	var casa := _minha_casa()
 	if not casa.is_empty(): # o meu terreno em primeiro: "Ir para" leva para casa
 		l.append({"id": "casa", "tipo": "casa", "nome": "Sua casa", "curto": "Sua casa", "x": casa.x, "z": casa.z, "r": 4.0})
@@ -1277,6 +1321,11 @@ func _desenhar_mini() -> void:
 		if dc.length() > RAIO - 11.0:
 			dc = dc.normalized() * (RAIO - 11.0)
 		_marca_casa(c, meio + dc, 6.0)
+	for bcla in _bases_cla(): # a base do clã (centro): escudo maior que a casinha, na beirada quando está longe
+		var db: Vector2 = Vector2(bcla.x - p.x, bcla.z - p.z) * k
+		if db.length() > RAIO - 12.0:
+			db = db.normalized() * (RAIO - 12.0)
+		_marca_base_cla(c, meio + db, 10.5, bcla.raca)
 	if m.pesca and m.pesca.radar_ligado(): # Radar de pesca (pesca.gd): os spots que cabem no minimapa
 		for id in m.pesca.spots:
 			var v: Dictionary = m.pesca.spots[id]
@@ -1616,6 +1665,12 @@ func _desenhar_mapa() -> void:
 		var baixo: float = maxf(cantos[2].y, cantos[0].y) # o nome fica embaixo do contorno
 		if not tm:
 			_texto(c, Vector2(qa.x, maxf(qa.y + 24.0, baixo + 12.0)), "Sua casa", 15, Color("ffb39a"))
+	for bcla in _bases_cla(): # a base do clã: o escudo no centro dela, com o nome do clã
+		var qb: Vector2 = em.call(bcla.x, bcla.z)
+		_marca_base_cla(c, qb, 20.0, bcla.raca)
+		if not tm:
+			_texto(c, qb + Vector2(0, 46.0), "Base do Clã", 18, COR_OURO, true, 3)
+			_texto(c, qb + Vector2(0, 65.0), bcla.nome, 15, Color("fff3dc"), true, 3)
 	for cc in m.mundo.get("caca", []):
 		if not filtro.ok("boss" if cc.has("boss") else "caca"):
 			continue
@@ -1867,6 +1922,8 @@ func _linha_lugar(c: Control, l: Dictionary, x0: float, y: float, larg: float, t
 				c.draw_colored_polygon(PackedVector2Array([qi + Vector2(2, 0), qi + Vector2(7, -4), qi + Vector2(7, 4)]), fc)
 			"casa": # o meu terreno: casinha de telhado vermelho
 				_marca_casa(c, qi + Vector2(0, 1), 6.5)
+			"base": # a base do clã: escudo dourado com a chama
+				_marca_base_cla(c, qi, 8.5, str(l.get("raca", "")))
 			"totem":
 				_marca_totem(c, qi, 6.0, m.totem.descoberto(str(l.id).trim_prefix("totem_")))
 			"lago": # gota d'água azul
