@@ -142,7 +142,8 @@ function moralTag(m) {
   const pa = document.createElementNS('http://www.w3.org/2000/svg', 'path'); pa.setAttribute('d', SETA[m.seta] || SETA.cima); pa.setAttribute('fill', m.cor || '#9ad86a'); sv.append(pa);
   const pc = el('b', null, `${m.re}%`); pc.style.color = m.cor || '';
   t.append(sv, pc);
-  t.onclick = () => aviso(`Moral ${m.ml}: rende ${m.re}%. Sobe: perto de você ou no seu time, Livre, Elogiar (no jogo). Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.`);
+  if (m.fm) { const f = el('img'); f.src = 'painel-icones/peixe_assado.png'; f.alt = ''; f.className = m.fm < 0 ? 'fome' : 'bem'; t.append(f); } // a comida mexe no %
+  t.onclick = () => aviso(`Moral ${m.ml} (${m.tr > 0 ? '+' : ''}${m.tr | 0} por hora)${m.fm ? ` · ${m.fn2}: ${m.fm > 0 ? '+' : ''}${m.fm}% (comida no Baú do Clã)` : ''} · rende ${m.re}%. Sobe: perto de você ou no seu time, Livre, Elogiar (no jogo). Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.`);
   return t;
 }
 function cartaoMembro(m) {

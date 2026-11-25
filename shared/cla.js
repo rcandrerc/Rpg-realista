@@ -1351,7 +1351,13 @@ export const Cla = {
     const P = a?.prodH, w = P ? Math.min(MORAL.prod.janelaH * 3600e3, agora - P.t0) : 0, i = iconeProd(m.fn);
     const ph = P && i && w >= MORAL.prod.minMin * 60e3 ? { i, n: Math.round(P.ev.reduce((s, e) => s + e[1], 0) / (w / 3600e3)) } : null;
     const el = j && a && !a.morto && !j.morto && Math.hypot(a.x - j.x, a.z - j.z) <= MORAL.elogioPerto && !((m.el || 0) + MORAL.elogioH * 3600e3 > agora);
-    return { ml: Math.round(v), re, seta: F.seta, cor: F.cor, ...(ph ? { ph } : {}), ...(el ? { el: 1 } : {}) };
+    // fm: o que a Despensa tira ou põe no rende (%); tr: quanto a moral anda por hora agora (André 2026-11-25: "estavam com
+    // 100% agora estão com 90%" no Livre: era a fome, não a moral; o menu mostra a comida e o tocar diz os dois)
+    const fm = Math.round((est?.mult || 0) * 100), livre = !m.fn || m.fn.k === 'livre';
+    const perto = !!(j && a && !a.morto && !j.morto && (Math.hypot(a.x - j.x, a.z - j.z) <= MORAL.perto || (!!a.time && a.time === j.time)));
+    const tr = (perto ? MORAL.pertoH : livre ? MORAL.livreH : 0) - (!livre && m.fn.k !== 'seguir' && m.ot && agora - m.ot >= MORAL.cansaH * 3600e3 ? MORAL.cansaPorH : 0)
+      - (vis && agora - vis >= MORAL.graca * 3600e3 ? MORAL.semLiderH : 0);
+    return { ml: Math.round(v), re, seta: F.seta, cor: F.cor, tr: v >= 100 && tr > 0 ? 0 : tr, ...(fm ? { fm, fn2: est.nome } : {}), ...(ph ? { ph } : {}), ...(el ? { el: 1 } : {}) };
   },
   // a cada minuto: o que cada recruta no mundo produziu na ordem (MORAL.prod). Grind: monstros (a.mortesProd, contados
   // em simulacao.js historia); recurso: o que entrou na mochila

@@ -2457,7 +2457,7 @@ func _marcar_ordem(rid: String, pedido: Dictionary) -> void:
 	_ordem_pend[rid] = pedido
 	atualizar()
 
-const CLA_ANDA := ["hp", "mp", "vg", "fz", "x", "z", "morto", "ml", "re", "seta", "cor", "ph"]
+const CLA_ANDA := ["hp", "mp", "vg", "fz", "x", "z", "morto", "ml", "re", "seta", "cor", "ph", "tr", "fm", "fn2"]
 
 func _texto_cobranca(falta: float) -> String:
 	return "Próxima cobrança em %d d %d h" % [int(falta / 86400000.0), int(fmod(falta, 86400000.0) / 3600000.0)]
@@ -3711,6 +3711,14 @@ func _moral_ui(fila: HBoxContainer, r: Dictionary, vivo: Dictionary) -> void:
 	var ml := rotulo("", 15, TEXTO)
 	ml.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	mh.add_child(ml)
+	var fome := TextureRect.new() # comida: a Despensa está mexendo no %
+	fome.texture = icone_tex("it_peixe_assado")
+	fome.custom_minimum_size = Vector2(16, 16)
+	fome.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	fome.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	fome.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	fome.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mh.add_child(fome)
 	mb.add_child(mh)
 	mb.custom_minimum_size = Vector2(64, 26)
 	var rid := str(r.get("id", ""))
@@ -3718,10 +3726,19 @@ func _moral_ui(fila: HBoxContainer, r: Dictionary, vivo: Dictionary) -> void:
 		if _arrastou:
 			return
 		var d := _recruta_agora(rid, r)
-		m.hud.aviso("Moral %d: rende %d%%. Sobe: perto de você ou no seu time, Livre, Elogiar. Desce: 3 h seguidas trabalhando, 12 h sem você no jogo." % [int(d.get("ml", 0)), int(d.get("re", 100))]))
+		m.hud.aviso(_moral_texto(d)))
 	fila.add_child(mb)
-	vivo["moral"] = [seta, ml, ti, tl, ph]
+	vivo["moral"] = [seta, ml, ti, tl, ph, fome]
 	_moral_pintar(vivo, r)
+
+# o que o tocar na seta diz: a moral, se sobe ou desce por hora, e a comida (que mexe no % sem mexer na moral)
+func _moral_texto(d: Dictionary) -> String:
+	var tend := int(d.get("tr", 0))
+	var t := Idioma.frase("Moral %d (%s por hora)") % [int(d.get("ml", 0)), ("+%d" % tend) if tend > 0 else str(tend)]
+	if d.has("fm"):
+		t += Idioma.frase(" · %s: %+d%% (comida no Baú do Clã)") % [Idioma.frase(str(d.get("fn2", ""))), int(d.fm)]
+	t += Idioma.frase(" · rende %d%%. Sobe: perto de você ou no seu time, Livre, Elogiar. Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.") % int(d.get("re", 100))
+	return t
 
 func _moral_pintar(vivo: Dictionary, d: Dictionary) -> void:
 	var q = vivo.get("moral")
@@ -3732,6 +3749,8 @@ func _moral_pintar(vivo: Dictionary, d: Dictionary) -> void:
 	q[0].set_meta("cor", cor)
 	q[0].queue_redraw()
 	q[1].text = "%d%%" % int(d.get("re", 100))
+	q[5].visible = d.has("fm") # a comida mexe no %: o garfo aparece (laranja com fome, verde bem alimentado)
+	q[5].modulate = Color(1, 0.6, 0.35) if int(d.get("fm", 0)) < 0 else Color(0.6, 1, 0.6)
 	q[1].add_theme_color_override("font_color", cor)
 	var ph = d.get("ph")
 	q[4].visible = ph is Dictionary
