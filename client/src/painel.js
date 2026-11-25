@@ -911,7 +911,7 @@ function desenharJogar() {
     const f = el('div', 'folha'), cab = el('div', 'folhaCab'), x = el('button', 'fecha', '✕');
     x.setAttribute('aria-label', 'Fechar'); x.onclick = () => abrirPainelLeve('');
     const it = leve.mo?.it || [];
-    cab.append(el('span', 'nome', painelLeve === 'perto' ? 'Perto de você' : painelLeve === 'mochila' ? `Mochila ${it.length}/${leve.mo?.l || 0}` : 'Lugares'), x);
+    cab.append(el('span', 'nome', painelLeve === 'perto' ? 'Perto de você' : painelLeve === 'mochila' ? `Mochila ${it.length}/${leve.mo?.l || 0}` : painelLeve === 'criar' ? 'Criar' : 'Lugares'), x);
     f.append(cab);
     if (painelLeve === 'perto') {
       if (P.npc) {
@@ -924,6 +924,11 @@ function desenharJogar() {
       if (P.totem) f.append(cartaoTotem(P.totem));
       const cg = cartaoCarga(P); if (cg) f.append(cg);
       if (!P.npc && !P.bau && !P.totem && !cg) f.append(el('div', 'vazio', 'Chegue perto de uma loja, do leilão, de um baú ou de um totem para usar.'));
+      if (!P.bau && leve.mapa?.baus?.length) { // ir até o baú (e o Baú do Clã) para ver o que tem dentro: abre sozinho ao chegar
+        const c = el('div', 'card');
+        for (const b of leve.mapa.baus) c.append(bt(`Ir ao ${b.cla ? 'Baú do Clã' : 'seu baú'} · ${metros(b)}`, () => irLeve({ x: b.x, z: b.z + 1.5, nome: b.cla ? 'Baú do Clã' : 'Seu baú' }), true));
+        f.append(c);
+      }
     } else if (painelLeve === 'mochila') { mochilaAberta = true; const c = cartaoMochila(); c.firstChild.remove(); f.append(c); }
     else if (painelLeve === 'criar') { criarAberto = true; const c = cartaoCriar(); c.firstChild.remove(); f.append(c); }
     else if (painelLeve === 'lugares' && leve.mapa?.lug) { lugaresAberto = true; const c = cartaoLugares(leve.mapa); c.firstChild.remove(); f.append(c); }
