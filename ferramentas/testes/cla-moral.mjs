@@ -111,3 +111,12 @@ ok(rb.fn.k === 'livre', 'na rodada de ordens ele fica no Livre');
 E.mo[rb.id] = { mo: 30, mt: Date.now() };
 ok(!s.descansoNpc(E, rb, () => 0.01), 'às vezes o líder esquece');
 ok(s.descansoNpc(E, rb, () => 0.5), 'moral 30: descanso');
+// André 2026-11-25: "no Livre estavam com 100% agora estão com 90%": a moral sobe, quem tirou 10% foi a fome (Despensa).
+// O info diz os dois: tr (quanto a moral anda por hora) e fm (o que a comida tira ou põe no %).
+const mL = { fn: { k: 'livre' }, mo: 80, mt: Date.now() };
+const iF = s.moralInfo(mL, Date.now(), { mult: -0.1, nome: 'Com fome' }, null);
+ok(iF.tr === 3 && iF.fm === -10 && iF.fn2 === 'Com fome' && iF.re === 90, `Livre com fome: moral +3/h, rende 90% pela comida (${JSON.stringify(iF)})`);
+const iB = s.moralInfo(mL, Date.now(), { mult: 0, nome: '' }, null);
+ok(iB.tr === 3 && !('fm' in iB) && iB.re === 100, 'Livre com comida: sem aviso de fome, 100%');
+const mT = { fn: { k: 'grind' }, mo: 80, mt: Date.now(), ot: Date.now() - 4 * H };
+ok(s.moralInfo(mT, Date.now(), { mult: 0 }, null).tr === -2, 'trabalhando 4 h: -2/h');
