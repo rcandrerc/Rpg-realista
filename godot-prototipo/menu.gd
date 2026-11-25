@@ -1118,6 +1118,61 @@ func fechar() -> void:
 func aberto() -> bool:
 	return raiz != null and raiz.visible
 
+# Menu aquecido atrás da capa (frente de desempenho, ronda de 25/11: no Note 10 Lite a primeira vez que a aba Clã abriu
+# levou 6,8 s num quadro só, com 360 pipelines montadas de uma vez; no Poco até 236 ms). A placa monta os shaders de cada
+# jeito de desenhar (boneco do menu, caixas, barras, botões, textos) na primeira vez que aparecem. Aqui, enquanto a capa
+# ainda cobre a tela (aquecer.gd), o menu abre por baixo dela (camada 4, a capa é a 5): Personagem com o boneco, Clã com
+# um clã de exemplo de 10 recrutas e Mochila, um quadro cada; depois fecha e tudo volta como estava. Nada vai ao servidor.
+var _aquecendo := false
+var _aq_camada := 20
+var _aq_cla = null
+func aquecer_passo(i: int) -> void:
+	match i:
+		0:
+			var on = m.online
+			if aberto() or on == null or on.capa == null or not on.capa.visible: # só com a capa cobrindo
+				return
+			_aquecendo = true
+			_aq_camada = layer
+			_aq_cla = m.P.cla
+			layer = 4
+			abrir("status")
+		1:
+			if not _aquecendo:
+				return
+			var ms := []
+			for k in 10:
+				ms.append({"id": "aq%d" % k, "nome": "Recruta %d" % k, "tier": "Soldado", "nv": 10 + k, "sem": 50, "on": 1, "g": 0,
+					"fn": {"k": ["livre", "recurso", "proteger", "fazenda"][k % 4]}, "c": "r:aq%d" % k, "hp": 300, "hpM": 400, "mp": 50, "mpM": 80,
+					"vg": 60, "vgM": 100, "morto": 0, "x": 10, "z": 20, "bid": "aq%d" % k, "fz": "Treinando"})
+			m.P.cla = {"n": "Brasas", "cofre": 1200, "semana": 300, "prox": 3600000, "max": 10, "nv": 10, "sobe": null, "perto": true,
+				"eu": {"nome": "Líder", "nv": 40, "hp": 500, "hpM": 600, "mp": 90, "mpM": 100, "vg": 70, "vgM": 100, "morto": 0},
+				"m": ms, "bauCla": {}, "plantas": [{"k": "cenoura", "nome": "Cenoura"}], "veic": {"carrinho": 0, "mercante": 0},
+				"funcoes": [{"id": "livre", "nome": "Livre"}, {"id": "recurso", "nome": "Recurso"}], "recursos": [{"k": "ferro", "nome": "ferro"}],
+				"tiers": [], "rec": {}, "log": [{"txt": "Exemplo", "v": 10}], "dep": [100, 1000], "clas": [], "base": null, "baseNiveis": []}
+			aba = "cla"
+			atualizar()
+		2:
+			if not _aquecendo:
+				return
+			m.P.cla = _aq_cla
+			aba = "mochila"
+			atualizar()
+		_:
+			aquecer_fim()
+
+func aquecer_fim() -> void:
+	if not _aquecendo:
+		return
+	m.P.cla = _aq_cla
+	_aq_cla = null
+	fechar()
+	aba = "status"
+	layer = _aq_camada
+	_aquecendo = false
+	_cla_vivos = {}
+	_cla_chave = ""
+
 # rolar a lista arrastando o dedo (em cima de qualquer coisa: linha, botão, texto)
 func _input(ev: InputEvent) -> void:
 	if not aberto() or rolagem == null or menu_ver_aberto(): # menuzinho do filtro por cima: ele rola (rolagem_toque.gd)
@@ -2146,7 +2201,7 @@ func _tempo_cla(ms: int) -> String:
 
 func montar_cla() -> void:
 	var C: Dictionary = P_menu.cla
-	if not m.on():
+	if not m.on() and not _aquecendo:
 		conteudo.add_child(rotulo("O clã só funciona online.", 14, APAGADO))
 		return
 	if C.is_empty():

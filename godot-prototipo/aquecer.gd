@@ -100,14 +100,20 @@ func _process_parte(dt: float) -> void:
 			if _t >= ESPERA_INICIO:
 				var t0 := Time.get_ticks_msec()
 				_mostrar_tudo()
+				if rodando and m.menu != null and m.menu.has_method("aquecer_passo"):
+					m.menu.aquecer_passo(0) # menu aberto por baixo da capa (menu.gd aquecer_passo)
 				_tela_t0 = Time.get_ticks_msec()
 				tempos.mostrar = _tela_t0 - t0
 				_fase = 1
 				_quadros = 0
 		1:
+			if m.menu != null and m.menu.has_method("aquecer_passo"):
+				m.menu.aquecer_passo(_quadros + 1) # 1 Clã, 2 Mochila, 3 fecha (o 0, Personagem, abriu junto com o resto)
 			_quadros += 1
 			if _quadros >= QUADROS_NA_TELA:
 				tempos.tela = Time.get_ticks_msec() - _tela_t0
+				if m.menu != null and m.menu.has_method("aquecer_fim"):
+					m.menu.aquecer_fim() # garantia: o menu nunca fica aberto por baixo
 				_t = 0.0 # primeiro libera a capa: se algo abaixo der erro, ela não fica presa
 				_fase = 2
 				cobre = not _fila_corpos.is_empty() # os bonecos dos corpos ainda montando: a capa espera
