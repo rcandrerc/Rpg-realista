@@ -41,6 +41,7 @@ try {
   ok(sh[5] === 0 && sh[6] === '', 'longe da bancada: não está perto, sem outro impedimento');
   s.ev.length = 0; s.send('criar', { r: 'short', n: 1 }); await esperar(800);
   ok(avisos().some((t) => /bancada/i.test(t)) && temCouro() === 4, `longe da estação o servidor recusa (${avisos().join(' | ')})`);
+  ok(s.rc.est.some((e) => e[0] === 'bancada') && s.rc.est.some((e) => e[0] === 'bigorna'), 'a página sabe onde ficam as estações (para ir até lá)');
   const B = ESTACOES_PUBLICAS.find((e) => e.k === 'bancada');
   s.send('leveIr', { x: B.x, z: B.z + 1.5, nome: 'Bancada' });
   for (let i = 0; i < 160 && !s.ev.some((e) => e.t === 'leveRota' && e.chegou); i++) await esperar(500);

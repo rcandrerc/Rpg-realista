@@ -208,7 +208,11 @@ export const Leve = {
   // Criar (André 2026-11-25): as MESMAS receitas e regras do jogo (RECEITAS, motivoReceita, `criar`); aqui só se lista.
   // [receita, nome, [[k, nome, qtd]], estação, nome da estação, perto dela (1/0), motivo (sem contar a estação), segundos]
   leveReceitas(j) {
+    // onde ficam as estações (as públicas da vila e as do próprio terreno): a página leva o herói até a mais perto
+    const est = (this.mapa.estacoes || []).map((E) => [E.k, E.nome, r1(E.x), r1(E.z)]);
+    const L = this.loteDe?.(j); if (L) for (const o of L.pecas || []) if (CONSTRUCOES[o.k]?.estacao && ['bancada', 'bigorna', 'fornalha', 'fogao'].includes(o.k)) est.push([o.k, 'Seu terreno', r1(o.x), r1(o.z)]);
     return {
+      est,
       max: CRIAR_OBRA.maxFila,
       r: Object.entries(RECEITAS).map(([r, R]) => {
         const e = RECEITA_ESTACAO(R);

@@ -813,14 +813,20 @@ function cartaoCriar() {
   if (leve.fab) c.append(el('div', 'nome', `Fazendo ${leve.fab.nome}…`), bt('Parar', () => mandar('fabricar', { parar: true }), true));
   let est = '';
   for (const [r, nome, usa, , estNome, perto, motivo, seg] of RC.r) {
-    if (estNome !== est) { est = estNome; c.append(el('div', 'faz', `${estNome}${RC.r.find((o) => o[4] === est && o[5]) ? ' · perto' : ' · longe'}`)); }
+    if (estNome !== est) {
+      est = estNome; const k = RC.r.find((o) => o[4] === est)[3], perto = RC.r.some((o) => o[4] === est && o[5]);
+      c.append(el('div', 'faz', `${estNome}${perto ? ' · você está perto' : ''}`));
+      // ir até a estação mais perto (pública ou do seu terreno) pela estrada, como no mapa
+      const E = RC.est.filter((o) => o[0] === k).sort((a, b) => dEu({ x: a[2], z: a[3] }) - dEu({ x: b[2], z: b[3] }))[0];
+      if (E && !perto) c.append(bt(`Ir até ${E[1].split(',')[0]} · ${metros({ x: E[2], z: E[3] })}`, () => irLeve({ x: E[2], z: E[3] + 1.5, nome: E[1].split(',')[0] })));
+    }
     const sel = criarSel === r, ruim = motivo || !perto;
     const b = el('button', 'linha' + (sel ? ' ativo' : '')); b.append(el('span', null, nome), el('span', null, ruim ? '✕' : `${seg} s`));
     b.onclick = () => { criarSel = sel ? '' : r; leve.sujo = true; desenharJogar(); };
     c.append(b);
     if (!sel) continue;
     const f = el('div', 'icones'); for (const [k, n, q] of usa) f.append(icone(k, n, temMo(k), q)); c.append(f);
-    if (motivo) c.append(el('div', 'faz', motivo)); else if (!perto) c.append(el('div', 'faz', `Chegue perto de ${estNome.toLowerCase()} (veja em Lugares > Oficinas)`));
+    if (motivo) c.append(el('div', 'faz', motivo)); else if (!perto) c.append(el('div', 'faz', `Vá até ${estNome.toLowerCase()} (botão acima)`));
     if (!ruim && !leve.fab) c.append(linhaQtd((n) => `Criar ${n}`, 1, (n) => mandar('criar', { r, n: Math.min(RC.max, n) })));
   }
   return c;
