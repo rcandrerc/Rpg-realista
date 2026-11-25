@@ -50,6 +50,9 @@ for (let i = 0; i < 120; i++) { if (await pg.locator('text=Vender (toque no item
 await esperar(800);
 await pg.locator('#jogar .card .icones').last().locator('.ico').first().click(); await esperar(800);
 await pg.screenshot({ path: path.join(saida, '5-loja.png'), fullPage: true });
-await pg.click('button:has-text("Vender")'); await esperar(2000);
+await pg.click('.qtd-linha button.acao'); await esperar(2000);
 await pg.screenshot({ path: path.join(saida, '6-vendeu.png'), fullPage: true });
+await pg.fill('.chatEnvia input', 'Bom dia, clã!'); await pg.click('.chatEnvia button'); await esperar(2000);
+await pg.locator('#jogarChat').scrollIntoViewIfNeeded(); await esperar(300);
+await pg.screenshot({ path: path.join(saida, '7-chat.png') });
 await nav.close(); fim(); process.exit();

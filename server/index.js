@@ -39,7 +39,7 @@ const heroiDe = (contaId) => { for (const s of salas) for (const j of s.sim.joga
 // painel do clã (página leve, André 2026-11-24): ver no máximo a cada 2 s e ordem no máximo a cada 0,5 s por página
 const PAINEL = { verMs: 2000, ordemMs: 500, volta: 20 };
 // modo leve: os avisos do herói que a página usa (o resto do jogo, como o 'prog' inteiro, não vai: pesa no celular fraco)
-const LEVE_EVENTOS = new Set(['aviso', 'leilao', 'bau', 'compra', 'leveRota']);
+const LEVE_EVENTOS = new Set(['aviso', 'leilao', 'bau', 'compra', 'leveRota', 'chat', 'chatHist']);
 // '__proto__', 'constructor' e 'prototype' como texto ou chave numa mensagem do cliente: nunca é dado de jogo e serve para
 // mexer no Object.prototype (auditoria 2026-11-13). A mensagem inteira é descartada.
 const PROIBIDO = new Set(['__proto__', 'constructor', 'prototype']);

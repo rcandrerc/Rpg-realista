@@ -538,6 +538,28 @@ function eventoLeve(e) {
   else if (e.t === 'leveRota') { leve.rota = e.pontos.length ? e.pontos : null; leve.rotaI = 0; if (e.pontos.length) leve.rotaNome = e.nome || ''; if (e.texto) aviso(e.texto); }
   else if (e.t === 'leilao') { leve.leilao = e; leve.sujo = true; }
   else if (e.t === 'bau') { leve.bau = e; leve.sujo = true; }
+  else if (e.t === 'chat') chatLeve([e]);
+  else if (e.t === 'chatHist') { leve.chat = []; chatLeve(e.l); }
+}
+// chat (André 2026-11-25: "se der, pôr o chat lá também"): só texto, as últimas 30, sem som nem balão
+const CANAIS = { geral: 'Geral', local: 'Local', amigos: 'Amigos', time: 'Time', pm: 'Privado' };
+function chatLeve(novas) {
+  leve.chat = [...(leve.chat || []), ...novas].slice(-30);
+  const caixa = $('jogarChat');
+  if (!caixa.firstChild) {
+    caixa.append(el('div', 'nome', 'Chat'));
+    const lista = el('div', 'chatLista'); lista.id = 'chatLista'; caixa.append(lista);
+    const f = el('div', 'chatEnvia'), canal = el('select'), txt = el('input'), ok = el('button', 'acao', 'Enviar');
+    for (const k of ['geral', 'local', 'amigos', 'time']) canal.append(opcao(k, CANAIS[k]));
+    txt.maxLength = 120; txt.placeholder = 'Mensagem';
+    const enviar = () => { const t = txt.value.trim(); if (!t) return; mandar('chat', { canal: canal.value, texto: t }); txt.value = ''; };
+    ok.onclick = enviar; txt.onkeydown = (e) => { if (e.key === 'Enter') enviar(); };
+    f.append(canal, txt, ok); caixa.append(f);
+  }
+  const lista = $('chatLista'), embaixo = lista.scrollTop + lista.clientHeight >= lista.scrollHeight - 8;
+  limpar(lista);
+  for (const m of leve.chat) { const d = el('div', m.meu ? 'meu' : ''); d.append(el('i', null, CANAIS[m.k] || m.k), el('b', null, m.n + ': '), document.createTextNode(m.x)); lista.append(d); }
+  if (embaixo) lista.scrollTop = lista.scrollHeight;
 }
 // toque no mapa: vai até lá (perto de um lugar marcado, vai até ele, com o nome)
 function tocarMapaLeve(e) {
@@ -681,8 +703,9 @@ function cartaoTotem(t) {
 let jogarChave = '';
 function desenharJogar() {
   const raiz = $('jogar'); if (aba !== 'jogar') return;
+  $('jogarChat').hidden = !leve.sala;
   if (!leve.sala) {
-    jogarChave = ''; limpar(raiz);
+    jogarChave = ''; limpar(raiz); limpar($('jogarChat')); leve.chat = [];
     const c = el('div', 'card');
     c.append(el('div', 'nome', 'Jogar pelo modo leve'));
     c.append(el('div', 'faz', 'Seu herói entra no mundo de verdade: os outros veem você e a Geada pode atacar. Toque no mapa e ele vai a pé pela estrada. Loja, leilão, baú e totem funcionam quando você chega perto. Se o jogo estiver aberto, ele sai (é o mesmo herói).'));

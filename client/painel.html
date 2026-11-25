@@ -83,6 +83,7 @@ input.busca:focus{outline:none;border-color:var(--gold)}
 .opc{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted)}
 /* Jogar: o modo leve (André 2026-11-25) */
 #jogar{display:grid;gap:10px}
+#jogarAba>*,#jogar>*{min-width:0}
 .vm{display:flex;gap:8px;align-items:center;font-size:.75rem;color:var(--muted)}
 .vm .barra{flex:1}
 .bts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
@@ -94,6 +95,13 @@ button.acao.cinza{background:#26231d;border-color:var(--line)}
 .progresso{height:6px;border-radius:3px;background:#2b2822;overflow:hidden;margin:6px 0}
 .progresso b{display:block;height:100%;background:var(--gold)}
 .perigo{border-color:#d9534a}
+.chatLista{max-height:180px;overflow-y:auto;font-size:.86rem;display:grid;gap:3px;margin:6px 0}
+.chatLista b{color:var(--gold);font-weight:600}
+.chatLista .meu b{color:#7fcf7f}
+.chatLista i{color:var(--muted);font-style:normal;font-size:.72rem;margin-right:4px}
+.chatEnvia{display:flex;gap:6px}
+.chatEnvia input{flex:1;min-width:0;width:0;min-height:40px;border-radius:8px;border:1px solid var(--line);background:#0b0a09;color:var(--ink);font:500 .95rem system-ui,sans-serif;padding:0 10px}
+.chatEnvia select{flex:none;max-width:96px}
 </style>
 </head>
 <body>
@@ -126,7 +134,7 @@ button.acao.cinza{background:#26231d;border-color:var(--line)}
   <label class="opc"><input type="checkbox" id="mapaBots"> Mostrar os líderes dos clãs bot</label>
   <div class="legenda"><span style="--c:var(--gold)">Seus recrutas</span><span style="--c:#fff">Você (no jogo)</span><span style="--c:var(--geada)">Líder Geada</span><span style="--c:var(--chama)">Líder Chama</span></div>
 </main>
-<main id="jogarAba" hidden><div id="jogarMapa"></div><div id="jogar"></div></main>
+<main id="jogarAba" hidden><div id="jogarMapa"></div><div id="jogar"></div><div id="jogarChat" class="card" hidden></div></main>
 <main id="leilaoAba" hidden></main>
 <main id="bots" hidden></main>
 <main id="log" hidden></main>

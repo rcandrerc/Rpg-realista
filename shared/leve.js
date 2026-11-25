@@ -22,6 +22,7 @@ export const LEVE = {
   max: 40, // no máximo tantos de cada na foto
   leilao: 60, // anúncios na lista do leilão
   intervalo: 0.5, // s entre dois destinos
+  chat: 30, // mensagens do chat que a página guarda
   longe: 2500, // m: destino mais longe que isso não vale
 };
 // quem a página mostra como lugar no mapa (as janelas do jogo de cada um)
@@ -105,6 +106,9 @@ export const Leve = {
       const um = (a) => ({ id: a.id, k: a.item.k, n: a.item.n || 1, nome: nomeItem(a.item), c: corDe(a.item), preco: a.preco, ...(a.casa ? { casa: 1 } : { v: a.vendedor, ate: a.ate }) });
       return { t: 'leilao', lista: (e.lista || []).slice(0, LEVE.leilao).map(um), meus: (e.meus || []).map(um), caixa: { ouro: e.caixa?.ouro | 0, n: e.caixa?.itens?.length | 0 }, horas: e.horas, taxaAnuncio: e.taxaAnuncio, agora: e.agora };
     }
+    // chat: só o texto (a página mostra as últimas LEVE.chat)
+    if (e.t === 'chat') return { t: 'chat', k: e.canal, n: e.nome, x: e.texto, ...(e.meu ? { meu: 1 } : {}) };
+    if (e.t === 'chatHist') return { t: 'chatHist', l: (e.lista || []).slice(-LEVE.chat).map((m) => ({ k: m.canal, n: m.nome, x: m.texto, ...(m.meu ? { meu: 1 } : {}) })) };
     if (e.t === 'bau') return { t: 'bau', cla: e.cla ? 1 : 0, l: (e.itens || []).length, it: listaLeve(e.itens) };
     return e;
   },

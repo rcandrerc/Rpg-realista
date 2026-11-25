@@ -119,6 +119,11 @@ try {
   await esperar(600);
   ok(s.fechou === null && !s.fotos.at(-1).r, 'destinos estranhos: ignorados');
 
+  // 5b) chat: chega o histórico e a própria mensagem, só o texto
+  s.send('chat', { canal: 'geral', texto: 'oi do modo leve' });
+  await esperar(1500);
+  ok(s.ev.some((e) => e.t === 'chat' && e.x === 'oi do modo leve' && e.meu && !('hora' in e)), 'chat no modo leve (só o texto)');
+
   // 6) conta sem personagem: não joga pelo modo leve
   const sb = await leve(sessaoB);
   await esperar(1200);
