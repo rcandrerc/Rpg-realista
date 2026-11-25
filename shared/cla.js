@@ -1557,7 +1557,12 @@ export const Cla = {
       if (E.visto && !E.foraFeito) {
         E.foraFeito = true;
         const ms = Math.min(CLA.fora.max, agora - E.visto);
-        if (ms >= CLA.fora.minimo) for (const x of ctxs) { const m = doM(x); if (m?.fn) this.trabalhoFora(x, m, ms / 3600e3, L.prog.nivel | 0); }
+        if (ms >= CLA.fora.minimo) for (const x of ctxs) {
+          const m = doM(x); if (m?.fn) this.trabalhoFora(x, m, ms / 3600e3, L.prog.nivel | 0);
+          // a casa do lote (André 2026-11-25: "até agora não fizeram os telhados os bots"): o bot só constrói no mundo, nos
+          // intervalos entre uma tarefa e outra; o tempo fora conta a metade (ele também estaria trabalhando)
+          this.casaFora(x, ms / 2000);
+        }
       }
       E.foraFeito = true;
       if (!E.visto || agora - E.visto > 600e3) { E.visto = agora; mudou = true; }
