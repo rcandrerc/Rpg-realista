@@ -3081,12 +3081,16 @@ export class Simulacao {
   }
   // por que não dá para criar a receita agora: { motivo: '' | texto, npc: onde cria }
   motivoReceita(j, R) {
-    const p = j.prog;
     const of = OFICINA[R.prof];
     // perto da estação certa: a pública da vila (André 2026-11-11: o NPC não cria mais, quem cria é o herói na bigorna,
     // no forninho ou na bancada ao lado dele) ou uma construída num lote (bigorna, fornalha ou bancada)
     const npc = this.estacaoPerto(j, R);
     if (!npc) return { motivo: RECEITA_ESTACAO(R) === 'fornalha' ? 'Funda no forninho da ferraria do Tomás ou na fornalha do seu terreno' : RECEITA_ESTACAO(R) === 'fogao' ? 'Cozinhe perto do fogão do seu terreno' : `Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}` };
+    return this.motivoReceitaSem(j, R, npc);
+  }
+  // o resto da conta (nível, progressão, material, vigor), sem olhar a estação: a página leve lista com isso (`leveReceitas`)
+  motivoReceitaSem(j, R, npc = null) {
+    const p = j.prog;
     if (profNivel(p.prof[R.prof]) < R.nivel && !(!R.r && this.livreHistoria(j, R.faz))) return { motivo: `Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}` };
     { // progressão (André 2026-11-10): Ferreiro e Alfaiate depois da missão do Tomás; cada receita e cada evolução no seu nível
       const lib = (R.prof === 'fer' || R.prof === 'alf') && motivoLibera(p, 'forja') || (R.r ? motivoLibera(p, 'evoluir', R.r) : motivoLibera(p, 'receita', R.faz));

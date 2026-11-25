@@ -8,7 +8,7 @@
 import { planejarRota, terraId } from './rota.js';
 import { TUNEL } from './caverna.js';
 import { LUGARES_MUNDO } from './mundo.js';
-import { ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
+import { RECEITAS, CRIAR_OBRA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
 import { liberado } from './historia.js';
@@ -204,6 +204,22 @@ export const Leve = {
       r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o), precoVenda(o, merc), o.cad ? 1 : 0]);
     });
     return { l: (p.mochila || []).length, it: r };
+  },
+  // Criar (André 2026-11-25): as MESMAS receitas e regras do jogo (RECEITAS, motivoReceita, `criar`); aqui só se lista.
+  // [receita, nome, [[k, nome, qtd]], estação, nome da estação, perto dela (1/0), motivo (sem contar a estação), segundos]
+  leveReceitas(j) {
+    // onde ficam as estações (as públicas da vila e as do próprio terreno): a página leva o herói até a mais perto
+    const est = (this.mapa.estacoes || []).map((E) => [E.k, E.nome, r1(E.x), r1(E.z)]);
+    const L = this.loteDe?.(j); if (L) for (const o of L.pecas || []) if (CONSTRUCOES[o.k]?.estacao && ['bancada', 'bigorna', 'fornalha', 'fogao'].includes(o.k)) est.push([o.k, 'Seu terreno', r1(o.x), r1(o.z)]);
+    return {
+      est,
+      max: CRIAR_OBRA.maxFila,
+      r: Object.entries(RECEITAS).map(([r, R]) => {
+        const e = RECEITA_ESTACAO(R);
+        return [r, ITENS[R.faz].nome, Object.entries(R.usa).map(([k, q]) => [k, ITENS[k]?.nome || k, q]), e, e === 'fogao' ? 'Fogão' : CONSTRUCOES[e]?.nome || e,
+          this.estacaoPerto(j, R) ? 1 : 0, this.motivoReceitaSem(j, R).motivo, Math.round(tempoCriar(R))];
+      }),
+    };
   },
   // a foto pequena da página: eu, o caminho que falta, e só quem está perto
   fotoLeve(j) {
