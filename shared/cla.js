@@ -12,7 +12,7 @@
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
 import { VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS, DESPENSA, BASES_FRIAS, MORAL } from './dados.js';
-import { contextoDeAmigo } from './amiga.js';
+import { contextoDeAmigo, pecaDaCasa, mesmaPeca } from './amiga.js';
 import { profNivel, guardar, guardarQueCabe, moverQtd, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
 import { fundoAgua } from './transporte.js';
 import { LUGARES_MUNDO } from './mundo.js';
@@ -1063,9 +1063,13 @@ export const Cla = {
     const feitos = []; let hMax = 0;
     for (const x of this.recrutasNoMundo(j)) {
       if (novos && !novos.has(x.AMIGA.id)) continue;
-      const m = x.amiga && c.m.find((o) => o.id === x.AMIGA.id); if (!m?.fn || m.dev) continue; // devendo não trabalha
+      const m = x.amiga && c.m.find((o) => o.id === x.AMIGA.id); if (!m || m.dev) continue; // devendo não trabalha
       const t0 = Math.max(saiu, +x.foraDesde || 0), ms = Math.min(F.max, Date.now() - t0); if (!(ms >= F.minimo)) continue;
-      const h = ms / 3600e3; hMax = Math.max(hMax, h);
+      const h = ms / 3600e3;
+      // modo Livre fora do jogo (André 2026-11-25: "deixei em modo livre por muito tempo e o telhado não foi construído...
+      // eu estava off"): ele levanta a casa dele no lote, uma peça a cada passo.obra s (como no jogo), até acabar
+      if (!m.fn) { const f = this.casaFora(x, ms / 1000); if (f) { hMax = Math.max(hMax, h); feitos.push(f); } continue; }
+      hMax = Math.max(hMax, h);
       const f = this.trabalhoFora(x, m, h, j.prog.nivel | 0); if (f) feitos.push(f);
     }
     if (!feitos.length) return;
@@ -1073,6 +1077,21 @@ export const Cla = {
     for (const f of feitos) this.logCla(c, `Fora (${horas}): ${f}`);
     // um recruta por linha (André 2026-11-22: "podia descrever por coluna... Gael fez isso, João fez tal"); o aviso (hud.gd) quebra no \n
     if (!j.semAviso) this.evento({ t: 'aviso', para: j.id, texto: `Enquanto você esteve fora:\n${feitos.join('\n')}` }); // painel do clã: só o registro
+  },
+  // peças da casa que o recruta em modo Livre põe em seg segundos fora do jogo (a ordem de construir é a mesma do jogo)
+  casaFora(x, seg) {
+    const L = x.loteDaAmiga?.(); if (!L || !x.amiga) return null;
+    let n = Math.floor(seg / (x.AMIGA.passo.obra * 1.3)), feitas = 0;
+    const A = x.AMIGA;
+    while (n-- > 0) {
+      const mov = x.movelForaAmiga(L); if (mov) { x.moverMovelAmiga(L, mov); continue; }
+      const falta = A.casa.map((q) => pecaDaCasa(L.def, q)).find((q) => !L.pecas.some((o) => mesmaPeca(o, q)) && !x.amiga.ia.pulas?.has(`${q.k}:${q.x},${q.z}`));
+      if (!falta) break;
+      const antes = L.pecas.length; x.colocarPeca(L, falta); if (L.pecas.length > antes) feitas++;
+    }
+    if (!feitas) return null;
+    x.guardarAmiga?.();
+    return `${x.AMIGA.nome}: construiu ${feitas} peça${feitas > 1 ? 's' : ''} da casa`;
   },
   // o que um recruta fez em h horas fora (grind: XP até o nível do líder; farm: o que o vigor paga, direto no Baú do
   // Clã; fazenda: os canteiros crescem sozinhos e ele colhe e replanta quando o líder volta). Texto ou null.
