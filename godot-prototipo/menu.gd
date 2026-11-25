@@ -1170,9 +1170,6 @@ func _process_parte(dt: float) -> void:
 	armar_boneco()
 
 # ---------- conteúdo ----------
-var _rol_y_pend := -1
-var _rol_gen := 0
-
 func atualizar() -> void:
 	if not aberto():
 		return
@@ -1220,13 +1217,7 @@ func atualizar() -> void:
 	linha_prof.visible = aba == "profissoes"
 	for k in botoes_prof:
 		_estilo_se_mudou(botoes_prof[k], k == sub_prof)
-	# André 2026-11-25 (loja subindo sozinha): atualizar() pode rodar 2x no mesmo quadro (toque + evento do servidor).
-	# A 2ª lia a rolagem já zerada pela 1ª e devolvia 0. Guarda a posição da 1ª e só solta quando a lista volta a ter altura.
-	if _rol_y_pend < 0:
-		_rol_y_pend = rolagem.scroll_vertical
-	var y := _rol_y_pend
-	var gen := _rol_gen + 1
-	_rol_gen = gen
+	var y := rolagem.scroll_vertical
 	for c in conteudo.get_children():
 		conteudo.remove_child(c)
 		c.queue_free()
@@ -1263,15 +1254,7 @@ func atualizar() -> void:
 		montar_habilidades()
 	montar_janela()
 	await get_tree().process_frame
-	if gen != _rol_gen:
-		return # outro atualizar() assumiu: ele restaura
 	rolagem.scroll_vertical = y
-	if y > 0 and rolagem.scroll_vertical < y: # layout ainda sem a altura nova: tenta mais um quadro
-		await get_tree().process_frame
-		if gen != _rol_gen:
-			return
-		rolagem.scroll_vertical = y
-	_rol_y_pend = -1
 
 # as abas de cima (e as fileiras de baixo delas) só trocam de estilo quando a escolhida muda: refazer as 3 caixas e
 # as cores de uns 15 botões a cada atualizar custava ~4 ms no PC por abertura e por toque dentro do menu
