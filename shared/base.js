@@ -488,7 +488,11 @@ export const Base = {
     const D = B && this.basesDesenho?.[B.k]; if (!D) return null;
     if (D.mesa) return D.mesa;
     const p = this.lotes?.get('q' + B.k.slice(0, 20) + '_1')?.pecas.find((o) => o.k === 'mesa_cla');
-    return p ? { x: p.x, z: p.z, ry: r2(((p.r | 0) & 3) * Math.PI / 2), y: r2(this.terreno ? this.terreno.altura(p.x, p.z) : 0), peca: p.id } : null;
+    if (!p) return null;
+    // y: o chão onde a mesa está, com a fundação embaixo (André 2026-11-25: "vou poder pôr a fundação por baixo da mesa"):
+    // a altura do lugar da cabeceira (fora do tampo, que é sólido); o app põe a comida e os pratos em cima daí
+    const ry = r2(((p.r | 0) & 3) * Math.PI / 2), cx = p.x + Math.cos(ry) * JANTAR.lugares[0][0], cz = p.z - Math.sin(ry) * JANTAR.lugares[0][0];
+    return { x: p.x, z: p.z, ry, y: r2(this.terreno ? this.terreno.altura(cx, cz) : 0), peca: p.id };
   },
   // o líder recolhe a mesa da frente do salão: vira a peça mesa_cla na mochila (põe onde quiser na base, como o baú)
   recolherMesaBase(j, aviso) {

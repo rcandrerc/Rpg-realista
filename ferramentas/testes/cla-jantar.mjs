@@ -125,8 +125,16 @@ ok(contar(p.mochila, 'obra_mesa_cla') === 1 && !s.mesaBase(B) && B.mesaSolta, 'M
 ok(!s.terreno.solidos.some((o) => o.casa && Math.abs(o.x - M.x) < 0.01 && Math.abs(o.z - M.z) < 0.01 && o.hw === 1.8), 'o tampo some de onde estava');
 const L1 = s.loteDe(a);
 a.x = B.x + 2; a.z = B.z + 3;
+// André 2026-11-25: "vou poder pôr a fundação por baixo da mesa": piso de fundação primeiro, a mesa em cima
+p.mochila[5] = { k: 'obra_fundacao', n: 40 };
+const fx = [], g = 2, cx0 = Math.round((B.x - 3) / g) * g + 1, cz0 = Math.round((B.z + 2) / g) * g + 1; // meio da grade: ímpar
+for (let dx = -2; dx <= 2; dx++) for (let dz = -3; dz <= 3; dz++) { const n0 = L1.pecas.length; s.construir('A', { k: 'fundacao', x: cx0 + dx * g, z: cz0 + dz * g, r: 0 }); if (L1.pecas.length > n0) fx.push(1); }
+ev();
+const chao0 = s.terreno.altura(B.x - 2, B.z + 3 + 2.35);
 s.construir('A', { k: 'mesa_cla', x: B.x - 2, z: B.z + 3, r: 1 });
 const nova = s.mesaBase(B);
+ok(fx.length >= 6 && nova && L1.pecas.filter((o) => o.k === 'fundacao').length === fx.length, `a mesa vai em cima da fundação (${fx.length} fundações)`);
+ok(nova && Math.abs(nova.y - chao0) < 0.01 && nova.y >= M.y + 0.15, `a mesa sabe a altura do piso de fundação (y ${nova?.y}, chão com fundação ${chao0})`);
 ok(nova && nova.x === B.x - 2 && Math.abs(nova.ry - Math.PI / 2) < 0.01 && L1.pecas.some((o) => o.k === 'mesa_cla'), `pôs a mesa em outro lugar da base (${avisos(ev())})`);
 p.mochila[0] = { k: 'obra_mesa_cla', n: 1 };
 s.construir('A', { k: 'mesa_cla', x: B.x + 4, z: B.z + 5, r: 0 });

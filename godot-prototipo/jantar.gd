@@ -28,6 +28,7 @@ var mesas := {} # chave da base -> {no: Node3D, comida: Array, fase, lugares}
 var sentado := {} # {x, z, ry}: o herói sentado na cabeceira
 var _t := 0.0
 var _mats := {}
+var _relogio := 0.0 # s de jogo (a garfada anda no tempo do jogo)
 var poses := {} # id ("eu" = o herói) -> {pose: sentar.gd, esq}: quem está sentado na mesa agora
 
 func _init(principal) -> void:
@@ -53,6 +54,7 @@ func _ready() -> void:
 
 # ---------- botão e janela ----------
 func _process(dt: float) -> void:
+	_relogio += dt
 	_poses_mesa()
 	_t -= dt
 	if _t > 0.0:
@@ -345,8 +347,9 @@ func _alvos(pose, no: Node3D, id: String) -> void:
 	var come := 0.0
 	for k in mesas:
 		if str(mesas[k].fase) == "comendo":
-			var t := fmod(Time.get_ticks_msec() / 1000.0 + float(hash(id) % 1000) / 170.0, 5.5)
-			come = sin(t / 1.8 * PI) if t < 1.8 else 0.0
+			# relógio do jogo (_relogio), não o do aparelho: a garfada leva 2,6 s (sobe e desce) a cada ~8 s, cada um no seu ritmo
+			var t := fmod(_relogio + float(hash(id) % 1000) / 125.0, 8.0)
+			come = sin(t / 2.6 * PI) if t < 2.6 else 0.0
 			break
 	for i in 2:
 		var sx: float = 1.0 if i == 0 else -1.0
@@ -371,7 +374,8 @@ func _mesa_comida(ev: Dictionary) -> void:
 	add_child(raiz)
 	var x := float(ev.x)
 	var z := float(ev.z)
-	var y: float = m.base_cla._chao(x, z) if m.base_cla != null else 0.0
+	# y do servidor: o piso onde a mesa está (com fundação embaixo, 0,2 m acima do chão; shared/base.js mesaBase)
+	var y: float = float(ev.y) if ev.get("y") != null else (m.base_cla._chao(x, z) if m.base_cla != null else 0.0)
 	raiz.position = Vector3(x, y + TAMPO, z)
 	raiz.rotation.y = float(ev.get("ry", 0.0))
 	# travessas no meio da mesa: uma por lugar de comida (o slot), em fila em cima do caminho de mesa

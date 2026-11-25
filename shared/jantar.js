@@ -241,12 +241,12 @@ export const Jantar = {
   },
   // o desenho da mesa para quem está no mundo: a comida em cima e se está servido (godot-prototipo/jantar.gd)
   avisarJantar(J, fim = false) {
-    const e = { t: 'jantar', k: J.k, x: J.mesa.x, z: J.mesa.z, ry: J.mesa.ry, comida: fim ? [] : J.comida.map((o) => o.k), fase: fim ? '' : J.fase, lugares: this.lugaresJantar(J) };
+    const e = { t: 'jantar', k: J.k, x: J.mesa.x, z: J.mesa.z, y: J.mesa.y, ry: J.mesa.ry, comida: fim ? [] : J.comida.map((o) => o.k), fase: fim ? '' : J.fase, lugares: this.lugaresJantar(J) };
     for (const o of this.jogadores.values()) if (!o.bot) this.evento({ ...e, para: o.id });
   },
   // quem entra no jogo vê os jantares que estão acontecendo
   enviarJantares(id) {
-    for (const J of this.jantares?.values() || []) this.evento({ t: 'jantar', para: id, k: J.k, x: J.mesa.x, z: J.mesa.z, ry: J.mesa.ry, comida: J.comida.map((o) => o.k), fase: J.fase, lugares: this.lugaresJantar(J) });
+    for (const J of this.jantares?.values() || []) this.evento({ t: 'jantar', para: id, k: J.k, x: J.mesa.x, z: J.mesa.z, y: J.mesa.y, ry: J.mesa.ry, comida: J.comida.map((o) => o.k), fase: J.fase, lugares: this.lugaresJantar(J) });
   },
   // os lugares com gente (o 0 é a cabeceira do líder, sempre posta)
   lugaresJantar(J) {

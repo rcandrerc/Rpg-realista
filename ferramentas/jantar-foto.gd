@@ -120,10 +120,10 @@ func _initialize() -> void:
 	await camera(Vector3(mx + 2.0, y + 0.6, mz), 1.57, 0.15, 3.2)
 	await esperar(10)
 	await foto("6-cabeceira-do-lider")
-	# vídeo (FOTO_VIDEO=1): 6 s comendo, de perto (v0000.png...; o ffmpeg junta)
+	# vídeo (FOTO_VIDEO=1): 10 s comendo, de perto (v0000.png...; o ffmpeg junta)
 	if OS.get_environment("FOTO_VIDEO") == "1":
 		await camera(Vector3(mx - 0.3, y + 0.7, mz), -0.5, 0.2, 3.8)
-		for q in 180:
+		for q in 300:
 			await RenderingServer.frame_post_draw
 			root.get_texture().get_image().save_png(saida + "/v%04d.png" % q)
 			await process_frame
