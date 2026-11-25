@@ -4509,7 +4509,7 @@ func npcs_das_vilas(dt: float) -> void:
 # monstro longe (outra clareira): a animação para (o corpo já não é desenhado: visibility_range_end em criar_inimigo).
 # Online ele continua andando pelo que o servidor manda; sem internet ele não pensa (atualizar_inimigos)
 const NPC_TROCAS_QUADRO := 2
-const NPC_MOSTRAR_QUADRO := 2
+const NPC_MOSTRAR_QUADRO := 1 # registros de 25/11 (Poco X7): cada NPC que aparece custa uns 10 ms (li:npc_mostrar)
 func lod_inimigos() -> void:
 	if heroi == null:
 		return

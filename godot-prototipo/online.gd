@@ -1838,12 +1838,22 @@ func reservar_corpo(vis: String) -> void:
 # fica parado na tela, ninguém sente o tranco), monta de novo um corpo da reserva que foi usado: no máximo um a cada
 # REPOR_INTERVALO, até RESERVA de cada corpo do criador. Nada muda na tela.
 const REPOR_INTERVALO := 0.5 # s
+# registros de 25/11 (Poco X7): cada corpo montado aqui custou 100 a 267 ms num quadro (o:repor) e a lista do menu
+# engasgava quando o dedo estava rolando ou tocando. Só monta com o dedo parado há REPOR_PARADO_MS (lendo o menu)
+const REPOR_PARADO_MS := 2000
 var _repor_t := 0.0
+var _toque_ms := 0 # último toque ou arrasto na tela
+func _input(ev: InputEvent) -> void:
+	if ev is InputEventScreenTouch or ev is InputEventScreenDrag or ev is InputEventMouseButton:
+		_toque_ms = Time.get_ticks_msec()
+
 func _repor_reserva(dt: float) -> void:
 	_repor_t -= dt
 	if _repor_t > 0.0 or _cobrindo:
 		return
 	if not ((m.menu and m.menu.aberto()) or (m.menu_topo and m.menu_topo.aberto())):
+		return
+	if Time.get_ticks_msec() - _toque_ms < REPOR_PARADO_MS:
 		return
 	_repor_t = REPOR_INTERVALO
 	var cri = m.P.dados.get("criador") if m.P.dados is Dictionary else null
