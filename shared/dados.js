@@ -2332,7 +2332,9 @@ export const totemMaisPerto = (x, z) => TOTENS.lista.reduce((m, t) => (!m || Mat
 // base mesmo, sem raio de segurança"): os retângulos de cada base (o centro no nível de agora e os lotes abertos, sem
 // folga em volta), refeitos por Base.refazerBases (shared/base.js). Valem as mesmas regras do totem (abaixo).
 export const AREAS_SEGURAS_BASE = [];
-export const naBaseSegura = (x, z) => AREAS_SEGURAS_BASE.some((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1);
+// bases sem lenha (DESPENSA.lenha): a chave B.k; deixam de ser área segura até a lenha chegar (shared/cla.js)
+export const BASES_FRIAS = new Set();
+export const naBaseSegura = (x, z) => AREAS_SEGURAS_BASE.some((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1 && !BASES_FRIAS.has(r.k));
 // dentro da área segura de algum totem (ou de uma base de clã)?
 export const naAreaSegura = (x, z) => TOTENS.lista.some((t) => Math.abs(t.x - x) < TOTENS.seguro && Math.abs(t.z - z) < TOTENS.seguro && Math.hypot(t.x - x, t.z - z) < TOTENS.seguro) || naBaseSegura(x, z);
 // ---------- Mini vilas do mundo grande (história v2, Entrega 3; André 2026-11-11) ----------
@@ -3449,6 +3451,32 @@ export const CLA = {
       { centro: 34, lotes: 6, raio: 65, taxa: 9000, tem: 'Castelo' },
     ],
   },
+};
+// Despensa e lenha do clã (André 2026-11-24: "um esquema tipo Age of Empires... um custo de comida também... que eu
+// tivesse que farmar com os bots para manter o clã"; aprovou A + B, para ele e para os bots). Soma ao ouro da semana
+// (nada some). shared/cla.js passoDespensa.
+// - Comida: a comida do Baú do Clã é a despensa. Cada morador (líder + recrutas; clã bot: líder + fixos + recrutas) come
+//   porDia rações por dia, um pouco por hora; a partir do (extra.de + 1)º morador cada um come extra.por a mais.
+// - racao: quanto cada comida vale. Cozinhar rende mais (o fogão tem função). Come primeiro o mais simples (peixe cru,
+//   horta) e guarda os pratos. Fora da lista (dourado e o resto) nunca é comido.
+// - Despensa vazia: castigo leve, ninguém vai embora por fome. fome[]: a partir de 'h' horas sem comida, os recrutas
+//   ficam com 'nome' (dano e XP x (1 + mult); vigor: fração da volta do vigor). Chegou comida, volta na hora.
+// - bem: despensa com 'dias' de estoque e 'tipos' comidas diferentes: os recrutas ficam Bem alimentados (+mult).
+// - lenha: a base gasta lenha do Baú do Clã por semana (índice = nível da base). Sem lenha a base fica fria: deixa de ser
+//   área segura (torre e paliçada sem fogo não defendem). O Baú continua abrindo. Chegou lenha, volta na hora.
+// - bots: o líder bot manda buscar comida e lenha quando o estoque baixa de 'dias'; 'esquece' é a chance de esquecer na
+//   rodada de ordens (nunca com fome/frio). Com fome ou frio há mais de 'compraH' horas, ele compra com o ouro dele
+//   (preço: venda x 'compraK') para o clã nunca travar.
+export const DESPENSA = {
+  ligado: true,
+  porDia: 3, extra: { de: 3, por: 0.05 },
+  racao: { lambari: 1, sardinha: 1, tilapia: 1, traira: 2, robalo: 2, garoupa: 3, atum: 4, carne: 1,
+    rabanete: 1, cenoura: 1, batata: 1, tomate: 1, milho: 1, abobora: 2,
+    carne_assada: 3, peixe_assado: 3, sopa_legumes: 3, pao_milho: 3, ensopado: 5, torta_abobora: 5 },
+  fome: [{ h: 0, nome: 'Com fome', mult: -0.10, vigor: 1 }, { h: 48, nome: 'Famintos', mult: -0.25, vigor: 0.5 }],
+  bem: { dias: 2, tipos: 3, mult: 0.05, nome: 'Bem alimentados' },
+  lenha: [0, 20, 40, 70, 110, 150, 200],
+  bots: { dias: 1.5, esquece: 0.1, compraH: 6, compraK: 3, comida: 'tilapia' },
 };
 // Ficha do recruta (André 2026-11-23: "aparecem 3 recrutas... corajoso, preferência magia... cuidadoso, preferência
 // guerreiro, e eu escolho entre 3"; "e dependendo da preferência eles focam o status em inteligência em vez de STR").
