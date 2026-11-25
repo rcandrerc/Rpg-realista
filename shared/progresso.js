@@ -542,6 +542,14 @@ export const cabeNaBarra = (id, barra) => !!HABS[id] && !HABS[id].basico && (HAB
 
 // Usos para subir a skill do nível nv para nv+1
 export const usosParaSubir = (nv) => 6 + 4 * nv;
+// cor do Tomo, como no jogo (progresso.gd estado_tomo): 0 cinza = não precisa mais, 1 verde = usa agora, 2 laranja = vai precisar
+export const COR_TOMO = ['#8a8a8a', '#5fd35a', '#ff9a3c'];
+export function estadoTomo(prog, it) {
+  const h = HABS[it?.h]; if (!h || !it.nv) return 0;
+  const s = prog?.habs?.[it.h] || {}, nv = s.nv || 1;
+  if (nv >= it.nv || nv >= (h.max || SKILL_MAX)) return 0;
+  return (prog?.nivel || 1) >= (h.libera || 0) && nv === it.nv - 1 && (s.uso || 0) >= usosParaSubir(nv) ? 1 : 2;
+}
 
 // Números da skill no nível dela, como no Quimera: dano +18% (Lm), recarga -6% e cada campo de nv somado por nível
 export function habNoNivel(id, nv) {

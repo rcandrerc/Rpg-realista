@@ -88,6 +88,10 @@ try {
   await esperar(800);
   const L = leiloes.at(-1);
   ok(L && Array.isArray(L.lista) && Array.isArray(L.meus) && L.lista.every((a) => !('conta' in a) && a.nome), `leilão no painel: anúncios sem a conta de ninguém (${L?.lista?.length})`);
+  await esperar(1000); p.send('painel', { acao: 'leilao', texto: 'POCÃO' });
+  await esperar(1700);
+  const L2 = leiloes.at(-1);
+  ok(L2 !== L && L2.lista.length > 0 && L2.lista.every((a) => /po[cç][aã]o/i.test(a.nome)), `busca sem acento nem maiúscula: "POCÃO" acha poções (${L2?.lista?.length})`);
   ok(typeof ultima(p).push?.pub === 'string' && ultima(p).push.on === 0, 'o painel recebe a chave dos avisos');
   p.send('painel', { acao: 'push', sub: { endpoint: 'https://exemplo.invalid/roubar', keys: { p256dh: 'x', auth: 'y' } } });
   await esperar(800);

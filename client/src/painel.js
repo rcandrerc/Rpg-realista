@@ -75,7 +75,7 @@ function ligar(s) {
   sala = s; tentativas = 0;
   estado('Online', 'on');
   s.onMessage('painel', (d) => { info = d; desenhar(); if (d.aviso) aviso(d.aviso); });
-  s.onMessage('painelLeilao', (d) => { leilaoInfo = d; if (aba === 'leilao') desenharLeilao(); });
+  s.onMessage('painelLeilao', (d) => { leilaoInfo = d; if (aba === 'leilao') desenharLeilao(!!leilaoTopo && leilaoTopo.isConnected); }); // a resposta só troca a lista (o campo da busca fica)
   s.onLeave((codigo) => {
     sala = null;
     if (codigo === 4001) { parado = true; estado('Aberto em outro lugar', 'caiu'); aviso('O painel foi aberto em outro aparelho ou aba.'); return; }
@@ -212,8 +212,12 @@ function cartaoSobe(S) {
 
 // ---------- Leilão (André 2026-11-24: "ver o leilão pelo próprio negócio"): só olhar. Comprar e anunciar continuam
 // com o Otávio, no jogo (a regra de ir até a Casa do Comércio não muda). Cada anúncio é o ícone com o preço embaixo.
-let leilaoTipo = '', leilaoOrdem = 'barato';
-const pedirLeilao = () => pedir({ acao: 'leilao', tipo: leilaoTipo || undefined, ordem: leilaoOrdem });
+let leilaoTipo = '', leilaoOrdem = 'barato', leilaoTexto = '', leilaoT = 0;
+const pedirLeilao = () => pedir({ acao: 'leilao', tipo: leilaoTipo || undefined, ordem: leilaoOrdem, texto: leilaoTexto.trim() || undefined });
+// busca por parte do nome (André 2026-11-24): sem diferenciar maiúscula nem acento ("minerio" acha "Minério")
+const semAcento = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+const buscaUi = el('input'); buscaUi.type = 'search'; buscaUi.placeholder = 'Buscar item pelo nome'; buscaUi.className = 'busca';
+buscaUi.oninput = () => { leilaoTexto = buscaUi.value; desenharLeilao(true); clearTimeout(leilaoT); leilaoT = setTimeout(pedirLeilao, 500); }; // filtra na hora, pede ao servidor depois de parar de digitar
 const resta = (ms) => { const h = Math.max(0, Math.round(ms / 3600e3)); return h >= 1 ? `${h} h` : 'menos de 1 h'; };
 function iconeAnuncio(a, agora) {
   const d = el('div', 'ico qtd preco'), q = el('div', 'q');
@@ -221,21 +225,27 @@ function iconeAnuncio(a, agora) {
   q.append(desenhoItem(a.item.k, a.nome || a.item.k, a.cor));
   if ((a.item.n | 0) > 1) q.append(el('b', null, num(a.item.n)));
   d.title = a.nome;
-  d.onclick = () => aviso(`${a.item.n > 1 ? a.item.n + ' ' : ''}${a.nome}${a.rar ? ` (${a.rar})` : ''} · ${a.preco} de ouro · ${a.casa ? 'da Casa' : a.vendedor}${a.casa ? '' : ` · acaba em ${resta(a.ate - agora)}`}`);
+  d.onclick = () => aviso(`${a.item.n > 1 ? a.item.n + ' ' : ''}${a.nome}${a.rar ? ` (${a.rar})` : ''}${a.tomo != null ? ` (${['não precisa mais', 'dá para usar agora', 'vai precisar'][a.tomo]})` : ''} · ${a.preco} de ouro · ${a.casa ? 'da Casa' : a.vendedor}${a.casa ? '' : ` · acaba em ${resta(a.ate - agora)}`}`);
   d.append(q, el('small', null, num(a.preco)));
   return d;
 }
-function desenharLeilao() {
-  const raiz = $('leilaoAba'); limpar(raiz);
-  const top = el('div', 'card'), ch = el('div', 'chips');
+let leilaoTopo = null;
+function desenharLeilao(soLista = false) { // soLista: digitando na busca (o campo não sai da tela e o teclado não fecha)
+  const raiz = $('leilaoAba');
+  if (soLista && leilaoTopo) { while (raiz.lastChild !== leilaoTopo) raiz.removeChild(raiz.lastChild); return listaLeilao(raiz); }
+  limpar(raiz);
+  const top = leilaoTopo = el('div', 'card'), ch = el('div', 'chips');
   for (const [k, nome] of [['', 'Tudo'], ...Object.entries(leilaoInfo?.tipos || {})]) {
     const b = el('button', leilaoTipo === k ? 'ativo' : '', nome); b.onclick = () => { leilaoTipo = k; desenharLeilao(); pedirLeilao(); }; ch.append(b);
   }
   const ord = el('select'); for (const [v, t] of [['barato', 'Mais barato'], ['caro', 'Mais caro'], ['novo', 'Mais novo']]) ord.append(opcao(v, t, leilaoOrdem === v));
   ord.onchange = () => { leilaoOrdem = ord.value; pedirLeilao(); };
   const linha = el('div', 'ordem'); linha.append(ord);
-  top.append(ch, linha, el('div', 'faz', 'Só para olhar: comprar e anunciar é com o Otávio, na Casa do Comércio. Toque num item para ver quem vende.'));
+  top.append(buscaUi, ch, linha, el('div', 'faz', 'Só para olhar: comprar e anunciar é com o Otávio, na Casa do Comércio. Toque num item para ver quem vende.'));
   raiz.append(top);
+  listaLeilao(raiz);
+}
+function listaLeilao(raiz) {
   if (!leilaoInfo) { raiz.append(el('div', 'vazio', 'Carregando o leilão…')); return; }
   const agora = leilaoInfo.agora || Date.now();
   const meus = el('div', 'card'); meus.append(el('div', 'nome', 'Seus anúncios'));
@@ -243,8 +253,9 @@ function desenharLeilao() {
   else { const f = el('div', 'icones'); for (const a of leilaoInfo.meus) f.append(iconeAnuncio(a, agora)); meus.append(f); }
   raiz.append(meus);
   const c = el('div', 'card'); c.append(el('div', 'nome', 'À venda'));
-  if (!leilaoInfo.lista.length) c.append(el('div', 'faz', 'Nada nessa busca.'));
-  else { const f = el('div', 'icones'); for (const a of leilaoInfo.lista) f.append(iconeAnuncio(a, agora)); c.append(f); }
+  const t = semAcento(leilaoTexto), lista = t ? leilaoInfo.lista.filter((a) => semAcento(a.nome).includes(t)) : leilaoInfo.lista;
+  if (!lista.length) c.append(el('div', 'faz', 'Nada nessa busca.'));
+  else { const f = el('div', 'icones'); for (const a of lista) f.append(iconeAnuncio(a, agora)); c.append(f); }
   raiz.append(c);
 }
 
@@ -326,7 +337,7 @@ let vilaMapa = null;
     const gr = g.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = gr; g.fillRect(0, 0, T, T);
   }
   vilaMapa = c; if (aba === 'mapa') desenharMapa();
-}; im.src = 'painel-vila.jpg'; }
+}; im.src = 'painel-vila.png'; }
 let vista = null; // { cx, cz, span } quando a pessoa mexeu no mapa; null = ajusta sozinho
 const limitar = (v) => { v.span = Math.max(ZOOM.min, Math.min(ZOOM.max, v.span)); v.cx = Math.max(MUNDO.x0, Math.min(MUNDO.x0 + MUNDO.w, v.cx)); v.cz = Math.max(MUNDO.z0, Math.min(MUNDO.z0 + MUNDO.h, v.cz)); return v; };
 let quadro = null; // a vista do último desenho (para o zoom e o arrasto partirem dela)

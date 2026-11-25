@@ -24,7 +24,9 @@ gx = (np.roll(hs, -1, 1) - np.roll(hs, 1, 1)) / (2 * passo); gx[:, 0] = gx[:, -1
 gz = (np.roll(hs, -1, 0) - np.roll(hs, 1, 0)) / (2 * passo); gz[0, :] = gz[-1, :] = 0
 incl = np.sqrt(gx * gx + gz * gz)
 luz = np.clip(0.95 - (gx + gz) * 0.4, 0.68, 1.2)
-cor = lerp(c8(96, 138, 72), c8(150, 156, 108), np.clip(h / 60, 0, 1))
+# o chão baixo começa já no meio do caminho do verde para o oliva: a Vila (chão plano, altura 0) não vira uma mancha
+# verde viva no meio do resto (André 2026-11-24: "queria tudo da mesma cor")
+cor = lerp(c8(96, 138, 72), c8(150, 156, 108), 0.6 + 0.4 * np.clip(h / 60, 0, 1))
 cor = lerp(cor, c8(128, 120, 106), np.where(incl > 0.7, np.clip((incl - 0.7) * 1.5, 0, 0.8), 0))
 fundo = h < 0
 perto = np.zeros_like(fundo)
