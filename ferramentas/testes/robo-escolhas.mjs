@@ -33,3 +33,30 @@ ok(!listaMudou(velha, { p: 2, u: 'e2' }) && !listaMudou(nova, { p: 3, u: 'e2' })
 ok(listaMudou(velha, { p: 3, u: 'e2' }), 'servidor com missão nova no meio: o robô percebe e não lê a e6 no lugar da e3');
 ok(listaMudou(velha, { p: 5, u: 'e6' }), 'servidor com mais missões que o robô: não zera a história');
 ok(!listaMudou(velha, { p: 0 }) && !listaMudou(velha, null) && !listaMudou(velha, { p: 2 }), 'começo da história, sem história ou save sem u: nunca dá lista mudada');
+
+// Ronda 2026-11-25: o robô 1 passou o dia no Nv 74 em Vael (campo máximo Nv 48) com a Aurora aberta. Sem campo do nível
+// na terra dele, vai de totem (já visitado) para a terra que tem; sem totem de lá, diz o que falta
+import { CACA, TOTENS } from '../../shared/index.js';
+import { terraDoCampo, terraEm, totemDaTerra, outraTerraParaCacar, GANHO_OUTRA_TERRA } from '../robo/robo-escolhas.mjs';
+const terraDoTotem = (id) => { const t = TOTENS.lista.find((o) => o.id === id); return t ? terraEm(CACA, t.x, t.z) : '?'; };
+ok(['clareira', 'rio_claro', 'juncos', 'porto_vael', 'pouso_serra'].every((id) => terraDoTotem(id) === 'vael') && terraDoTotem('ilha') === 'ilha'
+  && ['aurora', 'posto_leste', 'ultimo_pouso'].every((id) => terraDoTotem(id) === 'aurora'), 'cada totem cai na terra certa (Vael, Ilha do Meio, Aurora)');
+ok(['vael', 'ilha', 'aurora'].every((T) => CACA.some((c) => !c.boss && terraDoCampo(c) === T)), 'as três terras têm campo de caça pelo nome');
+const deTerra = (T) => TOTENS.lista.filter((t) => terraEm(CACA, t.x, t.z) === T).map((t) => t.id);
+const aguenta = (nv) => (c) => !c.boss && (c.nivel || 1) <= nv && !/^Covil/.test(c.nome || '');
+const aberto = () => false;
+const o74 = outraTerraParaCacar({ minha: 'vael', campos: CACA, totens: TOTENS.lista, visitados: [...deTerra('vael'), ...deTerra('ilha'), ...deTerra('aurora')], ok: aguenta(74), fechado: aberto });
+const maisPerto = (c, ids) => ids.map((id) => TOTENS.lista.find((t) => t.id === id)).sort((a, b) => Math.hypot(a.x - c.x, a.z - c.z) - Math.hypot(b.x - c.x, b.z - c.z))[0];
+ok(o74 && !o74.semTotem && o74.terra === 'aurora' && o74.campo.nivel === 74 && o74.totem.id === maisPerto(o74.campo, deTerra('aurora')).id,
+  `Nv 74 em Vael com os totens visitados: vai caçar no campo Nv 74 da Aurora pelo totem mais perto dele (${o74?.totem?.id})`);
+const sem = outraTerraParaCacar({ minha: 'vael', campos: CACA, totens: TOTENS.lista, visitados: deTerra('vael'), ok: aguenta(74), fechado: aberto });
+ok(sem?.semTotem && sem.terra === 'aurora' && sem.campo.nivel === 74 && !sem.totem, 'sem totem da Aurora visitado: não viaja e diz qual terra teria o campo (para anotar o que falta)');
+const nevoa = outraTerraParaCacar({ minha: 'vael', campos: CACA, totens: TOTENS.lista, visitados: [...deTerra('vael'), ...deTerra('aurora')], ok: aguenta(74), fechado: (t) => deTerra('aurora').includes(t.id) });
+ok(nevoa?.semTotem && nevoa.terra === 'aurora', 'totem da Aurora na névoa conta como sem totem');
+const ilha = outraTerraParaCacar({ minha: 'vael', campos: CACA, totens: TOTENS.lista, visitados: [...deTerra('vael'), ...deTerra('ilha')], ok: aguenta(74), fechado: aberto });
+ok(ilha && !ilha.semTotem && ilha.terra === 'ilha' && ilha.campo.nivel === 64, 'só a Ilha visitada: vai para o campo Nv 64 da Ilha do Meio (melhor que o Nv 48 de Vael)');
+ok(!outraTerraParaCacar({ minha: 'aurora', campos: CACA, totens: TOTENS.lista, visitados: TOTENS.lista.map((t) => t.id), ok: aguenta(74), fechado: aberto }), 'já na Aurora: o campo Nv 74 de lá basta, não viaja');
+const pouco = outraTerraParaCacar({ minha: 'vael', campos: CACA, totens: TOTENS.lista, visitados: TOTENS.lista.map((t) => t.id), ok: aguenta(53), fechado: aberto });
+ok(GANHO_OUTRA_TERRA === 6 && !pouco, `Nv 53: a Ilha (Nv 52) não ganha ${GANHO_OUTRA_TERRA} níveis sobre Vael (Nv 48), fica`);
+const volta = totemDaTerra(TOTENS.lista, CACA, 'vael', deTerra('vael'), aberto, 0, 0);
+ok(volta && terraDoTotem(volta.id) === 'vael' && !totemDaTerra(TOTENS.lista, CACA, 'ilha', deTerra('vael'), aberto, 0, 0), 'volta para Vael pelo totem de lá; para a Ilha sem visitar, nenhum');
