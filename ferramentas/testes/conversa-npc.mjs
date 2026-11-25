@@ -129,6 +129,10 @@ ok(/jogadora de MMORPG/.test(sc) && /farmar/.test(sc) && /DG/.test(sc) && /Nada 
 ok(/Você é mulher: fale de si no feminino/.test(sc) && /jogador de MMORPG/.test(sd) && /Você é homem: fale de si no masculino/.test(sd), 'Cecília no feminino, Dario no masculino');
 
 // André 2026-11-13: "ele acabou de me negar, aí eu falo mais duas palavras, aí do nada ele me chama pra ir caçar"
+// O humor de caçar é do jeito de amiga (soldado desligado). Com o soldado (o jogo hoje), a Cecília é da Guarda da Chama e
+// nunca entra no time de outro (André 2026-11-25): a IA recebe essa regra, conferida no fim deste bloco e em soldado-time.mjs
+const { NPC_SOLDADO } = await import('../../shared/dados.js');
+NPC_SOLDADO.ligado = false;
 {
   const aj2 = s.jogadores.get('andre'); aj2.time = null; cec.amiga.time = null; cec.amiga.ia.combinado = 0; cec.amiga.ia.chamado = null;
   cec.amiga.ia.humor = null; cec.amiga.ia.recusaAte = 0;
@@ -145,4 +149,10 @@ ok(/Você é mulher: fale de si no feminino/.test(sc) && /jogador de MMORPG/.tes
   s.tempo += 100;
   ok(cec.decisaoTimeAmiga(cec.amiga, aj2).aceita === false && /ACABOU DE RECUSAR/.test((pedidos.length = 0, await pensarAmiga(cec.contextoAmiga('andre'), 'beleza', 'chave-de-teste'), pedidos[0].messages[0].content)), 'duas falas depois ela ainda lembra que recusou');
   cec.amiga.ia.humor = null; cec.amiga.ia.recusaAte = 0;
+}
+NPC_SOLDADO.ligado = true;
+{
+  pedidos.length = 0; respostas = [];
+  await pensarAmiga(cec.contextoAmiga('andre'), 'bora pro time?', 'chave-de-teste');
+  ok(/NUNCA entra no time de .* \(você é do clã Guarda da Chama/.test(pedidos[0]?.messages[0].content || ''), 'soldado: a IA sabe que nunca entra no time e o motivo de verdade (André 2026-11-25)');
 }
