@@ -132,7 +132,7 @@ const opcao = (v, t, sel) => { const o = el('option', null, t); o.value = v; if 
 function cartaoMembro(m) {
   const c = el('div', 'card' + (m.on ? '' : ' fora') + (m.cheia ? ' cheio' : ''));
   const l = el('div', 'linha'), n = el('div', 'nome', m.nome);
-  n.append(el('span', 'tag', m.tier)); if (m.dev) n.append(el('span', 'tag', 'devendo')); if (m.cheia) n.append(el('span', 'tag cheio', 'Mochila cheia'));
+  n.append(el('span', 'tag', m.tier)); if (m.dev) n.append(el('span', 'tag', 'devendo')); if (m.cheia) n.append(el('span', 'tag cheio', 'Mochila cheia')); else if (m.mo) n.append(lugaresTag('Mochila', m.mo));
   l.append(n, el('div', 'nv', `Nv ${m.nv}`)); c.append(l);
   c.append(el('div', 'faz', m.on ? (m.morto ? 'Caído' : m.fz || '') : 'Fora do mundo'));
   if (m.on) { const b = el('div', 'barras'); b.append(barra('Vida', m.hp, m.hpM, 'var(--hp)'), barra('Vigor', m.vg, m.vgM, 'var(--vg)')); c.append(b); }
@@ -189,10 +189,13 @@ function iconeQtd(it) { // só a quantidade (o Baú do Clã)
   d.append(q, el('small', null, num(it.n)));
   return d;
 }
-function cartaoBau(itens, cheio) {
+// "Mochila 40/60": perto de encher (80%+) fica laranja; cheio continua vermelho (tag cheio)
+function lugaresTag(rot, [u, t]) { return el('span', 'tag' + (u >= t ? ' cheio' : u >= t * 0.8 ? ' quase' : ''), `${rot} ${u}/${t}`); }
+function cartaoBau(itens, cheio, lug) {
   const c = el('div', 'card' + (cheio ? ' cheio' : '')), l = el('div', 'linha'), n = el('div', 'nome', 'Baú do Clã');
   if (cheio) n.append(el('span', 'tag cheio', 'Cheio'));
   l.append(n, el('div', 'nv', itens ? `${itens.length} tipos` : '')); c.append(l);
+  if (lug) { const q = el('div', 'faz'); q.append(lugaresTag('Lugares', lug)); c.append(q); }
   if (!itens) { c.append(el('div', 'faz', 'Sem Baú do Clã: funde a base do clã ou crie um baú na construção.')); return c; }
   if (!itens.length) { c.append(el('div', 'faz', 'Vazio.')); return c; }
   const f = el('div', 'icones'); for (const it of itens) f.append(iconeQtd(it)); c.append(f);
@@ -295,7 +298,7 @@ function desenharCla() {
   t.append(opcaoAvisos());
   raiz.append(t);
   if (info.sobe) raiz.append(cartaoSobe(info.sobe));
-  if ('bau' in info) raiz.append(cartaoBau(info.bau, info.bauCheio));
+  if ('bau' in info) raiz.append(cartaoBau(info.bau, info.bauCheio, info.bauLug));
   if (!info.m.length) raiz.append(el('div', 'vazio', 'Nenhum recruta ainda. Contrate no Recrutador, no jogo.'));
   for (const m of info.m) raiz.append(cartaoMembro(m));
 }
@@ -371,7 +374,7 @@ function desenharMapa() {
   for (const m of info.m || []) if (m.on && Number.isFinite(m.x)) pts.push({ x: m.x, z: m.z, cor: '#f2b84b', nome: m.nome, r: 6 });
   if (info.eu) pts.push({ x: info.eu.x, z: info.eu.z, cor: '#ffffff', nome: 'Você', r: 6 });
   const bots = ler('painelBots') === '1';
-  if (bots) for (const C of info.clas || []) if (Number.isFinite(C.x)) pts.push({ x: C.x, z: C.z, cor: C.raca === 'Geada' ? '#6fb3e6' : '#e0663a', nome: C.lider, r: 5, losango: true });
+  if (bots) for (const C of info.clas || []) if (Number.isFinite(C.x)) pts.push({ x: C.x, z: C.z, cor: C.inimigo ? '#ff3b30' : C.raca === 'Geada' ? '#6fb3e6' : '#e0663a', nome: C.lider, r: 5, losango: true });
   $('mapaBots').checked = bots;
   if (!vista) { // ajusta sozinho a quem está no mundo
     const base = pts.length ? pts : [{ x: 0, z: 0 }];

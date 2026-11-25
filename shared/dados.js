@@ -3329,6 +3329,7 @@ export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
 // tiers: preco = fixo + porNivel × nível do recruta; semana = fixo + porNivel × nível ATUAL do recruta (sobe com ele).
 // nivel: 'um' (Nv 1), 'metade' (metade do nível do líder), 'igual' (o nível do líder).
 export const CLA = {
+  painelVer: 40, // painel do clã: líder da outra raça (Geada) só aparece no mapa a até 40 m de você ou de um recruta seu (como o minimapa)
   nome: { min: 3, max: 20 },
   // queda de conexão ou servidor reiniciando no meio do caminho (André 2026-11-23: "no mar eles saem do meu time e somem do
   // mapa"): quem estava no time do líder e ele volta em até voltaTime s, volta para o time e do lado dele

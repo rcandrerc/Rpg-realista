@@ -2,7 +2,7 @@
 // estivesse online". Sem corpo no mundo: a página conta como gente online (genteOnline), os recrutas ficam no mundo
 // fazendo a ordem, a ordem pela página passa pelas mesmas regras do painel do jogo e o tempo fora conta certo.
 // Uso: node ferramentas/testes/painel-cla.mjs
-import { Simulacao, MAPA_CLAREIRA, CLA } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, CLA, CLAS_NPC } from '../../shared/index.js';
 import { sortearRecruta } from '../../shared/cla.js';
 import './_tudo-aberto.mjs';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
@@ -78,6 +78,17 @@ ok(!r.ok && /venceu/.test(r.texto), 'semana vencida: ordem pelo painel recusada'
 ok(s.painelInfo(conta, venc, 'chama').vencida === 1, 'a página avisa da semana vencida');
 const inf2 = s.painelInfo(conta, cla, 'chama');
 ok(inf2.clas.every((C) => !C.inimigo || C.x == null), 'sem o lugar do líder inimigo');
+{ // Geada só perto (40 m) de um recruta; aliado de longe (André 2026-11-25)
+  const i = CLAS_NPC.findIndex((C) => C.raca !== 'chama'), a = CLAS_NPC.findIndex((C) => C.raca === 'chama'), x = noMundo()[0]?.amiga;
+  const B = { x: 0, z: 0, vida: 1, prog: {} }, A = { x: 5000, z: 5000, vida: 1, prog: {} }, orig = s.liderNpc; // corpos de mentira (sem bots aqui)
+  s.liderNpc = (C) => (C === CLAS_NPC[i] ? B : C === CLAS_NPC[a] ? A : null);
+  if (B && x) {
+    B.x = x.x + 300; B.z = x.z; ok(s.painelInfo(conta, cla, 'chama').clas[i].x == null, 'líder Geada longe: sem lugar');
+    B.x = x.x + 20; B.z = x.z; ok(Number.isFinite(s.painelInfo(conta, cla, 'chama').clas[i].x), 'líder Geada a 20 m de um recruta: aparece');
+  } else ok(false, `faltou o líder Geada (${!!B}) ou um recruta no mundo (${!!x})`);
+  if (a >= 0) ok(Number.isFinite(s.painelInfo(conta, cla, 'chama').clas[a].x), 'aliado (Chama) aparece de longe');
+  s.liderNpc = orig;
+}
 // próximo nível e Baú do Clã em ícones (André 2026-11-24: "o que precisa para o próximo nível e o que a gente tem" e
 // "mostrar inventário do clã")
 {
@@ -107,6 +118,7 @@ ok(inf2.clas.every((C) => !C.inimigo || C.x == null), 'sem o lugar do líder ini
   const C = s.cheiosCla(conta), i4 = s.painelInfo(conta, cla, 'chama');
   ok(C.recrutas.includes(x.AMIGA.nome) && C.bau, 'cheiosCla acha a mochila e o baú cheios');
   ok(i4.m.find((m) => m.id === x.AMIGA.id)?.cheia === 1 && i4.bauCheio === 1, 'o painel marca a mochila e o baú cheios');
+  { const mm = i4.m.find((m) => m.id === x.AMIGA.id); ok(Array.isArray(mm?.mo) && mm.mo[0] === mm.mo[1] && mm.mo[1] > 0 && Array.isArray(i4.bauLug) && i4.bauLug[0] === i4.bauLug[1], `lugares ocupados/total no painel (mochila ${mm?.mo}, baú ${i4.bauLug})`); }
   x.amiga.prog.mochila = velhaM; s.bauDoCla = velhoB;
   ok(!s.cheiosCla(conta).recrutas.length, 'com lugar livre não marca');
 }
