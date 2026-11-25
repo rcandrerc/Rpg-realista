@@ -205,7 +205,7 @@ class SalaClareira extends Room {
     };
     this.sim.aoAnuncioTela = (ev) => { for (const s of salas) s.sim.evento({ ...ev }); }; // bosses de mundo: faixa na tela, fora do chat
     this.ouvir('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
-    this.ouvir('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) this.sim.usarHabilidade(c.sessionId, i); });
+    this.ouvir('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) { if (c.userData?.leve) this.sim.leveParar(c.sessionId, null); this.sim.usarHabilidade(c.sessionId, i); } }); // modo leve: golpear para a caminhada
     this.ouvir('build', (c, b) => { this.sim.definirBuild(c.sessionId, b); if (contas && c.auth) contas.salvarBuild(c.auth.id, b); });
     // skills do Quimera (shared/progresso.js): usar, as duas barras de 6 botões e os pontos de atributo
     this.ouvir('habQ', (c, k) => {
@@ -222,7 +222,7 @@ class SalaClareira extends Room {
     this.ouvir('cla', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) this.sim.cla(c.sessionId, { acao: m.acao, nome: typeof m.nome === 'string' ? m.nome.slice(0, 40) : null, tier: typeof m.tier === 'string' ? m.tier.slice(0, 12) : null, id: typeof m.id === 'string' ? m.id.slice(0, 20) : null, ouro: Number(m.ouro) || 0, ...(Number.isFinite(+m.x) && Number.isFinite(+m.z) && m.x != null && m.z != null ? { x: +m.x, z: +m.z } : {}), mudar: m.mudar === true, ...(Number.isInteger(+m.esc) && +m.esc >= 0 && +m.esc < 10 ? { esc: +m.esc } : {}) /* o candidato escolhido (André 2026-11-24: sem isso o servidor sorteava outro recruta: "Flora Brasa virou Bento Fogo") */, fn: m.fn && typeof m.fn === 'object' ? { k: String(m.fn.k || '').slice(0, 12), r: String(m.fn.r || '').slice(0, 12), p: String(m.fn.p || '').slice(0, 20), s: String(m.fn.s || '').slice(0, 16) } : null }); });
     this.ouvir('item', (c, m) => this.sim.item(c.sessionId, m)); // mochila: equipar, tirar, usar, comprar, vender
     // modo leve (André 2026-11-25, shared/leve.js): a aba Jogar do painel manda o destino e o servidor anda o herói
-    this.ouvir('leveIr', (c, m) => { if (c.userData?.leve && m && typeof m === 'object') this.sim.leveIr(c.sessionId, { x: m.x, z: m.z, nome: m.nome }); });
+    this.ouvir('leveIr', (c, m) => { if (c.userData?.leve && m && typeof m === 'object') this.sim.leveIr(c.sessionId, { x: m.x, z: m.z, nome: m.nome, ...(typeof m.alvo === 'string' && /^e\d{1,9}$/.test(m.alvo) ? { alvo: m.alvo } : {}) }); });
     this.ouvir('leveParar', (c) => { if (c.userData?.leve) this.sim.leveParar(c.sessionId); });
     this.ouvir('leveReceitas', (c, m) => { if (c.userData?.leve) { c.userData.leveRc = m?.ver !== false; c.userData.leveRcTxt = ''; } }); // Criar da página leve: só manda as receitas enquanto o cartão está aberto
     this.ouvir('leveMapa', (c) => { const j = c.userData?.leve && this.sim.jogadores.get(c.sessionId); if (j) c.send('leveMapa', this.sim.leveMapa(j)); });
