@@ -29,7 +29,7 @@ ok(!!M && a.pvp?.M === M, 'depois da espera a partida começa');
 const vidaAntes = a.pvp.de.vida; a.pvp.de.vida = Math.round(a.vidaMax * 0.6);
 const chama = M.ids.filter((id) => s.jogadores.get(id).pvp.time === 'chama'), geada = M.ids.filter((id) => s.jogadores.get(id).pvp.time === 'geada');
 ok(chama.length === 4 && geada.length === 4, `NPCs completam 4x4 (${chama.length}x${geada.length})`);
-ok(geada.every((id) => ['kira', 'rufo', 'lis', 'gael', 'kael'].includes(s.amigoIaDe(s.jogadores.get(id))?.AMIGA.id)), 'Geada sorteada entre Kira, Rufo, Lis, Gael e Kael');
+ok(geada.every((id) => ['kira', 'rufo', 'lis', 'gael', 'kael', 'varek'].includes(s.amigoIaDe(s.jogadores.get(id))?.AMIGA.id)), 'Geada sorteada entre Kira, Rufo, Lis, Gael, Kael e Varek');
 ok(Math.hypot(a.x - A.x, a.z - A.z) < A.r && a.vida === a.vidaMax, 'foi para a arena com a vida cheia');
 ok(evs((e) => e.t === 'corrigir' && e.para === 'a').length > 0, 'o celular recebe o lugar novo');
 const k = s.jogadores.get(geada[0]);
