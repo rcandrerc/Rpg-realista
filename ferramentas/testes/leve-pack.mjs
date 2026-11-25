@@ -64,6 +64,8 @@ try {
   const joca = s.mapa.npcs.find((n) => n.id === 'm_lenha');
   ok(joca && joca.pk && joca.custo?.[0]?.[0] === 'lenha' && joca.custo[0][2] > 0, `mercador com o material do pack (${JSON.stringify(joca?.custo)})`);
   ok(eu()[9] === 1, 'a foto diz que tem pack');
+  { const sec = new Set((s.mapa.lug || []).map((o) => o[0]));
+    ok(['vilas', 'totens', 'caca', 'boss', 'recursos', 'oficinas', 'npcs', 'mercadores'].every((k) => sec.has(k)), `lista Lugares com as seções do jogo (${[...sec].join(', ')})`); }
 
   // 1) nas costas: anda devagar (x0,5 da corrida), até o Mestre Pedrão
   const pedrao = s.mapa.npcs.find((n) => n.id === 'm_pedra');

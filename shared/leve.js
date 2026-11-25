@@ -6,7 +6,9 @@
 // pago de sempre. Loja, leilão e baú usam as mesmas mensagens do jogo (item, leilao, bau), com as mesmas regras de
 // distância. Para o celular fraco: a cada LEVE.envio s vai uma foto pequena só do que está perto (fotoLeve).
 import { planejarRota, terraId } from './rota.js';
-import { ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS } from './dados.js';
+import { TUNEL } from './caverna.js';
+import { LUGARES_MUNDO } from './mundo.js';
+import { ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
 
@@ -103,7 +105,30 @@ export const Leve = {
     const L = this.loteDe?.(j);
     if (L) for (const o of L.pecas || []) if (o.k === 'bau' || o.k === 'bau_cla') baus.push({ cla: o.k === 'bau_cla' ? 1 : 0, x: r1(o.x), z: r1(o.z) });
     const bb = this.bauBase?.(this.baseDe?.(j)); if (bb) baus.push({ cla: 1, x: r1(bb.x), z: r1(bb.z) });
-    return { npcs, totens, loja, baus };
+    return { npcs, totens, loja, baus, lug: this.leveLugares(j) };
+  },
+  // a lista "Lugares" do mapa (André 2026-11-25: "menu igual do jogo real com todos os NPCs, recursos, mercadores, e
+  // sanfonado, que pudesse clicar ir para"): as mesmas seções do mapa do jogo (minimapa.gd SECOES). [seção, nome, x, z].
+  // Recursos: o mais perto de cada tipo (veio, árvore, galho, pedra solta), como no jogo; vai a cada minuto com o mapa.
+  leveLugares(j) {
+    const L = [], M = this.mapa, por = (sec, nome, x, z) => { if (Number.isFinite(x) && Number.isFinite(z)) L.push([sec, nome, r1(x), r1(z)]); };
+    const B = this.baseDe?.(j); if (B) por('vilas', 'Base do clã', B.x, B.z);
+    const lt = this.loteDe?.(j)?.def; if (lt) por('vilas', 'Sua casa', lt.x ?? (lt.x0 + lt.x1) / 2, lt.z ?? (lt.z0 + lt.z1) / 2);
+    por('vilas', 'Vila da Clareira', M.nascimento?.x, M.nascimento?.z);
+    for (const o of LUGARES_MUNDO) if (o.tipo === 'vila' || o.tipo === 'porto' || o.tipo === 'posto') por('vilas', o.nome, o.x, o.z);
+    for (const t of TOTENS.lista) por('totens', 'Totem: ' + t.nome, t.x, t.z);
+    for (const c of [...CACA].sort((a, b) => (a.nivel | 0) - (b.nivel | 0))) if (!c.tunel) por(c.boss ? 'boss' : 'caca', `${c.boss ? 'Boss ' : ''}Nv ${c.nivel | 0} ${c.nome || ''}`.trim(), c.x, c.z);
+    const boca = TUNEL?.amostras?.[0]; if (boca) por('dungeon', TUNEL.def?.nome || 'Caverna', boca.x, boca.z);
+    for (const T of TUNEIS_MUNDO) { const a = T.amostras?.[0]; if (a) por('dungeon', T.def?.nome || 'Gruta', a.x, a.z); }
+    const perto = new Map(), ver = (k, nome, o) => { const d = Math.hypot(o.x - j.x, o.z - j.z), q = perto.get(k); if (!q || d < q[0]) perto.set(k, [d, nome, o]); };
+    for (const o of M.mina || []) ver('mina_' + o.tipo, { pedra: 'Veio de pedra', cobre: 'Veio de cobre', ferro: 'Veio de ferro', cristal: 'Veio de cristal' }[o.tipo] || o.nome, o);
+    for (const o of M.mata || []) ver('arvore', 'Árvore, madeira', o);
+    for (const o of M.soltos || []) if (o.tipo === 'galho' || o.tipo === 'pedrinha') ver(o.tipo, o.tipo === 'galho' ? 'Galho no chão' : 'Pedra solta', o);
+    for (const [, nome, o] of perto.values()) por('recursos', nome + ' (mais perto)', o.x, o.z);
+    for (const o of M.lagos || []) if (o.pesca) por('pesca', o.nome, o.chegada?.[0] ?? o.x, o.chegada?.[1] ?? o.z);
+    for (const o of M.estacoes || []) por('oficinas', o.nome, o.x, o.z);
+    for (const n of M.npcs || []) por(n.funcao === 'pack' ? 'mercadores' : 'npcs', n.nome, n.x, n.z);
+    return L;
   },
   // os avisos que a página usa, mais leves e já com o nome de cada item (a página não carrega a tabela de itens)
   leveEvento(e) {

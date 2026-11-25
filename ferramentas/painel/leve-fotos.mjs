@@ -32,6 +32,12 @@ pg.on('pageerror', (e) => console.log('ERRO NA PÁGINA', e.message));
 await pg.goto(`http://127.0.0.1:${PORTA}/painel.html`);
 await pg.evaluate((s) => localStorage.setItem('sessao', s), a.sessao);
 await pg.reload(); await esperar(3000);
+const irPara = async (sec, txt) => { // a lista Lugares em sanfona: abre a seção e toca no lugar
+  const linha = pg.locator('.sanfona .linha', { hasText: txt });
+  if (!(await pg.locator('.sanfona>button.sec').count())) { await pg.locator('.sanfona .cab').click(); await esperar(800); }
+  if (!(await linha.count())) { await pg.locator('.sanfona>button.sec', { hasText: sec }).click(); await esperar(800); }
+  await linha.first().click();
+};
 await pg.click('[data-aba=jogar]'); await esperar(800);
 await pg.screenshot({ path: path.join(saida, '1-entrar.png') });
 await pg.click('text=Entrar no mundo'); await esperar(4000);
@@ -39,13 +45,13 @@ await pg.screenshot({ path: path.join(saida, '2-no-mundo.png') });
 // tempo de cada foto do servidor na CPU lenta (quanto a página trava a cada 0,5 s)
 const ms = await pg.evaluate(() => new Promise((ok) => { const t = []; const o = new PerformanceObserver((l) => { for (const e of l.getEntries()) t.push(e.duration); }); o.observe({ type: 'longtask', buffered: false }); setTimeout(() => { o.disconnect(); ok(t); }, 5000); }));
 console.log('tarefas longas (>50 ms) em 5 s com CPU 6x lenta:', ms.length, ms.map(Math.round).join(','));
-await pg.click('.chips button:has-text("Leilão")'); await esperar(2500);
+await irPara('NPCs', 'Otávio'); await esperar(2500);
 await pg.screenshot({ path: path.join(saida, '3-andando.png') });
 await pg.click('[data-aba=jogar]'); // nada; só para segurar a aba
 for (let i = 0; i < 120; i++) { if (await pg.locator('text=Otávio · Leilão').count()) break; await esperar(1000); }
 await esperar(1500);
 await pg.screenshot({ path: path.join(saida, '4-leilao.png'), fullPage: true });
-await pg.click('.chips button:has-text("Loja")');
+await irPara('NPCs', 'Rosa');
 for (let i = 0; i < 120; i++) { if (await pg.locator('text=Vender (toque no item)').count()) break; await esperar(1000); }
 await esperar(800);
 await pg.locator('#jogar .card .icones').last().locator('.ico').first().click(); await esperar(800);
