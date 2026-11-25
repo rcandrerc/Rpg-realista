@@ -3497,6 +3497,10 @@ export const MORAL = {
   perto: 40, pertoH: 15, // 15: 1 h jogando com o clã deixa todo mundo feliz (André 2026-11-25: "10 bots... jogar 1 hora e deixar todo mundo feliz")
   livreH: 3, elogio: 10, elogioH: 8, elogioPerto: 8, graca: 12, semLiderH: 1, cansaH: 3, cansaPorH: 2,
   prod: { janelaH: 2, minMin: 15 },
+  // líder bot administra a moral (André 2026-11-25: "vale para todos os bots... o próprio bot vai ter que administrar"):
+  // na rodada de ordens, quem está cansado (cansaH h seguidas) ou abaixo de 'abaixo' ganha Livre por 'descansoH' h.
+  // Às vezes esquece ('esquece'), como na Despensa. Perto dele, elogia (passoMoralNpc).
+  bots: { abaixo: 50, descansoH: 1, esquece: 0.1 },
 };
 // Ficha do recruta (André 2026-11-23: "aparecem 3 recrutas... corajoso, preferência magia... cuidadoso, preferência
 // guerreiro, e eu escolho entre 3"; "e dependendo da preferência eles focam o status em inteligência em vez de STR").

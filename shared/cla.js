@@ -109,7 +109,7 @@ function membroValido(m) {
 export function moralValida(m) {
   const ms = (v) => (Number.isFinite(+v) && +v > 0 && +v < 9e15 ? Math.round(+v) : 0), o = {};
   if (Number.isFinite(+m?.mo)) o.mo = Math.max(0, Math.min(100, Math.round(+m.mo * 100) / 100));
-  for (const k of ['mt', 'ot', 'el']) if (ms(m?.[k])) o[k] = ms(m[k]);
+  for (const k of ['mt', 'ot', 'el', 'desc']) if (ms(m?.[k])) o[k] = ms(m[k]); // desc: clã bot, descansando até
   return o;
 }
 // ---------- moral dos recrutas (MORAL, André 2026-11-25) ----------
@@ -1611,6 +1611,7 @@ export const Cla = {
     let fazenda = false, protege = 0;
     for (const m of [...E.m, ...this.membrosFixosNpc(C, E)]) {
       const x = ctxs.find((o) => o.AMIGA.id === m.id), a = x?.amiga; if (!a || a.morto) continue;
+      if (this.descansoNpc(E, m, rnd)) { if (m.fn?.k !== 'livre') { m.fn = { k: 'livre' }; mudou.push(m.id); } continue; } // moral (MORAL.bots)
       const cota = this.grindSobraBot(x, a) > 0, fraco = (a.prog.nivel | 0) <= nvL - O.abaixo, vigor = vigorDe(a.prog.vigor) >= 1;
       const op = [];
       if (cota) op.push([{ k: 'grind' }, (fraco ? 1 : 0.35) * P.grind]);
@@ -1629,6 +1630,14 @@ export const Cla = {
       if (JSON.stringify(best) !== JSON.stringify(m.fn || null)) { m.fn = best; mudou.push(m.id); }
     }
     return mudou;
+  },
+  // o líder bot dá descanso (Livre) a quem está cansado ou com a moral baixa (MORAL.bots). true: descansa agora
+  descansoNpc(E, m, rnd = Math.random, agora = Date.now()) {
+    const B = MORAL.bots, o = E.mo?.[m.id]; if (!MORAL.ligado || !o) return false;
+    if (o.desc > agora) return true;
+    const cansado = o.ot && agora - o.ot >= MORAL.cansaH * 3600e3, baixo = moralAgora({ ...o, fn: m.fn }, null, agora) < B.abaixo;
+    if (!(cansado || baixo) || rnd() < B.esquece) return false;
+    o.desc = agora + B.descansoH * 3600e3; return true;
   },
   // a função que o líder bot dá para o recruta i (como um jogador faria: metade caça, uns farmam, um guarda o líder e,
   // com terreno, um cuida da fazenda)

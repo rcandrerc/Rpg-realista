@@ -103,3 +103,11 @@ const doM = (q) => [...E.m].find((o) => o.id === q.AMIGA.id);
 E.mo = { [rb.id]: { mo: 50, mt: Date.now() - 60e3 } };
 s.passoMoralNpc(E, L, [xb], doM);
 ok(E.mo[rb.id].mo >= 60 && E.mo[rb.id].el, `clã bot: o líder perto elogia e sobe (${E.mo[rb.id].mo})`);
+// o líder bot administra: cansado ou com moral baixa ganha Livre por 1 h (às vezes esquece)
+E.mo[rb.id] = { mo: 80, mt: Date.now(), ot: Date.now() - 4 * H };
+ok(s.descansoNpc(E, rb, () => 0.5) && E.mo[rb.id].desc > Date.now(), 'clã bot: 4 h trabalhando, o líder dá descanso');
+s.ordensLiderNpc(C, E, L, [xb], false, () => 0.5);
+ok(rb.fn.k === 'livre', 'na rodada de ordens ele fica no Livre');
+E.mo[rb.id] = { mo: 30, mt: Date.now() };
+ok(!s.descansoNpc(E, rb, () => 0.01), 'às vezes o líder esquece');
+ok(s.descansoNpc(E, rb, () => 0.5), 'moral 30: descanso');
