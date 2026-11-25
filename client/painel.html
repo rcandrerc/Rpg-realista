@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Painel do Clã</title>
+<meta name="theme-color" content="#14120e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="painel.webmanifest">
+<style>
+/* Painel do clã (André 2026-11-24): página leve, sem 3D, para dar ordens e ver o clã quando não dá para jogar.
+   Tudo escuro para gastar pouca bateria; a página só conversa com o servidor a cada 30 s. */
+:root{--ink:#efe7d6;--muted:#a99e88;--line:rgba(239,231,214,.14);--card:#1c1a15;--fundo:#100f0c;--gold:#d9a54a;--hp:#b8432f;--vg:#5f9a45;--chama:#e0663a;--geada:#6fb3e6;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--fundo);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top,0) 0 calc(env(safe-area-inset-bottom,0) + 72px)}
+header{position:sticky;top:0;z-index:2;background:rgba(16,15,12,.96);border-bottom:1px solid var(--line);padding:10px 16px 0}
+.topo{display:flex;align-items:center;gap:10px;justify-content:space-between}
+h1{font-size:1.1rem;margin:0;color:var(--gold);letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sub{color:var(--muted);font-size:.82rem}
+.estado{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted);flex:none}
+.estado i{width:9px;height:9px;border-radius:50%;background:#666;display:inline-block}
+.estado.on i{background:#5fbf5a;box-shadow:0 0 6px #5fbf5a}
+.estado.caiu i{background:#d0903a}
+nav{display:flex;gap:4px;margin-top:8px;overflow-x:auto}
+nav button{flex:1;min-height:40px;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);font:600 .9rem system-ui,sans-serif;cursor:pointer;white-space:nowrap}
+nav button.ativo{color:var(--ink);border-bottom-color:var(--gold)}
+main{max-width:640px;margin:0 auto;padding:12px 16px;display:grid;gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.linha{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.nome{font-weight:700}
+.nv{color:var(--gold);font-weight:600;flex:none}
+.faz{color:var(--muted);font-size:.86rem;margin-top:2px}
+.barras{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.barra{height:6px;border-radius:3px;background:#2b2822;overflow:hidden}
+.barra b{display:block;height:100%}
+.rot{font-size:.72rem;color:var(--muted);margin-bottom:2px}
+.ordem{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center}
+select,button.acao{min-height:40px;border-radius:8px;border:1px solid var(--line);background:#26231d;color:var(--ink);font:500 .9rem system-ui,sans-serif;padding:0 10px;max-width:100%}
+select{flex:1 1 130px}
+button.acao{background:rgba(217,165,74,.18);border-color:rgba(217,165,74,.55);cursor:pointer;flex:none}
+button.acao:disabled{opacity:.5}
+.tag{display:inline-block;font-size:.72rem;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin-left:6px}
+.fora{opacity:.7}
+.card.cheio{border-color:#d9534a;box-shadow:0 0 0 1px #d9534a inset}
+.tag.cheio{color:#fff;background:#b8382f;border-color:#d9534a}
+nav button.alerta::after{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#e0483e;margin-left:6px;vertical-align:2px}
+#aviso{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom,0) + 16px);max-width:608px;margin:0 auto;background:#2c2418;border:1px solid rgba(217,165,74,.5);border-radius:10px;padding:10px 12px;z-index:5}
+#mapa{width:100%;aspect-ratio:1;border-radius:12px;border:1px solid var(--line);background:#1a3e66;display:block;touch-action:none;cursor:grab}
+.mapaCx{position:relative}
+.zoom{position:absolute;right:10px;top:10px;display:grid;gap:6px}
+.zoom button{width:44px;height:44px;border-radius:10px;border:1px solid rgba(239,231,214,.35);background:rgba(16,15,12,.82);color:var(--ink);font:600 1.4rem/1 system-ui,sans-serif;cursor:pointer}
+.zoom button:active{background:rgba(217,165,74,.35)}
+.icones{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.ico{width:52px;display:grid;justify-items:center;gap:2px;cursor:pointer}
+.ico .q{width:46px;height:46px;border-radius:8px;background:#0b0a09;border:1px solid rgba(224,128,106,.8);display:grid;place-items:center;overflow:hidden}
+.ico.ok .q{border-color:rgba(115,199,115,.8)}
+.ico img{width:38px;height:38px;object-fit:contain}
+.ico .nvb{font:700 .95rem system-ui,sans-serif;color:var(--gold)}
+.ico small{font-size:.72rem;color:#e0806a;white-space:nowrap}
+.ico.ok small{color:#7fcf7f}
+.ico.qtd .q{border-color:rgba(217,165,74,.45)}
+.ico.qtd small{color:var(--ink)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.chips button{flex:none;min-height:36px;border-radius:999px;border:1px solid var(--line);background:#26231d;color:var(--muted);font:600 .82rem system-ui,sans-serif;padding:0 12px;cursor:pointer}
+.chips button.ativo{color:var(--ink);border-color:var(--gold);background:rgba(217,165,74,.18)}
+.ico.preco small{color:var(--gold)}
+input.busca{width:100%;min-height:44px;border-radius:10px;border:1px solid var(--line);background:#0b0a09;color:var(--ink);font:500 1rem system-ui,sans-serif;padding:0 12px;margin-bottom:8px}
+input.busca:focus{outline:none;border-color:var(--gold)}
+.ico .q{position:relative}
+.ico .q b{position:absolute;right:2px;bottom:0;font:700 .66rem system-ui,sans-serif;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000}
+.legenda{display:flex;flex-wrap:wrap;gap:12px;font-size:.8rem;color:var(--muted)}
+.legenda span::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px;background:var(--c)}
+.log div{padding:6px 0;border-bottom:1px solid var(--line);font-size:.88rem}
+.log small{color:var(--muted);margin-right:6px}
+#entrar{display:grid;gap:14px;justify-items:center;text-align:center;padding:40px 16px}
+#entrar p{color:var(--muted);margin:0;max-width:420px}
+.vazio{color:var(--muted);text-align:center;padding:20px 0}
+.opc{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="topo">
+    <div style="min-width:0"><h1 id="titulo">Painel do Clã</h1><div class="sub" id="subtitulo">Age of Embers</div></div>
+    <div class="estado" id="estado"><i></i><span>Ligando…</span></div>
+  </div>
+  <nav id="abas" hidden>
+    <button data-aba="cla" class="ativo">Clã</button>
+    <button data-aba="mapa">Mapa</button>
+    <button data-aba="leilao">Leilão</button>
+    <button data-aba="bots">Clãs bot</button>
+    <button data-aba="log">Registro</button>
+  </nav>
+</header>
+<section id="entrar" hidden>
+  <h1>Painel do Clã</h1>
+  <p>Entre com a mesma conta Google do jogo. Com esta página aberta, seus recrutas contam como se você estivesse online.</p>
+  <div id="botaoEntrar"></div>
+  <p id="entrarErro"></p>
+</section>
+<main id="cla"></main>
+<main id="mapaAba" hidden>
+  <div class="mapaCx">
+    <canvas id="mapa" width="600" height="600"></canvas>
+    <div class="zoom"><button id="mapaMais" aria-label="Aproximar">+</button><button id="mapaMenos" aria-label="Afastar">−</button><button id="mapaCentro" aria-label="Centralizar no clã">◎</button></div>
+  </div>
+  <label class="opc"><input type="checkbox" id="mapaBots"> Mostrar os líderes dos clãs bot</label>
+  <div class="legenda"><span style="--c:var(--gold)">Seus recrutas</span><span style="--c:#fff">Você (no jogo)</span><span style="--c:var(--geada)">Líder Geada</span><span style="--c:var(--chama)">Líder Chama</span></div>
+</main>
+<main id="leilaoAba" hidden></main>
+<main id="bots" hidden></main>
+<main id="log" hidden></main>
+<main id="ajustes" hidden></main>
+<div id="aviso" hidden></div>
+<script type="module" src="./src/painel.js"></script>
+</body>
+</html>

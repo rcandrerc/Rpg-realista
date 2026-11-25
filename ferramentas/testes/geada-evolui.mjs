@@ -8,7 +8,7 @@ const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 
 const s = new Simulacao(MAPA_CLAREIRA); s.adicionarJogador('p', 'P', 'ruiva', { conta: 9 });
 for (const x of s.amigosIa) x.amigaEntrar('p', false);
 const G = s.amigosIa.filter((x) => RIVAIS.some((d) => d.id === x.AMIGA.id));
-ok(G.length === RIVAIS.length && G.length === 5 && G.every((g) => g.amiga), 'os cinco da Geada (com o Gael e o Kael) entram no mundo');
+ok(G.length === RIVAIS.length && G.length === 6 && G.every((g) => g.amiga), 'os seis da Geada (com Gael, Kael e Varek) entram no mundo');
 const ini = new Map(G.map((g) => [g.AMIGA.id, { nv: g.amiga.prog.nivel, ouro: g.amiga.prog.ouro }]));
 for (const g of G) { g.amiga.prog.xp = xpProximo(g.amiga.prog.nivel) - 30; g.amiga.ia.av = { fase: 'escolher' }; g.amiga.prog.dia = { h: ((NPC_VIDA.rotina[g.AMIGA.id] || NPC_VIDA.rotina.padrao).sai + 3) % 24, t: Date.now() }; /* no horário dele (o Gael caça de noite) */ g.amiga.missaoDia = { dia: new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), seg: 1e9 }; g.amiga.ia.diariaFalhou = Infinity; } // aqui é a caça: missão da história (André 2026-11-21, a Geada também faz) e diárias já deram o tempo do dia // perto de subir, já saindo para caçar
 // André 2026-11-23: Kira, Rufo e Lis obedecem ao Gael; aqui o Gael manda todos caçarem (a escolha da ordem tem teste próprio em cla-ordens.mjs)

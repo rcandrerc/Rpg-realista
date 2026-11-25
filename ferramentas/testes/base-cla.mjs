@@ -309,8 +309,10 @@ ok(Object.values(bg.donos).length >= Math.min(bg.nv - 1, 3), 'os membros do clã
   s2.construir('L', lugar);
   ok(L2.pecas.length === n0 + 1, 'fornalha construída dentro da base');
   pega('fogao'); s2.eventos = [];
-  s2.construir('L', { k: 'fogao', x: s2.basesDesenho[B2.k].bau.x, z: s2.basesDesenho[B2.k].bau.z + 2, r: 0 });
-  ok(L2.pecas.length === n0 + 1 && /salão|portão|Baú/.test(s2.eventos.filter((e) => e.t === 'aviso').map((e) => e.texto).join()), 'na frente do Baú do Clã não pode');
+  // a faixa lateral do caminho do "Ir" (x+0,9 a x+2,5) segue reservada; o meio da frente da casa está livre (André 2026-11-24)
+  s2.construir('L', { k: 'fogao', x: s2.basesDesenho[B2.k].bau.x + 1.6, z: s2.basesDesenho[B2.k].bau.z + 2, r: 0 });
+  ok(L2.pecas.length === n0 + 1 && /salão|portão|Baú/.test(s2.eventos.filter((e) => e.t === 'aviso').map((e) => e.texto).join()), 'na faixa do caminho do Ir não pode');
+  ok(!motivoPeca(L2, { k: 'fogao', x: s2.basesDesenho[B2.k].bau.x - 0.5, z: s2.basesDesenho[B2.k].bau.z + 2, r: 0 }, null, A), 'na frente da casa, no meio, pode');
   const dl = s2.dadosLote(L2);
   ok(dl.area?.ret?.length === 4 && dl.area.sol.length > 0, 'o app recebe a área da base');
   // arar na área comum (André 2026-11-23: "por móveis, fundação e arar terreno na área comum do Clan")

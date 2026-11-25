@@ -179,7 +179,7 @@ ok(true, 'simulação roda com os recrutas');
   gael.prog.ouro = 0; E.sem = Date.now() - 1; s2.passoClasNpc();
   ok(E.m.length === 0 && !s2.amigosIa.some((x) => x.AMIGA.id === rc.AMIGA.id), 'sem ouro para a semana: o recruta vai embora');
   const inf = s2.clasNpcInfo(p2);
-  ok(inf[0].n === CLAS_NPC[0].n && inf[0].inimigo === 1 && inf[0].membros.includes('Kira'), 'o painel mostra os Lobos da Geada como inimigos');
+  ok(inf[0].n === CLAS_NPC[0].n && inf[0].inimigo === 1 && inf[0].membros.some((m) => m === 'Kira' || m.startsWith('Kira (Nv ')) && inf[0].nvLider > 0, 'o painel mostra os Lobos da Geada como inimigos');
   ok(!s2.botsDeGuerraLivres('chama').some((x) => x.AMIGA.recruta), 'recruta do jogador não sai em ronda');
   for (let i = 0; i < 100; i++) s2.passo(0.05);
   ok(true, 'simulação roda com o clã bot');

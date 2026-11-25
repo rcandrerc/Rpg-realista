@@ -26,6 +26,11 @@ var pag := 0
 var horas := 24
 var preco_ui: LineEdit
 var _recebido_ms := 0
+# a busca por parte do nome (André 2026-11-24): filtra na hora o que já veio e pede ao servidor depois de uma pausa
+var texto := ""
+var busca_ui: LineEdit
+var lista_v: VBoxContainer
+var _pedir_em := -1 # ms em que manda o pedido da busca (espera parar de digitar)
 
 func _init(principal) -> void:
 	m = principal
@@ -81,6 +86,15 @@ func _ready() -> void:
 	linha.color = Menu.BORDA
 	linha.custom_minimum_size = Vector2(0, 1)
 	tudo.add_child(linha)
+	busca_ui = LineEdit.new()
+	busca_ui.placeholder_text = "Buscar item pelo nome"
+	busca_ui.add_theme_font_size_override("font_size", 16)
+	busca_ui.custom_minimum_size = Vector2(0, 40)
+	busca_ui.add_theme_stylebox_override("normal", Menu.caixa(Color(0.035, 0.03, 0.026, 1), Color(0.36, 0.29, 0.19), 1, 10))
+	busca_ui.add_theme_stylebox_override("focus", Menu.caixa(Color(0.035, 0.03, 0.026, 1), Menu.OURO, 1, 10))
+	busca_ui.clear_button_enabled = true
+	busca_ui.set_meta("guia", "leilao:busca")
+	busca_ui.text_changed.connect(_digitou)
 	corpo = VBoxContainer.new()
 	corpo.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	corpo.add_theme_constant_override("separation", 8)
@@ -118,12 +132,17 @@ func do_servidor(ev: Dictionary) -> void:
 	_recebido_ms = Time.get_ticks_msec()
 	if not aberto():
 		abrir()
+	elif aba == "comprar" and lista_v != null and busca_ui.has_focus():
+		_atualizar_lista() # digitando: refaz só a lista (o campo não perde o foco)
 	else:
 		montar()
 
 func progresso_mudou() -> void:
 	if aberto():
-		montar()
+		if aba == "comprar" and lista_v != null and busca_ui.has_focus():
+			_atualizar_lista()
+		else:
+			montar()
 
 func _process(_dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
@@ -132,6 +151,10 @@ func _process(_dt: float) -> void:
 		Engine.get_meta("lentidao").ev("leilao_ui", t0_parte)
 
 func _process_parte(_dt: float) -> void:
+	if _pedir_em >= 0 and Time.get_ticks_msec() >= _pedir_em:
+		_pedir_em = -1
+		if aberto():
+			pedir({"acao": "ver"})
 	# andou para longe do Otávio (ou caiu): fecha
 	if aberto() and (m.h.morto > 0.0 or not m.perto_do_npc("leilao", 6.0)):
 		fechar()
@@ -140,11 +163,27 @@ func pedir(msg: Dictionary) -> void:
 	var b := {"tipo": busca.tipo, "ordem": busca.ordem}
 	if int(busca.r) >= 0:
 		b.r = int(busca.r)
+	if _normal(texto) != "":
+		b.texto = texto.substr(0, 24)
+		b.ks = _chaves_do_texto() # nome no idioma do app (inglês também acha)
 	msg.busca = b
 	m.rede("leilao", msg)
 
 # ---------- janela ----------
 func montar() -> void:
+	montar_topo()
+	_limpar_corpo()
+	match aba:
+		"comprar":
+			_comprar()
+		"vender":
+			_vender()
+		"meus":
+			_meus()
+		"retirar":
+			_retirar()
+
+func montar_topo() -> void:
 	for c in abas_ui.get_children():
 		abas_ui.remove_child(c)
 		c.queue_free()
@@ -160,18 +199,46 @@ func montar() -> void:
 		ouro_ui.remove_child(c)
 		c.queue_free()
 	ouro_ui.add_child(m.menu.linha_ouro())
+
+# tira tudo do corpo, menos o campo da busca (ele não é refeito: o teclado do celular não fecha a cada resposta)
+func _limpar_corpo() -> void:
+	if busca_ui.get_parent() != null:
+		busca_ui.get_parent().remove_child(busca_ui)
 	for c in corpo.get_children():
 		corpo.remove_child(c)
 		c.queue_free()
-	match aba:
-		"comprar":
-			_comprar()
-		"vender":
-			_vender()
-		"meus":
-			_meus()
-		"retirar":
-			_retirar()
+	lista_v = null
+
+# sem acento e sem maiúscula ("Minério" = "minerio")
+const ACENTOS := {"á": "a", "à": "a", "â": "a", "ã": "a", "ä": "a", "é": "e", "è": "e", "ê": "e", "ë": "e", "í": "i", "ì": "i", "î": "i", "ï": "i",
+	"ó": "o", "ò": "o", "ô": "o", "õ": "o", "ö": "o", "ú": "u", "ù": "u", "û": "u", "ü": "u", "ç": "c", "ñ": "n"}
+static func _normal(t: String) -> String:
+	var s := t.strip_edges().to_lower()
+	for k in ACENTOS:
+		s = s.replace(k, ACENTOS[k])
+	return s
+
+func _casa_texto(it: Dictionary) -> bool:
+	var t := _normal(texto)
+	return t == "" or _normal(m.P.nome_item(it)).contains(t)
+
+# os itens cujo nome (no idioma do app) tem o texto: o servidor acha também pela chave
+func _chaves_do_texto() -> Array:
+	var t := _normal(texto)
+	var l := []
+	var itens: Dictionary = m.P.dados.get("itens", {})
+	for k in itens:
+		if l.size() >= 120:
+			break
+		var nome := str(itens[k].get("nome", k))
+		if _normal(nome).contains(t) or _normal(Idioma.t(nome)).contains(t):
+			l.append(k)
+	return l
+
+func _digitou(t: String) -> void:
+	texto = t
+	_montar_lista() # filtra na hora o que já veio
+	_pedir_em = Time.get_ticks_msec() + 350 # e pede ao servidor quando parar de digitar
 
 func _aba(a: String) -> void:
 	aba = a
@@ -194,6 +261,9 @@ func _rolagem() -> VBoxContainer:
 # quanto falta para vencer, em horas e minutos
 func _resta(a: Dictionary) -> String:
 	if a.get("casa", false):
+		var volta := int(a.get("volta", 0)) / 1000 # a casa encareceu para ele (André 2026-11-24: dobra a cada compra)
+		if volta > 0 and int(a.get("base", 0)) > 0:
+			return "sempre à venda · ×%d · normal (%d) em %d h %02d min" % [int(round(float(a.preco) / float(a.base))), int(a.base), volta / 3600, (volta % 3600) / 60]
 		return "sempre à venda"
 	var agora: float = float(estado.get("agora", 0)) + float(Time.get_ticks_msec() - _recebido_ms)
 	var s := int(maxf(0.0, (float(a.get("ate", 0)) - agora) / 1000.0))
@@ -238,6 +308,9 @@ func _comprar() -> void:
 		var b: Button = m.menu.botao(o[1], _ordem.bind(o[0]), 13, busca.ordem == o[0])
 		b.custom_minimum_size = Vector2(0, 30)
 		f.add_child(b)
+	corpo.add_child(busca_ui)
+	if busca_ui.text != texto:
+		busca_ui.text = texto
 	corpo.add_child(f)
 	if busca.tipo == "equip": # raridade das peças
 		var rr := HBoxContainer.new()
@@ -252,25 +325,45 @@ func _comprar() -> void:
 			b.add_theme_color_override("font_color", Color(str(rars[i].cor)) if str(rars[i].cor).begins_with("#") else Menu.TEXTO)
 			rr.add_child(b)
 		corpo.add_child(rr)
-	var v := _rolagem()
-	var lista: Array = estado.get("lista", [])
-	if lista.is_empty():
-		v.add_child(Menu.rotulo("Nada à venda com esse filtro.", 14, Menu.APAGADO))
-	for a in lista:
-		v.add_child(_linha(a, "Comprar", _comprar_um.bind(a)))
+	lista_v = _rolagem()
+	_montar_lista()
+
+# a lista da aba Comprar (o filtro do nome vale na hora, antes da resposta do servidor)
+func _montar_lista() -> void:
+	if lista_v == null:
+		return
+	for c in lista_v.get_children():
+		lista_v.remove_child(c)
+		c.queue_free()
+	var n := 0
+	for a in estado.get("lista", []):
+		if not _casa_texto(a.item):
+			continue
+		lista_v.add_child(_linha(a, "Comprar", _comprar_um.bind(a)))
+		n += 1
+	if n == 0:
+		lista_v.add_child(Menu.rotulo("Nada à venda com esse filtro.", 14, Menu.APAGADO))
+
+# resposta do servidor enquanto digita: abas, ouro e lista, sem refazer o campo da busca
+func _atualizar_lista() -> void:
+	montar_topo()
+	_montar_lista()
 
 func _tipo(t: String) -> void:
 	busca.tipo = t
 	busca.r = -1
 	pedir({"acao": "ver"})
+	montar()
 
 func _ordem(o: String) -> void:
 	busca.ordem = o
 	pedir({"acao": "ver"})
+	montar()
 
 func _rar(r: int) -> void:
 	busca.r = r
 	pedir({"acao": "ver"})
+	montar()
 
 func _comprar_um(a: Dictionary) -> void:
 	if int(m.P.prog.ouro) < int(a.preco):

@@ -125,6 +125,8 @@ export class Contas {
     setInterval(() => this.copiar(), 6 * 3600 * 1000).unref();
     this.recomecar(); // depois da cópia de segurança: o banco de antes do recomeço fica na pasta de cópias
     try { this.devolverDispensados(); } catch (e) { console.error('Devolver dispensado: falhou', e.message); }
+
+    try { this.corrigirRecruta(); } catch (e) { console.error('Corrigir recruta: falhou', e.message); }
   }
 
   // Recomeço do zero (André 2026-11-11: "zera tudo como se a Cecília tivesse começado hoje; eu também, do zero").
@@ -233,6 +235,8 @@ export class Contas {
   salvarNome(id, nome) { this.q.nome.run(nome, id); this.q.nomeLote.run(nome, 'c' + id); }
   apagar(id) { this.q.apagarSessoes.run(id); this.q.apagarConta.run(id); this.q.soltarLotes.run('c' + id); this.q.apagarAmizades.run(id, id); this.q.apagarPedidos.run(id, id); } // conta apagada: o lote volta à venda e some das listas de amigos
   salvarBuild(id, build) { if (buildValida(build)) this.q.build.run(JSON.stringify(build), id); }
+  // o progresso como está no banco (painel do clã com o líder fora do jogo, André 2026-11-24)
+  lerProgresso(id) { try { const r = this.db.prepare('SELECT progresso FROM contas WHERE id = ?').get(id); return r?.progresso ? progressoValido(JSON.parse(r.progresso)) : null; } catch { return null; } }
   salvarProgresso(id, prog) { this.q.progresso.run(JSON.stringify(progressoValido(prog)), id); }
   // chave Groq do jogador (conversa com a Cecília): nunca vai para o celular nem para o código, só o servidor usa
   chaveIa(id) { return this.q.chaveIa.get(id)?.ia_chave || ''; }
@@ -383,6 +387,30 @@ export class Contas {
     this.gravarMundo(CHAVE, { t: Date.now(), voltaram });
     console.log(`Devolver dispensado: ${voltaram.length ? voltaram.join(', ') : 'ninguém'}`);
     return voltaram.length;
+  }
+  // Recruta contratado com o candidato errado (André 2026-11-24: "minha filha chamou Flora Brasa e virou Bento Fogo"):
+  // o servidor jogava fora o candidato escolhido (esc) e sorteava outro. Uma vez só, ao subir: o recruta com o nome
+  // errado volta a ser o escolhido (nome e sexo); id, nível, mochila e o resto ficam iguais.
+  corrigirRecruta(trocas = [{ de: 'Bento Fogo', para: 'Flora Brasa', g: 'f', cla: 'Seul' }], CHAVE = 'corrigir_recruta_2026_11_24') {
+    if (this.lerMundo(CHAVE)) return 0;
+    const feitos = [];
+    for (const c of this.q.todasContas.all()) {
+      let prog; try { prog = JSON.parse(c.progresso || 'null'); } catch { continue; }
+      const cla = prog?.cla; if (!cla || !Array.isArray(cla.m)) continue;
+      let mudou = false;
+      for (const T of trocas) {
+        if (T.cla && cla.n !== T.cla) continue;
+        const m = cla.m.find((o) => o?.nome === T.de); if (!m) continue;
+        m.nome = T.para; m.g = T.g;
+        if (m.ap && !CLA.penteados[T.g].includes(m.ap.penteado)) m.ap.penteado = null;
+        (cla.log ||= []).push({ t: Date.now(), txt: `${T.de} agora é ${T.para} (nome corrigido)`, v: 0 });
+        feitos.push(`${T.de} -> ${T.para} (conta ${c.id})`); mudou = true;
+      }
+      if (mudou) this.q.progresso.run(JSON.stringify(progressoValido(prog)), c.id);
+    }
+    this.gravarMundo(CHAVE, { t: Date.now(), feitos });
+    console.log(`Corrigir recruta: ${feitos.length ? feitos.join(', ') : 'ninguém'}`);
+    return feitos.length;
   }
   copiar() {
     try {

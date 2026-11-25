@@ -4523,10 +4523,16 @@
 "Melhorar para o clã Nv %d (%d vagas)": "Upgrade to clan Lv %d (%d slots)",
 "Seu nível %d de %d · Cofre %d de %d de ouro": "Your level %d of %d · Vault %d of %d gold",
 "Materiais e fragmentos saem do Baú do Clã ou da sua mochila. Fragmento de Alma: derrube quem é da outra raça.": "Materials and fragments come from the Clan Chest or your inventory. Soul Fragment: take down someone from the other race.",
+"Próximo nível: clã Nv %d (%d vagas)": "Next level: clan Lv %d (%d slots)",
+"Pronto!": "Ready!",
+"Seu nível": "Your level",
+"Ouro no cofre": "Gold in the vault",
+"Conta o Baú do Clã e a sua mochila. Toque num ícone para ver o nome. Fragmento de Alma: derrube quem é da outra raça.": "Counts the Clan Chest and your inventory. Tap an icon to see its name. Soul Fragment: take down someone from the other race.",
 "Melhorar clã": "Upgrade clan",
 "Líder · Nv %d": "Leader · Lv %d",
 "Sem Baú do Clã: funde a base do clã (o salão tem um na porta) ou crie um na construção (aba Móveis).": "No Clan Chest: found the clan base (the hall has one at the door) or make one in building mode (Furniture tab).",
 "%s %s Nv %d (%s) · líder %s · %d recrutas": "%s %s Lv %d (%s) · leader %s · %d recruits",
+"%s %s Nv %d (%s) · líder %s%s · %d recrutas": "%s %s Lv %d (%s) · leader %s%s · %d recruits",
 "Fale com o Recrutador (Sargento Bruno na Clareira, Sargenta Hela no Juncal).": "Talk to the Recruiter (Sergeant Bruno in Clareira, Sergeant Hela in Juncal).",
 "%s Nv %d · %d de ouro · %d/semana": "%s Lv %d · %d gold · %d/week",
 "%s · só no clã Nv %d": "%s · clan Lv %d only",
@@ -4671,5 +4677,8 @@
 "Famintos": "Starving",
 "Bem alimentados": "Well fed",
 "com fome": "hungry",
-"famintos": "starving"
+"famintos": "starving",
+"sempre à venda · ×%d · normal (%d) em %d h %02d min": "always for sale · ×%d · normal (%d) in %d h %02d min",
+"Buscar item pelo nome": "Search item by name",
+"Comprou {1} por {2} de ouro. O próximo sai por {3}": "Bought {1} for {2} gold. The next one costs {3}"
 }

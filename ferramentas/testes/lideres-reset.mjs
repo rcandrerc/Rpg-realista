@@ -6,9 +6,9 @@ import './_tudo-aberto.mjs';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 
 const geada = CLAS_NPC.filter((C) => C.raca === 'geada');
-ok(geada.length === 2 && geada.some((C) => C.lider === 'gael') && geada.some((C) => C.lider === 'kael'), 'dois clãs da Geada: Gael e Kael');
+ok(geada.length === 3 && ['gael', 'kael', 'varek'].every((id) => geada.some((C) => C.lider === id)), 'três clãs da Geada: Gael, Kael e Varek');
 ok(CLAS_NPC.some((C) => C.lider === 'dario'), 'Chama continua com o Dario');
-ok(['dario', 'gael', 'kael'].every((id) => LIDERES_CLA.ids().includes(id)), 'líderes: Dario, Gael, Kael');
+ok(['dario', 'gael', 'kael', 'varek'].every((id) => LIDERES_CLA.ids().includes(id)), 'líderes: Dario, Gael, Kael, Varek');
 
 const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('A', 'André', undefined, { conta: 5, testador: true }); a.criando = false;
@@ -30,10 +30,12 @@ s.amigosIa.find((x) => x.AMIGA.id === 'gael').amiga.prog.nivel = 60;
 kael.amiga.prog.nivel = 55;
 ok(s.resetLideres('A') === true, 'André reseta');
 ok(a.prog.nivel === 1 && a.prog.xp === 0 && a.prog.ouro === 777, 'André no nível 1, ouro fica');
-for (const id of ['dario', 'gael', 'kael']) {
+for (const id of ['dario', 'gael', 'kael', 'varek']) {
   const x = s.amigosIa.find((o) => o.AMIGA.id === id), nv = x.amiga ? x.amiga.prog.nivel : s.npcSalvos.get(id)?.prog?.nivel;
   ok(nv === 1, `${id} no nível 1 (${nv})`);
 }
+const varek = s.amigosIa.find((x) => x.AMIGA.id === 'varek');
+ok(varek?.AMIGA.raca === 'geada' && CLAS_NPC.find((C) => C.lider === 'varek').membros.length === 1, 'Varek: líder da Geada sozinho no clã');
 const kira = s.amigosIa.find((x) => x.AMIGA.id === 'kira');
 ok(!kira.amiga || kira.amiga.prog.nivel > 1, 'Kira (não é líder) não muda');
 

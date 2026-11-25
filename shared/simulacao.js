@@ -340,6 +340,9 @@ export class Simulacao {
     this.mapa = mapa;
     this.tempo = 0;
     this.jogadores = new Map();
+    // painel do clã (página leve, André 2026-11-24): sessão -> conta de quem está com o painel aberto. Sem corpo no mundo,
+    // mas conta como gente online (genteOnline): o mundo fica ligado e os recrutas dele ficam no mundo fazendo a ordem
+    this.paineis = new Map();
     this.amiga = null; this.amigaDono = null; this.amigaFalam = new Set(); // Cecília (shared/amiga.js): o corpo dela, quem ela acompanha e quem pode conversar
     this.AMIGA = AMIGA; // a definição dela (dados.js); os outros amigos virtuais (Dario, André 2026-11-11) são contextos com os próprios campos
     this.amigosIa = [this, ...AMIGOS_VIRTUAIS.filter((d) => d !== AMIGA && npcNoMundo(d)).map((d) => contextoDeAmigo(this, d))];
@@ -576,8 +579,9 @@ export class Simulacao {
     return b ? { x: b.x, z: b.z + 2.5, base: true } : this.mapa.nascimento;
   }
   chegarNaVila(j) {
+    const para = j.vila?.para; // recruta indo ao Baú do Clã (recallRecruta, shared/cla.js)
     j.vila = null;
-    const n = this.destinoCasa(j), x0 = j.x, z0 = j.z;
+    const n = para || this.destinoCasa(j), x0 = j.x, z0 = j.z;
     const x = n.x + (Math.random() - 0.5) * 3, z = n.z + (Math.random() - 0.5) * 3, y = this.terreno.altura(x, z);
     Object.assign(j, { x, y, z, vy: 0, chao: true, dash: null, arrancada: null, esc: null, trava: 0, acao: null });
     j.cliente = null; j.orcT = null; // a próxima posição do celular já é a da vila
@@ -3113,7 +3117,8 @@ export class Simulacao {
     if (j.morto) return;
     let mudou = L.vencer();
     const busca = m.busca && typeof m.busca === 'object' ? { tipo: TIPOS_LEILAO[m.busca.tipo] ? m.busca.tipo : undefined, r: Number.isInteger(m.busca.r) && m.busca.r >= 0 && m.busca.r < RARIDADES.length ? m.busca.r : undefined,
-      ordem: ['barato', 'caro', 'novo'].includes(m.busca.ordem) ? m.busca.ordem : 'barato', texto: typeof m.busca.texto === 'string' ? m.busca.texto.slice(0, 24) : undefined } : {};
+      ordem: ['barato', 'caro', 'novo'].includes(m.busca.ordem) ? m.busca.ordem : 'barato', texto: typeof m.busca.texto === 'string' ? m.busca.texto.slice(0, 24) : undefined,
+      ks: Array.isArray(m.busca.ks) ? m.busca.ks.slice(0, 120).filter((k) => typeof k === 'string' && ITENS[k]) : undefined } : {};
     if (m.acao === 'anunciar') {
       const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < p.mochila.length ? p.mochila[i] : null;
       if (!it) return aviso('Escolha um item da mochila');
@@ -3133,14 +3138,14 @@ export class Simulacao {
       aviso(`${nomeItem(vai)} à venda por ${r.preco} de ouro (${Number(m.horas)} h)${taxaA ? `. Taxa de anúncio: ${taxaA}` : ''}`);
       this.historia(j, 'leilao', { de: 'anunciar' });
     } else if (m.acao === 'comprar' && typeof m.id === 'string') {
-      const a = L.achar(m.id); if (!a) return aviso('Esse anúncio já saiu');
+      const a = L.achar(m.id, j.conta); if (!a) return aviso('Esse anúncio já saiu'); // o da casa vem com o preço dele (sobe a cada compra)
       if (p.ouro < a.preco) return aviso(`Faltam ${a.preco - p.ouro} de ouro`);
       const prova = p.mochila.map((o) => (o ? { ...o } : null)); // cabe na mochila?
       if (!guardar(prova, { ...a.item })) return aviso('Mochila cheia');
       const r = L.comprar(m.id, j.conta);
       if (typeof r === 'string') return aviso(r);
       p.ouro -= a.preco; guardar(p.mochila, { ...a.item }); mudou = mudou || !a.casa; this.caixa(j, a.casa ? 'leilaoCasa' : 'leilaoCompra', -a.preco);
-      aviso(`Comprou ${nomeItem(a.item)} por ${a.preco} de ouro`);
+      aviso(`Comprou ${nomeItem(a.item)} por ${a.preco} de ouro${a.casa ? `. O próximo sai por ${L.achar(a.id, j.conta)?.preco ?? a.preco}` : ''}`);
       this.historia(j, 'leilao', { de: 'comprar' });
       const avisa = this.aoVendaLeilao || ((c, t) => { const v = this.porConta(c); if (v) this.evento({ t: 'aviso', para: v.id, texto: t }); }); // o servidor avisa em qualquer sala
       if (!a.casa) avisa(a.conta, `Vendeu ${nomeItem(a.item)} no leilão: ${r.liquido} de ouro com o Otávio${r.taxa ? ` (taxa ${r.taxa})` : ''}`);
@@ -4163,6 +4168,8 @@ export class Simulacao {
     this.tocar(c, A.death, 1);
     c.trava = Infinity;
     if (c.tipo === 'jogador') {
+      // recruta de jogador caiu: aviso no celular do líder (painel do clã, André 2026-11-24; o servidor só manda com ele fora do jogo)
+      if (c.bot && this.aoAvisoCla) { const x = this.amigoIaDe?.(c); if (x?.AMIGA.recruta && !x.AMIGA.clanpc) this.aoAvisoCla(x.AMIGA.lider, `${x.AMIGA.nome} caiu${de?.nome ? ` (${de.nome})` : ''}`); }
       this.cancelarVila(c, null);
       this.morreuComCarga(c); // o pack das costas cai no chão; o veículo fica onde estava
       if (c.caverna) { c.caverna = null; this.evento({ t: 'caverna', id: c.id, aberta: false }); } // morreu: a entrada acabou

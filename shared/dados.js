@@ -1456,7 +1456,7 @@ export const PVP = {
   times: { chama: { nome: 'Chama', cor: 'ff9a3c' }, geada: { nome: 'Geada', cor: '8fd0ff' } },
   // os clãs de cada raça (referência). Desde 2026-11-22 (André: "se eu estiver em time vai meu time, se não vai sorteio entre
   // os bots") quem completa os times é sorteado entre todos os bots da raça (shared/arena.js comecarPvp)
-  npcs: { chama: ['cecilia', 'dario', 'lia'], geada: ['kira', 'rufo', 'lis', 'gael', 'kael'] },
+  npcs: { chama: ['cecilia', 'dario', 'lia'], geada: ['kira', 'rufo', 'lis', 'gael', 'kael', 'varek'] },
   travar: 0.5, // atordoar/congelar de jogador em jogador vale essa fração do tempo (igual ao duelo)
 };
 // Loja da Arena (André 2026-11-21: "moeda específica que vai ter item exclusivo de uma loja", "loja pontos fixa"): preço
@@ -2316,6 +2316,13 @@ export const TOTENS = { toque: 8, usar: 4, canal: 5, taxaNivel: 10, taxaMin: 50,
   { id: 'ultimo_pouso', nome: 'Último Pouso', nivel: 95, faixa: 'Nv 95-100', x: 222, z: 1328 },
 ] };
 // ouro para ir até o totem t
+// Bots e recrutas usam os totens como um jogador (André 2026-11-24: "ele se aproxima de um totem, teleporta para outro
+// totem, em vez de correr o mapa inteiro"; nunca teleporta de qualquer lugar). Na viagem longa (longeAmiga) ele compara:
+// ir de lobo pela estrada até o destino, ou ir até o totem descoberto mais perto dele, canalizar e sair no totem
+// descoberto mais perto do destino. Vale o totem só quando poupa pelo menos `ganho` m de estrada (a canalização conta
+// como `canal` s de galope parado). Mesmas regras do jogador: só totens que ele já tocou, paga a taxa, sem pack nem
+// carrinho, sem zona na névoa. Deu errado (sem ouro, levou dano): tenta de novo só depois de `espera` s.
+export const TOTEM_BOT = { ganho: 80, folga: 3, espera: 45, olhaOutra: 5 };
 export const taxaTotem = (t) => Math.max(TOTENS.taxaMin, TOTENS.taxaNivel * (t?.nivel || 1));
 // o totem a até r m de (x, z), ou null
 export const totemPerto = (x, z, r = TOTENS.usar) => TOTENS.lista.find((t) => Math.hypot(t.x - x, t.z - z) < r) || null;
@@ -3402,6 +3409,10 @@ export const CLA = {
   farmar: 40, // quanto ele junta por viagem (o máximo da encomenda); acabou, vai de novo
   // entrega (André 2026-11-23): só o recurso pedido vai para o Baú do Clã, e ele leva andando (perto: m do baú para deixar)
   entrega: { perto: 2.4 },
+  // recall (André 2026-11-24: "além de totem, eles podem usar o recall para guardar as coisas no baú"): longe do Baú do
+  // Clã (mais de `min` m), o recruta que leva o recurso usa a casinha como o jogador (VOLTA_VILA: canaliza parado,
+  // andar ou dano cancela, recarga de 10 min) e aparece na frente do baú. Em recarga: vai andando (ou pelo totem).
+  recall: { min: 100 },
   protegeRaio: 9, // m em volta de quem ele protege: monstro ou inimigo ali dentro, ele ataca
   // Proteger carrinho / mercante (André 2026-11-23: "proteger meu carrinho... proteger meu mercante"; "se esse bicho se
   // afastando, ele não correr atrás. A função dele é só defender"): raio = inimigo a até isso do carrinho, ele ataca sem
@@ -3567,7 +3578,7 @@ export const CLAS_NPC_REGRAS = { entre: 6, primeiro: 0.5, reserva: 300 }; // h r
 // líder manda farmar ou proteger.
 // pesos: a personalidade do líder (Gael agressivo: grind e alma; Dario construtor: material e fazenda). Outro líder = 1.
 export const CLAS_NPC_ORDENS = { ligado: true, cada: 900, horasDia: 2, abaixo: 5, sorte: 0.2, raioBase: 60,
-  pesos: { gael: { grind: 1.5, alma: 1.5, recurso: 0.9, fazenda: 0.8, proteger: 1.2 }, dario: { grind: 0.9, alma: 1, recurso: 1.5, fazenda: 1.3, proteger: 1 }, kael: { grind: 1.2, alma: 1.3, recurso: 1, fazenda: 0.9, proteger: 1.3 } }, // Kael: luta e protege a base
+  pesos: { gael: { grind: 1.5, alma: 1.5, recurso: 0.9, fazenda: 0.8, proteger: 1.2 }, dario: { grind: 0.9, alma: 1, recurso: 1.5, fazenda: 1.3, proteger: 1 }, kael: { grind: 1.2, alma: 1.3, recurso: 1, fazenda: 0.9, proteger: 1.3 }, varek: { grind: 1.1, alma: 1.2, recurso: 1.1, fazenda: 1, proteger: 1.1 } }, // Kael: luta e protege a base
   // o material que o nível do clã pede -> o recurso que o recruta farma (a fornalha do líder faz as barras: fundirBauNpc)
   // mundo vazio (sem corpo): o grind conta como caça de verdade, pela curva do jogo (André 2026-11-23: "esse grind tem que
   // ser realista... nos mobs nível 100 eles praticamente não vão ganhar mais XP"): abatesHora monstros por hora de caça
@@ -3594,6 +3605,9 @@ export const CLAS_NPC = [
   { id: 'chama', n: 'Guarda da Chama', raca: 'chama', lider: 'dario', membros: ['cecilia', 'dario', 'lia'], falas: { f: 'lia', m: 'dario' } },
   // André 2026-11-23 ("eu queria 2 clãs geadas"): o segundo clã da Geada, líder Kael; começa só com ele e contrata recrutas
   { id: 'geada2', n: 'Lâminas Cinzentas', raca: 'geada', lider: 'kael', membros: ['kael'], falas: { f: 'kira', m: 'rufo' } },
+  // André 2026-11-25 ("coloca mais um bot do lado dos geadas... só o líder nível 1, normal, para ele desenvolver"): o terceiro
+  // clã da Geada, líder Varek, nível 1 e sem recruta; sobe e recruta como qualquer clã (jogador ou bot)
+  { id: 'geada3', n: 'Corvos do Gelo', raca: 'geada', lider: 'varek', membros: ['varek'], falas: { f: 'kira', m: 'rufo' } },
 ];
 // Líderes dos clãs (André 2026-11-23: "esses nunca somem, só resetam se eu apertar o botão"): Dario, Gael e Kael não saem do
 // jogo quando a IA acaba (iaForaAmiga) e só voltam ao nível 1 pelo botão "Resetar líderes" da conta do André (resetLideres).
@@ -4040,7 +4054,16 @@ export const KAEL = rivalGeada(DARIO, 'kael', 'Kael', 'a Lâmina Cinzenta, líde
   equip: { corpo: { k: 'peitoral', r: 2 }, pernas: { k: 'calca', r: 2 }, pes: { k: 'botas', r: 2 }, capa: { k: 'capa', r: 2 }, espada: { k: 'espada', r: 1 } },
   guerra: { coragem: 0.75, honra: 0.8, paciencia: 0.8 },
 });
-export const RIVAIS = [KIRA, RUFO, LIS, GAEL, KAEL];
+// Varek, o Corvo do Gelo, líder do terceiro clã da Geada (André 2026-11-25): nasce nível 1 e se desenvolve sozinho, igual
+// aos outros líderes (mesmo código do Gael e do Kael; fala como o Gael).
+export const VAREK = rivalGeada(DARIO, 'varek', 'Varek', 'o Corvo do Gelo, líder dos Corvos do Gelo', {
+  genero: 'm', visual: 'cabelo_m', nivelInicial: 1, falas: 'gael',
+  persona: 'Varek, o Corvo do Gelo, líder do terceiro clã da Geada: jovem, ambicioso e calado, ainda provando o seu valor; respeita quem luta bem',
+  aparencia: { cabelo: 0x20263a, olhos: 0x6aa8d8, roupa: 0x3a5478, calca: 0x24283a, altura: 1.0 },
+  equip: { corpo: { k: 'peitoral', r: 1 }, pernas: { k: 'calca', r: 1 }, pes: { k: 'botas', r: 1 }, capa: { k: 'capa', r: 1 }, espada: { k: 'espada', r: 1 } },
+  guerra: { coragem: 0.7, honra: 0.6, paciencia: 0.5 },
+});
+export const RIVAIS = [KIRA, RUFO, LIS, GAEL, KAEL, VAREK];
 // O Dario é o líder da Chama (André 2026-11-18): defende os seus. Só o jeito na guerra (as falas estão em FALAS_GUERRA).
 DARIO.guerra = { coragem: 0.7, honra: 0.85, paciencia: 0.5 };
 // Lia Brasa (André 2026-11-21): a aventureira pronta (linha 'lia' em AV) virou bot completo da Chama, igual à Cecília e
@@ -4403,6 +4426,13 @@ export const LEILAO_BOT = {
   caroDemais: 1.3, // não paga mais que 30% acima do preço de mercado
   essencial: 0.1, livre: 1.5, metaMin: 300, metaCara: 3,
   reserva: { padrao: 20, pedra: 50, lenha: 50, minerio_ferro: 30, minerio_cobre: 30, carvao: 30, cristal: 20 }, // estoque que guarda de cada material
+  // André 2026-11-24 (mais variedade no leilão, os 4 itens aprovados): das maxAnuncios vagas, `vagas.recurso` são só de
+  // recurso e `vagas.consumivel` de poção/comida (o resto: peça, Tomo, outro material). Antes de vender recurso na loja,
+  // o bot (e o líder com a sobra do baú) olha o leilão: com menos de `pouco` anúncios daquele item, anuncia; senão, loja.
+  // Poção/comida só vai ao leilão o que passa de `guardaConsumivel`.
+  vagas: { recurso: 3, consumivel: 1 }, pouco: 3,
+  recursos: ['minerio_ferro', 'minerio_cobre', 'pedra', 'lenha', 'carvao', 'couro', 'tecido'],
+  guardaConsumivel: { pocao: 30, pocao_mana: 30, comida: 10 },
   farmar: { ouroHoraNivel: 30, unidadesHora: 60, vigorUnidade: 1, semVigor: 5, semVigorX: 2 },
   jeitos: {
     padrao: { poupa: 0.7, ganancia: 1, compra: 1, farma: 1, texto: 'Equilibrado: poupa 70% e anuncia no meio da faixa.' },
