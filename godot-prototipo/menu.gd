@@ -4459,7 +4459,7 @@ func montar_mochila() -> void:
 	if consertando:
 		dica = "Toque nas peças gastas (no corpo ou na mochila) para marcar. Cada uma volta inteira."
 	elif vendendo:
-		dica = "Toque para marcar. Pilha vende inteira."
+		dica = "Toque na peça para marcar. Toque na pilha para dizer quantos (pode passar da pilha)."
 	elif sel_mochila >= 0 and P.prog.mochila[sel_mochila] != null:
 		if PAINEL_AO_LADO:
 			mostrar_painel(detalhe(P.prog.mochila[sel_mochila], sel_mochila, ""))
@@ -4790,6 +4790,9 @@ func tocar_mochila(i: int) -> void:
 			marcados.erase(i)
 		elif P_menu.prog.mochila[i] != null and P_menu.prog.mochila[i].get("cad", false):
 			m.hud.aviso("Item com cadeado: não vende. Abra o cadeado para vender")
+		elif P_menu.prog.mochila[i] != null and total_igual(P_menu.prog.mochila, i) > 1:
+			vender_qtd(i) # André 2026-11-25: pilha pergunta quantos (pode passar da pilha: vende das pilhas iguais)
+			return
 		elif P_menu.prog.mochila[i] != null:
 			marcados[i] = true
 		atualizar()
@@ -4991,7 +4994,12 @@ func detalhe(it, i: int, lugar: String, compacto := false) -> Control:
 	if P.veiculo_no_mundo(it):
 		trancado = true # no mundo: não vende nem joga fora (o servidor também recusa)
 	if i >= 0 and not trancado and m.perto_de_quem_compra():
-		bs.add_child(botao_acao("Vender · %d" % P.preco_venda(it), {"acao": "vender", "i": i}, false))
+		if total_igual(P.prog.mochila, i) > 1: # pilha: a janelinha da quantidade (André 2026-11-25)
+			var bvq := botao("Vender · %d" % P.preco_venda(it), func(): vender_qtd(i), 14, false)
+			bvq.custom_minimum_size = Vector2(120, 36)
+			bs.add_child(bvq)
+		else:
+			bs.add_child(botao_acao("Vender · %d" % P.preco_venda(it), {"acao": "vender", "i": i}, false))
 	if i >= 0 and not trancado: # André 2026-11-04: jogar fora (pergunta antes; não dá ouro)
 		var ap := botao("Apagar", func(): perguntar_apagar(i), 16)
 		ap.custom_minimum_size = Vector2(110, 42)
@@ -5167,10 +5175,15 @@ func barra_venda(l: HBoxContainer) -> void:
 # melhor) e Recurso. Toque marca tudo que combina (com cadeado e o que está vestido ficam de fora: vestido nem está na mochila);
 # se tudo isso já estava marcado, desmarca. Marcar um por um continua valendo.
 func ids_do_chip(tipo: String) -> Array:
+	return ids_tipo(P_menu.prog.mochila, tipo)
+
+# André 2026-11-25: "unifica os filtros todos": os mesmos botões de tipo (equipamento Comum / Raro / Épico ou melhor e
+# Recurso, só ícone + quantos) na venda, no baú (os dois lados) e na troca. lista = mochila, baú ou o que for.
+func ids_tipo(lista: Array, tipo: String) -> Array:
 	var P = P_menu
 	var l: Array = []
-	for i in P.prog.mochila.size():
-		var it = P.prog.mochila[i]
+	for i in lista.size():
+		var it = lista[i]
 		if it == null or it.get("cad", false):
 			continue
 		var eq: bool = P.eh_equip(it)
@@ -5184,23 +5197,36 @@ func ids_do_chip(tipo: String) -> Array:
 	return l
 
 func chips_venda() -> HBoxContainer:
+	return chips_tipo(P_menu.prog.mochila, func(ids: Array): return ids.all(func(i): return marcados.has(i)), func(ids: Array, todos: bool):
+		for i in ids:
+			if todos:
+				marcados.erase(i)
+			else:
+				marcados[i] = true
+		atualizar())
+
+# marcado(ids) -> bool: o botão fica aceso; tocar(ids, aceso): o que cada tela faz (venda marca; baú e troca passam tudo)
+func chips_tipo(lista: Array, marcado: Callable, tocar: Callable, larg := 78) -> HBoxContainer:
 	var P = P_menu
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 6)
 	var tipos := [["0", "it_espada", Color(P.dados.raridades[0].cor)], ["1", "it_espada", Color(P.dados.raridades[1].cor)],
 		["2", "it_espada", Color(P.dados.raridades[2].cor)], ["rec", "it_couro", TEXTO]]
 	for t in tipos:
-		var ids: Array = ids_do_chip(t[0])
-		var todos: bool = ids.size() > 0 and ids.all(func(i): return marcados.has(i))
+		var ids: Array = ids_tipo(lista, t[0])
+		var todos: bool = ids.size() > 0 and bool(marcado.call(ids))
 		var b := Button.new()
 		b.focus_mode = Control.FOCUS_NONE
-		b.custom_minimum_size = Vector2(78, 38)
+		b.custom_minimum_size = Vector2(larg, 38)
 		estilo_botao(b, todos)
 		b.disabled = ids.is_empty()
 		b.icon = icone_tex(t[1])
 		b.expand_icon = true
 		b.add_theme_constant_override("icon_max_width", 22)
-		b.text = str(ids.size())
+		var q := 0 # quantos itens (pilha conta inteira)
+		for i in ids:
+			q += 1 if P.eh_equip(lista[i]) else maxi(1, int(lista[i].get("n", 1)))
+		b.text = str(q)
 		b.add_theme_font_size_override("font_size", 15)
 		b.add_theme_color_override("font_color", t[2])
 		b.add_theme_color_override("font_disabled_color", APAGADO)
@@ -5210,15 +5236,40 @@ func chips_venda() -> HBoxContainer:
 			b.add_theme_color_override("icon_hover_color", t[2])
 			b.add_theme_color_override("icon_disabled_color", Color(t[2], 0.35))
 		b.pressed.connect(func():
-			for i in ids:
-				if todos:
-					marcados.erase(i)
-				else:
-					marcados[i] = true
 			Input.vibrate_handheld(20)
-			atualizar())
+			tocar.call(ids, todos))
 		h.add_child(b)
 	return h
+
+# André 2026-11-25: o mesmo item (mesmo k, lugar rápido, nível e cadeado) espalhado em várias pilhas. A janelinha da
+# quantidade (pedir_qtd) aceita até a soma de todas: número maior que a pilha puxa das outras (o servidor faz igual).
+func pilhas_iguais(lista: Array, i: int) -> Array:
+	var o = lista[i] if i >= 0 and i < lista.size() else null
+	if o == null:
+		return []
+	if not o.has("n") or P_menu.eh_equip(o):
+		return [i]
+	var r: Array = [i]
+	for x in lista.size():
+		var v = lista[x]
+		if x != i and v != null and v.has("n") and str(v.get("k")) == str(o.k) and str(v.get("h", "")) == str(o.get("h", "")) \
+				and str(v.get("nv", "")) == str(o.get("nv", "")) and bool(v.get("cad", false)) == bool(o.get("cad", false)):
+			r.append(x)
+	return r
+
+func total_igual(lista: Array, i: int) -> int:
+	var t := 0
+	for x in pilhas_iguais(lista, i):
+		t += maxi(1, int(lista[x].get("n", 1)))
+	return t
+
+# venda por quantidade (a mesma janelinha do baú e da troca): Vender N · ouro vende na hora
+func vender_qtd(i: int) -> void:
+	var P = P_menu
+	var it = P.prog.mochila[i]
+	if it == null:
+		return
+	pedir_qtd(it, total_igual(P.prog.mochila, i), "Vender", func(n: int): acao_item({"acao": "vender", "i": i, "n": n}), P.preco_venda(it))
 
 func modo_vender(ligar: bool) -> void:
 	if ligar and _so_olhando(): # menu do recruta (só olhando)
@@ -6151,7 +6202,7 @@ func mudar_qtd(d: int) -> void:
 # feito recebe o número escolhido; quem decide é o servidor (nunca passa mais do que tem).
 var _qtd_campo: LineEdit
 
-func pedir_qtd(it: Dictionary, maximo: int, verbo: String, feito: Callable) -> void:
+func pedir_qtd(it: Dictionary, maximo: int, verbo: String, feito: Callable, preco_un := 0) -> void:
 	if _so_olhando(): # menu do recruta (só olhando)
 		return
 	if maximo <= 1:
@@ -6246,6 +6297,9 @@ func pedir_qtd(it: Dictionary, maximo: int, verbo: String, feito: Callable) -> v
 			_qtd_campo.text = str(_qtd)
 			_qtd_campo.caret_column = _qtd_campo.text.length()
 		ok.text = tr(verbo + " %d") % _qtd
+		if preco_un > 0: # venda: quanto de ouro dá
+			ok.text += " · %d" % (_qtd * preco_un)
+			tudo.text = tr("Tudo (%d)") % maximo + " · %d" % (maximo * preco_un)
 		menos.disabled = _qtd <= 1
 		mais.disabled = _qtd >= _qtd_max
 	_confirma.set_meta("mostrar", mostrar)

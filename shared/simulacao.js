@@ -2,7 +2,7 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos, fatorDropNivel } from './progresso.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, moverQtd, pilhasIguais, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos, fatorDropNivel } from './progresso.js';
 import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, curaDe, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, totemMaisPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
@@ -2028,11 +2028,19 @@ export class Simulacao {
       if (it.cad) return aviso('Item trancado. Abra o cadeado para vender');
       if (this.carrinhoFora(j, it)) return aviso(`${it.k === 'navio' ? 'O navio' : 'O carrinho'} está no mundo. Toque nele na mochila pra guardar antes`);
       if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
-      const preco = precoVenda(it, mercador(p.prof.mer).venda + (bonusTitulo(p).venda || 0)); // título de Mercador ou Voz das Estradas
-      if (it.n > 1) it.n--; else p.mochila[i] = null;
+      const merc = mercador(p.prof.mer).venda + (bonusTitulo(p).venda || 0); // título de Mercador ou Voz das Estradas
+      // André 2026-11-25: m.n = quantos (sem n = 1); maior que a pilha vende também das pilhas iguais
+      let quer = it.n && Number.isInteger(m.n) && m.n > 1 ? m.n : 1, preco = 0, n = 0;
+      for (const x of pilhasIguais(p.mochila, i)) {
+        if (quer <= 0) break;
+        const v = p.mochila[x]; if (this.carrinhoFora(j, v)) continue;
+        const t = v.n || 1, q = Math.min(quer, t);
+        preco += precoVenda(v, merc) * q; n += q; quer -= q;
+        if (q >= t) p.mochila[x] = null; else v.n = t - q;
+      }
       p.ouro += preco; this.caixa(j, ehEquip(it.k) ? 'vendaEquip' : it.k === 'tomo' ? 'vendaTomo' : 'venda', preco);
       this.pontosMercador(j, preco);
-      aviso(`Vendeu ${nomeItem(it)} por ${preco} de ouro`);
+      aviso(n > 1 ? `Vendeu ${n} ${nomeItem(it)} por ${preco} de ouro` : `Vendeu ${nomeItem(it)} por ${preco} de ouro`);
       this.historia(j, 'vender', { k: it.k });
     } else if (m.acao === 'vender_varios' && Array.isArray(m.lista)) {
       // André 2026-11-04: marcar vários itens (ou "Selecionar tudo") e vender de uma vez; cada lugar vende a pilha inteira
@@ -2239,18 +2247,29 @@ export class Simulacao {
     // daqui em diante muda a oferta: só destrancada (o cadeado protege o que o outro já viu)
     if (eu.tranca) return aviso('Sua oferta está trancada. Destranque para mudar');
     if (m.acao === 'por') {
-      const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < j.prog.mochila.length ? itemValido(j.prog.mochila[i]) : null;
-      if (!it) return;
-      if (it.cad) return aviso('Item trancado. Abra o cadeado na mochila para trocar');
-      if (this.carrinhoFora(j, it)) return aviso(`${it.k === 'navio' ? 'O navio' : 'O carrinho'} está no mundo. Guarde ele antes de trocar`);
-      const ja = eu.itens.find((e) => e.i === i), tem = it.n || 1, pos = ja ? ja.n : 0;
-      const n = Math.min(Number.isInteger(m.n) && m.n > 0 ? m.n : 1, tem - pos);
-      if (n <= 0) return aviso('Você já pôs tudo desse item');
-      if (ja) ja.n += n;
-      else {
-        if (eu.itens.length >= TROCA.maxItens) return aviso(`No máximo ${TROCA.maxItens} itens por troca`);
-        eu.itens.push({ i, n, chave: chaveItem(it) });
+      // André 2026-11-25: n maior que a pilha puxa das pilhas iguais; lista = várias pilhas inteiras (os botões de tipo)
+      const moch = j.prog.mochila, lista = Array.isArray(m.lista);
+      const lugares = lista ? [...new Set(m.lista.slice(0, 400))].filter((x) => Number.isInteger(x) && x >= 0 && x < moch.length && moch[x])
+        : (Number.isInteger(m.i) && m.i >= 0 && m.i < moch.length && moch[m.i] ? pilhasIguais(moch, m.i) : []);
+      if (!lugares.length) return;
+      const it0 = itemValido(moch[lugares[0]]);
+      if (!lista && it0?.cad) return aviso('Item trancado. Abra o cadeado na mochila para trocar');
+      if (!lista && it0 && this.carrinhoFora(j, it0)) return aviso(`${it0.k === 'navio' ? 'O navio' : 'O carrinho'} está no mundo. Guarde ele antes de trocar`);
+      let quer = lista ? Infinity : (Number.isInteger(m.n) && m.n > 0 ? m.n : 1), pos = 0, cheio = false;
+      for (const i of lugares) {
+        if (quer <= 0) break;
+        const it = itemValido(moch[i]); if (!it || it.cad || this.carrinhoFora(j, it)) continue;
+        const ja = eu.itens.find((e) => e.i === i), tem = it.n || 1, n = Math.min(quer, tem - (ja ? ja.n : 0));
+        if (n <= 0) continue;
+        if (ja) ja.n += n;
+        else {
+          if (eu.itens.length >= TROCA.maxItens) { cheio = true; break; }
+          eu.itens.push({ i, n, chave: chaveItem(it) });
+        }
+        quer -= n; pos += n;
       }
+      if (cheio) aviso(`No máximo ${TROCA.maxItens} itens por troca`);
+      if (!pos) return cheio ? undefined : aviso('Você já pôs tudo desse item');
     } else if (m.acao === 'tirar') {
       const k = Number.isInteger(m.o) ? m.o : -1; if (!eu.itens[k]) return;
       eu.itens.splice(k, 1);
@@ -3605,19 +3624,23 @@ export class Simulacao {
     if (!Array.isArray(L.bau)) L.bau = Array(bauLugares(L.bauNv)).fill(null);
     const p = j.prog, i = m.i | 0;
     if (m.acao === 'guardar') {
-      const o = p.mochila[i]; if (!o) return;
+      const o = p.mochila[i]; if (!o && !Array.isArray(m.lista)) return;
       // o.h do Tomo é a habilidade dele, não lugar rápido (André 2026-11-07: Tomo não entrava no baú)
-      if (o.h && o.k !== 'tomo') return aviso('Tire o item do lugar rápido antes de guardar');
-      const tem = o.n || 1, n = o.n && Number.isInteger(m.n) && m.n > 0 ? Math.min(m.n, tem) : tem;
-      const bau = L.bau.map((q) => (q ? { ...q } : null));
-      if (!guardar(bau, o.n ? { ...o, n } : { ...o })) return aviso('O baú está cheio');
-      L.bau = bau; p.mochila[i] = n < tem ? { ...o, n: tem - n } : null;
+      if (o && !Array.isArray(m.lista) && o.h && o.k !== 'tomo') return aviso('Tire o item do lugar rápido antes de guardar');
+      // André 2026-11-25: n maior que a pilha puxa das pilhas iguais; lista = várias pilhas inteiras (os botões de tipo)
+      let foi = 0;
+      for (const x of Array.isArray(m.lista) ? [...new Set(m.lista.slice(0, 400))].filter((x) => Number.isInteger(x) && p.mochila[x] && !(p.mochila[x].h && p.mochila[x].k !== 'tomo')) : [i]) {
+        const r = moverQtd(p.mochila, L.bau, x, Array.isArray(m.lista) ? undefined : m.n); if (!r) break;
+        p.mochila = r.de; L.bau = r.para; foi += r.n;
+      }
+      if (!foi) return aviso('O baú está cheio');
     } else if (m.acao === 'tirar') {
-      const o = L.bau[i]; if (!o) return;
-      const tem = o.n || 1, n = o.n && Number.isInteger(m.n) && m.n > 0 ? Math.min(m.n, tem) : tem;
-      const prova = p.mochila.map((q) => (q ? { ...q } : null));
-      if (!guardar(prova, o.n ? { ...o, n } : { ...o })) return aviso('Mochila cheia');
-      p.mochila = prova; L.bau[i] = n < tem ? { ...o, n: tem - n } : null;
+      let foi = 0;
+      for (const x of Array.isArray(m.lista) ? [...new Set(m.lista.slice(0, 400))].filter((x) => Number.isInteger(x) && L.bau[x]) : [i]) {
+        const r = moverQtd(L.bau, p.mochila, x, Array.isArray(m.lista) ? undefined : m.n); if (!r) break;
+        L.bau = r.de; p.mochila = r.para; foi += r.n;
+      }
+      if (!foi) return aviso('Mochila cheia');
     } else if (m.acao === 'organizar') { // botão Organizar do baú (André 2026-11-07), igual ao da mochila
       L.bau = organizar(L.bau);
     } else if (m.acao === 'melhorar') { // André 2026-11-07: 40 → 60 → 80 lugares, os itens ficam dentro

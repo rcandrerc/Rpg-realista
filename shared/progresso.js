@@ -260,6 +260,32 @@ export function guardarQueCabe(mochila, item) {
   }
   return n;
 }
+// ---------- mover por quantidade (André 2026-11-25: "colocar um número menor, igual ou maior que o stack") ----------
+// Mochila, venda, Baú e troca usam o mesmo jeito: número maior que a pilha puxa das outras pilhas iguais (mesmo item,
+// mesmo cadeado; a que está no lugar rápido fica de fora). Peça de equipamento é sempre uma só.
+export function pilhasIguais(lista, i) {
+  const o = lista[i]; if (!o) return [];
+  if (!o.n || ehEquip(o.k)) return [i];
+  const r = [i];
+  for (let x = 0; x < lista.length; x++) if (x !== i && lista[x] && mesmo(lista[x], o)) r.push(x);
+  return r;
+}
+// Passa n do item do lugar i de `de` para `para` (sem n: a pilha inteira; n maior que a pilha: das pilhas iguais).
+// Não mexe nas listas: devolve { de, para, n } novas (n = quantos couberam) ou null se nada passou.
+export function moverQtd(de, para, i, n) {
+  const src = de.map((q) => (q ? { ...q } : null)), dst = para.map((q) => (q ? { ...q } : null));
+  const o = src[i]; if (!o) return null;
+  let quer = o.n ? (Number.isInteger(n) && n > 0 ? n : o.n) : 1, foi = 0;
+  for (const x of pilhasIguais(src, i)) {
+    if (quer <= 0) break;
+    const v = src[x], t = v.n || 1, q = v.n ? Math.min(quer, t) : 1;
+    const c = guardarQueCabe(dst, v.n ? { ...v, n: q } : { ...v }); if (!c) break;
+    foi += c; quer -= c;
+    if (c >= t) src[x] = null; else v.n = t - c;
+    if (c < q) break; // destino cheio
+  }
+  return foi ? { de: src, para: dst, n: foi } : null;
+}
 // ---------- filtro de coleta (André 2026-11-07: "a bag enche muito rápido") ----------
 // prog.filtro = { r: [raridades desmarcadas], k: [recursos desmarcados] }. O que está desmarcado não entra na mochila:
 // peça de equipamento dessa raridade ou recurso (item com mat) que cai do monstro ou sai de bônus na coleta fica no chão.
