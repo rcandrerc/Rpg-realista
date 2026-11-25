@@ -12,12 +12,12 @@
 :root{--ink:#efe7d6;--muted:#a99e88;--line:rgba(239,231,214,.14);--card:#1c1a15;--card2:#24211b;--fundo:#100f0c;--gold:#d9a54a;
 --comum:#cfc8b8;--raro:#5aa8ff;--epico:#b974ff;--lend:#ffb03a;--mitico:#ff5a72;--chama:#e0663a;--geada:#6fb3e6;color-scheme:dark}
 *{box-sizing:border-box}
-html{scroll-behavior:smooth;scroll-padding-top:64px}
+html{scroll-behavior:smooth;scroll-padding-top:96px}
 body{margin:0;background:var(--fundo);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:env(safe-area-inset-bottom,0)}
 header{position:sticky;top:0;z-index:3;background:rgba(16,15,12,.97);border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top,0) + 8px) 0 0}
 .topo{display:flex;align-items:baseline;gap:8px;padding:0 16px}
 .topo h1{font-size:1.05rem;margin:0;color:var(--gold)}
-.topo span{color:var(--muted);font-size:.8rem}
+.topo span{color:var(--muted);font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 nav{display:flex;gap:6px;overflow-x:auto;padding:8px 16px 10px;scrollbar-width:none}
 nav::-webkit-scrollbar{display:none}
 nav a{flex:none;color:var(--ink);text-decoration:none;font:600 .82rem system-ui,sans-serif;background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:6px 12px;white-space:nowrap}
@@ -60,7 +60,7 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
 </head>
 <body>
 <header>
-  <div class="topo"><h1>📖 Wiki</h1><span>Age of Embers · como jogar · toque na foto para ampliar</span></div>
+  <div class="topo"><h1>📖 Wiki</h1><span>Age of Embers · como jogar</span></div>
   <nav id="menu">
     <a href="#comeco">Começo</a>
     <a href="#equip">Equipamento</a>
@@ -75,7 +75,7 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
     <a href="#criar">Criar</a>
     <a href="#comida">Comida</a>
     <a href="#horta">Horta</a>
-    <a href="#terreno">Terreno</a>
+    <a href="#terreno">Lote</a>
     <a href="#bosses">Bosses</a>
     <a href="#viagem">Viagem</a>
     <a href="#comercio">Comércio</a>
@@ -93,18 +93,19 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
       <li><b>Monstro não dá ouro.</b> Ouro vem de <b>packs</b>, vender equipamento, vender no leilão e da loja.</li>
       <li><b>Vigor</b> é a energia do trabalho (coletar, criar, pescar, fazer pack). Máximo 100 +1 por nível. Enche sozinho com o tempo. Comida não dá vigor.</li>
       <li><b>Morrer:</b> perde 5% do XP do nível (nunca cai de nível), as peças gastam 10 de durabilidade e você nasce no <b>totem mais perto</b>. Não perde ouro.</li>
-      <li><b>Conserto</b> de peça gasta é caro: 100 / 800 / 4.000 / 16.000 / 60.000 de ouro (Comum → Mítico, peça zerada).</li>
+      <li><b>Conserto</b> com o ferreiro da vila. Peça gasta custa caro: 100 / 800 / 4.000 / 16.000 / 60.000 de ouro (Comum → Mítico, peça zerada).</li>
       <li><b>Raças:</b> jogadores nascem <span style="color:var(--chama)">Chama</span>. A <span style="color:var(--geada)">Geada</span> (clãs bot) é inimiga.</li>
     </ul>
   </div>
+  <p style="color:var(--muted);font-size:.82rem">Toque em qualquer foto para ampliar.</p>
   <h3>O que libera com o nível</h3>
   <table class="tb">
     <tr><th>Nível</th><th>Libera</th></tr>
-    <tr><td>8</td><td>Comprar terreno</td></tr>
+    <tr><td>1</td><td>Fundar clã e a base do clã (seu lote vem com a base)</td></tr>
     <tr><td>10</td><td>Evoluir peça para <span class="r1">Raro</span></td></tr>
     <tr><td>12</td><td>Reforçar peça (+1, +2…) e fazer pack</td></tr>
     <tr><td>20 / 35 / 50</td><td>Evoluir para <span class="r2">Épico</span> / <span class="r3">Lendário</span> / <span class="r4">Mítico</span></td></tr>
-    <tr><td>30</td><td>Guilda e caça à Geada (Fragmento de Alma)</td></tr>
+    <tr><td>30</td><td>Guilda (Brenda, no Rio Claro); acima do 30, guerra com a Geada</td></tr>
     <tr><td>40</td><td>Alquimista (juntar catalisadores)</td></tr>
     <tr><td>60</td><td>Navio mercante</td></tr>
   </table>
@@ -141,7 +142,7 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
   </table>
   <h3>Onde conseguir</h3>
   <ul>
-    <li><b>Loja da Rosa:</b> só peça <span class="r0">Comum</span> (150 de ouro).</li>
+    <li><b>Comerciante da vila</b> (Rosa, na Clareira): só peça <span class="r0">Comum</span> (150 de ouro).</li>
     <li><b>Monstros:</b> soltam até <span class="r1">Raro</span>. Bicho muito abaixo do seu nível solta menos.</li>
     <li><b>Criar</b> (Ferreiro / Alfaiate): pode sair melhor, até <span class="r4">Mítico</span>. Ver <a href="#criar">Criar</a>.</li>
     <li><b>Evoluir</b> com catalisador. Ver <a href="#evoluir">Evoluir</a>.</li>
@@ -215,7 +216,7 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
   <p style="color:var(--muted);font-size:.82rem">Normalmente sai 1; às vezes 2 ou 3; 8% de vez nada.</p>
   <h3>2. Evoluir</h3>
   <ol>
-    <li>Vá até uma <b>bigorna</b> (espada, cajado, colar, capacete, peitoral) ou <b>bancada</b> (calça, short, botas, capa). Vale a da vila ou a do seu terreno.</li>
+    <li>Vá até uma <b>bigorna</b> (espada, cajado, colar, capacete, peitoral) ou <b>bancada</b> (calça, short, botas, capa). Toda vila tem as duas na ferraria; também vale a do seu lote na base.</li>
     <li>Toque na peça → <b>Evoluir</b>. Gasta 1 catalisador + material + 8 de vigor.</li>
     <li>A peça sobe 1 raridade e volta para +0.</li>
   </ol>
@@ -231,7 +232,7 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
     <li><b>Sorte:</b> 2% a 6% de pular uma raridade.</li>
   </ul>
   <h3>3. Alquimista (Nv 40)</h3>
-  <p>A <b>Mirela</b> (casa do lado leste da praça) junta catalisadores: <b>10 <span class="r1">Raros</span> + 8.000 ouro = 1 <span class="r2">Épico</span></b>; <b>10 <span class="r2">Épicos</span> + 30.000 = 1 <span class="r3">Lendário</span></b>. Mítico ela não faz.</p>
+  <p>A <b>Mirela</b>, na Vila do Rio Claro, junta catalisadores: <b>10 <span class="r1">Raros</span> + 8.000 ouro = 1 <span class="r2">Épico</span></b>; <b>10 <span class="r2">Épicos</span> + 30.000 = 1 <span class="r3">Lendário</span></b>. Mítico ela não faz.</p>
   <div class="duas">
     <figure><img src="img/catalisadores.jpg" alt="Ícones dos catalisadores"><figcaption>Runas e Selos.</figcaption></figure>
     <figure><img src="img/catalisador-menu.jpg" alt="Peça com botões Destruir e Evoluir"><figcaption>Destruir e Evoluir na janela da peça.</figcaption></figure>
@@ -267,7 +268,7 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
   <div class="card resumo">
     <ol>
       <li><b>Fundar:</b> menu Clã → nome (3 a 20 letras). Você vira o líder.</li>
-      <li><b>Contratar:</b> fale com o <b>Recrutador</b> (Clareira ou Juncal). Ele mostra <b>3 candidatos</b> com ficha; você escolhe 1.</li>
+      <li><b>Contratar:</b> fale com o <b>Sargento Bruno</b>, o recrutador da Clareira. Ele mostra <b>3 candidatos</b> com ficha; você escolhe 1.</li>
       <li><b>Pagar:</b> a taxa semanal sai do <b>cofre do clã</b> (deposite ouro no menu Clã).</li>
       <li><b>Mandar:</b> escolha a ordem do recruta e toque em <b>Dar ordem</b>.</li>
     </ol>
@@ -293,7 +294,7 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
     <tr><td><b>Proteger</b></td><td>Guarda você, o carrinho ou o navio mercante.</td></tr>
     <tr><td><b>Fazenda</b></td><td>Trabalha na horta da base.</td></tr>
   </table>
-  <p>Com uma ordem ele <b>obedece</b>; só cuida da própria vida em Livre ou sem vigor. Recruta online sobe sem limite; offline sobe 0,25 nível por hora (até 12 h).</p>
+  <p>Com uma ordem ele <b>obedece</b>; só cuida da própria vida em Livre ou sem vigor. Com você fora do jogo, os recrutas continuam no mundo fazendo a ordem sempre que tiver alguém online no servidor. Com o servidor vazio, contam como simulação: até 0,25 nível por hora (até 12 h).</p>
   <h3>Subir o clã (vagas)</h3>
   <p>Nível do clã = número de vagas (máx. 10). Cada nível acima de 1 dá +2% de XP e ouro.</p>
   <div class="rolar"><table class="tb">
@@ -323,8 +324,8 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
   <h2>🏰 Base do clã, despensa e lenha</h2>
   <div class="card resumo">
     <ul>
-      <li>O líder funda a base pelo menu Clã. Longe de vilas, totens e outras bases (100 m+). Mudar de lugar: 10.000 ouro, 1 vez a cada 7 dias.</li>
-      <li>A base cresce com o clã (até o Castelo, Nv 6). Lotes de 10×10 m em volta; o 1º é do líder.</li>
+      <li>O líder funda a base pelo menu Clã (Escolher o lugar da base), onde está. Precisa ser no território da Chama, longe de vila, totem, estrada, rio, veio, campo de caça e de outra base (100 m+). Mudar de lugar: 10.000 ouro, 1 vez a cada 7 dias.</li>
+      <li>A base sobe junto com o nível do clã (até o Castelo, Nv 6). Em volta ficam os <b>lotes de 10×10 m</b>: o lote 1 é do líder e os outros vão para os membros. <b>Não se compra mais terreno</b>: o lote vem com a base.</li>
       <li>Dentro da base é <b>área segura</b> (como no totem). PvP não muda.</li>
       <li><b>Taxa semanal</b> sai do cofre. Atrasou 2 semanas: lotes e Baú do Clã travam até pagar.</li>
     </ul>
@@ -509,7 +510,7 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
     <li>Também: regador, radar de pesca, galão, carrinho, barquinho, navio.</li>
   </ul>
   <p style="color:var(--muted);font-size:.82rem">Algumas pedem nível do herói: bancada e bigorna Nv 3, fornalha 5, fogão 6, peitoral 8, colar 12, aço 15.</p>
-  <p>Bigorna e bancada: na vila (ferraria do Tomás / ao lado da Rosa) ou construídas no seu terreno.</p>
+  <p>Bigorna, bancada e fornalha: toda vila tem na ferraria (na Clareira, a do Tomás e a bancada ao lado da Rosa). Também dá para construir no seu lote da base.</p>
   <figure><img src="img/criar.jpg" alt="Aba Criar"><figcaption>Aba Criar: mostra se a estação está perto ("aqui").</figcaption></figure>
 </section>
 
@@ -517,7 +518,7 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
 <section id="comida">
   <h2><img src="../painel-icones/ensopado.png" alt="">Comida e buffs</h2>
   <div class="card resumo">
-    <p>Construa um <b>Fogão a lenha</b> (8 pedra, 4 lenha, 1 barra de ferro) no terreno. Perto dele, cozinhe pela aba Criar. Comida cura e dá <b>buff</b> (um por vez; morrer tira).</p>
+    <p>Construa um <b>Fogão a lenha</b> (8 pedra, 4 lenha, 1 barra de ferro) no seu lote da base (a vila não tem fogão). Perto dele, cozinhe pela aba Criar. Comida cura e dá <b>buff</b> (um por vez; morrer tira).</p>
   </div>
   <table class="tb">
     <tr><th>Prato</th><th>Faz com</th><th>Buff</th></tr>
@@ -538,8 +539,9 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
   <div class="card resumo">
     <ol>
       <li>Faça uma <img class="ic" src="../painel-icones/enxada.png" alt=""> <b>Enxada</b> (3 lenha, 2 pedra) e um <img class="ic" src="../painel-icones/regador.png" alt=""> <b>Regador</b> (1 barra de cobre, 2 lenha, na bancada).</li>
-      <li>Compre <b>sementes</b> com a Rosa.</li>
-      <li>No seu terreno: <b>arar → plantar → regar → colher</b>. Encha o regador no poço.</li>
+      <li>Compre <b>sementes</b> com a comerciante (Rosa, na Clareira).</li>
+      <li>No seu lote da base: <b>arar → plantar → regar → colher</b>. Encha o regador no poço ou na beira da água.</li>
+      <li>Recruta com a ordem <b>Fazenda</b> cuida da horta da base.</li>
     </ol>
   </div>
   <div class="fila">
@@ -555,18 +557,17 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
 
 <!-- ================= TERRENO ================= -->
 <section id="terreno">
-  <h2>🏠 Terreno e construção</h2>
+  <h2>🏠 Seu lote e construção</h2>
   <div class="card resumo">
     <ul>
-      <li>A partir do Nv 8. Toque na <b>placa</b> do lote livre e marque o tamanho (6 a 20 m de lado). Preço: 400 + 4 por bloco.</li>
-      <li>Com o <b>martelo</b> (topo da tela, aceso no seu terreno) escolha o que construir.</li>
-      <li>Móveis úteis: <b>Bancada</b>, <b>Bigorna</b>, <b>Fornalha</b> (12 pedra, 2 lenha), <b>Fogão</b>, <b>Baú</b> (40 lugares, melhora até 80), cerca, casa e horta.</li>
+      <li><b>Não se compra terreno.</b> Funde o clã e a base: o <b>lote 1</b> (10×10 m) é seu; os outros lotes vão para os membros.</li>
+      <li>No lote, toque no <b>martelo</b> (topo da tela, aceso no seu lote) e escolha o que construir.</li>
+      <li><b>Móveis:</b> Bancada (6 lenha, 3 pedra), Bigorna (3 barra de ferro, 2 lenha), Fornalha (12 pedra, 2 lenha), Fogão (8 pedra, 4 lenha, 1 barra de ferro), Baú (10 lenha, 40 lugares, melhora até 80), Palete de packs (guarda packs sem sumir), Tocha, Cama e Cerca.</li>
+      <li><b>Casa:</b> fundação, paredes, porta, janela e telhado, de madeira ou pedra.</li>
+      <li>Lote travado: a taxa do clã está 2 semanas atrasada.</li>
     </ul>
   </div>
-  <div class="duas">
-    <figure><img src="img/construir.jpg" alt="Construindo fornalha"><figcaption>Colocando uma fornalha.</figcaption></figure>
-    <figure><img src="img/fazenda.jpg" alt="Fazenda no terreno"><figcaption>Terreno com horta.</figcaption></figure>
-  </div>
+  <figure><img src="img/construir.jpg" alt="Construindo fornalha"><figcaption>Colocando uma fornalha com o martelo.</figcaption></figure>
 </section>
 
 <!-- ================= BOSSES ================= -->
@@ -586,7 +587,6 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
     <tr><td>Uivo-Rei (Lobo)</td><td>36</td><td>Oeste de Vael</td><td>8%</td></tr>
     <tr><td>Mandíbula Velha</td><td>42</td><td>Norte de Vael</td><td>10%</td></tr>
     <tr><td>Chifre-de-Ferro</td><td>48</td><td>Leste de Vael</td><td>12%</td></tr>
-    <tr><td>Garra do Abismo</td><td>62</td><td>Ilha do Meio</td><td>15%</td></tr>
     <tr><td>Colosso Gélido</td><td>76</td><td>Oeste de Aurora</td><td>20%</td></tr>
     <tr><td>Dragão de Cinzas</td><td>92</td><td>Leste de Aurora</td><td>25%</td></tr>
   </table></div>
@@ -603,7 +603,7 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
       <li><b>Totem:</b> passe perto (8 m) para descobrir. Depois, pelo mapa (Lugares, do mais perto ao mais longe) viaje para qualquer totem descoberto: 5 s parado, custa 10 × seu nível de ouro (mín. 50).</li>
       <li>Em volta do totem é área segura e regenera vida.</li>
       <li><b>Voltar para a vila</b> (ícone da casinha): 8 s parado, recarga de 10 min.</li>
-      <li><b>Montaria:</b> o Lobo (anda 3, corre 9). Não monta com pack nas costas.</li>
+      <li><b>Montaria:</b> o Lobo (anda 3, corre 9), liberado ao avançar na história. Não monta com pack nas costas nem em combate.</li>
       <li><b>Ir</b> no mapa: anda sozinho até o lugar.</li>
     </ul>
   </div>
@@ -614,7 +614,7 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
 <section id="comercio">
   <h2><img src="../painel-icones/ouro.png" alt="">Loja, leilão e troca</h2>
   <h3>Loja da Rosa</h3>
-  <p>Poções, sementes e peças Comuns. Compra várias de uma vez (janela de quantidade, botão Máx). Vende o que você tem.</p>
+  <p>Toda vila tem uma comerciante (Rosa na Clareira). Poções, sementes e peças Comuns. Compra várias de uma vez (janela de quantidade, botão Máx). Vende o que você tem.</p>
   <figure><img src="img/loja.jpg" alt="Comprar quantidade na loja"><figcaption>Escolher quantidade na loja.</figcaption></figure>
   <h3>Leilão (Casa do Comércio)</h3>
   <ul>
@@ -637,17 +637,17 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
   <h2><img src="../painel-icones/alma_geada.png" alt="">Guerra Chama × Geada</h2>
   <div class="card resumo">
     <ul>
-      <li>Do Nv 30, fora da área segura, dá para lutar com a outra raça. Matar a Geada dá <b>Fragmento de Alma</b> (sobe o clã do Nv 4 em diante).</li>
+      <li>Acima do Nv 30, fora da área segura, dá para lutar com a outra raça. Matar a Geada dá <b>Fragmento de Alma</b> (sobe o clã do Nv 4 em diante).</li>
       <li>Recruta com a ordem "Farmar recurso → Alma" caça a Geada por você.</li>
       <li><img class="ic" src="../painel-icones/rastreio.png" alt=""> <b>Pó de rastreio</b> (2 cristal, 1 carvão, na bancada): por 5 min a outra raça aparece em vermelho no mapa.</li>
-      <li>A Geada faz rondas e emboscadas nas estradas. Cuidado levando pack.</li>
+      <li>A Geada faz rondas e emboscadas nas estradas e pode roubar o seu pack. Cuidado levando pack.</li>
       <li><b>Arena PvP 4×4:</b> partidas de 5 min, ganha Insígnias da Arena.</li>
     </ul>
   </div>
 </section>
 
 </main>
-<footer>Age of Embers · Wiki · resumo do jogo de 25/11/2026<br>© 2026 André Coutinho. Todos os direitos reservados.</footer>
+<footer>Age of Embers · Wiki · resumo do jogo de 25/11/2026 (revisado)<br>© 2026 André Coutinho. Todos os direitos reservados.</footer>
 <div id="zoom" role="dialog" aria-label="Imagem ampliada"><img alt=""></div>
 <a class="topo-btn" href="#comeco" aria-label="Voltar ao topo">↑</a>
 <script>
