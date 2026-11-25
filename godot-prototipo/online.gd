@@ -10,6 +10,7 @@ const Idioma = preload("res://idioma.gd") # a IA da Cecília e do Dario responde
 const Aparencia = preload("res://aparencia.gd")
 const Penteado = preload("res://penteado.gd")
 const Montaria = preload("res://montaria.gd")
+const PesOlhar = preload("res://pes_olhar.gd") # pés no chão na ladeira e olhar o herói (só os mais perto)
 
 var m # main.gd
 var rede
@@ -1745,6 +1746,17 @@ func _detalhe_outros(dt: float) -> void:
 				o.montaria.no.visible = not sumiu
 	_marca("on:detalhe", td)
 
+# pés no chão e olhar (pes_olhar.gd): só nos mais perto, e nunca sentado, montado, nadando, a bordo ou caído
+func _pes_olhar(o: Dictionary) -> void:
+	var po = o.get("pes")
+	if po == null or not po.active or not is_instance_valid(po):
+		return
+	var livre: bool = o.get("montaria") == null and not o.get("sentado", false) and not o.get("morto_srv", false) \
+		and float(o.get("sobe_alvo", 0.0)) <= 0.0 and not (o.get("bd") is Array)
+	po.pes_ligado = livre
+	po.olhar_ligado = livre
+	po.alvo_olhar = m.heroi.global_position + Vector3(0, 1.45, 0) if livre and m.heroi != null and m.heroi.visible else null
+
 func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 	var antes := int(o.get("lod", -1))
 	o.lod = nivel
@@ -1754,6 +1766,8 @@ func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 		for mo in o.get("molas", []):
 			if is_instance_valid(mo):
 				mo.active = cheio
+		if o.get("pes") != null and is_instance_valid(o.pes):
+			o.pes.active = cheio
 	o.anim_passo = [3, 2, 1][nivel]
 	# malha mais simples mais cedo (o LOD automático do Godot) para quem não está entre os mais perto
 	if antes == -1 or not o.has("malhas"):
@@ -1789,6 +1803,21 @@ func _montar_corpo(vis: String, pos: Vector3, ry: float, nome: String) -> Dictio
 	o.ap = ""
 	o.lod = -1
 	o.molas = _molas_de(esq)
+	o.pes = null
+	if esq != null and esq.find_bone("J_Bip_C_Hips") >= 0:
+		var po = PesOlhar.new()
+		esq.add_child(po)
+		# depois do inclinar.gd e do braço da espada, antes das molas do cabelo e da saia (como o sentar.gd)
+		var antes: int = esq.get_child_count() - 1
+		for i in esq.get_child_count():
+			if esq.get_child(i) is SpringBoneSimulator3D:
+				antes = i
+				break
+		esq.move_child(po, antes)
+		po.preparar(esq)
+		po.T = m.terreno
+		po.active = false # liga em _aplicar_detalhe, só nos mais perto
+		o.pes = po
 	o.fase = randi() % 6
 	return o
 
@@ -1946,6 +1975,7 @@ func _passo(dt: float) -> void:
 			o.montaria.passo(dt, o.vel_m)
 		else:
 			_passo_no_ritmo(o.anim, o.vel_m, PASSO_HUMANO[0], PASSO_HUMANO[1])
+		_pes_olhar(o)
 	tp = _marca("on:outros", tp)
 	_lista_mexem()
 	for e in _mexem:
