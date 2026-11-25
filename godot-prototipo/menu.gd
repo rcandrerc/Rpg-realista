@@ -292,6 +292,9 @@ func _ready() -> void:
 # barra de rolar larga, fácil de pegar com o dedo (André 2026-11-07: na mochila cheia o toque caía nos itens)
 static func barra_larga(sc: ScrollContainer, largura := 22) -> void:
 	var vb := sc.get_v_scroll_bar()
+	if OS.has_feature("mobile"): # celular: só um risquinho dourado, a lista rola arrastando o dedo (André 2026-11-25)
+		largura = 6
+		vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.custom_minimum_size.x = largura
 	var trilho := StyleBoxFlat.new()
 	trilho.bg_color = Color(0.03, 0.026, 0.022, 0.9)
@@ -305,7 +308,7 @@ static func barra_larga(sc: ScrollContainer, largura := 22) -> void:
 		g.bg_color = Color(OURO, e[1])
 		g.set_corner_radius_all(int(largura / 2.0))
 		g.border_color = Color(0.03, 0.026, 0.022, 0.9)
-		g.set_border_width_all(3) # um respiro dentro do trilho
+		g.set_border_width_all(3 if largura > 10 else 0) # um respiro dentro do trilho (o risquinho do celular não tem)
 		vb.add_theme_stylebox_override(e[0], g)
 
 const RAIO_JANELA := 16 # cantos das janelas pop-up (André 2026-11-11)
@@ -1117,7 +1120,7 @@ func aberto() -> bool:
 
 # rolar a lista arrastando o dedo (em cima de qualquer coisa: linha, botão, texto)
 func _input(ev: InputEvent) -> void:
-	if not aberto() or rolagem == null:
+	if not aberto() or rolagem == null or menu_ver_aberto(): # menuzinho do filtro por cima: ele rola (rolagem_toque.gd)
 		return
 	var rol: ScrollContainer = janela_rolagem if janela_aberta() and janela_rolagem != null else rolagem
 	if ev is InputEventScreenTouch and ev.pressed and not janela_aberta() and painel_item != null and painel_item.visible \
@@ -1134,7 +1137,7 @@ func _input(ev: InputEvent) -> void:
 			if _arrasto_dentro and Engine.has_meta("rolagem_toque"):
 				Engine.get_meta("rolagem_toque", null).esquecer() # encostou: a lista que deslizava para
 			var vb := rol.get_v_scroll_bar()
-			if vb.visible and vb.get_global_rect().has_point(ev.position):
+			if vb.visible and vb.mouse_filter != Control.MOUSE_FILTER_IGNORE and vb.get_global_rect().has_point(ev.position):
 				_arrasto_dentro = false # dedo na barra: a própria barra rola, no sentido dela
 			_arrasto_soma = 0.0
 			_arrastou = false
@@ -5128,8 +5131,7 @@ var ver_fora := {"k": {}, "r": {}} # desmarcados: k = item, r = raridade da peç
 
 func limpar_ver() -> void:
 	ver_fora = {"k": {}, "r": {}}
-	if _menu_ver != null:
-		_menu_ver.hide()
+	fechar_menu_ver()
 
 func filtrando() -> bool:
 	return not ver_fora.k.is_empty() or not ver_fora.r.is_empty()
@@ -5155,7 +5157,7 @@ func ids_visiveis(lista: Array, com_cadeado := false) -> Array:
 # Tocar abre um menuzinho de marcar (André 2026-11-25: "clicou no menu de armadura, eu escolho o que eu quero, só vai
 # aparecer o que eu quero"; "retire esses balões"): equipamento = raridades, recurso = cada item com o símbolo.
 # Cada toque marca/desmarca e a tela atrás já muda; toque fora fecha. ao_mudar remonta a tela.
-var _menu_ver: PopupMenu
+var _menu_ver: CanvasLayer = null # menuzinho aberto (abrir_menu_ver)
 func botoes_ver(lista: Array, ao_mudar: Callable, larg := 64, _lado := "") -> HBoxContainer:
 	var P = P_menu
 	var h := HBoxContainer.new()
@@ -5177,20 +5179,45 @@ func botoes_ver(lista: Array, ao_mudar: Callable, larg := 64, _lado := "") -> HB
 		h.add_child(b)
 	return h
 
+# André 2026-11-25: "o botãozinho do lado direito para arrastar é bom para computador, para celular é horrível; quero
+# igual Instagram, clica, joga para cima ou para baixo". O menuzinho não é mais PopupMenu (janela à parte, só rolava
+# pela barra): é uma lista comum numa camada por cima de tudo, então rola arrastando o dedo e desliza (rolagem_toque.gd).
+func menu_ver_aberto() -> bool:
+	return _menu_ver != null and is_instance_valid(_menu_ver)
+
+func fechar_menu_ver() -> void:
+	if _menu_ver != null and is_instance_valid(_menu_ver):
+		_menu_ver.queue_free()
+	_menu_ver = null
+
+# quadradinho de marcar grande e dourado (o do Godot é escuro e some no fundo do menu)
+static var _caixinhas := {}
+static func caixinha(marcada: bool) -> Texture2D:
+	if _caixinhas.has(marcada):
+		return _caixinhas[marcada]
+	var t := 26
+	var img := Image.create(t, t, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	for y in t:
+		for x in t:
+			var borda := x < 2 or y < 2 or x >= t - 2 or y >= t - 2
+			if borda:
+				img.set_pixel(x, y, OURO)
+			elif marcada:
+				img.set_pixel(x, y, OURO.darkened(0.15))
+	if marcada: # o vezinho escuro
+		for i in 6:
+			for e in 3:
+				img.set_pixel(6 + i, 12 + i + e - 1, FUNDO.lightened(0.02))
+		for i in 11:
+			for e in 3:
+				img.set_pixel(11 + i, 17 - i + e - 1, FUNDO.lightened(0.02))
+	_caixinhas[marcada] = ImageTexture.create_from_image(img)
+	return _caixinhas[marcada]
+
 func abrir_menu_ver(b: Control, lista: Array, eq: bool, ao_mudar: Callable) -> void:
 	var P = P_menu
-	if _menu_ver == null:
-		_menu_ver = PopupMenu.new()
-		_menu_ver.hide_on_checkable_item_selection = false
-		_menu_ver.add_theme_font_size_override("font_size", 20)
-		_menu_ver.add_theme_constant_override("v_separation", 14)
-		_menu_ver.add_theme_constant_override("icon_max_width", 28)
-		_menu_ver.add_theme_stylebox_override("panel", caixa(FUNDO, OURO.darkened(0.25), 2, 8, 8))
-		add_child(_menu_ver)
-	var pm := _menu_ver
-	pm.clear()
-	for c in pm.id_pressed.get_connections():
-		pm.id_pressed.disconnect(c.callable)
+	fechar_menu_ver()
 	# o que existe nesta lista (e o que está desmarcado, para dar para marcar de volta). Equipamento: Raridade e, embaixo,
 	# Peça (André 2026-11-25: "além da raridade, a especificidade: só tops, só calças, só arma"). Recurso: cada item.
 	var ks: Array = []
@@ -5200,48 +5227,104 @@ func abrir_menu_ver(b: Control, lista: Array, eq: bool, ao_mudar: Callable) -> v
 	for k in ver_fora.k.keys():
 		if not ks.has(k) and P.dados.itens.has(k) and P.eh_equip({"k": k, "r": 0}) == eq:
 			ks.append(k)
-	var ent: Array = [] # [id, "r" ou "k", raridade ou item]
+	var camada := CanvasLayer.new()
+	camada.layer = 60 # acima do menu (20), do baú e da troca
+	_menu_ver = camada
+	add_child(camada)
+	var fundo := Control.new() # toque fora da lista fecha
+	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fundo.mouse_filter = Control.MOUSE_FILTER_STOP
+	fundo.gui_input.connect(func(ev):
+		if ev is InputEventMouseButton and ev.pressed:
+			fechar_menu_ver())
+	camada.add_child(fundo)
+	var painel := PanelContainer.new()
+	painel.add_theme_stylebox_override("panel", caixa(FUNDO, OURO.darkened(0.25), 2, 8, 8))
+	fundo.add_child(painel)
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER # sem barra: rola arrastando o dedo
+	painel.add_child(sc)
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_theme_constant_override("separation", 2)
+	sc.add_child(col)
+	var caixas: Array = [] # [CheckBox, "r" ou "k", raridade ou item]
+	var linha := func(nome: String, tex: Texture2D, cor_icone: Color, ligado: bool, tipo: String, chave) -> void:
+		var c := CheckBox.new()
+		c.focus_mode = Control.FOCUS_NONE
+		c.text = nome
+		c.icon = tex
+		c.button_pressed = ligado
+		c.custom_minimum_size = Vector2(0, 50)
+		c.add_theme_font_size_override("font_size", 20)
+		c.add_theme_constant_override("icon_max_width", 28)
+		c.add_theme_constant_override("h_separation", 10)
+		c.add_theme_icon_override("checked", caixinha(true))
+		c.add_theme_icon_override("unchecked", caixinha(false))
+		for k in ["icon_normal_color", "icon_pressed_color", "icon_hover_color", "icon_hover_pressed_color", "icon_focus_color"]:
+			c.add_theme_color_override(k, cor_icone)
+		c.toggled.connect(func(on: bool):
+			var d: Dictionary = ver_fora.r if tipo == "r" else ver_fora.k
+			if on:
+				d.erase(chave)
+			else:
+				d[chave] = true
+			ao_mudar.call())
+		col.add_child(c)
+		caixas.append([c, tipo, chave])
+	var titulo := func(t: String) -> void:
+		var l := rotulo(tr(t), 15, APAGADO)
+		l.custom_minimum_size = Vector2(0, 30)
+		l.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+		col.add_child(l)
 	if eq:
-		pm.add_separator(tr("Raridade"))
+		titulo.call("Raridade")
 		for x in P.dados.raridades.size():
-			pm.add_icon_check_item(icone_tex("it_espada"), str(P.dados.raridades[x].nome), x)
-			pm.set_item_icon_modulate(pm.item_count - 1, Color(P.dados.raridades[x].cor))
-			pm.set_item_checked(pm.item_count - 1, not ver_fora.r.has(x))
-			ent.append([x, "r", x])
+			linha.call(str(P.dados.raridades[x].nome), icone_tex("it_espada"), Color(P.dados.raridades[x].cor), not ver_fora.r.has(x), "r", x)
 		if not ks.is_empty():
-			pm.add_separator(tr("Peça"))
-	for x in ks.size():
-		var it := {"k": ks[x], "r": 0} if eq else {"k": ks[x], "n": 1}
-		pm.add_icon_check_item(icone_tex(P.icone_item(it)), P.nome_item({"k": ks[x], "n": 1}) if not eq else str(P.dados.itens[ks[x]].nome), 100 + x)
-		pm.set_item_checked(pm.item_count - 1, not ver_fora.k.has(ks[x]))
-		ent.append([100 + x, "k", ks[x]])
-	if ent.is_empty():
-		pm.add_item(tr("Nada aqui"), 9998)
-		pm.set_item_disabled(pm.item_count - 1, true)
+			titulo.call("Peça")
+	for k in ks:
+		var it := {"k": k, "r": 0} if eq else {"k": k, "n": 1}
+		linha.call(str(P.dados.itens[k].nome) if eq else P.nome_item({"k": k, "n": 1}), icone_tex(P.icone_item(it)), Color.WHITE, not ver_fora.k.has(k), "k", k)
+	if caixas.is_empty():
+		col.add_child(rotulo(tr("Nada aqui"), 18, APAGADO))
 	else:
-		pm.add_separator()
-		pm.add_item(tr("Marcar todos"), 9000)
-		pm.add_item(tr("Desmarcar todos"), 9001)
-	var por := func(e: Array, liga: bool):
-		var d: Dictionary = ver_fora.r if e[1] == "r" else ver_fora.k
-		if liga:
-			d.erase(e[2])
-		else:
-			d[e[2]] = true
-		pm.set_item_checked(pm.get_item_index(e[0]), liga)
-	pm.id_pressed.connect(func(id: int):
-		if id == 9000 or id == 9001:
-			for e in ent:
-				por.call(e, id == 9000)
-		else:
-			for e in ent:
-				if e[0] == id:
-					por.call(e, not pm.is_item_checked(pm.get_item_index(id)))
-		ao_mudar.call())
-	pm.reset_size()
+		col.add_child(HSeparator.new())
+		for liga in [true, false]:
+			var t := Button.new()
+			t.focus_mode = Control.FOCUS_NONE
+			t.flat = true
+			t.text = tr("Marcar todos") if liga else tr("Desmarcar todos")
+			t.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			t.custom_minimum_size = Vector2(0, 50)
+			t.add_theme_font_size_override("font_size", 20)
+			t.pressed.connect(func():
+				for e in caixas:
+					(e[0] as CheckBox).set_pressed_no_signal(liga)
+					var d: Dictionary = ver_fora.r if e[1] == "r" else ver_fora.k
+					if liga:
+						d.erase(e[2])
+					else:
+						d[e[2]] = true
+				ao_mudar.call())
+			col.add_child(t)
+	# tamanho e lugar: embaixo do botão; se não couber, a lista fica do tamanho da tela e rola com o dedo
 	var r := b.get_global_rect()
-	pm.position = Vector2i(int(r.position.x), int(r.end.y) + 4)
-	pm.popup()
+	var tela := b.get_viewport_rect().size if b.is_inside_tree() else Vector2(1280, 720)
+	var ajustar := func():
+		if not is_instance_valid(col):
+			return
+		var conteudo_min := col.get_combined_minimum_size()
+		var larg := clampf(conteudo_min.x + 24, 260.0, tela.x - 16)
+		var y := r.end.y + 4
+		if tela.y - y < 240: # botão lá embaixo: abre do alto da tela
+			y = 8.0
+		sc.custom_minimum_size = Vector2(larg - 16, minf(conteudo_min.y, tela.y - y - 24))
+		painel.position = Vector2(clampf(r.position.x, 8, tela.x - larg - 8), y)
+		painel.reset_size()
+	ajustar.call()
+	ajustar.call_deferred() # de novo com as fontes já medidas
 
 # André 2026-11-25: o mesmo item (mesmo k, lugar rápido, nível e cadeado) espalhado em várias pilhas. A janelinha da
 # quantidade (pedir_qtd) aceita até a soma de todas: número maior que a pilha puxa das outras (o servidor faz igual).

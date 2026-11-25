@@ -12,7 +12,6 @@ func esperar(k: int) -> void:
 		await process_frame
 func _initialize() -> void:
 	DisplayServer.window_set_size(Vector2i(W, H))
-	root.gui_embed_subwindows = true # o menuzinho (PopupMenu) sai na foto
 	root.size = Vector2i(W, H)
 	var sc := GDScript.new()
 	sc.source_code = "extends Node\nvar P\nvar menu\nvar sons\nvar hud = self\nvar base_cla = null\nvar lentidao = null\nvar tempo := 0.0\nvar online\nfunc on(): return true\nfunc aviso(t): print('aviso: ', t)\nfunc rede(t, msg): print('rede: ', t, ' ', msg)\nfunc perto_de_quem_compra(): return true\nfunc perto_de_quem_conserta(): return false\n"
@@ -76,11 +75,16 @@ func _initialize() -> void:
 		if M._menu_ver.get_parent() == M: # o menu da foto não está na árvore: o menuzinho vai para a raiz
 			M.remove_child(M._menu_ver)
 			root.add_child(M._menu_ver)
-			M.abrir_menu_ver(bv.get_child(0 if caso[0] == "eq" else 1), moch, caso[0] == "eq", func(): pass)
 		await esperar(12)
 		await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png(saida + "/" + caso[3])
-		M._menu_ver.hide()
+		# a mesma lista depois de arrastar o dedo para cima (rola sem barra)
+		var rol: ScrollContainer = M._menu_ver.find_children("*", "ScrollContainer", true, false)[0]
+		rol.scroll_vertical = 220
+		await esperar(6)
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png(saida + "/" + caso[3].replace(".png", "-rolado.png"))
+		M.fechar_menu_ver()
 		tela.queue_free()
 		fundo.queue_free()
 		await esperar(3)
