@@ -858,7 +858,7 @@ function desenharJogar() {
   if (R) { const p = el('button', 'acao cinza', 'Parar'); p.onclick = () => mandar('leveParar'); bt.append(p); }
   // montaria (André 2026-11-25): a mesma mensagem do jogo ('montar'); com pack, em combate ou antes de liberar o servidor recusa
   if (!leve.pk?.car || leve.pk.car.onde !== 2) { const mt = el('button', 'acao cinza', montado ? 'Descer do lobo' : 'Montar no lobo'); mt.onclick = () => mandar('montar'); bt.append(mt); }
-  const casa = el('button', 'acao cinza', 'Recall: base do clã'); casa.onclick = () => mandar('vila'); // o mesmo da casinha do jogo (Simulacao.voltarVila): canaliza e aparece no Baú do Clã bt.append(casa);
+  const casa = el('button', 'acao cinza', 'Recall: base do clã'); casa.onclick = () => mandar('vila'); bt.append(casa); // o mesmo da casinha do jogo (Simulacao.voltarVila): canaliza e aparece no Baú do Clã
   const sai = el('button', 'acao cinza', 'Sair do mundo'); sai.onclick = sairLeve; bt.append(sai);
   st.append(bt);
   const P = pertoAgora(), chave = [P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(',')].join('|');
