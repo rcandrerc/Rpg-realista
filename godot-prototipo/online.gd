@@ -19,6 +19,7 @@ var amiga_id := "" # a Cecília (shared/amiga.js): o servidor só manda para o d
 var amiga_ids: Array = [] # todos os amigos virtuais com quem posso conversar: Cecília e Dario (André 2026-11-11)
 var amiga_papeis := {} # id -> "a guerreira" / "o guerreiro" (o título na janela de conversa)
 var amiga_segue := {} # id -> true: dá para seguir (botão Seguir no cartão; só a Cecília, AMIGA.seguivel)
+var amiga_sem_time := {} # id -> true: líder de clã bot, sem convite para o time (André 2026-11-25, shared/amiga.js semTimeAmiga)
 var outros := {} # id -> {no, anim, alvo, ry, seq, barra, modo, uma_vez}
 var eu_guerra := false # Chama x Geada: eu estou na zona de guerra (acima da Trégua e fora da zona segura)
 var eu_raca := "" # "" = Chama
@@ -519,6 +520,7 @@ func voltar_ao_login(texto := "") -> void:
 	amiga_ids.clear()
 	amiga_papeis.clear()
 	amiga_segue.clear()
+	amiga_sem_time.clear()
 	_foi_desconectado = false
 	_foi_trocado = false
 	_conta_antes = {}
@@ -1167,6 +1169,10 @@ func evento(ev: Dictionary) -> void:
 			amiga_papeis[aid] = str(ev.get("papel", "a guerreira"))
 			if ev.get("segue", false):
 				amiga_segue[aid] = true
+			if ev.get("semTime", false):
+				amiga_sem_time[aid] = true
+			else: # o evento vem sempre completo: quem deixou de ser líder volta a ter o convite
+				amiga_sem_time.erase(aid)
 			return
 		"seguir": # botão Seguir (seguir.gd, André 2026-11-17): ela topou, o herói vai atrás dela
 			if m.seguir:

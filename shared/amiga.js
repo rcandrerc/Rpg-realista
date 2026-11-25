@@ -272,7 +272,7 @@ export const Amiga = {
     if (outra) fala = false;
     if (fala && !this.jogadores.has(this.amigaDono)) this.mudarDonoAmiga(donoId); // ninguém com ela: acompanha quem chegou
     if (outra) return; // da outra raça não vira amigo virtual de quem entrou
-    this.evento({ t: 'amiga', para: donoId, id: this.AMIGA.id, nome: this.AMIGA.nome, papel: this.AMIGA.papel, lote: this.loteDaAmiga()?.def.id || null, segue: !!this.AMIGA.seguivel });
+    this.evento({ t: 'amiga', para: donoId, id: this.AMIGA.id, nome: this.AMIGA.nome, papel: this.AMIGA.papel, lote: this.loteDaAmiga()?.def.id || null, segue: !!this.AMIGA.seguivel, ...(this.semTimeAmiga() ? { semTime: true } : {}) });
     this.avisarVirtuaisAmiga(); // ela aparece em "Amigos virtuais" (para todos; quem não tem chave vê o botão de ativar)
   },
   // ---------- vários amigos (André 2026-11-10: irmão e irmã com a chave de cada um) ----------
@@ -294,6 +294,10 @@ export const Amiga = {
     const MJ = this.amiga?.ia?.missaoJunto; if (j && MJ?.id === j.id && !(this.tempo > MJ.ate)) return '';
     const m = this.motivoSoldadoAmiga(); return m === 'ocupada' ? '' : m;
   },
+  // André 2026-11-25 ("era mais fácil só remover o botão de convite do Dario"; a aliança da Chama vem depois): líder de
+  // clã bot não mostra convite para o time (botão no cartão, Time na lista de amigos, "Entra no meu time?"). Quem pedir
+  // pelo chat ouve a recusa de foraDoTimeAmiga
+  semTimeAmiga() { return !!NPC_SOLDADO.ligado && this.motivoSoldadoAmiga() === 'lider'; },
   // líder de clã bot (Dario, Gael, Kael, Varek), membro de clã bot (recruta dele ou membro fixo) ou outro
   motivoSoldadoAmiga() { const C = this.claBotAmiga(); return !C ? 'ocupada' : C.lider === this.AMIGA.id ? 'lider' : 'cla'; },
   // o clã bot de quem fala: o que ele lidera, o do recruta (clanpc) ou o dos membros fixos (fora do clã depois do reset: nenhum)
@@ -2688,7 +2692,7 @@ export const Amiga = {
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j) return [];
     const D = DIALOGO, noTime = !!(a.time && a.time === j.time), av = a.ia.av, g = this.AMIGA.genero || 'f';
     const ok = { noTime, foraTime: !noTime, atividade: !!a.ia.atividade, pedido: !!a.pedido, semPedido: !a.pedido, caçando: !noTime && !!(av && ['ir', 'cacar', 'escolher'].includes(av.fase)) };
-    return (Object.hasOwn(D.menus, menu) ? D.menus[menu] : D.menus.inicio).filter((k) => { const o = D.opcoes[k]; return o && (!o.quando || ok[o.quando]) && !(k === 'seguir' && !this.AMIGA.seguivel); }).map((k) => ({ id: k, t: vozAmiga(D.opcoes[k].t, g) }));
+    return (Object.hasOwn(D.menus, menu) ? D.menus[menu] : D.menus.inicio).filter((k) => { const o = D.opcoes[k]; return o && (!o.quando || ok[o.quando]) && !(k === 'seguir' && !this.AMIGA.seguivel) && !(o.acao === 'time' && this.semTimeAmiga()); }).map((k) => ({ id: k, t: vozAmiga(D.opcoes[k].t, g) }));
   },
   // abriu a janela (acao 'menu') ou tocou numa opção (acao 'op', m.op, m.menu = o menu que estava na tela). De perto, ou de
   // qualquer lugar se estiver no time dele (tocando no nome no painel do time). A fala dele vai na janela com as próximas opções.
