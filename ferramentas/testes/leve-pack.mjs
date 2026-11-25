@@ -100,6 +100,10 @@ try {
   await esperar(1200);
   ok(s.pk.car.onde === 0, 'carrinho de volta na mochila');
 
+  // 3b) montaria: a mesma mensagem do jogo (sobe, ou o servidor diz por que não)
+  s.ev.length = 0; s.send('montar'); await esperar(1200);
+  ok(eu()[10] === 1 || avisos().length > 0, `montar pelo modo leve (montado ${eu()[10]}; ${avisos().join(' | ')})`);
+  if (eu()[10] === 1) { s.send('montar'); await esperar(1000); ok(eu()[10] === 0, 'desceu do lobo'); }
   // 4) fazer pack no Seu Joca: sem material, o servidor recusa com o motivo do jogo
   s.ev.length = 0;
   s.send('pack', { acao: 'fazer', npc: 'm_lenha' });

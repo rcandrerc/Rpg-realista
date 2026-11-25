@@ -795,7 +795,7 @@ function desenharJogar() {
     return;
   }
   if (!leve.f) return;
-  const [x, z, hp, hpM, mn, mnM, morto, ouro, nv, pack] = leve.f.eu;
+  const [x, z, hp, hpM, mn, mnM, morto, ouro, nv, pack, montado] = leve.f.eu;
   // o caminho já andado sai do tracejado
   if (leve.rota) while (leve.rotaI < leve.rota.length - 1 && Math.hypot(leve.rota[leve.rotaI][0] - x, leve.rota[leve.rotaI][1] - z) < 3) leve.rotaI++;
   // o cartão de status muda a cada foto; o resto só quando muda o que está perto (não refaz a tela embaixo do dedo)
@@ -803,7 +803,7 @@ function desenharJogar() {
   if (!st) { st = el('div', 'card'); st.id = 'jogarStatus'; }
   limpar(st);
   const vm = el('div', 'vm'); vm.append(barra('Vida', hp, hpM, 'var(--hp)'), barra('Mana', mn, mnM, '#3d7fd0')); for (const d of vm.children) d.style.flex = '1'; st.append(vm);
-  st.append(el('div', 'faz', `Nv ${nv} · ${ouro} de ouro${pack ? ' · pack nas costas' : ''}${leve.pk?.car?.onde === 2 ? ' · no carrinho' : ''}`));
+  st.append(el('div', 'faz', `Nv ${nv} · ${ouro} de ouro${pack ? ' · pack nas costas' : ''}${montado ? ' · no lobo' : ''}${leve.pk?.car?.onde === 2 ? ' · no carrinho' : ''}`));
   if (leve.fab) { const s = Math.max(0, Math.ceil((leve.fab.ate - Date.now()) / 1000)); st.append(el('div', 'nome', `Fazendo ${leve.fab.nome}… ${s} s (fique perto)`)); }
   const R = leve.f.r;
   if (morto) st.append(el('div', 'nome', 'Você caiu. Espere renascer no totem.'));
@@ -812,6 +812,8 @@ function desenharJogar() {
   } else st.append(el('div', 'faz', 'Toque no mapa para ir até lá.'));
   const bt = el('div', 'bts');
   if (R) { const p = el('button', 'acao cinza', 'Parar'); p.onclick = () => mandar('leveParar'); bt.append(p); }
+  // montaria (André 2026-11-25): a mesma mensagem do jogo ('montar'); com pack, em combate ou antes de liberar o servidor recusa
+  if (!leve.pk?.car || leve.pk.car.onde !== 2) { const mt = el('button', 'acao cinza', montado ? 'Descer do lobo' : 'Montar no lobo'); mt.onclick = () => mandar('montar'); bt.append(mt); }
   const casa = el('button', 'acao cinza', 'Voltar à base'); casa.onclick = () => mandar('vila'); bt.append(casa);
   const sai = el('button', 'acao cinza', 'Sair do mundo'); sai.onclick = sairLeve; bt.append(sai);
   st.append(bt);

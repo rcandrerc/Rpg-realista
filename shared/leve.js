@@ -6,7 +6,7 @@
 // pago de sempre. Loja, leilão e baú usam as mesmas mensagens do jogo (item, leilao, bau), com as mesmas regras de
 // distância. Para o celular fraco: a cada LEVE.envio s vai uma foto pequena só do que está perto (fotoLeve).
 import { planejarRota, terraId } from './rota.js';
-import { ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA } from './dados.js';
+import { ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
 
@@ -174,7 +174,7 @@ export const Leve = {
     const R = j.leveRota;
     let falta = 0;
     if (R) { let q = j; for (let i = R.i; i < R.pontos.length; i++) { const a = R.pontos[i]; falta += Math.hypot(a.x - q.x, a.z - q.z); q = a; } }
-    const v = j.veiculo ? this.velVeiculo(j) || HEROI.andar : j.prog.pack ? HEROI.correr * PACK_REGRAS.costas.vel : HEROI.correr;
+    const v = j.veiculo ? this.velVeiculo(j) || HEROI.andar : MONTARIAS[j.montado] ? MONTARIAS[j.montado].correr : j.prog.pack ? HEROI.correr * PACK_REGRAS.costas.vel : HEROI.correr;
     const g = [];
     for (const o of this.jogadores.values()) {
       if (o === j || o.criando || o.caverna || Math.hypot(o.x - j.x, o.z - j.z) > LEVE.gente) continue;
@@ -188,7 +188,7 @@ export const Leve = {
       if (m.length >= LEVE.max) break;
     }
     return {
-      eu: [r1(j.x), r1(j.z), Math.round(j.vida), Math.round(j.vidaMax), Math.round(j.mana), Math.round(j.manaMax), j.morto ? 1 : 0, j.prog.ouro | 0, j.prog.nivel | 0, j.prog.pack ? 1 : 0],
+      eu: [r1(j.x), r1(j.z), Math.round(j.vida), Math.round(j.vidaMax), Math.round(j.mana), Math.round(j.manaMax), j.morto ? 1 : 0, j.prog.ouro | 0, j.prog.nivel | 0, j.prog.pack ? 1 : 0, j.montado ? 1 : 0], // montado: o lobo (botão Montar, a mesma mensagem e regra do jogo)
       ...(R ? { r: [Math.round(falta), Math.round(falta / (v || 1))] } : {}),
       g, m,
     };
