@@ -4548,7 +4548,13 @@ export class Simulacao {
     if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); this.passoRecrutasSemLider?.(); this.passoProdRecrutas?.(); } // a semana do clã (shared/cla.js)
     this.passoJantares(dt); // jantar do clã (shared/jantar.js)
     for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
-    for (const j of this.jogadores.values()) { if (j.leve) { try { this.passoLeve(j, dt); } catch (e) { j.leveRota = null; console.error('modo leve: passo deu erro:', e); } } this.passoJogador(j, dt); } // modo leve: o servidor anda o herói (shared/leve.js)
+    for (const j of this.jogadores.values()) { // modo leve: o servidor anda o herói (shared/leve.js); no carrinho, gasta combustível e não entra na água
+      if (!j.leve) { this.passoJogador(j, dt); continue; }
+      const x0 = j.x, z0 = j.z;
+      try { this.passoLeve(j, dt); } catch (e) { j.leveRota = null; console.error('modo leve: passo deu erro:', e); }
+      this.passoJogador(j, dt);
+      if (j.veiculo) try { this.leveAndouVeiculo(j, x0, z0); } catch (e) { console.error('modo leve: carrinho deu erro:', e); }
+    }
     this.passoTrocas();
     this.passoDuelos(); // duelo (André 2026-11-17)
     this.passoArena(dt); // Arena PvP 3x3 Geada x Chama (André 2026-11-21)

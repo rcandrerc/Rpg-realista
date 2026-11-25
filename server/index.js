@@ -39,7 +39,7 @@ const heroiDe = (contaId) => { for (const s of salas) for (const j of s.sim.joga
 // painel do clã (página leve, André 2026-11-24): ver no máximo a cada 2 s e ordem no máximo a cada 0,5 s por página
 const PAINEL = { verMs: 2000, ordemMs: 500, volta: 20 };
 // modo leve: os avisos do herói que a página usa (o resto do jogo, como o 'prog' inteiro, não vai: pesa no celular fraco)
-const LEVE_EVENTOS = new Set(['aviso', 'leilao', 'bau', 'compra', 'leveRota', 'chat', 'chatHist']);
+const LEVE_EVENTOS = new Set(['aviso', 'leilao', 'bau', 'compra', 'leveRota', 'chat', 'chatHist', 'fabricando', 'pack', 'veiculo']);
 // '__proto__', 'constructor' e 'prototype' como texto ou chave numa mensagem do cliente: nunca é dado de jogo e serve para
 // mexer no Object.prototype (auditoria 2026-11-13). A mensagem inteira é descartada.
 const PROIBIDO = new Set(['__proto__', 'constructor', 'prototype']);
@@ -623,6 +623,7 @@ class SalaClareira extends Room {
     u.leveT = 0;
     const m = { f: this.sim.fotoLeve(j), ev: ev.splice(0) };
     const mo = this.sim.mochilaLeve(j), moTxt = JSON.stringify(mo); if (moTxt !== u.leveMo) { u.leveMo = moTxt; m.mo = mo; }
+    const pk = this.sim.packLeve(j), pkTxt = JSON.stringify(pk); if (pkTxt !== u.levePk) { u.levePk = pkTxt; m.pk = pk; } // packs e carrinho (PR 2)
     if (Date.now() - (u.leveMapaT || 0) > 60e3) { u.leveMapaT = Date.now(); m.mapa = this.sim.leveMapa(j); }
     c.send('leve', m);
   }

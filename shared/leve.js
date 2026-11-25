@@ -6,8 +6,9 @@
 // pago de sempre. Loja, leilão e baú usam as mesmas mensagens do jogo (item, leilao, bau), com as mesmas regras de
 // distância. Para o celular fraco: a cada LEVE.envio s vai uma foto pequena só do que está perto (fotoLeve).
 import { planejarRota, terraId } from './rota.js';
-import { ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS } from './dados.js';
-import { nomeItem, precoVenda, mercador, bonusTitulo } from './progresso.js';
+import { ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA } from './dados.js';
+import { nomeItem, precoVenda, mercador, bonusTitulo, contar } from './progresso.js';
+import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
 
 export const LEVE = {
   envio: 0.5, // s entre as fotos para a página
@@ -24,6 +25,7 @@ export const LEVE = {
   intervalo: 0.5, // s entre dois destinos
   chat: 30, // mensagens do chat que a página guarda
   longe: 2500, // m: destino mais longe que isso não vale
+  packsChao: 20, // m: packs no chão que aparecem (pegar)
 };
 // quem a página mostra como lugar no mapa (as janelas do jogo de cada um)
 const FUNCOES = new Set(['loja', 'leilao', 'pack', 'ferreiro', 'habilidades', 'alquimia']);
@@ -42,6 +44,7 @@ export const Leve = {
     const x = Number(m?.x), z = Number(m?.z);
     if (!Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > 5000 || Math.abs(z) > 5000) return;
     if (j.morto) return aviso('Você caiu: espere renascer');
+    if (j.veiculo && j.veiculo !== 'carrinho') return aviso('No barco ou no navio: só pelo jogo');
     // revisão de segurança 2026-11-25: destino na água ou longe demais custa caro na busca da estrada; e no máximo 2 por s
     if (this.tempo - (j.leveIrT ?? -9) < LEVE.intervalo) return;
     j.leveIrT = this.tempo;
@@ -70,7 +73,7 @@ export const Leve = {
     while (R.i <= ult && Math.hypot(P[R.i].x - j.x, P[R.i].z - j.z) < (R.i === ult ? LEVE.chega : LEVE.meio)) R.i++;
     if (R.i > ult) return this.leveChegou(j);
     const a = P[R.i], dx = a.x - j.x, dz = a.z - j.z, d = Math.hypot(dx, dz) || 1;
-    j.entrada = { mx: dx / d, mz: dz / d, correr: !j.prog.pack && !j.semFolego && !j.veiculo };
+    j.entrada = { mx: dx / d, mz: dz / d, correr: !j.semFolego && !j.veiculo }; // com pack: a corrida vira x0,5 (PACK_REGRAS.costas), como no jogo (2,7 m/s)
     R.t += dt;
     if (R.t >= LEVE.olhar) { // preso (pedra, árvore, gente na frente)?
       const andou = Math.hypot(j.x - R.ux, j.z - R.uz);
@@ -91,7 +94,9 @@ export const Leve = {
   leveMapa(j) {
     const p = j.prog, dsc = new Set(p.totens || []);
     const npcs = (this.mapa.npcs || []).filter((n) => FUNCOES.has(n.funcao) || (n.acoes || []).includes('vender'))
-      .map((n) => ({ n: n.nome, f: FUNCOES.has(n.funcao) ? n.funcao : 'compra', x: r1(n.x), z: r1(n.z), ...((n.acoes || []).includes('vender') ? { v: 1 } : {}) }));
+      .map((n) => ({ n: n.nome, f: FUNCOES.has(n.funcao) ? n.funcao : 'compra', x: r1(n.x), z: r1(n.z), ...((n.acoes || []).includes('vender') ? { v: 1 } : {}),
+        // mercador de pack (PR 2 do modo leve): o id, o pack que ele faz e o material (a página mostra tenho/preciso)
+        ...(n.funcao === 'pack' && PACKS[n.merch] ? { id: n.id, pk: PACKS[n.merch].nome, custo: Object.entries(custoPack(n.merch, p.prof?.mer)).map(([k, q]) => [k, ITENS[k]?.nome || k, q]) } : {}) }));
     const totens = TOTENS.lista.map((t) => ({ id: t.id, n: t.nome, x: r1(t.x), z: r1(t.z), d: dsc.has(t.id) ? 1 : 0, taxa: taxaTotem(t) }));
     const loja = LOJA.map((o, i) => ({ i, k: o.k, n: ITENS[o.k]?.nome || o.k, preco: this.precoCompra(j, o) }));
     const baus = [];
@@ -109,8 +114,51 @@ export const Leve = {
     // chat: só o texto (a página mostra as últimas LEVE.chat)
     if (e.t === 'chat') return { t: 'chat', k: e.canal, n: e.nome, x: e.texto, ...(e.meu ? { meu: 1 } : {}) };
     if (e.t === 'chatHist') return { t: 'chatHist', l: (e.lista || []).slice(-LEVE.chat).map((m) => ({ k: m.canal, n: m.nome, x: m.texto, ...(m.meu ? { meu: 1 } : {}) })) };
+    if (e.t === 'fabricando') return { t: 'fabricando', nome: e.nome || ITENS[e.k]?.nome || '', dur: e.dur, ...(e.fim ? { fim: 1 } : {}) };
     if (e.t === 'bau') return { t: 'bau', cla: e.cla ? 1 : 0, l: (e.itens || []).length, it: listaLeve(e.itens) };
     return e;
+  },
+  // quanto o mercador n paga pelo pack pk agora (a mesma conta do Transporte.pack 'entregar'); 0 = ele não compra
+  precoEntregaLeve(j, pk, n) {
+    if (!pk || Math.hypot(n.x - pk.ox, n.z - pk.oz) < PACK_REGRAS.perto) return 0;
+    const p = j.prog;
+    return Math.max(1, Math.round(precoPack(pk, n, p.prof?.mer) * mercadoK(p, n.id, pk.k) * (1 + (this.vantagensDe?.(j).pack || 0)) * (pk.rb ? 1 + GUERRA.roubado : 1)));
+  },
+  // packs e carrinho como a página mostra (PR 2 do modo leve, André 2026-11-25: "mais que combate quero fazer pack"):
+  // c = o pack das costas [k, nome, roubado]; car = o carrinho; e = onde entregar [id, nome, x, z, paga costas, paga carrinho];
+  // ch = packs no chão perto [g, k, nome, x, z]; tb = tem bot no time (ordens de pack do time). Vai só quando muda.
+  packLeve(j) {
+    const p = j.prog, pk = p.pack, C = VEICULOS.carrinho, c = p.carrinho;
+    const nomePk = (o) => PACKS[o.k]?.nome || o.k;
+    const r = { c: pk ? [pk.k, nomePk(pk), pk.rb ? 1 : 0] : 0, tem: contar(p.mochila, 'carrinho') > 0 ? 1 : 0, gal: contar(p.mochila, 'galao') };
+    if (c) {
+      const pos = j.veiculo === 'carrinho' ? j : c.chao;
+      r.car = { lv: c.lv, comb: Math.round(c.comb), tq: C.galao * C.tanque, vida: Math.round(c.vida), vm: C.vida, q: c.quebrado ? 1 : 0, cap: capacidadeCarrinho(c),
+        n: c.packs.map((o) => [o.k, nomePk(o)]), onde: j.veiculo === 'carrinho' ? 2 : c.chao ? 1 : 0, ...(pos ? { x: r1(pos.x), z: r1(pos.z) } : {}) };
+    }
+    if (pk || c?.packs?.length) {
+      r.e = [];
+      for (const n of this.mapa.npcs || []) {
+        if (n.funcao !== 'pack') continue;
+        const a = this.precoEntregaLeve(j, pk, n);
+        let b = 0; for (const o of c?.packs || []) b += this.precoEntregaLeve(j, o, n);
+        if (a || b) r.e.push([n.id, n.nome.split(',')[0], r1(n.x), r1(n.z), a, b]);
+      }
+    }
+    r.ch = [];
+    for (const g of this.packsChao || []) {
+      if (Math.hypot(g.x - j.x, g.z - j.z) > LEVE.packsChao) continue;
+      r.ch.push([g.g, g.k, PACKS[g.k]?.nome || g.k, r1(g.x), r1(g.z)]);
+      if (r.ch.length >= 12) break;
+    }
+    if (j.time?.membros?.some((k) => this.jogadores.get(k)?.bot)) r.tb = 1;
+    return r;
+  },
+  // dirigindo o carrinho pelo modo leve: o servidor andou o herói (passoJogador); aqui vale o que o celular confere no
+  // jogo (Simulacao.posicaoCliente -> andouVeiculo): gasta combustível e não entra na água
+  leveAndouVeiculo(j, x0, z0) {
+    const d = Math.hypot(j.x - x0, j.z - z0); if (d < 1e-4) return;
+    if (!this.andouVeiculo(j, j.x, j.z, d)) { j.x = x0; j.z = z0; this.leveParar(j.id, 'O carrinho não entra na água'); }
   },
   // a mochila como a página mostra: só os lugares com item (i = o lugar de verdade), nome, cor da raridade e preço de venda
   mochilaLeve(j) {
