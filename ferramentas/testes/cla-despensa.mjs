@@ -79,5 +79,6 @@ E.dsp.fome = Date.now() - 7 * H; L.prog.ouro = 100000;
 ok(s.comprarDespensaNpc(E, L, s.moradoresNpc(C, E)) && contar(E.bau, DESPENSA.bots.comida) > 0 && L.prog.ouro < 100000, 'com fome há 6 h: o líder compra comida com o ouro dele');
 // o líder recolhe a comida das bolsas para a despensa e nunca vende
 E.bau = Array(CLA.bauCla).fill(null); a.prog.mochila.fill(null); guardar(a.prog.mochila, { k: 'tilapia', n: 30 });
+a.ia.levar = { item: 'peixe' }; // a ordem do líder (o que pescam no tempo livre fica com eles, regra de 24/11)
 s.exigirRecursosNpc(C, E, L, [x]);
-ok(contar(E.bau, 'tilapia') === 30 && contar(a.prog.mochila, 'tilapia') === 0, 'o líder bot põe o peixe dos membros na despensa e não vende');
+ok(contar(E.bau, 'tilapia') === 30 && contar(a.prog.mochila, 'tilapia') === 0, 'o peixe da ordem do líder vai para a despensa e não é vendido');
