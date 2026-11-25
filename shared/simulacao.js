@@ -30,6 +30,7 @@ import { Guilda } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11
 import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
 import { Guerra } from './guerra.js'; // Chama x Geada (André 2026-11-18)
 import { Arena } from './arena.js'; // Arena PvP 3x3 Geada x Chama (André 2026-11-21)
+import { Leve } from './leve.js'; // modo leve: jogar pelo painel do clã (André 2026-11-25)
 import { RIVAIS, RACA_PADRAO, GUERRA, RACAS, COMANDOS_TIME } from './dados.js';
 
 const TAU = Math.PI * 2;
@@ -4534,7 +4535,7 @@ export class Simulacao {
     this.passoGuerra(); this.passoDuplasGuerra(); // Chama x Geada (shared/guerra.js): quem pode lutar agora e as falas de quem avistou alguém
     if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); this.passoRecrutasSemLider?.(); } // a semana do clã (shared/cla.js)
     for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
-    for (const j of this.jogadores.values()) this.passoJogador(j, dt);
+    for (const j of this.jogadores.values()) { if (j.leve) this.passoLeve(j, dt); this.passoJogador(j, dt); } // modo leve: o servidor anda o herói (shared/leve.js)
     this.passoTrocas();
     this.passoDuelos(); // duelo (André 2026-11-17)
     this.passoArena(dt); // Arena PvP 3x3 Geada x Chama (André 2026-11-21)
@@ -4595,7 +4596,7 @@ export class Simulacao {
       a.t -= dt; if (a.t <= 0) j.arrancada = null;
     } else if (m > 0.15) {
       const vv = this.velVeiculo(j); // no carrinho, barquinho ou navio: na velocidade dele (antes ia na do herói correndo)
-      const v = vv != null ? vv : mont ? mont.correr : (correr ? HEROI.correr : HEROI.andar) * (j.bot && j.prog?.pack ? PACK_REGRAS.costas.vel : 1); // montado: o lobo vai sempre no galope (André 2026-11-07); bot com pack nas costas vai devagar como o jogador (André 2026-11-21, pack roubado)
+      const v = vv != null ? vv : mont ? mont.correr : (correr ? HEROI.correr : HEROI.andar) * ((j.bot || j.leve) && j.prog?.pack ? PACK_REGRAS.costas.vel : 1); // montado: o lobo vai sempre no galope (André 2026-11-07); bot com pack nas costas vai devagar como o jogador (André 2026-11-21, pack roubado)
       this.mover(j, mx * v * dt, mz * v * dt);
       const alvo = Math.atan2(mx, mz);
       j.ry += angDif(alvo, j.ry) * Math.min(1, dt * 12);
@@ -5061,6 +5062,7 @@ Object.assign(Simulacao.prototype, Kit);
 Object.assign(Simulacao.prototype, Plantio); // árvores plantadas (André 2026-11-16)
 Object.assign(Simulacao.prototype, Diarias); // missões diárias (André 2026-11-16)
 Object.assign(Simulacao.prototype, Cla); // clã e recrutas (André 2026-11-22, shared/cla.js)
+Object.assign(Simulacao.prototype, Leve); // modo leve pelo painel do clã (André 2026-11-25, shared/leve.js)
 Object.assign(Simulacao.prototype, MissaoCla); // Missão do Clã em grupo (André 2026-11-23, shared/missao-cla.js)
 Object.assign(Simulacao.prototype, Base); // base do clã (André 2026-11-22, shared/base.js)
 Object.assign(Simulacao.prototype, Guilda); // Guilda dos Aventureiros: contratos e ranks F a SS (André 2026-11-18)
