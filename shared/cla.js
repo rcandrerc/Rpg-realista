@@ -11,11 +11,12 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS, DESPENSA, BASES_FRIAS, MORAL, PESCA } from './dados.js';
+import { ARVORES_PLANTIO, PLANTIO, naBaseCla, VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS, DESPENSA, BASES_FRIAS, MORAL, PESCA } from './dados.js';
 import { contextoDeAmigo, pecaDaCasa, mesmaPeca } from './amiga.js';
 import { profNivel, guardar, guardarQueCabe, moverQtd, profBonus, bonusTituloProf, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
 import { fundoAgua } from './transporte.js';
 import { LUGARES_MUNDO } from './mundo.js';
+import { lugarNoQuadrado, areaPlantio, QUADRADOS_PLANTIO } from './plantio.js'; // Fazenda > árvores (só as contas da grade)
 import { crescerPlanta } from './simulacao.js'; // só usadas em tempo de jogo (progresso.js também importa daqui)
 // lugares ocupados/total de uma mochila ou baú (André 2026-11-24: "40/60 lá no site")
 const lugares = (l) => [l.filter(Boolean).length, l.length];
@@ -39,11 +40,17 @@ export function funcaoValida(fn) {
   if (!fn || typeof fn !== 'object' || !CLA.funcoes.some((F) => F.id === fn.k) || fn.k === 'livre') return null;
   if (fn.k === 'recurso') return Object.hasOwn(RECURSOS_CLA, fn.r) ? { k: 'recurso', r: fn.r } : null;
   if (fn.k === 'fazenda') return { k: 'fazenda', ...(PLANTAS[fn.s] ? { s: fn.s } : {}) };
+  if (fn.k === 'arvores') return { k: 'arvores', s: ARVORES_PLANTIO[fn.s] ? fn.s : 'betula' }; // Plantar árvores (André 2026-11-25)
   if (fn.k === 'proteger') return fn.p === 'lider' || fn.p === 'carrinho' || fn.p === 'mercante' || (typeof fn.p === 'string' && /^rc[a-z0-9]{4,16}$/.test(fn.p)) ? { k: 'proteger', p: fn.p } : null;
   return { k: fn.k };
 }
 // Proteger carrinho / mercante (André 2026-11-23): o nome que aparece no aviso e no painel
 const VEIC_PROTEGE = { carrinho: 'o carrinho', mercante: 'o mercante' };
+// nome do que a Fazenda planta: planta da horta ou árvore (André 2026-11-25)
+// as sementes da Fazenda (horta) e as do Plantar árvores, para o menu do clã e o painel
+const plantasFazenda = () => Object.entries(PLANTAS).map(([k, P]) => ({ k, nome: P.nome }));
+const arvoresCla = () => Object.entries(ARVORES_PLANTIO).map(([k, T]) => ({ k, nome: T.nome, h: T.h }));
+const nomeFazenda = (s) => (PLANTAS[s] || ARVORES_PLANTIO[s])?.nome?.toLowerCase() || '';
 const cor = (v) => (Number.isInteger(v) && v >= 0 && v <= 0xffffff ? v : 0x888888);
 
 // confere o que veio da conta (progressoValido)
@@ -216,7 +223,7 @@ export const Cla = {
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, sem: semanaDe(tierDe(m.tier), a ? a.prog.nivel | 0 : m.nv), on: a ? 1 : 0, ...(m.dev ? { dev: m.dev } : {}), g: m.g,
         ...this.moralInfo(m, c.vis, eM, a, j), // moral e produção (MORAL): seta + % e ~N/h
         fn: m.fn || { k: 'livre' }, c: 'r:' + m.id, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, j), x: Math.round(a.x), z: Math.round(a.z), bid: a.id, ...(a.time && a.time === j.time ? { time: 1 } : {}) } : {}) }; }), // x, z: "Ver no mapa"; c: conta (Mensagem), bid: o corpo (Time)
-      bauCla: temBau ? bau : null, plantas: Object.entries(PLANTAS).map(([k, P]) => ({ k, nome: P.nome })),
+      bauCla: temBau ? bau : null, plantas: plantasFazenda(), arvores: arvoresCla(),
       veic: { carrinho: this.carrinhoFora(j, { k: 'carrinho' }) ? 1 : 0, mercante: this.navioFora(j) ? 1 : 0 }, // Proteger carrinho / mercante: apagado se não está no mundo
       funcoes: CLA.funcoes, recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })),
       tiers: CLA.tiers.map((T) => { const n2 = nivelTier(T, nv); return { id: T.id, nome: T.nome, nv: n2, preco: precoTier(T, n2), sem: semanaDe(T, n2), claNv: T.claNv || 1 }; }),
@@ -338,7 +345,7 @@ export const Cla = {
       const x = this.recrutasNoMundo(j).find((o) => o.AMIGA.id === r.id);
       if (x?.amiga) this.aplicarFuncao(j, x, r, true);
       const F = CLA.funcoes.find((o) => o.id === (fn?.k || 'livre'));
-      aviso(`${r.nome}: ${F.nome}${fn?.k === 'fazenda' ? (fn.s ? ` (plantar ${PLANTAS[fn.s].nome.toLowerCase()})` : ' (só colhe e rega)') : fn?.k === 'recurso' ? ` (${RECURSOS_CLA[fn.r].nome})` : fn?.k === 'proteger' ? ` ${fn.p === 'lider' ? 'você' : VEIC_PROTEGE[fn.p] || c.m.find((o) => o.id === fn.p).nome}` : ''}`);
+      aviso(`${r.nome}: ${F.nome}${fn?.k === 'fazenda' ? (fn.s ? ` (plantar ${nomeFazenda(fn.s)})` : ' (só colhe e rega)') : fn?.k === 'arvores' ? ` (${nomeFazenda(fn.s)})` : fn?.k === 'recurso' ? ` (${RECURSOS_CLA[fn.r].nome})` : fn?.k === 'proteger' ? ` ${fn.p === 'lider' ? 'você' : VEIC_PROTEGE[fn.p] || c.m.find((o) => o.id === fn.p).nome}` : ''}`);
       return this.avisarProg(j);
     }
     if (m.acao === 'melhorar') {
@@ -412,6 +419,7 @@ export const Cla = {
     if (a.time && a.time === j.time) return 'No seu time';
     if (ia.funcao?.k === 'proteger') return VEIC_PROTEGE[ia.funcao.p] ? (ia.pv?.sem ? `Esperando ${VEIC_PROTEGE[ia.funcao.p]}` : `Protegendo ${VEIC_PROTEGE[ia.funcao.p]}`) : 'Protegendo';
     if (ia.funcao?.k === 'fazenda') return 'Na fazenda';
+    if (ia.funcao?.k === 'arvores') return 'Plantando árvores';
     if (ia.funcao?.k === 'alma') return !a.guerra ? 'Fragmento de Alma: só acima do Nv 30 e fora da zona segura' : ia.alma?.alvo ? 'Caçando a outra raça' : 'Procurando a outra raça';
     if (ia.encomenda && !ia.encomenda.pronta) return `Coletando ${ENCOMENDA.recursos[ia.encomenda.rec]?.nome || ''}`.trim();
     if (ia.av) return ia.av.fase === 'voltar' ? 'Voltando' : ia.av.coleta ? 'Coletando' : 'Caçando';
@@ -427,7 +435,8 @@ export const Cla = {
   aplicarFuncao(j, x, m, novo) {
     const a = x.amiga, ia = a.ia, fn = m.fn || { k: 'livre' }, noTime = !!(a.time && a.time === j.time);
     const avisa = (txt) => { ia.funcaoSt = { txt, ate: this.tempo + 90 }; };
-    ia.funcao = fn.k === 'proteger' || fn.k === 'fazenda' ? fn : null;
+    ia.funcao = fn.k === 'proteger' || fn.k === 'fazenda' || fn.k === 'arvores' ? fn : null;
+    if (novo) ia.arv = null;
     // só o recurso pedido vai para o Baú do Clã, e ele leva andando (André 2026-11-23: "n quero q vá nada somente qd eu
     // solicitar... queria q ele trouxesse n q fosse direto pro baú auto"). O resto fica na bolsa dele.
     ia.levar = fn.k === 'recurso' && RECURSOS_CLA[fn.r]?.item ? { r: fn.r, item: RECURSOS_CLA[fn.r].item, nome: RECURSOS_CLA[fn.r].nome } : null;
@@ -685,8 +694,10 @@ export const Cla = {
   // ---------- Fazenda (função do painel): cuida dos canteiros arados da base ----------
   // chamado a cada passo do recruta (amiga.js fazendaAmiga); true = ocupou o passo
   passoFazendaRecruta(x, j, dt) {
-    const fn = j.ia.funcao; if (!fn || fn.k !== 'fazenda' || (j.time && j.time.membros.length > 1)) return false;
-    const K = this.claDoRecruta(x), L = this.loteDaConta(K?.conta), ia = j.ia, F = CLA.fazenda;
+    const fn = j.ia.funcao; if (!fn || (fn.k !== 'fazenda' && fn.k !== 'arvores') || (j.time && j.time.membros.length > 1)) return false;
+    const K = this.claDoRecruta(x), ia = j.ia, F = CLA.fazenda;
+    if (fn.k === 'arvores') return K ? this.passoArvoresRecruta(x, j, dt, fn.s, K) : false; // Plantar árvores: nas áreas de plantio do mapa
+    const L = this.loteDaConta(K?.conta);
     const avisa = (txt) => { ia.funcaoSt = { txt, ate: this.tempo + 8 }; };
     if (!L) { avisa(K?.bot ? 'O líder não tem terreno' : 'Você não tem terreno'); return false; }
     if (j.trava > 0) { x.pararAmiga(j); return true; }
@@ -736,19 +747,84 @@ export const Cla = {
     } else if (t.c) { t.w = agora; t.u = agora; gasta(); txt = 'Regando'; }
     else {
       const P = PLANTAS[s]; if (!P) return null;
-      const B = this.bauDoCla(K), sk = 'semente_' + s;
-      if (B && contar(B.itens, sk) > 0) { tirar(B.itens, sk, 1); this.mexeuBau(B); }
-      else if (contar(p.mochila, sk) > 0) tirar(p.mochila, sk, 1);
-      else { // compra na Rosa com o cofre do clã (clã bot: o ouro do líder)
-        const preco = LOJA.find((o) => o.k === sk)?.preco || P.semente;
-        if (K.bot) { if (!K.corpo || (K.corpo.prog.ouro | 0) < preco) return 'Sem ouro para semente'; K.corpo.prog.ouro -= preco; }
-        else { if (!K.c || K.c.cofre < preco) return 'Cofre sem ouro para semente'; K.c.cofre -= preco; this.logCla(K.c, `Semente de ${P.nome.toLowerCase()} (fazenda)`, -preco); if (K.corpo) K.corpo.progSujo = true; }
-      }
+      const sem = this.sementeFazenda(K, p, s, P); if (sem) return sem;
       Object.assign(t, { c: s, g: 0, u: agora, w: agora }); delete t.mi; delete t.mf;
       gasta(); txt = `Plantou ${P.nome.toLowerCase()}`;
     }
     this.avisarLote(L); this.lotesMudados.add(L.def.id); x.guardarAmiga?.();
     return txt;
+  },
+  // a semente da Fazenda: do Baú do Clã, senão da bolsa dele, senão compra na Rosa com o cofre do clã (clã bot: o ouro
+  // do líder). '' = pegou; texto = o motivo de não ter
+  sementeFazenda(K, p, s, P) {
+    const B = this.bauDoCla(K), sk = 'semente_' + s;
+    if (B && contar(B.itens, sk) > 0) { tirar(B.itens, sk, 1); this.mexeuBau(B); return ''; }
+    if (contar(p.mochila, sk) > 0) { tirar(p.mochila, sk, 1); return ''; }
+    const preco = LOJA.find((o) => o.k === sk)?.preco || P.semente;
+    if (K.bot) { if (!K.corpo || (K.corpo.prog.ouro | 0) < preco) return 'Sem ouro para semente'; K.corpo.prog.ouro -= preco; }
+    else { if (!K.c || K.c.cofre < preco) return 'Cofre sem ouro para semente'; K.c.cofre -= preco; this.logCla(K.c, `Semente de ${P.nome.toLowerCase()} (fazenda)`, -preco); if (K.corpo) K.corpo.progSujo = true; }
+    return '';
+  },
+  // ---------- Plantar árvores (André 2026-11-25: "o comando de plantar árvore só planta árvore"; clãs bot também) ----------
+  // Planta a árvore escolhida nas áreas de plantio do mapa (PLANTIO.areas), da mais perto do Baú do Clã para longe, até
+  // ter PLANTIO.mudasMax mudas dele crescendo (o mesmo limite do jogador). Aí avisa no chat e volta sozinho ao Livre;
+  // mandado de novo antes de crescerem, diz que atingiu o limite e volta ao Livre. Não corta: cortar é o Farmar recurso >
+  // Lenha (a adulta qualquer um corta, área pública). A semente sai do Baú do Clã, da bolsa ou do cofre, como na horta.
+  mudasRecruta(id) { let n = 0; const agora = this.agoraMs(); for (const P of this.plantadas?.values() || []) if (P.rc === id && !P.lote && agora < this.adultaEm(P)) n++; return n; },
+  passoArvoresRecruta(x, j, dt, s, K) {
+    if (!this.plantadas || !this.botarPlantada) return false;
+    const ia = j.ia, F = CLA.fazenda, id = x.AMIGA.id, f = (ia.arv ||= { n: 0 }), p = j.prog, max = PLANTIO.mudasMax;
+    const avisa = (txt) => { ia.funcaoSt = { txt, ate: this.tempo + 8 }; };
+    const livre = (fala) => { // terminou (ou não pode): avisa o líder no chat e volta ao Livre
+      const mm = K.m?.find((o) => o.id === id); ia.arv = null; ia.funcao = null;
+      if (K.corpo) this.avisarLiderRecruta(x, K.corpo, 'arv:' + this.tempo, fala);
+      if (mm) { mm.fn = { k: 'livre' }; if (K.corpo) { K.corpo.progSujo = true; this.aplicarFuncao(K.corpo, x, mm, true); } }
+      ia.funcaoSt = { txt: fala, ate: this.tempo + 30 };
+      x.guardarAmiga?.(); return true;
+    };
+    const n = this.mudasRecruta(id);
+    if (n >= max) return livre(f.n ? `Plantei ${f.n} árvore${f.n > 1 ? 's' : ''} lá. Vou fazer minhas coisas, qualquer coisa me chama.` : `As ${max} árvores que plantei ainda não cresceram, atingi o limite. Vou fazer minhas coisas, qualquer coisa me chama.`);
+    if (this.plantadasNasAreas() >= PLANTIO.maxMundo) return livre('As áreas de plantio do mundo estão cheias. Voltei pro modo livre.');
+    if (f.alvo && (this.tempo > (f.ate || 0))) f.alvo = null;
+    if (!f.alvo) { const q = this.quadradoArvoreArea(s, this.lugarBauCla(K) || j); if (!q) return livre('Não achei lugar livre nas áreas de plantio. Voltei pro modo livre.'); f.alvo = q; f.ate = this.tempo + 120; }
+    const T = f.alvo, d = Math.hypot(T.x - j.x, T.z - j.z);
+    if (d > 0.6 + F.perto) { if (d > 30) x.irLongeAmiga(j, T.x, T.z, dt); else this.irDireto(j, T.x, T.z, d > 6); avisa(`Indo plantar (${n}/${max})`); return true; }
+    x.pararAmiga(j); j.ry = Math.atan2(T.x - j.x, T.z - j.z);
+    if (this.tempo < (f.t || 0)) return true;
+    f.t = this.tempo + F.passo;
+    if (vigorDe(p.vigor) < PLANTIO.vigor) return livre('Acabou meu vigor. Voltei pro modo livre.');
+    const D = ARVORES_PLANTIO[s]; f.alvo = null;
+    if (!this.quadradoArvoreLivre(T.i, T.k, !!D.grande)) return true; // alguém plantou antes: procura outro
+    const sem = this.sementeFazenda(K, p, s, D); if (sem) return livre(`${sem}. Voltei pro modo livre.`);
+    const Lq = lugarNoQuadrado(T.i, T.k, !!D.grande), r2 = (v) => Math.round(v * 100) / 100;
+    this.botarPlantada({ id: 'p' + this.plantioProx++, s, x: r2(Lq.x), z: r2(Lq.z), ry: r2(Lq.ry), sc: r2(Lq.sc * (D.s || 1)), dono: K.conta, nome: j.nome, quando: this.agoraMs(), rc: id });
+    p.vigor = { v: Math.max(0, vigorDe(p.vigor) - PLANTIO.vigor), t: Date.now(), m: p.vigor?.m || VIGOR.max };
+    this.pontosProf(j, 'len', PLANTIO.len); this.ganharXP(j, PLANTIO.xp); f.n++;
+    avisa(`Plantou ${D.nome.toLowerCase()} (${n + 1}/${max})`);
+    x.guardarAmiga?.(); return true;
+  },
+  // o quadrado (i, k) serve para uma árvore? (as mesmas travas do jogador: tudo na mesma área de plantio, sem árvore,
+  // fora da base de clã, longe de árvore nativa e pedra)
+  quadradoArvoreLivre(i, k, grande) {
+    const Q = PLANTIO.quadrado, qs = grande ? [[i, k], [i + 1, k], [i, k + 1], [i + 1, k + 1]] : [[i, k]], a0 = areaPlantio(i, k);
+    if (!a0 || qs.some(([a, b]) => areaPlantio(a, b) !== a0 || this.plantioQ.has(a + ',' + b) || naBaseCla((a + 0.5) * Q, (b + 0.5) * Q))) return false;
+    const l = lugarNoQuadrado(i, k, grande);
+    return !this.pertoNaMata?.(l.x, l.z).some((o) => Math.hypot(o.x - l.x, o.z - l.z) < o.r + PLANTIO.folga);
+  },
+  // o quadrado livre de área de plantio mais perto de c ({ x, z }: o Baú do Clã), ou null. A ordem dos quadrados por
+  // distância fica guardada por lugar (8 mil quadrados: ordena uma vez)
+  quadradoArvoreArea(s, c) {
+    const D = ARVORES_PLANTIO[s]; if (!D) return null;
+    const Q = PLANTIO.quadrado, chave = Math.round(c.x / 50) + ',' + Math.round(c.z / 50), cache = (this.arvOrdem ||= new Map());
+    let ordem = cache.get(chave);
+    if (!ordem) {
+      const cx = Math.round(c.x / 50) * 50, cz = Math.round(c.z / 50) * 50;
+      ordem = [...QUADRADOS_PLANTIO.keys()].map((q) => { const [i, k] = q.split(',').map(Number); return [i, k, Math.hypot((i + 0.5) * Q - cx, (k + 0.5) * Q - cz)]; }).sort((a, b) => a[2] - b[2]);
+      if (cache.size > 40) cache.clear();
+      cache.set(chave, ordem);
+    }
+    for (const [i, k] of ordem) if (this.quadradoArvoreLivre(i, k, !!D.grande)) { const l = lugarNoQuadrado(i, k, !!D.grande); return { i, k, x: l.x, z: l.z }; }
+    return null;
   },
   // a semana: cobra cada semana vencida do cofre; sem dinheiro, o recruta fica devendo; 7 dias devendo, vai embora
   // quem está no time do líder agora (m.time = hora): se a conexão cair (ou o servidor reiniciar) no meio do mar, eles
@@ -884,7 +960,7 @@ export const Cla = {
         ...this.moralInfo(m, c.vis, eM, a), // moral e produção (MORAL), igual ao menu do clã do jogo
         fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, L), ...pos(a), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length && !a.prog.mochila.some((o) => !o) ? { cheia: 1 } : {}), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length ? { mo: lugares(a.prog.mochila) } : {}) } : {}) }; }),
       log: (c.log || []).slice(-10).reverse(), funcoes: CLA.funcoes.filter((F) => heroi || F.id !== 'seguir'),
-      recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })), plantas: Object.entries(PLANTAS).map(([k, P]) => ({ k, nome: P.nome })),
+      recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })), plantas: plantasFazenda(), arvores: arvoresCla(),
       // o que pede o próximo nível do clã e o que já tem (Baú do Clã + mochila do líder), igual ao Melhorar clã do jogo
       sobe: this.subirPainel(conta, c, raca, heroi, prog),
       bau: this.bauPainel(conta), ...(this.cheiosCla(conta).bau ? { bauCheio: 1 } : {}), // o que tem no Baú do Clã (André 2026-11-24: "mostrar inventário do clã"), em ícones
@@ -932,7 +1008,7 @@ export const Cla = {
     const L = this.liderPainel(conta, c, raca), x = this.recrutasNoMundo(L).find((o) => o.AMIGA.id === r.id);
     if (x?.amiga && !x.amiga.morto) this.funcaoSemLider(x, x.amiga, fn || { k: 'livre' }, L);
     const F = CLA.funcoes.find((o) => o.id === (fn?.k || 'livre'));
-    return { ok: true, texto: `${r.nome}: ${F.nome}${fn?.k === 'recurso' ? ` (${RECURSOS_CLA[fn.r].nome})` : fn?.k === 'fazenda' && fn.s ? ` (plantar ${PLANTAS[fn.s].nome.toLowerCase()})` : fn?.k === 'proteger' ? ` ${c.m.find((o) => o.id === fn.p)?.nome || ''}` : ''}` };
+    return { ok: true, texto: `${r.nome}: ${F.nome}${fn?.k === 'recurso' ? ` (${RECURSOS_CLA[fn.r].nome})` : (fn?.k === 'fazenda' || fn?.k === 'arvores') && fn.s ? ` (plantar ${nomeFazenda(fn.s)})` : fn?.k === 'proteger' ? ` ${c.m.find((o) => o.id === fn.p)?.nome || ''}` : ''}` };
   },
   // a página abriu com o líder fora do jogo: os recrutas que acabaram de ganhar corpo entregam o tempo fora (foraRecrutas,
   // anotado no registro do clã) e o tempo fora para de contar. novos: ids que ganharam corpo agora
@@ -999,7 +1075,7 @@ export const Cla = {
     if (ia.atividade) ctx.fimAtividadeAmiga?.(a, true);
     Object.assign(ia, { vir: null, chamado: null, viagem: null, fase: 'pensar' });
     if (ia.encomenda && !ia.encomenda.pronta) ia.encomenda = null;
-    ia.funcao = fn.k === 'fazenda' || fn.k === 'proteger' ? fn : fn.k === 'seguir' ? { k: 'proteger', p: 'lider' } : null;
+    ia.funcao = fn.k === 'fazenda' || fn.k === 'proteger' || fn.k === 'arvores' ? fn : fn.k === 'seguir' ? { k: 'proteger', p: 'lider' } : null;
     ia.levar = fn.k === 'recurso' && RECURSOS_CLA[fn.r]?.item ? { r: fn.r, item: RECURSOS_CLA[fn.r].item, nome: RECURSOS_CLA[fn.r].nome } : null;
     if (fn.k === 'recurso' && RECURSOS_CLA[fn.r]?.coleta === 'guerra') { ia.funcao = { k: 'alma' }; ia.av = null; return; }
     if (!(ia.levar && this.levandoRecruta(a))) ia.av = null;
@@ -1655,7 +1731,7 @@ export const Cla = {
     const falta = this.faltaClaNpc(C, E, L), ameaca = this.ameacaClaNpc(C, L), nvL = L.prog.nivel | 0, mudou = [];
     const sorte = () => 1 + (rnd() * 2 - 1) * O.sorte;
     for (const [r, fr] of Object.entries(this.faltaDespensaNpc(C, E, rnd))) falta[r] = Math.max(falta[r] || 0, fr); // comida e lenha (DESPENSA)
-    let fazenda = false, protege = 0;
+    let fazenda = false, arvores = false, protege = 0;
     for (const m of [...E.m, ...this.membrosFixosNpc(C, E)]) {
       const x = ctxs.find((o) => o.AMIGA.id === m.id), a = x?.amiga; if (!a || a.morto) continue;
       if (this.descansoNpc(E, m, rnd)) { if (m.fn?.k !== 'livre') { m.fn = { k: 'livre' }; mudou.push(m.id); } continue; } // moral (MORAL.bots)
@@ -1668,10 +1744,14 @@ export const Cla = {
       }
       op.push([{ k: 'proteger', p: 'lider' }, (ameaca ? 1.5 / (1 + protege) : 0.1) * P.proteger]);
       if (temLote && !fazenda) op.push([{ k: 'fazenda', s: 'cenoura' }, 0.4 * P.fazenda]);
+      // Plantar árvores (André 2026-11-25: "clãs bot fazendo também, pra aumentar o número de árvores no mundo"): um por
+      // clã, só quem ainda não tem as mudas do limite crescendo; pesa mais quando falta lenha
+      if (!arvores && CLA.arvores.bots && this.mudasRecruta(m.id) < PLANTIO.mudasMax) op.push([{ k: 'arvores', s: ARVORES_PLANTIO[m.fn?.s] ? m.fn.s : CLA.arvores.bots[Math.floor(rnd() * CLA.arvores.bots.length)] }, (0.25 + (falta.lenha || 0) * 0.5) * P.fazenda]);
       let best = null, bp = -1;
       for (const [fn, p] of op) { const v = p * sorte(); if (v > bp) { bp = v; best = fn; } }
       if (!best) continue;
       if (best.k === 'fazenda') fazenda = true;
+      if (best.k === 'arvores') arvores = true;
       if (best.k === 'proteger') protege++;
       if (best.k === 'recurso' && falta[best.r]) falta[best.r] *= 0.5; // o próximo vê que esse já tem gente
       if (JSON.stringify(best) !== JSON.stringify(m.fn || null)) { m.fn = best; mudou.push(m.id); }

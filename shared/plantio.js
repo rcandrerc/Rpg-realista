@@ -146,13 +146,13 @@ export const Plantio = {
   plantioParaSalvar() {
     if (!this.plantioMudou) return null;
     this.plantioMudou = false;
-    return [...this.plantadas.values()].map((P) => [+P.id.slice(1), P.s, P.x, P.z, P.ry, P.sc, P.dono, P.quando, P.lote || null]);
+    return [...this.plantadas.values()].map((P) => [+P.id.slice(1), P.s, P.x, P.z, P.ry, P.sc, P.dono, P.quando, P.lote || null, ...(P.rc ? [P.rc] : [])]); // rc: o recruta que plantou (Fazenda > árvore)
   },
   carregarPlantio(lista) {
     if (!Array.isArray(lista)) return;
     for (const v of lista) {
       if (!Array.isArray(v) || !AP[v[1]] || !Number.isFinite(+v[0]) || !Number.isFinite(+v[2]) || !Number.isFinite(+v[3])) continue;
-      const P = { id: 'p' + v[0], s: v[1], x: +v[2], z: +v[3], ry: +v[4] || 0, sc: +v[5] || 1, dono: String(v[6] || ''), nome: '', quando: +v[7] || this.agoraMs(), ...(v[8] ? { lote: String(v[8]) } : {}) };
+      const P = { id: 'p' + v[0], s: v[1], x: +v[2], z: +v[3], ry: +v[4] || 0, sc: +v[5] || 1, dono: String(v[6] || ''), nome: '', quando: +v[7] || this.agoraMs(), ...(v[8] ? { lote: String(v[8]) } : {}), ...(v[9] ? { rc: String(v[9]) } : {}) };
       const [i, k] = quadradoDoTronco(P.x, P.z, !!AP[P.s].grande);
       if (this.plantadas.has(P.id) || quadradosDe(i, k, !!AP[P.s].grande).some(([a, b]) => this.plantioQ.has(a + ',' + b))) continue;
       this.botarPlantada(P);

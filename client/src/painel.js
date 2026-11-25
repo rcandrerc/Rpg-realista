@@ -160,6 +160,7 @@ function cartaoMembro(m) {
     limpar(extra); extra.hidden = true;
     if (fn.value === 'recurso') { for (const R of info.recursos) extra.append(opcao(R.k, R.nome, m.fn?.r === R.k)); extra.hidden = false; }
     if (fn.value === 'fazenda') { extra.append(opcao('', 'Só colher e regar', !m.fn?.s)); for (const P of info.plantas) extra.append(opcao(P.k, `Plantar ${P.nome.toLowerCase()}`, m.fn?.s === P.k)); extra.hidden = false; }
+    if (fn.value === 'arvores') { for (const T of info.arvores || []) extra.append(opcao(T.k, `${T.nome} (${T.h} h)`, m.fn?.s === T.k)); extra.hidden = false; } // planta até 10 e volta ao Livre
     if (fn.value === 'proteger') {
       if (info.jogo) extra.append(opcao('lider', 'Você', m.fn?.p === 'lider'));
       for (const x of info.m) if (x.id !== m.id) extra.append(opcao(x.id, x.nome, m.fn?.p === x.id));
@@ -170,7 +171,7 @@ function cartaoMembro(m) {
   const ok = el('button', 'acao', 'Dar ordem');
   ok.onclick = () => {
     const f = { k: fn.value };
-    if (f.k === 'recurso') f.r = extra.value; if (f.k === 'fazenda' && extra.value) f.s = extra.value; if (f.k === 'proteger') f.p = extra.value;
+    if (f.k === 'recurso') f.r = extra.value; if ((f.k === 'fazenda' || f.k === 'arvores') && extra.value) f.s = extra.value; if (f.k === 'proteger') f.p = extra.value;
     if (f.k === 'proteger' && !f.p) return aviso('Escolha quem proteger');
     ok.disabled = true; setTimeout(() => { ok.disabled = false; }, 1000);
     pedir({ acao: 'funcao', id: m.id, fn: f });

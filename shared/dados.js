@@ -3411,7 +3411,7 @@ export const CLA = {
   // proteger um membro, me seguir etc"). recurso: as chaves de ENCOMENDA.recursos; proteger: o líder ou outro recruta.
   funcoes: [
     { id: 'livre', nome: 'Livre' }, { id: 'seguir', nome: 'Me seguir' }, { id: 'grind', nome: 'Grind' },
-    { id: 'recurso', nome: 'Farmar recurso' }, { id: 'proteger', nome: 'Proteger' }, { id: 'fazenda', nome: 'Fazenda' },
+    { id: 'recurso', nome: 'Farmar recurso' }, { id: 'proteger', nome: 'Proteger' }, { id: 'fazenda', nome: 'Fazenda' }, { id: 'arvores', nome: 'Plantar árvores' }, // André 2026-11-25
   ],
   bauCla: 60, // lugares do Baú do Clã
   bonusNivel: 0.02, // por nível do clã acima do 1: + XP e + ouro dos monstros para o líder e todos os membros (André 2026-11-22)
@@ -3419,6 +3419,9 @@ export const CLA = {
   // clã). Colhe o que está maduro, rega o que está seco e planta a semente escolhida no painel. A semente sai do Baú do
   // Clã; sem ela, compra na Rosa com o cofre do clã. A colheita vai para o Baú do Clã (sem baú, fica na bolsa dele).
   fazenda: { passo: 1.6, perto: 1.4 },
+  // Plantar árvores (André 2026-11-25): o que o líder bot manda plantar (clãs bot também). O limite é o do jogador
+  // (PLANTIO.mudasMax mudas crescendo); a vez de cada um e a regra ficam em shared/cla.js passoArvoresRecruta
+  arvores: { bots: ['betula', 'carvalho', 'pinheiro'] },
   farmar: 40, // quanto ele junta por viagem (o máximo da encomenda); acabou, vai de novo
   // entrega (André 2026-11-23): só o recurso pedido vai para o Baú do Clã, e ele leva andando (perto: m do baú para deixar)
   entrega: { perto: 2.4 },
@@ -5819,7 +5822,8 @@ export const ARVORES_PLANTIO = {
 // áreas de plantio (no terreno não tem limite além dos quadrados); xp e len: o que plantar paga na hora; fases: fração
 // do tempo em que a muda vira jovem e a jovem vira adulta. areas: o mapa v6 (19 faixas na beira das estradas e os
 // bosques perto das vilas e bairros), em quadrados de 4 m por linha: "k:i0~i1,i2;..." (k = z / 4, i = x / 4).
-export const PLANTIO = { quadrado: 4, solto: 0.8, perto: 4, folga: 1.6, mudasMax: 15, maxMundo: 6000, xp: 3, len: 3, vigor: 1, fases: [0.4, 1], areas: [
+// mudasMax 15 -> 10 (André 2026-11-25: "quero que o limite seja igual pra todos, tanto pra mim quanto pra bot"; recruta também)
+export const PLANTIO = { quadrado: 4, solto: 0.8, perto: 4, folga: 1.6, mudasMax: 10, maxMundo: 6000, xp: 3, len: 3, vigor: 1, fases: [0.4, 1], areas: [
   { id: 'v_clareira', nome: 'Bosque de Vila da Clareira', q: '-13:-15~-10;-12:-15~-11;-11:-16~-12;-10:-18~-13;-9:-19~-13;-8:-19~-14;-7:-19~-15;-6:-19~-15;-5:-18~-15;-4:-19~-16;-3:-20~-16;-2:-20~-16;-1:-21~-16;0:-21~-16;1:-20~-16;2:-19~-16;3:-19~-16;4:-18~-15;5:-17~-15;6:-16~-15' },
   { id: 'v_clareira_2', nome: 'Bosque de Vila da Clareira', q: '-20:0~1,5~6;-19:-1~8;-18:-1~8;-17:-2~9;-16:-1~13;-15:4~14;-14:7~14;-13:8~14;-12:10~14;-11:11~14;-10:12~14;-9:13~14;-8:13' },
   { id: 'v_terras', nome: 'Bosque de Terras da Estrada', q: '9:-19;10:-20~-19;11:-20;12:-24~-20;13:-25~-21;14:-25~-21;15:-25~-22;16:-25~-22;17:-25~-22;18:-26~-23;19:-27~-23;20:-28~-23;21:-28~-23;22:-28~-23;23:-27~-23;24:-26~-23;25:-26~-23;26:-25~-22;27:-26~-22;28:-26~-22;29:-27~-21;30:-26~-21;31:-26~-20;32:-25~-20;33:-23~-19;34:-22~-18;35:-22~-17;36:-22~-16;37:-22~-15;38:-21~-13;39:-20~-11;40:-16~-7;41:-15~-10,-8~-7;42:-14' },
