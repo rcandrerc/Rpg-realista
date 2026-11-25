@@ -891,6 +891,8 @@ function cartaoLugares(M) {
   // 3 (André 2026-11-25): os lugares mais usados em 4 botões grandes (1 toque e o herói vai) e a busca pelo nome; as seções
   // continuam embaixo. Ir fecha o painel para ver o mapa.
   const ir = (a) => { irLeve(a); painelLeve = ''; leve.sujo = true; desenharJogar(); };
+  // recurso (veio, árvore, solto): o servidor escolhe o mais perto desse tipo que não está esgotado (André 2026-11-25)
+  const irLugar = (a) => { if (a.t) { mandar('leveIrRecurso', { t: a.t }); painelLeve = ''; leve.sujo = true; desenharJogar(); } else ir(a); };
   const base = M.lug.find((o) => o[0] === 'vilas' && o[1] === 'Base do clã'), nPerto = (f) => maisPerto(M.npcs.filter(f));
   const tot = maisPerto(M.totens.filter((t) => t.d)), lei = nPerto((n) => n.f === 'leilao'), loja = nPerto((n) => n.f === 'loja');
   const at = el('div', 'atalhos');
@@ -905,7 +907,7 @@ function cartaoLugares(M) {
   const achar = () => {
     buscaLug = busca.value; limpar(achados); const t = semAcento(buscaLug); if (!t) return;
     const r = M.lug.filter((o) => semAcento(o[1]).includes(t)).sort((a, b) => dEu({ x: a[2], z: a[3] }) - dEu({ x: b[2], z: b[3] })).slice(0, 12);
-    for (const [, nome, x, z] of r) { const b = el('button', 'linha'); b.append(el('span', null, nome), el('span', null, metros({ x, z }))); b.onclick = () => ir({ x, z, nome: nome.split(',')[0].replace(/ \(mais perto\)$/, '') }); achados.append(b); }
+    for (const [, nome, x, z, t] of r) { const b = el('button', 'linha'); b.append(el('span', null, nome), el('span', null, metros({ x, z }))); b.onclick = () => irLugar({ x, z, nome: nome.split(',')[0].replace(/ \(mais perto\)$/, ''), t }); achados.append(b); }
     if (!r.length) achados.append(el('div', 'faz', 'Nada com esse nome.'));
   };
   busca.oninput = achar; c.append(busca, achados); achar();
@@ -917,10 +919,10 @@ function cartaoLugares(M) {
     c.append(t);
     if (secAberta !== id) continue;
     const lista = PERTO_PRIMEIRO.has(id) ? [...L].sort((a, b) => dEu({ x: a[2], z: a[3] }) - dEu({ x: b[2], z: b[3] })) : L;
-    for (const [, nome, x, z] of lista) {
+    for (const [, nome, x, z, t] of lista) {
       const curto = nome.split(',')[0], pg = id === 'mercadores' ? pagaPk.get(curto) : 0;
       const b = el('button', 'linha'); b.append(el('span', null, id === 'mercadores' ? curto : nome), el('span', null, `${pg ? pg + ' de ouro · ' : ''}${metros({ x, z })}`));
-      b.onclick = () => ir({ x, z, nome: curto.replace(/ \(mais perto\)$/, '') });
+      b.onclick = () => irLugar({ x, z, nome: curto.replace(/ \(mais perto\)$/, ''), t });
       c.append(b);
     }
   }
