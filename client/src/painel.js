@@ -117,11 +117,11 @@ $('mapaBots').onchange = (e) => { gravar('painelBots', e.target.checked ? '1' : 
 for (const b of $('abas').querySelectorAll('button')) b.onclick = () => {
   aba = b.dataset.aba;
   for (const o of $('abas').querySelectorAll('button')) o.classList.toggle('ativo', o === b);
-  $('cla').hidden = aba !== 'cla'; $('mapaAba').hidden = aba !== 'mapa'; $('bots').hidden = aba !== 'bots'; $('log').hidden = aba !== 'log';
+  $('cla').hidden = aba !== 'cla'; $('bots').hidden = aba !== 'bots'; $('log').hidden = aba !== 'log';
   $('leilaoAba').hidden = aba !== 'leilao'; if (aba === 'leilao') pedirLeilao();
   $('jogarAba').hidden = aba !== 'jogar';
-  // o mesmo mapa serve às duas abas (Mapa e Jogar): o quadro muda de lugar
-  if (aba === 'jogar') { $('jogarMapa').append($('mapaCx')); vista = null; desenharJogar(); } else if (aba === 'mapa') { $('mapaAba').prepend($('mapaCx')); vista = null; }
+  // a aba Mapa saiu (André 2026-11-25: "no jogar já tem o mapa... pode remover"): o mapa, os líderes bot e a legenda ficam no Jogar
+  if (aba === 'jogar') { vista = null; desenharJogar(); }
   desenhar();
 };
 
@@ -369,7 +369,7 @@ function desenharLog() {
 // pontos por cima. Zoom no + e −, arrastar com o dedo e pinça. Sem mexer, o quadro se ajusta a quem está no mundo.
 const MUNDO = { x0: -560, z0: -540, w: 1524, h: 2044 }; // a grade do mundo (godot-prototipo/dados/mundo_grade.json): nx·passo, nz·passo
 const ZOOM = { min: 40, max: 2200 }; // metros que cabem no lado do quadro
-const fundoMapa = new Image(); fundoMapa.onload = () => { if (aba === 'mapa') desenharMapa(); }; fundoMapa.src = 'painel-mapa.jpg';
+const fundoMapa = new Image(); fundoMapa.onload = () => { if (aba === 'jogar' && info) desenharMapa(); }; fundoMapa.src = 'painel-mapa.jpg';
 // a Vila de hoje nítida por cima (o mesmo desenho do minimapa do jogo: ferramentas/painel/vila-painel.mjs), com a borda
 // esfumada para casar com o fundo
 const VILA = { x0: -64, z0: -146, tam: 412 }; // MAPA_CLAREIRA.minimapa (shared/dados.js)
@@ -380,7 +380,7 @@ let vilaMapa = null;
   for (const [x0, y0, x1, y1] of [[0, 0, b, 0], [T, 0, T - b, 0], [0, 0, 0, b], [0, T, 0, T - b]]) {
     const gr = g.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = gr; g.fillRect(0, 0, T, T);
   }
-  vilaMapa = c; if (aba === 'mapa') desenharMapa();
+  vilaMapa = c; if (aba === 'jogar' && info) desenharMapa();
 }; im.src = 'painel-vila.png'; }
 let vista = null; // { cx, cz, span } quando a pessoa mexeu no mapa; null = ajusta sozinho
 const limitar = (v) => { v.span = Math.max(ZOOM.min, Math.min(ZOOM.max, v.span)); v.cx = Math.max(MUNDO.x0, Math.min(MUNDO.x0 + MUNDO.w, v.cx)); v.cz = Math.max(MUNDO.z0, Math.min(MUNDO.z0 + MUNDO.h, v.cz)); return v; };
@@ -873,14 +873,14 @@ function desenharJogar() {
     return;
   }
   if (!leve.f) return;
-  const [x, z, hp, hpM, mn, mnM, morto, ouro, nv, pack, montado] = leve.f.eu;
+  const [x, z, hp, hpM, mn, mnM, morto, ouro, nv, pack, montado, vg, vgM] = leve.f.eu;
   // o caminho já andado sai do tracejado
   if (leve.rota) while (leve.rotaI < leve.rota.length - 1 && Math.hypot(leve.rota[leve.rotaI][0] - x, leve.rota[leve.rotaI][1] - z) < 3) leve.rotaI++;
   // o cartão de status muda a cada foto; o resto só quando muda o que está perto (não refaz a tela embaixo do dedo)
   let st = $('jogarStatus');
   if (!st) { st = el('div', 'card hud'); st.id = 'jogarStatus'; }
   limpar(st);
-  const vm = el('div', 'vm'); vm.append(barra('Vida', hp, hpM, 'var(--hp)'), barra('Mana', mn, mnM, '#3d7fd0')); for (const d of vm.children) d.style.flex = '1'; st.append(vm);
+  const vm = el('div', 'vm'); vm.append(barra('Vida', hp, hpM, 'var(--hp)'), barra('Mana', mn, mnM, '#3d7fd0')); if (vgM) vm.append(barra('Vigor', vg, vgM, '#6fbf5a')); for (const d of vm.children) d.style.flex = '1'; st.append(vm);
   st.append(el('div', 'faz', `Nv ${nv} · ${ouro} de ouro${pack ? ' · pack nas costas' : ''}${montado ? ' · no lobo' : ''}${leve.pk?.car?.onde === 2 ? ' · no carrinho' : ''}`));
   if (leve.rec > Date.now()) st.append(el('div', 'nome', `Recall para a base do clã… ${Math.ceil((leve.rec - Date.now()) / 1000)} s (toque de novo para desistir)`));
   if (leve.fab) { const s = Math.max(0, Math.ceil((leve.fab.ate - Date.now()) / 1000)); st.append(el('div', 'nome', `Fazendo ${leve.fab.nome}… ${s} s (fique perto)`)); }
@@ -967,7 +967,7 @@ function desenhar() {
   if (aba === 'cla' && !foco) desenharCla();
   if (aba === 'bots') desenharBots();
   if (aba === 'log') desenharLog();
-  if (aba === 'mapa') desenharMapa();
+  if (aba === 'jogar' && !leve.sala) desenharMapa(); // fora do mundo: o mapa do clã (recrutas, líderes bot)
   if (aba === 'jogar' && !leve.sala) desenharJogar();
 }
 

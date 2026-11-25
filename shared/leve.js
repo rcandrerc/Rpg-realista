@@ -9,7 +9,7 @@ import { planejarRota, terraId } from './rota.js';
 import { TUNEL } from './caverna.js';
 import { LUGARES_MUNDO } from './mundo.js';
 import { RECEITAS, CRIAR_OBRA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
-import { nomeItem, precoVenda, mercador, bonusTitulo, contar } from './progresso.js';
+import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
 import { liberado } from './historia.js';
 
@@ -240,7 +240,7 @@ export const Leve = {
       if (m.length >= LEVE.max) break;
     }
     return {
-      eu: [r1(j.x), r1(j.z), Math.round(j.vida), Math.round(j.vidaMax), Math.round(j.mana), Math.round(j.manaMax), j.morto ? 1 : 0, j.prog.ouro | 0, j.prog.nivel | 0, j.prog.pack ? 1 : 0, j.montado ? 1 : 0], // montado: o lobo (botão Montar, a mesma mensagem e regra do jogo)
+      eu: [r1(j.x), r1(j.z), Math.round(j.vida), Math.round(j.vidaMax), Math.round(j.mana), Math.round(j.manaMax), j.morto ? 1 : 0, j.prog.ouro | 0, j.prog.nivel | 0, j.prog.pack ? 1 : 0, j.montado ? 1 : 0, Math.floor(Math.min(vigorAgora(j.prog.vigor), vigorMax(j.prog))), vigorMax(j.prog)], // vigor (André 2026-11-25: "adiciona a barra de vigor"): agora e máximo; montado: o lobo (botão Montar, a mesma mensagem e regra do jogo)
       ...(R ? { r: [Math.round(falta), Math.round(falta / (v || 1))] } : {}),
       g, m,
     };

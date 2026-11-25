@@ -112,10 +112,13 @@ input.busca:focus{outline:none;border-color:var(--gold)}
 .doca button.tem::after{content:"";position:absolute;top:6px;right:8px;width:8px;height:8px;border-radius:50%;background:#73c773}
 #jogarAba.tela>#jogarChat{position:absolute;left:8px;right:8px;bottom:70px;max-height:58%;overflow:auto;background:rgba(22,20,16,.95);z-index:1}
 #jogarAba.tela .gire{position:absolute;inset:0;z-index:3}
+#jogarAba.tela>#jogarExtra{display:none}
+#jogarExtra{display:grid;gap:8px}
 #jogar{display:grid;gap:10px}
 #jogarAba>*,#jogar>*{min-width:0}
-.vm{display:flex;gap:8px;align-items:center;font-size:.75rem;color:var(--muted)}
+.vm{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:.75rem;color:var(--muted)}
 .vm .barra{flex:1}
+.vm>div{min-width:92px}
 .bts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .bts button.acao{flex:1 1 30%}
 button.acao.cinza{background:#26231d;border-color:var(--line)}
@@ -142,7 +145,6 @@ button.acao.cinza{background:#26231d;border-color:var(--line)}
   </div>
   <nav id="abas" hidden>
     <button data-aba="cla" class="ativo">Clã</button>
-    <button data-aba="mapa">Mapa</button>
     <button data-aba="jogar">Jogar</button>
     <button data-aba="leilao">Leilão</button>
     <button data-aba="bots">Clãs bot</button>
@@ -156,15 +158,10 @@ button.acao.cinza{background:#26231d;border-color:var(--line)}
   <p id="entrarErro"></p>
 </section>
 <main id="cla"></main>
-<main id="mapaAba" hidden>
-  <div class="mapaCx" id="mapaCx">
+<main id="jogarAba" hidden><div class="gire card">Gire o aparelho e use em pé: o modo leve é feito para a tela em pé.</div><div id="jogarMapa"><div class="mapaCx" id="mapaCx">
     <canvas id="mapa" width="600" height="600"></canvas>
     <div class="zoom"><button id="mapaMais" aria-label="Aproximar">+</button><button id="mapaMenos" aria-label="Afastar">−</button><button id="mapaCentro" aria-label="Centralizar no clã">◎</button></div>
-  </div>
-  <label class="opc"><input type="checkbox" id="mapaBots"> Mostrar os líderes dos clãs bot</label>
-  <div class="legenda"><span style="--c:var(--gold)">Seus recrutas</span><span style="--c:#fff">Você (no jogo)</span><span style="--c:var(--geada)">Líder Geada</span><span style="--c:var(--chama)">Líder Chama</span></div>
-</main>
-<main id="jogarAba" hidden><div class="gire card">Gire o aparelho e use em pé: o modo leve é feito para a tela em pé.</div><div id="jogarMapa"></div><div id="jogar"></div><div id="jogarChat" class="card" hidden></div></main>
+  </div></div><div id="jogar"></div><div id="jogarExtra"><label class="opc"><input type="checkbox" id="mapaBots"> Mostrar os líderes dos clãs bot</label>  <div class="legenda"><span style="--c:var(--gold)">Seus recrutas</span><span style="--c:#fff">Você (no jogo)</span><span style="--c:var(--geada)">Líder Geada</span><span style="--c:var(--chama)">Líder Chama</span></div></div><div id="jogarChat" class="card" hidden></div></main>
 <main id="leilaoAba" hidden></main>
 <main id="bots" hidden></main>
 <main id="log" hidden></main>
