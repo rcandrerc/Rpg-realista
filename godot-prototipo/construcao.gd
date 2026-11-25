@@ -132,6 +132,8 @@ var txt_compra_tit: Label
 var painel_bau: PanelContainer
 var grade_bau: GridContainer
 var grade_mochila: GridContainer
+var tipos_bau: HBoxContainer # botões de tipo (menu.gd chips_tipo) em cima de cada grade
+var tipos_mochila: HBoxContainer
 var txt_bau: Label
 var bau_itens: Array = []
 var bau_slots := 40 # lugares do baú (André 2026-11-07: Melhorar 40 → 60 → 80)
@@ -4458,6 +4460,13 @@ func _montar_tela_bau() -> void:
 		var org := _botao("Organizar", organizar_bau if qual == "bau" else organizar_mochila_bau, false, 15)
 		org.custom_minimum_size = Vector2(118, 38)
 		cab.add_child(org)
+		# André 2026-11-25: os mesmos botões de tipo da venda e da troca (toque = passa tudo daquele tipo)
+		var tipos := HBoxContainer.new()
+		c.add_child(tipos)
+		if qual == "bau":
+			tipos_bau = tipos
+		else:
+			tipos_mochila = tipos
 		var sc := ScrollContainer.new()
 		sc.custom_minimum_size = Vector2(7 * 60 + 12 + 22, 4 * 60 + 6) # itens + respiro + barra larga
 		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -4493,9 +4502,12 @@ func organizar_mochila_bau() -> void:
 		m.rede("item", {"acao": "organizar"})
 
 func _montar_bau() -> void:
-	for g in [grade_bau, grade_mochila]:
+	for g in [grade_bau, grade_mochila, tipos_bau, tipos_mochila]:
 		for n in g.get_children():
 			n.queue_free()
+	var nunca := func(_ids): return false
+	tipos_bau.add_child(m.menu.chips_tipo(bau_itens, nunca, func(ids: Array, _a): _rede_bau({"acao": "tirar", "lista": ids}), 70))
+	tipos_mochila.add_child(m.menu.chips_tipo(m.P.prog.get("mochila", []), nunca, func(ids: Array, _a): _rede_bau({"acao": "guardar", "lista": ids}), 70))
 	var cheios := 0
 	if bau_prox != null:
 		var partes: Array = []
@@ -4512,7 +4524,7 @@ func _montar_bau() -> void:
 			cheios += 1
 		var fn := func():
 			if not _bau_arrastou: # pilha: Tudo ou quantos (menu.gd pedir_qtd, André 2026-11-17)
-				m.menu.pedir_qtd(it, int(it.get("n", 1)), "Tirar", func(n: int): _rede_bau({"acao": "tirar", "i": i, "n": n}))
+				m.menu.pedir_qtd(it, m.menu.total_igual(bau_itens, i), "Tirar", func(n: int): _rede_bau({"acao": "tirar", "i": i, "n": n}))
 		grade_bau.add_child(m.menu.celula(it, false, fn if it != null else func(): pass, 56))
 	txt_bau.text = Idioma.frase("%s · %d/%d" % ["Baú do Clã" if bau_cla else "Baú", cheios, bau_slots])
 	var moch: Array = m.P.prog.get("mochila", [])
@@ -4522,7 +4534,7 @@ func _montar_bau() -> void:
 			continue
 		var fn := func():
 			if not _bau_arrastou: # pilha: Tudo ou quantos (menu.gd pedir_qtd, André 2026-11-17)
-				m.menu.pedir_qtd(it, int(it.get("n", 1)), "Guardar", func(n: int): _rede_bau({"acao": "guardar", "i": i, "n": n}))
+				m.menu.pedir_qtd(it, m.menu.total_igual(moch, i), "Guardar", func(n: int): _rede_bau({"acao": "guardar", "i": i, "n": n}))
 		grade_mochila.add_child(m.menu.celula(it, false, fn, 56))
 
 # ---------- tocar numa estação (André 2026-11-07): o herói vai andando até o lado dela e só aí abre ----------
