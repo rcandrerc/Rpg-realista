@@ -34,7 +34,7 @@ await pg.evaluate((s) => localStorage.setItem('sessao', s), a.sessao);
 await pg.reload(); await esperar(3000);
 const irPara = async (sec, txt) => { // a lista Lugares em sanfona: abre a seção e toca no lugar
   const linha = pg.locator('.sanfona .linha', { hasText: txt });
-  if (!(await pg.locator('.sanfona>button.sec').count())) { await pg.locator('.sanfona .cab', { hasText: 'Lugares' }).click(); await esperar(800); }
+  if (!(await pg.locator('.sanfona>button.sec').count())) { await pg.locator('.doca button', { hasText: 'Lugares' }).click(); await esperar(800); } // a barra embaixo do mapa
   if (!(await linha.count())) { await pg.locator('.sanfona>button.sec', { hasText: sec }).click(); await esperar(800); }
   await linha.first().click();
 };
@@ -50,14 +50,14 @@ await pg.screenshot({ path: path.join(saida, '3-andando.png') });
 await pg.click('[data-aba=jogar]'); // nada; só para segurar a aba
 for (let i = 0; i < 120; i++) { if (await pg.locator('text=Otávio · Leilão').count()) break; await esperar(1000); }
 await esperar(1500);
-await pg.screenshot({ path: path.join(saida, '4-leilao.png'), fullPage: true });
+await pg.screenshot({ path: path.join(saida, '4-leilao.png'), fullPage: false });
 await irPara('NPCs', 'Rosa');
 for (let i = 0; i < 120; i++) { if (await pg.locator('text=Vender (toque no item)').count()) break; await esperar(1000); }
 await esperar(800);
 await pg.locator('#jogar .card .icones').last().locator('.ico').first().click(); await esperar(800);
-await pg.screenshot({ path: path.join(saida, '5-loja.png'), fullPage: true });
+await pg.screenshot({ path: path.join(saida, '5-loja.png'), fullPage: false });
 await pg.click('.qtd-linha button.acao'); await esperar(2000);
-await pg.screenshot({ path: path.join(saida, '6-vendeu.png'), fullPage: true });
+await pg.screenshot({ path: path.join(saida, '6-vendeu.png'), fullPage: false });
 await pg.fill('.chatEnvia input', 'Bom dia, clã!'); await pg.click('.chatEnvia button'); await esperar(2000);
 await pg.locator('#jogarChat').scrollIntoViewIfNeeded(); await esperar(300);
 await pg.screenshot({ path: path.join(saida, '7-chat.png') });
