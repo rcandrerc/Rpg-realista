@@ -2359,6 +2359,8 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 			pedido.p = str(fn.get("p", "lider")) if k == "proteger" else "lider"
 		elif fid == "fazenda":
 			pedido.s = str(fn.get("s", "cenoura")) if k == "fazenda" else "cenoura"
+		elif fid == "arvores": # Plantar árvores (André 2026-11-25): planta até 10 nas áreas de plantio e volta ao Livre
+			pedido.s = str(fn.get("s", "betula")) if k == "arvores" else "betula"
 		lf.add_child(botao(str(F.nome), func(): _marcar_ordem(rid, pedido), 13, fid == k))
 	v.add_child(lf)
 	if k == "recurso":
@@ -2397,8 +2399,29 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		lpl.add_theme_constant_override("v_separation", 6)
 		for P in C.get("plantas", []):
 			var sk := str(P.k)
-			lpl.add_child(botao(str(P.nome), func(): _marcar_ordem(rid, {"k": "fazenda", "s": sk}), 12, sk == str(fn.get("s", ""))))
+			# André 2026-11-25: com o ícone da semente
+			var bs := botao(str(P.nome), func(): _marcar_ordem(rid, {"k": "fazenda", "s": sk}), 12, sk == str(fn.get("s", "")))
+			var tx = icone_tex(P_menu.icone_item({"k": "semente_" + sk}))
+			if tx != null:
+				bs.icon = tx
+				bs.expand_icon = true
+				bs.add_theme_constant_override("icon_max_width", 26)
+			lpl.add_child(bs)
 		v.add_child(lpl)
+	if k == "arvores": # que árvore plantar (ícone da semente + nome e horas para crescer)
+		var lav := HFlowContainer.new()
+		lav.add_theme_constant_override("h_separation", 6)
+		lav.add_theme_constant_override("v_separation", 6)
+		for T in C.get("arvores", []):
+			var tk := str(T.k)
+			var ba := botao("%s %dh" % [str(T.nome), int(T.get("h", 0))], func(): _marcar_ordem(rid, {"k": "arvores", "s": tk}), 12, tk == str(fn.get("s", "")))
+			var ta = icone_tex(P_menu.icone_item({"k": "semente_" + tk}))
+			if ta != null:
+				ba.icon = ta
+				ba.expand_icon = true
+				ba.add_theme_constant_override("icon_max_width", 26)
+			lav.add_child(ba)
+		v.add_child(lav)
 	var lo := HBoxContainer.new()
 	lo.alignment = BoxContainer.ALIGNMENT_END
 	var pendente: bool = _ordem_pend.has(rid) and JSON.stringify(_ordem_pend[rid]) != JSON.stringify(fn_atual)
