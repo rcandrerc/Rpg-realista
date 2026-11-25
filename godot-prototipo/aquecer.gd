@@ -7,7 +7,7 @@ extends Node
 # A capa espera acabar (online.gd aplicar_foto) e o tempo de espera do servidor não conta enquanto isso.
 
 const ESPERA_INICIO := 0.3 # s depois de abrir: o jogo termina de montar a vila
-const QUADROS_NA_TELA := 3 # quadros desenhados com tudo junto (o primeiro já compila; os outros garantem)
+const QUADROS_NA_TELA := 5 # (5: o menu aquece Personagem, Clã, Mochila, Títulos e Habilidades, menu.gd aquecer_passo) # quadros desenhados com tudo junto (o primeiro já compila; os outros garantem)
 const SUMIDO := 2.0 # s com os efeitos escondidos até acabarem sozinhos (a capa já pode sair)
 const LIMITE := 15.0 # s: aconteça o que acontecer (erro, modelo que não carrega, motor novo), a capa não espera mais que isso (os corpos já esperam até CORPOS_MAX)
 
@@ -108,7 +108,7 @@ func _process_parte(dt: float) -> void:
 				_quadros = 0
 		1:
 			if m.menu != null and m.menu.has_method("aquecer_passo"):
-				m.menu.aquecer_passo(_quadros + 1) # 1 Clã, 2 Mochila, 3 fecha (o 0, Personagem, abriu junto com o resto)
+				m.menu.aquecer_passo(_quadros + 1) # 1 Clã, 2 Mochila, 3 Títulos, 4 Habilidades, 5 fecha (o 0, Personagem, abriu junto com o resto)
 			_quadros += 1
 			if _quadros >= QUADROS_NA_TELA:
 				tempos.tela = Time.get_ticks_msec() - _tela_t0

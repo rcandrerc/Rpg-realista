@@ -1158,6 +1158,11 @@ func aquecer_passo(i: int) -> void:
 			m.P.cla = _aq_cla
 			aba = "mochila"
 			atualizar()
+		3, 4: # ronda de 25/11 (Note 10 Lite): Títulos 25 ms e Habilidades 13 ms na primeira abertura
+			if not _aquecendo:
+				return
+			aba = "titulos" if i == 3 else "habilidades"
+			atualizar()
 		_:
 			aquecer_fim()
 
