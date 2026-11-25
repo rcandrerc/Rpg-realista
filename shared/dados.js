@@ -1233,6 +1233,12 @@ export const CRIADOR = {
   pele: [null, 0xffe6d6, 0xf3cdb0, 0xe2ad88, 0xc68a62, 0x996344, 0x6e4530],
   roupa: [null, 0xf0eee8, 0x222226, 0x24345c, 0x6e1e2a, 0x4a5a32, 0x6b4a2e, 0x7a7c80, 0xa8322c, 0x7aa6d0, 0x5a3a7a],
   calca: [null, 0x222226, 0x3c3a52, 0x5a4632, 0x2a3a5a, 0x6e1e2a, 0x7a7c80, 0x4a5a32, 0xe8e2d4],
+  // André 2026-11-25: cada set tem só duas cores que aparecem, a do pano e a da borda; a capa idem. Aba "Set" (roupa =
+  // cor do set inteiro, borda = barra/friso) e aba "Capa" (capa, capa_borda). null = a cor original do set; capa null
+  // segue a cor do set (como antes). calca continua aceita: contas com calça escolhida antes seguem iguais.
+  borda: [null, 0xd8a848, 0xc8d0dc, 0xb0703a, 0x1c1816, 0xeeeef2, 0xa8322c, 0x3a6fd0, 0x3f7a4a, 0x7a4ac0, 0x4a3020, 0x6ae8ff],
+  capa: [null, 0xf0eee8, 0x222226, 0x24345c, 0x6e1e2a, 0x4a5a32, 0x6b4a2e, 0x7a7c80, 0xa8322c, 0x7aa6d0, 0x5a3a7a],
+  capa_borda: [null, 0xd8a848, 0xc8d0dc, 0xb0703a, 0x1c1816, 0xeeeef2, 0xa8322c, 0x3a6fd0, 0x3f7a4a, 0x7a4ac0, 0x4a3020, 0x6ae8ff],
   altura: [0.92, 1.08],
   // formato do rosto: tamanho dos olhos, do nariz e da boca (1 = original)
   rosto: { olhosT: [0.75, 1.25], narizT: [0.7, 1.3], bocaT: [0.7, 1.3] },
@@ -1254,7 +1260,7 @@ export function visualValido(v) {
 export function aparenciaValida(a) {
   if (!a || typeof a !== 'object') return null;
   const r = {};
-  for (const k of ['cabelo', 'olhos', 'pele', 'roupa', 'calca']) r[k] = CRIADOR[k].includes(a[k]) ? a[k] : null;
+  for (const k of ['cabelo', 'olhos', 'pele', 'roupa', 'calca', 'borda', 'capa', 'capa_borda']) r[k] = CRIADOR[k].includes(a[k]) ? a[k] : null;
   const [min, max] = CRIADOR.altura;
   r.altura = Number.isFinite(a.altura) ? Math.round(Math.min(max, Math.max(min, a.altura)) * 100) / 100 : 1;
   for (const [k, [lo, hi]] of Object.entries(CRIADOR.rosto)) r[k] = Number.isFinite(a[k]) ? Math.round(Math.min(hi, Math.max(lo, a[k])) * 100) / 100 : 1;

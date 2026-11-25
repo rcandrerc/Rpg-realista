@@ -20,7 +20,8 @@ const TEXTO := Color(0.93, 0.89, 0.80)
 const APAGADO := Color(0.72, 0.68, 0.60)
 const FUNDO := Color(0.075, 0.065, 0.055, 0.94)
 const PAINEL_L := 400.0 # largura do painel da direita (o herói fica no meio do que sobra)
-const NOMES := {"cabelo": "Cabelo", "olhos": "Olhos", "pele": "Pele", "roupa": "Roupa", "calca": "Calça e saia"}
+const NOMES := {"cabelo": "Cabelo", "olhos": "Olhos", "pele": "Pele", "roupa": "Roupa", "calca": "Calça e saia", "borda": "Borda do set",
+	"capa": "Capa", "capa_borda": "Borda da capa", "set": "Set"}
 const ROSTO_NOMES := {"olhosT": "Olhos", "narizT": "Nariz", "bocaT": "Boca"}
 # poses entre um descanso e outro (arma na mão para mostrar o conjunto), como no palco do site
 const POSES := [{"anim": "espada_parada", "modo": "Espada", "dur": 2.6}, {"anim": "cura", "modo": "Magia"}, {"anim": "bloqueio", "modo": "Espada"},
@@ -116,8 +117,13 @@ var raridade_ui := [] # [botão, raridade ou null]
 # André 2026-11-24: "pode editar as duas cores, só que em abas separadas". A cor da Roupa e a da Calça e saia
 # (Aparencia.roupa / .calca) ficam cada uma na sua aba, uma paleta por vez. Valem nos 4 trajes: patrulheiro e roupão
 # do irmão (Armadura.tingir_v5) e Patrulheiro 2 / Roupão 2 (Equip2.tingir).
-const ABAS_COR := ["roupa", "calca"]
-var aba_cor := "roupa"
+# André 2026-11-25: "só tem praticamente duas cores cada set": as abas viraram Set (cor do set + borda do set) e Capa
+# (cor da capa + borda da capa). A cor do set pinta o set inteiro (roupa e calça juntas: a aba da calça/short quase não
+# mudava nada). Contas com calça escolhida antes seguem iguais até trocar a cor do set.
+const ABAS_COR := ["set", "capa"]
+const CORES_ABA := {"roupa": "set", "borda": "set", "capa": "capa", "capa_borda": "capa"}
+const TITULO_COR := {"roupa": "Cor principal", "borda": "Borda e bordado", "capa": "Cor principal", "capa_borda": "Borda e bordado"}
+var aba_cor := "set"
 var abas_cor_ui := {} # parte -> botão da aba
 var blocos_aba := {} # parte -> [cabeçalho, paleta]
 var linha_rar: Control
@@ -470,13 +476,15 @@ func montar_painel() -> Control:
 	linha_rar = vr
 	lista.add_child(vr)
 	for k in Aparencia.CORES:
-		if k == ABAS_COR[0]:
+		if k == "calca" or not criador.has(k):
+			continue # a calça vai junto com a cor do set (aba Set)
+		if k == "roupa":
 			lista.add_child(montar_abas_cor())
 		var cab := HBoxContainer.new()
 		var rt := Menu.rotulo(NOMES[k], 15, OURO_CLARO)
 		rt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		if k in ABAS_COR:
-			rt.text = Idioma.frase("Cor do traje" if k == ABAS_COR[0] else "Cor da calça e da saia") # o nome já está na aba
+		if CORES_ABA.has(k):
+			rt.text = Idioma.frase(TITULO_COR[k]) # o nome da aba já diz se é do set ou da capa
 			rt.add_theme_font_size_override("font_size", 13)
 		cab.add_child(rt)
 		# volta para a cor da Ruiva (fica aceso quando é a original)
@@ -492,6 +500,8 @@ func montar_painel() -> Control:
 			if _arrastou:
 				return
 			ap[k] = null
+			if k == "roupa":
+				ap.calca = null # o set inteiro volta à cor original
 			rosto = false
 			mudou())
 		cab.add_child(orig)
@@ -512,13 +522,17 @@ func montar_painel() -> Control:
 				if _arrastou:
 					return
 				ap[k] = cor
+				if k == "roupa":
+					ap.calca = _calca_de(cor) # a cor do set pinta a calça junto
 				rosto = false
 				mudou())
 			cores_ui[k].append([b, cor])
 			fl.add_child(b)
 		lista.add_child(fl)
-		if k in ABAS_COR:
-			blocos_aba[k] = [cab, fl]
+		if CORES_ABA.has(k):
+			if not blocos_aba.has(CORES_ABA[k]):
+				blocos_aba[CORES_ABA[k]] = []
+			blocos_aba[CORES_ABA[k]].append_array([cab, fl])
 	mostrar_aba_cor(aba_cor)
 	lista.add_child(Menu.rotulo("Altura", 15, OURO_CLARO))
 	lista.add_child(faixa("altura", float(criador.altura[0]), float(criador.altura[1]), "Baixa", "Alta"))
@@ -564,6 +578,13 @@ func montar_abas_cor() -> Control:
 		abas_cor_ui[k] = b
 		h.add_child(b)
 	return h
+
+# a calça só aceita as cores da paleta dela: a mesma do set quando existe; senão, sem escolha (= segue a do set)
+func _calca_de(cor: int):
+	for c in criador.get("calca", []):
+		if c != null and int(c) == cor:
+			return cor
+	return null
 
 func mostrar_aba_cor(k: String) -> void:
 	aba_cor = k
