@@ -280,7 +280,7 @@ export const Base = {
   },
   enviarBases(id) {
     const j = this.jogadores.get(id); if (!j) return;
-    this.evento({ t: 'bases', para: id, meu: this.baseDe(j)?.k || '', lista: Object.values(this.basesCla || {}).map((B) => this.dadosBase(B)) });
+    this.evento({ t: 'bases', para: id, meu: this.baseDe(j)?.k || '', amigas: Object.values(this.basesCla || {}).filter((B) => B.raca === this.racaDe(j)).map((B) => B.k), lista: Object.values(this.basesCla || {}).map((B) => this.dadosBase(B)) });
   },
   // a área da base onde o lote 1 (do líder) também constrói (shared/simulacao.js naAreaBase): dentro da paliçada (1 m de
   // folga), sem o salão, as torres e os enfeites (sol) e sem o corredor do portão (só a faixa de lado por onde o "Ir" passa, x+0,9 a x+2,5: André 2026-11-24 não conseguia pôr o baú na frente da casa, no meio)
