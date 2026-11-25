@@ -35,7 +35,7 @@ await pg.evaluate((s) => localStorage.setItem('sessao', s), a.sessao);
 await pg.reload(); await esperar(3000);
 const irPara = async (sec, txt) => { // a lista Lugares em sanfona: abre a seção e toca no lugar
   const linha = pg.locator('.sanfona .linha', { hasText: txt });
-  if (!(await pg.locator('.sanfona>button.sec').count())) { await pg.locator('.sanfona .cab').click(); await esperar(800); }
+  if (!(await pg.locator('.sanfona>button.sec').count())) { await pg.locator('.sanfona .cab', { hasText: 'Lugares' }).click(); await esperar(800); }
   if (!(await linha.count())) { await pg.locator('.sanfona>button.sec', { hasText: sec }).click(); await esperar(800); }
   await linha.first().click();
 };
@@ -44,12 +44,13 @@ await pg.click('text=Entrar no mundo'); await esperar(4000);
 const foto = async (n) => { await esperar(900); await pg.screenshot({ path: path.join(saida, n), fullPage: true }); console.log('foto', n); };
 const tocar = async (t) => { await pg.locator(`#jogar button:has-text("${t}")`).first().click(); await esperar(1500); };
 await foto('1-pack-nas-costas.png');
+await pg.locator('.sanfona .cab', { hasText: 'Mochila' }).click(); await esperar(800); await foto('1b-mochila.png'); await pg.locator('.sanfona .cab', { hasText: 'Mochila' }).click(); await esperar(500);
 await tocar('Colocar carrinho');
 await tocar('Pôr no carrinho');
 await tocar('Pôr 1 galão');
 await foto('2-carrinho.png');
 await tocar('Dirigir');
-await foto('3a-lugares-fechado.png'); await pg.locator('.sanfona .cab').click(); await esperar(800); await foto('3b-lugares-aberto.png'); await pg.locator('.sanfona>button.sec', { hasText: 'Mercadores' }).click(); await esperar(800); await foto('3c-mercadores.png'); await irPara('Mercadores', 'Seu Joca'); await esperar(2500);
+await foto('3a-lugares-fechado.png'); await pg.locator('.sanfona .cab', { hasText: 'Lugares' }).click(); await esperar(800); await foto('3b-lugares-aberto.png'); await pg.locator('.sanfona>button.sec', { hasText: 'Mercadores' }).click(); await esperar(800); await foto('3c-mercadores.png'); await irPara('Mercadores', 'Seu Joca'); await esperar(2500);
 await foto('3-dirigindo.png');
 for (let i = 0; i < 90; i++) { if (await pg.locator('text=Material para fazer o pack').count()) break; await esperar(1000); }
 await tocar('Descer');
