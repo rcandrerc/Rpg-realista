@@ -787,8 +787,12 @@ export const Cla = {
     const vivos = new Map(this.recrutasNoMundo(L).filter((x) => x.amiga).map((x) => [x.AMIGA.id, x.amiga]));
     const st = (o, prog) => ({ hp: Math.round(o.vida) | 0, hpM: Math.round(o.vidaMax) | 0, vg: Math.floor(vigorDe(prog.vigor)), vgM: prog.vigor?.m || VIGOR.max, morto: o.morto ? 1 : 0 });
     const pos = (o) => ({ x: Math.round(o.x), z: Math.round(o.z) });
-    // revisão 2026-11-24: o lugar do líder só dos clãs da sua raça; do inimigo, só o que ele está fazendo (de longe o jogo não mostra)
-    const clas = CLAS_NPC.map((C) => { const B = this.liderNpc(C); return B && !B.morto ? { ...(C.raca === (raca || this.racaDe(L)) ? pos(B) : {}), fz: this.fazendoBotPainel(B) } : {}; });
+    // lugar do líder: da sua raça (aliado, ex. Dário) de qualquer distância; o da outra raça (Geada) só com a regra do
+    // minimapa do jogo (André 2026-11-25: "os geadas só aparecem se estiver na proximidade. O Dário pode aparecer de
+    // longe"): perto de você (no jogo) ou de um recruta seu no mundo. Longe, nem sai do servidor
+    const olhos = [...(heroi && !heroi.morto ? [heroi] : []), ...this.recrutasNoMundo(L).map((x) => x.amiga).filter((o) => o && !o.morto)];
+    const perto = (B) => olhos.some((o) => Math.hypot(o.x - B.x, o.z - B.z) <= CLA.painelVer);
+    const clas = CLAS_NPC.map((C) => { const B = this.liderNpc(C); return B && !B.morto ? { ...(C.raca === (raca || this.racaDe(L)) || perto(B) ? pos(B) : {}), fz: this.fazendoBotPainel(B) } : {}; });
     return { n: c.n, nv: c.nv || 1, cofre: c.cofre | 0, semana: semanaCla(c), jogo: heroi ? 1 : 0, ...(!heroi && c.sem <= Date.now() ? { vencida: 1 } : {}), ...(heroi ? { eu: pos(heroi) } : {}),
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, on: a ? 1 : 0, ...(m.dev ? { dev: 1 } : {}),
         fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, L), ...pos(a), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length && !a.prog.mochila.some((o) => !o) ? { cheia: 1 } : {}), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length ? { mo: lugares(a.prog.mochila) } : {}) } : {}) }; }),

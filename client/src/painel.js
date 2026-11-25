@@ -374,7 +374,7 @@ function desenharMapa() {
   for (const m of info.m || []) if (m.on && Number.isFinite(m.x)) pts.push({ x: m.x, z: m.z, cor: '#f2b84b', nome: m.nome, r: 6 });
   if (info.eu) pts.push({ x: info.eu.x, z: info.eu.z, cor: '#ffffff', nome: 'Você', r: 6 });
   const bots = ler('painelBots') === '1';
-  if (bots) for (const C of info.clas || []) if (Number.isFinite(C.x)) pts.push({ x: C.x, z: C.z, cor: C.raca === 'Geada' ? '#6fb3e6' : '#e0663a', nome: C.lider, r: 5, losango: true });
+  if (bots) for (const C of info.clas || []) if (Number.isFinite(C.x)) pts.push({ x: C.x, z: C.z, cor: C.inimigo ? '#ff3b30' : C.raca === 'Geada' ? '#6fb3e6' : '#e0663a', nome: C.lider, r: 5, losango: true });
   $('mapaBots').checked = bots;
   if (!vista) { // ajusta sozinho a quem está no mundo
     const base = pts.length ? pts : [{ x: 0, z: 0 }];
