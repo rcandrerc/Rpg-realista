@@ -1830,7 +1830,19 @@ func reservar_corpo(vis: String) -> void:
 	o.sumiu = false
 	o.tit = ""
 	o.roupa = "-"
+	# registros de 25/11 (Poco X7): a primeira roupa num corpo de outro modelo (o menino, por exemplo) custou 441 ms num
+	# quadro (o:vestir: ar:inicio 179 + ar:montar_corpo 124 cada), porque as malhas apertadas de cada modelo
+	# (armadura.gd _malhas) nascem na primeira vez. A primeira reserva de cada modelo veste um conjunto comum aqui,
+	# atrás da capa: as malhas ficam prontas e quem chega só troca a cor. Nada muda na tela (o corpo está guardado)
+	if not _vestido_quente.has(vis):
+		_vestido_quente[vis] = true
+		var tv := Time.get_ticks_usec()
+		m.Armadura.vestir(o.no, m.Armadura.de_texto(VESTIR_QUENTE))
+		_marca("o:vestir_quente", tv)
 	_soltar_corpo(o)
+
+const VESTIR_QUENTE := "chapeu0,peitoral0,calca0,botas0,capa0"
+var _vestido_quente := {}
 
 # Repor a reserva com o menu aberto (frente "personagens mais leves", André 2026-11-24): quem chega perto e acha a
 # reserva vazia monta um corpo novo, e isso dava 116 a 160 ms num quadro no Poco X7 (o:corpo, registros de 23/11).
