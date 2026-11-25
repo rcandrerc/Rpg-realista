@@ -48,18 +48,19 @@ func _initialize() -> void:
 	root.add_child(tela)
 	tela.add_child(M.rotulo("Mochila · Vender vários", 20, M.OURO))
 	M.vendendo = true
-	M.marcados = {4: true, 11: true}
+	M.marcados = {0: true, 1: true, 3: true, 7: true}
 	var linha := HBoxContainer.new()
 	linha.add_theme_constant_override("separation", 6)
 	linha.custom_minimum_size = Vector2(700, 0)
 	M.barra_venda(linha)
 	tela.add_child(linha)
-	tela.add_child(M.chips_venda())
+	M.ver_fora = {"k": {"barra_ferro": true, "minerio_cobre": true}, "r": {}}
+	tela.add_child(M.botoes_ver(moch, func(): pass))
 	var g := GridContainer.new()
 	g.columns = 10
 	g.add_theme_constant_override("h_separation", 6)
 	g.add_theme_constant_override("v_separation", 6)
-	for i in 30:
+	for i in M.ids_visiveis(moch, true):
 		g.add_child(M.celula_mochila(i, true))
 	tela.add_child(g)
 	var camada := CanvasLayer.new()
@@ -75,6 +76,20 @@ func _initialize() -> void:
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png(saida + "/1-venda.png")
 	M.fechar_confirma()
+	for eq in [false, true]:
+		var cam := CanvasLayer.new()
+		cam.layer = 20
+		root.add_child(cam)
+		M.abrir_ver(moch, eq, func(): pass)
+		var cv: Control = M._confirma
+		M.remove_child(cv)
+		cam.add_child(cv)
+		await esperar(10)
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png(saida + ("/1b-escolher-equipamento.png" if eq else "/1a-escolher-recursos.png"))
+		M.fechar_confirma()
+		cam.queue_free()
+		await esperar(2)
 	camada.queue_free()
 	tela.queue_free()
 	await esperar(3)

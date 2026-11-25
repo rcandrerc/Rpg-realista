@@ -132,7 +132,7 @@ var txt_compra_tit: Label
 var painel_bau: PanelContainer
 var grade_bau: GridContainer
 var grade_mochila: GridContainer
-var tipos_bau: HBoxContainer # botões de tipo (menu.gd chips_tipo) em cima de cada grade
+var tipos_bau: HBoxContainer # o que aparece (menu.gd botoes_ver) e Tirar/Guardar tudo em cima de cada grade
 var tipos_mochila: HBoxContainer
 var txt_bau: Label
 var bau_itens: Array = []
@@ -4460,7 +4460,7 @@ func _montar_tela_bau() -> void:
 		var org := _botao("Organizar", organizar_bau if qual == "bau" else organizar_mochila_bau, false, 15)
 		org.custom_minimum_size = Vector2(118, 38)
 		cab.add_child(org)
-		# André 2026-11-25: os mesmos botões de tipo da venda e da troca (toque = passa tudo daquele tipo)
+		# André 2026-11-25: o mesmo filtro da mochila, venda e troca (2 botões) e o Tirar/Guardar tudo do que aparece
 		var tipos := HBoxContainer.new()
 		c.add_child(tipos)
 		if qual == "bau":
@@ -4505,9 +4505,14 @@ func _montar_bau() -> void:
 	for g in [grade_bau, grade_mochila, tipos_bau, tipos_mochila]:
 		for n in g.get_children():
 			n.queue_free()
-	var nunca := func(_ids): return false
-	tipos_bau.add_child(m.menu.chips_tipo(bau_itens, nunca, func(ids: Array, _a): _rede_bau({"acao": "tirar", "lista": ids}), 70))
-	tipos_mochila.add_child(m.menu.chips_tipo(m.P.prog.get("mochila", []), nunca, func(ids: Array, _a): _rede_bau({"acao": "guardar", "lista": ids}), 70))
+	# o mesmo filtro da mochila, venda e troca (menu.gd botoes_ver) + "Tirar tudo" / "Guardar tudo" do que aparece
+	for lado in [[tipos_bau, bau_itens, "Tirar tudo", "tirar"], [tipos_mochila, m.P.prog.get("mochila", []), "Guardar tudo", "guardar"]]:
+		lado[0].add_child(m.menu.botoes_ver(lado[1], _montar_bau, 88))
+		var vis: Array = m.menu.ids_visiveis(lado[1], true)
+		var bt := _botao(lado[2], func(): _rede_bau({"acao": lado[3], "lista": vis}), false, 15)
+		bt.custom_minimum_size = Vector2(150, 38)
+		bt.disabled = vis.is_empty()
+		lado[0].add_child(bt)
 	var cheios := 0
 	if bau_prox != null:
 		var partes: Array = []
@@ -4522,6 +4527,8 @@ func _montar_bau() -> void:
 		var it = bau_itens[i] if i < bau_itens.size() else null
 		if it != null:
 			cheios += 1
+		if m.menu.filtrando() and not m.menu.aparece(it): # filtro: só o que aparece, sem lugar vazio
+			continue
 		var fn := func():
 			if not _bau_arrastou: # pilha: Tudo ou quantos (menu.gd pedir_qtd, André 2026-11-17)
 				m.menu.pedir_qtd(it, m.menu.total_igual(bau_itens, i), "Tirar", func(n: int): _rede_bau({"acao": "tirar", "i": i, "n": n}))
@@ -4530,7 +4537,7 @@ func _montar_bau() -> void:
 	var moch: Array = m.P.prog.get("mochila", [])
 	for i in moch.size():
 		var it = moch[i]
-		if it == null:
+		if it == null or not m.menu.aparece(it):
 			continue
 		var fn := func():
 			if not _bau_arrastou: # pilha: Tudo ou quantos (menu.gd pedir_qtd, André 2026-11-17)
