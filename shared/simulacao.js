@@ -5021,6 +5021,7 @@ export class Simulacao {
     if (j._bfCla >= 2) r.push(['cla', 0, j._bfCla, Math.round((j._bfCla - 1) * CLA.bonusNivel * 1000) / 1000]); // nível e o bônus (+XP e +ouro)
     if (j.mesa) r.push(['mesa', 0, j.mesa]); // recruta: despensa cheia (+) ou com fome (-), shared/cla.js
     const B = j.prog?.buff; if (B && ITENS[B.k]?.buff && B.ate > (this._bfMs ||= Date.now())) r.push(['co', B.ate, B.k]);
+    if (j.prog?.banq?.ate > (this._bfMs ||= Date.now())) r.push(['banq', j.prog.banq.ate, JANTAR.buff.dano]); // Banquete do clã (shared/jantar.js): ms, como a comida
     if (j.escudo && j.escudo.ate > t) r.push(['escudo', f1(j.escudo.ate), j.escudo.n]);
     if ((j.presoAte || 0) > t) r.push([j.presoEf || 'atordoa', f1(j.presoAte), 0]);
     if (j.lentoH && j.lentoH.ate > t) r.push(['lento', f1(j.lentoH.ate), j.lentoH.k]);

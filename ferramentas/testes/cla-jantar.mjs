@@ -95,6 +95,7 @@ ok(!s.jantares.has(B.k), 'o jantar acabou');
 ok(ids.every((id) => somadas[id] === JANTAR.moral), `moral +${JANTAR.moral} para cada um que comeu`);
 ok(!ctxs[3].AMIGA.id in somadas || !somadas[ctxs[3].AMIGA.id], 'quem não veio não ganha');
 ok(p.banq?.ate > Date.now() && !a.mesaSent, 'o líder que sentou ganhou o Banquete do clã e levantou no fim');
+ok(s.bfJogador(a).some((b) => b[0] === 'banq' && b[1] === p.banq.ate && b[2] === JANTAR.buff.dano), 'o Banquete aparece nos buffs perto da barra de vida (bf banq)');
 const semBq = calcularStatus({ ...p, banq: null });
 ok(Math.abs(a.st.danoFisico / semBq.danoFisico - (1 + JANTAR.buff.dano)) < 0.02, 'Banquete: +10% de dano');
 ok(c.jd === diaJantar() && ids.every((id) => !ctxs.find((x) => x.AMIGA.id === id).amiga.ia.jantar), 'jantar de hoje anotado; os recrutas voltaram ao trabalho');
