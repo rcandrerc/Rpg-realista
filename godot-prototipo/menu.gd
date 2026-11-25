@@ -292,6 +292,9 @@ func _ready() -> void:
 # barra de rolar larga, fácil de pegar com o dedo (André 2026-11-07: na mochila cheia o toque caía nos itens)
 static func barra_larga(sc: ScrollContainer, largura := 22) -> void:
 	var vb := sc.get_v_scroll_bar()
+	if OS.has_feature("mobile"): # celular: só um risquinho dourado, a lista rola arrastando o dedo (André 2026-11-25)
+		largura = 6
+		vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.custom_minimum_size.x = largura
 	var trilho := StyleBoxFlat.new()
 	trilho.bg_color = Color(0.03, 0.026, 0.022, 0.9)
@@ -305,7 +308,7 @@ static func barra_larga(sc: ScrollContainer, largura := 22) -> void:
 		g.bg_color = Color(OURO, e[1])
 		g.set_corner_radius_all(int(largura / 2.0))
 		g.border_color = Color(0.03, 0.026, 0.022, 0.9)
-		g.set_border_width_all(3) # um respiro dentro do trilho
+		g.set_border_width_all(3 if largura > 10 else 0) # um respiro dentro do trilho (o risquinho do celular não tem)
 		vb.add_theme_stylebox_override(e[0], g)
 
 const RAIO_JANELA := 16 # cantos das janelas pop-up (André 2026-11-11)
@@ -1104,6 +1107,7 @@ func fechar() -> void:
 	if vendo_recruta(): # o X no menu do recruta: sai dele e fecha
 		_limpar_recruta()
 	_pend.clear() # fechou sem confirmar: nada foi gasto
+	limpar_ver() # o filtro do que aparece é só do momento (André 2026-11-25)
 	fechar_confirma()
 	fechar_janela(false)
 	raiz.visible = false
@@ -1116,7 +1120,7 @@ func aberto() -> bool:
 
 # rolar a lista arrastando o dedo (em cima de qualquer coisa: linha, botão, texto)
 func _input(ev: InputEvent) -> void:
-	if not aberto() or rolagem == null:
+	if not aberto() or rolagem == null or menu_ver_aberto(): # menuzinho do filtro por cima: ele rola (rolagem_toque.gd)
 		return
 	var rol: ScrollContainer = janela_rolagem if janela_aberta() and janela_rolagem != null else rolagem
 	if ev is InputEventScreenTouch and ev.pressed and not janela_aberta() and painel_item != null and painel_item.visible \
@@ -1133,7 +1137,7 @@ func _input(ev: InputEvent) -> void:
 			if _arrasto_dentro and Engine.has_meta("rolagem_toque"):
 				Engine.get_meta("rolagem_toque", null).esquecer() # encostou: a lista que deslizava para
 			var vb := rol.get_v_scroll_bar()
-			if vb.visible and vb.get_global_rect().has_point(ev.position):
+			if vb.visible and vb.mouse_filter != Control.MOUSE_FILTER_IGNORE and vb.get_global_rect().has_point(ev.position):
 				_arrasto_dentro = false # dedo na barra: a própria barra rola, no sentido dela
 			_arrasto_soma = 0.0
 			_arrastou = false
@@ -4389,10 +4393,13 @@ func montar_mochila() -> void:
 	if not compra:
 		vendendo = false
 		marcados = {}
-	elif not vendendo and not filtro_aberto and not consertando:
-		var bv := botao("Vender vários", func(): modo_vender(true), 15, true)
-		bv.custom_minimum_size = Vector2(132, 40)
-		ferramentas_bolsa.add_child(bv)
+	elif not filtro_aberto and not consertando:
+		# "Vender vários" saiu (André 2026-11-25, remoção aprovada). Vender agora tem só 2 jeitos ("só isso"): tocar no item
+		# (pilha pergunta quantos e pode passar da pilha: vende as iguais) ou filtrar a bag e apertar "Vender tudo" (o que aparece)
+		var vt := botao("Vender tudo", func(): perguntar_vender_tudo(), 15, filtrando())
+		vt.custom_minimum_size = Vector2(124, 40)
+		vt.disabled = ids_visiveis(P.prog.mochila).is_empty() or vendo_recruta()
+		ferramentas_bolsa.add_child(vt)
 	if filtro_aberto:
 		montar_filtro()
 		return
@@ -4403,11 +4410,13 @@ func montar_mochila() -> void:
 	pag_mochila = clampi(pag_mochila, 0, total_pag - 1)
 	var linha := HBoxContainer.new()
 	linha.add_theme_constant_override("separation", 6)
-	if not vendendo and not consertando:
+	if not vendendo and not consertando: # o que aparece (André 2026-11-25): os 2 botões na linha das páginas
+		linha.add_child(botoes_ver(P.prog.mochila, atualizar, 90))
+	if not vendendo and not consertando and not filtrando():
 		var tp := rotulo("Página", 15, APAGADO)
 		tp.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		linha.add_child(tp)
-	for n in total_pag:
+	for n in (0 if filtrando() else total_pag): # filtrando: tudo que aparece numa grade só, sem página
 		var t := str(n + 1) if n < tem else "%d · %d" % [n + 1, int(P.dados.paginaPreco[n])]
 		var b := botao(t, func(): trocar_pagina(n), 16, n == pag_mochila)
 		b.set_meta("guia", "pag:%d" % n) # guia.gd: a peça pedida está noutra página
@@ -4431,8 +4440,23 @@ func montar_mochila() -> void:
 		linha.add_child(cont)
 	conteudo.add_child(linha)
 	if vendendo:
-		conteudo.add_child(chips_venda())
-	if pag_mochila >= tem:
+		conteudo.add_child(botoes_ver(P.prog.mochila, atualizar))
+	if filtrando():
+		var gf := GridContainer.new()
+		gf.columns = 10
+		gf.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		gf.add_theme_constant_override("h_separation", 6)
+		gf.add_theme_constant_override("v_separation", 6)
+		var vis: Array = ids_visiveis(P.prog.mochila, true)
+		for i in vis:
+			var cel := celula_mochila(i, compra)
+			cel.set_meta("guia_i", i)
+			gf.add_child(cel)
+		if vis.is_empty():
+			conteudo.add_child(rotulo("Nada aparecendo: toque nos botões de equipamento e recurso para escolher.", 14, APAGADO))
+		else:
+			conteudo.add_child(gf)
+	elif pag_mochila >= tem:
 		conteudo.add_child(pagina_trancada(pag_mochila, tem))
 	else:
 		var g := GridContainer.new()
@@ -4473,7 +4497,7 @@ func montar_mochila() -> void:
 			conteudo.add_child(detalhe(P.prog.equip[sel_equip], -1, sel_equip, true))
 			return
 	elif janela_lugar == "":
-		dica = "Segure um item para vender vários." if compra else ""
+		dica = ""
 	if dica != "":
 		var d := rotulo(dica, 14, APAGADO)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -4491,7 +4515,7 @@ func celula_mochila(i: int, compra: bool) -> Button:
 		tocar_mochila(i), CEL_MOCHILA, marcada)
 	if P.prog.mochila[i] != null and not marcada:
 		seta_comparar(b, P.prog.mochila[i])
-	if compra and not vendendo and P.prog.mochila[i] != null:
+	if false and compra and not vendendo and P.prog.mochila[i] != null: # segurar = Vender vários saiu (André 2026-11-25, remoção aprovada)
 		b.button_down.connect(func():
 			await get_tree().create_timer(0.45).timeout
 			if is_instance_valid(b) and b.button_pressed and not _arrastou and aberto() and not vendendo:
@@ -5134,7 +5158,7 @@ func preco_marcados() -> Array: # [itens, ouro, raros (Épico ou melhor)]
 	var raros := 0
 	for i in marcados.keys():
 		var it = P.prog.mochila[i] if i < P.prog.mochila.size() else null
-		if it == null or it.get("cad", false):
+		if it == null or it.get("cad", false) or not aparece(it): # escondido pelo filtro não vende (André 2026-11-25)
 			marcados.erase(i)
 			continue
 		var q: int = 1 if P.eh_equip(it) else max(1, int(it.get("n", 1)))
@@ -5149,7 +5173,7 @@ func barra_venda(l: HBoxContainer) -> void:
 	var P = P_menu
 	var cheios: Array = []
 	for i in P.prog.mochila.size():
-		if P.prog.mochila[i] != null and not P.prog.mochila[i].get("cad", false): # com cadeado fica de fora do Selecionar tudo
+		if aparece(P.prog.mochila[i]) and not P.prog.mochila[i].get("cad", false): # com cadeado fica de fora do Selecionar tudo; só o que aparece (André 2026-11-25)
 			cheios.append(i)
 	var todos: bool = cheios.size() > 0 and marcados.size() >= cheios.size()
 	var sel := botao("Desmarcar tudo" if todos else "Selecionar tudo", func():
@@ -5174,72 +5198,210 @@ func barra_venda(l: HBoxContainer) -> void:
 # André 2026-11-24: marcar de uma vez no Vender vários. Chips só com ícone + quantidade: equipamento Comum / Raro / Épico (ou
 # melhor) e Recurso. Toque marca tudo que combina (com cadeado e o que está vestido ficam de fora: vestido nem está na mochila);
 # se tudo isso já estava marcado, desmarca. Marcar um por um continua valendo.
-func ids_do_chip(tipo: String) -> Array:
-	return ids_tipo(P_menu.prog.mochila, tipo)
+# ---------- o que aparece (André 2026-11-25: "deixava só 2 botões, um de arma e armadura e um de recurso"; depois:
+# "lista por nome, raro azulzinho, comum cinzinha"; "o filtro dentro da minha bag mesmo, só aparece o que eu marquei";
+# "se eu fechar a bag e abrir de novo, esse filtro não fica salvo"; "vender tudo só vende o que tá aparecendo") ----------
+# Um filtro só, igual na mochila, na venda, no baú (os dois lados) e na troca. O botão abre a lista por nome ali mesmo
+# (sem janela por cima): Equipamento = raridades (na cor) e tipos de peça; Recurso = cada item. Desmarcado some da grade.
+# Fecha a mochila, o baú ou a troca: tudo volta a aparecer (limpar_ver). O "tudo" de cada tela só pega o que aparece.
+var ver_fora := {"k": {}, "r": {}} # desmarcados: k = item, r = raridade da peça
 
-# André 2026-11-25: "unifica os filtros todos": os mesmos botões de tipo (equipamento Comum / Raro / Épico ou melhor e
-# Recurso, só ícone + quantos) na venda, no baú (os dois lados) e na troca. lista = mochila, baú ou o que for.
-func ids_tipo(lista: Array, tipo: String) -> Array:
-	var P = P_menu
+func limpar_ver() -> void:
+	ver_fora = {"k": {}, "r": {}}
+	fechar_menu_ver()
+
+func filtrando() -> bool:
+	return not ver_fora.k.is_empty() or not ver_fora.r.is_empty()
+
+func aparece(it) -> bool:
+	if it == null:
+		return false
+	if ver_fora.k.has(str(it.k)):
+		return false
+	if P_menu.eh_equip(it) and ver_fora.r.has(int(it.get("r", 0))):
+		return false
+	return true
+
+# lugares que aparecem (sem cadeado: o "tudo" nunca leva item trancado)
+func ids_visiveis(lista: Array, com_cadeado := false) -> Array:
 	var l: Array = []
 	for i in lista.size():
-		var it = lista[i]
-		if it == null or it.get("cad", false):
-			continue
-		var eq: bool = P.eh_equip(it)
-		if tipo == "rec":
-			if not eq and P.dados.itens.has(it.k) and P.dados.itens[it.k].get("mat", false):
-				l.append(i)
-		elif eq:
-			var r: int = int(it.r)
-			if r == int(tipo) or (int(tipo) == 2 and r > 2):
-				l.append(i)
+		if aparece(lista[i]) and (com_cadeado or not lista[i].get("cad", false)):
+			l.append(i)
 	return l
 
-func chips_venda() -> HBoxContainer:
-	return chips_tipo(P_menu.prog.mochila, func(ids: Array): return ids.all(func(i): return marcados.has(i)), func(ids: Array, todos: bool):
-		for i in ids:
-			if todos:
-				marcados.erase(i)
-			else:
-				marcados[i] = true
-		atualizar())
-
-# marcado(ids) -> bool: o botão fica aceso; tocar(ids, aceso): o que cada tela faz (venda marca; baú e troca passam tudo)
-func chips_tipo(lista: Array, marcado: Callable, tocar: Callable, larg := 78) -> HBoxContainer:
+# os 2 botões (peitoral = equipamento, couro = recurso), só o símbolo; borda dourada quando algo está escondido.
+# Tocar abre um menuzinho de marcar (André 2026-11-25: "clicou no menu de armadura, eu escolho o que eu quero, só vai
+# aparecer o que eu quero"; "retire esses balões"): equipamento = raridades, recurso = cada item com o símbolo.
+# Cada toque marca/desmarca e a tela atrás já muda; toque fora fecha. ao_mudar remonta a tela.
+var _menu_ver: CanvasLayer = null # menuzinho aberto (abrir_menu_ver)
+func botoes_ver(lista: Array, ao_mudar: Callable, larg := 64, _lado := "") -> HBoxContainer:
 	var P = P_menu
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 6)
-	var tipos := [["0", "it_espada", Color(P.dados.raridades[0].cor)], ["1", "it_espada", Color(P.dados.raridades[1].cor)],
-		["2", "it_espada", Color(P.dados.raridades[2].cor)], ["rec", "it_couro", TEXTO]]
-	for t in tipos:
-		var ids: Array = ids_tipo(lista, t[0])
-		var todos: bool = ids.size() > 0 and bool(marcado.call(ids))
+	for eq in [true, false]:
+		var fora: bool = eq and not ver_fora.r.is_empty()
+		for it in lista:
+			if it != null and P.eh_equip(it) == eq and not aparece(it):
+				fora = true
 		var b := Button.new()
 		b.focus_mode = Control.FOCUS_NONE
-		b.custom_minimum_size = Vector2(larg, 38)
-		estilo_botao(b, todos)
-		b.disabled = ids.is_empty()
-		b.icon = icone_tex(t[1])
+		b.custom_minimum_size = Vector2(larg, 40)
+		estilo_botao(b, fora)
+		b.icon = icone_tex(P.icone_item({"k": "peitoral", "r": 1}) if eq else P.icone_item({"k": "couro", "n": 1}))
 		b.expand_icon = true
-		b.add_theme_constant_override("icon_max_width", 22)
-		var q := 0 # quantos itens (pilha conta inteira)
-		for i in ids:
-			q += 1 if P.eh_equip(lista[i]) else maxi(1, int(lista[i].get("n", 1)))
-		b.text = str(q)
-		b.add_theme_font_size_override("font_size", 15)
-		b.add_theme_color_override("font_color", t[2])
-		b.add_theme_color_override("font_disabled_color", APAGADO)
-		if t[1] == "it_espada":
-			b.add_theme_color_override("icon_normal_color", t[2])
-			b.add_theme_color_override("icon_pressed_color", t[2])
-			b.add_theme_color_override("icon_hover_color", t[2])
-			b.add_theme_color_override("icon_disabled_color", Color(t[2], 0.35))
-		b.pressed.connect(func():
-			Input.vibrate_handheld(20)
-			tocar.call(ids, todos))
+		b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		b.add_theme_constant_override("icon_max_width", 30)
+		b.pressed.connect(func(): abrir_menu_ver(b, lista, eq, ao_mudar))
 		h.add_child(b)
 	return h
+
+# André 2026-11-25: "o botãozinho do lado direito para arrastar é bom para computador, para celular é horrível; quero
+# igual Instagram, clica, joga para cima ou para baixo". O menuzinho não é mais PopupMenu (janela à parte, só rolava
+# pela barra): é uma lista comum numa camada por cima de tudo, então rola arrastando o dedo e desliza (rolagem_toque.gd).
+func menu_ver_aberto() -> bool:
+	return _menu_ver != null and is_instance_valid(_menu_ver)
+
+func fechar_menu_ver() -> void:
+	if _menu_ver != null and is_instance_valid(_menu_ver):
+		_menu_ver.queue_free()
+	_menu_ver = null
+
+# quadradinho de marcar grande e dourado (o do Godot é escuro e some no fundo do menu)
+static var _caixinhas := {}
+static func caixinha(marcada: bool) -> Texture2D:
+	if _caixinhas.has(marcada):
+		return _caixinhas[marcada]
+	var t := 26
+	var img := Image.create(t, t, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	for y in t:
+		for x in t:
+			var borda := x < 2 or y < 2 or x >= t - 2 or y >= t - 2
+			if borda:
+				img.set_pixel(x, y, OURO)
+			elif marcada:
+				img.set_pixel(x, y, OURO.darkened(0.15))
+	if marcada: # o vezinho escuro
+		for i in 6:
+			for e in 3:
+				img.set_pixel(6 + i, 12 + i + e - 1, FUNDO.lightened(0.02))
+		for i in 11:
+			for e in 3:
+				img.set_pixel(11 + i, 17 - i + e - 1, FUNDO.lightened(0.02))
+	_caixinhas[marcada] = ImageTexture.create_from_image(img)
+	return _caixinhas[marcada]
+
+func abrir_menu_ver(b: Control, lista: Array, eq: bool, ao_mudar: Callable) -> void:
+	var P = P_menu
+	fechar_menu_ver()
+	# o que existe nesta lista (e o que está desmarcado, para dar para marcar de volta). Equipamento: Raridade e, embaixo,
+	# Peça (André 2026-11-25: "além da raridade, a especificidade: só tops, só calças, só arma"). Recurso: cada item.
+	var ks: Array = []
+	for it in lista:
+		if it != null and P.eh_equip(it) == eq and not ks.has(str(it.k)):
+			ks.append(str(it.k))
+	for k in ver_fora.k.keys():
+		if not ks.has(k) and P.dados.itens.has(k) and P.eh_equip({"k": k, "r": 0}) == eq:
+			ks.append(k)
+	var camada := CanvasLayer.new()
+	camada.layer = 60 # acima do menu (20), do baú e da troca
+	_menu_ver = camada
+	add_child(camada)
+	var fundo := Control.new() # toque fora da lista fecha
+	fundo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fundo.mouse_filter = Control.MOUSE_FILTER_STOP
+	fundo.gui_input.connect(func(ev):
+		if ev is InputEventMouseButton and ev.pressed:
+			fechar_menu_ver())
+	camada.add_child(fundo)
+	var painel := PanelContainer.new()
+	painel.add_theme_stylebox_override("panel", caixa(FUNDO, OURO.darkened(0.25), 2, 8, 8))
+	fundo.add_child(painel)
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER # sem barra: rola arrastando o dedo
+	painel.add_child(sc)
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_theme_constant_override("separation", 2)
+	sc.add_child(col)
+	var caixas: Array = [] # [CheckBox, "r" ou "k", raridade ou item]
+	var linha := func(nome: String, tex: Texture2D, cor_icone: Color, ligado: bool, tipo: String, chave) -> void:
+		var c := CheckBox.new()
+		c.focus_mode = Control.FOCUS_NONE
+		c.text = nome
+		c.icon = tex
+		c.button_pressed = ligado
+		c.custom_minimum_size = Vector2(0, 50)
+		c.add_theme_font_size_override("font_size", 20)
+		c.add_theme_constant_override("icon_max_width", 28)
+		c.add_theme_constant_override("h_separation", 10)
+		c.add_theme_icon_override("checked", caixinha(true))
+		c.add_theme_icon_override("unchecked", caixinha(false))
+		for k in ["icon_normal_color", "icon_pressed_color", "icon_hover_color", "icon_hover_pressed_color", "icon_focus_color"]:
+			c.add_theme_color_override(k, cor_icone)
+		c.toggled.connect(func(on: bool):
+			var d: Dictionary = ver_fora.r if tipo == "r" else ver_fora.k
+			if on:
+				d.erase(chave)
+			else:
+				d[chave] = true
+			ao_mudar.call())
+		col.add_child(c)
+		caixas.append([c, tipo, chave])
+	var titulo := func(t: String) -> void:
+		var l := rotulo(tr(t), 15, APAGADO)
+		l.custom_minimum_size = Vector2(0, 30)
+		l.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+		col.add_child(l)
+	if eq:
+		titulo.call("Raridade")
+		for x in P.dados.raridades.size():
+			linha.call(str(P.dados.raridades[x].nome), icone_tex("it_espada"), Color(P.dados.raridades[x].cor), not ver_fora.r.has(x), "r", x)
+		if not ks.is_empty():
+			titulo.call("Peça")
+	for k in ks:
+		var it := {"k": k, "r": 0} if eq else {"k": k, "n": 1}
+		linha.call(str(P.dados.itens[k].nome) if eq else P.nome_item({"k": k, "n": 1}), icone_tex(P.icone_item(it)), Color.WHITE, not ver_fora.k.has(k), "k", k)
+	if caixas.is_empty():
+		col.add_child(rotulo(tr("Nada aqui"), 18, APAGADO))
+	else:
+		col.add_child(HSeparator.new())
+		for liga in [true, false]:
+			var t := Button.new()
+			t.focus_mode = Control.FOCUS_NONE
+			t.flat = true
+			t.text = tr("Marcar todos") if liga else tr("Desmarcar todos")
+			t.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			t.custom_minimum_size = Vector2(0, 50)
+			t.add_theme_font_size_override("font_size", 20)
+			t.pressed.connect(func():
+				for e in caixas:
+					(e[0] as CheckBox).set_pressed_no_signal(liga)
+					var d: Dictionary = ver_fora.r if e[1] == "r" else ver_fora.k
+					if liga:
+						d.erase(e[2])
+					else:
+						d[e[2]] = true
+				ao_mudar.call())
+			col.add_child(t)
+	# tamanho e lugar: embaixo do botão; se não couber, a lista fica do tamanho da tela e rola com o dedo
+	var r := b.get_global_rect()
+	var tela := b.get_viewport_rect().size if b.is_inside_tree() else Vector2(1280, 720)
+	var ajustar := func():
+		if not is_instance_valid(col):
+			return
+		var conteudo_min := col.get_combined_minimum_size()
+		var larg := clampf(conteudo_min.x + 24, 260.0, tela.x - 16)
+		var y := r.end.y + 4
+		if tela.y - y < 240: # botão lá embaixo: abre do alto da tela
+			y = 8.0
+		sc.custom_minimum_size = Vector2(larg - 16, minf(conteudo_min.y, tela.y - y - 24))
+		painel.position = Vector2(clampf(r.position.x, 8, tela.x - larg - 8), y)
+		painel.reset_size()
+	ajustar.call()
+	ajustar.call_deferred() # de novo com as fontes já medidas
 
 # André 2026-11-25: o mesmo item (mesmo k, lugar rápido, nível e cadeado) espalhado em várias pilhas. A janelinha da
 # quantidade (pedir_qtd) aceita até a soma de todas: número maior que a pilha puxa das outras (o servidor faz igual).
@@ -5281,6 +5443,29 @@ func modo_vender(ligar: bool) -> void:
 	if aba != "mochila":
 		aba = "mochila"
 	atualizar()
+
+# Vender tudo: tudo que aparece na mochila agora (sem cadeado), com uma pergunta antes
+func perguntar_vender_tudo() -> void:
+	if _so_olhando():
+		return
+	var P = P_menu
+	var lista: Array = ids_visiveis(P.prog.mochila)
+	var n := 0
+	var ouro := 0
+	var raros := 0
+	for i in lista:
+		var it = P.prog.mochila[i]
+		var q: int = 1 if P.eh_equip(it) else maxi(1, int(it.get("n", 1)))
+		n += q
+		ouro += P.preco_venda(it) * q
+		if P.eh_equip(it) and int(it.r) >= 2:
+			raros += 1
+	if n == 0:
+		return
+	var txt := "Vender tudo que aparece: %d %s por %d de ouro?" % [n, "item" if n == 1 else "itens", ouro]
+	if raros > 0:
+		txt += "\nAtenção: %d %s Épica%s ou melhor." % [raros, "peça é" if raros == 1 else "peças são", "" if raros == 1 else "s"]
+	confirmar("Vender tudo", txt, "Vender", func(): acao_item({"acao": "vender_varios", "lista": lista}))
 
 func perguntar_vender_varios() -> void:
 	if _so_olhando(): # menu do recruta (só olhando)
