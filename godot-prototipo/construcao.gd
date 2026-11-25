@@ -132,8 +132,8 @@ var txt_compra_tit: Label
 var painel_bau: PanelContainer
 var grade_bau: GridContainer
 var grade_mochila: GridContainer
-var tipos_bau: HBoxContainer # botões de tipo (menu.gd chips_tipo) em cima de cada grade
-var tipos_mochila: HBoxContainer
+var tipos_bau: VBoxContainer # o que aparece (menu.gd botoes_ver) e Tirar/Guardar tudo em cima de cada grade
+var tipos_mochila: VBoxContainer
 var txt_bau: Label
 var bau_itens: Array = []
 var bau_slots := 40 # lugares do baú (André 2026-11-07: Melhorar 40 → 60 → 80)
@@ -4449,6 +4449,7 @@ func do_bau(ev: Dictionary) -> void:
 	var t0 := Time.get_ticks_usec()
 	var abriu: bool = ev.get("abrir", false)
 	if abriu:
+		m.menu.limpar_ver() # o filtro do que aparece é só do momento (André 2026-11-25)
 		painel_bau.visible = true
 		m.sons.tocar("pano", -6.0)
 	if painel_bau.visible:
@@ -4459,6 +4460,7 @@ func do_bau(ev: Dictionary) -> void:
 
 func fechar_bau() -> void:
 	painel_bau.visible = false
+	m.menu.limpar_ver()
 
 # baú ou fornalha aberta: arrastar o dedo para cima/baixo em cima dos itens rola a lista; um toque parado ainda guarda/tira
 func _input(ev: InputEvent) -> void:
@@ -4466,12 +4468,14 @@ func _input(ev: InputEvent) -> void:
 		return
 	if m.menu != null and m.menu._confirma != null: # a janelinha da quantidade (menu.gd pedir_qtd) está por cima
 		return
+	if m.menu != null and m.menu.menu_ver_aberto(): # o menuzinho do filtro está por cima: ele é que rola
+		return
 	if ev is InputEventScreenTouch:
 		if ev.pressed:
 			_bau_dentro = null
 			for sc in rolar_bau:
 				var vb: VScrollBar = sc.get_v_scroll_bar()
-				if sc.is_visible_in_tree() and sc.get_global_rect().has_point(ev.position) and not (vb.visible and vb.get_global_rect().has_point(ev.position)):
+				if sc.is_visible_in_tree() and sc.get_global_rect().has_point(ev.position) and not (vb.visible and vb.mouse_filter != Control.MOUSE_FILTER_IGNORE and vb.get_global_rect().has_point(ev.position)):
 					_bau_dentro = sc # na barra não: a própria barra rola
 			if _bau_dentro != null and Engine.has_meta("rolagem_toque"):
 				Engine.get_meta("rolagem_toque", null).esquecer()
@@ -4537,8 +4541,9 @@ func _montar_tela_bau() -> void:
 		var org := _botao("Organizar", organizar_bau if qual == "bau" else organizar_mochila_bau, false, 15)
 		org.custom_minimum_size = Vector2(118, 38)
 		cab.add_child(org)
-		# André 2026-11-25: os mesmos botões de tipo da venda e da troca (toque = passa tudo daquele tipo)
-		var tipos := HBoxContainer.new()
+		# André 2026-11-25: o mesmo filtro da mochila, venda e troca (2 botões) e o Tirar/Guardar tudo do que aparece
+		var tipos := VBoxContainer.new()
+		tipos.add_theme_constant_override("separation", 6)
 		c.add_child(tipos)
 		if qual == "bau":
 			tipos_bau = tipos
@@ -4582,9 +4587,18 @@ func _montar_bau() -> void:
 	for g in [grade_bau, grade_mochila, tipos_bau, tipos_mochila]:
 		for n in g.get_children():
 			n.queue_free()
-	var nunca := func(_ids): return false
-	tipos_bau.add_child(m.menu.chips_tipo(bau_itens, nunca, func(ids: Array, _a): _rede_bau({"acao": "tirar", "lista": ids}), 70))
-	tipos_mochila.add_child(m.menu.chips_tipo(m.P.prog.get("mochila", []), nunca, func(ids: Array, _a): _rede_bau({"acao": "guardar", "lista": ids}), 70))
+	# o mesmo filtro da mochila, venda e troca (menu.gd botoes_ver) + "Tirar tudo" / "Guardar tudo" do que aparece
+	for lado in [[tipos_bau, bau_itens, "Tirar tudo", "tirar", "bau"], [tipos_mochila, m.P.prog.get("mochila", []), "Guardar tudo", "guardar", "moch"]]:
+		var fila := HBoxContainer.new()
+		fila.add_theme_constant_override("separation", 6)
+		fila.add_child(m.menu.botoes_ver(lado[1], _montar_bau, 88, lado[4]))
+		var vis: Array = m.menu.ids_visiveis(lado[1], true)
+		var bt := _botao(lado[2], func(): _rede_bau({"acao": lado[3], "lista": vis}), false, 15)
+		bt.custom_minimum_size = Vector2(150, 38)
+		bt.disabled = vis.is_empty()
+		fila.add_child(bt)
+		lado[0].add_child(fila)
+
 	var cheios := 0
 	if bau_prox != null:
 		var partes: Array = []
@@ -4599,6 +4613,8 @@ func _montar_bau() -> void:
 		var it = bau_itens[i] if i < bau_itens.size() else null
 		if it != null:
 			cheios += 1
+		if m.menu.filtrando() and not m.menu.aparece(it): # filtro: só o que aparece, sem lugar vazio
+			continue
 		var fn := func():
 			if not _bau_arrastou: # pilha: Tudo ou quantos (menu.gd pedir_qtd, André 2026-11-17)
 				m.menu.pedir_qtd(it, m.menu.total_igual(bau_itens, i), "Tirar", func(n: int): _rede_bau({"acao": "tirar", "i": i, "n": n}))
@@ -4607,7 +4623,7 @@ func _montar_bau() -> void:
 	var moch: Array = m.P.prog.get("mochila", [])
 	for i in moch.size():
 		var it = moch[i]
-		if it == null:
+		if it == null or not m.menu.aparece(it):
 			continue
 		var fn := func():
 			if not _bau_arrastou: # pilha: Tudo ou quantos (menu.gd pedir_qtd, André 2026-11-17)

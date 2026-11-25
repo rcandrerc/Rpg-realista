@@ -17,6 +17,7 @@ const MARGEM := Vector2(176, 70) # distância do canto de cima à direita: o men
 # aceso no meu terreno, escuro fora dele
 # André 2026-11-11: "o menu de missões vai para aquela action bar" (antes era uma aba do menu do personagem)
 const ITENS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["missoes", "Missões", "topo_missoes"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["pvp", "PvP", "topo_pvp"], ["cla", "Clã", "topo_cla"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
+const WIKI_URL := "https://rcandrerc.github.io/Rpg-realista/wiki/" # client/public/wiki/index.html no site
 # André 2026-11-16: o ícone Conta saiu da barra ("menos poluído"); Trocar de conta, Sair da conta e Apagar personagem
 # ficam iguais, na aba Conta de Configurações (montar_config). abrir("conta") continua valendo e cai nessa aba.
 const TEMPO := 0.28 # segundos da animação de abrir e recolher (igual ao Quimera)
@@ -648,6 +649,9 @@ func montar_config() -> void:
 			m.voz.ligar(v))
 		_texto("Fale: frente, atacar, gelo, vida, mapa...", Menu.APAGADO, 13)
 	_chave_ia()
+	# Wiki do jogo (André 2026-11-25): abre a página de "como jogar" no navegador do celular, a mesma do painel do clã
+	_add(_botao("Wiki: como jogar", func():
+		OS.shell_open(WIKI_URL), false))
 	_add(_botao("Créditos e direitos", func():
 		aberta = "creditos"
 		montar(), false))

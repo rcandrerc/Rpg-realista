@@ -1,4 +1,17 @@
 {
+"Raridade": "Rarity",
+"Peça": "Piece",
+"Vender tudo que aparece: %d %s por %d de ouro?": "Sell everything showing: %d %s for %d gold?",
+"Nada aparecendo: toque nos botões de equipamento e recurso para escolher.": "Nothing showing: tap the equipment and resource buttons to choose.",
+"%s compra: toque no item para vender": "%s is buying: tap an item to sell",
+"Nada aqui": "Nothing here",
+"Marcar todos": "Check all",
+"Desmarcar todos": "Uncheck all",
+"Pôr tudo": "Add all",
+"Guardar tudo": "Store all",
+"Tirar tudo": "Take all",
+"Nenhum": "None",
+"Todos": "All",
 "_nota": "Inglês do jogo (idioma.gd). Chave = texto em português, igual ao do código. %s/%d viram {1},{2}... na ordem; para mudar a ordem escreva {n} no inglês. Nome próprio fica igual; título e parentesco traduzem (Mestre Ivo = Master Ivo). Nada ao pé da letra.",
 "Mochila": "Inventory",
 "Mercante": "Merchant ship",
@@ -3274,6 +3287,7 @@
 "Tecla mantida": "Key unchanged",
 "© 2026 André Coutinho. Todos os direitos reservados.": "© 2026 André Coutinho. All rights reserved.",
 "Créditos e direitos": "Credits & legal",
+"Wiki: como jogar": "Wiki: how to play",
 "História, personagens, nome, símbolo, arte e código são protegidos por direitos autorais. Proibido copiar, distribuir ou vender sem autorização.": "Story, characters, name, logo, art and code are protected by copyright. Do not copy, distribute or sell without permission.",
 "Feito com Godot Engine (licença MIT).": "Made with Godot Engine (MIT license).",
 "Fontes: Alegreya Sans, Cinzel e Cinzel Decorative (SIL Open Font License 1.1).": "Fonts: Alegreya Sans, Cinzel and Cinzel Decorative (SIL Open Font License 1.1).",
@@ -4683,6 +4697,7 @@
 "sempre à venda · ×%d · normal (%d) em %d h %02d min": "always for sale · ×%d · normal (%d) in %d h %02d min",
 "Buscar item pelo nome": "Search item by name",
 "Comprou {1} por {2} de ouro. O próximo sai por {3}": "Bought {1} for {2} gold. The next one costs {3}",
+<<<<<<< ours
 "A Mesa do Clã está na mochila: ponha na base (martelo, Móveis)": "The Clan Table is in your inventory: place it in the base (hammer, Furniture)",
 "A Mesa do Clã está na mochila: ponha na base (martelo, Móveis).": "The Clan Table is in your inventory: place it in the base (hammer, Furniture).",
 "A Mesa do Clã fica na base do clã: funde a base primeiro (aba Clã)": "The Clan Table goes in the clan base: found the base first (Clan tab)",
@@ -4724,3 +4739,26 @@
 "Termine o jantar antes de mudar a mesa de lugar": "Finish the dinner before moving the table",
 "{1} para o jantar. Ponha a comida na mesa": "{1} for dinner. Put the food on the table"
 }
+=======
+"Clã Nv %d": "Clan Lv %d",
+"+%s de XP e ouro dos monstros": "+%s XP and gold from monsters",
+"Bem alimentado": "Well fed",
+"+%s de dano e XP": "+%s damage and XP",
+"Faminto": "Starving",
+"-%s de dano e XP": "-%s damage and XP",
+"dano": "damage",
+"defesa": "defense",
+"volta da mana": "mana regen",
+"Escudo": "Shield",
+"Absorve %d de dano": "Absorbs %d damage",
+"Atordoado": "Stunned",
+"Não anda nem ataca": "Can't move or attack",
+"Congelado": "Frozen",
+"Derrubado": "Knocked down",
+"No chão: não anda nem ataca": "On the ground: can't move or attack",
+"-%s de velocidade": "-%s speed",
+"Quebrado": "Broken",
+"Leva +%s de dano": "Takes +%s damage",
+"Perde vida a cada segundo": "Loses health every second"
+}
+>>>>>>> theirs

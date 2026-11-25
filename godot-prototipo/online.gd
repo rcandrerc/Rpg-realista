@@ -73,6 +73,7 @@ var _status_t := 0.0
 var _lugar_pendente := false # entrou agora: a primeira foto traz o herói para onde a conta guardou (onde ele saiu)
 var jogadores := 0
 # Área de interesse (server/visao.js): o servidor manda só o que está perto, e de cada corpo só o que mudou.
+var bf_meu: Array = [] # buffs e debuffs do herói, da foto (shared/simulacao.js bfJogador; buffs.gd desenha)
 var _srv := {} # id -> tudo o que já chegou daquele corpo (a foto nova completa o que faltou)
 var no_mapa: Array = [] # [[id, x, z], ...] de todos os jogadores da sala (a cada 0,5 s): mapa e minimapa
 # tela de login
@@ -651,9 +652,13 @@ func aplicar_foto(f: Dictionary) -> void:
 		jogadores += 1
 		if str(j.id) == meu_id:
 			meu(j)
+			bf_meu = j.get("bf", bf_meu) # buffs e debuffs do herói (buffs.gd, perto da barra de vida)
 		else:
 			vistos[str(j.id)] = true
 			outro(j)
+			var ob = outros.get(str(j.id))
+			if ob is Dictionary and j.has("bf"): # buffs e debuffs dele (buffs.gd: quadro do alvo e barras do time)
+				ob.bf = j.bf
 	if aoi: # quem está na sala inteira (a foto só traz os de perto)
 		jogadores = int(f.get("total", jogadores))
 	for id in outros.keys():
@@ -1010,6 +1015,8 @@ func inimigo(c: Dictionary) -> void:
 	if e.has("boss") and c.has("vidaMax"): # boss de mundo: a vida inteira vem do servidor (barra do topo, boss_mundo.gd)
 		e.vida_max = float(c.vidaMax)
 	e.vida_max_srv = float(c.get("vidaMax", e.get("vida_max_srv", 1.0)))
+	if c.has("bf"): # atordoado, lento, Quebrado (buffs.gd: quadro do alvo)
+		e.bf = c.bf
 	_barra_prevista(e)
 	if not e.has("seq"):
 		e.seq = -1
