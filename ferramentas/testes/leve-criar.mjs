@@ -51,4 +51,10 @@ try {
   for (let i = 0; i < 40 && temCouro() === 4; i++) await esperar(500);
   ok(temCouro() === 2, `criou o short gastando o material (couro ${temCouro()}) ${avisos().join(' | ')}`);
   s.send('leveReceitas', { ver: false });
-} finally { s.leave(); }
+} catch (e) {
+  console.error('FALHOU', e); process.exitCode = 1;
+} finally {
+  if (process.exitCode) console.log('--- servidor ---\n' + log.split('\n').slice(-40).join('\n'));
+  try { s.leave(); } catch { /* já saiu */ }
+  process.exit(); // o servidor filho e a sala seguravam o processo vivo
+}
