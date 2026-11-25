@@ -54,6 +54,8 @@ func _initialize() -> void:
 			await _pegada()
 		"passos": # plano, passo 3: um NPC e um monstro andando e correndo em várias velocidades (o pé desliza?)
 			await _passos()
+		"pes": # plano, passo 4: NPC parado e andando de lado numa ladeira, passando perto do herói (pés e olhar)
+			await _pes_cena()
 		"ver": # ANIM=nome1,nome2: toca cada animação do corpo (sem ferramenta), uma depois da outra
 			await _ver(OS.get_environment("ANIM").split(","))
 	quit()
@@ -404,3 +406,144 @@ func _rig(i: int) -> void:
 	_cam_rig.current = true
 	_rotulo.text = "%s  ·  %s" % [TITULOS.get(cena, cena), a[4]]
 const TITULOS := {"minerar": "Minerar", "lenha": "Cortar lenha", "pesca": "Pescar na beira", "pesca_barco": "Pescar no barquinho"}
+
+# CENA=pes: NPC numa ladeira de verdade (LADEIRA=x,z ou a primeira achada perto de XZ), parado de lado para a descida,
+# andando de lado nela e passando a 2 m do herói. ANTES=1: sem o pes_olhar.gd. CAM=frente|lado|tres (padrão: as três).
+# Imprime "PES erro" = quanto, em média, a sola fica fora do chão (enterrada ou no ar).
+func _achar_ladeira(cx: float, cz: float) -> Vector3:
+	var T = m.terreno
+	var melhor := Vector3(cx, 0, cz)
+	var nota := -1.0
+	for r in range(6, 140, 3):
+		for k in 24:
+			var a := k * TAU / 24.0
+			var x := cx + cos(a) * r
+			var z := cz + sin(a) * r
+			var h: float = T.altura(x, z)
+			if h < float(T.agua.nivel) + 0.3:
+				continue
+			var gx: float = (T.altura(x + 0.5, z) - T.altura(x - 0.5, z))
+			var gz: float = (T.altura(x, z + 0.5) - T.altura(x, z - 0.5))
+			var g := Vector2(gx, gz).length() # m por m
+			# ladeira de verdade e lisa (a mesma inclinação 1,5 m para cada lado)
+			var gx2: float = (T.altura(x + 2.0, z) - T.altura(x - 2.0, z)) / 4.0
+			var gz2: float = (T.altura(x, z + 2.0) - T.altura(x, z - 2.0)) / 4.0
+			if g > float(OS.get_environment("INCL") if OS.get_environment("INCL") != "" else "0.45") and g < 0.8 and Vector2(gx2 - gx, gz2 - gz).length() < 0.08:
+				return Vector3(x, atan2(gx, gz), z) # y = direção da subida
+	return melhor
+
+func _pes_cena() -> void:
+	var antes := OS.get_environment("ANTES") == "1"
+	if m.mato:
+		m.mato.visible = false # o capim alto escondia os pés
+	var xz := OS.get_environment("XZ").split(",") if OS.get_environment("XZ") != "" else PackedStringArray(["-36", "190"])
+	var L := Vector3.ZERO
+	if OS.get_environment("LADEIRA") != "":
+		var l := OS.get_environment("LADEIRA").split(",")
+		L = Vector3(float(l[0]), float(l[2]) if l.size() > 2 else 0.0, float(l[1]))
+	else:
+		L = _achar_ladeira(float(xz[0]), float(xz[1]))
+	print("LADEIRA %.1f,%.1f,%.2f" % [L.x, L.z, L.y])
+	var sobe := Vector3(sin(L.y), 0, cos(L.y)) # para onde a ladeira sobe
+	var ao_lado := Vector3(sobe.z, 0, -sobe.x) # andar de lado na ladeira
+	var p0 := Vector3(L.x, 0, L.z)
+	var vis := OS.get_environment("VISUAL") if OS.get_environment("VISUAL") != "" else "cabelo_m"
+	var o: Dictionary = m.online._montar_corpo(vis, Vector3(p0.x, m.terreno.altura(p0.x, p0.z), p0.z), 0.0, "Aldeão")
+	if OS.get_environment("ROUPA") != "":
+		Armadura.vestir(o.no, Armadura.de_texto(OS.get_environment("ROUPA")))
+	m.online._aplicar_detalhe(o, 2)
+	if antes and o.pes:
+		o.pes.active = false
+	var carro := OS.get_environment("CARRO") == "1" # o carrinho (transporte.gd _inclinar_carrinho), como vem do servidor
+	if carro:
+		o.no.visible = false
+	var montado := OS.get_environment("MONTADO") == "1" # montado no lobo (montaria.gd): deita na ladeira
+	if montado:
+		o.montaria = m.online.Montaria.new(m, "lobo", o.no, o.esq)
+		o.montaria.rolar = not antes
+		o.anim.play("parada")
+	# o herói parado de armadura, 2 m abaixo do caminho do NPC, olhando para ele
+	var hp := p0 - sobe * 2.2 + ao_lado * 0.5
+	_por_em(hp.x, hp.z, atan2(sobe.x, sobe.z))
+	if OS.get_environment("ROUPA_HEROI") != "":
+		Armadura.vestir(m.heroi, Armadura.de_texto(OS.get_environment("ROUPA_HEROI")))
+	await esperar(20)
+	var cam := Camera3D.new()
+	cam.fov = 38
+	m.add_child(cam)
+	var cl := CanvasLayer.new()
+	cl.layer = 50
+	m.add_child(cl)
+	var rot := Label.new()
+	rot.position = Vector2(28, 20)
+	rot.add_theme_font_size_override("font_size", 30)
+	rot.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	rot.add_theme_constant_override("outline_size", 8)
+	cl.add_child(rot)
+	var esq: Skeleton3D = o.esq
+	var pes := [esq.find_bone("J_Bip_L_Foot"), esq.find_bone("J_Bip_R_Foot"), esq.find_bone("J_Bip_L_ToeBase"), esq.find_bone("J_Bip_R_ToeBase")]
+	var cams: Array = ["frente", "lado", "tres"] if OS.get_environment("CAM") == "" else [OS.get_environment("CAM")]
+	var erro := 0.0
+	var n_erro := 0
+	# altura do osso do pé acima da sola, em chão reto (para medir quanto a sola sai do chão)
+	var alt_pe := {}
+	var presos := {} # BoneAttachment3D: a pose final, depois dos modificadores (get_bone_global_pose dá a da animação)
+	for b in pes:
+		alt_pe[b] = esq.get_bone_global_rest(b).origin.y * esq.global_transform.basis.get_scale().y
+		var ba := BoneAttachment3D.new()
+		esq.add_child(ba)
+		ba.bone_idx = b
+		presos[b] = ba
+	for c in cams:
+		var partes: Array = [["parada", 0.0, "parado de lado na ladeira", 0], ["andar", 1.3, "andando de lado na ladeira, passa perto do herói", 0], ["andar", 1.1, "subindo a ladeira", 1]]
+		if carro:
+			partes = [["", 2.5, "carrinho de lado na ladeira", 0], ["", 3.0, "carrinho subindo a ladeira", 1], ["", 3.0, "carrinho descendo a ladeira", 2]]
+		if montado:
+			partes = [["", 0.0, "lobo parado de lado na ladeira", 0], ["", 1.8, "lobo andando de lado na ladeira", 0], ["", 5.0, "lobo correndo de lado na ladeira", 0], ["", 1.8, "lobo subindo a ladeira", 1]]
+		for parte in partes:
+			var nome: String = parte[0]
+			var v: float = parte[1]
+			rot.text = "%s  ·  %s" % [parte[2], "ANTES" if antes else "DEPOIS"]
+			if nome != "":
+				o.anim.play(nome, 0.15, m.ritmo(nome) if nome != "parada" else 1.0)
+			var t := 0.0
+			var dur := 3.2 if v == 0.0 else 4.4
+			var s0 := -v * dur * 0.5
+			while t < dur:
+				var dirc: Vector3 = sobe if parte[3] == 1 else (-sobe if parte[3] == 2 else ao_lado)
+				var p := p0 + dirc * (s0 + v * t)
+				if carro:
+					m.transporte.atualizar({"veic": [["c", "banco", p.x, p.z, atan2(dirc.x, dirc.z), 1, [], 0, 0]]})
+				o.no.position = Vector3(p.x, m.terreno.altura(p.x, p.z), p.z)
+				o.no.rotation.y = atan2(dirc.x, dirc.z)
+				m.online._pes_olhar(o)
+				if montado:
+					o.montaria.passo(1.0 / 30.0, v)
+				elif not antes:
+					m.online._passo_no_ritmo(o.anim, v, m.online.PASSO_HUMANO[0], m.online.PASSO_HUMANO[1])
+				var alvo: Vector3 = o.no.position + Vector3(0, 0.6, 0)
+				if carro and m.transporte.veic.has("c:banco"): # a câmera no carrinho (ele chega atrasado, mola do transporte.gd)
+					alvo = (m.transporte.veic["c:banco"].no as Node3D).global_position + Vector3(0, 0.8, 0)
+				var olho: Vector3
+				match c:
+					"frente": # de frente para a ladeira, baixo: os dois pés e o desnível
+						olho = alvo - sobe * 3.6 + Vector3(0, 0.4, 0)
+					"lado": # de lado (olhando para cima da ladeira de lado)
+						olho = alvo + ao_lado * 3.4 + Vector3(0, 0.3, 0)
+					_: # três quartos, de cima, pega o herói e a cabeça virando
+						olho = alvo - sobe * 3.4 + ao_lado * 2.6 + Vector3(0, 1.4, 0)
+				if carro:
+					olho = alvo + (olho - alvo) * 2.0
+				cam.global_position = olho
+				cam.look_at(alvo + Vector3(0, 0.2 if c != "tres" else 0.4, 0))
+				cam.current = true
+				await process_frame
+				t += 1.0 / 30.0
+				if t > 0.4: # sola fora do chão (só nos ossos que estão perto do chão: o pé no ar do passo não conta)
+					for b in pes:
+						var pw: Vector3 = presos[b].global_position
+						var acima: float = pw.y - alt_pe[b] - m.terreno.altura(pw.x, pw.z)
+						if acima < 0.12:
+							erro += absf(acima)
+							n_erro += 1
+	print("PES %s erro_medio_sola=%.3f m (%d amostras)" % ["antes" if antes else "depois", erro / maxf(1, n_erro), n_erro])

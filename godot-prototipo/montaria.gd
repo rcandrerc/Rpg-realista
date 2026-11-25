@@ -133,12 +133,20 @@ func _lombo_na_capa(cav_esq: Skeleton3D) -> void:
 # Na ladeira (André 2026-11-17: "não acompanham a inclinação") o lobo deita para a frente ou para trás pelo chão embaixo
 # das patas da frente e das de trás (o herói vai junto: a sela e a frente vêm dos ossos do lobo).
 func _assentar() -> void:
-	no.transform = Transform3D(Basis(Vector3.RIGHT, _incl) * Basis().scaled(Vector3.ONE * float(d.escala) / float(d.glb) / max(0.01, cav.scale.x)), Vector3.ZERO)
+	no.transform = Transform3D(Basis(Vector3(0, 0, 1), _rol) * Basis(Vector3.RIGHT, _incl) * Basis().scaled(Vector3.ONE * float(d.escala) / float(d.glb) / max(0.01, cav.scale.x)), Vector3.ZERO)
 
 var _m # main.gd (terreno)
 var _incl := 0.0 # rad, - = focinho para cima (subida)
 var _incl_pos := Vector3.INF
 var _incl_alvo := 0.0
+# Ladeira de lado (André 2026-11-25: "montaria... quando tinha mudança de relevo, não acompanhar"): o lobo também deita
+# para o lado pelo chão embaixo das patas da esquerda e da direita, só ROL_K do chão (bicho em ladeira fica mais em pé
+# que o chão; deitar tudo parecia que ia tombar).
+var _rol := 0.0 # rad, + = lado +x do lobo mais alto
+var _rol_alvo := 0.0
+const LADO_PATAS := 0.3 # m do meio até as patas da esquerda e da direita
+const ROL_K := 0.6
+var rolar := true # banco de provas (ANTES=1): o jeito de antes, só para a frente e para trás
 const PATAS := 0.75 # m do meio até as patas da frente e até as de trás (lobo de 1,9 m)
 func _inclinar(dt: float) -> void:
 	if _m == null or _m.terreno == null or not cav.is_inside_tree():
@@ -153,11 +161,17 @@ func _inclinar(dt: float) -> void:
 		var hc: float = T.altura(p.x, p.z, p.y + 0.3)
 		if p.y - hc > 0.35: # no ar (pulo, queda): reto
 			_incl_alvo = 0.0
+			_rol_alvo = 0.0
 		else:
+			var lx := Vector3(cos(ry), 0, -sin(ry)) * LADO_PATAS
+			var hr: float = T.altura(p.x + lx.x, p.z + lx.z, p.y + 0.6)
+			var hl: float = T.altura(p.x - lx.x, p.z - lx.z, p.y + 0.6)
+			_rol_alvo = clampf(atan2(hr - hl, LADO_PATAS * 2.0) * ROL_K, -0.3, 0.3) if rolar else 0.0
 			var hf: float = T.altura(p.x + f.x, p.z + f.z, p.y + 0.6)
 			var ht: float = T.altura(p.x - f.x, p.z - f.z, p.y + 0.6)
 			_incl_alvo = clampf(-atan2(hf - ht, PATAS * 2.0), -0.45, 0.45)
 	_incl = lerpf(_incl, _incl_alvo, minf(1.0, dt * 8.0))
+	_rol = lerpf(_rol, _rol_alvo, minf(1.0, dt * 8.0))
 
 func tocar(nome: String) -> void:
 	if atual == nome or not anim.has_animation(nome):
