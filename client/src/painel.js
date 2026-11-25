@@ -417,15 +417,19 @@ function desenharMapa() {
   if (cv.width !== lado || cv.height !== alto) { cv.width = lado; cv.height = alto; }
   const g = cv.getContext('2d'), W = cv.width, H = cv.height;
   const pts = [];
-  for (const m of info.m || []) if (m.on && Number.isFinite(m.x)) pts.push({ x: m.x, z: m.z, cor: '#f2b84b', nome: m.nome, r: 6 });
   const jogando = aba === 'jogar' && leve.f;
-  if (jogando) { // modo leve: quem está perto (Chama laranja, Geada azul, monstros vermelhos) e você por cima
-    const meus = new Set((info?.m || []).map((m) => m.nome)); // seus recrutas em dourado (time, André 2026-11-25)
-    for (const [nome, x, z, geada, bot, nv, morto] of leve.f.g) pts.push({ x, z, cor: morto ? '#777' : geada ? '#6fb3e6' : meus.has(nome) ? '#f2b84b' : '#e0663a', nome: `${nome} ${nv}`, r: bot ? 4 : 5 });
-    for (const [x, z, nv] of leve.f.m) pts.push({ x, z, cor: '#d9362b', nome: `Nv ${nv}`, r: 3.5 });
+  // modo leve: cores pela relação com você (André 2026-11-25: "eu com meus bots verdinho... os geadas vermelhos... fica
+  // parecendo que os geadas são meus amigos"): você e seus recrutas verdes, Geada vermelho, outros da Chama azuis,
+  // monstros laranja. Fora do modo leve o mapa do clã segue como era (recrutas dourados)
+  const COR_LEVE = { eu: '#3ddc5a', meu: '#8ee07a', inimigo: '#ff3b30', aliado: '#6fb3e6', bicho: '#f0a030', morto: '#777' };
+  const meus = new Set((info?.m || []).map((m) => m.nome)), vistos = new Set(jogando ? leve.f.g.map((o) => o[0]) : []);
+  for (const m of info.m || []) if (m.on && Number.isFinite(m.x) && !vistos.has(m.nome)) pts.push({ x: m.x, z: m.z, cor: jogando ? COR_LEVE.meu : '#f2b84b', nome: m.nome, r: 6 });
+  if (jogando) {
+    for (const [nome, x, z, geada, bot, nv, morto] of leve.f.g) pts.push({ x, z, cor: morto ? COR_LEVE.morto : geada ? COR_LEVE.inimigo : meus.has(nome) ? COR_LEVE.meu : COR_LEVE.aliado, nome: `${nome} ${nv}`, r: geada ? 6 : meus.has(nome) ? 5 : bot ? 4 : 5 });
+    for (const [x, z, nv] of leve.f.m) pts.push({ x, z, cor: COR_LEVE.bicho, nome: `Nv ${nv}`, r: 3.5 });
     const car = leve.pk?.car; if (car?.onde === 1) pts.push({ x: car.x, z: car.z, cor: '#b07a46', nome: 'Carrinho', r: 5, losango: true });
     for (const [, , , x, z] of leve.pk?.ch || []) pts.push({ x, z, cor: '#d9a56a', nome: 'Pack', r: 3 });
-    pts.push({ x: leve.f.eu[0], z: leve.f.eu[1], cor: '#ffffff', nome: 'Você', r: 7, eu: true });
+    pts.push({ x: leve.f.eu[0], z: leve.f.eu[1], cor: COR_LEVE.eu, nome: 'Você', r: 7, eu: true });
   } else if (info.eu) pts.push({ x: info.eu.x, z: info.eu.z, cor: '#ffffff', nome: 'Você', r: 6 });
   const bots = ler('painelBots') === '1';
   if (bots) for (const C of info.clas || []) if (Number.isFinite(C.x)) pts.push({ x: C.x, z: C.z, cor: C.inimigo ? '#ff3b30' : C.raca === 'Geada' ? '#6fb3e6' : '#e0663a', nome: C.lider, r: 5, losango: true });
@@ -575,7 +579,7 @@ function tocarMapaLeve(e) {
   const cv = $('mapa'), R = cv.getBoundingClientRect(), k = quadro.span / R.width;
   const x = quadro.cx - quadro.span / 2 + (e.clientX - R.left) * k, z = quadro.cz - (quadro.span * R.height / R.width) / 2 + (e.clientY - R.top) * k;
   let alvo = { x, z, nome: '' }, melhor = 14 * k; // 14 px
-  // combate (André 2026-11-25): tocar num monstro (ponto vermelho) abre o quadrinho com o nome e o Atacar; não anda sozinho
+  // combate (André 2026-11-25): tocar num monstro (ponto laranja) abre o quadrinho com o nome e o Atacar; não anda sozinho
   let bicho = null, mb = 18 * k;
   for (const [mx, mz, nv, , id, nome] of leve.f.m || []) { const d = Math.hypot(mx - x, mz - z); if (d < mb) { mb = d; bicho = { id, nome: nome || 'Monstro', nv }; } }
   if (bicho) { leve.mira = bicho; leve.sujo = true; desenharJogar(); return; }
@@ -1020,7 +1024,7 @@ function desenharJogar() {
     const d = el('div', 'dica');
     for (const t of ['👆 Toque no mapa: seu herói anda até lá sozinho, pela estrada.', '🧭 Ir para: base, totem, leilão e loja com 1 toque, ou busque pelo nome.',
       '📍 Chegou numa loja, baú ou totem: a janela dele abre sozinha.', '🎒 Mochila mostra o que você leva. Toque num item da loja ou do baú para vender, comprar ou guardar.',
-      '⚔️ Toque num ponto vermelho (monstro) e em Atacar. Com monstro perto aparecem os golpes: cada toque é um golpe.',
+      '🟢 Verde: você e seus recrutas · 🔴 Vermelho: Geada (inimigo) · 🔵 Azul: outros da Chama · 🟠 Laranja: monstro.', '⚔️ Toque num monstro (laranja) e em Atacar. Com monstro perto aparecem os golpes: cada toque é um golpe.',
       '👥 Time: chame seus recrutas para andar e lutar com você.', '🐺 monta no lobo · 🏠 volta para a base do clã · ⏻ sai do mundo.']) d.append(el('div', null, t));
     const j = janelaLeve([el('div', 'nome', 'Como jogar o modo leve'), d, ok]); j.onclick = null; raiz.append(j);
   }
