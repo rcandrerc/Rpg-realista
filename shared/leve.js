@@ -8,7 +8,7 @@
 import { planejarRota, terraId } from './rota.js';
 import { TUNEL } from './caverna.js';
 import { LUGARES_MUNDO } from './mundo.js';
-import { RECEITAS, CRIAR_OBRA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
+import { RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
 import { liberado } from './historia.js';
@@ -29,6 +29,7 @@ export const LEVE = {
   chat: 30, // mensagens do chat que a página guarda
   longe: 2500, // m: destino mais longe que isso não vale
   packsChao: 20, // m: packs no chão que aparecem (pegar)
+  coleta: 12, // m: veios, árvores e soltos que aparecem no Aqui (Minerar, Cortar, Pegar)
   reto: 30, // m do monstro: o Atacar deixa a estrada e vai reto até ele
   encosta: 2, // m do monstro: o Atacar para aqui (alcance do golpe é 2,3 m)
   montaDe: 25, // m de caminho: daqui pra cima o "Ir para" sobe no lobo sozinho (como no jogo)
@@ -70,6 +71,15 @@ export const Leve = {
     if (tam > LEVE.montaDe && !j.montado && !j.veiculo && !this.motivoCarga?.(j) && liberado(j.prog, 'lobo') && !((j.pvpT ?? -1e9) + GUERRA.montaria > this.tempo && !j.pvp) && !(j.trava > 0) && !j.esc) { j.montado = 'lobo'; this.historia?.(j, 'montar'); }
     this.evento({ t: 'leveRota', para: id, pontos: r.pontos.map((p) => [Math.round(p.x), Math.round(p.z)]), nome: j.leveRota.nome });
   },
+  // Minerar / Cortar / Pegar pelo modo leve: perto, coleta na hora; longe, anda até a borda e coleta ao chegar
+  leveColetar(id, m) {
+    const j = this.jogadores.get(id); if (!j || !j.leve || j.criando || j.morto) return;
+    const no = this.coletaveis.get(String(m?.no || '')); if (!no) return;
+    if (m.parar || j.coleta) return this.coletar(id, { no: no.id, parar: true });
+    if (Math.hypot(no.x - j.x, no.z - j.z) - no.r < COLETA_DISTANCIA - 0.2) { this.leveParar(id, null); return this.coletar(id, { no: no.id }); }
+    this.leveIr(id, { x: no.x, z: no.z, nome: COLETA[no.tipo]?.nome || '' });
+    if (j.leveRota) j.leveRota.no = no.id;
+  },
   leveParar(id, texto = 'Parou') {
     const j = this.jogadores.get(id); if (!j) return;
     const tinha = !!j.leveRota;
@@ -84,6 +94,12 @@ export const Leve = {
     // recall (casinha) ou totem: a caminhada acaba aqui; senão, ao chegar na base ele voltava a andar até o destino antigo
     // (André 2026-11-25: "o botão voltar pra base tá indo pra casinha antiga")
     if (j.vila) return this.leveParar(j.id, null);
+    if (R.no != null) { // indo minerar/cortar/pegar (André 2026-11-25): chega na borda e começa sozinho (o mesmo 'coletar' do jogo)
+      const no = this.coletaveis.get(R.no); if (!no) return this.leveParar(j.id, null);
+      const d = Math.hypot(no.x - j.x, no.z - j.z) - no.r;
+      if (d < COLETA_DISTANCIA - 0.4) { const k = R.no; this.leveParar(j.id, null); j.montado = null; return this.coletar(j.id, { no: k }); }
+      if (d < LEVE.quase + 2) { j.entrada = { mx: (no.x - j.x) / (d + no.r), mz: (no.z - j.z) / (d + no.r), correr: false }; return; } // perto: reto até a borda
+    }
     if (R.alvo != null) { // indo atacar: segue o monstro (ele anda) e para a LEVE.encosta m dele
       const e = this.inimigos.find((o) => o.id === R.alvo);
       if (!e || e.morto) return this.leveParar(j.id, 'O alvo sumiu');
@@ -259,8 +275,19 @@ export const Leve = {
     return {
       eu: [r1(j.x), r1(j.z), Math.round(j.vida), Math.round(j.vidaMax), Math.round(j.mana), Math.round(j.manaMax), j.morto ? 1 : 0, j.prog.ouro | 0, j.prog.nivel | 0, j.prog.pack ? 1 : 0, j.montado ? 1 : 0, Math.floor(Math.min(vigorAgora(j.prog.vigor), vigorMax(j.prog))), vigorMax(j.prog)], // vigor (André 2026-11-25: "adiciona a barra de vigor"): agora e máximo; montado: o lobo (botão Montar, a mesma mensagem e regra do jogo)
       ...(R ? { r: [Math.round(falta), Math.round(falta / (v || 1))] } : {}),
-      g, m, hb: this.habLeve(j),
+      g, m, hb: this.habLeve(j), c: this.coletaLeve(j), ...(j.coleta ? { co: [j.coleta.no, COLETA[this.coletaveis.get(j.coleta.no)?.tipo]?.nome || ''] } : {}),
     };
+  },
+  // o que dá para coletar perto (veio, árvore, pedra e galho soltos): [no, nome, metros, profissão ('min', 'len' ou '' = mão)]
+  coletaLeve(j) {
+    const r = [];
+    for (const no of this.coletaveis.values()) {
+      const dx = no.x - j.x, dz = no.z - j.z; if (dx * dx + dz * dz > LEVE.coleta * LEVE.coleta) continue;
+      if (no.y != null && Math.abs((j.y || 0) - no.y) > 2.5) continue; // veio de caverna
+      const C = COLETA[no.tipo]; if (!C) continue;
+      r.push([no.id, C.nome, Math.max(0, Math.round(Math.hypot(dx, dz) - no.r)), C.mao ? '' : C.prof || '']);
+    }
+    return r.sort((a, b) => a[2] - b[2]).slice(0, 4);
   },
   // os botões de luta do modo leve (André 2026-11-25): os mesmos do jogo, do modo da arma (Espada: golpe + 4 de espada;
   // Magia: disparo + 4 de magia) e a cura. [i da mensagem 'habilidade', nome, recarga que falta (s), mana]
