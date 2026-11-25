@@ -99,3 +99,16 @@ ok(dario.foraDoTimeAmiga(q) === 'lider', 'a ajuda acabou: volta a recusar');
 a.ia.missaoJunto = { id: 'outro', ate: s.tempo + 60, p: null };
 ok(dario.foraDoTimeAmiga(q) === 'lider', 'ajuda combinada com outro jogador não abre o time para este');
 a.ia.missaoJunto = null;
+
+// 11) André 2026-11-25 ("era mais fácil só remover o botão de convite do Dario", a aliança vem depois): no líder de clã bot
+// o convite nem aparece. O app esconde "Chamar pro time" (cartão) e "Time" (Amigos virtuais) com o semTime, e a conversa
+// por opções não oferece "Entra no meu time?". Membro de clã bot (Cecília, Lia) continua com o botão e a recusa
+ok(dario.semTimeAmiga() && !s.semTimeAmiga(), 'Dario (líder) sem convite; Cecília (membro) com o convite');
+s.eventos = []; dario.amigaEntrar('Q', false);
+const evA = s.eventos.find((e) => e.t === 'amiga' && e.id === 'dario');
+ok(!evA || evA.semTime === true, `o app recebe semTime do Dario (${evA ? 'evento amiga' : 'sem evento novo'})`);
+s.eventos = []; s.enviarAmigos(q);
+const vD = s.eventos.find((e) => e.t === 'amigos' && e.para === 'Q')?.virtuais?.find((v) => v.nome === 'Dario');
+ok(vD && vD.semTime === 1, `lista de Amigos virtuais: Dario com semTime (${JSON.stringify(vD)})`);
+const opD = dario.opcoesAmiga('Q', 'comandos').map((o) => o.id), opC = s.amiga ? s.opcoesAmiga('Q', 'comandos').map((o) => o.id) : ['time'];
+ok(!opD.includes('time') && opD.length > 0 && opC.includes('time'), `"Entra no meu time?" sai só do Dario (${opD.join(',')})`);

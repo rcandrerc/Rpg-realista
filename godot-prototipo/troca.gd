@@ -183,7 +183,7 @@ func cartao_acoes(achou: String, nome: String, longe: bool, bot: bool) -> Array:
 	if A and A.no_meu_time(achou):
 		if bot or A.sou_lider(): # tirar outro jogador só o líder (o servidor confere)
 			bts.append(["Tirar do time", func(): esconder_cartao(); m.rede("time", {"acao": "expulsar", "com": achou})])
-	elif amigo and (bot or m.on()):
+	elif amigo and (bot or m.on()) and not (bot and m.online.amiga_sem_time.has(achou)): # líder de clã bot: sem convite (André 2026-11-25)
 		bts.append(["Chamar pro time", func(): esconder_cartao(); m.rede("time", {"acao": "convidar", "com": achou})])
 	var conta: String = (A.conta_virtual(achou) if bot else A.conta_amigo(achou)) if A else ""
 	if conta != "" and m.chat:
