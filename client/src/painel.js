@@ -731,7 +731,7 @@ function desenharJogar() {
   } else st.append(el('div', 'faz', 'Toque no mapa para ir até lá.'));
   const bt = el('div', 'bts');
   if (R) { const p = el('button', 'acao cinza', 'Parar'); p.onclick = () => mandar('leveParar'); bt.append(p); }
-  const casa = el('button', 'acao cinza', 'Casinha (voltar à vila)'); casa.onclick = () => mandar('vila'); bt.append(casa);
+  const casa = el('button', 'acao cinza', 'Voltar à base'); casa.onclick = () => mandar('vila'); bt.append(casa);
   const sai = el('button', 'acao cinza', 'Sair do mundo'); sai.onclick = sairLeve; bt.append(sai);
   st.append(bt);
   const P = pertoAgora(), chave = [P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id].join('|');
