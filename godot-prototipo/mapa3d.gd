@@ -167,6 +167,7 @@ func fechar() -> void:
 		sv.render_target_update_mode = SubViewport.UPDATE_DISABLED
 
 func _ligar() -> void:
+	_desenhado = true
 	sv.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
 	if not _mini_feito:
 		_mini_feito = true
@@ -197,6 +198,7 @@ func cancelar_aquecer() -> void:
 
 func _desenhar_escondido() -> void:
 	_aquecer = false
+	_desenhado = true
 	if m.heroi != null:
 		foco = Vector3(m.heroi.position.x, 0, m.heroi.position.z)
 		foco_alvo = foco
@@ -234,6 +236,7 @@ func _process(dt: float) -> void:
 			marcas.queue_redraw()
 		return
 	if not visible:
+		_aquecer_no_menu()
 		return
 	var a: float = 1.0 - exp(-12.0 * dt)
 	dist = lerpf(dist, dist_alvo, a)
@@ -252,6 +255,19 @@ func _process(dt: float) -> void:
 
 var _t_marcas := 0.0
 var _cam_antes := Transform3D()
+
+# Note 10 Lite (ronda de 25/11): a maquete fica pronta depois que a capa de abertura sai, o aquecer é cancelado e a
+# primeira abertura do mapa levava 1,9 s. Então, se o mapa nunca foi desenhado, desenha escondido uma vez com um menu
+# aberto e o dedo parado há 2 s (o jogo atrás fica parado na tela, ninguém sente o tranco; como online.gd _repor_reserva)
+var _desenhado := false
+func _aquecer_no_menu() -> void:
+	if _desenhado or m.online == null:
+		return
+	if not ((m.menu and m.menu.aberto()) or (m.menu_topo and m.menu_topo.aberto())):
+		return
+	if Time.get_ticks_msec() - int(m.online._toque_ms) < m.online.REPOR_PARADO_MS:
+		return
+	_desenhar_escondido()
 
 func _camera() -> void:
 	if cam == null:
