@@ -1,4 +1,13 @@
 {
+"Nada aparecendo: toque nos botões de equipamento e recurso para escolher.": "Nothing showing: tap the equipment and resource buttons to choose.",
+"Equipamento: o que aparece": "Equipment: what shows",
+"Recursos: o que aparece": "Resources: what shows",
+"Nada desse tipo aqui.": "Nothing of this kind here.",
+"Pôr tudo": "Add all",
+"Guardar tudo": "Store all",
+"Tirar tudo": "Take all",
+"Nenhum": "None",
+"Todos": "All",
 "_nota": "Inglês do jogo (idioma.gd). Chave = texto em português, igual ao do código. %s/%d viram {1},{2}... na ordem; para mudar a ordem escreva {n} no inglês. Nome próprio fica igual; título e parentesco traduzem (Mestre Ivo = Master Ivo). Nada ao pé da letra.",
 "Mochila": "Inventory",
 "Mercante": "Merchant ship",
