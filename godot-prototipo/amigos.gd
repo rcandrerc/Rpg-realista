@@ -546,7 +546,7 @@ func montar_janela(mt) -> void:
 			var vid := str(v.get("id", "")) if v.get("id") != null else ""
 			if v.get("time", false):
 				linha.add_child(_pequeno(mt._botao("Sair do time", func(): _time_virtual(mt, "expulsar", vid, c), false), 120))
-			elif int(v.get("on", 1)) == 1:
+			elif int(v.get("on", 1)) == 1 and not v.get("semTime", false): # líder de clã bot: sem convite (André 2026-11-25)
 				linha.add_child(_pequeno(mt._botao("Time", func(): _time_virtual(mt, "convidar", vid, c)), 70))
 			var conf_v := _remover == c # desfazer a amizade com o NPC: dois toques, como com gente
 			linha.add_child(_pequeno(mt._botao("Certeza?" if conf_v else "Remover", func():
