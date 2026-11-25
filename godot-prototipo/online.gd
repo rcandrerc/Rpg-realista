@@ -1753,17 +1753,23 @@ func _detalhe_outros(dt: float) -> void:
 	for id in outros:
 		lista.append([outros[id].no.position.distance_squared_to(hp), id])
 	lista.sort_custom(func(a, b): return a[0] < b[0])
+	# degraus mínimos da Baixa (grafico.gd corpos, André 2026-11-25: celular fraco): ninguém com detalhe cheio, menos
+	# corpos na tela e somem mais perto
+	var cps: int = m.grafico.corpos() if m.grafico else 0
+	var det_max: int = DETALHE_MAX if cps == 0 else 0
+	var vis_max: int = [VISIVEIS_MAX, 6, 4][clampi(cps, 0, 2)]
+	var some_longe: float = [SOME_LONGE, 30.0, 22.0][clampi(cps, 0, 2)]
 	for k in lista.size():
 		var o: Dictionary = outros[lista[k][1]]
 		var d2: float = lista[k][0]
 		var perto: float = DETALHE_PERTO + (2.0 if int(o.get("lod", -1)) == 2 else 0.0) # não pisca no limite
 		var anim_l: float = ANIM_LONGE + (3.0 if int(o.get("lod", -1)) >= 1 else 0.0)
-		var nivel := 2 if k < DETALHE_MAX and d2 < perto * perto else (1 if d2 < anim_l * anim_l else 0)
+		var nivel := 2 if k < det_max and d2 < perto * perto else (1 if d2 < anim_l * anim_l else 0)
 		if nivel != int(o.get("lod", -1)):
 			_aplicar_detalhe(o, nivel)
 		# muito longe (ou além dos VISIVEIS_MAX mais perto): o corpo some e para de animar; o ponto continua no minimapa
-		var some_l: float = SOME_LONGE - (5.0 if o.get("sumiu", false) else 0.0)
-		var sumiu: bool = d2 > some_l * some_l or k >= VISIVEIS_MAX
+		var some_l: float = some_longe - (5.0 if o.get("sumiu", false) else 0.0)
+		var sumiu: bool = d2 > some_l * some_l or k >= vis_max
 		if sumiu != o.get("sumiu", false):
 			o.sumiu = sumiu
 			o.no.visible = not sumiu
