@@ -3503,6 +3503,30 @@ export const JANTAR = {
   fala: [4, 8], resposta: [2.2, 3.6],
   bots: { horas: [11, 21], guarda: 0 },
 };
+// Moral dos recrutas (André 2026-11-25: "o que não tem muita interatividade com o líder vai perdendo eficiência... medida
+// de uma maneira bem clara"; aprovou a versão enxuta com seta e percentual; "deixar um tempo livre... mais de 2 horas numa
+// tarefa ele começa a perder moral, sobrecarregado"). De 0 a 100, recruta novo com 'inicio'. A faixa dá o rende (dano, XP
+// e coleta), multiplicado pelo da Despensa (com fome/bem alimentados); o menu do clã (jogo e painel) mostra só o total.
+// - perto: o líder no jogo a até 'perto' m, ou no time dele: +pertoH por hora (não soma com o Livre: vale o maior).  - livre: na ordem Livre (descanso): +livreH por hora.
+// - elogio: botão Elogiar, no jogo e a até 'elogioPerto' m, 1 vez a cada 'elogioH' horas por recruta: +elogio.
+// - graca: passou 'graca' h sem o líder entrar no jogo: -semLiderH por hora.
+// - cansa: 'cansaH' h seguidas em ordem de trabalho (tudo que não é Livre; trocar de ordem não descansa): -cansaPorH por hora.
+// - prod: produção da ordem por hora (~N/h), medida de verdade nas últimas 'janelaH' h (com ida, volta e descanso);
+//   aparece depois de 'minMin' minutos na mesma ordem.
+// Clã bot: as mesmas regras; o líder bot está sempre no jogo e elogia quem está perto (abaixo de 90) quando pode.
+export const MORAL = {
+  ligado: true, inicio: 70,
+  faixas: [{ de: 90, nome: 'Leal', rende: 1.10, seta: 'cima', cor: '#3fbf3f' }, { de: 70, nome: 'Firme', rende: 1.00, seta: 'cima', cor: '#9ad86a' },
+    { de: 50, nome: 'Desanimado', rende: 0.90, seta: 'lado', cor: '#e8c95a' }, { de: 30, nome: 'Abatido', rende: 0.75, seta: 'baixo', cor: '#e9913f' },
+    { de: 0, nome: 'Revoltado', rende: 0.60, seta: 'baixo', cor: '#e5574a' }],
+  perto: 40, pertoH: 15, // 15: 1 h jogando com o clã deixa todo mundo feliz (André 2026-11-25: "10 bots... jogar 1 hora e deixar todo mundo feliz")
+  livreH: 3, elogio: 10, elogioH: 8, elogioPerto: 8, graca: 12, semLiderH: 1, cansaH: 3, cansaPorH: 2,
+  prod: { janelaH: 2, minMin: 15 },
+  // líder bot administra a moral (André 2026-11-25: "vale para todos os bots... o próprio bot vai ter que administrar"):
+  // na rodada de ordens, quem está cansado (cansaH h seguidas) ou abaixo de 'abaixo' ganha Livre por 'descansoH' h.
+  // Às vezes esquece ('esquece'), como na Despensa. Perto dele, elogia (passoMoralNpc).
+  bots: { abaixo: 50, descansoH: 1, esquece: 0.1 },
+};
 // Ficha do recruta (André 2026-11-23: "aparecem 3 recrutas... corajoso, preferência magia... cuidadoso, preferência
 // guerreiro, e eu escolho entre 3"; "e dependendo da preferência eles focam o status em inteligência em vez de STR").
 // Cada recruta tem coragem (co), cuidado com o time (cu) e gosto pelo cajado (ca), de 0 a 1: os mesmos números de

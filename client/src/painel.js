@@ -129,11 +129,24 @@ function barra(rot, v, max, cor) {
 }
 const opcao = (v, t, sel) => { const o = el('option', null, t); o.value = v; if (sel) o.selected = true; return o; };
 
+// moral (MORAL, André 2026-11-25), igual ao menu do clã do jogo: ícone da ordem ~N/h, seta (verde pra cima, amarela de
+// lado, vermelha pra baixo) e o % que rende. Tocar explica.
+const SETA = { cima: 'M8 1 15 9 10.5 9 10.5 15 5.5 15 5.5 9 1 9Z', baixo: 'M8 15 1 7 5.5 7 5.5 1 10.5 1 10.5 7 15 7Z', lado: 'M15 8 7 1 7 5.5 1 5.5 1 10.5 7 10.5 7 15Z' };
+function moralTag(m) {
+  const t = el('span', 'moral');
+  if (m.ph) { const i = el('img'); i.src = `painel-icones/${m.ph.i}.png`; i.alt = ''; i.onerror = () => { i.remove(); }; t.append(i, el('span', 'ph', `~${m.ph.n}/h`)); }
+  const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('viewBox', '0 0 16 16'); sv.setAttribute('class', 'seta');
+  const pa = document.createElementNS('http://www.w3.org/2000/svg', 'path'); pa.setAttribute('d', SETA[m.seta] || SETA.cima); pa.setAttribute('fill', m.cor || '#9ad86a'); sv.append(pa);
+  const pc = el('b', null, `${m.re}%`); pc.style.color = m.cor || '';
+  t.append(sv, pc);
+  t.onclick = () => aviso(`Moral ${m.ml}: rende ${m.re}%. Sobe: perto de você ou no seu time, Livre, Elogiar (no jogo). Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.`);
+  return t;
+}
 function cartaoMembro(m) {
   const c = el('div', 'card' + (m.on ? '' : ' fora') + (m.cheia ? ' cheio' : ''));
   const l = el('div', 'linha'), n = el('div', 'nome', m.nome);
   n.append(el('span', 'tag', m.tier)); if (m.dev) n.append(el('span', 'tag', 'devendo')); if (m.cheia) n.append(el('span', 'tag cheio', 'Mochila cheia')); else if (m.mo) n.append(lugaresTag('Mochila', m.mo));
-  l.append(n, el('div', 'nv', `Nv ${m.nv}`)); c.append(l);
+  l.append(n, ...(m.re ? [moralTag(m)] : []), el('div', 'nv', `Nv ${m.nv}`)); c.append(l);
   c.append(el('div', 'faz', m.on ? (m.morto ? 'Caído' : m.fz || '') : 'Fora do mundo'));
   if (m.on) { const b = el('div', 'barras'); b.append(barra('Vida', m.hp, m.hpM, 'var(--hp)'), barra('Vigor', m.vg, m.vgM, 'var(--vg)')); c.append(b); }
   // ordem: as mesmas do painel do clã no jogo
