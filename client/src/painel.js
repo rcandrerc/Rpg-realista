@@ -549,6 +549,7 @@ function eventoLeve(e) {
   else if (e.t === 'leilao') { leve.leilao = e; leve.sujo = true; }
   else if (e.t === 'bau') { leve.bau = e; leve.sujo = true; }
   else if (e.t === 'vila') { leve.rec = e.fase === 'comeca' ? Date.now() + (e.dur || 0) * 1000 : 0; leve.sujo = true; }
+  else if (e.t === 'coletou' && e.itens?.length) aviso(e.itens.map((o) => `+${o.n} ${o.nome}`).join(' · '));
   else if (e.t === 'fabricando') { leve.fab = e.fim ? null : { nome: e.nome, ate: Date.now() + (e.dur || 0) * 1000 }; leve.sujo = true; }
   else if (e.t === 'chat') chatLeve([e]);
   else if (e.t === 'chatHist') { leve.chat = []; chatLeve(e.l); }
@@ -601,6 +602,8 @@ function pertoAgora() {
     chao: (leve.pk?.ch || []).filter(([, , , x, z]) => dEu({ x, z }) < PERTO.chao),
     bau: bau && dEu(bau) < PERTO.bau ? bau : null,
     totem: totem && dEu(totem) < PERTO.totem ? totem : null,
+    // coletar (André 2026-11-25: "cliquei nos minérios de ferro... não aconteceu nada"): veios, árvores e soltos perto
+    col: leve.f.c || [], veio: (leve.f.c || []).find((o) => o[3] === 'min' && o[2] <= 4) || null,
   };
 }
 
@@ -806,6 +809,22 @@ function cartaoCarga(P) {
   return c.childNodes.length > 1 ? c : null;
 }
 
+// coletar pelo modo leve: as mesmas regras do jogo ('coletar': picareta/machado na mochila, vigor, nível da profissão);
+// tocar anda até a borda e começa; o herói segue batendo até esgotar ou você tocar em Parar
+const COLETA_VERBO = { min: ['⛏️', 'Minerar'], len: ['🪓', 'Cortar'], '': ['✋', 'Pegar'] };
+function cartaoColeta(P) {
+  if (!P.col?.length) return null;
+  const c = el('div', 'card'); c.append(el('div', 'nome', 'Recursos aqui'));
+  const b = el('div', 'bts');
+  for (const [no, nome, d, pf] of P.col) {
+    const [ic, verbo] = COLETA_VERBO[pf] || COLETA_VERBO[''], fazendo = leve.f.co?.[0] === no;
+    b.append(bt(fazendo ? `Parar ${nome.toLowerCase()}` : `${ic} ${verbo}: ${nome}${d > 2 ? ` · ${d} m` : ''}`, () => mandar('leveColetar', { no, ...(fazendo ? { parar: true } : {}) }), fazendo));
+  }
+  c.append(b);
+  c.append(el('div', 'faz', 'Precisa de picareta para minerar e machado para cortar (Criar > Ferramentas). Gasta vigor.'));
+  return c;
+}
+
 // ---------- Lugares (André 2026-11-25: "menu igual do jogo real com todos os NPCs, recursos, mercadores, sanfonado,
 // que pudesse clicar e ir para"). As seções do mapa do jogo (minimapa.gd SECOES), todas começam fechadas; tocar no nome
 // leva o herói até lá pela estrada. Vilas, caçada e dungeons na ordem do jogo; o resto do mais perto ao mais longe.
@@ -942,6 +961,10 @@ function desenharJogar() {
   if (leve.rec > Date.now()) st.append(el('div', 'nome', `🏠 Voltando para a base… ${Math.ceil((leve.rec - Date.now()) / 1000)} s (toque 🏠 de novo para desistir)`));
   if (leve.fab) { const s = Math.max(0, Math.ceil((leve.fab.ate - Date.now()) / 1000)); st.append(el('div', 'nome', `Fazendo ${leve.fab.nome}… ${s} s (fique perto)`)); }
   const R = leve.f.r;
+  if (leve.f.co && !morto) { // coletando: o que é e o Parar (a mesma mensagem do jogo)
+    const l = el('div', 'bts mini'), p = el('button', 'acao cinza', 'Parar'); p.onclick = () => mandar('leveColetar', { no: leve.f.co[0], parar: true }); p.style.flex = '0 0 auto';
+    l.style.alignItems = 'center'; l.style.flexWrap = 'nowrap'; l.append(el('div', 'nome', `⛏️ Coletando: ${leve.f.co[1]}…`), p); l.firstChild.style.flex = '1'; st.append(l);
+  }
   if (morto) st.append(el('div', 'nome', 'Você caiu. Espere renascer no totem.'));
   else if (R) {
     const l = el('div', 'bts mini'), p = el('button', 'acao cinza', 'Parar'); p.onclick = () => mandar('leveParar'); p.style.flex = '0 0 auto';
@@ -950,11 +973,12 @@ function desenharJogar() {
     l.firstChild.style.flex = '1'; st.append(l);
   } else st.append(el('div', 'faz', 'Toque no mapa ou em 🧭 Ir para.'));
   lutaLeve(raiz, morto, mn);
-  const P = pertoAgora(), chave = [montado ? 'm' : '', P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(',')].join('|');
+  const P = pertoAgora(), chave = [P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(','), montado ? 'm' : '', P.veio?.[0] || '', P.col.map((o) => o[0]).join(','), leve.f.co?.[0] || ''].join('|');
   if (chave === jogarChave && !leve.sujo && raiz.contains(st)) return;
   if (document.activeElement?.tagName === 'INPUT' && raiz.contains(document.activeElement) && chave === jogarChave) return; // digitando: não refaz
   if (chave !== jogarChave) { leve.sel = null; if (!P.npc || P.npc.f !== 'leilao') leve.leilao = null; if (!P.bau) leve.bau = null; }
-  const algo = !!(P.npc || P.bau || P.totem), chegou = algo && chave.split('|').slice(0, 3).join('|') !== jogarChave.split('|').slice(0, 3).join('|');
+  const algo = !!(P.npc || P.bau || P.totem), chegou = (algo && chave.split('|').slice(0, 3).join('|') !== jogarChave.split('|').slice(0, 3).join('|'))
+    || (P.veio && P.veio[0] !== jogarChave.split('|')[6]); // chegou num veio: o Aqui abre com o Minerar
   if (chegou) painelLeve = 'perto';
   jogarChave = chave; leve.sujo = false;
   // tela do modo leve (André 2026-11-25: "tem q rolar muito... como o menu é sanfonado da pra limpar a tela"): o mapa ocupa
@@ -981,7 +1005,8 @@ function desenharJogar() {
       if (P.bau) f.append(cartaoBauLeve(P.bau));
       if (P.totem) f.append(cartaoTotem(P.totem));
       const cg = cartaoCarga(P); if (cg) f.append(cg);
-      if (!P.npc && !P.bau && !P.totem && !cg) f.append(el('div', 'vazio', 'Chegue perto de uma loja, do leilão, de um baú ou de um totem para usar.'));
+      const cc = cartaoColeta(P); if (cc) f.append(cc);
+      if (!P.npc && !P.bau && !P.totem && !cg && !cc) f.append(el('div', 'vazio', 'Chegue perto de uma loja, do leilão, de um baú ou de um totem para usar.'));
       if (!P.bau && leve.mapa?.baus?.length) { // ir até o baú (e o Baú do Clã) para ver o que tem dentro: abre sozinho ao chegar
         const c = el('div', 'card');
         for (const b of leve.mapa.baus) c.append(bt(`Ir ao ${b.cla ? 'Baú do Clã' : 'seu baú'} · ${metros(b)}`, () => irLeve({ x: b.x, z: b.z + 1.5, nome: b.cla ? 'Baú do Clã' : 'Seu baú' }), true));
@@ -998,8 +1023,8 @@ function desenharJogar() {
   }
   // 2 (André 2026-11-25): barra de baixo com ícone e nome; o 1º botão diz onde você está (acende ao chegar)
   const doca = el('div', 'doca');
-  const temPerto = algo || !!(P.car || P.chao?.length || leve.pk?.c);
-  const aqui = P.npc ? P.npc.n.split(',')[0] : P.bau ? (P.bau.cla ? 'Baú do Clã' : 'Baú') : P.totem ? 'Totem' : temPerto ? 'Pack' : 'Aqui';
+  const temPerto = algo || !!(P.car || P.chao?.length || leve.pk?.c || P.veio);
+  const aqui = P.npc ? P.npc.n.split(',')[0] : P.bau ? (P.bau.cla ? 'Baú do Clã' : 'Baú') : P.totem ? 'Totem' : P.veio ? 'Minério' : temPerto ? 'Pack' : 'Aqui';
   for (const [k, ic, txt] of [['perto', '📍', aqui], ['mochila', '🎒', 'Mochila'], ['criar', '🔨', 'Criar'], ['lugares', '🧭', 'Ir para'], ['chat', '💬', 'Chat']]) {
     const b = el('button', (painelLeve === k ? 'ativo' : '') + (k === 'perto' && temPerto ? ' tem' : ''));
     b.append(el('i', null, ic), document.createTextNode(txt));
@@ -1025,7 +1050,7 @@ function desenharJogar() {
     for (const t of ['👆 Toque no mapa: seu herói anda até lá sozinho, pela estrada.', '🧭 Ir para: base, totem, leilão e loja com 1 toque, ou busque pelo nome.',
       '📍 Chegou numa loja, baú ou totem: a janela dele abre sozinha.', '🎒 Mochila mostra o que você leva. Toque num item da loja ou do baú para vender, comprar ou guardar.',
       '🟢 Verde: você e seus recrutas · 🔴 Vermelho: Geada (inimigo) · 🔵 Azul: outros da Chama · 🟠 Laranja: monstro.', '⚔️ Toque num monstro (laranja) e em Atacar. Com monstro perto aparecem os golpes: cada toque é um golpe.',
-      '👥 Time: chame seus recrutas para andar e lutar com você.', '🐺 monta no lobo · 🏠 volta para a base do clã · ⏻ sai do mundo.']) d.append(el('div', null, t));
+      '⛏️ Minerar ou cortar: 🧭 Ir para > Recursos. Ao chegar, toque em Minerar ou Cortar no 📍 (precisa de picareta ou machado).', '👥 Time: chame seus recrutas para andar e lutar com você.', '🐺 monta no lobo · 🏠 volta para a base do clã · ⏻ sai do mundo.']) d.append(el('div', null, t));
     const j = janelaLeve([el('div', 'nome', 'Como jogar o modo leve'), d, ok]); j.onclick = null; raiz.append(j);
   }
 }
