@@ -585,9 +585,6 @@ func coluna_mochila() -> Control:
 		bt.disabled = vis.is_empty()
 		lf.add_child(bt)
 	v.add_child(lf)
-	var pv = m.menu.painel_ver(P.prog.mochila, montar, "troca") # a lista por nome, ali mesmo
-	if pv != null:
-		v.add_child(pv)
 	var g := GridContainer.new()
 	g.columns = 10
 	g.add_theme_constant_override("h_separation", 4)

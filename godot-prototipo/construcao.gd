@@ -4519,10 +4519,7 @@ func _montar_bau() -> void:
 		bt.disabled = vis.is_empty()
 		fila.add_child(bt)
 		lado[0].add_child(fila)
-		var pv = m.menu.painel_ver(lado[1], _montar_bau, lado[4]) # a lista por nome, ali mesmo
-		if pv != null:
-			pv.custom_minimum_size.x = 7 * 60
-			lado[0].add_child(pv)
+
 	var cheios := 0
 	if bau_prox != null:
 		var partes: Array = []
