@@ -11,9 +11,9 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS, DESPENSA, BASES_FRIAS, MORAL } from './dados.js';
+import { VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS, DESPENSA, BASES_FRIAS, MORAL, PESCA } from './dados.js';
 import { contextoDeAmigo, pecaDaCasa, mesmaPeca } from './amiga.js';
-import { profNivel, guardar, guardarQueCabe, moverQtd, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
+import { profNivel, guardar, guardarQueCabe, moverQtd, profBonus, bonusTituloProf, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
 import { fundoAgua } from './transporte.js';
 import { LUGARES_MUNDO } from './mundo.js';
 import { crescerPlanta } from './simulacao.js'; // só usadas em tempo de jogo (progresso.js também importa daqui)
@@ -1114,13 +1114,32 @@ export const Cla = {
       if (xp > 0) { this.ganharXP(a, xp); if ((a.prog.nivel | 0) > teto) a.prog.nivel = teto; m.nv = a.prog.nivel | 0; txt = `${m.nome}: caçou e foi do Nv ${antes} ao ${a.prog.nivel}`; }
     } else if (m.fn.k === 'recurso') {
       const R = RECURSOS_CLA[m.fn.r]; if (!R?.item) return null; // Fragmento de Alma: só lutando de verdade
-      const C = R.no && COLETA[R.no], item = R.item === 'peixe' ? F.peixe : R.item;
-      const custo = C ? C.vigor / (C.da[R.item] || 1) : R.coleta === 'cacar' ? F.couroVigor : 1; // vigor por unidade
+      // a mesma conta do jogo (André 2026-11-25: "o consumo e a quantidade de recurso seguem a regra exata"): vigor da batida
+      // com o desconto do rank da profissão (custoVigor), o que a batida dá (COLETA.da) com a chance de +1 do rank e do título
+      // (batidaColeta) e a pesca peixe a peixe da lista do lago (pegarPeixe); a moral (rM) vale como no tempo online
+      const C = R.no && COLETA[R.no], pf = C ? C.prof : R.coleta === 'pescar' ? 'pes' : null, b = pf ? profBonus(a.prog.prof?.[pf]) : { menosVigor: 0, extra: 0, rank: 0 };
+      const extra = pf ? b.extra + bonusTituloProf(a.prog, pf, 'extra') : 0;
       const vg = vigorDe(a.prog.vigor) + (h * 3600 / VIGOR.enche) * VIGOR.max; // o que tinha + o que encheu fora
       const B = this.bauDoCla(this.claDoRecruta(x)), onde = B ? B.itens : a.prog.mochila;
-      let n = Math.floor(vg / custo * rM), dado = 0;
-      for (let passo = 50; n > 0 && passo >= 1; passo = Math.floor(passo / 2)) while (n >= passo && guardar(onde, { k: item, n: passo })) { n -= passo; dado += passo; }
-      a.prog.vigor = { v: Math.max(0, Math.min(a.prog.vigor?.m || VIGOR.max, vg - dado * custo)), t: Date.now(), m: a.prog.vigor?.m || VIGOR.max };
+      let resto = vg, dado = 0, cheio = false; const por = {};
+      const dar = (k, n) => { n = Math.round(n * rM); if (n < 1) return; for (let passo = Math.min(50, n); n > 0 && passo >= 1; passo = Math.floor(passo / 2)) while (n >= passo && guardar(onde, { k, n: passo })) { n -= passo; dado += passo; por[k] = (por[k] || 0) + passo; } if (n > 0) cheio = true; };
+      if (R.coleta === 'pescar') { // lago comum de água doce (o spot de todo dia), um peixe de cada vez
+        const lista = PESCA.spots.comum.peixes.doce, tot = lista.reduce((q, [, w]) => q + w, 0), dobro = PESCA.dobro * b.rank + bonusTituloProf(a.prog, 'pes', 'extra');
+        for (let n = 0; n < 3000 && !cheio; n++) {
+          let r = Math.random() * tot, k = lista[0][0]; for (const [q, w] of lista) { r -= w; if (r <= 0) { k = q; break; } }
+          const custo = PESCA.vigor[k] * (1 - b.menosVigor); if (resto < custo) break;
+          resto -= custo; dar(k, 1 + (Math.random() < dobro ? 1 : 0));
+        }
+      } else if (C) {
+        const custo = C.vigor * (1 - b.menosVigor), batidas = Math.floor(resto / custo);
+        const q = Math.floor(batidas * (C.da[R.item] || 1)); // por batida: da (+1 com chance extra)
+        let mais = 0; for (let i = 0; i < batidas && extra > 0; i++) if (Math.random() < extra) mais++;
+        resto -= batidas * custo; dar(R.item, q + mais);
+        if (q + mais > dado && q + mais > 0) resto += batidas * custo * (1 - dado / (q + mais / rM || 1)); // o que não coube no baú não gasta vigor
+      } else { // caça (couro): o custo fixo de sempre
+        const q = Math.floor(resto / F.couroVigor); dar(R.item, q); resto -= Math.min(q, Math.ceil(dado / rM)) * F.couroVigor;
+      }
+      a.prog.vigor = { v: Math.max(0, Math.min(a.prog.vigor?.m || VIGOR.max, resto)), t: Date.now(), m: a.prog.vigor?.m || VIGOR.max };
       if (B && dado) this.mexeuBau(B);
       txt = dado ? `${m.nome}: juntou ${dado} de ${R.nome}${B ? ' (no Baú do Clã)' : ''}` : `${m.nome}: não juntou nada (${B ? 'Baú do Clã' : 'bolsa'} cheio)`;
     }

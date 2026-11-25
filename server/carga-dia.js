@@ -9,9 +9,11 @@ export const CARGA_DIA_MAX = (CARGA_DIA.guardaH * 60) / CARGA_DIA.amostraMin; //
 
 // junta a leitura de 1 min na amostra em andamento: bots, jogadores, pico e memória ficam no maior; o passo, na média.
 // acima = minutos em que algum passo passou do orçamento (um passo do servidor; acima disso ele atrasa todo mundo). O pico
-// sozinho engana: o servidor reinicia todo dia às 5h e às 14h de Brasília (REINICIO; é quando o servidor novo do merge
-// entra) e a sala que nasce de novo quando alguém volta a entrar dá um tranco (teste local de 24/11: 68 ms quando a sala
-// nasce e 172 ms um minuto depois, e depois disso no máximo 38 ms). Os minutos acima mostram se o tranco virou rotina.
+// sozinho engana: o servidor reinicia a cada merge que mexe nele (André 22/11, #750: ferramentas/servidor/empacotar.sh
+// marca todo pacote como urgente, e ele instala na conferida seguinte, até 5 min depois) e também às 5h e às 14h de
+// Brasília (REINICIO). A sala que nasce de novo quando alguém volta a entrar dá um tranco (teste local de 24/11: 68 ms
+// quando a sala nasce e 172 ms um minuto depois, e depois disso no máximo 38 ms). Os minutos acima mostram se o tranco
+// virou rotina. Na lista, a amostra que chega fora do passo de 10 min marca um reinício.
 export function juntarLeitura(a, { bots = 0, jogadores = 0, passoMs = 0, picoMs = 0, memMb = 0, orcamentoMs = 50 } = {}) {
   const pico = Number(picoMs) || 0;
   a.n = (a.n || 0) + 1;

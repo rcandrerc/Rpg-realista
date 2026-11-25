@@ -4,6 +4,8 @@
 // só o pacote trancado no Pages. Só esta máquina, que guarda a chave privada, consegue abrir.
 // A cada 5 minutos o servidor confere a versão; se mudou, espera o reinício fixo e aí abre o pacote, troca os arquivos e
 // sai (o systemd liga de novo). Só [servidor urgente] / [furar bloqueio] instalam na hora (instalaAgora).
+// André 2026-11-22 (#750): ferramentas/servidor/empacotar.sh marca TODO pacote como urgente. Na prática, todo merge que
+// mexe no servidor instala na conferida seguinte (até 5 min depois), além dos reinícios fixos (REINICIO.horarios).
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -108,6 +110,7 @@ export function podeInstalar(agora = Date.now(), urgente = false, furar = false)
 // esperando; quem instala é o reinício fixo (REINICIO.horarios), que já ia reiniciar mesmo: um reinício só, com o
 // pacote mais novo daquele momento. Antes, cada publicação dentro da janela das 05h–07h reiniciava de novo.
 // [servidor urgente] e [furar bloqueio] continuam instalando na hora (conserto que não pode esperar).
+// Desde 22/11 (#750) todo pacote sai urgente (empacotar.sh), então a espera pelo reinício fixo não acontece mais (ver o topo).
 export function instalaAgora({ agora = Date.now(), doReinicio = false, urgente = false, furar = false } = {}) {
   if (!doReinicio && !urgente && !furar && process.env.JANELA_LIVRE !== '1') return false;
   return podeInstalar(agora, urgente, furar);
