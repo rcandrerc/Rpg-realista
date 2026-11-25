@@ -113,6 +113,16 @@ func bau_perto() -> bool:
 	var hp: Vector3 = m.heroi.position
 	return Vector2(float(B.bau.x) - hp.x, float(B.bau.z) - hp.z).length() <= float(D_base().get("bauPerto", 2.6)) + 0.3
 
+# a Mesa do Clã da minha base: a da frente do salão (bases) ou a peça mesa_cla do meu lote; {} = sem mesa no mundo
+func minha_mesa() -> Dictionary:
+	var B := minha()
+	if B.is_empty():
+		return {}
+	if B.get("mesa") is Dictionary:
+		var M: Dictionary = B.mesa
+		return {"x": float(M.x), "z": float(M.z), "ry": float(M.get("ry", 0.0)), "y": _chao(float(M.x), float(M.z))}
+	return {}
+
 func dist_bau() -> float:
 	var B := minha()
 	if B.is_empty() or m.heroi == null or not (B.get("bau") is Dictionary):
@@ -185,6 +195,13 @@ func _por_enfeites() -> void:
 						piso = float(p.y) + 0.03 # o piso de pedra do galpão (shared/base.js montarBase)
 				fo.position = Vector3(float(B.forja.fx), piso, float(B.forja.fz)) # a boca da fornalha olha para a frente (+z)
 				raiz.add_child(fo)
+		# a Mesa do Clã na frente do salão (André 2026-11-25, shared/base.js montarBase); recolhida, ela é peça do lote 1
+		# (construcao.gd desenha) e aqui não vem. A comida e o jantar ficam com o jantar.gd
+		if C != null and B.get("mesa") is Dictionary and C._modelos.has("mesa_cla") and not B.mesa.has("peca"):
+			var me: Node3D = C._copia("mesa_cla")
+			me.position = Vector3(float(B.mesa.x), _chao(float(B.mesa.x), float(B.mesa.z)), float(B.mesa.z))
+			me.rotation.y = float(B.mesa.get("ry", 0.0))
+			raiz.add_child(me)
 		var cor := Color("8fd0ff") if str(B.get("raca", "")) == "geada" else Color("ff9a3c")
 		var hz := float(B.z) - float(B.get("centro", 14)) / 2.0 + 4.0
 		raiz.add_child(_nome("Clã %s · Nv %d" % [str(B.n), int(B.nv)], Vector3(float(B.x), _chao(float(B.x), hz) + 9.5, hz), cor, 64))

@@ -52,7 +52,9 @@ ok(p.conviteTime?.de === ce.id && ce.ia.missaoJunto?.id === 'andre', 'ela manda 
 p.x = ce.x + 2; p.z = ce.z;
 c.aceitouConviteAmiga('andre');
 ok(ce.time && ce.ia.seguido?.c?.missao, 'no time, ela vai na frente até a etapa (Seguir)');
-for (let t = 0; t < 900 && ce.prog.hist.p === 0; t += 0.1) { s.passo(0.1); agora += 100; p.x = ce.x + 2; p.z = ce.z + 1; p.y = ce.y; }
+// até 1.700 s (a ajuda dura NPC_VIDA.missao.juntoSeg): no caminho ela pode parar para brigar com monstro (com a Mesa do
+// Clã nas bases, 2026-11-25, a semente 1 cai nesse caso e ela entrega a missão em ~1.000 s)
+for (let t = 0; t < 1700 && ce.prog.hist.p === 0; t += 0.1) { s.passo(0.1); agora += 100; p.x = ce.x + 2; p.z = ce.z + 1; p.y = ce.y; }
 ok(ce.prog.hist.p === 1, `com ajuda, a missão foi entregue (${JSON.stringify(ce.prog.hist)})`);
 ok(falas.some((f) => /Valeu demais pela ajuda/.test(f)), 'ela agradece a ajuda');
 ok(!ce.ia.missaoJunto, 'a ajuda acaba quando a missão é entregue');

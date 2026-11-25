@@ -14,6 +14,7 @@ import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS, VISAO } from './dados.js'; // bo
 import { ECONOMIA, precoLoja } from './dados.js'; // economia (André 2026-11-16)
 import { CEREBRO, fichaInfo, estiloDe, fichaJogadorValida, fichaJogadorInfo } from './dados.js'; // perfil na janela de equipamento (André 2026-11-23)
 import { AVISO_EVOLUIR } from './dados.js'; // aviso de ir à bigorna/bancada ao evoluir (André 2026-11-21)
+import { JANTAR } from './dados.js'; // jantar do clã: o buff Banquete (André 2026-11-25)
 import { DROP_NIVEL } from './dados.js'; // drop menor em bicho muito abaixo do herói (André 2026-11-24)
 import { Economia } from './economia.js';
 import { LUGARES_MUNDO } from './mundo.js'; // os cais: a pesca no mar nasce em volta deles (André 2026-11-13)
@@ -25,6 +26,7 @@ import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (A
 import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
 import { Cla } from './cla.js'; // clã e recrutas (André 2026-11-22)
 import { Base } from './base.js'; // base do clã (André 2026-11-22)
+import { Jantar } from './jantar.js'; // jantar do clã na Mesa do Clã (André 2026-11-25)
 import { MissaoCla } from './missao-cla.js'; // Missão do Clã em grupo (André 2026-11-23)
 import { Guilda } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11-18)
 import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
@@ -1037,6 +1039,7 @@ export class Simulacao {
     if (j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) return;
     const nivelAntes = p.nivel;
     if (j.mesa && n > 0) n = Math.max(1, Math.round(n * (1 + j.mesa))); // recruta com fome ou bem alimentado (DESPENSA)
+    if (n > 0 && p.banq?.ate > Date.now()) n = Math.max(1, Math.round(n * (1 + JANTAR.buff.xp))); // Banquete do clã (shared/jantar.js)
     p.xp += n;
     let subiu = false;
     while (p.nivel < NIVEL_MAX && p.xp >= xpProximo(p.nivel) && !(j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc)) { p.xp -= xpProximo(p.nivel); p.nivel++; p.pontos += PONTOS_POR_NIVEL; subiu = true; }
@@ -3357,6 +3360,12 @@ export class Simulacao {
     const maxP = maxPecasTerreno(L.def.x1 - L.def.x0, L.def.z1 - L.def.z0);
     if (L.pecas.length >= maxP) return aviso(`Limite de ${maxP} peças no terreno: desmonte uma para pôr outra`);
     const p = { id: 'p' + L.prox, k: m.k, x, z, r, lote: L.def.id };
+    if (m.k === 'mesa_cla') { // a Mesa do Clã (André 2026-11-25: "só do clã, não posso fazer várias, mas quero mudar de lugar")
+      const B = this.baseDe?.(j);
+      if (!j.prog.cla || !B) return aviso('A Mesa do Clã fica na base do clã: funde a base primeiro (aba Clã)');
+      if (L.def.baseK !== B.k) return aviso('A Mesa do Clã só vai dentro da base do seu clã');
+      if (this.mesaBase?.(B)) return aviso('O seu clã já tem uma Mesa do Clã: toque nela e em Mudar de lugar');
+    }
     const motivo = motivoPeca(L, p, j, this.areaBase?.(L)); if (motivo) return aviso(motivo);
     if (m.k === 'bau_cla') { // um por clã, no terreno do líder (André 2026-11-22)
       if (!j.prog.cla) return aviso('Funde o seu clã primeiro (aba Clã)');
@@ -3384,6 +3393,7 @@ export class Simulacao {
     if (!this.loteParaMexer(j, p.x, p.z, aviso)) return;
     const dep = motivoDesmontar(L, p); if (dep) return aviso(dep);
     if (p.k === 'bau' && L.pecas.filter((o) => o.k === 'bau').length === 1 && (L.bau || []).some(Boolean)) return aviso('Esvazie o baú antes de desmontar o último');
+    if (p.k === 'mesa_cla' && L.def.baseK && this.jantares?.has(L.def.baseK)) return aviso('Termine o jantar antes de desmontar a mesa'); // jantar do clã (shared/jantar.js)
     if (p.k === 'palete' && this.packsNoPalete?.(p.id).length) return aviso('Tire os packs de cima do palete antes de desmontar'); // André 2026-11-23
     if ((p.k === 'fornalha' || p.k === 'fogao') && L.fornos && L.fornos[p.id]) {
       avancarForno(L.fornos[p.id], Date.now(), regraForno(p.k));
@@ -4521,6 +4531,7 @@ export class Simulacao {
 
     const agoraMs = Date.now();
     for (const c of this.todos()) {
+      if (c.prog?.banq && c.prog.banq.ate <= agoraMs) { delete c.prog.banq; c.progSujo = true; this.aplicarStatus(c); this.avisarProg(c); if (!c.bot) this.evento({ t: 'aviso', para: c.id, texto: `O buff ${JANTAR.buff.nome} acabou` }); } // jantar do clã (shared/jantar.js)
       if (c.prog?.buff && c.prog.buff.ate <= agoraMs) { delete c.prog.buff; c.progSujo = true; this.aplicarStatus(c); this.avisarProg(c); if (!c.bot) this.evento({ t: 'aviso', para: c.id, texto: 'O buff da comida acabou' }); } // André 2026-11-24
       if (c.dash && c.dash.t > 0) { if (!this.guiado(c)) this.mover(c, c.dash.vx * dt, c.dash.vz * dt); c.dash.t -= dt; } // guiado: o celular já fez o avanço
       if (c.trava > 0 && c.trava !== Infinity) {
@@ -4534,6 +4545,7 @@ export class Simulacao {
     this.passoMissoesCla(); // Escolta do Clã (shared/missao-cla.js)
     this.passoGuerra(); this.passoDuplasGuerra(); // Chama x Geada (shared/guerra.js): quem pode lutar agora e as falas de quem avistou alguém
     if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); this.passoRecrutasSemLider?.(); this.passoProdRecrutas?.(); } // a semana do clã (shared/cla.js)
+    this.passoJantares(dt); // jantar do clã (shared/jantar.js)
     for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
     for (const j of this.jogadores.values()) this.passoJogador(j, dt);
     this.passoTrocas();
@@ -4603,6 +4615,7 @@ export class Simulacao {
     }
     if (j.chao && !j.arrancada && m > 0.5 && !mont) { this.tentarEscalar(j, correr, dt); if (j.esc) return; } else j.empurra = 0;
     j.anim = j.veiculo === 'barquinho' ? 'Idle' : this.animMovimento(j, m > 0.15, correr); // remando: sentado (o barco é que anda)
+    if (j.mesaSent) j.anim = 'kk_sentado'; // sentado na Mesa do Clã (shared/jantar.js)
   }
   // Queda, pouso e o tempo do mortal
   passoVertical(j, dt) {
@@ -5009,6 +5022,7 @@ export class Simulacao {
     if (j._bfCla >= 2) r.push(['cla', 0, j._bfCla, Math.round((j._bfCla - 1) * CLA.bonusNivel * 1000) / 1000]); // nível e o bônus (+XP e +ouro)
     if (j.mesa) r.push(['mesa', 0, j.mesa]); // recruta: despensa cheia (+) ou com fome (-), shared/cla.js
     const B = j.prog?.buff; if (B && ITENS[B.k]?.buff && B.ate > (this._bfMs ||= Date.now())) r.push(['co', B.ate, B.k]);
+    if (j.prog?.banq?.ate > (this._bfMs ||= Date.now())) r.push(['banq', j.prog.banq.ate, JANTAR.buff.dano]); // Banquete do clã (shared/jantar.js): ms, como a comida
     if (j.escudo && j.escudo.ate > t) r.push(['escudo', f1(j.escudo.ate), j.escudo.n]);
     if ((j.presoAte || 0) > t) r.push([j.presoEf || 'atordoa', f1(j.presoAte), 0]);
     if (j.lentoH && j.lentoH.ate > t) r.push(['lento', f1(j.lentoH.ate), j.lentoH.k]);
@@ -5064,6 +5078,7 @@ Object.assign(Simulacao.prototype, Diarias); // missões diárias (André 2026-1
 Object.assign(Simulacao.prototype, Cla); // clã e recrutas (André 2026-11-22, shared/cla.js)
 Object.assign(Simulacao.prototype, MissaoCla); // Missão do Clã em grupo (André 2026-11-23, shared/missao-cla.js)
 Object.assign(Simulacao.prototype, Base); // base do clã (André 2026-11-22, shared/base.js)
+Object.assign(Simulacao.prototype, Jantar); // jantar do clã (André 2026-11-25, shared/jantar.js)
 Object.assign(Simulacao.prototype, Guilda); // Guilda dos Aventureiros: contratos e ranks F a SS (André 2026-11-18)
 Object.assign(Simulacao.prototype, Economia); // livro-caixa da economia (André 2026-11-16)
 Object.assign(Simulacao.prototype, Duelo); // duelo (André 2026-11-17)

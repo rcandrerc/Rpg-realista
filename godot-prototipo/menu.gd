@@ -2109,6 +2109,37 @@ func _despensa_cla(C: Dictionary) -> void:
 		vs.add_child(rotulo("Ponha comida no Baú do Clã. Prato do fogão rende mais que peixe cru.", 12, APAGADO))
 	conteudo.add_child(cs)
 
+func _jantar_cla(C: Dictionary) -> void:
+	# o jantar do clã (shared/jantar.js): chamar os recrutas para a mesa uma vez por dia; o resto é na janela do jantar
+	if not (C.get("jantar") is Dictionary):
+		return
+	var J: Dictionary = C.jantar
+	var cs := PanelContainer.new()
+	cs.add_theme_stylebox_override("panel", caixa(FUNDO2, OURO.darkened(0.35), 1, 10))
+	var vs := VBoxContainer.new()
+	vs.add_theme_constant_override("separation", 4)
+	cs.add_child(vs)
+	vs.add_child(rotulo("Jantar do clã", 16, OURO_CLARO))
+	var fase := str(J.get("fase", ""))
+	var txt := "Chame até 7 recrutas para a Mesa do Clã. Com você junto: moral dos recrutas sobe e você ganha o Banquete do clã."
+	var cor := APAGADO
+	if int(J.get("tem", 0)) == 0:
+		txt = "Sem Mesa do Clã: construa uma na base (aba Móveis)."
+	elif fase == "chamando":
+		txt = "Recrutas indo para a mesa. Ponha a comida e sirva."
+		cor = VERDE
+	elif fase == "comendo":
+		txt = "Jantar servido: estão comendo."
+		cor = VERDE
+	elif int(J.get("feito", 0)) == 1:
+		txt = "Jantar de hoje já feito. Amanhã tem mais."
+	vs.add_child(rotulo(txt, 12, cor))
+	if int(J.get("tem", 0)) == 1:
+		var b := botao("Jantar do clã", func(): m.jantar.abrir(), 15, true)
+		b.custom_minimum_size = Vector2(0, 44)
+		vs.add_child(b)
+	conteudo.add_child(cs)
+
 func _tempo_cla(ms: int) -> String:
 	var hs := int(ms / 3600000)
 	return "%d dia%s" % [int(hs / 24), "s" if int(hs / 24) != 1 else ""] if hs >= 24 else "%d h" % maxi(1, hs)
@@ -2203,6 +2234,7 @@ func montar_cla() -> void:
 		conteudo.add_child(cs)
 	_base_cla(C)
 	_despensa_cla(C)
+	_jantar_cla(C)
 	# membros (André 2026-11-22: "apareça eu no painel... nível Hp mana e vigor... determinar funções")
 	conteudo.add_child(rotulo("Membros", 17, OURO_CLARO))
 	var ms: Array = C.get("m", [])

@@ -7,6 +7,7 @@ import { montarMundo, alturaMundo, terraEm, ARENAS_BOSS, ARENA_PVP, LUGARES_MUND
 import { CAVERNA, TUNEL, noTunel, noTuneis, pontoDoTunel, montarCaverna, registrarTunel } from './caverna.js';
 import { arrumarVila, lugarNaVila, naPeca, MODELOS_VILA, arrumarCidade, distRuas, distRet, CALCADA, COMERCIO_GRANDE, CAVALO_CARROCA, CACAMBA_CARROCA } from './vilas.js';
 export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
+export { JANTAR_FALAS, JANTAR_LACUNAS, JANTAR_LUGARES, falaJantar, totalFalasJantar, comidaNaFala } from './jantar-falas.js'; // conversas do jantar do clã (André 2026-11-25)
 
 // Apelidos das animações do Mixamo (nome do arquivo em client/public/assets/personagens/anims.json.gz)
 export const A = {
@@ -873,6 +874,12 @@ Object.assign(CONSTRUCOES, {
   // que juntam. O baú particular continua só do dono.
   bau_cla: { nome: 'Baú do Clã', tipo: 'movel', aba: 'moveis', w: 1.3, d: 0.8, circulos: [[-0.3, 0, 0.38], [0.3, 0, 0.38]], custo: { lenha: 20, barra_ferro: 2 }, bancada: true, alto: 0.69,
     desc: 'Um por clã, no terreno do líder. Os recrutas guardam aqui o que farmam e colhem. Toque nele para abrir.' },
+  // Mesa do Clã (André 2026-11-25: "aumentar aquela mesa ali do clã... pra que dê um clã inteiro"; "essa mesa é só do clã,
+  // não posso fazer várias, mas quero poder mudar ela de lugar"): 8 lugares (3 de cada lado e 2 cabeceiras, JANTAR.lugares).
+  // Nasce na frente do salão da base; recolhida (Mudar de lugar) vira esta peça, uma por clã, no lote 1 (área da base).
+  // Só o tampo é sólido (os bancos não: o corpo sentado fica no lugar do banco)
+  mesa_cla: { nome: 'Mesa do Clã', tipo: 'movel', aba: 'moveis', w: 5.2, d: 2.6, circulos: [[-1.2, 0, 0.5], [0, 0, 0.5], [1.2, 0, 0.5]], custo: { lenha: 30 }, bancada: true, alto: 0.78,
+    desc: 'Uma por clã. Mesa de 8 lugares para o jantar do clã: chame os recrutas, ponha a comida e sente com eles.' },
   cama: { nome: 'Cama', tipo: 'movel', aba: 'moveis', w: 1.9, d: 2.4, circulos: [[0, -0.6, 0.6], [0, 0.6, 0.6]], custo: { lenha: 8, couro: 3 }, bancada: true, alto: 0.6,
     desc: 'Você renasce nela quando cai. Deite à noite para pular até o amanhecer: vida e mana cheias.' },
   tocha: { nome: 'Tocha', tipo: 'movel', aba: 'moveis', w: 0.4, d: 0.4, circulos: [[0, 0, 0.15]], custo: { lenha: 2, carvao: 1 }, bancada: false,
@@ -3477,6 +3484,24 @@ export const DESPENSA = {
   bem: { dias: 2, tipos: 3, mult: 0.05, nome: 'Bem alimentados' },
   lenha: [0, 20, 40, 70, 110, 150, 200],
   bots: { dias: 1.5, esquece: 0.1, compraH: 6, compraK: 3, comida: 'tilapia' },
+};
+// Jantar do clã (André 2026-11-25: "eu podia chamar eles para comer... selecionava os que eu queria... clicando na mesa
+// aparece um slot de comida igual o dos packs... eles sentam, comem... conversam entre si... a moral sobe 30 a 40... uma vez
+// por dia"; "3 de um lado, 3 do outro e a cabeceira... depois de servir eu poder sentar também... ganhava um buff").
+// lugares: [x, z] na mesa (x ao comprido); o 0 é a cabeceira do líder. convidados: até 7 recrutas (todo lugar menos o do
+// líder). slots: lugares de comida na mesa (cada convidado sentado come 1 prato: um item de comida de DESPENSA.racao).
+// perto: m da mesa para pôr comida, servir e sentar; presenca: m que o líder pode estar da mesa durante o jantar (longe
+// mais que ausente s, o jantar não dá moral). comer: s do jantar depois de servir. chamar: s esperando os convidados
+// chegarem (depois disso o jantar se desfaz). moral: o que cada recruta sentado ganha (com o líder presente). buff: o do
+// líder que sentou (soma com o da comida, não troca). fala: s entre uma conversa e outra; resposta: s até o outro responder.
+// bots: o líder bot faz o jantar dele uma vez por dia (hora sorteada entre as duas), com a comida do Baú do Clã.
+export const JANTAR = {
+  ligado: true,
+  lugares: [[2.35, 0], [-2.35, 0], [-1.2, 1.0], [0, 1.0], [1.2, 1.0], [-1.2, -1.0], [0, -1.0], [1.2, -1.0]],
+  convidados: 7, slots: 8, perto: 4, presenca: 14, ausente: 30, comer: 240, chamar: 600,
+  moral: 35, buff: { nome: 'Banquete do clã', dano: 0.1, xp: 0.1, dur: 3600 },
+  fala: [4, 8], resposta: [2.2, 3.6],
+  bots: { horas: [11, 21], guarda: 0 },
 };
 // Moral dos recrutas (André 2026-11-25: "o que não tem muita interatividade com o líder vai perdendo eficiência... medida
 // de uma maneira bem clara"; aprovou a versão enxuta com seta e percentual; "deixar um tempo livre... mais de 2 horas numa
