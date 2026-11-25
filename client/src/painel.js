@@ -419,6 +419,8 @@ function desenharMapa() {
   if (jogando) { // modo leve: quem está perto (Chama laranja, Geada azul, monstros vermelhos) e você por cima
     for (const [nome, x, z, geada, bot, nv, morto] of leve.f.g) pts.push({ x, z, cor: morto ? '#777' : geada ? '#6fb3e6' : '#e0663a', nome: `${nome} ${nv}`, r: bot ? 4 : 5 });
     for (const [x, z, nv] of leve.f.m) pts.push({ x, z, cor: '#d9362b', nome: `Nv ${nv}`, r: 3.5 });
+    const car = leve.pk?.car; if (car?.onde === 1) pts.push({ x: car.x, z: car.z, cor: '#b07a46', nome: 'Carrinho', r: 5, losango: true });
+    for (const [, , , x, z] of leve.pk?.ch || []) pts.push({ x, z, cor: '#d9a56a', nome: 'Pack', r: 3 });
     pts.push({ x: leve.f.eu[0], z: leve.f.eu[1], cor: '#ffffff', nome: 'Você', r: 7, eu: true });
   } else if (info.eu) pts.push({ x: info.eu.x, z: info.eu.z, cor: '#ffffff', nome: 'Você', r: 6 });
   const bots = ler('painelBots') === '1';
@@ -499,10 +501,10 @@ function desenharMapa() {
 // vender itens... rodar num celular muito vagabundo"). Uma segunda ligação, agora COM corpo (shared/leve.js): o herói de
 // verdade fica no mundo, os outros veem, a Geada pode atacar. A página manda o destino e o servidor anda o herói pela
 // estrada; loja, leilão, baú e totem usam as mesmas mensagens e regras do jogo. A cada 0,5 s chega uma foto pequena.
-const leve = { sala: null, f: null, mapa: null, mo: null, rota: null, rotaI: 0, rotaNome: '', leilao: null, bau: null, sel: null, entrando: false, saindo: false, chave: '', sujo: true, busca: '', anunciar: false };
+const leve = { sala: null, f: null, mapa: null, mo: null, pk: null, fab: null, rota: null, rotaI: 0, rotaNome: '', leilao: null, bau: null, sel: null, entrando: false, saindo: false, chave: '', sujo: true, busca: '', anunciar: false };
 const LUGAR_COR = { loja: '#f2c14e', compra: '#d9a54a', leilao: '#c58bff', pack: '#b07a46', ferreiro: '#9aa3ad', habilidades: '#9aa3ad', alquimia: '#6fcf8a', totem: '#6fd8ff' };
 const LUGAR_NOME = { loja: 'Loja', compra: 'Compra itens', leilao: 'Leilão', pack: 'Pack', ferreiro: 'Ferreiro', habilidades: 'Ferreiro', alquimia: 'Alquimia' };
-const PERTO = { npc: 4.2, leilao: 4.3, bau: 2.4, totem: 3.8 }; // m (o servidor confere de novo com as regras do jogo)
+const PERTO = { npc: 4.2, leilao: 4.3, bau: 2.4, totem: 3.8, pack: 3.8, carrinho: 3.6, chao: 2.6 }; // m (o servidor confere de novo com as regras do jogo)
 const mandar = (t, m) => { if (leve.sala) leve.sala.send(t, m); };
 
 async function entrarLeve() {
@@ -515,7 +517,7 @@ async function entrarLeve() {
 function ligarLeve(s) {
   leve.sala = s;
   s.onMessage('leve', (d) => {
-    leve.f = d.f; if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa;
+    leve.f = d.f; if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa;
     for (const e of d.ev || []) eventoLeve(e);
     if (aba === 'jogar') { desenharMapa(); desenharJogar(); }
   });
@@ -538,6 +540,7 @@ function eventoLeve(e) {
   else if (e.t === 'leveRota') { leve.rota = e.pontos.length ? e.pontos : null; leve.rotaI = 0; if (e.pontos.length) leve.rotaNome = e.nome || ''; if (e.texto) aviso(e.texto); }
   else if (e.t === 'leilao') { leve.leilao = e; leve.sujo = true; }
   else if (e.t === 'bau') { leve.bau = e; leve.sujo = true; }
+  else if (e.t === 'fabricando') { leve.fab = e.fim ? null : { nome: e.nome, ate: Date.now() + (e.dur || 0) * 1000 }; leve.sujo = true; }
   else if (e.t === 'chat') chatLeve([e]);
   else if (e.t === 'chatHist') { leve.chat = []; chatLeve(e.l); }
 }
@@ -579,7 +582,9 @@ function pertoAgora() {
   const M = leve.mapa; if (!M || !leve.f) return {};
   const npc = maisPerto(M.npcs), bau = maisPerto(M.baus), totem = maisPerto(M.totens);
   return {
-    npc: npc && dEu(npc) < (npc.f === 'leilao' ? PERTO.leilao : PERTO.npc) ? npc : null,
+    npc: npc && dEu(npc) < (npc.f === 'leilao' ? PERTO.leilao : npc.f === 'pack' ? PERTO.pack : PERTO.npc) ? npc : null,
+    car: leve.pk?.car?.onde === 2 || (leve.pk?.car?.onde === 1 && dEu(leve.pk.car) < PERTO.carrinho) ? leve.pk.car : null,
+    chao: (leve.pk?.ch || []).filter(([, , , x, z]) => dEu({ x, z }) < PERTO.chao),
     bau: bau && dEu(bau) < PERTO.bau ? bau : null,
     totem: totem && dEu(totem) < PERTO.totem ? totem : null,
   };
@@ -700,6 +705,81 @@ function cartaoTotem(t) {
   return c;
 }
 
+// ---------- pack e carrinho (PR 2 do modo leve, André 2026-11-25: "mais que combate quero fazer pack"). As mesmas
+// mensagens do jogo ('pack', 'veiculo', 'packTime'); o servidor confere distância, material, vigor e tudo de novo.
+const metros = (o) => { const d = Math.round(dEu(o)); return d >= 1000 ? `${(d / 1000).toFixed(1)} km` : `${d} m`; };
+const bt = (txt, fazer, cinza) => { const b = el('button', 'acao' + (cinza ? ' cinza' : ''), txt); b.onclick = () => { b.disabled = true; setTimeout(() => { b.disabled = false; }, 800); fazer(); }; return b; };
+const temMo = (k) => (leve.mo?.it || []).reduce((s, o) => s + (o[1] === k ? o[2] : 0), 0);
+function cartaoPackNpc(npc) {
+  const c = el('div', 'card'), K = leve.pk || {}, car = K.car;
+  c.append(el('div', 'nome', `${npc.n.split(',')[0]} · ${npc.pk || 'Pack'}`));
+  c.append(el('div', 'faz', 'Material para fazer o pack'));
+  const f = el('div', 'icones');
+  for (const [k, nome, q] of npc.custo || []) f.append(icone(k, nome, temMo(k), q));
+  c.append(f);
+  const b = el('div', 'bts');
+  if (leve.fab) b.append(bt('Parar', () => mandar('fabricar', { parar: true }), true));
+  else b.append(bt(K.c && car?.onde ? 'Fazer pack (vai pro carrinho)' : 'Fazer pack', () => mandar('pack', { acao: 'fazer', npc: npc.id })));
+  // entregar aqui: o das costas e os do carrinho (o carrinho precisa estar perto)
+  const aqui = (K.e || []).find((o) => o[0] === npc.id);
+  if (K.c) b.append(aqui?.[4] ? bt(`Entregar ${K.c[1]} · ${aqui[4]} de ouro`, () => mandar('pack', { acao: 'entregar', npc: npc.id, de: 'costas' })) : el('span', 'faz', 'Esse pack foi feito aqui: leve pra outro mercador.'));
+  if (car?.n.length && aqui?.[5]) car.n.forEach(([, nome], i) => b.append(bt(`Entregar do carrinho: ${nome}`, () => mandar('pack', { acao: 'entregar', npc: npc.id, de: 'carrinho', i }), true)));
+  c.append(b);
+  c.append(el('div', 'faz', 'Fazer um pack gasta vigor. Nas costas você anda devagar e não corre; se cair, o pack fica no chão.'));
+  return c;
+}
+// o que você carrega: pack nas costas, carrinho, packs no chão, onde entregar e as ordens de pack do time
+function cartaoCarga(P) {
+  const K = leve.pk; if (!K) return null;
+  const car = K.car, c = el('div', 'card');
+  c.append(el('div', 'nome', 'Pack e carrinho'));
+  if (K.c) {
+    c.append(el('div', 'faz', `Nas costas: ${K.c[1]}${K.c[2] ? ' (roubado: vale mais)' : ''}`));
+    const b = el('div', 'bts');
+    if (P.car && P.car.onde === 1) b.append(bt('Pôr no carrinho', () => mandar('pack', { acao: 'por_carrinho' })));
+    b.append(bt('Largar no chão', () => { if (confirm('Largar o pack no chão? Some em 30 min (só no palete ele fica).')) mandar('pack', { acao: 'largar' }); }, true));
+    c.append(b);
+  }
+  for (const [g, , nome] of P.chao || []) { const b = el('div', 'bts'); b.append(bt(`Pegar ${nome} do chão`, () => mandar('pack', { acao: 'pegar', g }))); c.append(b); }
+  if (car) {
+    const comb = Math.round(car.comb), tq = car.tq;
+    c.append(el('div', 'faz', `Carrinho Nv ${car.lv} · ${car.onde === 2 ? 'dirigindo' : car.onde === 1 ? `no chão a ${metros(car)}` : 'na mochila'} · packs ${car.n.length}/${car.cap} · combustível ${comb} m${car.q ? ' · QUEBRADO' : ''}`));
+    const vm = el('div', 'vm'); vm.append(barra('Combustível', comb, tq, '#c58b3a'), barra('Carrinho', car.vida, car.vm, '#8a6a4a')); for (const d of vm.children) d.style.flex = '1'; c.append(vm);
+    const b = el('div', 'bts');
+    if (car.onde === 0 && K.tem) b.append(bt('Colocar carrinho', () => mandar('veiculo', { acao: 'colocar', k: 'carrinho' })));
+    if (P.car && car.onde === 1 && !car.q) b.append(bt('Dirigir', () => mandar('veiculo', { acao: 'subir', k: 'carrinho' })));
+    if (car.onde === 2) b.append(bt('Descer', () => mandar('veiculo', { acao: 'descer' })));
+    if (P.car && comb < tq - 1) b.append(bt(K.gal ? `Pôr 1 galão (tem ${K.gal})` : 'Sem galão na mochila', () => mandar('veiculo', { acao: 'abastecer' }), !K.gal));
+    if (P.car && car.q) b.append(bt('Consertar', () => mandar('veiculo', { acao: 'consertar' })));
+    if (car.onde === 1 && !P.car) b.append(bt(`Ir até o carrinho (${metros(car)})`, () => irLeve({ x: car.x, z: car.z, nome: 'Carrinho' }), true));
+    if (car.onde === 1) b.append(bt('Guardar na mochila', () => { if (!car.n.length || confirm('Os packs do carrinho ficam no chão. Guardar mesmo?')) mandar('veiculo', { acao: 'recolher' }); }, true));
+    c.append(b);
+    if (P.car && car.onde === 1 && car.n.length) {
+      c.append(el('div', 'faz', 'No carrinho (toque para pôr nas costas)'));
+      const f = el('div', 'icones');
+      car.n.forEach(([k, nome], i) => f.append(itemLeve('pack', nome, '#b07a46', 1, null, false, () => { if (K.c) return aviso('Suas costas já estão ocupadas'); mandar('pack', { acao: 'tirar_carrinho', i }); })));
+      c.append(f);
+    }
+  } else if (K.tem) { const b = el('div', 'bts'); b.append(bt('Colocar carrinho', () => mandar('veiculo', { acao: 'colocar', k: 'carrinho' }))); c.append(b); }
+  if (K.e?.length) { // onde entregar: quem paga mais primeiro (costas + carrinho)
+    c.append(el('div', 'faz', 'Entregar em (toque para ir)'));
+    const ch = el('div', 'chips');
+    for (const [id, nome, x, z, a, b2] of [...K.e].sort((p, q) => q[4] + q[5] - p[4] - p[5])) {
+      const b = el('button', '', `${nome} · ${a + b2} de ouro · ${metros({ x, z })}`); b.onclick = () => irLeve({ x, z, nome }); ch.append(b);
+    }
+    c.append(ch);
+  }
+  if (K.tb) { // as ordens de pack do time (as mesmas da barra do time no jogo)
+    c.append(el('div', 'faz', 'Pack do time (seus bots)'));
+    const l = el('div', 'qtd-linha'), de = el('select'), pra = el('select');
+    for (const [k, t] of [['palete', 'Do palete'], ['carrinho', 'Do carrinho'], ['mercante', 'Do navio']]) de.append(opcao(k, t));
+    for (const [k, t] of [['carrinho', 'pro carrinho'], ['mercante', 'pro navio'], ['palete', 'pro palete'], ['mercador', 'pro mercador']]) pra.append(opcao(k, t));
+    l.append(de, pra, bt('Mandar', () => mandar('packTime', { de: de.value, pra: pra.value, para: '*' })), bt('Parar', () => mandar('packTime', { de: 'parar', pra: '', para: '*' }), true));
+    c.append(l);
+  }
+  return c.childNodes.length > 1 ? c : null;
+}
+
 let jogarChave = '';
 function desenharJogar() {
   const raiz = $('jogar'); if (aba !== 'jogar') return;
@@ -715,7 +795,7 @@ function desenharJogar() {
     return;
   }
   if (!leve.f) return;
-  const [x, z, hp, hpM, mn, mnM, morto, ouro, nv, pack] = leve.f.eu;
+  const [x, z, hp, hpM, mn, mnM, morto, ouro, nv, pack, montado] = leve.f.eu;
   // o caminho já andado sai do tracejado
   if (leve.rota) while (leve.rotaI < leve.rota.length - 1 && Math.hypot(leve.rota[leve.rotaI][0] - x, leve.rota[leve.rotaI][1] - z) < 3) leve.rotaI++;
   // o cartão de status muda a cada foto; o resto só quando muda o que está perto (não refaz a tela embaixo do dedo)
@@ -723,7 +803,8 @@ function desenharJogar() {
   if (!st) { st = el('div', 'card'); st.id = 'jogarStatus'; }
   limpar(st);
   const vm = el('div', 'vm'); vm.append(barra('Vida', hp, hpM, 'var(--hp)'), barra('Mana', mn, mnM, '#3d7fd0')); for (const d of vm.children) d.style.flex = '1'; st.append(vm);
-  st.append(el('div', 'faz', `Nv ${nv} · ${ouro} de ouro${pack ? ' · pack nas costas' : ''}`));
+  st.append(el('div', 'faz', `Nv ${nv} · ${ouro} de ouro${pack ? ' · pack nas costas' : ''}${montado ? ' · no lobo' : ''}${leve.pk?.car?.onde === 2 ? ' · no carrinho' : ''}`));
+  if (leve.fab) { const s = Math.max(0, Math.ceil((leve.fab.ate - Date.now()) / 1000)); st.append(el('div', 'nome', `Fazendo ${leve.fab.nome}… ${s} s (fique perto)`)); }
   const R = leve.f.r;
   if (morto) st.append(el('div', 'nome', 'Você caiu. Espere renascer no totem.'));
   else if (R) {
@@ -731,10 +812,12 @@ function desenharJogar() {
   } else st.append(el('div', 'faz', 'Toque no mapa para ir até lá.'));
   const bt = el('div', 'bts');
   if (R) { const p = el('button', 'acao cinza', 'Parar'); p.onclick = () => mandar('leveParar'); bt.append(p); }
+  // montaria (André 2026-11-25): a mesma mensagem do jogo ('montar'); com pack, em combate ou antes de liberar o servidor recusa
+  if (!leve.pk?.car || leve.pk.car.onde !== 2) { const mt = el('button', 'acao cinza', montado ? 'Descer do lobo' : 'Montar no lobo'); mt.onclick = () => mandar('montar'); bt.append(mt); }
   const casa = el('button', 'acao cinza', 'Voltar à base'); casa.onclick = () => mandar('vila'); bt.append(casa);
   const sai = el('button', 'acao cinza', 'Sair do mundo'); sai.onclick = sairLeve; bt.append(sai);
   st.append(bt);
-  const P = pertoAgora(), chave = [P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id].join('|');
+  const P = pertoAgora(), chave = [P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(',')].join('|');
   if (chave === jogarChave && !leve.sujo && raiz.contains(st)) return;
   if (document.activeElement?.tagName === 'INPUT' && raiz.contains(document.activeElement) && chave === jogarChave) return; // digitando: não refaz
   if (chave !== jogarChave) { leve.sel = null; if (!P.npc || P.npc.f !== 'leilao') leve.leilao = null; if (!P.bau) leve.bau = null; }
@@ -744,21 +827,24 @@ function desenharJogar() {
   const M = leve.mapa;
   if (M) {
     const at = el('div', 'card'), b2 = el('div', 'chips'); at.append(el('div', 'faz', 'Ir para'));
-    const ir = (txt, o) => { if (!o) return; const b = el('button', '', txt); b.onclick = () => irLeve({ x: o.x, z: o.z, nome: txt }); b2.append(b); };
+    const ir = (txt, o) => { if (!o) return; const b = el('button', '', txt); b.onclick = () => irLeve({ x: o.x, z: o.z, nome: o.n ? o.n.split(',')[0] : txt }); b2.append(b); };
     ir('Loja', maisPerto(M.npcs.filter((n) => n.f === 'loja'))); ir('Leilão', maisPerto(M.npcs.filter((n) => n.f === 'leilao')));
     ir('Compra itens', maisPerto(M.npcs.filter((n) => n.v && n.f !== 'loja')));
     ir('Baú do Clã', maisPerto(M.baus.filter((b) => b.cla))); ir('Seu baú', maisPerto(M.baus.filter((b) => !b.cla)));
     ir('Totem', maisPerto(M.totens));
+    ir('Mercador de pack', maisPerto(M.npcs.filter((n) => n.f === 'pack')));
     at.append(b2); raiz.append(at);
   }
   if (P.npc) {
     if (P.npc.f === 'leilao') raiz.append(cartaoLeilao());
+    else if (P.npc.f === 'pack') raiz.append(cartaoPackNpc(P.npc));
     else if (P.npc.f === 'loja' || P.npc.v) raiz.append(cartaoLoja(P.npc));
     else { const c = el('div', 'card'); c.append(el('div', 'nome', P.npc.n.split(',')[0]), el('div', 'faz', `${LUGAR_NOME[P.npc.f] || ''}: por enquanto só no jogo.`)); raiz.append(c); }
   }
   if (P.bau) raiz.append(cartaoBauLeve(P.bau));
   if (P.totem) raiz.append(cartaoTotem(P.totem));
-  if (!P.npc && !P.bau && !P.totem) raiz.append(el('div', 'vazio', 'Chegue perto de uma loja, do leilão, de um baú ou de um totem para usar.'));
+  const cg = cartaoCarga(P); if (cg) raiz.append(cg);
+  if (!P.npc && !P.bau && !P.totem && !cg) raiz.append(el('div', 'vazio', 'Chegue perto de uma loja, do leilão, de um baú ou de um totem para usar.'));
 }
 
 function desenhar() {
