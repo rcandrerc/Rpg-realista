@@ -843,7 +843,6 @@ var _pede := {}
 func do_servidor_lotes(ev: Dictionary) -> void:
 	meu = str(ev.meu) if ev.get("meu") != null else ""
 	_em_lista = true
-	_pede = {}
 	for d in ev.get("lista", []):
 		do_servidor_lote(d)
 	_em_lista = false
@@ -863,6 +862,30 @@ func meu_lote(id: String) -> void:
 		sair_compra()
 	if id == "" and ativo:
 		sair()
+
+# Terreno que mudou num aviso solto (ronda de 25/11: lote 189 ms e construcao 382 ms no mesmo quadro no Note 10 Lite;
+# os clãs bot constroem e a Cecília e o Dario mexem na horta a toda hora): portas, grama embaixo da horta e sólidos
+# passam por TODOS os terrenos. Agora ficam anotados e saem um por quadro, depois de PEDE_ESPERA s (vários avisos
+# seguidos viram uma passada só). As peças e a altura do piso continuam na hora.
+const PEDE_ESPERA := 0.15 # s
+var _pede_t := -1.0
+func _pede_aos_poucos(dt: float) -> void:
+	if _em_lista or _pede.is_empty():
+		_pede_t = -1.0
+		return
+	if _pede_t < 0.0:
+		_pede_t = PEDE_ESPERA
+	_pede_t -= dt
+	if _pede_t > 0.0:
+		return
+	for k in ["solidos", "portas", "grama"]: # sólidos primeiro (é o que segura o herói na parede nova)
+		if _pede.has(k):
+			_pede.erase(k)
+			match k:
+				"solidos": _refazer_solidos()
+				"portas": _achar_portas()
+				"grama": _grama_sob_horta()
+			return
 
 func do_servidor_lote(ev: Dictionary) -> void:
 	var id := str(ev.get("lote", ""))
@@ -923,10 +946,7 @@ func do_servidor_lote(ev: Dictionary) -> void:
 	if mudou_pecas:
 		_marca_paletes(L)
 		_refazer_telhado(L)
-		if _em_lista:
-			_pede.portas = true
-		else:
-			_achar_portas()
+		_pede.portas = true # junto: no fim da lista ou, um aviso solto, aos poucos (_pede_aos_poucos)
 		L.erase("_moveis_chave") # peças mudaram: _moveis_dentro confere de novo
 	# horta
 	var mudou_canteiros := false
@@ -976,15 +996,9 @@ func do_servidor_lote(ev: Dictionary) -> void:
 		elif h.mask != h.get("mask_feita", -1):
 			_enfileirar_canteiro(h)
 	if mudou_pecas or mudou_canteiros:
-		if _em_lista:
-			_pede.grama = true
-		else:
-			_grama_sob_horta(L)
+		_pede.grama = true
 	if mudou_pecas:
-		if _em_lista:
-			_pede.solidos = true
-		else:
-			_refazer_solidos()
+		_pede.solidos = true
 	if ativo and id == meu:
 		_mostrar_borda(true)
 		_montar_itens()
@@ -2870,6 +2884,7 @@ func _process(dt: float) -> void:
 func _process_parte(dt: float) -> void:
 	if m.heroi == null or m.hud == null:
 		return
+	_pede_aos_poucos(dt)
 	if not _fila_canteiros.is_empty():
 		_desenhar_fila_canteiros()
 	var hp: Vector3 = m.heroi.position
