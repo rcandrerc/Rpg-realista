@@ -906,6 +906,9 @@ function desenharJogar() {
   // tela do modo leve (André 2026-11-25: "tem q rolar muito... como o menu é sanfonado da pra limpar a tela"): o mapa ocupa
   // a tela; embaixo, uma barra com Perto, Mochila, Lugares e Chat. Cada botão abre um painel por cima do mapa (um por vez;
   // tocar de novo fecha). Chegou perto de uma loja, baú, totem ou mercador: o Perto abre sozinho.
+  // André 2026-11-25 (loja do jogo leve "fica subindo sozinha"): tocar num item refaz o painel; guarda a rolagem da folha
+  // e devolve se continua o mesmo painel (e o mesmo lugar perto), senão o painel novo começa no topo.
+  const folhaAntes = raiz.querySelector('.folha'), rolou = folhaAntes && chave === rolouChave && painelLeve === rolouPainel ? folhaAntes.scrollTop : 0;
   limpar(raiz); raiz.append(st);
   if (painelLeve && painelLeve !== 'chat') {
     const f = el('div', 'folha'), cab = el('div', 'folhaCab'), x = el('button', 'fecha', '✕');
@@ -933,6 +936,9 @@ function desenharJogar() {
     else if (painelLeve === 'criar') { criarAberto = true; const c = cartaoCriar(); c.firstChild.remove(); f.append(c); }
     else if (painelLeve === 'lugares' && leve.mapa?.lug) { lugaresAberto = true; const c = cartaoLugares(leve.mapa); c.firstChild.remove(); f.append(c); }
     raiz.append(f);
+    if (rolou) f.scrollTop = rolou;
+    rolouChave = chave; rolouPainel = painelLeve;
+    f.onscroll = () => { rolouChave = chave; rolouPainel = painelLeve; };
   }
   const doca = el('div', 'doca');
   const temPerto = algo || !!(P.car || P.chao?.length || leve.pk?.c);
@@ -943,6 +949,7 @@ function desenharJogar() {
   }
   raiz.append(doca);
 }
+let rolouChave = '', rolouPainel = ''; // onde a folha do modo leve estava rolada (ver desenharJogar)
 let painelLeve = ''; // '' (só o mapa), 'perto', 'mochila', 'lugares' ou 'chat'
 function abrirPainelLeve(k) {
   if ((k === 'criar') !== (painelLeve === 'criar')) { criarAberto = k === 'criar'; pedirReceitas(criarAberto); } // a lista de receitas só vem com a aba aberta
