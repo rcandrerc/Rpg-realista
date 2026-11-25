@@ -33,6 +33,12 @@ pg.on('pageerror', (e) => console.log('ERRO NA PÁGINA', e.message));
 await pg.goto(`http://127.0.0.1:${PORTA}/painel.html`);
 await pg.evaluate((s) => localStorage.setItem('sessao', s), a.sessao);
 await pg.reload(); await esperar(3000);
+const irPara = async (sec, txt) => { // a lista Lugares em sanfona: abre a seção e toca no lugar
+  const linha = pg.locator('.sanfona .linha', { hasText: txt });
+  if (!(await pg.locator('.sanfona>button.sec').count())) { await pg.locator('.sanfona .cab').click(); await esperar(800); }
+  if (!(await linha.count())) { await pg.locator('.sanfona>button.sec', { hasText: sec }).click(); await esperar(800); }
+  await linha.first().click();
+};
 await pg.click('[data-aba=jogar]'); await esperar(800);
 await pg.click('text=Entrar no mundo'); await esperar(4000);
 const foto = async (n) => { await esperar(900); await pg.screenshot({ path: path.join(saida, n), fullPage: true }); console.log('foto', n); };
@@ -43,7 +49,7 @@ await tocar('Pôr no carrinho');
 await tocar('Pôr 1 galão');
 await foto('2-carrinho.png');
 await tocar('Dirigir');
-await pg.click('.chips button:has-text("Mercador de pack")'); await esperar(2500);
+await foto('3a-lugares-fechado.png'); await pg.locator('.sanfona .cab').click(); await esperar(800); await foto('3b-lugares-aberto.png'); await pg.locator('.sanfona>button.sec', { hasText: 'Mercadores' }).click(); await esperar(800); await foto('3c-mercadores.png'); await irPara('Mercadores', 'Seu Joca'); await esperar(2500);
 await foto('3-dirigindo.png');
 for (let i = 0; i < 90; i++) { if (await pg.locator('text=Material para fazer o pack').count()) break; await esperar(1000); }
 await tocar('Descer');
@@ -52,4 +58,9 @@ await tocar('Entregar do carrinho');
 await foto('5-entregou.png');
 await tocar('Fazer pack');
 await foto('6-fazendo.png');
+// tablet em pé (2 colunas) e celular deitado (pede para girar)
+await pg.setViewportSize({ width: 800, height: 1280 }); await esperar(1500);
+await pg.screenshot({ path: path.join(saida, '7-tablet-em-pe.png') }); console.log('foto 7-tablet-em-pe.png');
+await pg.setViewportSize({ width: 740, height: 360 }); await esperar(1200);
+await pg.screenshot({ path: path.join(saida, '8-deitado.png') }); console.log('foto 8-deitado.png');
 await nav.close(); fim(); process.exit();

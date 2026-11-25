@@ -780,6 +780,37 @@ function cartaoCarga(P) {
   return c.childNodes.length > 1 ? c : null;
 }
 
+// ---------- Lugares (André 2026-11-25: "menu igual do jogo real com todos os NPCs, recursos, mercadores, sanfonado,
+// que pudesse clicar e ir para"). As seções do mapa do jogo (minimapa.gd SECOES), todas começam fechadas; tocar no nome
+// leva o herói até lá pela estrada. Vilas, caçada e dungeons na ordem do jogo; o resto do mais perto ao mais longe.
+const SECOES = [['vilas', 'Vilas e cidades'], ['totens', 'Totens'], ['caca', 'Caçada'], ['boss', 'Bosses'], ['dungeon', 'Dungeons'],
+  ['recursos', 'Recursos'], ['pesca', 'Pescaria'], ['oficinas', 'Oficinas'], ['npcs', 'NPCs'], ['mercadores', 'Mercadores (entregas)']];
+const PERTO_PRIMEIRO = new Set(['totens', 'recursos', 'oficinas', 'npcs', 'mercadores']);
+let lugaresAberto = false, secAberta = ''; // tudo fechado; uma seção aberta por vez (como no jogo: toca abre, toca de novo fecha)
+function cartaoLugares(M) {
+  const c = el('div', 'card sanfona'), cab = el('button', 'cab');
+  cab.append(el('span', null, `${lugaresAberto ? '▾' : '▸'} Lugares`), el('small', 'faz', 'toque para ir'));
+  cab.onclick = () => { lugaresAberto = !lugaresAberto; leve.sujo = true; desenharJogar(); };
+  c.append(cab);
+  if (!lugaresAberto) return c;
+  const pagaPk = new Map((leve.pk?.e || []).map((o) => [o[1], o[4] + o[5]]));
+  for (const [id, titulo] of SECOES) {
+    const L = M.lug.filter((o) => o[0] === id); if (!L.length) continue;
+    const t = el('button', 'sec'); t.append(el('span', null, `${secAberta === id ? '▾' : '▸'} ${titulo}`), el('small', null, String(L.length)));
+    t.onclick = () => { secAberta = secAberta === id ? '' : id; leve.sujo = true; desenharJogar(); };
+    c.append(t);
+    if (secAberta !== id) continue;
+    const lista = PERTO_PRIMEIRO.has(id) ? [...L].sort((a, b) => dEu({ x: a[2], z: a[3] }) - dEu({ x: b[2], z: b[3] })) : L;
+    for (const [, nome, x, z] of lista) {
+      const curto = nome.split(',')[0], pg = id === 'mercadores' ? pagaPk.get(curto) : 0;
+      const b = el('button', 'linha'); b.append(el('span', null, id === 'mercadores' ? curto : nome), el('span', null, `${pg ? pg + ' de ouro · ' : ''}${metros({ x, z })}`));
+      b.onclick = () => irLeve({ x, z, nome: curto.replace(/ \(mais perto\)$/, '') });
+      c.append(b);
+    }
+  }
+  return c;
+}
+
 let jogarChave = '';
 function desenharJogar() {
   const raiz = $('jogar'); if (aba !== 'jogar') return;
@@ -823,18 +854,6 @@ function desenharJogar() {
   if (chave !== jogarChave) { leve.sel = null; if (!P.npc || P.npc.f !== 'leilao') leve.leilao = null; if (!P.bau) leve.bau = null; }
   jogarChave = chave; leve.sujo = false;
   limpar(raiz); raiz.append(st);
-  // atalhos: ir aos lugares de sempre
-  const M = leve.mapa;
-  if (M) {
-    const at = el('div', 'card'), b2 = el('div', 'chips'); at.append(el('div', 'faz', 'Ir para'));
-    const ir = (txt, o) => { if (!o) return; const b = el('button', '', txt); b.onclick = () => irLeve({ x: o.x, z: o.z, nome: o.n ? o.n.split(',')[0] : txt }); b2.append(b); };
-    ir('Loja', maisPerto(M.npcs.filter((n) => n.f === 'loja'))); ir('Leilão', maisPerto(M.npcs.filter((n) => n.f === 'leilao')));
-    ir('Compra itens', maisPerto(M.npcs.filter((n) => n.v && n.f !== 'loja')));
-    ir('Baú do Clã', maisPerto(M.baus.filter((b) => b.cla))); ir('Seu baú', maisPerto(M.baus.filter((b) => !b.cla)));
-    ir('Totem', maisPerto(M.totens));
-    ir('Mercador de pack', maisPerto(M.npcs.filter((n) => n.f === 'pack')));
-    at.append(b2); raiz.append(at);
-  }
   if (P.npc) {
     if (P.npc.f === 'leilao') raiz.append(cartaoLeilao());
     else if (P.npc.f === 'pack') raiz.append(cartaoPackNpc(P.npc));
@@ -845,6 +864,7 @@ function desenharJogar() {
   if (P.totem) raiz.append(cartaoTotem(P.totem));
   const cg = cartaoCarga(P); if (cg) raiz.append(cg);
   if (!P.npc && !P.bau && !P.totem && !cg) raiz.append(el('div', 'vazio', 'Chegue perto de uma loja, do leilão, de um baú ou de um totem para usar.'));
+  if (leve.mapa?.lug) raiz.append(cartaoLugares(leve.mapa)); // depois do que está perto (abre sem empurrar a loja)
 }
 
 function desenhar() {
