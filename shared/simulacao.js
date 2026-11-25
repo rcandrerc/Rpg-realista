@@ -4536,7 +4536,7 @@ export class Simulacao {
     this.passoGuerra(); this.passoDuplasGuerra(); // Chama x Geada (shared/guerra.js): quem pode lutar agora e as falas de quem avistou alguém
     if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); this.passoRecrutasSemLider?.(); this.passoProdRecrutas?.(); } // a semana do clã (shared/cla.js)
     for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
-    for (const j of this.jogadores.values()) { if (j.leve) this.passoLeve(j, dt); this.passoJogador(j, dt); } // modo leve: o servidor anda o herói (shared/leve.js)
+    for (const j of this.jogadores.values()) { if (j.leve) { try { this.passoLeve(j, dt); } catch (e) { j.leveRota = null; console.error('modo leve: passo deu erro:', e); } } this.passoJogador(j, dt); } // modo leve: o servidor anda o herói (shared/leve.js)
     this.passoTrocas();
     this.passoDuelos(); // duelo (André 2026-11-17)
     this.passoArena(dt); // Arena PvP 3x3 Geada x Chama (André 2026-11-21)
@@ -4597,7 +4597,7 @@ export class Simulacao {
       a.t -= dt; if (a.t <= 0) j.arrancada = null;
     } else if (m > 0.15) {
       const vv = this.velVeiculo(j); // no carrinho, barquinho ou navio: na velocidade dele (antes ia na do herói correndo)
-      const v = vv != null ? vv : mont ? mont.correr : (correr ? HEROI.correr : HEROI.andar) * ((j.bot || j.leve) && j.prog?.pack ? PACK_REGRAS.costas.vel : 1); // montado: o lobo vai sempre no galope (André 2026-11-07); bot com pack nas costas vai devagar como o jogador (André 2026-11-21, pack roubado)
+      const v = vv != null ? vv : mont ? mont.correr : (correr ? HEROI.correr : HEROI.andar) * (j.prog?.pack ? PACK_REGRAS.costas.vel : 1); // montado: o lobo vai sempre no galope (André 2026-11-07); bot com pack nas costas vai devagar como o jogador (André 2026-11-21, pack roubado)
       this.mover(j, mx * v * dt, mz * v * dt);
       const alvo = Math.atan2(mx, mz);
       j.ry += angDif(alvo, j.ry) * Math.min(1, dt * 12);

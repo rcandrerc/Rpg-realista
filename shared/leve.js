@@ -5,7 +5,7 @@
 // estrada (shared/rota.js, a mesma dos recrutas), na velocidade normal a pé. Não existe teleporte: totem só do jeito
 // pago de sempre. Loja, leilão e baú usam as mesmas mensagens do jogo (item, leilao, bau), com as mesmas regras de
 // distância. Para o celular fraco: a cada LEVE.envio s vai uma foto pequena só do que está perto (fotoLeve).
-import { planejarRota } from './rota.js';
+import { planejarRota, terraId } from './rota.js';
 import { ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo } from './progresso.js';
 
@@ -21,6 +21,8 @@ export const LEVE = {
   bichos: 40, // m: monstros que aparecem
   max: 40, // no máximo tantos de cada na foto
   leilao: 60, // anúncios na lista do leilão
+  intervalo: 0.5, // s entre dois destinos
+  longe: 2500, // m: destino mais longe que isso não vale
 };
 // quem a página mostra como lugar no mapa (as janelas do jogo de cada um)
 const FUNCOES = new Set(['loja', 'leilao', 'pack', 'ferreiro', 'habilidades', 'alquimia']);
@@ -39,6 +41,10 @@ export const Leve = {
     const x = Number(m?.x), z = Number(m?.z);
     if (!Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > 5000 || Math.abs(z) > 5000) return;
     if (j.morto) return aviso('Você caiu: espere renascer');
+    // revisão de segurança 2026-11-25: destino na água ou longe demais custa caro na busca da estrada; e no máximo 2 por s
+    if (this.tempo - (j.leveIrT ?? -9) < LEVE.intervalo) return;
+    j.leveIrT = this.tempo;
+    if (Math.hypot(x - j.x, z - j.z) > LEVE.longe || terraId(x, z) === 0) return aviso('Toque em terra, mais perto');
     const r = planejarRota(this.mapa, j, { x, z });
     if (r.bloqueio) { this.leveParar(id, null); return aviso(r.bloqueio === 'terra' ? 'Isso fica em outra terra: só de barco ou navio, no jogo' : 'O caminho cruza a água: só de barco, no jogo'); }
     if (j.vila) this.cancelarVila(j, null);
