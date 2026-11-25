@@ -224,6 +224,7 @@ class SalaClareira extends Room {
     // modo leve (André 2026-11-25, shared/leve.js): a aba Jogar do painel manda o destino e o servidor anda o herói
     this.ouvir('leveIr', (c, m) => { if (c.userData?.leve && m && typeof m === 'object') this.sim.leveIr(c.sessionId, { x: m.x, z: m.z, nome: m.nome }); });
     this.ouvir('leveParar', (c) => { if (c.userData?.leve) this.sim.leveParar(c.sessionId); });
+    this.ouvir('leveReceitas', (c, m) => { if (c.userData?.leve) { c.userData.leveRc = m?.ver !== false; c.userData.leveRcTxt = ''; } }); // Criar da página leve: só manda as receitas enquanto o cartão está aberto
     this.ouvir('leveMapa', (c) => { const j = c.userData?.leve && this.sim.jogadores.get(c.sessionId); if (j) c.send('leveMapa', this.sim.leveMapa(j)); });
     this.ouvir('leilao', (c, m) => { // Casa do Comércio (Otávio, Rio Claro)
       // robô de testes (André 2026-11-16: "conserta os dois robôs"): faz a missão do leilão sem mexer na economia de
@@ -624,6 +625,7 @@ class SalaClareira extends Room {
     const m = { f: this.sim.fotoLeve(j), ev: ev.splice(0) };
     const mo = this.sim.mochilaLeve(j), moTxt = JSON.stringify(mo); if (moTxt !== u.leveMo) { u.leveMo = moTxt; m.mo = mo; }
     const pk = this.sim.packLeve(j), pkTxt = JSON.stringify(pk); if (pkTxt !== u.levePk) { u.levePk = pkTxt; m.pk = pk; } // packs e carrinho (PR 2)
+    if (u.leveRc) { const rc = this.sim.leveReceitas(j), rcTxt = JSON.stringify(rc); if (rcTxt !== u.leveRcTxt) { u.leveRcTxt = rcTxt; m.rc = rc; } } // muda quando mochila ou lugar mudam
     if (Date.now() - (u.leveMapaT || 0) > 60e3) { u.leveMapaT = Date.now(); m.mapa = this.sim.leveMapa(j); }
     c.send('leve', m);
   }

@@ -518,9 +518,9 @@ async function entrarLeve() {
   leve.entrando = false; leve.sujo = true; desenharJogar();
 }
 function ligarLeve(s) {
-  leve.sala = s;
+  leve.sala = s; if (criarAberto) s.send('leveReceitas', { ver: true }); // voltou da queda com o Criar aberto
   s.onMessage('leve', (d) => {
-    leve.f = d.f; if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa;
+    leve.f = d.f; if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa;
     for (const e of d.ev || []) eventoLeve(e);
     if (aba === 'jogar') { desenharMapa(); desenharJogar(); }
   });
@@ -529,7 +529,7 @@ function ligarLeve(s) {
   s.onMessage('*', () => {}); // o resto que o servidor manda a todo jogador: não serve aqui
   s.onLeave(async (codigo) => {
     const token = s.reconnectionToken;
-    leve.sala = null; leve.f = null; leve.rota = null; leve.leilao = null; leve.bau = null; leve.sel = null; leve.sujo = true;
+    leve.sala = null; leve.rc = null; leve.f = null; leve.rota = null; leve.leilao = null; leve.bau = null; leve.sel = null; leve.sujo = true;
     if (codigo === 4001) aviso('Seu herói entrou pelo jogo: o modo leve saiu.');
     else if (!leve.saindo && codigo !== 4003) { // queda de internet: tenta voltar no mesmo herói
       try { ligarLeve(await cliente.reconnect(token)); return; } catch { aviso('O modo leve caiu. Toque em Entrar no mundo.'); }
@@ -818,6 +818,40 @@ function cartaoMochila() {
   return c;
 }
 
+// Criar (André 2026-11-25): mesmas receitas e regras do jogo; o servidor manda a lista (leveReceitas) e confere tudo de novo
+// ao criar. Recolhido por padrão; só pede a lista enquanto está aberto. Precisa estar perto da estação (bigorna, bancada...).
+let criarAberto = false, criarSel = '';
+function pedirReceitas(ver) { mandar('leveReceitas', { ver }); if (!ver) leve.rc = null; }
+function cartaoCriar() {
+  const c = el('div', 'card sanfona'), cab = el('button', 'cab'), RC = leve.rc;
+  cab.append(el('span', null, `${criarAberto ? '▾' : '▸'} Criar`), el('small', 'faz', criarAberto ? '' : 'ferreiro, alfaiate, cozinha'));
+  cab.onclick = () => { criarAberto = !criarAberto; pedirReceitas(criarAberto); leve.sujo = true; desenharJogar(); };
+  c.append(cab);
+  if (!criarAberto) return c;
+  if (!RC) { c.append(el('div', 'faz', 'Abrindo…')); return c; }
+  if (leve.fab) c.append(el('div', 'nome', `Fazendo ${leve.fab.nome}…`), bt('Parar', () => mandar('fabricar', { parar: true }), true));
+  let est = '';
+  for (const [r, nome, usa, , estNome, perto, motivo, seg] of RC.r) {
+    if (estNome !== est) {
+      est = estNome; const k = RC.r.find((o) => o[4] === est)[3], perto = RC.r.some((o) => o[4] === est && o[5]);
+      c.append(el('div', 'faz', `${estNome}${perto ? ' · você está perto' : ''}`));
+      // ir até a estação mais perto (pública ou do seu terreno) pela estrada, como no mapa
+      const E = RC.est.filter((o) => o[0] === k).sort((a, b) => dEu({ x: a[2], z: a[3] }) - dEu({ x: b[2], z: b[3] }))[0];
+      if (E && !perto) c.append(bt(`Ir até ${E[1].split(',')[0]} · ${metros({ x: E[2], z: E[3] })}`, () => irLeve({ x: E[2], z: E[3] + 1.5, nome: E[1].split(',')[0] })));
+    }
+    const sel = criarSel === r, ruim = motivo || !perto;
+    const b = el('button', 'linha' + (sel ? ' ativo' : '')); b.append(el('span', null, nome), el('span', null, ruim ? '✕' : `${seg} s`));
+    b.onclick = () => { const fecha = sel && leve.sel?.onde === 'criar'; criarSel = fecha ? '' : r; leve.sel = fecha ? null : { onde: 'criar', r, nome }; leve.sujo = true; desenharJogar(); };
+    c.append(b);
+    if (!sel) continue;
+    const f = el('div', 'icones'); for (const [k, n, q] of usa) f.append(icone(k, n, temMo(k), q)); c.append(f);
+    if (motivo) c.append(el('div', 'faz', motivo)); else if (!perto) c.append(el('div', 'faz', `Vá até ${estNome.toLowerCase()} (botão acima)`));
+    // a janelinha de quantidade (jogo leve mais simples): o material vai junto; tocar fora fecha e desmarca
+    if (!ruim && !leve.fab && leve.sel?.onde === 'criar' && leve.sel.r === r) { const g = el('div', 'icones'); for (const [k, n, q] of usa) g.append(icone(k, n, temMo(k), q)); c.append(linhaQtd((n) => `Criar ${n}`, 1, (n) => { criarSel = ''; mandar('criar', { r, n: Math.min(RC.max, n) }); }, [g], true)); }
+  }
+  return c;
+}
+
 let lugaresAberto = false, secAberta = '', buscaLug = ''; // tudo fechado; uma seção aberta por vez (como no jogo: toca abre, toca de novo fecha)
 function cartaoLugares(M) {
   const c = el('div', 'card sanfona'), cab = el('button', 'cab');
@@ -923,7 +957,7 @@ function desenharJogar() {
     const f = el('div', 'folha'), cab = el('div', 'folhaCab'), x = el('button', 'fecha', '✕');
     x.setAttribute('aria-label', 'Fechar'); x.onclick = () => abrirPainelLeve('');
     const it = leve.mo?.it || [];
-    cab.append(el('span', 'nome', painelLeve === 'perto' ? '📍 Aqui perto' : painelLeve === 'mochila' ? `🎒 Mochila ${it.length}/${leve.mo?.l || 0}` : '🧭 Ir para'), x);
+    cab.append(el('span', 'nome', painelLeve === 'perto' ? '📍 Aqui perto' : painelLeve === 'mochila' ? `🎒 Mochila ${it.length}/${leve.mo?.l || 0}` : painelLeve === 'criar' ? '🔨 Criar' : '🧭 Ir para'), x);
     f.append(cab);
     if (painelLeve === 'perto') {
       if (P.npc) {
@@ -936,7 +970,13 @@ function desenharJogar() {
       if (P.totem) f.append(cartaoTotem(P.totem));
       const cg = cartaoCarga(P); if (cg) f.append(cg);
       if (!P.npc && !P.bau && !P.totem && !cg) f.append(el('div', 'vazio', 'Chegue perto de uma loja, do leilão, de um baú ou de um totem para usar.'));
+      if (!P.bau && leve.mapa?.baus?.length) { // ir até o baú (e o Baú do Clã) para ver o que tem dentro: abre sozinho ao chegar
+        const c = el('div', 'card');
+        for (const b of leve.mapa.baus) c.append(bt(`Ir ao ${b.cla ? 'Baú do Clã' : 'seu baú'} · ${metros(b)}`, () => irLeve({ x: b.x, z: b.z + 1.5, nome: b.cla ? 'Baú do Clã' : 'Seu baú' }), true));
+        f.append(c);
+      }
     } else if (painelLeve === 'mochila') { mochilaAberta = true; const c = cartaoMochila(); c.firstChild.remove(); f.append(c); }
+    else if (painelLeve === 'criar') { criarAberto = true; const c = cartaoCriar(); c.firstChild.remove(); f.append(c); }
     else if (painelLeve === 'lugares' && leve.mapa?.lug) { lugaresAberto = true; const c = cartaoLugares(leve.mapa); c.firstChild.remove(); f.append(c); }
     raiz.append(f);
     if (rolou) f.scrollTop = rolou;
@@ -947,7 +987,7 @@ function desenharJogar() {
   const doca = el('div', 'doca');
   const temPerto = algo || !!(P.car || P.chao?.length || leve.pk?.c);
   const aqui = P.npc ? P.npc.n.split(',')[0] : P.bau ? (P.bau.cla ? 'Baú do Clã' : 'Baú') : P.totem ? 'Totem' : temPerto ? 'Pack' : 'Aqui';
-  for (const [k, ic, txt] of [['perto', '📍', aqui], ['mochila', '🎒', 'Mochila'], ['lugares', '🧭', 'Ir para'], ['chat', '💬', 'Chat']]) {
+  for (const [k, ic, txt] of [['perto', '📍', aqui], ['mochila', '🎒', 'Mochila'], ['criar', '🔨', 'Criar'], ['lugares', '🧭', 'Ir para'], ['chat', '💬', 'Chat']]) {
     const b = el('button', (painelLeve === k ? 'ativo' : '') + (k === 'perto' && temPerto ? ' tem' : ''));
     b.append(el('i', null, ic), document.createTextNode(txt));
     b.onclick = () => abrirPainelLeve(painelLeve === k ? '' : k);
@@ -977,6 +1017,7 @@ let dicaAberta = null;
 let rolouChave = '', rolouPainel = ''; // onde a folha do modo leve estava rolada (ver desenharJogar)
 let painelLeve = ''; // '' (só o mapa), 'perto', 'mochila', 'lugares' ou 'chat'
 function abrirPainelLeve(k) {
+  if ((k === 'criar') !== (painelLeve === 'criar')) { criarAberto = k === 'criar'; pedirReceitas(criarAberto); } // a lista de receitas só vem com a aba aberta
   painelLeve = k; leve.sujo = true; desenharJogar();
   if (k === 'chat') { const l = $('chatLista'); if (l) l.scrollTop = l.scrollHeight; }
 }
