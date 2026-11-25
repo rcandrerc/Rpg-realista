@@ -614,14 +614,32 @@ function gradeMochila(onde, preco) {
   if (!f.childNodes.length) f.append(el('div', 'faz', 'Mochila vazia.'));
   return f;
 }
-// a linha de quantidade + o botão do que foi escolhido
-function linhaQtd(rot, max, fazer, extra) {
-  const l = el('div', 'qtd-linha'), q = el('input'); q.type = 'number'; q.min = 1; q.value = max; q.inputMode = 'numeric';
-  const b = el('button', 'acao', rot(max));
-  q.oninput = () => { b.textContent = rot(Math.max(1, q.value | 0)); };
-  b.onclick = () => { const n = Math.max(1, q.value | 0); b.disabled = true; setTimeout(() => { b.disabled = false; }, 800); fazer(n); leve.sel = null; leve.sujo = true; };
-  l.append(q); if (extra) l.append(...extra); l.append(b);
-  return l;
+// a janelinha de quantidade (André 2026-11-25: "mais intuitivo"): tocar num item abre no meio da tela com − / + / Tudo e um
+// botão grande; não precisa do teclado (o número ainda aceita digitar). Tocar fora fecha. O número fica guardado em
+// leve.sel.q, então a foto do servidor que refaz a tela não volta o valor.
+function janelaLeve(corpo) {
+  const fundo = el('div', 'janelaLeve'), cx = el('div', 'caixa');
+  fundo.onclick = (e) => { if (e.target === fundo) { leve.sel = null; leve.sujo = true; desenharJogar(); } };
+  cx.append(...corpo); fundo.append(cx);
+  return fundo;
+}
+function linhaQtd(rot, max, fazer, extra, compra) {
+  const S = leve.sel || {}, tudo = (S.k && temMo(S.k)) || max;
+  if (!(S.q >= 1)) S.q = compra ? 1 : max;
+  const q = el('input'); q.type = 'number'; q.min = 1; q.value = S.q; q.inputMode = 'numeric';
+  const b = el('button', 'acao', rot(S.q));
+  const por = (n) => { S.q = Math.max(1, n | 0); q.value = S.q; b.textContent = rot(S.q); };
+  q.oninput = () => { S.q = Math.max(1, q.value | 0); b.textContent = rot(S.q); };
+  const mm = el('div', 'mm'), menos = el('button', null, '−'), mais = el('button', null, '+');
+  menos.onclick = () => por(S.q - 1); mais.onclick = () => por(S.q + 1);
+  mm.append(menos, q, mais);
+  if (compra) { const d = el('button', 'txt', '+10'); d.onclick = () => por(S.q + 10); mm.append(d); }
+  else if (tudo > 1) { const t = el('button', 'txt', 'Tudo'); t.onclick = () => por(tudo); mm.append(t); }
+  b.onclick = () => { b.disabled = true; setTimeout(() => { b.disabled = false; }, 800); fazer(S.q); leve.sel = null; leve.sujo = true; desenharJogar(); };
+  const corpo = [el('div', 'nome', S.nome || ''), el('div', 'faz', S.n > 1 ? `Você tem ${num(tudo)}` : ''), mm];
+  if (extra) { const x = el('div', 'extra'); x.append(...extra); corpo.push(x); }
+  corpo.push(b);
+  return janelaLeve(corpo);
 }
 
 function cartaoLoja(npc) {
@@ -631,12 +649,12 @@ function cartaoLoja(npc) {
     const f = el('div', 'icones');
     for (const o of leve.mapa.loja) { const sel = leve.sel?.onde === 'comprar' && leve.sel.i === o.i; f.append(itemLeve(o.k, o.n, null, 1, o.preco, sel, () => { leve.sel = sel ? null : { onde: 'comprar', i: o.i, nome: o.n, preco: o.preco }; leve.sujo = true; desenharJogar(); })); }
     c.append(f);
-    if (leve.sel?.onde === 'comprar') { const S = leve.sel; c.append(linhaQtd((n) => `Comprar ${n} por ${n * S.preco}`, 1, (n) => mandar('item', { acao: 'comprar', i: S.i, n }))); }
+    if (leve.sel?.onde === 'comprar') { const S = leve.sel; c.append(linhaQtd((n) => `Comprar ${n} por ${n * S.preco} de ouro`, 1, (n) => mandar('item', { acao: 'comprar', i: S.i, n }), null, true)); }
   }
   if (npc.f === 'loja' || npc.v) {
     c.append(el('div', 'faz', 'Vender (toque no item)'));
     c.append(gradeMochila('vender', true));
-    if (leve.sel?.onde === 'vender') { const S = leve.sel; c.append(linhaQtd((n) => `Vender ${n} por ~${n * S.preco}`, S.n, (n) => mandar('item', { acao: 'vender', i: S.i, n }))); }
+    if (leve.sel?.onde === 'vender') { const S = leve.sel; c.append(linhaQtd((n) => `Vender ${n} por ~${n * S.preco} de ouro`, S.n, (n) => mandar('item', { acao: 'vender', i: S.i, n }))); }
   }
   return c;
 }
@@ -655,10 +673,11 @@ function cartaoLeilao() {
     c.append(gradeMochila('anunciar', false));
     if (leve.sel?.onde === 'anunciar') {
       const S = leve.sel, preco = el('input'), horas = el('select');
-      preco.type = 'number'; preco.min = 1; preco.placeholder = 'Preço'; preco.inputMode = 'numeric';
-      for (const h of L.horas || [24]) horas.append(opcao(h, `${h} h`));
-      c.append(linhaQtd((n) => `Anunciar ${n}`, S.n, (n) => { const p = preco.value | 0; if (p < 1) return aviso('Ponha o preço'); mandar('leilao', { acao: 'anunciar', i: S.i, n, preco: p, horas: Number(horas.value) }); }, [preco, horas]));
-      c.append(el('div', 'faz', `Taxa de anúncio: ${Math.round((L.taxaAnuncio || 0) * 100)}% do preço, paga na hora.`));
+      preco.type = 'number'; preco.min = 1; preco.placeholder = 'Preço de cada'; preco.inputMode = 'numeric';
+      for (const h of L.horas || [24]) horas.append(opcao(h, `${h} h`, String(h) === S.hs));
+      preco.value = S.pv || ''; preco.oninput = () => { S.pv = preco.value; }; horas.onchange = () => { S.hs = horas.value; };
+      const taxa = el('div', 'faz', `Taxa: ${Math.round((L.taxaAnuncio || 0) * 100)}% do preço, paga na hora.`);
+      c.append(linhaQtd((n) => `Anunciar ${n}`, S.n, (n) => { const p = preco.value | 0; if (p < 1) return aviso('Ponha o preço'); mandar('leilao', { acao: 'anunciar', i: S.i, n, preco: p, horas: Number(horas.value) }); }, [preco, horas, taxa]));
     }
   } else {
     const b = el('input'); b.type = 'search'; b.placeholder = 'Buscar item pelo nome'; b.className = 'busca'; b.value = leve.busca;
@@ -669,9 +688,9 @@ function cartaoLeilao() {
     if (!L.lista.length) f.append(el('div', 'faz', 'Nada nessa busca.'));
     c.append(f);
     if (leve.sel?.onde === 'leilao') {
-      const S = leve.sel, l = el('div', 'qtd-linha'), ok = el('button', 'acao', `Comprar ${S.n > 1 ? S.n + ' ' : ''}${S.nome} por ${S.preco}`);
-      ok.onclick = () => { ok.disabled = true; mandar('leilao', { acao: 'comprar', id: S.id }); leve.sel = null; leve.sujo = true; };
-      l.append(el('span', 'faz', `de ${S.v}`), ok); c.append(l);
+      const S = leve.sel, ok = el('button', 'acao', `Comprar por ${S.preco} de ouro`);
+      ok.onclick = () => { ok.disabled = true; mandar('leilao', { acao: 'comprar', id: S.id }); leve.sel = null; leve.sujo = true; desenharJogar(); };
+      c.append(janelaLeve([el('div', 'nome', `${S.n > 1 ? S.n + ' ' : ''}${S.nome}`), el('div', 'faz', `Vendido por ${S.v}`), ok]));
     }
   }
   if (L.meus.length) {
@@ -822,23 +841,45 @@ function cartaoCriar() {
     }
     const sel = criarSel === r, ruim = motivo || !perto;
     const b = el('button', 'linha' + (sel ? ' ativo' : '')); b.append(el('span', null, nome), el('span', null, ruim ? '✕' : `${seg} s`));
-    b.onclick = () => { criarSel = sel ? '' : r; leve.sujo = true; desenharJogar(); };
+    b.onclick = () => { const fecha = sel && leve.sel?.onde === 'criar'; criarSel = fecha ? '' : r; leve.sel = fecha ? null : { onde: 'criar', r, nome }; leve.sujo = true; desenharJogar(); };
     c.append(b);
     if (!sel) continue;
     const f = el('div', 'icones'); for (const [k, n, q] of usa) f.append(icone(k, n, temMo(k), q)); c.append(f);
     if (motivo) c.append(el('div', 'faz', motivo)); else if (!perto) c.append(el('div', 'faz', `Vá até ${estNome.toLowerCase()} (botão acima)`));
-    if (!ruim && !leve.fab) c.append(linhaQtd((n) => `Criar ${n}`, 1, (n) => mandar('criar', { r, n: Math.min(RC.max, n) })));
+    // a janelinha de quantidade (jogo leve mais simples): o material vai junto; tocar fora fecha e desmarca
+    if (!ruim && !leve.fab && leve.sel?.onde === 'criar' && leve.sel.r === r) { const g = el('div', 'icones'); for (const [k, n, q] of usa) g.append(icone(k, n, temMo(k), q)); c.append(linhaQtd((n) => `Criar ${n}`, 1, (n) => { criarSel = ''; mandar('criar', { r, n: Math.min(RC.max, n) }); }, [g], true)); }
   }
   return c;
 }
 
-let lugaresAberto = false, secAberta = ''; // tudo fechado; uma seção aberta por vez (como no jogo: toca abre, toca de novo fecha)
+let lugaresAberto = false, secAberta = '', buscaLug = ''; // tudo fechado; uma seção aberta por vez (como no jogo: toca abre, toca de novo fecha)
 function cartaoLugares(M) {
   const c = el('div', 'card sanfona'), cab = el('button', 'cab');
   cab.append(el('span', null, `${lugaresAberto ? '▾' : '▸'} Lugares`), el('small', 'faz', 'toque para ir'));
   cab.onclick = () => { lugaresAberto = !lugaresAberto; leve.sujo = true; desenharJogar(); };
   c.append(cab);
   if (!lugaresAberto) return c;
+  // 3 (André 2026-11-25): os lugares mais usados em 4 botões grandes (1 toque e o herói vai) e a busca pelo nome; as seções
+  // continuam embaixo. Ir fecha o painel para ver o mapa.
+  const ir = (a) => { irLeve(a); painelLeve = ''; leve.sujo = true; desenharJogar(); };
+  const base = M.lug.find((o) => o[0] === 'vilas' && o[1] === 'Base do clã'), nPerto = (f) => maisPerto(M.npcs.filter(f));
+  const tot = maisPerto(M.totens.filter((t) => t.d)), lei = nPerto((n) => n.f === 'leilao'), loja = nPerto((n) => n.f === 'loja');
+  const at = el('div', 'atalhos');
+  for (const [txt, o] of [['🏰 Minha base', base && { x: base[2], z: base[3], nome: 'Base do clã' }], ['🗿 Totem mais perto', tot && { x: tot.x, z: tot.z, nome: `Totem ${tot.n}` }],
+    ['⚖️ Leilão', lei && { x: lei.x, z: lei.z, nome: lei.n.split(',')[0] }], ['🛒 Loja mais perto', loja && { x: loja.x, z: loja.z, nome: loja.n.split(',')[0] }]]) {
+    const b = el('button'); b.append(document.createTextNode(txt), el('small', null, o ? metros(o) : 'nenhum'));
+    b.disabled = !o; if (o) b.onclick = () => ir(o); at.append(b);
+  }
+  c.append(at);
+  const busca = el('input'), achados = el('div');
+  busca.type = 'search'; busca.className = 'busca'; busca.placeholder = '🔍 Buscar lugar pelo nome'; busca.value = buscaLug;
+  const achar = () => {
+    buscaLug = busca.value; limpar(achados); const t = semAcento(buscaLug); if (!t) return;
+    const r = M.lug.filter((o) => semAcento(o[1]).includes(t)).sort((a, b) => dEu({ x: a[2], z: a[3] }) - dEu({ x: b[2], z: b[3] })).slice(0, 12);
+    for (const [, nome, x, z] of r) { const b = el('button', 'linha'); b.append(el('span', null, nome), el('span', null, metros({ x, z }))); b.onclick = () => ir({ x, z, nome: nome.split(',')[0].replace(/ \(mais perto\)$/, '') }); achados.append(b); }
+    if (!r.length) achados.append(el('div', 'faz', 'Nada com esse nome.'));
+  };
+  busca.oninput = achar; c.append(busca, achados); achar();
   const pagaPk = new Map((leve.pk?.e || []).map((o) => [o[1], o[4] + o[5]]));
   for (const [id, titulo] of SECOES) {
     const L = M.lug.filter((o) => o[0] === id); if (!L.length) continue;
@@ -850,7 +891,7 @@ function cartaoLugares(M) {
     for (const [, nome, x, z] of lista) {
       const curto = nome.split(',')[0], pg = id === 'mercadores' ? pagaPk.get(curto) : 0;
       const b = el('button', 'linha'); b.append(el('span', null, id === 'mercadores' ? curto : nome), el('span', null, `${pg ? pg + ' de ouro · ' : ''}${metros({ x, z })}`));
-      b.onclick = () => irLeve({ x, z, nome: curto.replace(/ \(mais perto\)$/, '') });
+      b.onclick = () => ir({ x, z, nome: curto.replace(/ \(mais perto\)$/, '') });
       c.append(b);
     }
   }
@@ -881,22 +922,24 @@ function desenharJogar() {
   if (!st) { st = el('div', 'card hud'); st.id = 'jogarStatus'; }
   limpar(st);
   const vm = el('div', 'vm'); vm.append(barra('Vida', hp, hpM, 'var(--hp)'), barra('Mana', mn, mnM, '#3d7fd0')); if (vgM) vm.append(barra('Vigor', vg, vgM, '#6fbf5a')); for (const d of vm.children) d.style.flex = '1'; st.append(vm);
-  st.append(el('div', 'faz', `Nv ${nv} · ${ouro} de ouro${pack ? ' · pack nas costas' : ''}${montado ? ' · no lobo' : ''}${leve.pk?.car?.onde === 2 ? ' · no carrinho' : ''}`));
-  if (leve.rec > Date.now()) st.append(el('div', 'nome', `Recall para a base do clã… ${Math.ceil((leve.rec - Date.now()) / 1000)} s (toque de novo para desistir)`));
+  // 1 (André 2026-11-25): o quadro de cima só com a conta num relance e uma frase do que está acontecendo; Montar, Recall,
+  // Sair e Ajuda viraram os botões redondos à direita (desenhados junto com a barra de baixo)
+  const moIt = leve.mo?.it || [], moL = leve.mo?.l || 0, conta = el('div', 'conta');
+  conta.append(document.createTextNode(`Nv ${nv} · 💰 ${num(ouro)} · `), el('span', moL && moIt.length >= moL ? 'cheia' : '', `🎒 ${moIt.length}/${moL}`));
+  st.append(conta);
+  const extras = [pack && '📦 pack nas costas', montado && '🐺 no lobo', leve.pk?.car?.onde === 2 && '🛒 no carrinho'].filter(Boolean);
+  if (extras.length) st.append(el('div', 'faz', extras.join(' · ')));
+  if (leve.rec > Date.now()) st.append(el('div', 'nome', `🏠 Voltando para a base… ${Math.ceil((leve.rec - Date.now()) / 1000)} s (toque 🏠 de novo para desistir)`));
   if (leve.fab) { const s = Math.max(0, Math.ceil((leve.fab.ate - Date.now()) / 1000)); st.append(el('div', 'nome', `Fazendo ${leve.fab.nome}… ${s} s (fique perto)`)); }
   const R = leve.f.r;
   if (morto) st.append(el('div', 'nome', 'Você caiu. Espere renascer no totem.'));
   else if (R) {
-    st.append(el('div', 'nome', `Indo até ${leve.rotaNome || 'o ponto'} · faltam ${R[0]} m · ~${R[1] >= 60 ? Math.floor(R[1] / 60) + ' min ' : ''}${R[1] % 60} s`));
-  } else st.append(el('div', 'faz', 'Toque no mapa para ir até lá.'));
-  const bt = el('div', 'bts mini');
-  if (R) { const p = el('button', 'acao cinza', 'Parar'); p.onclick = () => mandar('leveParar'); bt.append(p); }
-  // montaria (André 2026-11-25): a mesma mensagem do jogo ('montar'); com pack, em combate ou antes de liberar o servidor recusa
-  if (!leve.pk?.car || leve.pk.car.onde !== 2) { const mt = el('button', 'acao cinza', montado ? 'Descer do lobo' : 'Montar lobo'); mt.onclick = () => mandar('montar'); bt.append(mt); }
-  const casa = el('button', 'acao cinza', 'Recall (base)'); casa.onclick = () => mandar('vila'); bt.append(casa); // o mesmo da casinha do jogo (Simulacao.voltarVila): canaliza e aparece no Baú do Clã
-  const sai = el('button', 'acao cinza', 'Sair'); sai.onclick = sairLeve; bt.append(sai);
-  st.append(bt);
-  const P = pertoAgora(), chave = [P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(',')].join('|');
+    const l = el('div', 'bts mini'), p = el('button', 'acao cinza', 'Parar'); p.onclick = () => mandar('leveParar'); p.style.flex = '0 0 auto';
+    l.style.alignItems = 'center'; l.style.flexWrap = 'nowrap';
+    l.append(el('div', 'nome', `🚶 ${leve.rotaNome || 'Andando'} · ${R[0]} m · ${R[1] >= 60 ? Math.floor(R[1] / 60) + ' min' : R[1] + ' s'}`), p);
+    l.firstChild.style.flex = '1'; st.append(l);
+  } else st.append(el('div', 'faz', 'Toque no mapa ou em 🧭 Ir para.'));
+  const P = pertoAgora(), chave = [montado ? 'm' : '', P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(',')].join('|');
   if (chave === jogarChave && !leve.sujo && raiz.contains(st)) return;
   if (document.activeElement?.tagName === 'INPUT' && raiz.contains(document.activeElement) && chave === jogarChave) return; // digitando: não refaz
   if (chave !== jogarChave) { leve.sel = null; if (!P.npc || P.npc.f !== 'leilao') leve.leilao = null; if (!P.bau) leve.bau = null; }
@@ -914,7 +957,7 @@ function desenharJogar() {
     const f = el('div', 'folha'), cab = el('div', 'folhaCab'), x = el('button', 'fecha', '✕');
     x.setAttribute('aria-label', 'Fechar'); x.onclick = () => abrirPainelLeve('');
     const it = leve.mo?.it || [];
-    cab.append(el('span', 'nome', painelLeve === 'perto' ? 'Perto de você' : painelLeve === 'mochila' ? `Mochila ${it.length}/${leve.mo?.l || 0}` : painelLeve === 'criar' ? 'Criar' : 'Lugares'), x);
+    cab.append(el('span', 'nome', painelLeve === 'perto' ? '📍 Aqui perto' : painelLeve === 'mochila' ? `🎒 Mochila ${it.length}/${leve.mo?.l || 0}` : painelLeve === 'criar' ? '🔨 Criar' : '🧭 Ir para'), x);
     f.append(cab);
     if (painelLeve === 'perto') {
       if (P.npc) {
@@ -940,15 +983,37 @@ function desenharJogar() {
     rolouChave = chave; rolouPainel = painelLeve;
     f.onscroll = () => { rolouChave = chave; rolouPainel = painelLeve; };
   }
+  // 2 (André 2026-11-25): barra de baixo com ícone e nome; o 1º botão diz onde você está (acende ao chegar)
   const doca = el('div', 'doca');
   const temPerto = algo || !!(P.car || P.chao?.length || leve.pk?.c);
-  for (const [k, txt] of [['perto', 'Perto'], ['mochila', 'Mochila'], ['criar', 'Criar'], ['lugares', 'Lugares'], ['chat', 'Chat']]) {
-    const b = el('button', (painelLeve === k ? 'ativo' : '') + (k === 'perto' && temPerto ? ' tem' : ''), txt);
+  const aqui = P.npc ? P.npc.n.split(',')[0] : P.bau ? (P.bau.cla ? 'Baú do Clã' : 'Baú') : P.totem ? 'Totem' : temPerto ? 'Pack' : 'Aqui';
+  for (const [k, ic, txt] of [['perto', '📍', aqui], ['mochila', '🎒', 'Mochila'], ['criar', '🔨', 'Criar'], ['lugares', '🧭', 'Ir para'], ['chat', '💬', 'Chat']]) {
+    const b = el('button', (painelLeve === k ? 'ativo' : '') + (k === 'perto' && temPerto ? ' tem' : ''));
+    b.append(el('i', null, ic), document.createTextNode(txt));
     b.onclick = () => abrirPainelLeve(painelLeve === k ? '' : k);
     doca.append(b);
   }
   raiz.append(doca);
+  // os botões redondos à direita: lobo, base (recall), sair e ajuda
+  const rd = el('div', 'redondos'), red = (ic, txt, fazer, ativo) => { const b = el('button', ativo ? 'ativo' : ''); b.append(el('i', null, ic), document.createTextNode(txt)); b.onclick = fazer; rd.append(b); };
+  if (!leve.pk?.car || leve.pk.car.onde !== 2) red('🐺', montado ? 'Descer' : 'Lobo', () => mandar('montar'), montado); // a mesma mensagem do jogo ('montar')
+  red('🏠', 'Base', () => mandar('vila'), leve.rec > Date.now()); // o mesmo da casinha do jogo (Simulacao.voltarVila): canaliza e aparece no Baú do Clã
+  red('⏻', 'Sair', () => { if (confirm('Sair do mundo? Seu herói sai do jogo.')) sairLeve(); });
+  red('❓', 'Ajuda', () => { dicaAberta = true; leve.sujo = true; desenharJogar(); });
+  raiz.append(rd);
+  // 5: a dica da primeira vez (guardada no aparelho; o ❓ mostra de novo)
+  if (dicaAberta === null) { try { dicaAberta = !localStorage.getItem('leveDica1'); } catch { dicaAberta = false; } }
+  if (dicaAberta) {
+    const ok = el('button', 'acao', 'Entendi');
+    ok.onclick = () => { dicaAberta = false; try { localStorage.setItem('leveDica1', '1'); } catch { /* sem armazenamento */ } leve.sujo = true; desenharJogar(); };
+    const d = el('div', 'dica');
+    for (const t of ['👆 Toque no mapa: seu herói anda até lá sozinho, pela estrada.', '🧭 Ir para: base, totem, leilão e loja com 1 toque, ou busque pelo nome.',
+      '📍 Chegou numa loja, baú ou totem: a janela dele abre sozinha.', '🎒 Mochila mostra o que você leva. Toque num item da loja ou do baú para vender, comprar ou guardar.',
+      '🐺 monta no lobo · 🏠 volta para a base do clã · ⏻ sai do mundo.']) d.append(el('div', null, t));
+    const j = janelaLeve([el('div', 'nome', 'Como jogar o modo leve'), d, ok]); j.onclick = null; raiz.append(j);
+  }
 }
+let dicaAberta = null;
 let rolouChave = '', rolouPainel = ''; // onde a folha do modo leve estava rolada (ver desenharJogar)
 let painelLeve = ''; // '' (só o mapa), 'perto', 'mochila', 'lugares' ou 'chat'
 function abrirPainelLeve(k) {
