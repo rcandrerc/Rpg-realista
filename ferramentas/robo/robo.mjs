@@ -19,6 +19,8 @@ import { xpProximo, reforcoOk } from '../../shared/progresso.js';
 import { noLago } from '../../shared/relevo.js';
 import { planejarRota } from '../../shared/rota.js';
 import { listaVenda as listaVendaDe, POCOES, campoPerigoso, listaMudou } from './robo-escolhas.mjs';
+import { terraDoCampo, terraEm, totemDaTerra, outraTerraParaCacar } from './robo-escolhas.mjs'; // viajar de terra (ronda 2026-11-25)
+import { VOLTA_VILA } from '../../shared/index.js'; // casinha (ronda 2026-11-25)
 import { liberado, zonaFechadaEm } from '../../shared/historia.js';
 
 // ---------- opções ----------
@@ -160,7 +162,7 @@ function lerEvento(e) {
     if (/^Mochila cheia/.test(String(e.texto || ''))) cheioT = Date.now();
   } else if (e.t === 'coletou') { R.coletas++; if (!e.cargas) coletando = 0; }
   else if (e.t === 'vila' && e.id === sala?.sessionId) { // totem ou casinha: o servidor leva o herói para outro lugar
-    if (e.fase === 'chegou') { eu.x = e.x; eu.y = e.y; eu.z = e.z; parar(); viajandoAte = 0; R.viagens = (R.viagens || 0) + 1; }
+    if (e.fase === 'chegou') { eu.x = e.x; eu.y = e.y; eu.z = e.z; parar(); viajandoAte = 0; correcoesSeguidas = 0; R.viagens = (R.viagens || 0) + 1; } // lugar novo: as correções de antes (na névoa) não contam
     else if (e.fase === 'cancela') viajandoAte = 0;
   } else if (e.t === 'leilao') leilaoInfo = e;
   else if (e.t === 'pesca') { pescaT = Date.now(); pescaSt = e.st === 'fim' || e.st === 'pegou' ? '' : e.st; if (e.st === 'pegou') { R.peixes = (R.peixes || 0) + 1; falarT = Date.now(); } if (e.st === 'fim') falarT = Date.now(); }
@@ -249,11 +251,70 @@ function lutar(e, agora) {
   if (agora - golpeT > 450) { golpeT = agora; mandar('habQ', 'espada_basico'); }
 }
 
+// ---------- viajar de terra (ronda 2026-11-25: 10 h no Nv 74 caçando bicho Nv 48 em Vael com a Aurora aberta) ----------
+// O mar separa Vael, a Ilha do Meio e a Aurora, e a pé a rota não atravessa. Com o totem de lá já visitado (como o
+// jogador), vai ao totem mais perto aqui, pede a viagem e espera o canal (TOTENS.canal s parado). true = está viajando.
+// Viagem que não dá certo em 6 min (ouro, névoa, totem longe) vira achado e essa terra fica de fora por 30 min.
+let viagem = null; const terraFalhou = new Map(); // terra -> até quando não tenta de novo
+function totemAqui() { // o totem aberto mais perto na terra em que ele está (para sair; não precisa ser visitado)
+  const minha = terraEm(CACA, eu.x, eu.z);
+  return TOTENS.lista.filter((t) => terraEm(CACA, t.x, t.z) === minha && !(prog && zonaFechadaEm(prog, t.x, t.z))).sort((a, b) => d2(eu, a) - d2(eu, b))[0] || null;
+}
+// Ronda 2026-11-25: o "zerar" do fim da história (missaoTeste) deixa o robô onde está, e lá (Aurora, Ilha, fundo de Vael)
+// tudo volta para a névoa: o servidor recusa todo passo dele, nem até o totem. Como o jogador, usa a casinha (volta para a
+// vila: VOLTA_VILA.canal s parado, recarga de VOLTA_VILA.cd s). true = está voltando.
+let casinhaT = 0;
+function presoNaNevoa() { return !!(prog && zonaFechadaEm(prog, eu.x, eu.z)); }
+function casinha(agora, motivo) {
+  if ((prog?.vilaAte || 0) > Date.now()) return false; // recarga
+  if (agora < viajandoAte) return true; // canalizando
+  const bicho = alvoPerto(5); if (bicho) { lutar(bicho, agora); return true; } // apanhando: o canal cancela com dano
+  parar();
+  if (agora - casinhaT < 4000) return true;
+  if (!casinhaT || agora - casinhaT > 60e3) log(`volta para a vila pela casinha (${motivo})`);
+  casinhaT = agora; viajandoAte = agora + (VOLTA_VILA.canal + 3) * 1000;
+  acao('vila');
+  return true;
+}
+function viajarParaTerra(terra, agora, motivo, perto) {
+  const aqui = terraEm(CACA, eu.x, eu.z);
+  if (terra === aqui) { if (viagem) { log('chegou na terra', terra, `(${viagem.motivo})`); viagem = null; } return false; }
+  if ((terraFalhou.get(terra) || 0) > agora || !prog) return false;
+  const para = totemDaTerra(TOTENS.lista, CACA, terra, prog.totens || [], (t) => !!zonaFechadaEm(prog, t.x, t.z), perto?.x ?? eu.x, perto?.z ?? eu.z);
+  const de = totemAqui();
+  if (!para || !de) return false;
+  // viagem largada no meio (foi vender, vestir) e retomada depois de 30 s: conta os 6 min de novo
+  if (!viagem || viagem.terra !== terra || agora - viagem.ultT > 30e3) { viagem = { terra, motivo, t0: agora, pediuT: 0 }; log(`vai de totem para a terra ${terra} (${motivo}): ${de.nome} -> ${para.nome}`); }
+  viagem.ultT = agora;
+  if (agora - viagem.t0 > 6 * 60e3) {
+    terraFalhou.set(terra, agora + 30 * 60e3);
+    problema(`Viagem de totem para a terra ${terra} (${motivo}) não deu certo em 6 min${ultimoAviso ? `, último aviso: ${ultimoAviso}` : ''}`);
+    viagem = null; return false;
+  }
+  if (agora < viajandoAte) return true; // canalizando no totem
+  const bicho = alvoPerto(5); if (bicho) { lutar(bicho, agora); return true; } // apanhando no caminho: o canal cancela com dano
+  if (!irPara(de.x, de.z, 3)) return true;
+  parar();
+  if (agora - viagem.pediuT < 4000) return true;
+  viagem.pediuT = agora; viajandoAte = agora + (TOTENS.canal + 3) * 1000;
+  acao('totem', { para: para.id });
+  return true;
+}
+
 // ---------- caçar (sem missão para o nível dele, ou esperando) ----------
 let campoCaca = null, campoT = 0;
 const camposRuins = new Set(); let campoXp = -2, campoXpT = 0; // campos onde não ganhou XP neste turno
 const mortesCampo = []; // onde e quando morreu caçando (campoPerigoso: 3 mortes em 10 min no mesmo campo, troca)
-function cacar(agora) {
+let cacaViagem = null; const faltaAvisada = new Set(); // a terra para onde vai caçar; terras sem totem já anotadas no turno
+let cacaPonto = null; // o ponto sorteado no campo (fixo até chegar ou trocar de campo)
+// podeViajar: só quando ele caça para subir de nível (sem missão do nível, --cacar); caçando no meio de uma etapa ele
+// fica na terra dele (senão ia e voltava entre a terra da etapa e a do campo)
+function cacar(agora, podeViajar = false) {
+  if (cacaViagem) {
+    if (!podeViajar) cacaViagem = null;
+    else if (viajarParaTerra(cacaViagem.terra, agora, `caçar no ${cacaViagem.campo.nome}`, cacaViagem.campo)) return;
+    else { if (terraEm(CACA, eu.x, eu.z) === cacaViagem.terra) { campoCaca = null; campoT = 0; } cacaViagem = null; }
+  }
   // ronda 2026-11-17: com raio de 40 m em volta dele, o robô ficava na vila matando Puglin Nv 1 (renasce sempre) e nunca
   // chegava ao campo do nível. Agora: só o que está no campo, ou o que encosta nele (até 5 m) no caminho
   let e = alvoPerto(campoCaca ? 40 : 18);
@@ -277,18 +338,36 @@ function cacar(agora) {
     // ronda 2026-11-23 (André: "tá nível 60, 70, fica lá matando o bicho nível 1"): só campo da MESMA terra em que ele
     // está (Clareira/Vael, Ilha do Meio, Aurora: sem barco ele não atravessa o mar) e nunca mais o CACA[0] (Nv 1) de
     // reserva: sem campo na faixa, vai ao mais forte que alcança na terra dele
-    const terra = (c) => (/\(Ilha/.test(c.nome || '') ? 'ilha' : /\(Aurora/.test(c.nome || '') ? 'aurora' : 'vael');
-    let perto = null; for (const c of CACA) if (!c.boss && (!perto || d2(eu, c) < d2(eu, perto))) perto = c;
-    const minha = perto ? terra(perto) : 'vael';
-    const ok = (c) => !c.boss && (c.nivel || 1) <= nv && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && terra(c) === minha && !(prog && zonaFechadaEm(prog, c.x, c.z));
+    const terra = terraDoCampo, minha = terraEm(CACA, eu.x, eu.z);
+    const aberto = (c) => !c.boss && (c.nivel || 1) <= nv && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && !(prog && zonaFechadaEm(prog, c.x, c.z));
+    const ok = (c) => aberto(c) && terra(c) === minha;
     const bons = CACA.filter((c) => ok(c) && (c.nivel || 1) >= nv - 6).sort((a, b) => d2(eu, a) - d2(eu, b));
+    // ronda 2026-11-25: sem campo do nível aqui, vai de totem para a terra que tem (visitada e aberta); sem totem de lá,
+    // anota o que falta (Ilha só de barquinho, Aurora só de navio: o robô ainda não sabe) e caça no mais forte daqui
+    if (!bons.length && podeViajar && prog) {
+      const o = outraTerraParaCacar({ minha, campos: CACA, totens: TOTENS.lista, visitados: prog.totens || [], ok: aberto, fechado: (t) => !!zonaFechadaEm(prog, t.x, t.z) });
+      if (o && !o.semTotem && !((terraFalhou.get(o.terra) || 0) > agora)) {
+        cacaViagem = o; R.caca = { terra: minha, vai: o.terra, campo: o.campo.nome, nivel: o.campo.nivel, totem: o.totem.id, totens: prog.totens || [] };
+        log(`sem campo do nível em ${minha}: vai caçar no ${o.campo.nome} (Nv ${o.campo.nivel}), de totem até ${o.totem.nome}`);
+        return;
+      }
+      if (o?.semTotem) {
+        const falta = `${o.terra === 'ilha' ? 'barquinho para a Ilha do Meio' : 'navio para a Aurora'} (campo Nv ${o.campo.nivel}, totem de lá não visitado)`;
+        R.caca = { terra: minha, falta, totens: prog.totens || [] };
+        if (!faltaAvisada.has(o.terra)) { faltaAvisada.add(o.terra); problema(`Sem campo do nível em ${minha} (Nv ${nv}): falta ${falta}`); }
+      }
+    }
     const alcanca = CACA.filter(ok).sort((a, b) => (b.nivel || 1) - (a.nivel || 1));
     campoCaca = bons[Math.floor(Math.random() * Math.min(3, bons.length))] || alcanca[Math.floor(Math.random() * Math.min(2, alcanca.length))]
       || CACA.filter((c) => !c.boss && !/^Covil/.test(c.nome || '') && terra(c) === minha && (c.nivel || 1) <= nv).sort((a, b) => (b.nivel || 1) - (a.nivel || 1))[0] || CACA[0];
     if ((campoCaca.nivel || 1) < nv - 15) log('sem campo do nível na terra dele, caça no mais forte que alcança:', campoCaca.nome, 'Nv', campoCaca.nivel);
+    R.caca = { ...(R.caca?.falta && R.caca.terra === minha ? { falta: R.caca.falta } : {}), terra: minha, campo: campoCaca.nome, nivel: campoCaca.nivel || 1, totens: prog?.totens || [] };
     campoT = agora;
   }
-  if (irPara(campoCaca.x + (Math.random() - 0.5) * 6, campoCaca.z + (Math.random() - 0.5) * 6, 4)) parar();
+  // ronda 2026-11-25: o ponto no campo é sorteado uma vez (até chegar ou trocar de campo). Sorteado a cada passo, a rota
+  // era refeita 20 vezes por segundo e, na Aurora, um ponto repetido da estrada puxava o robô de volta: 5 min parado
+  if (!cacaPonto || cacaPonto.campo !== campoCaca) cacaPonto = { campo: campoCaca, x: campoCaca.x + (Math.random() - 0.5) * 6, z: campoCaca.z + (Math.random() - 0.5) * 6 };
+  if (irPara(cacaPonto.x, cacaPonto.z, 4)) { parar(); cacaPonto = null; }
 }
 
 // ---------- mochila cheia: vende com o vendedor aberto mais perto (André 2026-11-16: o robô passava o turno com a
@@ -304,10 +383,11 @@ function protegido(o) {
 }
 const listaVenda = (m) => listaVendaDe(m, protegido);
 function vendedorPerto() {
-  let b = null, md = Infinity;
+  let b = null, md = Infinity; const minha = terraEm(CACA, eu.x, eu.z);
   for (const n of MAPA_CLAREIRA.npcs) {
     if (n.funcao !== 'loja' && !(n.acoes || []).includes('vender')) continue;
     if (prog && zonaFechadaEm(prog, n.x, n.z)) continue;
+    if (terraEm(CACA, n.x, n.z) !== minha) continue; // ronda 2026-11-25: o mais perto em linha reta pode estar do outro lado do mar
     const d = d2(eu, n); if (d < md) { md = d; b = n; }
   }
   return b;
@@ -403,22 +483,27 @@ function pular(motivo) {
 }
 function receitaDe(k) { if (RECEITAS[k]) return k; return Object.keys(RECEITAS).find((r) => RECEITAS[r].faz === k) || null; }
 function missao(agora) {
-  const h = prog?.hist; if (!h) return cacar(agora);
-  if (listaMudou(HISTORIA, h)) return cacar(agora); // lista do servidor mudou no meio do turno: nem missão errada nem zerar
+  const h = prog?.hist; if (!h) return cacar(agora, true);
+  if (listaMudou(HISTORIA, h)) return cacar(agora, true); // lista do servidor mudou no meio do turno: nem missão errada nem zerar
   if (h.p >= HISTORIA.length) { log('fez a história toda: começa de novo'); mandar('missaoTeste', { acao: 'zerar' }); return; }
   // travou: a mesma etapa, o mesmo andamento e o mesmo texto há TRAVA_MIN minutos
   const k = `${h.p}:${h.ac}:${h.e}:${h.n}:${h.m}:${hi?.txt}`;
   if (k !== etapaK) { etapaK = k; etapaDesde = agora; correcoesSeguidas = 0; bloqueio = ''; reto = false; coletando = 0; }
   const M = HISTORIA[h.p];
+  if (presoNaNevoa() && casinha(agora, `dentro da névoa, missão ${M.id}`)) return; // ronda 2026-11-25: depois do "zerar"
   if (!h.ac && (prog.nivel || 1) < M.nv) { // ainda não tem o nível: caça até chegar
     if (agora - etapaDesde > 3 * TRAVA_MIN * 60e3 && (prog.xp ?? -1) === xpGrind) { etapaDesde = agora; problema(`Caçando há ${3 * TRAVA_MIN} min sem ganhar XP para chegar ao Nv ${M.nv} (${M.id})`); campoCaca = null; }
     if ((prog.xp ?? -1) !== xpGrind) { xpGrind = prog.xp ?? -1; etapaDesde = agora; }
-    return cacar(agora);
+    return cacar(agora, true); // subindo de nível: pode ir de totem para a terra que tem campo do nível
   }
   if (agora - etapaDesde > TRAVA_MIN * 60e3) return pular(`ficou ${TRAVA_MIN} min sem andar ("${hi?.txt || ''}"${ultimoAviso ? `, último aviso: ${ultimoAviso}` : ''})`);
   if (correcoesSeguidas > 20 && destino && !reto) { reto = true; rota = [{ x: destino.x, z: destino.z }]; } // a estrada passa na névoa: tenta reto
   if (correcoesSeguidas > 40) { correcoesSeguidas = 0; problema(`Posição recusada sem parar indo para ${hi?.alvo?.nome || '?'} (${M.id})${bloqueio ? `, caminho com ${bloqueio}` : ''}`); }
   const a = hi?.alvo;
+  // ronda 2026-11-25: caçando ele pode ter ido de totem para outra terra; a etapa (ou o NPC dela) do outro lado do mar:
+  // volta de totem antes de andar (a pé a rota não atravessa e a etapa travava em 15 min)
+  { const lugar = hi?.npc ? (a?.npc === hi.npc ? a : npcDe(hi.npc)) : a;
+    if (lugar && viajarParaTerra(terraEm(CACA, lugar.x, lugar.z), agora, `missão ${M.id}`, lugar)) return; }
   if (hi?.npc) { // botão Missão no NPC
     const n = a?.npc === hi.npc ? a : npcDe(hi.npc); if (!n) return pular(`NPC ${hi.npc} não existe no mapa`); // o Ir diz onde o NPC está agora
     if (!irPara(n.x, n.z, 2.5)) return;
@@ -571,7 +656,7 @@ async function main() {
     if (agora - relT > 10 * 60e3) { relT = agora; mandarRelatorio(); }
     if (!sala || !eu.pronto) continue;
     if (agora - pingT > 2000) { pingT = agora; mandar('ping', Math.round(performance.now())); } // número pequeno, como o app (Date.now() vira inteiro de 64 bits)
-    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora); else missao(agora); } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
+    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora, true); else missao(agora); } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
     const andou = andar(dt);
     mandar('pos', { x: +eu.x.toFixed(3), y: +eu.y.toFixed(3), z: +eu.z.toFixed(3), ry: +eu.ry.toFixed(3), anim: andou ? 'correr' : 'parado', c: corrSeq });
     if (andou) correcoesSeguidas = Math.max(0, correcoesSeguidas - 0.02);
