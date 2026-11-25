@@ -19,6 +19,8 @@ var _sb: StyleBoxFlat
 var _desl := Vector2.ZERO # lugar guardado (editar_hud.gd)
 var _s := 1.0
 var _livre := false
+var _bf: Array = [] # buffs e debuffs do alvo (buffs.gd): fileira de ícones embaixo do quadro (André 2026-11-25)
+const BF_TAM := 20.0
 
 func _init(principal) -> void:
 	m = principal
@@ -46,7 +48,7 @@ func area() -> Rect2:
 
 # quanto a coluna da esquerda (missao_ativa.gd) desce para não ficar embaixo do quadro (só quando ele está na coluna)
 func altura() -> float:
-	return (TAM.y + 4.0) * _s if tela != null and tela.visible and not _livre else 0.0
+	return (TAM.y + 4.0 + (BF_TAM + 3.0 if not _bf.is_empty() else 0.0)) * _s if tela != null and tela.visible and not _livre else 0.0
 
 func _lugar() -> Vector2:
 	if _livre:
@@ -97,9 +99,12 @@ func _process(_dt: float) -> void:
 		return
 	var d := _dados()
 	var pos := _lugar()
-	var chave := "" if d.is_empty() else "%s|%d|%d|%d|%s|%s" % [d.nome, d.nivel, int(ceil(d.vida)), int(d.max), pos, _s]
+	_bf = [] if d.is_empty() or m.buffs == null else m.buffs.do_alvo(m.alvo_atual)
+	var chave := "" if d.is_empty() else "%s|%d|%d|%d|%s|%s|%s" % [d.nome, d.nivel, int(ceil(d.vida)), int(d.max), pos, _s, m.buffs.assinatura(_bf) if m.buffs else ""]
 	if chave == _chave:
 		return
+	if (d.is_empty() or _bf.is_empty()) and m.buffs:
+		m.buffs.limpar("alvo")
 	_chave = chave
 	_d = d
 	tela.position = pos
@@ -127,6 +132,9 @@ func _desenhar() -> void:
 	var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
 	tela.draw_string_outline(f, bp + Vector2((bt.x - w) * 0.5, bt.y - 2), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, 3, Color(0, 0, 0, 0.7))
 	tela.draw_string(f, bp + Vector2((bt.x - w) * 0.5, bt.y - 2), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color.WHITE)
+	if not _bf.is_empty() and m.buffs: # atordoado, lento, Quebrado, buff do clã ou da comida do outro: embaixo do quadro
+		var bpos := Vector2(4, TAM.y + 3.0)
+		m.buffs.desenhar(tela, "alvo", _bf, bpos, BF_TAM, tela.position + bpos * _s, _s, 8)
 
 # duas espadas cruzadas (desenhadas, sem depender de símbolo na fonte): inimigo
 func _espadas(c: Vector2, r: float) -> void:

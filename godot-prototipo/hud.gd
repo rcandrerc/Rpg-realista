@@ -55,6 +55,7 @@ var minimapa # minimapa.gd: toque no minimapa abre o mapa completo (não vira c�
 var construcao # construcao.gd: toque na barra do modo construção (e na janela de compra) não vira joystick nem câmera
 var troca # troca.gd: o cartão do pedido de troca não vira joystick nem câmera
 var missao # missao_ativa.gd: o cartão da missão ativa (e o "Ir para") não vira joystick nem câmera
+var buffs # buffs.gd: tocar num ícone de buff/debuff abre a dica (não vira joystick nem câmera)
 const PAINEL := Rect2(18, 14, 330, 104) # tocar aqui abre o menu do personagem; segurar abre o modo de editar a interface
 # modo de editar a interface (André 2026-11-06, editar_hud.gd): cada elemento ganha um deslocamento (d, px) e uma escala (s)
 var painel_d := Vector2.ZERO
@@ -321,6 +322,8 @@ func _input(ev: InputEvent) -> void:
 			soltar_tudo()
 		return
 	if ev is InputEventScreenTouch:
+		if ev.pressed and buffs and buffs.tocar(ev.position): # ícone de buff/debuff (herói, alvo, time): dica
+			return
 		if ev.pressed and menu_topo and menu_topo.cobre(ev.position):
 			return
 		if ev.pressed and minimapa and minimapa.cobre(ev.position) and not _no_zoom(ev.position): # tocar no minimapa abre o mapa (minimapa.gd)
@@ -531,7 +534,8 @@ func _process_parte(dt: float) -> void:
 	# mana enchendo devagar redesenhavam o painel todo quadro sem mudar nada na tela). Se só as barras mudaram, o painel
 	# redesenha em quadro par (30 vezes por segundo, como o brilho do selo que já era 15).
 	var st := [snappedf(vida, BARRA_Q), snappedf(mana, BARRA_Q), snappedf(estamina, BARRA_Q), snappedf(vigor, BARRA_Q), snappedf(xp, BARRA_Q),
-		texto_vida, texto_mana, nivel, nome, modo, escudo, sem_folego, canal_vila, canal_vila_txt, painel_d, painel_s, retrato, _tela.size]
+		texto_vida, texto_mana, nivel, nome, modo, escudo, sem_folego, canal_vila, canal_vila_txt, painel_d, painel_s, retrato, _tela.size,
+		buffs.assinatura(buffs.do_heroi()) if buffs else ""] # buffs e debuffs do herói (buffs.gd): ícone entra ou sai na hora
 	if anim_tela or q % 4 == 0 or (st != _sinal_tela and (q % 2 == 0 or _sinal_tela.size() != st.size() or st.slice(5) != _sinal_tela.slice(5))):
 		_sinal_tela = st
 		_tela.queue_redraw()
@@ -701,6 +705,14 @@ func _desenhar() -> void:
 	_icone_barra("vigor", p0 + Vector2(103, 84.5), cor_vig)
 	_barra_fina(p0 + Vector2(113, 82), Vector2(204, 5), vigor, cor_vig, Color(1.0, 0.96, 0.7))
 	_barra_xp(p0 + Vector2(92, 91), Vector2(225, 11))
+	# buffs e debuffs do herói (André 2026-11-25, buffs.gd): fileira de ícones logo à direita da barra de vida; tocar = dica
+	if buffs:
+		var bl: Array = buffs.do_heroi() if not editando else []
+		if bl.is_empty():
+			buffs.limpar("heroi")
+		else:
+			var bp := Vector2(PAINEL.size.x + 6.0, 29.0)
+			buffs.desenhar(_tela, "heroi", bl, bp, 24.0, PAINEL.position + painel_d + bp * painel_s, painel_s, 8)
 	_tela.draw_set_transform(Vector2.ZERO)
 	if canal >= 0.0 and canal_vila: # Voltar para a vila: barra própria no meio da tela, acima dos botões (direção de arte)
 		var tam := Vector2(280, 10)
