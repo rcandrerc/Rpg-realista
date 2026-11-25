@@ -412,9 +412,10 @@ $('mapaCentro').onclick = () => { vista = null; desenharMapa(); };
 }
 
 function desenharMapa() {
-  const cv = $('mapa'), lado = Math.round(cv.clientWidth * Math.min(2, devicePixelRatio || 1)) || 600;
-  if (cv.width !== lado) cv.width = cv.height = lado;
-  const g = cv.getContext('2d'), W = cv.width;
+  // Jogar (André 2026-11-25: "tem q rolar muito"): o mapa ocupa a tela toda, então pode ser mais alto que largo; span = metros na largura
+  const cv = $('mapa'), dpr = Math.min(2, devicePixelRatio || 1), lado = Math.round(cv.clientWidth * dpr) || 600, alto = Math.round(cv.clientHeight * dpr) || lado;
+  if (cv.width !== lado || cv.height !== alto) { cv.width = lado; cv.height = alto; }
+  const g = cv.getContext('2d'), W = cv.width, H = cv.height;
   const pts = [];
   for (const m of info.m || []) if (m.on && Number.isFinite(m.x)) pts.push({ x: m.x, z: m.z, cor: '#f2b84b', nome: m.nome, r: 6 });
   const jogando = aba === 'jogar' && leve.f;
@@ -434,9 +435,9 @@ function desenharMapa() {
     const x0 = Math.min(...base.map((p) => p.x)), x1 = Math.max(...base.map((p) => p.x)), z0 = Math.min(...base.map((p) => p.z)), z1 = Math.max(...base.map((p) => p.z));
     quadro = limitar({ cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, span: Math.max(320, (Math.max(x1 - x0, z1 - z0)) * 1.25) }); // de 320 m para cima: dá para ver onde fica
   } else quadro = vista;
-  const { span } = quadro, x0 = quadro.cx - span / 2, z0 = quadro.cz - span / 2;
+  const { span } = quadro, x0 = quadro.cx - span / 2, z0 = quadro.cz - (span * H / W) / 2;
   const P = (x, z) => [((x - x0) / span) * W, ((z - z0) / span) * W];
-  g.fillStyle = '#1a3e66'; g.fillRect(0, 0, W, W); // fora do mundo: mar fundo
+  g.fillStyle = '#1a3e66'; g.fillRect(0, 0, W, H); // fora do mundo: mar fundo
   if (fundoMapa.complete && fundoMapa.naturalWidth) {
     const [a, b] = P(MUNDO.x0, MUNDO.z0), k = W / span;
     g.imageSmoothingEnabled = true; g.drawImage(fundoMapa, a, b, MUNDO.w * k, MUNDO.h * k);
@@ -471,7 +472,7 @@ function desenharMapa() {
   }
   if (jogando && leve.mapa && span <= 600) { // os lugares com janela e os totens
     for (const L of [...leve.mapa.npcs, ...leve.mapa.totens.map((t) => ({ ...t, f: 'totem' }))]) {
-      const [a, b] = P(L.x, L.z); if (a < -20 || b < -20 || a > W + 20 || b > W + 20) continue;
+      const [a, b] = P(L.x, L.z); if (a < -20 || b < -20 || a > W + 20 || b > H + 20) continue;
       const r = Math.max(4, W / 110);
       g.fillStyle = LUGAR_COR[L.f] || '#e9c46a'; g.strokeStyle = 'rgba(12,10,8,.9)'; g.lineWidth = Math.max(1.5, W / 400);
       g.beginPath(); g.rect(a - r, b - r, r * 2, r * 2); g.fill(); g.stroke();
@@ -488,12 +489,12 @@ function desenharMapa() {
   }
   for (const [t, a, y] of marcas) if (cabe(t, a, y)) escrever(t, a, y, '#fff3dc');
   for (const L of jogando ? [] : info.lugares || []) {
-    const [a, b] = P(L.x, L.z); if (a < 0 || b < 0 || a > W || b > W) continue;
+    const [a, b] = P(L.x, L.z); if (a < 0 || b < 0 || a > W || b > H) continue;
     g.fillStyle = 'rgba(30,24,16,.8)'; g.beginPath(); g.arc(a, b, Math.max(3, W / 200), 0, 6.283); g.fill();
     if (cabe(L.nome, a, b - 8)) escrever(L.nome, a, b - 8, '#e8dcc0');
   }
   // escala: quantos metros vale o traço
-  const m = [10, 20, 50, 100, 200, 500].find((v) => (v / span) * W > W / 6) || 500, px = (m / span) * W, y = W - fonte;
+  const m = [10, 20, 50, 100, 200, 500].find((v) => (v / span) * W > W / 6) || 500, px = (m / span) * W, y = H - fonte - (jogando ? 64 * dpr : 0); // Jogar: acima da barra de botões
   g.fillStyle = 'rgba(12,10,8,.7)'; g.fillRect(fonte * 0.6, y - fonte * 1.4, px + fonte * 1.2, fonte * 2);
   g.fillStyle = '#efe7d6'; g.fillRect(fonte * 1.2, y, px, Math.max(2, W / 300));
   g.font = `${Math.round(fonte * 0.8)}px system-ui,sans-serif`; g.textAlign = 'left'; g.fillText(`${m} m`, fonte * 1.2, y - fonte * 0.3);
@@ -571,7 +572,7 @@ function chatLeve(novas) {
 function tocarMapaLeve(e) {
   if (!leve.sala || !leve.f || !quadro) return;
   const cv = $('mapa'), R = cv.getBoundingClientRect(), k = quadro.span / R.width;
-  const x = quadro.cx - quadro.span / 2 + (e.clientX - R.left) * k, z = quadro.cz - quadro.span / 2 + (e.clientY - R.top) * k;
+  const x = quadro.cx - quadro.span / 2 + (e.clientX - R.left) * k, z = quadro.cz - (quadro.span * R.height / R.width) / 2 + (e.clientY - R.top) * k;
   let alvo = { x, z, nome: '' }, melhor = 14 * k; // 14 px
   for (const L of leve.mapa ? [...leve.mapa.npcs, ...leve.mapa.totens] : []) { const d = Math.hypot(L.x - x, L.z - z); if (d < melhor) { melhor = d; alvo = { x: L.x, z: L.z, nome: L.n.split(',')[0] }; } }
   irLeve(alvo);
@@ -853,7 +854,8 @@ function cartaoLugares(M) {
 let jogarChave = '';
 function desenharJogar() {
   const raiz = $('jogar'); if (aba !== 'jogar') return;
-  $('jogarChat').hidden = !leve.sala;
+  telaLeve(!!leve.sala);
+  $('jogarChat').hidden = !leve.sala || painelLeve !== 'chat';
   if (!leve.sala) {
     jogarChave = ''; limpar(raiz); limpar($('jogarChat')); leve.chat = [];
     const c = el('div', 'card');
@@ -870,7 +872,7 @@ function desenharJogar() {
   if (leve.rota) while (leve.rotaI < leve.rota.length - 1 && Math.hypot(leve.rota[leve.rotaI][0] - x, leve.rota[leve.rotaI][1] - z) < 3) leve.rotaI++;
   // o cartão de status muda a cada foto; o resto só quando muda o que está perto (não refaz a tela embaixo do dedo)
   let st = $('jogarStatus');
-  if (!st) { st = el('div', 'card'); st.id = 'jogarStatus'; }
+  if (!st) { st = el('div', 'card hud'); st.id = 'jogarStatus'; }
   limpar(st);
   const vm = el('div', 'vm'); vm.append(barra('Vida', hp, hpM, 'var(--hp)'), barra('Mana', mn, mnM, '#3d7fd0')); for (const d of vm.children) d.style.flex = '1'; st.append(vm);
   st.append(el('div', 'faz', `Nv ${nv} · ${ouro} de ouro${pack ? ' · pack nas costas' : ''}${montado ? ' · no lobo' : ''}${leve.pk?.car?.onde === 2 ? ' · no carrinho' : ''}`));
@@ -881,33 +883,68 @@ function desenharJogar() {
   else if (R) {
     st.append(el('div', 'nome', `Indo até ${leve.rotaNome || 'o ponto'} · faltam ${R[0]} m · ~${R[1] >= 60 ? Math.floor(R[1] / 60) + ' min ' : ''}${R[1] % 60} s`));
   } else st.append(el('div', 'faz', 'Toque no mapa para ir até lá.'));
-  const bt = el('div', 'bts');
+  const bt = el('div', 'bts mini');
   if (R) { const p = el('button', 'acao cinza', 'Parar'); p.onclick = () => mandar('leveParar'); bt.append(p); }
   // montaria (André 2026-11-25): a mesma mensagem do jogo ('montar'); com pack, em combate ou antes de liberar o servidor recusa
-  if (!leve.pk?.car || leve.pk.car.onde !== 2) { const mt = el('button', 'acao cinza', montado ? 'Descer do lobo' : 'Montar no lobo'); mt.onclick = () => mandar('montar'); bt.append(mt); }
-  const casa = el('button', 'acao cinza', 'Recall: base do clã'); casa.onclick = () => mandar('vila'); bt.append(casa); // o mesmo da casinha do jogo (Simulacao.voltarVila): canaliza e aparece no Baú do Clã
-  const sai = el('button', 'acao cinza', 'Sair do mundo'); sai.onclick = sairLeve; bt.append(sai);
+  if (!leve.pk?.car || leve.pk.car.onde !== 2) { const mt = el('button', 'acao cinza', montado ? 'Descer do lobo' : 'Montar lobo'); mt.onclick = () => mandar('montar'); bt.append(mt); }
+  const casa = el('button', 'acao cinza', 'Recall (base)'); casa.onclick = () => mandar('vila'); bt.append(casa); // o mesmo da casinha do jogo (Simulacao.voltarVila): canaliza e aparece no Baú do Clã
+  const sai = el('button', 'acao cinza', 'Sair'); sai.onclick = sairLeve; bt.append(sai);
   st.append(bt);
   const P = pertoAgora(), chave = [P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(',')].join('|');
   if (chave === jogarChave && !leve.sujo && raiz.contains(st)) return;
   if (document.activeElement?.tagName === 'INPUT' && raiz.contains(document.activeElement) && chave === jogarChave) return; // digitando: não refaz
   if (chave !== jogarChave) { leve.sel = null; if (!P.npc || P.npc.f !== 'leilao') leve.leilao = null; if (!P.bau) leve.bau = null; }
+  const algo = !!(P.npc || P.bau || P.totem), chegou = algo && chave.split('|').slice(0, 3).join('|') !== jogarChave.split('|').slice(0, 3).join('|');
+  if (chegou) painelLeve = 'perto';
   jogarChave = chave; leve.sujo = false;
+  // tela do modo leve (André 2026-11-25: "tem q rolar muito... como o menu é sanfonado da pra limpar a tela"): o mapa ocupa
+  // a tela; embaixo, uma barra com Perto, Mochila, Lugares e Chat. Cada botão abre um painel por cima do mapa (um por vez;
+  // tocar de novo fecha). Chegou perto de uma loja, baú, totem ou mercador: o Perto abre sozinho.
   limpar(raiz); raiz.append(st);
-  if (P.npc) {
-    if (P.npc.f === 'leilao') raiz.append(cartaoLeilao());
-    else if (P.npc.f === 'pack') raiz.append(cartaoPackNpc(P.npc));
-    else if (P.npc.f === 'loja' || P.npc.v) raiz.append(cartaoLoja(P.npc));
-    else { const c = el('div', 'card'); c.append(el('div', 'nome', P.npc.n.split(',')[0]), el('div', 'faz', `${LUGAR_NOME[P.npc.f] || ''}: por enquanto só no jogo.`)); raiz.append(c); }
+  if (painelLeve && painelLeve !== 'chat') {
+    const f = el('div', 'folha'), cab = el('div', 'folhaCab'), x = el('button', 'fecha', '✕');
+    x.setAttribute('aria-label', 'Fechar'); x.onclick = () => abrirPainelLeve('');
+    const it = leve.mo?.it || [];
+    cab.append(el('span', 'nome', painelLeve === 'perto' ? 'Perto de você' : painelLeve === 'mochila' ? `Mochila ${it.length}/${leve.mo?.l || 0}` : 'Lugares'), x);
+    f.append(cab);
+    if (painelLeve === 'perto') {
+      if (P.npc) {
+        if (P.npc.f === 'leilao') f.append(cartaoLeilao());
+        else if (P.npc.f === 'pack') f.append(cartaoPackNpc(P.npc));
+        else if (P.npc.f === 'loja' || P.npc.v) f.append(cartaoLoja(P.npc));
+        else { const c = el('div', 'card'); c.append(el('div', 'nome', P.npc.n.split(',')[0]), el('div', 'faz', `${LUGAR_NOME[P.npc.f] || ''}: por enquanto só no jogo.`)); f.append(c); }
+      }
+      if (P.bau) f.append(cartaoBauLeve(P.bau));
+      if (P.totem) f.append(cartaoTotem(P.totem));
+      const cg = cartaoCarga(P); if (cg) f.append(cg);
+      if (!P.npc && !P.bau && !P.totem && !cg) f.append(el('div', 'vazio', 'Chegue perto de uma loja, do leilão, de um baú ou de um totem para usar.'));
+    } else if (painelLeve === 'mochila') { mochilaAberta = true; const c = cartaoMochila(); c.firstChild.remove(); f.append(c); }
+    else if (painelLeve === 'criar') { criarAberto = true; const c = cartaoCriar(); c.firstChild.remove(); f.append(c); }
+    else if (painelLeve === 'lugares' && leve.mapa?.lug) { lugaresAberto = true; const c = cartaoLugares(leve.mapa); c.firstChild.remove(); f.append(c); }
+    raiz.append(f);
   }
-  if (P.bau) raiz.append(cartaoBauLeve(P.bau));
-  if (P.totem) raiz.append(cartaoTotem(P.totem));
-  const cg = cartaoCarga(P); if (cg) raiz.append(cg);
-  if (!P.npc && !P.bau && !P.totem && !cg) raiz.append(el('div', 'vazio', 'Chegue perto de uma loja, do leilão, de um baú ou de um totem para usar.'));
-  if (leve.mo) raiz.append(cartaoMochila());
-  if (leve.mo) raiz.append(cartaoCriar());
-  if (leve.mapa?.lug) raiz.append(cartaoLugares(leve.mapa)); // depois do que está perto (abre sem empurrar a loja)
+  const doca = el('div', 'doca');
+  const temPerto = algo || !!(P.car || P.chao?.length || leve.pk?.c);
+  for (const [k, txt] of [['perto', 'Perto'], ['mochila', 'Mochila'], ['criar', 'Criar'], ['lugares', 'Lugares'], ['chat', 'Chat']]) {
+    const b = el('button', (painelLeve === k ? 'ativo' : '') + (k === 'perto' && temPerto ? ' tem' : ''), txt);
+    b.onclick = () => abrirPainelLeve(painelLeve === k ? '' : k);
+    doca.append(b);
+  }
+  raiz.append(doca);
 }
+let painelLeve = ''; // '' (só o mapa), 'perto', 'mochila', 'lugares' ou 'chat'
+function abrirPainelLeve(k) {
+  if ((k === 'criar') !== (painelLeve === 'criar')) { criarAberto = k === 'criar'; pedirReceitas(criarAberto); } // a lista de receitas só vem com a aba aberta
+  painelLeve = k; leve.sujo = true; desenharJogar();
+  if (k === 'chat') { const l = $('chatLista'); if (l) l.scrollTop = l.scrollHeight; }
+}
+// o modo leve ocupa a altura que sobra embaixo do cabeçalho (sem rolar a página); o mapa se ajusta e redesenha
+function telaLeve(liga) {
+  const t = $('jogarAba'); t.classList.toggle('tela', liga);
+  const h = liga ? Math.max(360, Math.floor(innerHeight - t.getBoundingClientRect().top - 4)) + 'px' : '';
+  if (t.style.height !== h) { t.style.height = h; if (aba === 'jogar' && info) requestAnimationFrame(() => desenharMapa()); }
+}
+addEventListener('resize', () => { if (aba === 'jogar' && leve.sala) { telaLeve(true); desenharMapa(); } });
 
 function desenhar() {
   if (!info) return;
