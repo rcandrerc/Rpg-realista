@@ -555,9 +555,13 @@ func ao_receber(tipo, dados) -> void:
 	if dados.has("foto"):
 		aplicar_foto(dados.foto)
 	t0 = _marca("rx:foto", t0)
+	# rx:eventos subiu de 3,2 s para 8,9 s somados nos quadros lentos do Poco (ronda de 25/11) e chegou a 1.971 ms num
+	# quadro no Note 10 Lite, sem dizer qual aviso: cada um que passa de 1 ms vai para o registro como "ev:<tipo>"
+	var t_ini := t0
 	for ev in dados.get("eventos", []):
 		evento(ev)
-	_marca("rx:eventos", t0)
+		t0 = _marca("ev:" + str(ev.get("t", "?")) if ev is Dictionary else "ev:?", t0)
+	_marca("rx:eventos", t_ini)
 
 # Quadro lento (2026-11-14, registros do celular: "rede" e "online" chegavam a 300 a 500 ms num quadro logo depois da
 # capa, sem dizer o quê): cada pedaço que passa de 1 ms vai para o registro (lentidao.gd ev) com o nome dele.
