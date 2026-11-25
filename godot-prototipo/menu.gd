@@ -4313,8 +4313,13 @@ func montar_mochila() -> void:
 	if not compra:
 		vendendo = false
 		marcados = {}
-	# "Vender vários" e "Vender tudo" saíram (André 2026-11-25, remoção aprovada: "vender tudo, vender vários, tira isso").
-	# Vender: toque no item (pilha pergunta quantos e pode passar da pilha: vende as iguais).
+	elif not filtro_aberto and not consertando:
+		# "Vender vários" saiu (André 2026-11-25, remoção aprovada). Vender agora tem só 2 jeitos ("só isso"): tocar no item
+		# (pilha pergunta quantos e pode passar da pilha: vende as iguais) ou filtrar a bag e apertar "Vender tudo" (o que aparece)
+		var vt := botao("Vender tudo", func(): perguntar_vender_tudo(), 15, filtrando())
+		vt.custom_minimum_size = Vector2(124, 40)
+		vt.disabled = ids_visiveis(P.prog.mochila).is_empty() or vendo_recruta()
+		ferramentas_bolsa.add_child(vt)
 	if filtro_aberto:
 		montar_filtro()
 		return
@@ -5277,6 +5282,29 @@ func modo_vender(ligar: bool) -> void:
 	if aba != "mochila":
 		aba = "mochila"
 	atualizar()
+
+# Vender tudo: tudo que aparece na mochila agora (sem cadeado), com uma pergunta antes
+func perguntar_vender_tudo() -> void:
+	if _so_olhando():
+		return
+	var P = P_menu
+	var lista: Array = ids_visiveis(P.prog.mochila)
+	var n := 0
+	var ouro := 0
+	var raros := 0
+	for i in lista:
+		var it = P.prog.mochila[i]
+		var q: int = 1 if P.eh_equip(it) else maxi(1, int(it.get("n", 1)))
+		n += q
+		ouro += P.preco_venda(it) * q
+		if P.eh_equip(it) and int(it.r) >= 2:
+			raros += 1
+	if n == 0:
+		return
+	var txt := "Vender tudo que aparece: %d %s por %d de ouro?" % [n, "item" if n == 1 else "itens", ouro]
+	if raros > 0:
+		txt += "\nAtenção: %d %s Épica%s ou melhor." % [raros, "peça é" if raros == 1 else "peças são", "" if raros == 1 else "s"]
+	confirmar("Vender tudo", txt, "Vender", func(): acao_item({"acao": "vender_varios", "lista": lista}))
 
 func perguntar_vender_varios() -> void:
 	if _so_olhando(): # menu do recruta (só olhando)

@@ -57,7 +57,7 @@ func _initialize() -> void:
 		var esp := Control.new()
 		esp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		topo.add_child(esp)
-		for t in ["Organizar", "Filtro"]:
+		for t in ["Organizar", "Filtro", "Vender tudo"]:
 			topo.add_child(M.botao(t, func(): pass, 15, t != "Organizar"))
 		tela.add_child(topo)
 		var linha := HBoxContainer.new()
@@ -84,6 +84,41 @@ func _initialize() -> void:
 		tela.queue_free()
 		fundo.queue_free()
 		await esperar(3)
+	# 1c) só peças Comuns aparecendo + Vender tudo (a pergunta antes de vender)
+	var nada_rec := {}
+	for it in moch:
+		if it != null and not P.eh_equip(it):
+			nada_rec[str(it.k)] = true
+	M.ver_fora = {"k": nada_rec, "r": {1: true, 2: true, 3: true, 4: true}}
+	var fundo2 := ColorRect.new()
+	fundo2.color = Color(0.09, 0.08, 0.07)
+	fundo2.size = Vector2(W, H)
+	root.add_child(fundo2)
+	var tela2 := VBoxContainer.new()
+	tela2.position = Vector2(40, 20)
+	tela2.add_theme_constant_override("separation", 10)
+	root.add_child(tela2)
+	tela2.add_child(M.botoes_ver(moch, func(): pass))
+	var g2 := GridContainer.new()
+	g2.columns = 10
+	for i in M.ids_visiveis(moch, true):
+		g2.add_child(M.celula_mochila(i, true))
+	tela2.add_child(g2)
+	var cam2 := CanvasLayer.new()
+	cam2.layer = 20
+	root.add_child(cam2)
+	M.perguntar_vender_tudo()
+	var cc: Control = M._confirma
+	M.remove_child(cc)
+	cam2.add_child(cc)
+	await esperar(12)
+	await RenderingServer.frame_post_draw
+	root.get_texture().get_image().save_png(saida + "/1c-vender-tudo.png")
+	M._confirma = null
+	cam2.queue_free()
+	tela2.queue_free()
+	fundo2.queue_free()
+	await esperar(3)
 	M.ver_fora = {"k": {"barra_ferro": true, "minerio_cobre": true}, "r": {}}
 	# 2) Baú do Clã: os dois lados com os botões de tipo + a janelinha "Guardar"
 	var C = load("res://construcao.gd").new(falso)
