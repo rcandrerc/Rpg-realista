@@ -53,6 +53,7 @@ const Troca = preload("res://troca.gd")
 const Duelo = preload("res://duelo.gd") # duelo (André 2026-11-17, shared/duelo.js)
 const ArenaPvp = preload("res://arena_pvp.gd") # Arena PvP 3x3 Geada x Chama (André 2026-11-21, shared/arena.js)
 const AlvoQuadro = preload("res://alvo_quadro.gd") # quadro do alvo (André 2026-11-17, como no Quimera)
+const Buffs = preload("res://buffs.gd") # buffs e debuffs perto da barra de vida (André 2026-11-25)
 const LeilaoUi = preload("res://leilao_ui.gd") # Casa do Comércio: o leilão do Otávio no Rio Claro (história v2, Entrega 3)
 const Reforco = preload("res://reforco.gd")
 const Festa = preload("res://festa.gd")
@@ -167,6 +168,7 @@ var duelo # duelo.gd: duelo entre jogadores e com a Cecília/Dario (botão no ca
 var arena_pvp # arena_pvp.gd: Arena PvP 3x3 Geada x Chama (botão PvP do menu do topo)
 var alvo_atual = null # quem a marca no chão aponta (monstro, chefe ou o outro do duelo)
 var alvo_quadro # alvo_quadro.gd: nome, nível e vida do alvo, à esquerda
+var buffs # buffs.gd: ícones de buff/debuff do herói, do alvo e do time, e a dica ao tocar
 var leilao # leilao_ui.gd: a janela da Casa do Comércio (só online)
 var reforco # reforco.gd: janelinha do reforço de equipamento (igual ao Quimera)
 var reinicio # reinicio.gd: faixa "o servidor vai reiniciar" e a contagem de 10 s no alto da tela (André 2026-11-12)
@@ -460,6 +462,9 @@ func _ready() -> void:
 	add_child(duelo)
 	arena_pvp = ArenaPvp.new(self)
 	add_child(arena_pvp)
+	buffs = Buffs.new(self)
+	add_child(buffs)
+	hud.buffs = buffs
 	alvo_quadro = AlvoQuadro.new(self)
 	add_child(alvo_quadro)
 	leilao = LeilaoUi.new(self)
