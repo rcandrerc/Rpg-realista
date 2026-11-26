@@ -91,6 +91,8 @@ const M := {
 	"seda_carmesim_esc": [2, "4c0c10", "ff5a20", "000000", 0.0, 0.6, 1.0],
 }
 
+const FRISOS := ["ouro", "ouro_velho", "ouro_claro", "prata", "latao", "bronze", "cadarco_ouro"]
+
 static var _shader: Shader
 static var _ruido: Texture2D
 static var _mats := {}
@@ -144,7 +146,9 @@ static func material(nome: String) -> Material:
 	sm.set_shader_parameter("forca", d[6])
 	sm.set_shader_parameter("ruido", _ruido)
 	sm.set_meta("tipo2", d[0]) # tingir() só pinta pano (tipo 2)
-	sm.set_meta("borda2", k.begins_with("cetim") or k.begins_with("bordado")) # barra/bordado: cor da borda do set
+	# barra/bordado e friso de metal: cor da "Borda do set" (André 2026-11-26: o manto de cetim ficava todo da cor da
+	# borda; a borda que aparece no roupão é o friso dourado da barra, das mangas e do capuz)
+	sm.set_meta("borda2", k.begins_with("bordado") or k in FRISOS)
 	_mats[k] = sm
 	return sm
 
@@ -181,8 +185,67 @@ static func _abrir(arq: String) -> Array:
 				osso_duro = "J_Bip_C_Head" if n.begins_with("cabeca") or n.begins_with("capuz") else ("J_Bip_C_Hips" if n.begins_with("quadril") or n.begins_with("cordao") else "J_Bip_C_UpperChest")
 			out.append([String(mi.name), malha, skin, osso_duro])
 		cena.free()
+	_colar_no_manto(out)
 	_cenas[arq] = out
 	return out
+
+# Roupão 2 (André 2026-11-26: "quando eu corro, o peitoral aparece"): o peito do robe fica debaixo do manto e, com
+# pesos de osso diferentes (o robe segue mais o busto e a coluna, o manto o peito alto), correndo ele furava o manto.
+# O pedaço do robe que o manto cobre sai da malha (triângulo com os 3 vértices a menos de COLA_DIST do manto, na pose
+# de descanso). Sem volume novo: nada engorda. Feito uma vez por arquivo (cache _cenas).
+const COLA_DIST := 0.02
+static func _colar_no_manto(pecas: Array) -> void:
+	var robe = null
+	var manto = null
+	for p in pecas:
+		if String(p[0]).begins_with("peito_robe"):
+			robe = p
+		elif String(p[0]).begins_with("peito_manto"):
+			manto = p
+	if robe == null or manto == null:
+		return
+	var grade := {}
+	var mm: ArrayMesh = manto[1]
+	for s in mm.get_surface_count():
+		for v in mm.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]:
+			var c := Vector3i((v / COLA_DIST).floor())
+			if not grade.has(c):
+				grade[c] = []
+			grade[c].append(v)
+	var coberto := func(v: Vector3) -> bool:
+		var c := Vector3i((v / COLA_DIST).floor())
+		for dx in [-1, 0, 1]:
+			for dy in [-1, 0, 1]:
+				for dz in [-1, 0, 1]:
+					for w in grade.get(c + Vector3i(dx, dy, dz), []):
+						if v.distance_squared_to(w) < COLA_DIST * COLA_DIST:
+							return true
+		return false
+	var rm: ArrayMesh = robe[1]
+	var nova := ArrayMesh.new()
+	var tirou := 0
+	for s in rm.get_surface_count():
+		var a := rm.surface_get_arrays(s)
+		var vs: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = a[Mesh.ARRAY_INDEX]
+		var sob := PackedByteArray()
+		sob.resize(vs.size())
+		for i in vs.size():
+			sob[i] = 1 if coberto.call(vs[i]) else 0
+		var fica := PackedInt32Array()
+		for t in range(0, idx.size(), 3):
+			if sob[idx[t]] and sob[idx[t + 1]] and sob[idx[t + 2]]:
+				tirou += 1
+				continue
+			fica.append_array([idx[t], idx[t + 1], idx[t + 2]])
+		a[Mesh.ARRAY_INDEX] = fica
+		var n: int = (a[Mesh.ARRAY_BONES] as PackedInt32Array).size() / maxi(1, vs.size())
+		var fl := Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS if n == 8 else 0
+		nova.add_surface_from_arrays(rm.surface_get_primitive_type(s), a, [], {}, fl)
+		nova.surface_set_material(s, rm.surface_get_material(s))
+		nova.surface_set_name(s, rm.surface_get_name(s))
+	if tirou > 0:
+		robe[1] = nova
 
 # veste as peças da vaga k (raridade r) no nó no da armadura (filho do esqueleto)
 static func montar(esq: Skeleton3D, no: Node3D, k: String, r: int, traje: String, masc: bool) -> void:
@@ -266,9 +329,14 @@ static func tingir(mi: MeshInstance3D, cr, cc, cb = null) -> void:
 		var chave := "%d|%s" % [base.get_instance_id(), (c as Color).to_html()]
 		if not _tintas.has(chave):
 			var t: ShaderMaterial = base.duplicate()
+			# Aparencia.aplicar roda depois de vestir no jogo e tirava o override de material sem esta marca (a cor só
+			# valia na prévia da Aparência, que veste depois; André 2026-11-26: "no jogo continua verde")
+			t.set_meta("armadura", true)
 			t.set_shader_parameter("cor", c)
 			var c2: Color = base.get_shader_parameter("cor2")
-			if c2.r + c2.g + c2.b > 0.01:
+			if int(base.get_meta("tipo2", -1)) == 1:
+				t.set_shader_parameter("cor2", (c as Color).darkened(0.5)) # metal: reflexo escuro da cor do friso
+			elif c2.r + c2.g + c2.b > 0.01:
 				t.set_shader_parameter("cor2", (c as Color).lightened(0.45 if e_borda else 0.3)) # linha do bordado / brilho de seda
 			_tintas[chave] = t
 		mi.set_surface_override_material(s, _tintas[chave])
