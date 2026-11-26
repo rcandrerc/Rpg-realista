@@ -5037,7 +5037,7 @@ export const HISTORIA = [
     ],
     pronto: 'Bom couro. Se a gente fizer uma coleira de verdade, talvez dê para amansar um deles. Um lobo na estrada vale mais que dez cavalos.' },
   { id: 'a8', cap: 3, nv: 5, npc: 'andarilho', nome: 'A coleira', libera: [],
-    pedido: 'A ideia é uma coleira: com ela, talvez dê para amansar um lobo. Mas couro sozinho não segura bicho bravo. Funda uma barra de ferro no forninho do Tomás, com 3 minérios, e traga junto com os couros. O fogo do ferro é de carvão: no próprio forninho, 2 lenhas viram 1 carvão.',
+    pedido: 'A ideia é uma coleira: com ela, talvez dê para amansar um lobo. Mas couro sozinho não segura bicho bravo. Funda uma barra de ferro no forninho do Tomás (3 minérios, fogo de carvão: 2 lenhas viram 1) e traga com os couros.',
     lembra: 'Sem ferro a coleira arrebenta no primeiro puxão. Estou contando com você.',
     etapas: [
       { ev: 'item', k: 'minerio_ferro', de: 'coleta', n: 3, txt: 'Minere minério de ferro', alvo: 'veio:ferro' },
