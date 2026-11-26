@@ -1179,7 +1179,7 @@ export const Cla = {
       const h = ms / 3600e3;
       // modo Livre fora do jogo (André 2026-11-25: "deixei em modo livre por muito tempo e o telhado não foi construído...
       // eu estava off"): ele levanta a casa dele no lote, uma peça a cada passo.obra s (como no jogo), até acabar
-      if (!m.fn) { const f = this.casaFora(x, ms / 1000); if (f) { hMax = Math.max(hMax, h); feitos.push(f); } continue; }
+      if (!m.fn || m.fn.k === 'livre') { const f = this.casaFora(x, ms / 1000); if (f) { hMax = Math.max(hMax, h); feitos.push(f); } continue; }
       hMax = Math.max(hMax, h);
       const f = this.trabalhoFora(x, m, h, j.prog.nivel | 0); if (f) feitos.push(f);
     }
