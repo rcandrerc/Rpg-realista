@@ -122,20 +122,23 @@ async function tela() {
 // da barra de cima e ficam no Mais (a barra de baixo acende o Mais enquanto estão abertas).
 let aba = 'jogar';
 $('mapaBots').onchange = (e) => { gravar('painelBots', e.target.checked ? '1' : null); desenhar(); };
-const DO_MAIS = new Set(['leilao', 'bots', 'log']);
+const DO_MAIS = new Set(['leilao', 'bots', 'log', 'personagem']);
 function irAba(a) {
   aba = a;
   for (const o of $('abas').querySelectorAll('button')) o.classList.toggle('ativo', o.dataset.aba === a || (o.dataset.aba === 'mais' && DO_MAIS.has(a)));
   document.body.classList.toggle('abaCla', a === 'cla');
   $('cla').hidden = aba !== 'cla'; $('bots').hidden = aba !== 'bots'; $('log').hidden = aba !== 'log';
   $('leilaoAba').hidden = aba !== 'leilao'; if (aba === 'leilao') pedirLeilao();
-  $('mochilaAba').hidden = aba !== 'mochila'; $('missoesAba').hidden = aba !== 'missoes'; $('maisAba').hidden = aba !== 'mais';
+  $('mochilaAba').hidden = aba !== 'mochila'; $('missoesAba').hidden = aba !== 'missoes'; $('maisAba').hidden = aba !== 'mais'; $('personagemAba').hidden = aba !== 'personagem';
   $('jogarAba').hidden = aba !== 'jogar';
   if (aba !== 'jogar') document.body.classList.remove('leveTela');
   // a aba Mapa saiu (André 2026-11-25: "no jogar já tem o mapa... pode remover"): o mapa, os líderes bot e a legenda ficam no Jogar
   if (aba === 'jogar') { vista = null; leve.sujo = true; desenharJogar(); if (leve.sala) desenharMapa(); }
   if (aba === 'mochila') { leve.sujo = true; desenharMochila(); }
+  const querMs = a === 'missoes' || a === 'personagem';
+  if (querMs !== !!leve.msVer) { leve.msVer = querMs; mandar('leveMissoes', { ver: querMs }); } // a lista só vem com a aba aberta (Missões ou Personagem)
   if (aba === 'missoes') desenharMissoes();
+  if (aba === 'personagem') desenharPersonagem();
   if (aba === 'mais') desenharMais();
   scrollTo(0, 0);
   desenhar();
@@ -580,8 +583,9 @@ async function entrarLeve() {
 }
 function ligarLeve(s) {
   leve.sala = s; if (criarAberto) s.send('leveReceitas', { ver: true }); // voltou da queda com o Criar aberto
+  if (aba === 'missoes' || aba === 'personagem') s.send('leveMissoes', { ver: true });
   s.onMessage('leve', (d) => {
-    leve.f = d.f; if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa;
+    leve.f = d.f; if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa; if (d.ms) { leve.ms = d.ms; if (aba === 'missoes') desenharMissoes(); if (aba === 'personagem') desenharPersonagem(); }
     for (const e of d.ev || []) eventoLeve(e);
     // apanhou minerando (André 2026-11-26: "quando chega o combate... tá meio confuso"): o servidor para a coleta (igual ao
     // jogo 3D); a página guarda o veio para o botão "Voltar a minerar" quando a luta acabar
@@ -619,6 +623,8 @@ function eventoLeve(e) {
     if (e.itens?.length) aviso(e.itens.map((o) => `+${o.n} ${o.nome}`).join(' · ')); leve.sujo = true;
   }
   else if (e.t === 'fabricando') { leve.fab = e.fim ? null : { nome: e.nome, ate: Date.now() + (e.dur || 0) * 1000 }; leve.sujo = true; }
+  else if (e.t === 'fala') falaLeve(e); // o NPC respondeu (missão)
+  else if (e.t === 'diaria_ir' && e.alvo) irLeve(e.alvo); // Ir da diária ou do contrato: o servidor diz o lugar aberto mais perto
   else if (e.t === 'chat') chatLeve([e]);
   else if (e.t === 'chatHist') { leve.chat = []; chatLeve(e.l); }
 }
@@ -908,11 +914,50 @@ function cartaoMochila() {
   cab.onclick = () => { mochilaAberta = !mochilaAberta; leve.sujo = true; desenharJogar(); };
   c.append(cab);
   if (!mochilaAberta) return c;
+  // etapa 2 (André 2026-11-26): o que está vestido em cima (tocar = ver e Tirar) e a mochila embaixo (tocar = ver,
+  // Vestir, Usar, Trancar). As mesmas mensagens do jogo ('item' equipar/tirar/usar/cadeado).
+  if (aba === 'mochila') {
+    const eq = new Map((leve.mo?.eq || []).map((o) => [o[0], o])), v = el('div', 'icones');
+    for (const [l, ic, nomeL] of VESTE) {
+      const o = eq.get(l);
+      if (o) v.append(itemLeve(o[1], o[2], o[3], 1, null, false, () => janelaPeca({ eq: o, nomeL })));
+      else { const d = el('div', 'ico vazioEq'), q = el('div', 'q'); q.append(el('span', 'nvb', ic)); d.title = nomeL; d.append(q, el('small', null, nomeL)); d.onclick = () => aviso(`${nomeL}: nada vestido. Toque numa peça da mochila e em Vestir.`); v.append(d); }
+    }
+    c.append(el('div', 'faz', 'Vestindo'), v, el('div', 'faz', 'Mochila · toque num item'));
+  }
   const f = el('div', 'icones');
-  for (const [, k, n, nome, cor] of it) f.append(itemLeve(k, nome, cor, n, null, false, () => aviso(`${nome}: ${n}`)));
+  for (const o of it) { const [, k, n, nome, cor] = o; f.append(itemLeve(k, nome, cor, n, null, false, () => (aba === 'mochila' ? janelaPeca({ it: o }) : aviso(`${nome}: ${n}`)))); }
   if (!it.length) f.append(el('div', 'faz', 'Mochila vazia.'));
   c.append(f);
   return c;
+}
+const VESTE = [['cabeca', '🪖', 'Cabeça'], ['corpo', '🦺', 'Corpo'], ['pernas', '👖', 'Pernas'], ['pes', '🥾', 'Pés'], ['capa', '🧣', 'Capa'], ['acessorio', '💍', 'Acessório'], ['espada', '🗡️', 'Espada'], ['cajado', '🪄', 'Cajado']];
+// a janelinha da peça: nome, o que dá, o que você usa no mesmo lugar (para comparar) e os botões que valem
+function janelaPeca({ it, eq, nomeL }) {
+  const fechar = () => { const j = document.querySelector('.janelaLeve.peca'); if (j) j.remove(); };
+  fechar();
+  const corpo = [], bts = el('div', 'bts');
+  const acao = (txt, m, cinza) => { const b = el('button', 'acao' + (cinza ? ' cinza' : ''), txt); b.onclick = () => { mandar('item', m); fechar(); }; bts.append(b); };
+  if (eq) {
+    corpo.push(el('div', 'nome', eq[2]), el('div', 'faz', `${nomeL} · vestido`), el('div', null, eq[4] || ''));
+    acao('Tirar', { acao: 'tirar', lugar: eq[0] }, true);
+  } else {
+    const [i, , n, nome, , preco, cad, tipo, lugar, txt] = it;
+    corpo.push(el('div', 'nome', n > 1 ? `${nome} ×${n}` : nome));
+    if (txt) corpo.push(el('div', null, txt));
+    if (tipo === 'e') {
+      const agora = (leve.mo?.eq || []).find((o) => o[0] === lugar);
+      corpo.push(el('div', 'faz', agora ? `Você usa: ${agora[2]}${agora[4] ? ' · ' + agora[4] : ''}` : `${VESTE.find((v) => v[0] === lugar)?.[2] || ''}: nada vestido`));
+      acao(agora ? 'Trocar' : 'Vestir', { acao: 'equipar', i });
+    }
+    if (tipo === 'u') acao('Usar', { acao: 'usar', i });
+    acao(cad ? '🔓 Destrancar' : '🔒 Trancar', { acao: 'cadeado', i }, true);
+    corpo.push(el('div', 'faz', `${cad ? 'Trancado: não vende nem joga fora. ' : ''}Vende por ${num(preco)} de ouro na loja.`));
+  }
+  const x = el('button', 'acao cinza', 'Fechar'); x.onclick = fechar; bts.append(x);
+  corpo.push(bts);
+  const j = janelaLeve(corpo); j.classList.add('peca'); j.onclick = (e) => { if (e.target === j) fechar(); };
+  document.body.append(j);
 }
 
 // Criar (André 2026-11-25): mesmas receitas e regras do jogo; o servidor manda a lista (leveReceitas) e confere tudo de novo
@@ -1320,11 +1365,128 @@ function desenharMochila() {
 }
 addEventListener('scroll', () => { if (aba === 'mochila') mochilaRolou = scrollY; }, { passive: true });
 
-// ---------- aba Missões: chega na etapa 3 (história, diárias, guilda e missão do clã)
+// ---------- aba Missões (etapa 3, André 2026-11-26): História, Diárias, Guilda e Escolta do Clã, cada uma com o botão para
+// ir até onde se faz. Mesmas mensagens do jogo ('falar' com missão, 'diaria', 'guilda', 'cla' missao); o servidor confere.
+function falaLeve(e) {
+  const ok = el('button', 'acao', 'Ok');
+  const j = janelaLeve([el('div', 'nome', e.npc || 'NPC'), el('div', 'dica', e.texto || '')]); j.classList.add('fala');
+  const fechar = () => j.remove(); ok.onclick = fechar; j.onclick = (ev) => { if (ev.target === j) fechar(); };
+  j.firstChild.append(ok); document.querySelectorAll('.janelaLeve.fala').forEach((o) => o.remove()); document.body.append(j);
+}
+// ---------- Personagem (etapa 4, André 2026-11-26): status, atributos, golpes e títulos, iguais ao menu do jogo
+let atrPend = {}, golpeSel = -1;
+function desenharPersonagem() {
+  const raiz = $('personagemAba'); if (aba !== 'personagem') return;
+  limpar(raiz);
+  if (!leve.sala || !leve.f) return foraDoMundo(raiz, 'o personagem');
+  const P = leve.ms?.pe; if (!P) { raiz.append(el('div', 'vazio', 'Abrindo…')); return; }
+  const card = (tit) => { const c = el('div', 'card'); c.append(el('div', 'nome', tit)); raiz.append(c); return c; };
+  // status
+  { const c = card(`🧍 Nível ${P.nv}`), b = el('div', 'barra'), i = el('b'); i.style.width = Math.min(100, (P.xp / (P.xpM || 1)) * 100) + '%'; i.style.background = 'var(--gold)'; b.append(i);
+    c.append(el('div', 'faz', `XP ${num(P.xp)}/${num(P.xpM)}`), b);
+    const g = el('div', 'atalhos'); for (const [n, v] of P.st) { const d = el('button'); d.disabled = true; d.style.opacity = 1; d.append(document.createTextNode(String(v)), el('small', null, n)); g.append(d); } c.append(g);
+  }
+  // atributos: + guarda no aparelho até Confirmar (como o menu do jogo); o servidor confere os pontos
+  { const usados = Object.values(atrPend).reduce((s, v) => s + v, 0), livres = P.pts - usados;
+    const c = card(`💪 Atributos · ${livres} ponto${livres === 1 ? '' : 's'} livre${livres === 1 ? '' : 's'}`);
+    for (const [k, [nome, desc]] of Object.entries(P.an)) {
+      const r = el('div', 'recLeve'), n = el('div', 'n'); n.append(el('b', null, `${nome} ${P.atr[k] + (atrPend[k] || 0)}${atrPend[k] ? ` (+${atrPend[k]})` : ''}`), el('small', null, desc)); r.append(n);
+      if (atrPend[k]) { const m = el('button', null, '−'); m.style.minWidth = '48px'; m.onclick = () => { atrPend[k]--; if (!atrPend[k]) delete atrPend[k]; desenharPersonagem(); }; r.append(m); }
+      const mais = el('button', 'on', '+'); mais.style.minWidth = '48px'; mais.disabled = livres <= 0; mais.onclick = () => { atrPend[k] = (atrPend[k] || 0) + 1; desenharPersonagem(); }; r.append(mais);
+      c.append(r);
+    }
+    if (usados) { const d = el('div', 'bts'); d.append(bt('Confirmar', () => { mandar('atributos', atrPend); atrPend = {}; }), bt('Cancelar', () => { atrPend = {}; desenharPersonagem(); }, true)); c.append(d); }
+  }
+  // golpes: os 8 da barra (4 de espada, 4 de magia); toque num e escolha outro do mesmo tipo
+  { const c = card('⚔️ Golpes'), nome = new Map(P.hs.map((h) => [h[0], h]));
+    for (const [tipo, ini, rot] of [[0, 0, 'Espada'], [1, 4, 'Magia']]) {
+      c.append(el('div', 'faz', rot)); const g = el('div', 'atalhos');
+      for (let i = ini; i < ini + 4; i++) { const h = nome.get(P.bd[i]); const b = el('button'); b.append(document.createTextNode(h ? h[1] : '?'), el('small', null, golpeSel === i ? 'escolha abaixo' : 'trocar')); if (golpeSel === i) b.style.borderColor = '#7fcf7f'; b.onclick = () => { golpeSel = golpeSel === i ? -1 : i; desenharPersonagem(); }; g.append(b); }
+      c.append(g);
+      if (golpeSel >= ini && golpeSel < ini + 4) for (const [k, n, t, desc] of P.hs.filter((h) => h[2] === tipo && !P.bd.includes(h[0]))) {
+        const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, n), el('small', null, desc)); const u = el('button', 'on', 'Usar');
+        u.onclick = () => { const bd = [...P.bd]; bd[golpeSel] = k; golpeSel = -1; mandar('build', bd); P.bd = bd; desenharPersonagem(); };
+        r.append(x, u); c.append(r);
+      }
+    }
+  }
+  // títulos
+  { const c = card('🏅 Títulos');
+    if (!P.tits.length) c.append(el('div', 'faz', 'Nenhum ainda. Títulos vêm de caçar, profissões, história e guerra.'));
+    for (const [k, n, txt] of P.tits) {
+      const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, n), el('small', null, txt));
+      const u = el('button', P.tit === k ? 'on' : null, P.tit === k ? 'Em uso ✓' : 'Usar'); u.onclick = () => mandar('item', { acao: 'titulo', id: P.tit === k ? '' : k });
+      r.append(x, u); c.append(r);
+    }
+  }
+}
 function desenharMissoes() {
-  const raiz = $('missoesAba'); limpar(raiz);
-  const c = el('div', 'card'); c.append(el('div', 'nome', '📜 Missões'), el('div', 'faz', 'Em construção: aqui vão ficar a História, as Diárias, a Guilda e a Missão do Clã, com o botão para ir até quem dá a missão. Por enquanto, faça as missões no jogo 3D.'));
-  raiz.append(c);
+  const raiz = $('missoesAba'); if (aba !== 'missoes') return;
+  limpar(raiz);
+  if (!leve.sala || !leve.f) return foraDoMundo(raiz, 'as missões');
+  const S = leve.ms; if (!S) { raiz.append(el('div', 'vazio', 'Abrindo…')); return; }
+  const card = (tit) => { const c = el('div', 'card'); c.append(el('div', 'nome', tit)); raiz.append(c); return c; };
+  const linhaBts = (c, ...b) => { const d = el('div', 'bts'); d.append(...b); c.append(d); };
+  // História
+  { const c = card('📖 História'), H = S.hi;
+    if (!H) c.append(el('div', 'faz', 'Você terminou a história. 🎉'));
+    else {
+      c.append(el('div', null, H.nome), el('div', 'faz', H.ac ? H.txt : H.nn ? `Missão nova: fale com ${H.nn} para aceitar.` : `Abre no Nv ${H.nv}. Até lá: diárias, caça e coleta.`));
+      const b = [];
+      if (H.npc && H.np) b.push(bt(`💬 Falar com ${H.nn}`, () => mandar('falar', { npc: H.npc, missao: true })));
+      else if (H.npc) b.push(bt(`🧭 Ir até ${H.nn} · ${metros({ x: H.nx, z: H.nz })}`, () => irLeve({ x: H.nx, z: H.nz + 1.5, nome: H.nn })));
+      if (H.ax != null && !(H.npc && H.nx === H.ax && H.nz === H.az)) b.push(bt(`🧭 Ir: ${H.an || 'onde se faz'} · ${metros({ x: H.ax, z: H.az })}`, () => irLeve({ x: H.ax, z: H.az, nome: H.an })));
+      if (b.length) linhaBts(c, ...b);
+      if (H.tit) c.append(el('div', 'faz', `Título: ${H.tit}`));
+    }
+  }
+  // Diárias
+  { const c = card('📅 Diárias'), D = S.di;
+    if (!D) c.append(el('div', 'faz', 'As diárias abrem mais à frente no nível.'));
+    else {
+      c.append(el('div', 'faz', `Cada uma: +${D.ouro} ouro${D.xp ? ` e +${D.xp} XP` : ''} · as 4: +${D.bonus} ouro · renova em ${Math.ceil(D.fim / 3600e3)} h`));
+      for (const o of D.l) {
+        const r = el('div', 'recLeve'), n = el('div', 'n'); n.append(el('b', null, o.txt), el('small', null, o.r ? 'recebida ✓' : `${o.n}/${o.t}`));
+        r.append(n);
+        if (!o.r && o.n >= o.t) { const b = el('button', 'on', 'Receber'); b.onclick = () => mandar('diaria', { acao: 'receber', id: o.id }); r.append(b); }
+        else if (!o.r) { const b = el('button', null, '🧭 Ir'); b.onclick = () => mandar('diaria', { acao: 'ir', id: o.id }); r.append(b); }
+        c.append(r);
+      }
+    }
+  }
+  // Guilda
+  { const c = card('🛡️ Guilda'), G = S.gu;
+    if (!G) c.append(el('div', 'faz', 'A Guilda abre mais à frente no nível, no Rio Claro.'));
+    else {
+      c.append(el('div', 'faz', `Rank ${G.rank} · ${G.pg}/${G.pgMax || '–'} pontos · até ${G.ativos} contratos ao mesmo tempo${G.pv ? ' · Prova aceita: vença o elite vermelho num campo da sua faixa' : ''}`));
+      const mural = (leve.mapa?.lug || []).filter((o) => /mural|guilda/i.test(o[1])).sort((a, b) => dEu({ x: a[2], z: a[3] }) - dEu({ x: b[2], z: b[3] }))[0];
+      if (!G.perto && mural) linhaBts(c, bt(`🧭 Ir ao mural da Guilda · ${metros({ x: mural[2], z: mural[3] })}`, () => irLeve({ x: mural[2], z: mural[3] + 1.5, nome: 'Mural da Guilda' })));
+      if (G.prova && G.perto && !G.pv) linhaBts(c, bt('⚔️ Aceitar a Prova de rank', () => mandar('guilda', { acao: 'prova' })));
+      for (const o of G.l) {
+        const r = el('div', 'recLeve'), n = el('div', 'n'); n.append(el('b', null, o.txt), el('small', null, o.e === 'recebido' ? 'recebido ✓' : o.e === 'livre' ? (G.perto ? 'no mural' : 'pegue no mural') : `${o.n}/${o.t}`));
+        r.append(n);
+        const b = (t, m, on) => { const x = el('button', on ? 'on' : null, t); x.onclick = () => mandar('guilda', { ...m, id: o.id }); r.append(x); };
+        if (o.e === 'livre' && G.perto) b('Aceitar', { acao: 'aceitar' });
+        if (o.e === 'ativo') { b('🧭 Ir', { acao: 'ir' }); b('Desistir', { acao: 'desistir' }); }
+        if (o.e === 'feito') b('Receber', { acao: 'receber' }, true);
+        c.append(r);
+      }
+    }
+  }
+  // Escolta do Clã
+  { const c = card('🐎 Escolta do Clã'), M = S.mc;
+    if (!M) c.append(el('div', 'faz', 'Precisa de clã com base (funde a base pelo jogo).'));
+    else if (M.ativa) {
+      c.append(el('div', null, `Levando a carga até ${M.dest}`), el('div', 'faz', `Emboscadas: ${M.emb}/${M.embs} · ${M.rec} recrutas junto · falta ${Math.ceil(M.falta / 60)} min`));
+      linhaBts(c, bt(`🧭 Ir ao destino · ${metros({ x: M.x, z: M.z })}`, () => irLeve({ x: M.x, z: M.z, nome: M.dest })));
+    } else if (M.espera > 0) c.append(el('div', 'faz', `Próxima escolta em ${Math.ceil(M.espera / 60000)} min.`));
+    else {
+      c.append(el('div', 'faz', 'Pronta. Começa no Baú do Clã: 4 emboscadas no caminho; quem sobrevive ganha +1 nível.'));
+      const b = [bt('▶️ Começar escolta', () => mandar('cla', { acao: 'missao' }))];
+      const bau = (leve.mapa?.baus || []).find((o) => o.cla); if (bau) b.unshift(bt(`🧭 Ir ao Baú do Clã · ${metros(bau)}`, () => irLeve({ x: bau.x, z: bau.z + 1.5, nome: 'Baú do Clã' }), true));
+      linhaBts(c, ...b);
+    }
+  }
 }
 
 // ---------- aba Mais: o que não cabe nas 4 primeiras. O que ainda não existe no leve aparece apagado, com a etapa.
@@ -1335,7 +1497,8 @@ function desenharMais() {
   item('⚖️ Leilão (ver preços)', 'comprar e anunciar: perto do leiloeiro', () => irAba('leilao'));
   item('🏴 Clãs bot', 'Geada e Chama', () => irAba('bots'));
   item('📜 Registro do clã', 'o que aconteceu', () => irAba('log'));
-  item('🧍 Personagem', 'atributos, golpes, títulos · em breve', null);
+  // Missões ganhou aba própria (etapa 3)
+  item('🧍 Personagem', 'atributos, golpes, títulos', () => irAba('personagem'));
   item('⚔️ PvP', 'arena 4x4, duelo, patente · em breve', null);
   item('👥 Amigos, grupo e troca', 'em breve', null);
   item('🌾 Fazenda, base e pesca', 'em breve', null);

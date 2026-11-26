@@ -45,11 +45,15 @@ static func tempo_txt(s: float) -> String:
 
 # a casinha leva para a base do clã, quando tem (André 2026-11-23; servidor: Simulacao.destinoCasa)
 func tem_base() -> bool:
-	return m.base_cla != null and not m.base_cla.minha().is_empty() and m.base_cla.minha().get("bau") is Dictionary
+	# Baú do Clã recolhido (ou posto em outro canto da base): a base continua sendo o destino, só não vem "bau" no desenho
+	return m.base_cla != null and not m.base_cla.minha().is_empty()
 
 func na_vila() -> bool:
 	if tem_base():
-		var b: Dictionary = m.base_cla.minha().bau
+		var B: Dictionary = m.base_cla.minha()
+		if not (B.get("bau") is Dictionary):
+			return false # sem baú na porta: o servidor (Simulacao.destinoCasa) diz se já está lá
+		var b: Dictionary = B.bau
 		return Vector2(m.heroi.position.x - float(b.x), m.heroi.position.z - float(b.z) - 2.5).length() < 6.0
 	return Vector2(m.heroi.position.x - D.NASCIMENTO.x, m.heroi.position.z - D.NASCIMENTO.z).length() < V.vila
 

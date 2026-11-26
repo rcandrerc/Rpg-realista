@@ -20,6 +20,7 @@ import { noLago } from '../../shared/relevo.js';
 import { planejarRota } from '../../shared/rota.js';
 import { listaVenda as listaVendaDe, POCOES, campoPerigoso, listaMudou } from './robo-escolhas.mjs';
 import { terraDoCampo, terraEm, totemDaTerra, outraTerraParaCacar } from './robo-escolhas.mjs'; // viajar de terra (ronda 2026-11-25)
+import { pecasParaConsertar } from './robo-escolhas.mjs'; // consertar o equipamento (ronda 2026-11-26)
 import { VOLTA_VILA } from '../../shared/index.js'; // casinha (ronda 2026-11-25)
 import { liberado, zonaFechadaEm } from '../../shared/historia.js';
 
@@ -160,6 +161,9 @@ function lerEvento(e) {
     R.avisos[k] = (R.avisos[k] || 0) + 1;
     ultimoAviso = e.texto;
     if (/^Mochila cheia/.test(String(e.texto || ''))) cheioT = Date.now();
+    const cs = /consertou (\d+) peças? por (\d+) de ouro/.exec(String(e.texto || '')); // ronda 2026-11-26
+    if (cs) { const C = (R.consertos ||= { vezes: 0, pecas: 0, ouro: 0 }); C.vezes++; C.pecas += +cs[1]; C.ouro += +cs[2]; log('consertou', cs[1], 'peças por', cs[2], 'de ouro'); }
+    else if (/^O conserto custa|^Conserte com/.test(String(e.texto || ''))) consertoPausa = Date.now() + 10 * 60e3;
   } else if (e.t === 'coletou') { R.coletas++; if (!e.cargas) coletando = 0; }
   else if (e.t === 'vila' && e.id === sala?.sessionId) { // totem ou casinha: o servidor leva o herói para outro lugar
     if (e.fase === 'chegou') { eu.x = e.x; eu.y = e.y; eu.z = e.z; parar(); viajandoAte = 0; correcoesSeguidas = 0; R.viagens = (R.viagens || 0) + 1; } // lugar novo: as correções de antes (na névoa) não contam
@@ -305,6 +309,9 @@ function viajarParaTerra(terra, agora, motivo, perto) {
 let campoCaca = null, campoT = 0;
 const camposRuins = new Set(); let campoXp = -2, campoXpT = 0; // campos onde não ganhou XP neste turno
 const mortesCampo = []; // onde e quando morreu caçando (campoPerigoso: 3 mortes em 10 min no mesmo campo, troca)
+// ronda 2026-11-26: o campo trocado por morte volta a valer depois de 30 min. Antes ficava de fora o turno todo: na noite de
+// 25/11 ele saiu da Aurora e da Ilha em 1 h e passou as 4 h e meia seguintes no Nv 47 de Vael, sem tentar de novo
+const perigosoAte = new Map(); const PERIGOSO_MIN = 30;
 let cacaViagem = null; const faltaAvisada = new Set(); // a terra para onde vai caçar; terras sem totem já anotadas no turno
 let cacaPonto = null; // o ponto sorteado no campo (fixo até chegar ou trocar de campo)
 // podeViajar: só quando ele caça para subir de nível (sem missão do nível, --cacar); caçando no meio de uma etapa ele
@@ -328,7 +335,7 @@ function cacar(agora, podeViajar = false) {
     else if (agora - campoXpT > 10 * 60e3) { camposRuins.add(campoCaca.nome); log('campo sem XP há 10 min, troca:', campoCaca.nome); campoCaca = null; campoXpT = agora; }
   }
   // ronda 2026-11-24: 175 mortes na guerra numa noite voltando sempre ao mesmo campo. Morreu 3 vezes em 10 min nele: troca
-  if (campoCaca && !CAMPO && campoPerigoso(mortesCampo, campoCaca.nome, agora)) { camposRuins.add(campoCaca.nome); log('morreu 3 vezes em 10 min no campo, troca:', campoCaca.nome); campoCaca = null; mortesCampo.length = 0; }
+  if (campoCaca && !CAMPO && campoPerigoso(mortesCampo, campoCaca.nome, agora)) { perigosoAte.set(campoCaca.nome, agora + PERIGOSO_MIN * 60e3); log(`morreu 3 vezes em 10 min no campo, troca por ${PERIGOSO_MIN} min:`, campoCaca.nome); campoCaca = null; mortesCampo.length = 0; }
   if (CAMPO) { /* fixo */ }
   else if (!campoCaca || agora - campoT > 20 * 60e3) {
     const nv = prog?.nivel || 1;
@@ -339,7 +346,7 @@ function cacar(agora, podeViajar = false) {
     // está (Clareira/Vael, Ilha do Meio, Aurora: sem barco ele não atravessa o mar) e nunca mais o CACA[0] (Nv 1) de
     // reserva: sem campo na faixa, vai ao mais forte que alcança na terra dele
     const terra = terraDoCampo, minha = terraEm(CACA, eu.x, eu.z);
-    const aberto = (c) => !c.boss && (c.nivel || 1) <= nv && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && !(prog && zonaFechadaEm(prog, c.x, c.z));
+    const aberto = (c) => !c.boss && (c.nivel || 1) <= nv && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && !((perigosoAte.get(c.nome) || 0) > agora) && !(prog && zonaFechadaEm(prog, c.x, c.z));
     const ok = (c) => aberto(c) && terra(c) === minha;
     const bons = CACA.filter((c) => ok(c) && (c.nivel || 1) >= nv - 6).sort((a, b) => d2(eu, a) - d2(eu, b));
     // ronda 2026-11-25: sem campo do nível aqui, vai de totem para a terra que tem (visitada e aberta); sem totem de lá,
@@ -422,6 +429,40 @@ function vender(agora) {
   const l = listaVenda(m);
   if (l.length) { acao('item', { acao: 'vender_varios', lista: l }); R.vendas = (R.vendas || 0) + 1; for (const i of l) m[i] = null; }
   vendaAte = 0; cheioT = 0; vendaPausa = agora + 30e3; // 2026-11-16: vendia os mesmos lugares de novo ("Nada para vender", 127 vezes)
+  return true;
+}
+
+// ---------- consertar (ronda 2026-11-26): cada morte gasta 10% da peça e peça quebrada não dá bônus. O robô nunca
+// consertava, então morria até no campo Nv 56 com a armadura quebrada. Com peça do corpo abaixo de 40%, vai ao ferreiro
+// mais perto da terra dele e conserta o que o ouro paga (pecasParaConsertar, ferramentas/robo/robo-escolhas.mjs) ----------
+let consertoAte = 0, consertoT = 0, consertoPausa = 0, semOuroAvisado = false;
+function ferreiroPerto() {
+  let b = null, md = Infinity; const minha = terraEm(CACA, eu.x, eu.z);
+  for (const n of MAPA_CLAREIRA.npcs) {
+    if (!(n.acoes || []).includes('consertar')) continue;
+    if (prog && zonaFechadaEm(prog, n.x, n.z)) continue;
+    if (terraEm(CACA, n.x, n.z) !== minha) continue;
+    const d = d2(eu, n); if (d < md) { md = d; b = n; }
+  }
+  return b;
+}
+function consertar(agora) {
+  if (!prog?.equip) return false;
+  const P = pecasParaConsertar(prog.equip, prog.ouro);
+  R.equip = P ? { quebradas: P.quebradas, menor: P.menor, ouro: prog.ouro | 0, custo: P.custo, ficam: P.ficam } : { inteiro: true, ouro: prog.ouro | 0 };
+  if (!consertoAte) {
+    if (agora < consertoPausa || !P) return false;
+    if (!P.lista.length) { if (!semOuroAvisado) { semOuroAvisado = true; problema(`Equipamento gasto (${P.quebradas} peças quebradas) e sem ouro para consertar (${prog.ouro | 0} de ouro)`); } consertoPausa = agora + 10 * 60e3; return false; }
+    const f = ferreiroPerto(); if (!f) { consertoPausa = agora + 10 * 60e3; return false; }
+    consertoAte = agora + 6 * 60e3; consertoT = 0; log(`equipamento gasto (menor ${P.menor}%, ${P.quebradas} quebradas): vai consertar ${P.lista.length} peças com ${f.nome || f.id}`);
+  }
+  if (agora > consertoAte) { consertoAte = 0; consertoPausa = agora + 10 * 60e3; problema('Equipamento gasto: não conseguiu chegar num ferreiro em 6 min'); return false; }
+  const f = ferreiroPerto(); if (!f || !P?.lista.length) { consertoAte = 0; return false; }
+  if (!irPara(f.x, f.z, 2.5)) return true;
+  parar();
+  if (agora - consertoT < 3000) return true;
+  consertoT = agora; acao('item', { acao: 'consertar', lista: P.lista });
+  consertoAte = 0; consertoPausa = agora + 60e3; // espera o servidor mandar o equipamento novo
   return true;
 }
 
@@ -656,7 +697,7 @@ async function main() {
     if (agora - relT > 10 * 60e3) { relT = agora; mandarRelatorio(); }
     if (!sala || !eu.pronto) continue;
     if (agora - pingT > 2000) { pingT = agora; mandar('ping', Math.round(performance.now())); } // número pequeno, como o app (Date.now() vira inteiro de 64 bits)
-    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora, true); else missao(agora); } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
+    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !consertar(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora, true); else missao(agora); } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
     const andou = andar(dt);
     mandar('pos', { x: +eu.x.toFixed(3), y: +eu.y.toFixed(3), z: +eu.z.toFixed(3), ry: +eu.ry.toFixed(3), anim: andou ? 'correr' : 'parado', c: corrSeq });
     if (andou) correcoesSeguidas = Math.max(0, correcoesSeguidas - 0.02);

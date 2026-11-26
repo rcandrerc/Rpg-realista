@@ -8,10 +8,10 @@
 import { planejarRota, terraId } from './rota.js';
 import { TUNEL } from './caverna.js';
 import { LUGARES_MUNDO } from './mundo.js';
-import { RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
-import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax } from './progresso.js';
+import { LUGARES, TITULOS, BUILD_PADRAO, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
+import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax, ATRIBUTOS, xpProximo } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
-import { liberado } from './historia.js';
+import { liberado, missaoAtual } from './historia.js';
 
 export const LEVE = {
   envio: 0.5, // s entre as fotos para a página
@@ -43,6 +43,26 @@ const corDe = (o) => (o.r != null && RARIDADES[o.r] ? cor(RARIDADES[o.r].cor) : 
 // lugares com item: [lugar, k, n, nome, cor]
 const listaLeve = (itens) => { const r = []; (itens || []).forEach((o, i) => { if (o && ITENS[o.k]) r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o)]); }); return r; };
 
+// o que a peça dá, curto ("Defesa 10 · Vida 22"); comida e poção: o que cura
+const NOME_ST = { vida: 'Vida', mana: 'Mana', defesa: 'Defesa', critico: 'Crítico %', danoCritico: 'Dano crítico %', danoFisico: 'Dano físico', danoMagico: 'Dano mágico', danoK: 'Dano %', regenManaK: 'Volta de mana %' };
+function textoPeca(o) {
+  const I = ITENS[o.k]; if (!I) return '';
+  if (I.st && o.r != null) return Object.entries(I.st).map(([c, v]) => `${NOME_ST[c] || c} ${Math.round(((v[o.r] ?? 0) * (c.endsWith('K') ? 100 : 1)) * 10) / 10}`).join(' · ');
+  const u = I.usar; if (!u) return '';
+  return [u.vida && `Vida +${Math.round(u.vida * 100)}%`, u.mana && `Mana +${Math.round(u.mana * 100)}%`, u.vigor && `Vigor +${u.vigor}`].filter(Boolean).join(' · ');
+}
+
+// a rota do jogo leve: a das estradas (planejarRota), mas saindo e entrando nas bases do clã pelo portão (saidaDaBase)
+function rotaLeve(sim, de, ate) {
+  const sai = sim.saidaDaBase?.(de), entra = sim.saidaDaBase?.(ate);
+  if (sai && entra && sai.k === entra.k) return planejarRota(sim.mapa, de, ate); // dentro da mesma base: vai direto
+  const ini = sai ? sai.pontos[sai.pontos.length - 1] : de, volta = entra ? [...entra.pontos].reverse() : [];
+  const r = planejarRota(sim.mapa, ini, entra ? volta[0] : ate); if (r.bloqueio) return r;
+  const pontos = [...(sai ? sai.pontos : []), ...r.pontos, ...volta.slice(1), ...(entra ? [{ x: ate.x, z: ate.z }] : [])];
+  let q = de, metros = 0; for (const p of pontos) { metros += Math.hypot(p.x - q.x, p.z - q.z); q = p; }
+  return { pontos, metros };
+}
+
 export const Leve = {
   // a página tocou no mapa: o herói vai até lá pela estrada
   leveIr(id, m) {
@@ -56,7 +76,7 @@ export const Leve = {
     if (this.tempo - (j.leveIrT ?? -9) < LEVE.intervalo) return;
     j.leveIrT = this.tempo;
     if (Math.hypot(x - j.x, z - j.z) > LEVE.longe || terraId(x, z) === 0) return aviso('Toque em terra, mais perto');
-    const r = planejarRota(this.mapa, j, { x, z });
+    const r = rotaLeve(this, j, { x, z });
     if (r.bloqueio) { this.leveParar(id, null); return aviso(r.bloqueio === 'terra' ? 'Isso fica em outra terra: só de barco ou navio, no jogo' : 'O caminho cruza a água: só de barco, no jogo'); }
     if (j.vila) this.cancelarVila(j, null);
     if (j.coleta) this.pararColeta(j, null);
@@ -124,7 +144,7 @@ export const Leve = {
       if (de < LEVE.reto) { j.entrada = { mx: (e.x - j.x) / de, mz: (e.z - j.z) / de, correr: !j.semFolego && !j.veiculo }; return; }
       const fim = R.pontos[R.pontos.length - 1];
       if (Math.hypot(e.x - fim.x, e.z - fim.z) > 3 && this.tempo - (R.refez ?? -9) > 1) {
-        const r = planejarRota(this.mapa, j, { x: e.x, z: e.z }); R.refez = this.tempo;
+        const r = rotaLeve(this, j, { x: e.x, z: e.z }); R.refez = this.tempo;
         if (!r.bloqueio && r.pontos.length) { R.pontos = r.pontos; R.i = 0; this.evento({ t: 'leveRota', para: j.id, pontos: r.pontos.map((p) => [Math.round(p.x), Math.round(p.z)]), nome: R.nome }); }
       }
     }
@@ -202,6 +222,7 @@ export const Leve = {
     // coleta (André 2026-11-26): o painel mostra "Minerando…", a barra até a próxima batida e quanto já pegou
     if (e.t === 'coleta') return { t: 'coleta', no: e.no, dur: e.dur, prof: e.prof || '' };
     if (e.t === 'coletou') return { t: 'coletou', no: e.no, itens: (e.itens || []).map((o) => ({ nome: o.nome, n: o.n })), cargas: e.cargas };
+    if (e.t === 'fala') return { t: 'fala', npc: (this.mapa.npcs || []).find((n) => n.id === e.npc)?.nome?.split(',')[0] || '', texto: e.texto }; // o que o NPC disse (missão)
     if (e.t === 'bau') return { t: 'bau', cla: e.cla ? 1 : 0, l: (e.itens || []).length, it: listaLeve(e.itens) };
     return e;
   },
@@ -248,13 +269,18 @@ export const Leve = {
     if (!this.andouVeiculo(j, j.x, j.z, d)) { j.x = x0; j.z = z0; this.leveParar(j.id, 'O carrinho não entra na água'); }
   },
   // a mochila como a página mostra: só os lugares com item (i = o lugar de verdade), nome, cor da raridade e preço de venda
+  // etapa 2 (André 2026-11-26, versão leve completa): [7] o que dá para fazer ('e' = vestir no lugar [8], 'u' = usar,
+  // '' = nada), [9] o que a peça dá; eq = o que está vestido [lugar, k, nome, cor, o que dá]. Equipar, tirar e usar são
+  // as mesmas mensagens do jogo ('item' equipar/tirar/usar): o servidor confere tudo.
   mochilaLeve(j) {
     const p = j.prog, merc = mercador(p.prof?.mer).venda + (bonusTitulo(p).venda || 0), r = [];
     (p.mochila || []).forEach((o, i) => {
       if (!o || !ITENS[o.k]) return;
-      r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o), precoVenda(o, merc), o.cad ? 1 : 0]);
+      const I = ITENS[o.k], tipo = I.lugar ? 'e' : (I.usar && !I.usar.veiculo) || o.k === 'tomo' ? 'u' : '';
+      r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o), precoVenda(o, merc), o.cad ? 1 : 0, tipo, I.lugar || '', textoPeca(o)]);
     });
-    return { l: (p.mochila || []).length, it: r };
+    const eq = LUGARES.filter((l) => p.equip?.[l] && ITENS[p.equip[l].k]).map((l) => { const o = p.equip[l]; return [l, o.k, nomeItem(o), corDe(o), textoPeca(o)]; });
+    return { l: (p.mochila || []).length, it: r, eq };
   },
   // Criar (André 2026-11-25): as MESMAS receitas e regras do jogo (RECEITAS, motivoReceita, `criar`); aqui só se lista.
   // [receita, nome, [[k, nome, qtd]], estação, nome da estação, perto dela (1/0), motivo (sem contar a estação), segundos]
@@ -271,6 +297,33 @@ export const Leve = {
           this.estacaoPerto(j, R) ? 1 : 0, this.motivoReceitaSem(j, R).motivo, Math.round(tempoCriar(R))];
       }),
     };
+  },
+  // Missões (etapa 3, André 2026-11-26): a aba Missões da página. Só vai com a aba aberta (leveMissoes ver) e só quando muda.
+  // hi = a história como no jogo (histInfo) com o NPC dela; di = diárias; gu = guilda; mc = Escolta do Clã. Os botões
+  // usam as mesmas mensagens do jogo ('falar' com missao, 'diaria', 'guilda', 'cla' missao); o servidor confere tudo.
+  leveMissoes(j) {
+    const H = this.histInfo(j), npcDe = (id) => (this.mapa.npcs || []).find((n) => n.id === id);
+    let hi = null;
+    if (H) {
+      const N = H.npc ? npcDe(H.npc) : null, a = H.alvo;
+      hi = { nome: H.nome, txt: H.txt, ac: H.e >= 0 ? 1 : 0, nv: missaoAtual(j.prog)?.nv | 0, ...(H.titulo ? { tit: H.titulo } : {}),
+        ...(N ? { npc: N.id, nn: N.nome.split(',')[0], nx: r1(N.x), nz: r1(N.z), np: Math.hypot(N.x - j.x, N.z - j.z) <= 4 ? 1 : 0 } : {}), // np: perto para falar (FALAR_JANELA); a distância a página calcula
+        ...(a && Number.isFinite(a.x) ? { ax: r1(a.x), az: r1(a.z), an: a.nome || '' } : {}) };
+    }
+    const G = this.guildaInfo(j), B = this.baseDe?.(j);
+    return { hi, di: this.diariasInfo(j), gu: G && { rank: G.rank, pg: G.pg, pgMax: G.pgMax, prova: G.prova ? 1 : 0, pv: G.pv ? 1 : 0, perto: G.perto ? 1 : 0, ativos: G.ativos, l: G.l },
+      mc: j.prog.cla && B ? this.missaoInfo(B) : null, pe: this.personagemLeve(j) };
+  },
+  // Personagem (etapa 4, André 2026-11-26): status, atributos (+ e Confirmar = msg 'atributos'), golpes (a build de 8 do
+  // jogo = msg 'build') e títulos (msg 'item' titulo). Tudo o servidor confere, como no menu do jogo.
+  personagemLeve(j) {
+    const p = j.prog, st = j.st || {}, pc = (v) => Math.round((v || 0) * 1000) / 10;
+    const b = (o) => Object.entries(o || {}).map(([k, v]) => `+${pc(v)}% ${({ dano: 'dano', vida: 'vida', critico: 'crítico', defesa: 'defesa', xp: 'XP', venda: 'venda' })[k] || k}`).join(' · ');
+    return { nv: p.nivel | 0, xp: Math.floor(p.xp || 0), xpM: xpProximo(p.nivel), pts: p.pontos | 0, atr: p.atr,
+      an: Object.fromEntries(Object.entries(ATRIBUTOS).map(([k, A]) => [k, [A.nome, A.desc]])),
+      st: [['Vida', Math.round(j.vidaMax)], ['Mana', Math.round(j.manaMax)], ['Defesa', Math.round(st.defesa || 0)], ['Dano físico', Math.round(st.danoFisico || 0)], ['Dano mágico', Math.round(st.danoMagico || 0)], ['Crítico', pc(st.critico) + '%']],
+      bd: j.build || BUILD_PADRAO, hs: Object.entries(HABILIDADES).filter(([, H]) => H.tipo === 'Espada' || H.tipo === 'Magia').map(([k, H]) => [k, H.nome, H.tipo === 'Espada' ? 0 : 1, H.desc || '']),
+      tit: p.tit?.uso || '', tits: (p.tit?.tem || []).filter((k) => TITULOS[k]).map((k) => [k, TITULOS[k].nome, `${TITULOS[k].como}${TITULOS[k].b ? ' · ' + b(TITULOS[k].b) : ''}`]) };
   },
   // a foto pequena da página: eu, o caminho que falta, e só quem está perto
   fotoLeve(j) {

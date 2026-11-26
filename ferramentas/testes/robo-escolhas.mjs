@@ -60,3 +60,23 @@ const pouco = outraTerraParaCacar({ minha: 'vael', campos: CACA, totens: TOTENS.
 ok(GANHO_OUTRA_TERRA === 6 && !pouco, `Nv 53: a Ilha (Nv 52) não ganha ${GANHO_OUTRA_TERRA} níveis sobre Vael (Nv 48), fica`);
 const volta = totemDaTerra(TOTENS.lista, CACA, 'vael', deTerra('vael'), aberto, 0, 0);
 ok(volta && terraDoTotem(volta.id) === 'vael' && !totemDaTerra(TOTENS.lista, CACA, 'ilha', deTerra('vael'), aberto, 0, 0), 'volta para Vael pelo totem de lá; para a Ilha sem visitar, nenhum');
+
+// Ronda 2026-11-26: cada morte gasta 10% da peça e peça quebrada não dá bônus; o robô nunca consertava e morria até no
+// campo Nv 56 da Ilha. Conserta com o ouro que tem: as quebradas primeiro, cada peça inteira ou nada
+import { pecasParaConsertar, CONSERTA_ABAIXO } from '../robo/robo-escolhas.mjs';
+import { custoConserto, LUGARES } from '../../shared/index.js';
+const peca = (l) => Object.keys(ITENS).find((k) => ITENS[k].lugar === l);
+const [kCorpo, kCabeca, kPes] = ['corpo', 'cabeca', 'pes'].map(peca);
+ok(kCorpo && kCabeca && kPes && LUGARES.includes('corpo'), 'há peça de corpo, cabeça e pés para o teste');
+ok(pecasParaConsertar({ corpo: { k: kCorpo, r: 1 }, pes: { k: kPes, r: 1 } }, 5000) === null, 'tudo inteiro: não vai ao ferreiro');
+ok(pecasParaConsertar({ corpo: { k: kCorpo, r: 1, d: CONSERTA_ABAIXO + 10 } }, 5000) === null, `gasta mas acima de ${CONSERTA_ABAIXO}%: ainda não vale a viagem`);
+const gasto = { corpo: { k: kCorpo, r: 1, d: 0 }, cabeca: { k: kCabeca, r: 1, d: 35 }, pes: { k: kPes, r: 1, d: 90 } };
+const cCorpo = custoConserto(gasto.corpo), cCabeca = custoConserto(gasto.cabeca), cPes = custoConserto(gasto.pes);
+const tudo = pecasParaConsertar(gasto, 1e9);
+ok(tudo && tudo.lista.length === 3 && tudo.custo === cCorpo + cCabeca + cPes && tudo.quebradas === 1 && tudo.menor === 0 && tudo.ficam === 0,
+  `com ouro sobrando conserta as 3 peças gastas por ${tudo?.custo} (a quebrada conta)`);
+const pouco2 = pecasParaConsertar(gasto, cCorpo + 1);
+ok(pouco2 && pouco2.lista.length === 1 && pouco2.lista[0].lugar === 'corpo' && pouco2.custo === cCorpo && pouco2.ficam === 2,
+  'com ouro só para uma: conserta primeiro a quebrada');
+const nada = pecasParaConsertar(gasto, 0);
+ok(nada && nada.lista.length === 0 && nada.ficam === 3, 'sem ouro: lista vazia (o robô anota no relatório em vez de ir ao ferreiro)');
