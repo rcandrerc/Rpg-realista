@@ -2830,6 +2830,30 @@ func _sumir_arvore(pos: Vector2) -> void:
 		mm.set_instance_transform(c[parte][1], Transform3D(Basis().scaled(Vector3.ZERO), c.t.origin))
 	_sumindo[pos] = {"no": no, "k": 0.0, "quer": 1.0, "mats": mats}
 
+# atrás da capa (aquecer.gd, 2026-11-26: registro do Poco, 1ª árvore que apagava na frente da câmera = f:mata 82 ms):
+# uma cópia com alfa de cada tronco e copa é desenhada uma vez escondida e fica no estoque (_mats_mata_livres), então a
+# primeira árvore que some no jogo já sai sem montar shader
+func aquecer_mata(pai: Node3D) -> void:
+	for chave in _malhas_mata:
+		var mesh: Mesh = _malhas_mata[chave]
+		if mesh == null or mesh.get_surface_count() == 0 or not (mesh.surface_get_material(0) is BaseMaterial3D):
+			continue
+		var l: Array = _mats_mata_livres.get(chave, [])
+		if not l.is_empty():
+			continue
+		var mt: BaseMaterial3D = (mesh.surface_get_material(0) as BaseMaterial3D).duplicate()
+		mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+		mt.distance_fade_mode = BaseMaterial3D.DISTANCE_FADE_DISABLED
+		mt.set_meta("cor0", mt.albedo_color)
+		mt.set_meta("chave", chave)
+		var mi := MeshInstance3D.new()
+		mi.mesh = mesh
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.material_override = mt
+		pai.add_child(mi)
+		l.append(mt)
+		_mats_mata_livres[chave] = l
+
 func _voltar_arvore(pos: Vector2) -> void:
 	var c: Dictionary = arvores_mata[pos]
 	for parte in ["tronco", "copa"]:
