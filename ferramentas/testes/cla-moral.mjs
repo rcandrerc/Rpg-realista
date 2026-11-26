@@ -98,6 +98,15 @@ delete a.prodH; guardar(a.prog.mochila, { k: 'lenha', n: 5 }); s.passoProdRecrut
 guardar(a.prog.mochila, { k: 'lenha', n: 4 }); s.passoProdRecrutas();
 ok(r.oc.n === 14 && s.claInfo(p).m[0].pt?.t === 14 && s.claInfo(p).m[0].pt?.desde, `continua contando depois de voltar: ${r.oc.n}`);
 const oc0 = JSON.parse(JSON.stringify(r.oc)); ok(oc0.n === 14, 'vai no save (JSON)');
+// André 2026-11-26: "ta resetando qd eu deslogo": o save passa pelo claValido (login) e o oc tem que ficar
+{ const cv = claValido(JSON.parse(JSON.stringify(p.prog.cla))); const o = cv.m.find((q) => q.id === r.id)?.oc;
+  ok(o && o.k === 'r:lenha' && o.n === 14 && o.t0 === r.oc.t0, `o contador volta do save no login (${o?.n})`); }
+// e o que contou enquanto ele estava fora (cópia do clasFora) entra no save que acabou de carregar
+{ const salvo = claValido(JSON.parse(JSON.stringify(p.prog.cla))), fora = JSON.parse(JSON.stringify(p.prog.cla));
+  fora.m.find((q) => q.id === r.id).oc.n = 30; (s.clasFora ||= new Map()).set(p.conta, fora);
+  const antes = p.prog.cla; p.prog.cla = salvo; s.entrarRecrutas(p);
+  ok(salvo.m.find((q) => q.id === r.id).oc.n === 30, `login: o contador do tempo fora não some (${salvo.m.find((q) => q.id === r.id).oc.n})`);
+  p.prog.cla = antes; }
 r.fn = { k: 'grind' }; s.passoProdRecrutas();
 ok(r.oc.k === 'grind' && r.oc.n === 0, 'trocou a ordem: zera');
 r.fn = { k: 'recurso', r: 'lenha' }; s.passoProdRecrutas(); s.passoProdRecrutas();
