@@ -2428,6 +2428,15 @@ func montar_cla() -> void:
 	# membros (André 2026-11-22: "apareça eu no painel... nível Hp mana e vigor... determinar funções")
 	conteudo.add_child(rotulo("Membros", 17, OURO_CLARO))
 	var ms: Array = C.get("m", [])
+	if not ms.is_empty(): # Esvaziar bags (André 2026-11-26), igual ao jogo leve: andam ao Baú do Clã, guardam o que o clã usa e vendem o resto
+		var le := HBoxContainer.new()
+		le.add_theme_constant_override("separation", 8)
+		var te := rotulo("Bolsas dos recrutas: guardam no Baú do Clã o que o clã usa e vendem o resto (ferramenta, poção e semente ficam)", 12, APAGADO)
+		te.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		te.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		le.add_child(te)
+		le.add_child(botao("Esvaziar bags", func(): rede("cla", {"acao": "esvaziar", "id": "*"}), 12, true))
+		conteudo.add_child(le)
 	if C.has("eu"):
 		conteudo.add_child(_cartao_cla(C.eu, "Líder · Nv %d" % int(C.eu.get("nv", 1)), null, ms, C))
 	if ms.is_empty():

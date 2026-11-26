@@ -212,7 +212,6 @@ function cartaoMembro(m) {
     pedir({ acao: 'funcao', id: m.id, fn: f });
   };
   o.append(fn, extra, ok); c.append(o);
-  { const e = el('button', 'acao', 'Esvaziar bolsa'); e.onclick = () => { e.disabled = true; setTimeout(() => { e.disabled = false; }, 1500); pedir({ acao: 'esvaziar', id: m.id }); }; c.append(e); } // guarda o que o clã usa e vende o resto
   if (m.lv) { const e = el('button', 'acao', `Entregar no Baú (${m.lv})`); e.onclick = () => { e.disabled = true; setTimeout(() => { e.disabled = false; }, 1500); pedir({ acao: 'entregar', id: m.id }); }; c.append(e); } // leva agora o item da ordem
   return c;
 }
@@ -408,8 +407,8 @@ function desenharCla() {
     l.append(el('div', 'nome', 'Com os recrutas (vão para o Baú do Clã)'), b); c.append(l);
     const f = el('div', 'icones'); for (const it of info.com) f.append(iconeQtd(it)); c.append(f); raiz.append(c);
   }
-  if (info.m?.length) { // Esvaziar bags (André 2026-11-26): todos andam ao Baú do Clã, guardam o que o clã usa e vendem o resto
-    const c = el('div', 'card'), l = el('div', 'linha'), b = el('button', 'acao', '🎒 Esvaziar bags');
+  if (info.m?.length) { // Esvaziar bags (André 2026-11-26), igual ao jogo (menu.gd): todos andam ao Baú do Clã, guardam o que o clã usa e vendem o resto
+    const c = el('div', 'card'), l = el('div', 'linha'), b = el('button', 'acao', 'Esvaziar bags');
     b.onclick = () => { b.disabled = true; setTimeout(() => { b.disabled = false; }, 1500); pedir({ acao: 'esvaziar', id: '*' }); };
     l.append(el('div', 'nome', 'Bolsas dos recrutas'), b); c.append(l);
     c.append(el('div', 'sub', 'Eles vão andando ao Baú do Clã, guardam o que o clã usa (materiais, comida, alma) e vendem o resto. Ferramenta, poção e semente ficam com eles.'));
