@@ -176,6 +176,7 @@ class SalaClareira extends Room {
     if (contas) this.sim.nivelTetoNpc = contas.nivelMaisAlto(); // NPCs nunca passam do jogador mais alto (André 2026-11-11)
     if (contas && salas.size === 1) this.npcsForaDoMundo(true); // primeira sala aberta: os aventureiros fora do mundo evoluem pelo tempo vazio
     if (contas) { this.sim.carregarBosses(contas.lerMundo('bosses')); this.sim.aoBosses = (est) => contas.gravarMundo('bosses', est); }
+    if (contas) { this.sim.carregarGuerraMes(contas.lerMundo('guerra_mes')); this.sim.aoGuerraMes = (est) => contas.gravarMundo('guerra_mes', est); } // Patente de Guerra: o placar do mês (shared/patente.js)
     if (contas) { this.sim.carregarClasNpc(contas.lerMundo('clas_npc')); this.sim.aoClasNpc = (est) => contas.gravarMundo('clas_npc', est); } // clãs bot: os recrutas do Gael (shared/cla.js)
     // bases dos clãs (André 2026-11-22, shared/base.js): todas as salas no mesmo registro; terreno novo só na base
     if (contas) { this.sim.carregarBases(contas.lerMundo('bases_cla')); this.sim.aoBases = (est) => contas.gravarMundo('bases_cla', est); this.sim.soBaseCla = true;

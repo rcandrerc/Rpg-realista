@@ -1834,7 +1834,7 @@ func montar_profissoes() -> void:
 # Todos os títulos, os ganhos primeiro em cada grupo. Cada um: nome na cor do brilho, como ganhou e o bônus
 # ("Venceu o Uivo-Rei · +5% crítico"). Tocar em Usar põe o título em cima da cabeça e liga o bônus (o servidor confere);
 # Tirar deixa sem título. Os que faltam ficam apagados, com o feito que falta.
-const GRUPOS_TITULO := [["caca", "Caça"], ["boss", "Bosses de mundo"], ["historia", "História"], ["prof", "Profissões"]]
+const GRUPOS_TITULO := [["caca", "Caça"], ["guerra", "Guerra"], ["boss", "Bosses de mundo"], ["historia", "História"], ["prof", "Profissões"]] # Guerra: Patente de Guerra (André 2026-11-26)
 func grupo_titulo(T: Dictionary) -> String:
 	var c: Dictionary = T.get("cond", {})
 	if c.has("boss"):
@@ -1843,6 +1843,8 @@ func grupo_titulo(T: Dictionary) -> String:
 		return "prof"
 	if c.has("abates"):
 		return "caca"
+	if c.has("pat"):
+		return "guerra"
 	return "historia"
 
 func montar_titulos() -> void:
@@ -1896,7 +1898,7 @@ func card_titulo(id: String, T: Dictionary, ganho: bool, em_uso: bool) -> Contro
 		nome.add_theme_constant_override("outline_size", 4)
 	txt.add_child(nome)
 	var raridade: String = str(P_menu.dados.raridades[r].nome) if r < P_menu.dados.raridades.size() else ""
-	var dsc := rotulo("%s · %s" % [str(T.como), str(T.txt)], 12, TEXTO if ganho else APAGADO)
+	var dsc := rotulo("%s · %s" % [str(T.como), str(T.txt)] if str(T.txt) != "" else str(T.como), 12, TEXTO if ganho else APAGADO) # patente: sem bônus
 	dsc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	txt.add_child(dsc)
 	if raridade != "":
@@ -2169,6 +2171,85 @@ func _despensa_cla(C: Dictionary) -> void:
 		vs.add_child(rotulo("Ponha comida no Baú do Clã. Prato do fogão rende mais que peixe cru.", 12, APAGADO))
 	conteudo.add_child(cs)
 
+# Patente de Guerra (André 2026-11-26, shared/patente.js guerraInfo): placar do mês Chama x Geada e o escudo com anel de
+# cada um do clã (você e os recrutas), sem lista de texto. Tocar num escudo: "Sargento · 64% para Tenente".
+const PatenteG = preload("res://patente.gd")
+func _guerra_cla(C: Dictionary) -> void:
+	var G = C.get("gu")
+	if not (G is Dictionary):
+		return
+	var cx := PanelContainer.new()
+	cx.add_theme_stylebox_override("panel", caixa(FUNDO2, OURO.darkened(0.35), 1, 10))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	cx.add_child(v)
+	var cab := HBoxContainer.new()
+	var tt := rotulo("Guerra do mês", 16, OURO_CLARO)
+	tt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cab.add_child(tt)
+	cab.add_child(rotulo("Clã: %d abates" % int(G.get("cla", 0)), 14, TEXTO))
+	v.add_child(cab)
+	# placar: escudo Chama, números, escudo Geada
+	var pl := HBoxContainer.new()
+	pl.alignment = BoxContainer.ALIGNMENT_CENTER
+	pl.add_theme_constant_override("separation", 12)
+	var R: Dictionary = G.get("r", {})
+	for lado in ["chama", "geada"]:
+		var ic := TextureRect.new()
+		ic.texture = PatenteG.textura(lado, 3)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.custom_minimum_size = Vector2(44, 44)
+		var n := rotulo(str(int(R.get(lado, 0))), 28, Color("ff9a3c") if lado == "chama" else Color("8fd0ff"))
+		if lado == "chama":
+			pl.add_child(ic)
+			pl.add_child(n)
+			pl.add_child(rotulo("x", 20, APAGADO))
+		else:
+			pl.add_child(n)
+			pl.add_child(ic)
+	v.add_child(pl)
+	# escudos do clã: você primeiro
+	var fl := HFlowContainer.new()
+	fl.add_theme_constant_override("h_separation", 10)
+	fl.add_theme_constant_override("v_separation", 8)
+	var raca := str(m.online.eu_raca) if m.online else ""
+	var todos: Array = []
+	if G.get("eu") is Dictionary:
+		var eu: Dictionary = G.eu.duplicate()
+		eu["nome"] = "Você"
+		todos.append(eu)
+	todos.append_array(G.get("m", []))
+	for o in todos:
+		fl.add_child(_escudo_guerra(o, raca))
+	v.add_child(fl)
+	v.add_child(rotulo("Anel = quanto falta para a próxima patente. Dia 1º volta a Recruta e cada um ganha o prêmio da patente que pegou; o título da maior fica.", 11, APAGADO))
+	conteudo.add_child(cx)
+
+func _escudo_guerra(o: Dictionary, raca: String) -> Control:
+	var i := int(o.get("i", 0))
+	var pct := float(o.get("pct", 0.0))
+	var b := VBoxContainer.new()
+	b.custom_minimum_size = Vector2(76, 0)
+	b.add_theme_constant_override("separation", 0)
+	var d := Control.new()
+	d.custom_minimum_size = Vector2(76, 60)
+	d.mouse_filter = Control.MOUSE_FILTER_STOP
+	d.draw.connect(func(): PatenteG.desenhar(d, Vector2(38, 30), 24.0, raca, i, pct))
+	d.gui_input.connect(func(ev):
+		if (ev is InputEventMouseButton or ev is InputEventScreenTouch) and ev.pressed:
+			m.hud.aviso("%s: %s · %d abates no mês" % [str(o.get("nome", "")), PatenteG.texto(i, pct), int(o.get("a", 0))]))
+	b.add_child(d)
+	var n := rotulo(str(o.get("nome", "")), 13, TEXTO)
+	n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	n.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	n.custom_minimum_size = Vector2(76, 18)
+	b.add_child(n)
+	var s := rotulo("%d abates" % int(o.get("a", 0)), 12, APAGADO)
+	s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	b.add_child(s)
+	return b
+
 func _jantar_cla(C: Dictionary) -> void:
 	# o jantar do clã (shared/jantar.js): chamar os recrutas para a mesa uma vez por dia; o resto é na janela do jantar
 	if not (C.get("jantar") is Dictionary):
@@ -2295,6 +2376,7 @@ func montar_cla() -> void:
 	_base_cla(C)
 	_despensa_cla(C)
 	_jantar_cla(C)
+	_guerra_cla(C) # Patente de Guerra (André 2026-11-26)
 	# membros (André 2026-11-22: "apareça eu no painel... nível Hp mana e vigor... determinar funções")
 	conteudo.add_child(rotulo("Membros", 17, OURO_CLARO))
 	var ms: Array = C.get("m", [])

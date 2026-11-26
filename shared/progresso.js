@@ -1,7 +1,7 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
 import { fichaJogadorValida, JANTAR } from './dados.js';
-import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS, TITULOS, HISTORIA } from './dados.js';
+import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS, TITULOS, HISTORIA, PATENTE } from './dados.js';
 import { packValido, carrinhoValido, navioValido } from './transporte.js';
 import { histNova, histValida } from './historia.js';
 import { diariasValidas } from './diarias.js'; // missões diárias (André 2026-11-16)
@@ -126,6 +126,7 @@ export function titulosNovos(p) {
     const c = t.cond;
     if ((c.abates && (p.abates | 0) >= c.abates) || (c.prof && profNivel(p.prof?.[c.prof]) >= c.nv)
       || (c.hist && h > HISTORIA.findIndex((M) => M.id === c.hist) && HISTORIA.some((M) => M.id === c.hist))
+      || (c.pat && (p.gu?.x | 0) >= c.pat) // Patente de Guerra (shared/patente.js): a maior que já pegou
       || (c.pvpV && (p.pvp?.v | 0) >= c.pvpV)) r.push(id); // Arena PvP (André 2026-11-21): vitórias na arena
   }
   return r;
@@ -680,6 +681,7 @@ export function progressoValido(p) {
   n.abates = int(p.abates, 0, 1e9, 0);
   { const d = placarDueloValido(p.duelos); if (d) n.duelos = d; } // placar de duelos (André 2026-11-17, shared/duelo.js)
   { const f = fichaJogadorValida(p.fic); if (f) n.fic = f; } // ficha do jogador, opcional (André 2026-11-23, FICHA_RECRUTA)
+  { const g = patenteValida(p.gu); if (g) n.gu = g; } // Patente de Guerra (André 2026-11-26, shared/patente.js)
   { const a = pvpValido(p.pvp); if (a) n.pvp = a; } // Arena PvP (André 2026-11-21, shared/arena.js): Insígnias e placar
   if (Number.isFinite(p.rgCd) && p.rgCd > 0) n.rgCd = Math.round(p.rgCd); // Pó de rastreio: quando a recarga acaba (ms, hora de verdade)
   if (p.rgDado === 1) n.rgDado = 1; // Pó de rastreio de presente já entregue (conta de teste do André)
@@ -704,6 +706,16 @@ export function placarDueloValido(o) {
 }
 
 // Arena PvP vinda da conta (prog.pvp, shared/arena.js): Insígnias (pts), vitórias, derrotas, empates, abates e quedas
+// Patente de Guerra (shared/patente.js): prog.gu = { m, a, x, l, u }
+export function patenteValida(g) {
+  if (!g || typeof g !== 'object') return null;
+  const n = (v, hi) => (Number.isInteger(v) && v >= 0 && v <= hi ? v : 0);
+  const u = {};
+  if (g.u && typeof g.u === 'object') for (const [k, v] of Object.entries(g.u).slice(-PATENTE.guarda)) if (typeof k === 'string' && k.length <= 64 && Number.isFinite(v)) u[k] = Math.round(v);
+  const r = { m: typeof g.m === 'string' && /^\d{4}-\d{2}$/.test(g.m) ? g.m : '', a: n(g.a, 1e6), x: n(g.x, PATENTE.nomes.length - 1), l: n(g.l, 1e4), u };
+  return r.m || r.x || r.l ? r : null;
+}
+
 export function pvpValido(o) {
   if (!o || typeof o !== 'object') return null;
   const n = (v) => (Number.isInteger(v) && v >= 0 && v <= 1e9 ? v : 0);

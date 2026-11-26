@@ -229,6 +229,32 @@ function cartaoBau(itens, cheio, lug) {
   const f = el('div', 'icones'); for (const it of itens) f.append(iconeQtd(it)); c.append(f);
   return c;
 }
+// Patente de Guerra (André 2026-11-26, shared/patente.js guerraInfo): igual à parte "Guerra do mês" do clã no jogo:
+// placar Chama x Geada do mês e o escudo de cada um com o anel até a próxima patente (ícones, sem lista de texto)
+const PATENTES = ['Recruta', 'Soldado', 'Cabo', 'Sargento', 'Tenente', 'Capitão', 'Comandante', 'Lenda'];
+function escudoGuerra(o, raca, nome) {
+  const d = el('div', 'ico pat'), r = 21, C = 2 * Math.PI * r, cor = raca === 'geada' ? '#73c7ff' : '#ff8c2b';
+  d.innerHTML = `<svg viewBox="0 0 52 52" width="52" height="52"><circle cx="26" cy="26" r="${r}" fill="#0b0a09" stroke="#3d3326" stroke-width="4"/>`
+    + (o.pct > 0 ? `<circle cx="26" cy="26" r="${r}" fill="none" stroke="${cor}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(C * Math.min(1, o.pct)).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 26 26)"/>` : '')
+    + `<image href="painel-icones/patente/${raca === 'geada' ? 'geada' : 'chama'}_${o.i | 0}.png" x="11" y="11" width="30" height="30"/></svg>`;
+  d.append(el('small', null, nome), el('small', 'apagado', `${o.a | 0} abates`));
+  const i = o.i | 0, txt = i >= 7 ? 'Lenda · topo do mês' : `${PATENTES[i]} · ${Math.round((o.pct || 0) * 100)}% para ${PATENTES[i + 1]}`;
+  d.onclick = () => aviso(`${nome}: ${txt} · ${o.a | 0} abates no mês`);
+  return d;
+}
+function cartaoGuerra(G) {
+  const c = el('div', 'card'), l = el('div', 'linha');
+  l.append(el('div', 'nome', 'Guerra do mês'), el('div', 'nv', `Clã: ${G.cla | 0} abates`)); c.append(l);
+  const p = el('div', 'placar');
+  const lado = (r) => { const i = el('img'); i.src = `painel-icones/patente/${r}_3.png`; i.alt = r; return i; };
+  p.append(lado('chama'), el('b', 'chama', String(G.r?.chama | 0)), el('span', null, 'x'), el('b', 'geada', String(G.r?.geada | 0)), lado('geada'));
+  c.append(p);
+  const f = el('div', 'icones');
+  if (G.eu) f.append(escudoGuerra(G.eu, G.raca, 'Você'));
+  for (const o of G.m || []) f.append(escudoGuerra(o, G.raca, o.nome));
+  c.append(f, el('div', 'faz', 'Anel = quanto falta para a próxima patente. Dia 1º volta a Recruta e cada um ganha o prêmio da patente que pegou; o título da maior fica.'));
+  return c;
+}
 function cartaoSobe(S) {
   const c = el('div', 'card'), l = el('div', 'linha');
   const pronto = S.nvLider >= S.lider && S.cofre >= S.ouro && S.itens.every((it) => it.tem >= it.n);
@@ -350,6 +376,7 @@ function desenharCla() {
   raiz.append(t);
   if (info.sobe) raiz.append(cartaoSobe(info.sobe));
   if ('bau' in info) raiz.append(cartaoBau(info.bau, info.bauCheio, info.bauLug));
+  if (info.gu) raiz.append(cartaoGuerra(info.gu)); // Patente de Guerra (André 2026-11-26)
   if (!info.m.length) raiz.append(el('div', 'vazio', 'Nenhum recruta ainda. Contrate no Recrutador, no jogo.'));
   for (const m of info.m) raiz.append(cartaoMembro(m));
 }

@@ -231,6 +231,7 @@ export const Cla = {
       tiers: CLA.tiers.map((T) => { const n2 = nivelTier(T, nv); return { id: T.id, nome: T.nome, nv: n2, preco: precoTier(T, n2), sem: semanaDe(T, n2), claNv: T.claNv || 1 }; }),
       ...(c.disp?.some((d) => d.ate > Date.now()) ? { disp: c.disp.filter((d) => d.ate > Date.now()).map((d) => ({ id: d.r.id, nome: d.r.nome, nv: d.r.nv, taxa: taxaVolta(d.r) })) } : {}), // chamar de volta (10 min)
       dsp: this.despensaInfo(c.dsp, this.bauDoCla({ conta: j.conta })?.itens || null, 1 + c.m.length, Bs), // Despensa e lenha (DESPENSA)
+      gu: this.guerraInfo?.(j, c.m.map((m) => vivos.get(m.id) || { nome: m.nome, prog: null })) || null, // Patente de Guerra: aba Guerra (shared/patente.js)
       rec, log: c.log.slice(-10).reverse(), dep: CLA.deposito, clas: this.clasNpcInfo(j), base: this.baseInfo?.(j) || null, jantar: this.jantarResumo?.(j) || null,
       baseNiveis: CLA.base.niveis.slice(1).map((N, i) => ({ nv: i + 1, centro: N.centro, lotes: N.lotes, raio: N.raio, taxa: N.taxa, tem: N.tem })) };
   },
@@ -975,6 +976,7 @@ export const Cla = {
       ...(this.bauDoCla({ conta })?.itens ? { bauLug: lugares(this.bauDoCla({ conta }).itens) } : {}), // ocupado/total, como o jogo (40/60)
       ...(this.baseDe?.(L) ? { base: { x: Math.round(this.baseDe(L).x), z: Math.round(this.baseDe(L).z), nv: this.baseDe(L).nv | 0, n: this.baseDe(L).n || c.n, raca: this.baseDe(L).raca || '' } } : {}), // a base do clã no mapa do painel
       ...(this.basesCla ? { bases: Object.values(this.basesCla).filter((B) => B.raca === (raca || this.racaDe(L)) && B.k !== this.baseDe?.(L)?.k).map((B) => ({ x: Math.round(B.x), z: Math.round(B.z), n: B.n || '', raca: B.raca })) } : {}), // as bases aliadas (mesma facção); da facção inimiga nada vai
+      gu: this.guerraInfo?.({ ...L, prog: heroi?.prog || prog || L.prog }, c.m.map((m) => vivos.get(m.id) || { nome: m.nome, prog: null })) || null, // Patente de Guerra: aba Guerra, igual ao jogo
       clas: this.clasNpcInfo(L).map((o, i) => ({ ...o, ...clas[i] })), lugares: (this.lugaresPainel ||= [{ nome: this.mapa.nome || 'Vila', x: 0, z: 0 }, ...LUGARES_MUNDO.filter((o) => o.nome && o.tipo !== 'porto').map((o) => ({ nome: o.nome, x: o.x, z: o.z }))]) };
   },
   // o que está cheio no clã (André 2026-11-24: "quando ficar cheio... ficar vermelho... e notificação"): recruta com a

@@ -4782,5 +4782,22 @@
 "Termine o jantar antes de desmontar a mesa": "Finish the dinner before taking the table apart",
 "Termine o jantar antes de mudar a mesa de lugar": "Finish the dinner before moving the table",
 "{1} para o jantar. Ponha a comida na mesa": "{1} for dinner. Put the food on the table",
-"Banquete do clã": "Clan Feast"
+"Banquete do clã": "Clan Feast",
+"Guerra do mês": "War of the month",
+"Clã: %d abates": "Clan: %d takedowns",
+"Anel = quanto falta para a próxima patente. Dia 1º volta a Recruta e cada um ganha o prêmio da patente que pegou; o título da maior fica.": "Ring = how far to the next rank. On the 1st everyone goes back to Recruit and gets the prize of the rank they reached; the title of the highest one stays.",
+"%s: %s · %d abates no mês": "%s: %s · %d takedowns this month",
+"%d abates no mês": "%d takedowns this month",
+"%d abates": "%d takedowns",
+"Recruta": "Recruit",
+"Soldado": "Soldier",
+"Cabo": "Corporal",
+"Sargento": "Sergeant",
+"Tenente": "Lieutenant",
+"Capitão": "Captain",
+"Comandante": "Commander",
+"Lenda": "Legend",
+"%s · topo do mês": "%s · top of the month",
+"%s · %d%% para %s": "%s · %d%% to %s",
+"Guerra": "War"
 }
