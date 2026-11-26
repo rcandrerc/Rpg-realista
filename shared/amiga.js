@@ -538,7 +538,7 @@ export const Amiga = {
     // caiu lutando: renasce em casa (a cama dela), como qualquer jogador, e CONTINUA no time (André 2026-11-11: "quando o bot
     // morre, ele sai do meu time. Eu não quero"). Uma vez por queda: avisa, conserta no Tomás e repõe as poções na Rosa com o
     // ouro dela; ao levantar, o passoTimeAmiga a traz de volta até o dono pela estrada (montada).
-    if (j.morto) { if (!ia.caiu) { ia.caiu = true; ia.caiuT = this.tempo; this.evolucaoAmiga(j, 'morreu', ia.av?.c?.nome || (j.time ? 'no time' : '')); const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); if (ia.encomenda && !ia.encomenda.pronta) this.fimEncomendaAmiga(j, 'luta'); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
+    if (j.morto) { if (!ia.caiu) { ia.caiu = true; ia.caiuT = this.tempo; this.evolucaoAmiga(j, 'morreu', this.textoMorteAmiga(j)); const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); if (ia.encomenda && !ia.encomenda.pronta) this.fimEncomendaAmiga(j, 'luta'); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
     ia.caiu = false;
     if (j.duelo) return this.passoDueloAmiga(j); // duelando (shared/duelo.js): só luta contra quem chamou
     if (ia.jantar && this.jantarAmiga?.(j, dt)) return; // chamado para o jantar do clã: anda até a Mesa do Clã e senta (shared/jantar.js)
@@ -1146,6 +1146,14 @@ export const Amiga = {
   // se eles bugarem alguma missão") ----------
   // Só números do jogo, nada de conversa: { t, nv, o: 'nivel'|'missao'|'morreu'|'travou'|'reforco'|'evoluir', txt }.
   // Sai em /npcs.json (server/index.js) para a ronda diária contar ao André.
+  // a queda no diário (ronda de 26/11: o Gael caiu 37 vezes perto do Juncal e o diário não dizia de quê): o campo ou "no
+  // time", o que fazia, quem deu o golpe final (j.quedaDe, anotado no morrer de shared/simulacao.js) e onde caiu. De jogador
+  // de verdade não sai o nome, só "um jogador"; bot e recruta saem pelo nome. Só para a ronda (/npcs.json, com crachá).
+  textoMorteAmiga(j) {
+    const ia = j.ia || {}, q = j.quedaDe; j.quedaDe = null;
+    const de = !q ? 'sem golpe' : q.tipo === 'jogador' ? `${q.guerra ? 'guerra, ' : ''}${q.nome || 'um jogador'}` : `${TIPOS_INIMIGO[q.tipo]?.nome || q.tipo} Nv ${q.nivel}`;
+    return [ia.av?.c?.nome || (j.time ? 'no time' : ''), ia.av?.fase || '', `por ${de}`, `em ${Math.round(j.x)},${Math.round(j.z)}`].filter(Boolean).join(' · ');
+  },
   evolucaoAmiga(j, o, txt = '') {
     (j.evolucao ||= []).push({ t: Date.now(), nv: j.prog.nivel | 0, o, txt: String(txt).slice(0, 120) });
     if (j.evolucao.length > NPC_VIDA.evolucao.max) j.evolucao.splice(0, j.evolucao.length - NPC_VIDA.evolucao.max);
