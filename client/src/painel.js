@@ -130,6 +130,7 @@ function irAba(a) {
   // a aba Mapa saiu (André 2026-11-25: "no jogar já tem o mapa... pode remover"): o mapa, os líderes bot e a legenda ficam no Jogar
   if (aba === 'jogar') { vista = null; leve.sujo = true; desenharJogar(); if (leve.sala) desenharMapa(); }
   if (aba === 'mochila') { leve.sujo = true; desenharMochila(); }
+  if ((a === 'missoes') !== !!leve.msVer) { leve.msVer = a === 'missoes'; mandar('leveMissoes', { ver: leve.msVer }); } // a lista só vem com a aba aberta
   if (aba === 'missoes') desenharMissoes();
   if (aba === 'mais') desenharMais();
   scrollTo(0, 0);
@@ -573,8 +574,9 @@ async function entrarLeve() {
 }
 function ligarLeve(s) {
   leve.sala = s; if (criarAberto) s.send('leveReceitas', { ver: true }); // voltou da queda com o Criar aberto
+  if (aba === 'missoes') s.send('leveMissoes', { ver: true });
   s.onMessage('leve', (d) => {
-    leve.f = d.f; if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa;
+    leve.f = d.f; if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa; if (d.ms) { leve.ms = d.ms; if (aba === 'missoes') desenharMissoes(); }
     for (const e of d.ev || []) eventoLeve(e);
     // apanhou minerando (André 2026-11-26: "quando chega o combate... tá meio confuso"): o servidor para a coleta (igual ao
     // jogo 3D); a página guarda o veio para o botão "Voltar a minerar" quando a luta acabar
@@ -612,6 +614,8 @@ function eventoLeve(e) {
     if (e.itens?.length) aviso(e.itens.map((o) => `+${o.n} ${o.nome}`).join(' · ')); leve.sujo = true;
   }
   else if (e.t === 'fabricando') { leve.fab = e.fim ? null : { nome: e.nome, ate: Date.now() + (e.dur || 0) * 1000 }; leve.sujo = true; }
+  else if (e.t === 'fala') falaLeve(e); // o NPC respondeu (missão)
+  else if (e.t === 'diaria_ir' && e.alvo) irLeve(e.alvo); // Ir da diária ou do contrato: o servidor diz o lugar aberto mais perto
   else if (e.t === 'chat') chatLeve([e]);
   else if (e.t === 'chatHist') { leve.chat = []; chatLeve(e.l); }
 }
@@ -1352,11 +1356,81 @@ function desenharMochila() {
 }
 addEventListener('scroll', () => { if (aba === 'mochila') mochilaRolou = scrollY; }, { passive: true });
 
-// ---------- aba Missões: chega na etapa 3 (história, diárias, guilda e missão do clã)
+// ---------- aba Missões (etapa 3, André 2026-11-26): História, Diárias, Guilda e Escolta do Clã, cada uma com o botão para
+// ir até onde se faz. Mesmas mensagens do jogo ('falar' com missão, 'diaria', 'guilda', 'cla' missao); o servidor confere.
+function falaLeve(e) {
+  const ok = el('button', 'acao', 'Ok');
+  const j = janelaLeve([el('div', 'nome', e.npc || 'NPC'), el('div', 'dica', e.texto || '')]); j.classList.add('fala');
+  const fechar = () => j.remove(); ok.onclick = fechar; j.onclick = (ev) => { if (ev.target === j) fechar(); };
+  j.firstChild.append(ok); document.querySelectorAll('.janelaLeve.fala').forEach((o) => o.remove()); document.body.append(j);
+}
 function desenharMissoes() {
-  const raiz = $('missoesAba'); limpar(raiz);
-  const c = el('div', 'card'); c.append(el('div', 'nome', '📜 Missões'), el('div', 'faz', 'Em construção: aqui vão ficar a História, as Diárias, a Guilda e a Missão do Clã, com o botão para ir até quem dá a missão. Por enquanto, faça as missões no jogo 3D.'));
-  raiz.append(c);
+  const raiz = $('missoesAba'); if (aba !== 'missoes') return;
+  limpar(raiz);
+  if (!leve.sala || !leve.f) return foraDoMundo(raiz, 'as missões');
+  const S = leve.ms; if (!S) { raiz.append(el('div', 'vazio', 'Abrindo…')); return; }
+  const card = (tit) => { const c = el('div', 'card'); c.append(el('div', 'nome', tit)); raiz.append(c); return c; };
+  const linhaBts = (c, ...b) => { const d = el('div', 'bts'); d.append(...b); c.append(d); };
+  // História
+  { const c = card('📖 História'), H = S.hi;
+    if (!H) c.append(el('div', 'faz', 'Você terminou a história. 🎉'));
+    else {
+      c.append(el('div', null, H.nome), el('div', 'faz', H.ac ? H.txt : H.nn ? `Missão nova: fale com ${H.nn} para aceitar.` : `Abre no Nv ${H.nv}. Até lá: diárias, caça e coleta.`));
+      const b = [];
+      if (H.npc && H.np) b.push(bt(`💬 Falar com ${H.nn}`, () => mandar('falar', { npc: H.npc, missao: true })));
+      else if (H.npc) b.push(bt(`🧭 Ir até ${H.nn} · ${metros({ x: H.nx, z: H.nz })}`, () => irLeve({ x: H.nx, z: H.nz + 1.5, nome: H.nn })));
+      if (H.ax != null && !(H.npc && H.nx === H.ax && H.nz === H.az)) b.push(bt(`🧭 Ir: ${H.an || 'onde se faz'} · ${metros({ x: H.ax, z: H.az })}`, () => irLeve({ x: H.ax, z: H.az, nome: H.an })));
+      if (b.length) linhaBts(c, ...b);
+      if (H.tit) c.append(el('div', 'faz', `Título: ${H.tit}`));
+    }
+  }
+  // Diárias
+  { const c = card('📅 Diárias'), D = S.di;
+    if (!D) c.append(el('div', 'faz', 'As diárias abrem mais à frente no nível.'));
+    else {
+      c.append(el('div', 'faz', `Cada uma: +${D.ouro} ouro${D.xp ? ` e +${D.xp} XP` : ''} · as 4: +${D.bonus} ouro · renova em ${Math.ceil(D.fim / 3600e3)} h`));
+      for (const o of D.l) {
+        const r = el('div', 'recLeve'), n = el('div', 'n'); n.append(el('b', null, o.txt), el('small', null, o.r ? 'recebida ✓' : `${o.n}/${o.t}`));
+        r.append(n);
+        if (!o.r && o.n >= o.t) { const b = el('button', 'on', 'Receber'); b.onclick = () => mandar('diaria', { acao: 'receber', id: o.id }); r.append(b); }
+        else if (!o.r) { const b = el('button', null, '🧭 Ir'); b.onclick = () => mandar('diaria', { acao: 'ir', id: o.id }); r.append(b); }
+        c.append(r);
+      }
+    }
+  }
+  // Guilda
+  { const c = card('🛡️ Guilda'), G = S.gu;
+    if (!G) c.append(el('div', 'faz', 'A Guilda abre mais à frente no nível, no Rio Claro.'));
+    else {
+      c.append(el('div', 'faz', `Rank ${G.rank} · ${G.pg}/${G.pgMax || '–'} pontos · até ${G.ativos} contratos ao mesmo tempo${G.pv ? ' · Prova aceita: vença o elite vermelho num campo da sua faixa' : ''}`));
+      const mural = (leve.mapa?.lug || []).filter((o) => /mural|guilda/i.test(o[1])).sort((a, b) => dEu({ x: a[2], z: a[3] }) - dEu({ x: b[2], z: b[3] }))[0];
+      if (!G.perto && mural) linhaBts(c, bt(`🧭 Ir ao mural da Guilda · ${metros({ x: mural[2], z: mural[3] })}`, () => irLeve({ x: mural[2], z: mural[3] + 1.5, nome: 'Mural da Guilda' })));
+      if (G.prova && G.perto && !G.pv) linhaBts(c, bt('⚔️ Aceitar a Prova de rank', () => mandar('guilda', { acao: 'prova' })));
+      for (const o of G.l) {
+        const r = el('div', 'recLeve'), n = el('div', 'n'); n.append(el('b', null, o.txt), el('small', null, o.e === 'recebido' ? 'recebido ✓' : o.e === 'livre' ? (G.perto ? 'no mural' : 'pegue no mural') : `${o.n}/${o.t}`));
+        r.append(n);
+        const b = (t, m, on) => { const x = el('button', on ? 'on' : null, t); x.onclick = () => mandar('guilda', { ...m, id: o.id }); r.append(x); };
+        if (o.e === 'livre' && G.perto) b('Aceitar', { acao: 'aceitar' });
+        if (o.e === 'ativo') { b('🧭 Ir', { acao: 'ir' }); b('Desistir', { acao: 'desistir' }); }
+        if (o.e === 'feito') b('Receber', { acao: 'receber' }, true);
+        c.append(r);
+      }
+    }
+  }
+  // Escolta do Clã
+  { const c = card('🐎 Escolta do Clã'), M = S.mc;
+    if (!M) c.append(el('div', 'faz', 'Precisa de clã com base (funde a base pelo jogo).'));
+    else if (M.ativa) {
+      c.append(el('div', null, `Levando a carga até ${M.dest}`), el('div', 'faz', `Emboscadas: ${M.emb}/${M.embs} · ${M.rec} recrutas junto · falta ${Math.ceil(M.falta / 60)} min`));
+      linhaBts(c, bt(`🧭 Ir ao destino · ${metros({ x: M.x, z: M.z })}`, () => irLeve({ x: M.x, z: M.z, nome: M.dest })));
+    } else if (M.espera > 0) c.append(el('div', 'faz', `Próxima escolta em ${Math.ceil(M.espera / 60000)} min.`));
+    else {
+      c.append(el('div', 'faz', 'Pronta. Começa no Baú do Clã: 4 emboscadas no caminho; quem sobrevive ganha +1 nível.'));
+      const b = [bt('▶️ Começar escolta', () => mandar('cla', { acao: 'missao' }))];
+      const bau = (leve.mapa?.baus || []).find((o) => o.cla); if (bau) b.unshift(bt(`🧭 Ir ao Baú do Clã · ${metros(bau)}`, () => irLeve({ x: bau.x, z: bau.z + 1.5, nome: 'Baú do Clã' }), true));
+      linhaBts(c, ...b);
+    }
+  }
 }
 
 // ---------- aba Mais: o que não cabe nas 4 primeiras. O que ainda não existe no leve aparece apagado, com a etapa.
@@ -1367,6 +1441,7 @@ function desenharMais() {
   item('⚖️ Leilão (ver preços)', 'comprar e anunciar: perto do leiloeiro', () => irAba('leilao'));
   item('🏴 Clãs bot', 'Geada e Chama', () => irAba('bots'));
   item('📜 Registro do clã', 'o que aconteceu', () => irAba('log'));
+  // Missões ganhou aba própria (etapa 3)
   item('🧍 Personagem', 'atributos, golpes, títulos · em breve', null);
   item('⚔️ PvP', 'arena 4x4, duelo, patente · em breve', null);
   item('👥 Amigos, grupo e troca', 'em breve', null);

@@ -11,7 +11,7 @@ import { LUGARES_MUNDO } from './mundo.js';
 import { LUGARES, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
-import { liberado } from './historia.js';
+import { liberado, missaoAtual } from './historia.js';
 
 export const LEVE = {
   envio: 0.5, // s entre as fotos para a página
@@ -52,6 +52,17 @@ function textoPeca(o) {
   return [u.vida && `Vida +${Math.round(u.vida * 100)}%`, u.mana && `Mana +${Math.round(u.mana * 100)}%`, u.vigor && `Vigor +${u.vigor}`].filter(Boolean).join(' · ');
 }
 
+// a rota do jogo leve: a das estradas (planejarRota), mas saindo e entrando nas bases do clã pelo portão (saidaDaBase)
+function rotaLeve(sim, de, ate) {
+  const sai = sim.saidaDaBase?.(de), entra = sim.saidaDaBase?.(ate);
+  if (sai && entra && sai.k === entra.k) return planejarRota(sim.mapa, de, ate); // dentro da mesma base: vai direto
+  const ini = sai ? sai.pontos[sai.pontos.length - 1] : de, volta = entra ? [...entra.pontos].reverse() : [];
+  const r = planejarRota(sim.mapa, ini, entra ? volta[0] : ate); if (r.bloqueio) return r;
+  const pontos = [...(sai ? sai.pontos : []), ...r.pontos, ...volta.slice(1), ...(entra ? [{ x: ate.x, z: ate.z }] : [])];
+  let q = de, metros = 0; for (const p of pontos) { metros += Math.hypot(p.x - q.x, p.z - q.z); q = p; }
+  return { pontos, metros };
+}
+
 export const Leve = {
   // a página tocou no mapa: o herói vai até lá pela estrada
   leveIr(id, m) {
@@ -65,7 +76,7 @@ export const Leve = {
     if (this.tempo - (j.leveIrT ?? -9) < LEVE.intervalo) return;
     j.leveIrT = this.tempo;
     if (Math.hypot(x - j.x, z - j.z) > LEVE.longe || terraId(x, z) === 0) return aviso('Toque em terra, mais perto');
-    const r = planejarRota(this.mapa, j, { x, z });
+    const r = rotaLeve(this, j, { x, z });
     if (r.bloqueio) { this.leveParar(id, null); return aviso(r.bloqueio === 'terra' ? 'Isso fica em outra terra: só de barco ou navio, no jogo' : 'O caminho cruza a água: só de barco, no jogo'); }
     if (j.vila) this.cancelarVila(j, null);
     if (j.coleta) this.pararColeta(j, null);
@@ -133,7 +144,7 @@ export const Leve = {
       if (de < LEVE.reto) { j.entrada = { mx: (e.x - j.x) / de, mz: (e.z - j.z) / de, correr: !j.semFolego && !j.veiculo }; return; }
       const fim = R.pontos[R.pontos.length - 1];
       if (Math.hypot(e.x - fim.x, e.z - fim.z) > 3 && this.tempo - (R.refez ?? -9) > 1) {
-        const r = planejarRota(this.mapa, j, { x: e.x, z: e.z }); R.refez = this.tempo;
+        const r = rotaLeve(this, j, { x: e.x, z: e.z }); R.refez = this.tempo;
         if (!r.bloqueio && r.pontos.length) { R.pontos = r.pontos; R.i = 0; this.evento({ t: 'leveRota', para: j.id, pontos: r.pontos.map((p) => [Math.round(p.x), Math.round(p.z)]), nome: R.nome }); }
       }
     }
@@ -211,6 +222,7 @@ export const Leve = {
     // coleta (André 2026-11-26): o painel mostra "Minerando…", a barra até a próxima batida e quanto já pegou
     if (e.t === 'coleta') return { t: 'coleta', no: e.no, dur: e.dur, prof: e.prof || '' };
     if (e.t === 'coletou') return { t: 'coletou', no: e.no, itens: (e.itens || []).map((o) => ({ nome: o.nome, n: o.n })), cargas: e.cargas };
+    if (e.t === 'fala') return { t: 'fala', npc: (this.mapa.npcs || []).find((n) => n.id === e.npc)?.nome?.split(',')[0] || '', texto: e.texto }; // o que o NPC disse (missão)
     if (e.t === 'bau') return { t: 'bau', cla: e.cla ? 1 : 0, l: (e.itens || []).length, it: listaLeve(e.itens) };
     return e;
   },
@@ -285,6 +297,22 @@ export const Leve = {
           this.estacaoPerto(j, R) ? 1 : 0, this.motivoReceitaSem(j, R).motivo, Math.round(tempoCriar(R))];
       }),
     };
+  },
+  // Missões (etapa 3, André 2026-11-26): a aba Missões da página. Só vai com a aba aberta (leveMissoes ver) e só quando muda.
+  // hi = a história como no jogo (histInfo) com o NPC dela; di = diárias; gu = guilda; mc = Escolta do Clã. Os botões
+  // usam as mesmas mensagens do jogo ('falar' com missao, 'diaria', 'guilda', 'cla' missao); o servidor confere tudo.
+  leveMissoes(j) {
+    const H = this.histInfo(j), npcDe = (id) => (this.mapa.npcs || []).find((n) => n.id === id);
+    let hi = null;
+    if (H) {
+      const N = H.npc ? npcDe(H.npc) : null, a = H.alvo;
+      hi = { nome: H.nome, txt: H.txt, ac: H.e >= 0 ? 1 : 0, nv: missaoAtual(j.prog)?.nv | 0, ...(H.titulo ? { tit: H.titulo } : {}),
+        ...(N ? { npc: N.id, nn: N.nome.split(',')[0], nx: r1(N.x), nz: r1(N.z), np: Math.hypot(N.x - j.x, N.z - j.z) <= 4 ? 1 : 0 } : {}), // np: perto para falar (FALAR_JANELA); a distância a página calcula
+        ...(a && Number.isFinite(a.x) ? { ax: r1(a.x), az: r1(a.z), an: a.nome || '' } : {}) };
+    }
+    const G = this.guildaInfo(j), B = this.baseDe?.(j);
+    return { hi, di: this.diariasInfo(j), gu: G && { rank: G.rank, pg: G.pg, pgMax: G.pgMax, prova: G.prova ? 1 : 0, pv: G.pv ? 1 : 0, perto: G.perto ? 1 : 0, ativos: G.ativos, l: G.l },
+      mc: j.prog.cla && B ? this.missaoInfo(B) : null };
   },
   // a foto pequena da página: eu, o caminho que falta, e só quem está perto
   fotoLeve(j) {
