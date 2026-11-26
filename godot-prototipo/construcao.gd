@@ -936,7 +936,7 @@ func do_servidor_lote(ev: Dictionary) -> void:
 	L.pecas = ficam
 	var mudou_pecas: bool = mudou_forma or saiu_peca or not novas.is_empty()
 	if mudou_pecas:
-		_refazer_pisos(id) # antes de pôr as peças: o que fica em cima da fundação usa a altura do piso (só este terreno)
+		_refazer_pisos_de(id) # antes de pôr as peças: o que fica em cima da fundação usa a altura do piso (só este terreno)
 	for k in novas:
 		var p: Dictionary = novas[k]
 		if _modelos.has(p.k) and p.k != "telhado": # o telhado é um só por terreno (_refazer_telhado)
@@ -1137,7 +1137,10 @@ func _y_peca(p: Dictionary) -> float:
 # nova refazia o chão de TODOS os terrenos, e tirar os pisos velhos com erase comparava cada um com a lista inteira de
 # sólidos (dicionário por dicionário). Agora os pisos de cada terreno ficam guardados nele (_pisos_l) e só o terreno
 # que mudou é refeito (so_id); os velhos saem da lista numa passada só (marca _piso). O chão que sai é o mesmo.
-func _refazer_pisos(so_id := "") -> void:
+func _refazer_pisos() -> void:
+	_refazer_pisos_de("")
+
+func _refazer_pisos_de(so_id: String) -> void:
 	_tirar_pisos(m.terreno.solidos)
 	_tirar_pisos(m.terreno.casas)
 	_pisos.clear()
