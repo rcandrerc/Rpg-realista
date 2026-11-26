@@ -51,3 +51,27 @@ let premiado = null; s.premioClaGuerra = (ch) => { premiado = ch; };
 s.mesGuerraEstado();
 ok(premiado === 'j1' && s.guerraMes.m === mesGuerra() && !Object.keys(s.guerraMes.c).length, 'virou o mês: clã com mais abates ganha e o placar zera');
 ok(PATENTE.premio.length === PATENTE.nomes.length && PATENTE.abates.length === PATENTE.nomes.length, 'tabela completa');
+// morrer para a outra raça (André 2026-11-26): -5% do anel, nunca desce de patente, mesma pessoa só depois de 10 min
+{
+  const b = s.adicionarJogador('B', 'Bia', null, { conta: 2 }); b.prog.nivel = 40;
+  s.fecharMesPatente(b); b.prog.gu.a = 20; // Cabo, 5 de 15 = 33%
+  const k1 = vitima(20), k2 = vitima(21);
+  s.abateGuerra(b, k1);
+  ok(Math.abs(b.prog.gu.p - 0.75) < 1e-9 && b.prog.gu.a === 20, 'morreu para a Geada: -5% do anel (0,75 de 15)');
+  ok(s.eventos.some((e) => e.t === 'aviso' && e.para === 'B' && e.texto.startsWith('Patente: -5%')), 'aviso da perda');
+  s.abateGuerra(b, k1);
+  ok(Math.abs(b.prog.gu.p - 0.75) < 1e-9, 'a mesma pessoa de novo em menos de 10 min não tira');
+  b.prog.gu.p = 4.5; s.abateGuerra(b, k2); // 15,5 pontos: tira só até 15 (Cabo 0%)
+  ok(Math.abs(b.prog.gu.p - 5) < 1e-9 && patenteDe(b.prog.gu.a - b.prog.gu.p).i === 2, 'nunca desce de patente (para em 0%)');
+  const k3 = vitima(22); s.abateGuerra(b, k3);
+  ok(Math.abs(b.prog.gu.p - 5) < 1e-9, 'em 0% não tira mais');
+  const amigo2 = s.adicionarJogador('C2', 'Chama2', null, { conta: 51 }); amigo2.prog.nivel = 40;
+  b.prog.gu.p = 0; s.abateGuerra(b, amigo2);
+  ok(!b.prog.gu.p, 'morrer para a mesma raça não tira');
+  b.prog.gu.p = 1.5; const g2 = progressoValido(JSON.parse(JSON.stringify(b.prog))).gu;
+  ok(g2.p === 1.5 && g2.v && Object.keys(g2.v).length >= 1, 'conta guarda a perda');
+  b.prog.gu.a = 200; b.prog.gu.p = 0; s.abateGuerra(b, vitima(23));
+  ok(!b.prog.gu.p, 'Lenda não perde');
+  b.prog.gu.m = '2000-04'; b.prog.gu.p = 3; s.fecharMesPatente(b);
+  ok(b.prog.gu.p === 0 && !Object.keys(b.prog.gu.v).length, 'virou o mês: a perda zera');
+}

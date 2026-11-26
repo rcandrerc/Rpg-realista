@@ -2,7 +2,7 @@
 // Estas funções entram na Simulacao (Object.assign no fim de simulacao.js): "this" é a Simulacao.
 //
 // - prog.gu = { m: 'AAAA-MM' (mês da contagem), a: abates no mês, x: maior patente já pega, l: meses como Lenda,
-//   u: { quem: ms do último abate que contou } }. Jogador e bot iguais (o bot guarda no save dele).
+//   u: { quem: ms do último abate que contou }, p: pontos que as mortes tiraram, v: { quem: ms da última morte que tirou } }. Jogador e bot iguais (o bot guarda no save dele).
 // - abateGuerra (chamado por morteGuerra em guerra.js): conta se não é a mesma pessoa de menos de PATENTE.repete s atrás
 //   nem alguém PATENTE.fraco+ níveis mais fraco. Arena não passa por aqui (shared/arena.js).
 // - fecharMesPatente: virou o mês (hora de Brasília)? Entrega o prêmio da patente que pegou e volta a Recruta. Roda ao
@@ -10,7 +10,7 @@
 //   Jogador: na mochila; sem lugar, espera nas devoluções (shared/base.js). Bot: no Baú do Clã dele (sem baú, mochila).
 // - this.guerraMes = { m, c: { chaveDoClã: abates }, r: { chama, geada } } (tabela mundo 'guerra_mes'): o placar do mês.
 //   Virou o mês: o clã com mais abates ganha um Lendário (PATENTE.cla) no Baú do Clã.
-import { PATENTE, patenteDe, mesGuerra, CLAS_NPC, ITENS } from './dados.js';
+import { PATENTE, patenteDe, pontosGuerra, mesGuerra, CLAS_NPC, ITENS } from './dados.js';
 import { guardar } from './progresso.js';
 
 const sorteia = (l) => (Array.isArray(l) ? l[Math.floor(Math.random() * l.length)] : l);
@@ -25,7 +25,7 @@ export function itensPremio(lista) {
 }
 // o que vai para a tela: patente do mês (0..7), 0..1 até a próxima, abates do mês e a maior já pega
 export function patenteInfo(p, mes = mesGuerra()) {
-  const G = p?.gu, a = G && G.m === mes ? G.a | 0 : 0, P = patenteDe(a);
+  const G = p?.gu, ok = G && G.m === mes, a = ok ? G.a | 0 : 0, P = patenteDe(ok ? pontosGuerra(G) : 0);
   return { i: P.i, pct: Math.round(P.pct * 100) / 100, a, x: G?.x | 0, l: G?.l | 0 };
 }
 export const Patente = {
@@ -42,14 +42,15 @@ export const Patente = {
   // abate de guerra (guerra.js morteGuerra): c caiu, k derrubou
   abateGuerra(c, k) {
     if (!c || !k || c === k || c.robo || k.robo || !k.prog || !this.outraRaca(c, k)) return;
+    this.perdaGuerra(c, k);
     if ((c.prog?.nivel | 0) <= (k.prog.nivel | 0) - PATENTE.fraco) return; // muito mais fraco: não conta
     this.fecharMesPatente(k);
     const G = k.prog.gu, quem = this.quemGuerra(c), agora = Date.now();
     if (agora - (G.u[quem] ?? -Infinity) < PATENTE.repete * 1000) return; // a mesma pessoa de novo, cedo demais
     G.u[quem] = agora;
     const ks = Object.keys(G.u); if (ks.length > PATENTE.guarda) for (const q of ks.slice(0, ks.length - PATENTE.guarda)) delete G.u[q];
-    const antes = patenteDe(G.a).i; G.a++;
-    const P = patenteDe(G.a).i; k.progSujo = true;
+    const antes = patenteDe(pontosGuerra(G)).i; G.a++;
+    const P = patenteDe(pontosGuerra(G)).i; k.progSujo = true;
     // o placar do mês: raça e clã
     const M = this.mesGuerraEstado(), raca = this.racaDe(k), ch = this.chaveClaGuerra(k);
     M.r[raca] = (M.r[raca] | 0) + 1; if (ch) M.c[ch] = (M.c[ch] | 0) + 1; this.salvarGuerraMes();
@@ -60,14 +61,30 @@ export const Patente = {
     }
     this.avisarProg(k);
   },
+  // c morreu para k (outra raça, fora da Arena): perde PATENTE.perde do anel, sem descer de patente nem passar de 0%
+  perdaGuerra(c, k) {
+    if (!c.prog) return;
+    this.fecharMesPatente(c);
+    const G = c.prog.gu, L = PATENTE.abates, pts = pontosGuerra(G), { i } = patenteDe(pts);
+    if (i + 1 >= L.length || pts <= L[i]) return; // Lenda (anel cheio) ou já em 0%
+    const quem = this.quemGuerra(k), agora = Date.now();
+    G.v ||= {};
+    if (agora - (G.v[quem] ?? -Infinity) < PATENTE.repete * 1000) return; // a mesma pessoa de novo, cedo demais
+    G.v[quem] = agora;
+    const ks = Object.keys(G.v); if (ks.length > PATENTE.guarda) for (const q of ks.slice(0, ks.length - PATENTE.guarda)) delete G.v[q];
+    const novo = Math.max(L[i], pts - PATENTE.perde * (L[i + 1] - L[i]));
+    G.p = Math.round(((G.a | 0) - novo) * 100) / 100; c.progSujo = true;
+    if (!c.bot) this.evento({ t: 'aviso', para: c.id, texto: `Patente: -${Math.round(PATENTE.perde * 100)}% (morreu para ${k.nome})` });
+    this.avisarProg?.(c);
+  },
   // virou o mês? Prêmio da patente do mês que fechou e volta a Recruta. Sem prog.gu: começa agora
   fecharMesPatente(j, mes = mesGuerra()) {
     const p = j?.prog; if (!p) return;
     const G = p.gu ||= { m: mes, a: 0, x: 0, l: 0, u: {} };
     G.u ||= {};
     if (G.m === mes) return;
-    const P = patenteDe(G.a).i;
-    G.m = mes; G.a = 0; G.u = {}; j.progSujo = true;
+    const P = patenteDe(pontosGuerra(G)).i;
+    G.m = mes; G.a = 0; G.p = 0; G.u = {}; G.v = {}; j.progSujo = true;
     if (P < 1) return;
     if (P === PATENTE.nomes.length - 1) G.l = (G.l | 0) + 1;
     this.entregarPremioGuerra(j, itensPremio(PATENTE.premio[P]), `Prêmio do mês (${PATENTE.nomes[P]})`);
