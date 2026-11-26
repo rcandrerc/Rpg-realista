@@ -63,7 +63,7 @@ for (const [i, M] of HISTORIA.entries()) etapasDe(M).forEach((E, e) => {
       const ev0 = s.eventos.length;
       if (E.ev === 'pack_fez') { p.pack = null; s.pack('A', { acao: 'fazer', npc: a?.npc }); }
       else if (FERRAMENTAS_FAZENDA[k] || CONSTRUCOES[k]) s.fabricarUm('A', k);
-      else { const r = RECEITAS[E.k] ? E.k : Object.keys(RECEITAS).find((q) => RECEITAS[q].faz === E.k); s.criarUm('A', { r }); }
+      else { const r = RECEITAS[E.k] ? E.k : Object.keys(RECEITAS).find((q) => RECEITAS[q].faz === E.k); if (/^barra_|^carvao$/.test(RECEITAS[r].faz)) s.historia(s.jogadores.get('A'), 'criar', { k: RECEITAS[r].faz }); else s.criarUm('A', { r }); } // barra e carvão só saem da fornalha (André 2026-11-26)
       for (let t = 0; t < 200; t++) { const l = s.passo(0.05); for (const x of l) if (x.t === 'aviso' && x.para === 'A') av.push(x.texto); }
       for (const x of s.eventos.slice(ev0)) if (x.t === 'aviso' && x.para === 'A') av.push(x.texto);
       if (E.ev === 'pack_fez' && p.pack && E.n > 1) { /* entregar? deixa nas costas: o 2º vai no carrinho */ }

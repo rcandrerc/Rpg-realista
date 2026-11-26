@@ -3091,6 +3091,8 @@ export class Simulacao {
   }
   // por que não dá para criar a receita agora: { motivo: '' | texto, npc: onde cria }
   motivoReceita(j, R) {
+    // André 2026-11-26: "nem uma barra de forja deve ser feita em criar": carvão e barras (ferro, cobre, aço) só saem da fornalha
+    if (RECEITA_ESTACAO(R) === 'fornalha') return { motivo: 'Carvão e barras só saem da fornalha: ponha o material e o combustível lá' };
     const of = OFICINA[R.prof];
     // perto da estação certa: a pública da vila (André 2026-11-11: o NPC não cria mais, quem cria é o herói na bigorna,
     // no forninho ou na bancada ao lado dele) ou uma construída num lote (bigorna, fornalha ou bancada)
