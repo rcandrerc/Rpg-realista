@@ -102,7 +102,7 @@ export const Patente = {
   premioClaGuerra(ch) {
     const itens = itensPremio([{ k: PATENTE.cla, n: 1 }]); if (!itens.length) return;
     let B = null, nome = '';
-    if (ch[0] === 'n') { const C = CLAS_NPC.find((o) => 'n' + o.id === ch); if (C) { B = this.bauDoCla?.({ bot: true, C, E: this.clasNpc?.[C.id] }); nome = C.nome || ''; } }
+    if (ch[0] === 'n') { const C = CLAS_NPC.find((o) => 'n' + o.id === ch); if (C) { B = this.bauDoCla?.({ bot: true, C, E: this.clasNpc?.[C.id] }); nome = C.n || ''; } }
     else {
       const conta = ch.slice(1); B = this.bauDoCla?.({ conta });
       const j = [...this.jogadores.values()].find((o) => !o.bot && String(o.conta) === conta); nome = j?.prog?.cla?.nome || '';
