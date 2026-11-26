@@ -27,7 +27,7 @@ import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js';
 import { diaDiarias, premioDiaria } from './diarias.js';
 import { ARVORES_PLANTIO, ENCOMENDA, TITULOS, PROFISSOES, MINA, PACK_BOT, PACKS, PACK_REGRAS, GUERRA, PACK_TIME, PALETE } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
 import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera, QUEM_LIBERA, SEM_NEVOA } from './historia.js';
-import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
+import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, vigorMax, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
 // sorteia sem repetir a última da mesma lista (André 2026-11-15: as respostas prontas pareciam de robô)
@@ -726,7 +726,7 @@ export const Amiga = {
       }
       // quem gosta de pescar, minerar ou cortar lenha vai fazer isso (com vigor); senão, caça
       const gosto = this.AMIGA.gosto, Ativ = this.AMIGA.atividades?.[gosto];
-      if (Ativ && !av.semColeta && Math.random() < R.coleta && vigorAgora(j.prog.vigor) >= 1 && contar(j.prog.mochila, Ativ.ferramenta) > 0) {
+      if (Ativ && !av.semColeta && Math.random() < R.coleta && this.vigorLivreAmiga(j) >= 1 && contar(j.prog.mochila, Ativ.ferramenta) > 0) {
         const c = this.lugarColetaAmiga(j, gosto);
         if (c) { Object.assign(av, { fase: 'ir', c, coleta: gosto, ate: t + sorte(A.cacar, R.caca) }); ia.viagem = null; ia.alvoColeta = null; return; }
       }
@@ -813,7 +813,7 @@ export const Amiga = {
   // menos NPC coletando por perto. { id, x, z, y } ou null
   lugarColetaAmiga(j, tipo) {
     const NC = NPC_VIDA.coleta, M = this.moradiaAmiga(j), cand = [];
-    if (tipo === 'pescar') { for (const v of this.spots || []) if (v.ativo && Math.hypot(v.x - M.x, v.z - M.z) <= NC.raio) cand.push({ id: v.id, x: v.x, z: v.z, y: 0 }); }
+    if (tipo === 'pescar') { for (const v of this.spots || []) if (v.ativo && v.lago && Math.hypot(v.x - M.x, v.z - M.z) <= NC.raio) cand.push({ id: v.id, x: v.x, z: v.z, y: 0 }); }
     else for (const no of this.coletaveis.values()) {
       const K = COLETA[no.tipo]; if (!K || K.mao) continue;
       if (tipo === 'lenha' ? no.tipo !== 'arvore' : K.prof !== 'min') continue;
@@ -835,6 +835,7 @@ export const Amiga = {
     const enc = av.encomenda ? ia.encomenda : null, voltar = (m) => { if (enc && !enc.pronta) this.fimEncomendaAmiga(j, m); voltar0(); };
     if (enc && !enc.pronta && contarRec(j.prog.mochila, enc.item) - enc.base >= enc.n) return voltar(); // juntou tudo
     if (foraDeHora || livres < A.mochilaLivre || t >= av.ate) return voltar(foraDeHora ? 'hora' : livres < A.mochilaLivre ? 'mochila' : 'tempo');
+    if (!enc && this.vigorLivreAmiga(j) < 1) { av.semColeta = true; return voltar('vigor'); } // Livre: os 80% ficam para o clã
     const bate = this.inimigosDe(j).find((e) => !e.morto && !e.treino && e.vez === j.id && Math.hypot(e.x - j.x, e.z - j.z) < 6);
     if (bate) { if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null); if (!this.cerebroAmiga(j, j, bate)) this.pararAmiga(j); if (ia.cer?.faca === 'fugir') voltar('luta'); return; }
     if (j.pesca) return this.pescandoAmiga(j);
@@ -846,6 +847,14 @@ export const Amiga = {
     if (!al && enc) { // acabou o veio dela: tenta o próximo lugar com o recurso; senão traz o que tem
       const outro = this.lugarRecursoAmiga(j, ENCOMENDA.recursos[enc.rec], c);
       if (outro) { Object.assign(av, { fase: 'ir', c: outro }); ia.viagem = null; return; }
+      return voltar('acabou');
+    }
+    // recruta com a ordem Farmar recurso (ia.levar) sem o líder no jogo: acabou o veio, vai ao próximo DO RECURSO PEDIDO
+    // (André 2026-11-26: "todos estão zero mineração/hora"; antes ia caçar e a ordem não voltava mais)
+    const Rl = !al && !enc && ia.levar && ENCOMENDA.recursos[ia.levar.r];
+    if (Rl && Rl.coleta === av.coleta) {
+      const outro = this.lugarRecursoAmiga(j, Rl, c);
+      if (outro) { Object.assign(av, { fase: 'ir', c: outro, noTipo: Rl.no }); ia.viagem = null; ia.alvoColeta = null; return; }
       return voltar('acabou');
     }
     if (!al) { av.semColeta = true; av.fase = 'escolher'; av.coleta = null; return; } // acabou o lugar: vai caçar
@@ -888,6 +897,13 @@ export const Amiga = {
   // recruta do jogador com função no painel (grind, farmar, fazenda...): missão e diária só no modo livre (André 2026-11-23:
   // "se ele tiver em alguma função específica, ele só vai fazer a missão quando tiver em modo livre"). Os clãs bot seguem
   // como estão (o líder bot reparte as ordens)
+  // o vigor que ele pode gastar por conta própria (CLA.livreVigor): membro de clã sem ordem guarda 80% do máximo para o clã;
+  // com a ordem Farmar recurso (ia.levar) ou encomenda andando, usa tudo. Quem não é de clã: o vigor todo
+  vigorLivreAmiga(j) {
+    const v = vigorAgora(j.prog.vigor), ia = j.ia;
+    if (!(this.AMIGA.recruta || this.fixoClaNpc?.(this)) || ia?.levar || (ia?.encomenda && !ia.encomenda.pronta)) return v;
+    return v - CLA.livreVigor.reserva * (j.prog.vigor?.m || vigorMax(j.prog));
+  },
   modoLivreAmiga() {
     if (!this.AMIGA.recruta || this.AMIGA.clanpc) return true;
     const m = this.claDoRecruta?.(this)?.m?.find((o) => o.id === this.AMIGA.id);
@@ -1191,7 +1207,7 @@ export const Amiga = {
     if (profNivel(p.prof?.[R.prof]) < R.nivel) return 'nivel';
     if (motivoLibera(p, 'forja') || motivoLibera(p, 'evoluir', R.r)) return 'libera';
     for (const [k, n] of Object.entries(R.usa)) if (contar(p.mochila, k) < n) return 'material';
-    if (vigorAgora(p.vigor) < R.vigor) return 'vigor';
+    if (this.vigorLivreAmiga(j) < R.vigor) return 'vigor'; // membro de clã: só os 20% do Livre (CLA.livreVigor)
     return '';
   },
   // qual peça do corpo dá para evoluir agora e em qual estação pública: { l, x, z, k } ou null
@@ -2395,7 +2411,7 @@ export const Amiga = {
   },
   // as diárias que faltam e que ele sabe fazer agora (sem sorteio)
   diariasQueFaltamAmiga(j) {
-    if (!j.tarefas || !this.modoLivreAmiga() || !this.temDiarias?.(j) || vigorAgora(j.prog.vigor) < 1 || (j.ia.diariaFalhou || 0) > this.tempo) return [];
+    if (!j.tarefas || !this.modoLivreAmiga() || !this.temDiarias?.(j) || this.vigorLivreAmiga(j) < 1 || (j.ia.diariaFalhou || 0) > this.tempo) return [];
     const st = this.diariasDe(j), falta = (id) => { const D = DIARIAS.lista.find((x) => x.id === id); return D && (st.n[id] || 0) < D.n; };
     const tem = (f) => contar(j.prog.mochila, f) > 0;
     const op = [];
@@ -2427,7 +2443,7 @@ export const Amiga = {
   // plantarArvore do jogador: gasta vigor, conta a diária, cresce no mapa para todo mundo)
   plantarSozinhoAmiga(j, av, noite, voltar, dt) {
     const D = DIARIAS.lista.find((x) => x.id === 'arvores'), st = this.diariasDe(j);
-    if (noite || !D || (st.n.arvores || 0) >= D.n || vigorAgora(j.prog.vigor) < 1 || av.tentou > 12) {
+    if (noite || !D || (st.n.arvores || 0) >= D.n || this.vigorLivreAmiga(j) < 1 || av.tentou > 12) {
       if (av.tentou > 12) j.ia.diariaFalhou = this.tempo + 1800; // não deu: tenta outra coisa por meia hora
       return voltar();
     }
@@ -3571,7 +3587,9 @@ export const Amiga = {
   lugarRecursoAmiga(j, R, menos = null) {
     let melhor = null, md = Infinity;
     const ok = (x, z) => !(menos && Math.hypot(x - menos.x, z - menos.z) < 12) && !(j.tarefas && zonaFechadaEm(j.prog, x, z));
-    if (R.coleta === 'pescar') { for (const v of this.spots || []) if (v.ativo && ok(v.x, v.z)) { const d = Math.hypot(v.x - j.x, v.z - j.z); if (d < md) { md = d; melhor = { id: v.id, x: v.x, z: v.z, y: 0 }; } } return melhor; }
+    // só spot de lago: o do mar nasce longe da margem (de barco) e ninguém pesca dali em pé (André 2026-11-26: Farmar peixe
+    // ficava indo de um spot do mar para outro, sem pescar nada)
+    if (R.coleta === 'pescar') { for (const v of this.spots || []) if (v.ativo && v.lago && ok(v.x, v.z)) { const d = Math.hypot(v.x - j.x, v.z - j.z); if (d < md) { md = d; melhor = { id: v.id, x: v.x, z: v.z, y: 0 }; } } return melhor; }
     for (const no of this.coletaveis.values()) {
       if (no.tipo !== R.no || this.cargas(j, no) <= 0 || !ok(no.x, no.z)) continue;
       const d = Math.hypot(no.x - j.x, no.z - j.z); if (d < md) { md = d; melhor = { id: no.id, x: no.x, z: no.z, y: no.y ?? null }; }

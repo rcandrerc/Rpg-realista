@@ -2540,7 +2540,7 @@ func _marcar_ordem(rid: String, pedido: Dictionary) -> void:
 	_ordem_pend[rid] = pedido
 	atualizar()
 
-const CLA_ANDA := ["hp", "mp", "vg", "fz", "x", "z", "morto", "ml", "re", "seta", "cor", "ph", "tr", "fm", "fn2"]
+const CLA_ANDA := ["hp", "mp", "vg", "fz", "x", "z", "morto", "ml", "re", "seta", "cor", "ph", "pt", "tr", "fm", "fn2"]
 
 func _texto_cobranca(falta: float) -> String:
 	return "Próxima cobrança em %d d %d h" % [int(falta / 86400000.0), int(fmod(falta, 86400000.0) / 3600000.0)]
@@ -3832,7 +3832,17 @@ func _moral_ui(fila: HBoxContainer, r: Dictionary, vivo: Dictionary) -> void:
 # o que o tocar na seta diz: a moral, se sobe ou desce por hora, e a comida (que mexe no % sem mexer na moral)
 func _moral_texto(d: Dictionary) -> String:
 	var tend := int(d.get("tr", 0))
-	var t := Idioma.frase("Moral %d (%s por hora)") % [int(d.get("ml", 0)), ("+%d" % tend) if tend > 0 else str(tend)]
+	var pre := ""
+	var pt = d.get("pt")
+	if pt is Dictionary: # quanto pegou na ordem e quanto veio a mais/menos pelo rende (André 2026-11-26)
+		pre = Idioma.frase("Pegou %d") % int(pt.get("t", 0))
+		if int(pt.get("x", 0)) != 0:
+			pre += Idioma.frase(" (%+d pela moral)") % int(pt.get("x", 0))
+		var ph0 = d.get("ph")
+		if ph0 is Dictionary:
+			pre += " · ~%d/h" % int(ph0.get("n", 0))
+		pre += " · "
+	var t := pre + Idioma.frase("Moral %d (%s por hora)") % [int(d.get("ml", 0)), ("+%d" % tend) if tend > 0 else str(tend)]
 	if d.has("fm"):
 		t += Idioma.frase(" · %s: %+d%% (comida no Baú do Clã)") % [Idioma.frase(str(d.get("fn2", ""))), int(d.fm)]
 	t += Idioma.frase(" · rende %d%%. Sobe: perto de você ou no seu time, Livre, Elogiar. Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.") % int(d.get("re", 100))
@@ -3851,8 +3861,13 @@ func _moral_pintar(vivo: Dictionary, d: Dictionary) -> void:
 	q[5].modulate = Color(1, 0.6, 0.35) if int(d.get("fm", 0)) < 0 else Color(0.6, 1, 0.6)
 	q[1].add_theme_color_override("font_color", cor)
 	var ph = d.get("ph")
-	q[4].visible = ph is Dictionary
-	if ph is Dictionary:
+	var pt = d.get("pt") # quanto pegou (+ o que o rende deu a mais), igual ao painel; sem pt, o ~N/h de antes
+	q[4].visible = ph is Dictionary or pt is Dictionary
+	if pt is Dictionary:
+		q[2].texture = icone_tex("it_" + str(pt.get("i", "")))
+		var x := int(pt.get("x", 0))
+		q[3].text = str(int(pt.get("t", 0))) + ((" (%+d)" % x) if x != 0 else "")
+	elif ph is Dictionary:
 		q[2].texture = icone_tex("it_" + str(ph.get("i", "")))
 		q[3].text = "~%d/h" % int(ph.get("n", 0))
 
