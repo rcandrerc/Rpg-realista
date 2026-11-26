@@ -156,7 +156,7 @@ func _heroi() -> void:
 		_placa.outline_size = 7
 		_placa.pixel_size = 0.00034 * 1.5 # do tamanho dos nomes dos NPCs (main.gd nome_legivel): legível no celular
 		_placa.offset = Vector2(0, 52.0 / 1.5)
-		_placa.modulate = Color(1, 0.93, 0.8)
+		_placa.modulate = preload("res://arena_pvp.gd").AZUL # o seu nome é azul, como o da sua facção e o do seu time na Arena (André 2026-11-26; online.gd cor_nome)
 		_placa.outline_modulate = Color(0.06, 0.05, 0.04, 0.9)
 		_placa.position = Vector3(0, 1.95, 0)
 		h.add_child(_placa)
@@ -164,6 +164,9 @@ func _heroi() -> void:
 		_id_heroi = "-"
 	var prog: Dictionary = m.P.prog
 	var texto := "%s · Nv %d" % [str(m.hud.nome), int(prog.get("nivel", 1))]
+	var cla = prog.get("cla")
+	if cla is Dictionary and str(cla.get("n", "")) != "": # nome do clã antes do nome (André 2026-11-26)
+		texto = "[%s] %s" % [str(cla.n), texto]
 	var gu: Dictionary = m.P.guilda
 	if gu.get("v") is Dictionary and int(gu.v.get("marca", 0)) > 0: # vantagem SS da Guilda: a marca no nome
 		texto = "[SS] " + texto
