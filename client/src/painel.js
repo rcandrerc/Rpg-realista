@@ -423,7 +423,7 @@ function desenharLog() {
 // num JPEG só (painel-mapa.jpg, ~85 KB, feito por ferramentas/painel/mapa-painel.py com as cores do mapa do jogo) e os
 // pontos por cima. Zoom no + e −, arrastar com o dedo e pinça. Sem mexer, o quadro se ajusta a quem está no mundo.
 const MUNDO = { x0: -560, z0: -540, w: 1524, h: 2044 }; // a grade do mundo (godot-prototipo/dados/mundo_grade.json): nx·passo, nz·passo
-const ZOOM = { min: 40, max: 2200 }; // metros que cabem no lado do quadro
+const ZOOM = { min: 25, max: 2200 }; // metros que cabem no lado do quadro
 const fundoMapa = new Image(); fundoMapa.onload = () => { if (aba === 'jogar' && info) desenharMapa(); }; fundoMapa.src = 'painel-mapa.jpg';
 // a Vila de hoje nítida por cima (o mesmo desenho do minimapa do jogo: ferramentas/painel/vila-painel.mjs), com a borda
 // esfumada para casar com o fundo
@@ -440,14 +440,20 @@ let vilaMapa = null;
 let vista = null; // { cx, cz, span } quando a pessoa mexeu no mapa; null = ajusta sozinho
 const limitar = (v) => { v.span = Math.max(ZOOM.min, Math.min(ZOOM.max, v.span)); v.cx = Math.max(MUNDO.x0, Math.min(MUNDO.x0 + MUNDO.w, v.cx)); v.cz = Math.max(MUNDO.z0, Math.min(MUNDO.z0 + MUNDO.h, v.cz)); return v; };
 let quadro = null; // a vista do último desenho (para o zoom e o arrasto partirem dela)
-const zoom = (f) => { if (!quadro) return; vista = limitar({ ...quadro, span: quadro.span * f }); desenharMapa(); };
+// Jogar (André 2026-11-26: "o mapa ser um pouco mais próximo... quando eu aproximo e quero ir caminhando com ele, o mapa não
+// anda junto"): o mapa segue o herói em qualquer zoom; + e − (e a pinça) só mudam o zoom de seguir. Arrastar com um dedo
+// solta o mapa; tocar para andar (ou o centralizar) volta a seguir, no mesmo zoom. Padrão 70 m (era 140)
+let spanSegue = (() => { try { return Number(localStorage.getItem('leveZoom')) || 70; } catch { return 70; } })();
+const seguindo = () => !vista && aba === 'jogar' && leve.f;
+const guardarZoom = (s) => { spanSegue = Math.max(ZOOM.min, Math.min(ZOOM.max, s)); try { localStorage.setItem('leveZoom', String(Math.round(spanSegue))); } catch { /* sem armazenamento */ } };
+const zoom = (f) => { if (!quadro) return; if (seguindo()) guardarZoom(quadro.span * f); else vista = limitar({ ...quadro, span: quadro.span * f }); desenharMapa(); };
 $('mapaMais').onclick = () => zoom(1 / 1.6);
 $('mapaMenos').onclick = () => zoom(1.6);
-$('mapaCentro').onclick = () => { vista = null; desenharMapa(); };
+$('mapaCentro').onclick = () => { if (vista && aba === 'jogar') guardarZoom(vista.span); vista = null; desenharMapa(); }; // centralizar: segue no zoom que estava
 { // arrastar (um dedo ou o mouse) e pinça (dois dedos)
   const cv = $('mapa'), dedos = new Map(); let ini = null;
   const estado = () => { const p = [...dedos.values()]; return { p, d: p.length > 1 ? Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) : 0, mx: p.reduce((s, o) => s + o.x, 0) / p.length, my: p.reduce((s, o) => s + o.y, 0) / p.length }; };
-  const comecar = () => { ini = dedos.size && quadro ? { ...estado(), v: { ...quadro } } : null; };
+  const comecar = () => { ini = dedos.size && quadro ? { ...estado(), v: { ...quadro }, segue: !!(ini?.segue && dedos.size > 1) || seguindo() } : null; };
   let toque = null; // Jogar: toque curto no mapa = ir até lá
   cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture?.(e.pointerId); dedos.set(e.pointerId, { x: e.clientX, y: e.clientY }); comecar(); toque = dedos.size === 1 ? { x: e.clientX, y: e.clientY, v: vista } : null; });
   cv.addEventListener('pointermove', (e) => {
@@ -455,11 +461,12 @@ $('mapaCentro').onclick = () => { vista = null; desenharMapa(); };
     dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const a = estado(), m = ini.v.span / cv.clientWidth; // metros por pixel da tela
     const span = a.p.length > 1 && ini.d > 0 && a.d > 0 ? ini.v.span * (ini.d / a.d) : ini.v.span;
-    vista = limitar({ cx: ini.v.cx - (a.mx - ini.mx) * m, cz: ini.v.cz - (a.my - ini.my) * m, span });
+    if (ini.segue && a.p.length > 1) guardarZoom(span); // pinça seguindo o herói: só o zoom, o mapa continua com ele
+    else vista = limitar({ cx: ini.v.cx - (a.mx - ini.mx) * m, cz: ini.v.cz - (a.my - ini.my) * m, span });
     desenharMapa();
   });
   const soltar = (e) => {
-    if (e.type === 'pointerup' && toque && dedos.size === 1 && Math.hypot(e.clientX - toque.x, e.clientY - toque.y) < 10 && aba === 'jogar') { vista = toque.v; tocarMapaLeve(e); }
+    if (e.type === 'pointerup' && toque && dedos.size === 1 && Math.hypot(e.clientX - toque.x, e.clientY - toque.y) < 10 && aba === 'jogar') { vista = toque.v; tocarMapaLeve(e); vista = null; } // andou: o mapa volta a seguir o herói (no zoom de seguir)
     toque = null; dedos.delete(e.pointerId); comecar();
   };
   cv.addEventListener('pointerup', soltar); cv.addEventListener('pointercancel', soltar);
@@ -489,7 +496,7 @@ function desenharMapa() {
   const bots = ler('painelBots') === '1';
   if (bots) for (const C of info.clas || []) if (Number.isFinite(C.x)) pts.push({ x: C.x, z: C.z, cor: C.inimigo ? '#ff3b30' : C.raca === 'Geada' ? '#6fb3e6' : '#e0663a', nome: C.lider, r: 5, losango: true });
   $('mapaBots').checked = bots;
-  if (!vista && jogando) quadro = limitar({ cx: leve.f.eu[0], cz: leve.f.eu[1], span: 140 }); // Jogar: segue o herói
+  if (!vista && jogando) quadro = limitar({ cx: leve.f.eu[0], cz: leve.f.eu[1], span: spanSegue }); // Jogar: segue o herói
   else if (!vista) { // ajusta sozinho a quem está no mundo
     const base = pts.length ? pts : [{ x: 0, z: 0 }];
     const x0 = Math.min(...base.map((p) => p.x)), x1 = Math.max(...base.map((p) => p.x)), z0 = Math.min(...base.map((p) => p.z)), z1 = Math.max(...base.map((p) => p.z));
@@ -607,7 +614,7 @@ function ligarLeve(s) {
 function sairLeve() { if (!leve.sala) return; leve.saindo = true; leve.sala.leave(); }
 function eventoLeve(e) {
   if (e.t === 'aviso') aviso(e.texto);
-  else if (e.t === 'leveRota') { leve.rota = e.pontos.length ? e.pontos : null; leve.rotaI = 0; if (e.pontos.length) leve.rotaNome = e.nome || ''; if (e.texto) aviso(e.texto); }
+  else if (e.t === 'leveRota') { if (e.pontos.length && aba === 'jogar') vista = null; leve.rota = e.pontos.length ? e.pontos : null; leve.rotaI = 0; if (e.pontos.length) leve.rotaNome = e.nome || ''; if (e.texto) aviso(e.texto); }
   else if (e.t === 'leilao') { leve.leilao = e; leve.sujo = true; }
   else if (e.t === 'bau') { leve.bau = e; leve.sujo = true; }
   else if (e.t === 'vila') { leve.rec = e.fase === 'comeca' ? Date.now() + (e.dur || 0) * 1000 : 0; leve.sujo = true; }
