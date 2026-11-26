@@ -144,7 +144,7 @@ export const Patente = {
   // a aba Guerra do menu do clã e do painel: placar do mês por raça, o do clã e a patente de cada um
   guerraInfo(j, membros = []) {
     const M = this.mesGuerraEstado(), ch = this.chaveClaGuerra(j);
-    const um = (o) => ({ nome: o?.nome || '', ...patenteInfo(o?.prog, M.m) }); // recruta fora do mundo: Recruta 0%
+    const um = (o) => ({ nome: o?.nome || '', ...patenteInfo(o?.prog, M.m) }); // recruta fora do mundo: o save dele (npcSalvos)
     return { mes: M.m, raca: this.racaDe(j), r: { chama: M.r.chama | 0, geada: M.r.geada | 0 }, cla: ch ? M.c[ch] | 0 : 0, eu: patenteInfo(j.prog, M.m),
       m: membros.filter(Boolean).map(um), nomes: PATENTE.nomes, ab: PATENTE.abates };
   },
