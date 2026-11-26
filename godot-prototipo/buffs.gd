@@ -171,6 +171,14 @@ func tocar(pos: Vector2) -> bool:
 				return true
 	return false
 
+# o ponto está em cima de um ícone? (o PC usa para o clique no ícone não virar golpe; controles_pc.gd)
+func cobre(pos: Vector2) -> bool:
+	for dono in _zonas:
+		for z in _zonas[dono]:
+			if z[0].has_point(pos):
+				return true
+	return false
+
 func _icone(ci: CanvasItem, c: Vector2, r: float, it: Dictionary) -> void:
 	var k: String = it.k
 	var cor_borda: Color = COR_CLA if k == "cla" else (COR_BOM if it.bom else COR_RUIM)
