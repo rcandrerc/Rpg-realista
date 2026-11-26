@@ -2660,16 +2660,17 @@ func atualizar_do_servidor() -> void:
 	if aberto() and aba == "cla" and not _cla_vivos.is_empty() and _cla_chave != "" and _chave_cla() == _cla_chave:
 		_cla_pintar_vivo()
 		return
-	# outras abas (registros do Poco X7 de 25/11: m:build 60 a 143 ms num quadro): o servidor manda o progresso de novo a
-	# cada HP, mana ou vigor de recruta que anda, e o menu aberto era refeito inteiro. Sem mudança no que a aba mostra,
-	# não refaz; mesmo assim refaz a cada TUDO_REFAZ_MS (contagens de tempo e o que não está na chave)
-	var chave := _chave_tudo() if aberto() and aba != "cla" else ""
+	# outras abas (PR 951): pulava o refazer quando nada mudava. O registro do Poco de 25/11 à noite mostrou m:build
+	# pior (60 a 112 ms em vez de 32 a 143, e mais vezes): desligado (PULAR_SEM_MUDANCA) até a medida por aba
+	# (main.gd m:menu_srv:<aba>) dizer onde pesa
+	var chave := _chave_tudo() if PULAR_SEM_MUDANCA and aberto() and aba != "cla" else ""
 	if chave != "" and chave == _tudo_chave and Time.get_ticks_msec() - _tudo_t < TUDO_REFAZ_MS:
 		return
 	atualizar()
 	_tudo_chave = chave
 	_tudo_t = Time.get_ticks_msec()
 
+const PULAR_SEM_MUDANCA := false
 const TUDO_REFAZ_MS := 10000
 var _tudo_chave := ""
 var _tudo_t := 0
