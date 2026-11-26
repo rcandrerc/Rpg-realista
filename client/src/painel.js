@@ -137,13 +137,16 @@ const opcao = (v, t, sel) => { const o = el('option', null, t); o.value = v; if 
 const SETA = { cima: 'M8 1 15 9 10.5 9 10.5 15 5.5 15 5.5 9 1 9Z', baixo: 'M8 15 1 7 5.5 7 5.5 1 10.5 1 10.5 7 15 7Z', lado: 'M15 8 7 1 7 5.5 1 5.5 1 10.5 7 10.5 7 15Z' };
 function moralTag(m) {
   const t = el('span', 'moral');
-  if (m.ph) { const i = el('img'); i.src = `painel-icones/${m.ph.i}.png`; i.alt = ''; i.onerror = () => { i.remove(); }; t.append(i, el('span', 'ph', `~${m.ph.n}/h`)); }
+  // ícone da ordem com quanto pegou de verdade (pt.t) e, entre parênteses, quanto veio a mais/menos pelo rende (pt.x)
+  // (André 2026-11-26: "coletou tantos e entre parênteses quanto a mais porque estava com 120 de moral"); ~N/h no toque
+  const P = m.pt || (m.ph && { i: m.ph.i });
+  if (P) { const i = el('img'); i.src = `painel-icones/${P.i}.png`; i.alt = ''; i.onerror = () => { i.remove(); }; t.append(i, el('span', 'ph', m.pt ? `${m.pt.t}${m.pt.x ? ` (${m.pt.x > 0 ? '+' : ''}${m.pt.x})` : ''}` : `~${m.ph.n}/h`)); }
   const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('viewBox', '0 0 16 16'); sv.setAttribute('class', 'seta');
   const pa = document.createElementNS('http://www.w3.org/2000/svg', 'path'); pa.setAttribute('d', SETA[m.seta] || SETA.cima); pa.setAttribute('fill', m.cor || '#9ad86a'); sv.append(pa);
   const pc = el('b', null, `${m.re}%`); pc.style.color = m.cor || '';
   t.append(sv, pc);
   if (m.fm) { const f = el('img'); f.src = 'painel-icones/peixe_assado.png'; f.alt = ''; f.className = m.fm < 0 ? 'fome' : 'bem'; t.append(f); } // a comida mexe no %
-  t.onclick = () => aviso(`Moral ${m.ml} (${m.tr > 0 ? '+' : ''}${m.tr | 0} por hora)${m.fm ? ` · ${m.fn2}: ${m.fm > 0 ? '+' : ''}${m.fm}% (comida no Baú do Clã)` : ''} · rende ${m.re}%. Sobe: perto de você ou no seu time, Livre, Elogiar (no jogo). Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.`);
+  t.onclick = () => aviso(`${m.pt ? `Pegou ${m.pt.t} ${m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`}${m.ph ? ` (~${m.ph.n} por hora${m.re && m.re !== 100 ? `; com rende 100% seria ~${Math.round(m.ph.n * 100 / m.re)}: o rende muda quanto vem por batida, com o mesmo vigor` : ''})` : ' (o por hora aparece com 15 min)'} · ` : ''}Moral ${m.ml} (${m.tr > 0 ? '+' : ''}${m.tr | 0} por hora)${m.fm ? ` · ${m.fn2}: ${m.fm > 0 ? '+' : ''}${m.fm}% (comida no Baú do Clã)` : ''} · rende ${m.re}%. Sobe: perto de você ou no seu time, Livre, Elogiar (no jogo). Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.`);
   return t;
 }
 function cartaoMembro(m) {
@@ -152,6 +155,13 @@ function cartaoMembro(m) {
   n.append(el('span', 'tag', m.tier)); if (m.dev) n.append(el('span', 'tag', 'devendo')); if (m.cheia) n.append(el('span', 'tag cheio', 'Mochila cheia')); else if (m.mo) n.append(lugaresTag('Mochila', m.mo));
   l.append(n, ...(m.re ? [moralTag(m)] : []), el('div', 'nv', `Nv ${m.nv}`)); c.append(l);
   c.append(el('div', 'faz', m.on ? (m.morto ? 'Caído' : m.fz || '') : 'Fora do mundo'));
+  if (m.pt && m.fn?.k !== 'livre') { // o que rendeu a ordem: "Coletou 120 minério de ferro (+20 pela moral)"
+    const nome = m.fn?.k === 'grind' ? 'monstros' : (info.recursos.find((r) => r.k === m.fn?.r)?.nome || '');
+    const tempo = m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`;
+    const x = m.pt.x ? ` (${m.pt.x > 0 ? '+' : ''}${m.pt.x} pela moral${m.fm ? ' e comida' : ''})` : '';
+    const d = el('div', 'faz ganho' + (m.pt.x < 0 ? ' menos' : m.pt.x > 0 ? ' mais' : ''), `${m.fn?.k === 'grind' ? 'Derrotou' : 'Coletou'} ${m.pt.t} ${nome}${x} ${tempo}${m.ph ? ` · ~${m.ph.n}/h` : ''}`);
+    c.append(d);
+  }
   if (m.on) { const b = el('div', 'barras'); b.append(barra('Vida', m.hp, m.hpM, 'var(--hp)'), barra('Vigor', m.vg, m.vgM, 'var(--vg)')); c.append(b); }
   // ordem: as mesmas do painel do clã no jogo
   const o = el('div', 'ordem'), fn = el('select'), extra = el('select');
