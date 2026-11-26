@@ -495,14 +495,15 @@ footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
     <p>Abra a mochila → aba <b>Criar</b>. Cada receita diz onde fazer. Gasta vigor e sobe a profissão (até Nv 20). Profissão alta = mais chance de sair peça de raridade melhor (no Nv 20: Épico 9%, Lendário 2,7%, Mítico 0,8%).</p>
   </div>
   <h3>Fornalha (fundir)</h3>
+  <p>Carvão e barras só saem da fornalha, não da aba Criar. A fornalha tem quatro lugares: <b>Combustível</b>, <b>Material</b>, <b>Material 2</b> e <b>Pronto</b>. Ela queima sozinha, mesmo com você longe, e o fogo dela só fica aceso enquanto ela trabalha. Toque num lugar para selecioná-lo e toque de novo para devolver o item à bolsa; tocar num item da bolsa completa o lugar selecionado (até 50).</p>
   <table class="tb">
-    <tr><th>Põe</th><th>Sai</th></tr>
-    <tr><td>3 minério de ferro</td><td><img class="ic" src="../painel-icones/barra_ferro.png" alt=""> barra de ferro</td></tr>
-    <tr><td>3 minério de cobre</td><td><img class="ic" src="../painel-icones/barra_cobre.png" alt=""> barra de cobre</td></tr>
-    <tr><td>2 lenha</td><td><img class="ic" src="../painel-icones/carvao.png" alt=""> carvão</td></tr>
-    <tr><td>1 barra de ferro + carvão</td><td><img class="ic" src="../painel-icones/barra_aco.png" alt=""> aço (Ferreiro Nv 5)</td></tr>
+    <tr><th>Material (1)</th><th>Material 2</th><th>Combustível</th><th>Sai</th></tr>
+    <tr><td>3 minério de cobre</td><td>-</td><td>lenha ou carvão</td><td><img class="ic" src="../painel-icones/barra_cobre.png" alt=""> barra de cobre</td></tr>
+    <tr><td>2 lenha</td><td>-</td><td>lenha ou carvão</td><td><img class="ic" src="../painel-icones/carvao.png" alt=""> carvão</td></tr>
+    <tr><td>3 minério de ferro</td><td>-</td><td>só carvão</td><td><img class="ic" src="../painel-icones/barra_ferro.png" alt=""> barra de ferro</td></tr>
+    <tr><td>1 barra de ferro</td><td>2 carvão</td><td>só carvão</td><td><img class="ic" src="../painel-icones/barra_aco.png" alt=""> aço (Ferreiro Nv 5)</td></tr>
   </table>
-  <p style="color:var(--muted);font-size:.82rem">Fogo: lenha (12 s) ou carvão (30 s).</p>
+  <p style="color:var(--muted);font-size:.82rem">Fogo: lenha dura 12 s e carvão 30 s. Do ferro em diante o fogo tem que ser de carvão. Cada aço gasta 3 carvões no total (2 no Material 2 e 1 no combustível).</p>
   <h3>Bigorna (Ferreiro)</h3>
   <ul>
     <li><b>Espada:</b> 3 barra de ferro, 2 lenha</li>

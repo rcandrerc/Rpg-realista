@@ -176,6 +176,8 @@ func _mostrar_tudo() -> void:
 		_mapa_aquecendo = true
 	preload("res://junta_pecas.gd").aquecer_em(_corpo, m.esqueleto(m.heroi) if m.heroi else null) # shader da armadura juntada dos NPCs (junta_pecas.gd)
 	m._mancha(_corpo, true) # sombra de mancha do NPC longe (main.gd npc_simples)
+	if m.has_method("aquecer_mata"):
+		m.aquecer_mata(_corpo) # árvore da mata que apaga na frente da câmera (cópia com alfa)
 	# skills de espada e de cajado (o círculo/carga e a explosão de cada uma), golpe comum e números de dano
 	for k in ["relampago", "giro", "salto", "esmagar", "pisao", "investida", "bola", "explosao", "meteoros", "cura", "raio", "magia", "gelo", "escudo", "vortice"]:
 		fx.conjura(_corpo, k, 0.4, maos)

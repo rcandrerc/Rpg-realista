@@ -11,7 +11,7 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { ARVORES_PLANTIO, PLANTIO, naBaseCla, VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS, DESPENSA, BASES_FRIAS, MORAL, PESCA, CASA_OBRA } from './dados.js';
+import { FORNALHA, ARVORES_PLANTIO, PLANTIO, naBaseCla, VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS, DESPENSA, BASES_FRIAS, MORAL, PESCA, CASA_OBRA } from './dados.js';
 import { contextoDeAmigo, pecaDaCasa, mesmaPeca } from './amiga.js';
 import { profNivel, guardar, guardarQueCabe, moverQtd, profBonus, bonusTituloProf, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
 import { fundoAgua } from './transporte.js';
@@ -1683,7 +1683,7 @@ export const Cla = {
       // liderança: contrata o melhor que o ouro paga (deixa a reserva)
       // liderança: clã cheio, sobe de nível quando dá (as mesmas regras do jogador; o ouro é o do líder, com a reserva)
       if (E.m.length >= vagasClaNpc(C, E.nv, E) && CLA.niveis[(E.nv || 1) + 1]) {
-        this.fundirBauNpc(E);
+        this.fundirBauNpc(E, C);
         const r = this.subirCla({ nv: E.nv || 1, nvLider: L.prog.nivel | 0, raca: C.raca, ouro: (L.prog.ouro | 0) - R.reserva, fontes: [E.bau || [], L.prog.mochila] }); // e a mochila do líder, como no clã do jogador (André 2026-11-23)
         if (!r.falta) { L.prog.ouro -= r.N.ouro; r.tirar(); E.nv = r.N.nv; mudou = true;
           for (const o of this.jogadores.values()) if (!o.bot) this.evento({ t: 'aviso', para: o.id, texto: `${C.n} subiu para o Nv ${E.nv}` }); }
@@ -1711,11 +1711,24 @@ export const Cla = {
   },
   // as marcas de recomeço do bot no save novo (sem elas, amigaEntrar acharia que o recomeço não foi feito e zeraria o save)
   marcasRecomeco(A) { return { ...(A?.recomeco ? { recomeco: A.recomeco } : {}), ...(A?.recomecoJogo ? { recomecoJogo: A.recomecoJogo } : {}) }; },
-  // o líder bot faz o que o jogador faria na fornalha: 3 minérios de ferro viram 1 barra, 2 barras viram 1 de aço
-  fundirBauNpc(E) {
+  // o líder bot faz o que o jogador faria na fornalha (André 2026-11-26: do ferro em diante só com carvão): 2 lenhas viram 1
+  // carvão; 3 minérios de ferro viram 1 barra (gasta carvão de combustível, 30 s cada um contra 12 s por barra); 1 barra de
+  // ferro vira 1 de aço (2 carvões no 2º espaço + 1 de combustível). Só queima a lenha que sobra da despensa da base (C).
+  fundirBauNpc(E, C = null) {
     const b = E.bau; if (!b) return;
-    const f = Math.floor(contar(b, 'minerio_ferro') / 3); if (f) { tirar(b, 'minerio_ferro', f * 3); guardarQueCabe(b, { k: 'barra_ferro', n: f }); }
-    const a = Math.floor(Math.max(0, contar(b, 'barra_ferro') - 30) / 2); if (a) { tirar(b, 'barra_ferro', a * 2); guardarQueCabe(b, { k: 'barra_aco', n: a }); }
+    const F = FORNALHA, rF = F.receitas.minerio_ferro, rA = F.receitas.barra_ferro, cb = F.combustivel.carvao;
+    const combustivel = (n, R) => Math.ceil((n * R.dur) / cb); // carvões de combustível para n unidades
+    const Bb = C ? this.baseDoClaNpc?.(C) : null, guarda = Bb ? lenhaSemana(Bb.nv) * 2 + (E.dsp?.lf | 0) : 0;
+    const nF = Math.floor(contar(b, 'minerio_ferro') / rF.usa), nA = Math.max(0, contar(b, 'barra_ferro') + nF - 30);
+    const precisa = (f, a) => combustivel(f, rF) + a * (rA.ent2.n + combustivel(1, rA));
+    const falta = precisa(nF, nA) - contar(b, 'carvao');
+    if (falta > 0) { const c = Math.min(falta, Math.floor(Math.max(0, contar(b, 'lenha') - guarda) / F.receitas.lenha.usa)); if (c > 0) { tirar(b, 'lenha', c * F.receitas.lenha.usa); guardarQueCabe(b, { k: 'carvao', n: c }); } }
+    let tem = contar(b, 'carvao'), f = nF;
+    while (f > 0 && combustivel(f, rF) > tem) f--; // o carvão que tem segura quantas barras
+    if (f) { tirar(b, 'carvao', combustivel(f, rF)); tirar(b, 'minerio_ferro', f * rF.usa); guardarQueCabe(b, { k: 'barra_ferro', n: f }); }
+    tem = contar(b, 'carvao');
+    const a = Math.min(Math.max(0, contar(b, 'barra_ferro') - 30), Math.floor(tem / (rA.ent2.n + combustivel(1, rA))));
+    if (a) { tirar(b, 'carvao', a * (rA.ent2.n + combustivel(1, rA))); tirar(b, 'barra_ferro', a); guardarQueCabe(b, { k: 'barra_aco', n: a }); }
   },
   // o líder bot exige os recursos (André 2026-11-24: "o líder pode e deve exigir recursos e vender para obter ouro o que
   // não precisar para upgrade, mas não pedir ouro direto dos recrutas"). A cada rodada de ordens ele recolhe das bolsas dos
@@ -1744,12 +1757,13 @@ export const Cla = {
     // que a fornalha do líder transforma: fundirBauNpc). Alma nunca vende (não tem preço e o clã sempre precisa).
     const fica = { [alma]: Infinity }, nv = E.nv || 1, max = (k, q) => { fica[k] = Math.max(fica[k] || 0, q); };
     if (DESPENSA.ligado) { for (const k of Object.keys(DESPENSA.racao)) fica[k] = Infinity; const Bb = this.baseDoClaNpc?.(C); if (Bb) max('lenha', lenhaSemana(Bb.nv) * 2 + (E.dsp?.lf | 0)); } // comida nunca vende; lenha de 2 semanas da base
+    max('carvao', 30); // combustível e 2º material da fornalha do líder (fundirBauNpc): nunca vende o carvão
     for (let n = nv + 1; n <= nv + X.niveis; n++) {
       const N = CLA.niveis[n]; if (!N) break;
       for (const [k, q] of Object.entries(N.mat || {})) {
         max(k, q);
         if (k === 'barra_ferro') max('minerio_ferro', q * 3);
-        if (k === 'barra_aco') { max('barra_ferro', 30 + q * 2); max('minerio_ferro', (30 + q * 2) * 3); }
+        if (k === 'barra_aco') { max('barra_ferro', 30 + q); max('minerio_ferro', (30 + q) * 3); max('carvao', q * 3 + 10); } // o aço gasta 3 carvões cada (fundirBauNpc)
       }
     }
     // a sobra: com pouco anúncio do item no leilão, o líder anuncia lá (André 2026-11-24); senão vende na loja
@@ -1810,7 +1824,7 @@ export const Cla = {
     const tem = (k) => contar(E.bau || [], k) + contar(L?.prog?.mochila || [], k);
     for (const [k, q] of Object.entries(N.mat || {})) {
       const r = CLAS_NPC_ORDENS.mat[k]; if (!r || !RECURSOS_CLA[r]) continue;
-      let t = tem(k); if (k === 'barra_ferro') t += tem('minerio_ferro') / 3; if (k === 'barra_aco') t += tem('barra_ferro') / 2 + tem('minerio_ferro') / 6;
+      let t = tem(k); if (k === 'barra_ferro') t += tem('minerio_ferro') / 3; if (k === 'barra_aco') t += Math.min(tem('barra_ferro') + tem('minerio_ferro') / 3, tem('carvao') / 3);
       const fr = Math.max(0, 1 - t / q); if (fr > 0) f[r] = Math.max(f[r] || 0, fr);
     }
     if (N.alma) { const fr = Math.max(0, 1 - tem(almaDe(C.raca)) / N.alma); if (fr > 0) f.alma = fr; }
