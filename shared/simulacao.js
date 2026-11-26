@@ -2869,7 +2869,7 @@ export class Simulacao {
     return s.n;
   }
   proximaBatida(j, no) {
-    const C = COLETA[no.tipo], dur = C.tempo / profBonus(j.prog.prof[C.prof]).rapidez / (j.rende || 1); // j.rende: moral x mesa do recruta (MORAL)
+    const C = COLETA[no.tipo], dur = C.tempo / profBonus(j.prog.prof[C.prof]).rapidez; // o rende do recruta (moral x mesa) mexe na quantidade, não na velocidade (batidaColeta)
     j.coleta = { no: no.id, x: j.x, z: j.z, fim: this.tempo + dur };
     this.evento({ t: 'coleta', id: j.id, no: no.id, dur: r2(dur), prof: C.prof });
   }
@@ -2883,7 +2883,12 @@ export class Simulacao {
     const b = profBonus(p.prof[C.prof]), ganhou = [];
     const por = (k, n) => { const q = guardarQueCabe(p.mochila, { k, n }); if (q) { const g = ganhou.find((x) => x.k === k); if (g) g.n += q; else ganhou.push({ k, nome: ITENS[k].nome, n: q }); } if (q < n) this.evento({ t: 'aviso', para: j.id, texto: 'Mochila cheia' }); }; // o que couber entra (o bônus +1 sem lugar não leva a coleta junto)
     const extra = b.extra + bonusTituloProf(p, C.prof, 'extra'); // título da profissão em uso
-    for (const [k, n] of Object.entries(C.da)) por(k, n + (Math.random() < extra ? 1 : 0));
+    // j.rende (recruta: moral x mesa, MORAL): a QUANTIDADE da batida, com o mesmo vigor (André 2026-11-26: "deveria ser drop
+    // e não velocidade... se no final vai dar no mesmo, pra que eu vou me matar?"). 120% = 20% a mais; 75% = 25% a menos (a
+    // fração vira chance). Igual à conta do tempo fora (trabalhoFora, rM)
+    const rende = (n) => { if (!j.rende || j.rende === 1) return n; const q = n * j.rende; return Math.floor(q) + (Math.random() < q - Math.floor(q) ? 1 : 0); };
+    let rendeuZero = false;
+    for (const [k, n0] of Object.entries(C.da)) { const n = rende(n0 + (Math.random() < extra ? 1 : 0)); if (n > 0) por(k, n); else rendeuZero = true; }
     for (const [k, ch] of Object.entries(C.raro || {})) if (Math.random() < ch && !filtrado(p, { k })) por(k, 1); // bônus desmarcado no filtro fica no chão
     const volta = no.mina ? this.minas.get(no.mina)?.volta ?? C.volta : C.volta;
     const s = { n: this.cargas(j, no) - 1, volta: this.tempo + volta };
@@ -2898,7 +2903,7 @@ export class Simulacao {
     this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: s.n, volta });
     for (const g of ganhou) this.historia(j, 'item', { k: g.k, n: g.n, de: 'coleta' });
     if (ganhou.length) { this.contarDiaria(j, 'coleta', { tipo: no.tipo }); this.contarGuilda(j, 'coleta', { tipo: no.tipo }); } // diária "Corte ou minere" e contrato da Guilda: uma por batida
-    if (!ganhou.length) return this.pararColeta(j, null);
+    if (!ganhou.length && !rendeuZero) return this.pararColeta(j, null); // rende baixo tirou a batida: segue batendo
     if (s.n <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`);
     if (vigorAgora(p.vigor) < this.custoVigor(j, C)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     this.proximaBatida(j, no);
@@ -2993,6 +2998,9 @@ export class Simulacao {
     const custo = P.vigor[k] * (1 - profBonus(p.prof.pes).menosVigor);
     gastarVigor(p, Math.min(custo, vigorAgora(p.vigor))); // Quimera: paga o que tem
     const dobro = Math.random() < P.dobro * profBonus(p.prof.pes).rank + bonusTituloProf(p, 'pes', 'extra') && guardar(p.mochila, { k, n: 1 });
+    // rende do recruta (MORAL, igual à batidaColeta): acima de 100% chance de +1 peixe; abaixo, chance de o peixe escapar
+    if (j.rende > 1 && Math.random() < j.rende - 1) guardar(p.mochila, { k, n: 1 });
+    else if (j.rende < 1 && Math.random() < 1 - j.rende) tirar(p.mochila, k, 1);
     this.pontosProf(j, 'pes', P.vigor[k]);
     p.vara = (p.vara || 0) + 1;
     let quebrou = false;

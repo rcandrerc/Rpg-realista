@@ -4713,6 +4713,8 @@
 "Comprou {1} por {2} de ouro. O próximo sai por {3}": "Bought {1} for {2} gold. The next one costs {3}",
 "Moral %d: rende %d%%. Sobe: perto de você ou no seu time, Livre, Elogiar. Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.": "Morale {1}: output {2}%. Goes up: near you or in your party, Free, Praise. Goes down: 3 h of straight work, 12 h without you in the game.",
 "Moral %d (%s por hora)": "Morale %d (%s per hour)",
+"Pegou %d": "Gathered %d",
+" (%+d pela moral)": " (%+d from morale)",
 " · %s: %+d%% (comida no Baú do Clã)": " · %s: %+d%% (food in the Clan Chest)",
 " · rende %d%%. Sobe: perto de você ou no seu time, Livre, Elogiar. Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.": " · output %d%%. Goes up: near you or in your party, Free, Praise. Goes down: 3 h of straight work, 12 h without you in the game.",
 "Esse recruta não é do seu clã": "That recruit isn't in your clan",
