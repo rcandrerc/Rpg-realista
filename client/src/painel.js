@@ -117,14 +117,14 @@ async function tela() {
 // da barra de cima e ficam no Mais (a barra de baixo acende o Mais enquanto estão abertas).
 let aba = 'jogar';
 $('mapaBots').onchange = (e) => { gravar('painelBots', e.target.checked ? '1' : null); desenhar(); };
-const DO_MAIS = new Set(['leilao', 'bots', 'log', 'personagem', 'social']);
+const DO_MAIS = new Set(['leilao', 'bots', 'log', 'personagem', 'social', 'fazenda']);
 function irAba(a) {
   aba = a;
   for (const o of $('abas').querySelectorAll('button')) o.classList.toggle('ativo', o.dataset.aba === a || (o.dataset.aba === 'mais' && DO_MAIS.has(a)));
   document.body.classList.toggle('abaCla', a === 'cla');
   $('cla').hidden = aba !== 'cla'; $('bots').hidden = aba !== 'bots'; $('log').hidden = aba !== 'log';
   $('leilaoAba').hidden = aba !== 'leilao'; if (aba === 'leilao') pedirLeilao();
-  $('mochilaAba').hidden = aba !== 'mochila'; $('missoesAba').hidden = aba !== 'missoes'; $('maisAba').hidden = aba !== 'mais'; $('personagemAba').hidden = aba !== 'personagem'; $('socialAba').hidden = aba !== 'social';
+  $('mochilaAba').hidden = aba !== 'mochila'; $('missoesAba').hidden = aba !== 'missoes'; $('maisAba').hidden = aba !== 'mais'; $('personagemAba').hidden = aba !== 'personagem'; $('socialAba').hidden = aba !== 'social'; $('fazendaAba').hidden = aba !== 'fazenda';
   $('jogarAba').hidden = aba !== 'jogar';
   if (aba !== 'jogar') document.body.classList.remove('leveTela');
   // a aba Mapa saiu (André 2026-11-25: "no jogar já tem o mapa... pode remover"): o mapa, os líderes bot e a legenda ficam no Jogar
@@ -132,8 +132,10 @@ function irAba(a) {
   if (aba === 'mochila') { leve.sujo = true; desenharMochila(); }
   const querMs = a === 'missoes' || a === 'personagem';
   if (querMs !== !!leve.msVer) { leve.msVer = querMs; mandar('leveMissoes', { ver: querMs }); } // a lista só vem com a aba aberta (Missões ou Personagem)
+  if ((a === 'fazenda') !== !!leve.fzVer) { leve.fzVer = a === 'fazenda'; mandar('leveFazenda', { ver: leve.fzVer }); } // o terreno só vem com a aba aberta
   if (aba === 'missoes') desenharMissoes();
   if (aba === 'personagem') desenharPersonagem();
+  if (aba === 'fazenda') desenharFazenda();
   if (aba === 'social') { mandar('amigo', { acao: 'lista' }); mandar('pvp', { acao: 'info' }); desenharSocial(); }
   if (aba === 'mais') desenharMais();
   scrollTo(0, 0);
@@ -578,8 +580,10 @@ async function entrarLeve() {
 function ligarLeve(s) {
   leve.sala = s; if (criarAberto) s.send('leveReceitas', { ver: true }); // voltou da queda com o Criar aberto
   if (aba === 'missoes' || aba === 'personagem') s.send('leveMissoes', { ver: true });
+  if (aba === 'fazenda') s.send('leveFazenda', { ver: true });
   s.onMessage('leve', (d) => {
     leve.f = d.f; if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa; if (d.ms) { leve.ms = d.ms; if (aba === 'missoes') desenharMissoes(); if (aba === 'personagem') desenharPersonagem(); }
+    if (d.fz) { leve.fz = d.fz; if (aba === 'fazenda') desenharFazenda(); }
     for (const e of d.ev || []) eventoLeve(e);
     // apanhou minerando (André 2026-11-26: "quando chega o combate... tá meio confuso"): o servidor para a coleta (igual ao
     // jogo 3D); a página guarda o veio para o botão "Voltar a minerar" quando a luta acabar
@@ -619,6 +623,10 @@ function eventoLeve(e) {
   else if (e.t === 'fabricando') { leve.fab = e.fim ? null : { nome: e.nome, ate: Date.now() + (e.dur || 0) * 1000 }; leve.sujo = true; }
   else if (e.t === 'fala') falaLeve(e); // o NPC respondeu (missão)
   else if (['time', 'duelo', 'pvp', 'troca', 'amigos', 'amigo'].includes(e.t)) socialEvento(e); // etapa 5
+  else if (e.t === 'pesca' && e.st === 'fisgou') { try { navigator.vibrate?.(180); } catch { /* sem vibrar */ } } // o "!" da boia (etapa 6)
+  else if (e.t === 'colheu') aviso(`Colheu ${e.n} ${e.nome}`);
+  else if (e.t === 'dormiu') aviso('Dormiu até de manhã: vida e mana cheias');
+  else if (e.t === 'regador' && e.texto) aviso(e.texto);
   else if (e.t === 'diaria_ir' && e.alvo) irLeve(e.alvo); // Ir da diária ou do contrato: o servidor diz o lugar aberto mais perto
   else if (e.t === 'chat') chatLeve([e]);
   else if (e.t === 'chatHist') { leve.chat = []; chatLeve(e.l); }
@@ -1229,13 +1237,13 @@ function cartaoAcao(raiz, P, morto, mana) {
   const F = leve.f, R = F.r, luta = emLuta(morto);
   if (luta && !lutaAntes && painelLeve && painelLeve !== 'chat') { painelLeve = ''; leve.sujo = true; } // começou a luta: fecha o painel por cima e mostra os golpes
   lutaAntes = luta;
-  const estado = morto ? 'morto' : luta ? 'luta' : F.co ? 'coleta' : leve.fab ? 'criar' : leve.rec > Date.now() ? 'base' : R ? 'anda' : 'parado';
+  const estado = morto ? 'morto' : luta ? 'luta' : F.pe ? 'pesca' : F.co ? 'coleta' : leve.fab ? 'criar' : leve.rec > Date.now() ? 'base' : R ? 'anda' : 'parado';
   if (!cartaoEl) { cartaoEl = el('div', 'cartaoAcao'); cartaoEl.id = 'jogarCartao'; }
   const c = cartaoEl;
   const temPerto = !!(P.npc || P.bau || P.totem || P.car || P.chao?.length || leve.pk?.c || P.veio || P.col?.length);
   const aqui = P.npc ? P.npc.n.split(',')[0] : P.bau ? (P.bau.cla ? 'Baú do Clã' : 'Baú') : P.totem ? 'Totem' : P.veio ? 'Minério' : P.col?.length ? 'Recursos' : temPerto ? 'Pack' : '';
   const volta = leve.volta && (F.c || []).find((o) => o[0] === leve.volta.no);
-  const chave = [estado, estado === 'coleta' ? F.co[0] : '', estado === 'parado' ? aqui + '|' + (volta ? volta[0] : '') : '', estado === 'anda' ? leve.rotaNome : ''].join('/');
+  const chave = [estado, estado === 'coleta' ? F.co[0] : '', estado === 'parado' ? aqui + '|' + (volta ? volta[0] : '') : '', estado === 'anda' ? leve.rotaNome : '', estado === 'pesca' ? F.pe[0] : '', estado === 'parado' && F.sp != null ? 'sp' : ''].join('/');
   if (chave !== cartaoChave || !c.firstChild) {
     cartaoChave = chave; limpar(c); c.className = 'cartaoAcao' + (estado === 'luta' ? ' luta' : estado === 'morto' ? ' morto' : '');
     const tit = el('div', 'tit'), txt = el('span'); c._txt = txt; c._barra = null; c._sub = null; tit.append(txt); c.append(tit);
@@ -1246,11 +1254,17 @@ function cartaoAcao(raiz, P, morto, mana) {
     } else if (estado === 'criar') botao('Parar', () => mandar('fabricar', { parar: true }), true);
     else if (estado === 'base') botao('Desistir', () => mandar('vila'), true);
     else if (estado === 'anda') botao('Parar', () => mandar('leveParar'), true);
+    else if (estado === 'pesca') { // pescaria (etapa 6): os mesmos toques do jogo (puxar cedo perde; peixe grande = toques rápidos)
+      if (F.pe[0] !== 'pegou') botao('Recolher', () => mandar('pescar', { acao: 'parar' }), true);
+      if (F.pe[0] === 'espera' || F.pe[0] === 'fisgou' || F.pe[0] === 'briga') { const pu = el('button', 'acao volta', '🎣 Puxar'); pu.style.width = '100%'; pu.style.marginTop = '6px'; pu.onclick = () => mandar('pescar', { acao: 'puxar' }); c.append(pu); }
+      if (F.pe[0] === 'briga') { const b = el('div', 'barraAlvo'), i = el('b'); c._barra = i; b.append(i); c.append(b); }
+    }
     else if (estado === 'luta') { const b = el('div', 'barraAlvo'), i = el('b'); c._barra = i; b.append(i); c.append(b); }
     else if (estado === 'parado') {
       const b = el('div', 'bts');
       if (volta) { const [ic, verbo] = COLETA_VERBO[leve.volta.prof] || COLETA_VERBO['']; const v = bt(`${ic} Voltar a ${verbo.toLowerCase()} ${volta[1]}`, () => { leve.volta = null; mandar('leveColetar', { no: volta[0] }); }); v.classList.add('volta'); v.style.flexBasis = '100%'; b.append(v); }
       b.append(bt('🧭 Ir para…', () => abrirPainelLeve(painelLeve === 'lugares' ? '' : 'lugares')));
+      if (F.sp != null) b.append(bt('🎣 Pescar', () => mandar('levePescar'), true)); // spot de pesca à vista (etapa 6)
       if (aqui) b.append(bt(`📍 ${aqui}`, () => abrirPainelLeve(painelLeve === 'perto' ? '' : 'perto'), true));
       c.append(b);
     }
@@ -1270,10 +1284,13 @@ function cartaoAcao(raiz, P, morto, mana) {
     if (cl?.ini) { barra.parentNode.classList.remove('vai'); barra.style.width = (Math.min(1, (Date.now() - cl.ini) / cl.dur) * 100).toFixed(0) + '%'; } else barra.parentNode.classList.add('vai');
     const tot = Object.entries(cl?.tot || {}).map(([n, q]) => `${q} ${n}`).join(' · ');
     sub.textContent = `Pegou: ${tot || 'nada ainda'}${cl?.cargas != null ? ` · restam ${cl.cargas}` : ''}`;
+  } else if (estado === 'pesca') {
+    txt.textContent = { lancando: '🎣 Lançando a linha…', espera: '🎣 Esperando a boia afundar… (puxar antes perde)', fisgou: '❗ Fisgou! Puxe agora!', briga: '🐟 Peixe grande! Toque rápido em Puxar', pegou: '🐟 Pegou!' }[F.pe[0]] || '🎣 Pescando';
+    if (barra) barra.style.width = F.pe[1] + '%';
   } else if (estado === 'criar') txt.textContent = `🔨 Fazendo ${leve.fab.nome}… ${Math.max(0, Math.ceil((leve.fab.ate - Date.now()) / 1000))} s (fique perto)`;
   else if (estado === 'base') txt.textContent = `🏠 Voltando para a base… ${Math.ceil((leve.rec - Date.now()) / 1000)} s`;
   else if (estado === 'anda') txt.textContent = `🚶 ${leve.rotaNome || 'Andando'} · ${R[0]} m · ${R[1] >= 60 ? Math.floor(R[1] / 60) + ' min' : R[1] + ' s'}${extra ? ' ' + extra : ''}`;
-  else txt.textContent = aqui ? `Parado perto de: ${aqui}${extra ? ' ' + extra : ''}` : `Parado. Toque no mapa para andar.${extra ? ' ' + extra : ''}`;
+  else txt.textContent = (aqui ? `Parado perto de: ${aqui}${extra ? ' ' + extra : ''}` : `Parado. Toque no mapa para andar.${extra ? ' ' + extra : ''}`) + (F.sp != null ? ` · 🎣 spot a ${F.sp} m` : '');
   if (!raiz.contains(c)) raiz.insertBefore(c, raiz.querySelector('.redondos'));
   lutaLeve(raiz, morto, mana);
 }
@@ -1367,6 +1384,120 @@ function falaLeve(e) {
   const j = janelaLeve([el('div', 'nome', e.npc || 'NPC'), el('div', 'dica', e.texto || '')]); j.classList.add('fala');
   const fechar = () => j.remove(); ok.onclick = fechar; j.onclick = (ev) => { if (ev.target === j) fechar(); };
   j.firstChild.append(ok); document.querySelectorAll('.janelaLeve.fala').forEach((o) => o.remove()); document.body.append(j);
+}
+// ---------- Fazenda, base e cama (etapa 6, André 2026-11-26): o terreno (e a área da base do clã) numa grade de 1 m. Escolha
+// a ação e toque nas casas; "Área" = toque em dois cantos e vale para todas as casas entre eles (como a seleção do jogo).
+// As mensagens são as do jogo ('horta', 'construir', 'desmontar', 'regador', 'dormir'): o servidor confere distância,
+// ferramenta, vigor e lugar.
+const fz = { modo: 'arar', sem: '', k: '', r: 0, area: false, canto: null, fila: [] };
+function filaFazenda(lista) { // manda aos poucos (o limite de mensagens do servidor é o mesmo do jogo)
+  fz.fila.push(...lista);
+  if (fz.filaT) return;
+  const um = () => { const m = fz.fila.shift(); if (!m) { fz.filaT = null; return; } mandar(m[0], m[1]); fz.filaT = setTimeout(um, 60); };
+  um();
+}
+function acaoCasa(i, k) {
+  const Z = leve.fz, c = `${i},${k}`, t = (Z.h || []).find((o) => o[0] === c);
+  if (fz.modo === 'arar') return t ? null : ['horta', { acao: 'arar', c }];
+  if (fz.modo === 'plantar') return t && !t[1] && fz.sem ? ['horta', { acao: 'plantar', c, s: fz.sem }] : null;
+  if (fz.modo === 'regar') return t && !t[3] ? ['horta', { acao: 'regar', c }] : null;
+  if (fz.modo === 'colher') return t && t[1] && t[2] >= 4 ? ['horta', { acao: 'colher', c }] : null;
+  if (fz.modo === 'tirar') return t && !t[1] ? ['horta', { acao: 'tirar', c }] : null;
+  return null;
+}
+function toqueFazenda(x, z) {
+  const Z = leve.fz; if (!Z) return;
+  if (fz.modo === 'construir') { if (!fz.k) return aviso('Escolha a peça'); return mandar('construir', { k: fz.k, x: Math.round(x * 2) / 2, z: Math.round(z * 2) / 2, r: fz.r }); }
+  if (fz.modo === 'desmontar') { const o = (Z.pc || []).find((q) => x >= q[2] && x <= q[4] && z >= q[3] && z <= q[5]); if (!o) return; return confirmar(`Desmontar ${o[6]}? Os materiais voltam para a mochila.`, () => mandar('desmontar', { p: o[0] })); }
+  const i = Math.floor(x), k = Math.floor(z);
+  if (fz.modo === 'plantar' && !fz.sem) return aviso('Escolha a semente');
+  if (!fz.area) { const m = acaoCasa(i, k); if (m) mandar(m[0], m[1]); else if (fz.modo !== 'arar') aviso('Nada a fazer nessa casa'); else mandar('horta', { acao: 'arar', c: `${i},${k}` }); return; }
+  if (!fz.canto) { fz.canto = [i, k]; desenharFazenda(); return aviso('Agora toque no outro canto'); }
+  const [a, b] = fz.canto; fz.canto = null; const l = [];
+  for (let q = Math.min(a, i); q <= Math.max(a, i); q++) for (let w = Math.min(b, k); w <= Math.max(b, k); w++) { const m = acaoCasa(q, w); if (m) l.push(m); }
+  if (l.length > 60) l.length = 60;
+  if (!l.length) aviso('Nada a fazer nessa área'); else filaFazenda(l);
+  desenharFazenda();
+}
+function confirmar(txt, sim) {
+  const j = janelaLeve([el('div', 'nome', txt)]), b = el('div', 'bts'), fechar = () => j.remove();
+  const s = el('button', 'acao', 'Sim'); s.onclick = () => { sim(); fechar(); };
+  const n = el('button', 'acao cinza', 'Não'); n.onclick = fechar;
+  b.append(s, n); j.firstChild.append(b); j.onclick = (e) => { if (e.target === j) fechar(); }; document.body.append(j);
+}
+const COR_FASE = ['#7a5a35', '#6f9a3a', '#5fae4a', '#4f9a44', '#ffc23f'];
+function desenharFazenda() {
+  const raiz = $('fazendaAba'); if (aba !== 'fazenda') return;
+  limpar(raiz);
+  if (!leve.sala || !leve.f) return foraDoMundo(raiz, 'o seu terreno');
+  const Z = leve.fz;
+  if (!Z) { raiz.append(el('div', 'card vazio', 'Abrindo o terreno…')); return; }
+  if (Z.sem === 1) { const c = el('div', 'card'); c.append(el('div', 'nome', '🌾 Sem terreno'), el('div', 'faz', 'Compre um terreno nas Terras da Estrada (pelo jogo) ou funde o seu clã para ter a base.')); raiz.append(c); return; }
+  // cabeçalho: ferramentas, água, hora e os atalhos (ir ao terreno, encher regador, cama)
+  { const c = el('div', 'card');
+    c.append(el('div', 'nome', '🌾 Fazenda e base'), el('div', 'faz', `Enxada: ${Z.en ? 'sim' : 'não'} · Regador: ${Z.rg ? `${Z.ag}/${Z.aguaMax} regas` : 'não'} · Hora do jogo ${Z.hora}${Z.noite ? ' (noite)' : ''}`));
+    const b = el('div', 'bts');
+    if (!Z.perto) b.append(bt('🧭 Ir ao terreno', () => { irLeve({ x: (Z.lote[0] + Z.lote[2]) / 2, z: (Z.lote[1] + Z.lote[3]) / 2, nome: 'Seu terreno' }); }));
+    if (Z.rg && Z.ag < Z.aguaMax && Z.poco) b.append(bt('💧 Encher regador', () => mandar('regador'), true));
+    if (Z.cama) b.append(Z.cama[2] ? bt('🛏️ Dormir', () => mandar('dormir'), !Z.noite) : bt('🛏️ Ir até a cama', () => irLeve({ x: Z.cama[0], z: Z.cama[1], nome: 'Cama' }), true));
+    if (b.childNodes.length) c.append(b);
+    if (!Z.perto) c.append(el('div', 'faz', 'Para mexer, chegue perto do terreno (6 m), como no jogo.'));
+    raiz.append(c);
+  }
+  // ações
+  { const c = el('div', 'card'), modos = el('div', 'chips'); modos.style.flexWrap = 'wrap';
+    const MODOS = [['arar', '⛏️ Arar'], ['plantar', '🌱 Plantar'], ['regar', '💧 Regar'], ['colher', '🧺 Colher'], ['tirar', '↩️ Desfazer'], ['construir', '🔨 Construir'], ['desmontar', '🧱 Desmontar']];
+    for (const [k, t] of MODOS) { const x = el('button', fz.modo === k ? 'ativo' : '', t); x.onclick = () => { fz.modo = k; fz.canto = null; desenharFazenda(); }; modos.append(x); }
+    c.append(modos);
+    if (fz.modo === 'plantar') {
+      const l = el('div', 'chips'); l.style.flexWrap = 'wrap'; l.style.marginTop = '8px'; if (!Z.se.length) l.append(el('div', 'faz', 'Sem sementes. A Rosa vende.'));
+      for (const [k, nome, n] of Z.se) { const x = el('button', fz.sem === k ? 'ativo' : '', `${nome} ×${n}`); x.onclick = () => { fz.sem = k; desenharFazenda(); }; l.append(x); }
+      if (fz.sem && !Z.se.some((o) => o[0] === fz.sem)) fz.sem = '';
+      c.append(l);
+    }
+    if (fz.modo === 'construir') {
+      const l = el('div', 'lista');
+      for (const [k, nome, w, d, custo, pode] of Z.cons) { const x = el('button', 'item'); if (fz.k === k) x.style.borderColor = 'var(--gold)'; x.append(el('b', null, `${nome} (${w}×${d} m)`), el('small', null, `${custo || 'grátis'}${pode ? '' : ' · falta material'}`)); x.style.opacity = pode ? '' : '.55'; x.onclick = () => { fz.k = k; desenharFazenda(); }; l.append(x); }
+      l.style.maxHeight = '28vh'; l.style.overflowY = 'auto'; c.append(l);
+      const g = el('div', 'bts'); g.append(bt(`↻ Girar (${fz.r * 90}°)`, () => { fz.r = (fz.r + 1) & 3; desenharFazenda(); }, true)); c.append(g);
+    }
+    if (['arar', 'plantar', 'regar', 'colher', 'tirar'].includes(fz.modo)) {
+      const a = el('label', 'faz'), ch = el('input'); ch.type = 'checkbox'; ch.checked = fz.area; ch.onchange = () => { fz.area = ch.checked; fz.canto = null; desenharFazenda(); };
+      a.append(ch, document.createTextNode(fz.area ? (fz.canto ? ' Área: toque no outro canto' : ' Área: toque em dois cantos') : ' Área (dois cantos)')); c.append(a);
+    }
+    raiz.append(c);
+  }
+  // a grade
+  { const c = el('div', 'card'), [x0, z0, x1, z1] = Z.ret, W = x1 - x0, H = z1 - z0;
+    const larg = Math.min(raiz.clientWidth - 40 || 320, 520), px = Math.max(18, Math.floor(larg / W)), cv = el('canvas'), caixa = el('div'); // casas de 18 px no mínimo (dedo); grade maior rola
+    cv.width = Math.ceil(W * px); cv.height = Math.ceil(H * px); cv.style.width = cv.width + 'px'; cv.style.display = 'block'; cv.style.touchAction = 'manipulation'; caixa.style.overflow = 'auto'; caixa.style.maxHeight = '60vh'; caixa.style.width = (raiz.clientWidth - 40 || 320) + 'px'; caixa.style.maxWidth = '100%'; c.style.minWidth = '0'; c.style.overflow = 'hidden'; caixa.append(cv);
+    const g = cv.getContext('2d'), X = (x) => (x - x0) * px, Y = (z) => (z - z0) * px;
+    g.fillStyle = '#2c3a22'; g.fillRect(0, 0, cv.width, cv.height);
+    const ret = (R, cor, linha) => { g.strokeStyle = cor; g.lineWidth = linha; g.strokeRect(X(R[0]), Y(R[1]), (R[2] - R[0]) * px, (R[3] - R[1]) * px); };
+    if (Z.base) { g.fillStyle = '#34442a'; g.fillRect(X(Z.base[0]), Y(Z.base[1]), (Z.base[2] - Z.base[0]) * px, (Z.base[3] - Z.base[1]) * px); ret(Z.base, '#c9a46a', 2); }
+    g.fillStyle = '#3a4a2c'; g.fillRect(X(Z.lote[0]), Y(Z.lote[1]), (Z.lote[2] - Z.lote[0]) * px, (Z.lote[3] - Z.lote[1]) * px); ret(Z.lote, '#e0c080', 2);
+    g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 1;
+    for (let x = Math.ceil(x0); x <= x1; x++) { g.beginPath(); g.moveTo(X(x), 0); g.lineTo(X(x), cv.height); g.stroke(); }
+    for (let z = Math.ceil(z0); z <= z1; z++) { g.beginPath(); g.moveTo(0, Y(z)); g.lineTo(cv.width, Y(z)); g.stroke(); }
+    for (const [cc, pl, fase, mol] of Z.h) {
+      const [i, k] = cc.split(',').map(Number);
+      g.fillStyle = mol ? '#4a3420' : '#7a5a35'; g.fillRect(X(i) + 1, Y(k) + 1, px - 2, px - 2);
+      if (pl) { g.fillStyle = COR_FASE[Math.max(0, fase)]; const r = (px / 2 - 2) * (0.35 + 0.65 * Math.max(0, fase) / 4); g.beginPath(); g.arc(X(i + 0.5), Y(k + 0.5), Math.max(2, r), 0, 7); g.fill(); }
+    }
+    g.font = `${Math.max(9, Math.min(13, px))}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (const [, k, a, b2, c2, d2, nome] of Z.pc) {
+      g.fillStyle = k === 'cama' ? '#7a4a6a' : /parede|porta|janela|cerca/.test(k) ? '#9a8a70' : '#5a5a66'; g.fillRect(X(a), Y(b2), (c2 - a) * px, (d2 - b2) * px);
+      if ((c2 - a) * px > 18 && (d2 - b2) * px > 12) { g.fillStyle = '#fff'; g.fillText(nome.split(' ')[0].slice(0, 6), X((a + c2) / 2), Y((b2 + d2) / 2)); }
+    }
+    if (fz.canto) { g.strokeStyle = '#ffd23f'; g.lineWidth = 2; g.strokeRect(X(fz.canto[0]), Y(fz.canto[1]), px, px); }
+    const eu = leve.f?.eu ? [leve.f.eu[0], leve.f.eu[1]] : Z.eu;
+    if (eu[0] >= x0 - 8 && eu[0] <= x1 + 8 && eu[1] >= z0 - 8 && eu[1] <= z1 + 8) { g.fillStyle = '#3ad16a'; g.strokeStyle = '#000'; g.lineWidth = 1.5; g.beginPath(); g.arc(X(Math.max(x0, Math.min(x1, eu[0]))), Y(Math.max(z0, Math.min(z1, eu[1]))), Math.max(4, px / 2.5), 0, 7); g.fill(); g.stroke(); }
+    cv.onclick = (e) => { const r = cv.getBoundingClientRect(), x = x0 + (e.clientX - r.left) / r.width * W, z = z0 + (e.clientY - r.top) / r.height * H; toqueFazenda(x, z); };
+    c.append(caixa, el('div', 'faz', 'Terra marrom = arada (escura = molhada) · verde = crescendo · amarela = madura. Bolinha verde = você.'));
+    raiz.append(c);
+    if (fz.rolou !== Z.ret.join()) { fz.rolou = Z.ret.join(); caixa.scrollLeft = X(eu[0]) - caixa.clientWidth / 2; caixa.scrollTop = Y(eu[1]) - caixa.clientHeight / 2; } else { caixa.scrollLeft = fz.sx || 0; caixa.scrollTop = fz.sy || 0; }
+    caixa.onscroll = () => { fz.sx = caixa.scrollLeft; fz.sy = caixa.scrollTop; };
+  }
 }
 // ---------- Gente e PvP (etapa 5, André 2026-11-26): grupo, duelo, troca, amizade e Arena 4x4, com as mesmas mensagens do
 // jogo ('time', 'duelo', 'troca', 'amigo', 'pvp'). Convites que chegam abrem uma janelinha com Aceitar e Recusar.
@@ -1580,7 +1711,7 @@ function desenharMais() {
   // Missões ganhou aba própria (etapa 3)
   item('🧍 Personagem', 'atributos, golpes, títulos', () => irAba('personagem'));
   item('👥 Gente e PvP', 'grupo, duelo, troca, amigos, arena 4x4', leve.sala ? () => irAba('social') : null);
-  item('🌾 Fazenda, base e pesca', 'em breve', null);
+  item('🌾 Fazenda, base e cama', 'arar, plantar, regar, colher, construir, dormir', leve.sala ? () => irAba('fazenda') : null);
   item('❓ Como jogar', 'a dica da primeira vez', () => { dicaAberta = true; irAba('jogar'); });
   const w = el('button', 'item'); w.append(el('span', null, '📖 Wiki'), el('small', null, 'abre em outra aba')); w.onclick = () => open('wiki/', '_blank', 'noopener'); L.append(w);
   if (leve.sala) item('⏻ Sair do mundo', 'seu herói sai do jogo', () => { if (confirm('Sair do mundo? Seu herói sai do jogo.')) { sairLeve(); irAba('jogar'); } });

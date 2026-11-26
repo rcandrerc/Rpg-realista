@@ -39,7 +39,7 @@ const heroiDe = (contaId) => { for (const s of salas) for (const j of s.sim.joga
 // painel do clã (página leve, André 2026-11-24): ver no máximo a cada 2 s e ordem no máximo a cada 0,5 s por página
 const PAINEL = { verMs: 2000, ordemMs: 500, volta: 20 };
 // modo leve: os avisos do herói que a página usa (o resto do jogo, como o 'prog' inteiro, não vai: pesa no celular fraco)
-const LEVE_EVENTOS = new Set(['aviso', 'leilao', 'bau', 'compra', 'leveRota', 'chat', 'chatHist', 'fabricando', 'pack', 'veiculo', 'vila', 'coleta', 'coletou', 'fala', 'diaria_ir', 'time', 'duelo', 'pvp', 'troca', 'amigos', 'amigo']); // time..amigo: aba Gente e PvP (etapa 5) // fala e diaria_ir: aba Missões do jogo leve (2026-11-26)
+const LEVE_EVENTOS = new Set(['aviso', 'leilao', 'bau', 'compra', 'leveRota', 'chat', 'chatHist', 'fabricando', 'pack', 'veiculo', 'vila', 'coleta', 'coletou', 'fala', 'diaria_ir', 'time', 'duelo', 'pvp', 'troca', 'amigos', 'amigo', 'pesca', 'colheu', 'dormiu', 'regador']); // pesca..regador: etapa 6 (pescar, fazenda, cama) // time..amigo: aba Gente e PvP (etapa 5) // fala e diaria_ir: aba Missões do jogo leve (2026-11-26)
 // '__proto__', 'constructor' e 'prototype' como texto ou chave numa mensagem do cliente: nunca é dado de jogo e serve para
 // mexer no Object.prototype (auditoria 2026-11-13). A mensagem inteira é descartada.
 const PROIBIDO = new Set(['__proto__', 'constructor', 'prototype']);
@@ -227,6 +227,8 @@ class SalaClareira extends Room {
     this.ouvir('leveColetar', (c, m) => { if (c.userData?.leve && m && typeof m.no === 'string' && m.no.length < 8) this.sim.leveColetar(c.sessionId, { no: m.no, parar: m.parar === true }); }); // Minerar/Cortar/Pegar no modo leve
     this.ouvir('leveIr', (c, m) => { if (c.userData?.leve && m && typeof m === 'object') this.sim.leveIr(c.sessionId, { x: m.x, z: m.z, nome: m.nome, ...(typeof m.alvo === 'string' && /^e\d{1,9}$/.test(m.alvo) ? { alvo: m.alvo } : {}) }); });
     this.ouvir('leveParar', (c) => { if (c.userData?.leve) this.sim.leveParar(c.sessionId); });
+    this.ouvir('leveFazenda', (c, m) => { if (c.userData?.leve) { c.userData.leveFz = m?.ver !== false; c.userData.leveFzTxt = ''; } }); // aba Fazenda do jogo leve (etapa 6): só com a aba aberta
+    this.ouvir('levePescar', (c) => { if (c.userData?.leve) this.sim.levePescar(c.sessionId); }); // pescar no spot à vista (etapa 6)
     this.ouvir('leveMissoes', (c, m) => { if (c.userData?.leve) { c.userData.leveMs = m?.ver !== false; c.userData.leveMsTxt = ''; } }); // aba Missões do jogo leve: só com a aba aberta
     this.ouvir('leveReceitas', (c, m) => { if (c.userData?.leve) { c.userData.leveRc = m?.ver !== false; c.userData.leveRcTxt = ''; } }); // Criar da página leve: só manda as receitas enquanto o cartão está aberto
     this.ouvir('leveMapa', (c) => { const j = c.userData?.leve && this.sim.jogadores.get(c.sessionId); if (j) c.send('leveMapa', this.sim.leveMapa(j)); });
@@ -631,6 +633,7 @@ class SalaClareira extends Room {
     const pk = this.sim.packLeve(j), pkTxt = JSON.stringify(pk); if (pkTxt !== u.levePk) { u.levePk = pkTxt; m.pk = pk; } // packs e carrinho (PR 2)
     if (u.leveRc) { const rc = this.sim.leveReceitas(j), rcTxt = JSON.stringify(rc); if (rcTxt !== u.leveRcTxt) { u.leveRcTxt = rcTxt; m.rc = rc; } } // muda quando mochila ou lugar mudam
     if (u.leveMs && (u.leveMsT = (u.leveMsT || 0) + 1) % 2 === 0) { const ms = this.sim.leveMissoes(j), msTxt = JSON.stringify(ms); if (msTxt !== u.leveMsTxt) { u.leveMsTxt = msTxt; m.ms = ms; } } // a cada ~1 s
+    if (u.leveFz && (u.leveFzT = (u.leveFzT || 0) + 1) % 2 === 0) { const fz = this.sim.fazendaLeve(j), fzTxt = JSON.stringify(fz); if (fzTxt !== u.leveFzTxt) { u.leveFzTxt = fzTxt; m.fz = fz; } } // a cada ~1 s
     if (Date.now() - (u.leveMapaT || 0) > 60e3) { u.leveMapaT = Date.now(); m.mapa = this.sim.leveMapa(j); }
     c.send('leve', m);
   }

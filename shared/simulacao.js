@@ -99,8 +99,8 @@ export function avancarForno(F, agora = Date.now(), C = FORNALHA) {
 
 // ---------- Vila dos Lotes: contas da construção e da horta (godot-prototipo/construcao.gd repete as mesmas) ----------
 // água do regador (conta sem o campo = cheio) e se (x, z) está perto do poço da praça ou na beira/dentro de um lago
-const aguaRegador = (p) => (typeof p.agua === 'number' ? p.agua : HORTA.agua);
-function pertoDeAgua(x, z) {
+export const aguaRegador = (p) => (typeof p.agua === 'number' ? p.agua : HORTA.agua);
+export function pertoDeAgua(x, z) {
   if (Math.hypot(x - HORTA.poco.x, z - HORTA.poco.z) <= HORTA.poco.r) return true;
   const b = HORTA.beira;
   return [[0, 0], [b, 0], [-b, 0], [0, b], [0, -b], [b * 0.7, b * 0.7], [-b * 0.7, b * 0.7], [b * 0.7, -b * 0.7], [-b * 0.7, -b * 0.7]].some(([ox, oz]) => noLago(x + ox, z + oz));
@@ -146,7 +146,7 @@ const foraDoLote = (R, d) => R[0] < d.x0 - 0.01 || R[2] > d.x1 + 0.01 || R[1] < 
 const ESTRADAS_TERRAS = [VILA_LOTES.estrada, ...VILA_LOTES.ruas.map((r) => r.pontos)];
 const LARG_TERRAS = [2.4, ...VILA_LOTES.ruas.map((r) => r.largura)];
 // distância de um ponto até o retângulo (0 dentro)
-const distRet = (R, x, z) => Math.hypot(Math.max(R.x0 - x, 0, x - R.x1), Math.max(R.z0 - z, 0, z - R.z1));
+export const distRet = (R, x, z) => Math.hypot(Math.max(R.x0 - x, 0, x - R.x1), Math.max(R.z0 - z, 0, z - R.z1));
 export function retTerreno(m) {
   if (!m) return null;
   const v = [m.x0, m.z0, m.x1, m.z1].map((n) => Math.round(Number(n)));
