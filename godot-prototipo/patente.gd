@@ -23,19 +23,22 @@ static func textura(raca: String, i: int) -> Texture2D:
 static func mes(agora_ms: float) -> String:
 	return Time.get_datetime_string_from_unix_time(int(agora_ms / 1000.0) - 3 * 3600).substr(0, 7)
 
-# patente pelos abates do mês: {i, pct (0..1), a}
-static func de_abates(a: int) -> Dictionary:
+# patente pelos pontos do mês (abates menos o que as mortes tiraram, pode ter fração): {i, pct (0..1), a}
+static func de_abates(a: float) -> Dictionary:
 	var i := 0
-	while i + 1 < ABATES.size() and a >= int(ABATES[i + 1]):
+	while i + 1 < ABATES.size() and a + 0.000001 >= float(ABATES[i + 1]):
 		i += 1
-	var pct := 1.0 if i + 1 >= ABATES.size() else float(a - int(ABATES[i])) / float(int(ABATES[i + 1]) - int(ABATES[i]))
+	var pct := 1.0 if i + 1 >= ABATES.size() else clampf((a - float(ABATES[i])) / float(int(ABATES[i + 1]) - int(ABATES[i])), 0.0, 1.0)
 	return {"i": i, "pct": pct, "a": a}
 
 # a do herói, pelo prog (mês que virou e ainda não fechou no servidor = Recruta 0%)
 static func do_prog(prog: Dictionary, agora_ms: float) -> Dictionary:
 	var g = prog.get("gu")
-	var a := int(g.get("a", 0)) if g is Dictionary and str(g.get("m", "")) == mes(agora_ms) else 0
-	return de_abates(a)
+	var ok: bool = g is Dictionary and str(g.get("m", "")) == mes(agora_ms)
+	var a := maxf(0.0, float(int(g.get("a", 0))) - float(g.get("p", 0.0))) if ok else 0.0
+	var r := de_abates(a)
+	r["a"] = int(g.get("a", 0)) if ok else 0 # abates do mês (para o texto)
+	return r
 
 # "Sargento · 64% para Tenente" (Lenda: "Lenda · topo do mês")
 static func texto(i: int, pct: float) -> String:

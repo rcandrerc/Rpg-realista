@@ -4082,12 +4082,18 @@ export const PATENTE = {
     [{ k: ['runa_mitica', 'selo_mitico'], n: 1 }]],
   cla: ['runa_lendaria', 'selo_lendario'],
   repete: 600, fraco: 10, guarda: 60, passo: 30,
+  // morrer para a outra raça fora da Arena (André 2026-11-26): tira perde (5%) do anel da patente, mas nunca desce de
+  // patente (para em 0%); a mesma pessoa só tira de novo depois de repete s. Na Lenda não tira (o anel já está cheio).
+  perde: 0.05,
 };
 // patente pelos abates do mês e quanto falta para a próxima (0..1; 1 na última)
+// a = pontos do mês (abates menos o que as mortes tiraram; pode ter fração, ver pontosGuerra)
 export function patenteDe(a) {
-  const L = PATENTE.abates; let i = 0; while (i + 1 < L.length && (a | 0) >= L[i + 1]) i++;
-  return { i, pct: i + 1 < L.length ? ((a | 0) - L[i]) / (L[i + 1] - L[i]) : 1 };
+  const L = PATENTE.abates, v = Math.max(0, +a || 0); let i = 0; while (i + 1 < L.length && v + 1e-9 >= L[i + 1]) i++;
+  return { i, pct: i + 1 < L.length ? Math.max(0, Math.min(1, (v - L[i]) / (L[i + 1] - L[i]))) : 1 };
 }
+// pontos do mês de prog.gu: abates (a) menos o que as mortes tiraram (p)
+export const pontosGuerra = (G) => Math.max(0, (G?.a | 0) - (+G?.p || 0));
 // o mês da guerra na hora de Brasília: 'AAAA-MM'
 export const mesGuerra = (ms = Date.now()) => new Date(ms - 3 * 3600e3).toISOString().slice(0, 7);
 // Os três da Geada (fase 1, aprovados pelo André 2026-11-18; fotos em /mnt/project-files/racas-rivais/). Iguais aos

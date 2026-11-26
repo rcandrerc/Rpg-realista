@@ -706,13 +706,17 @@ export function placarDueloValido(o) {
 }
 
 // Arena PvP vinda da conta (prog.pvp, shared/arena.js): Insígnias (pts), vitórias, derrotas, empates, abates e quedas
-// Patente de Guerra (shared/patente.js): prog.gu = { m, a, x, l, u }
+// Patente de Guerra (shared/patente.js): prog.gu = { m, a, x, l, u, p, v }
 export function patenteValida(g) {
   if (!g || typeof g !== 'object') return null;
   const n = (v, hi) => (Number.isInteger(v) && v >= 0 && v <= hi ? v : 0);
   const u = {};
   if (g.u && typeof g.u === 'object') for (const [k, v] of Object.entries(g.u).slice(-PATENTE.guarda)) if (typeof k === 'string' && k.length <= 64 && Number.isFinite(v)) u[k] = Math.round(v);
+  const v = {};
+  if (g.v && typeof g.v === 'object') for (const [k, t] of Object.entries(g.v).slice(-PATENTE.guarda)) if (typeof k === 'string' && k.length <= 64 && Number.isFinite(t)) v[k] = Math.round(t);
   const r = { m: typeof g.m === 'string' && /^\d{4}-\d{2}$/.test(g.m) ? g.m : '', a: n(g.a, 1e6), x: n(g.x, PATENTE.nomes.length - 1), l: n(g.l, 1e4), u };
+  if (Number.isFinite(g.p) && g.p > 0) r.p = Math.min(r.a, Math.round(g.p * 100) / 100); // pontos que as mortes tiraram
+  if (Object.keys(v).length) r.v = v;
   return r.m || r.x || r.l ? r : null;
 }
 
