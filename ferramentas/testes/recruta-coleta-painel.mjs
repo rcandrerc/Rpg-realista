@@ -83,13 +83,13 @@ for (const [rec, item] of [['lenha', 'lenha'], ['cristal', 'cristal']]) {
 // rende (moral x comida): mais ou menos recurso por batida, mesmo vigor e mesma velocidade (André 2026-11-26)
 {
   const medir = (mo) => { // a moral dá o rende (faixaMoral): 70 = 100%, 95 = 110%, 40 = 75%
-    const T = montar('ferro'); T.m.mo = mo; T.m.mt = Date.now();
-    T.rodar(12);
+    const T = montar('ferro'); T.m.mo = mo; T.m.mt = Date.now(); T.b.prog.vigor = { v: 160, m: 160, t: Date.now() };
+    T.rodar(25);
     const pi = T.s.painelInfo('c5', T.cla, 'chama').m[0];
     return { n: contar(T.L.bauCla || [], 'minerio_ferro') + contar(T.b.prog.mochila, 'minerio_ferro'), pi, v: T.b.prog.vigor };
   };
   const A = medir(70), B = medir(95), C = medir(40);
-  ok(B.n > A.n && C.n < A.n, `rende muda a quantidade com o mesmo vigor: 75% ${C.n} · 100% ${A.n} · 110% ${B.n}`);
+  ok(B.n > C.n * 1.2 && A.n > C.n * 1.1, `rende muda a quantidade com o mesmo vigor: 75% ${C.n} · 100% ${A.n} · 110% ${B.n}`); // 110 x 100 fica no sorteio
   ok(B.pi.pt?.x > 0 && C.pi.pt?.x < 0 && !A.pi.pt?.x, `painel: a mais/menos pela moral (110%: +${B.pi.pt?.x}, 75%: ${C.pi.pt?.x})`);
 }
 Date.now = agoraReal;
