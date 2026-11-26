@@ -4330,6 +4330,9 @@ export const NPC_SEM_NEVOA = true;
 // com lote na base do clã (líder, membros, recrutas do jogador e dos clãs bot) constrói a casa com cama e baú nele, e todo
 // recruta faz as missões da história e as diárias no modo livre, como um jogador. false: só Cecília, Dario e Lia (como antes).
 export const NPC_CASA_BASE = { ligado: true };
+// obra da casa dos bots (shared/cla.js passoObraCasas, André 2026-11-26): a cada minuto todo bot com lote põe as peças
+// que faltam; peça que não coube é tentada de novo depois de 'esquece' s (antes só quando o servidor reiniciava)
+export const CASA_OBRA = { esquece: 600 };
 // Encomenda pelo chat (André 2026-11-21: "minera um pouco de ferro pra mim, eu compro"; "isso pra árvore, ferro, qualquer
 // recurso"; "depois eu peço vem aqui que vou trocar"). O bot vai ao lugar mais perto DELE daquele recurso (mesmo com você
 // longe), coleta de verdade, guarda separado (não vende na vila) e avisa. "Vem aqui" com a encomenda pronta: ele vem sempre

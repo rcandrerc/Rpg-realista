@@ -880,6 +880,7 @@ export const Amiga = {
     return { x: p.x, z: Math.min(L.def.z1 - 0.4, R[3] + 0.7) };
   },
   colocarPeca(L, falta) {
+    if (L.pecas.some((o) => mesmaPeca(o, falta))) return; // a obra do minuto (cla.js passoObraCasas) já pôs esta
     const p = { id: 'p' + L.prox, ...falta, lote: L.def.id };
     const motivo = motivoPeca(L, p, null, this.areaBase?.(L));
     if (motivo) { // não cabe (alguém mudou o mapa): pula esta peça para sempre nesta sala
@@ -892,7 +893,9 @@ export const Amiga = {
     this.refazerSolidosLotes();
     this.avisarLote(L);
     // ficou presa dentro de uma parede? sai para o lado de fora da porta
-    if (!this.livreParaHeroi(this.amiga, this.amiga.x, this.amiga.z)) Object.assign(this.amiga, { x: casaX0(L.def) + this.AMIGA.porta[0], z: casaZ0(L.def) + this.AMIGA.porta[1] });
+    // (só quem está no lote: a obra do minuto põe peça com o bot longe, num barco ou na água, e ele não pode ir parar em casa)
+    const a = this.amiga, D = L.def;
+    if (a.x > D.x0 - 1 && a.x < D.x1 + 1 && a.z > D.z0 - 1 && a.z < D.z1 + 1 && !this.livreParaHeroi(a, a.x, a.z)) Object.assign(this.amiga, { x: casaX0(L.def) + this.AMIGA.porta[0], z: casaZ0(L.def) + this.AMIGA.porta[1] });
   },
   // recruta do jogador com função no painel (grind, farmar, fazenda...): missão e diária só no modo livre (André 2026-11-23:
   // "se ele tiver em alguma função específica, ele só vai fazer a missão quando tiver em modo livre"). Os clãs bot seguem
