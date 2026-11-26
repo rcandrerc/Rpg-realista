@@ -22,7 +22,7 @@ const NOMES := ["Baixa", "Média", "Alta"]
 const PRESETS := [
 	{"escala": 0.45, "sombra": false, "sombra_dist": 0.0, "atlas": 1024, "suave": RenderingServer.SHADOW_QUALITY_HARD,
 		"msaa": Viewport.MSAA_DISABLED, "alcance": 0.55, "grama": 0.45, "grama_qtd": 0.5, "nevoa": 1.6,
-		"fps": 30, "agua_simples": true, "lod": 4.0},
+		"fps": 30, "agua_simples": true, "lod": 4.0, "desce_mais": true},
 	{"escala": 0.52, "sombra": true, "sombra_dist": 15.0, "atlas": 1024, "suave": RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW,
 		"msaa": Viewport.MSAA_2X, "alcance": 0.78, "grama": 0.75, "grama_qtd": 0.75, "nevoa": 1.25,
 		"fps": 60, "agua_simples": false, "lod": 2.0},
@@ -362,7 +362,30 @@ static func escada(base: Dictionary, h := 60, tenta_40 := false) -> Array:
 		p = p.duplicate()
 		p.fps = 30
 		lista.append(p)
+	# André 2026-11-25 (Note 10 Lite no fundo do Auto da Baixa e ainda 13 a 20 FPS; o gargalo é a quantidade de coisas
+	# desenhadas, não a resolução): só a Baixa ganha mais dois degraus "mínimos", abaixo de tudo. Vista bem mais curta,
+	# mato ralo ou nenhum, e personagens simplificados (corpos: 1 e 2, lidos em main.gd e online.gd). O Auto só chega
+	# neles se o FPS não aguentar e sobe de volta quando sobra (decidir); celular que roda bem nunca passa por aqui.
+	if base.get("desce_mais", false):
+		p = p.duplicate()
+		p.alcance = float(base.alcance) * 0.7
+		p.grama = float(base.grama) * 0.6
+		p.grama_qtd = float(base.grama_qtd) * 0.4
+		p.nevoa = float(base.nevoa) * 1.4
+		p.corpos = 1
+		lista.append(p)
+		p = p.duplicate()
+		p.alcance = float(base.alcance) * 0.55
+		p.grama = float(base.grama) * 0.4
+		p.grama_qtd = 0.0
+		p.nevoa = float(base.nevoa) * 1.8
+		p.corpos = 2
+		lista.append(p)
 	return lista
+
+# personagens simplificados nos degraus mínimos da Baixa (escada): 0 = normal, 1 e 2 = cada vez mais simples
+func corpos() -> int:
+	return int(P.get("corpos", 0))
 
 static func preset_auto(base: Dictionary, d: int, h := 60, tenta_40 := false) -> Dictionary:
 	var e := escada(base, h, tenta_40)
