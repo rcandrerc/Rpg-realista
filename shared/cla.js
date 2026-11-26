@@ -213,7 +213,9 @@ export const Cla = {
     const c = j.prog.cla; if (!c) return { sem: 1 };
     const vivos = new Map(this.recrutasNoMundo(j).filter((x) => x.amiga).map((x) => [x.AMIGA.id, x.amiga]));
     const rec = {};
-    for (const a of vivos.values()) for (const it of a.prog.mochila || []) if (it && CLA.recursos.includes(it.k)) rec[it.k] = (rec[it.k] | 0) + (it.n | 0);
+    // só o que vai para o Baú do Clã: o item da ordem de cada um (André 2026-11-26: "mostre só o que vai pro clã"; a pedra
+    // que veio junto do ferro e o que ele farmou no Livre ficam com ele)
+    for (const a of vivos.values()) { const L = a.ia?.levar; if (L) for (const it of a.prog.mochila || []) if (this.ehDoLevar(it, L)) rec[it.k] = (rec[it.k] | 0) + (it.n | 0); }
     // o Baú do Clã (base no seu terreno): o que tem dentro
     const Lb = this.loteDaConta(j.conta), Bs = this.baseDe?.(j), temBau = !!Lb && (Lb.pecas.some((o) => o.k === 'bau_cla') || !!Bs), bau = {};
     if (temBau) for (const it of Lb.bauCla || []) if (it) bau[it.k] = (bau[it.k] | 0) + (it.n || 1);
@@ -224,7 +226,7 @@ export const Cla = {
       eu: { nome: j.nome, nv, ...st(j, j.prog) },
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, sem: semanaDe(tierDe(m.tier), a ? a.prog.nivel | 0 : m.nv), on: a ? 1 : 0, ...(m.dev ? { dev: m.dev } : {}), g: m.g,
         ...this.moralInfo(m, c.vis, eM, a, j), // moral e produção (MORAL): seta + % e ~N/h
-        fn: m.fn || { k: 'livre' }, c: 'r:' + m.id, ...(a ? { ...st(a, a.prog), ...this.fzRecruta(a, j), x: Math.round(a.x), z: Math.round(a.z), bid: a.id, ...(a.time && a.time === j.time ? { time: 1 } : {}) } : {}) }; }), // x, z: "Ver no mapa"; c: conta (Mensagem), bid: o corpo (Time)
+        fn: m.fn || { k: 'livre' }, c: 'r:' + m.id, ...(a ? { ...st(a, a.prog), ...this.fzRecruta(a, j), ...(this.levarQtd(a) ? { lv: this.levarQtd(a) } : {}), x: Math.round(a.x), z: Math.round(a.z), bid: a.id, ...(a.time && a.time === j.time ? { time: 1 } : {}) } : {}) }; }), // x, z: "Ver no mapa"; c: conta (Mensagem), bid: o corpo (Time)
       bauCla: temBau ? bau : null, plantas: plantasFazenda(), arvores: arvoresCla(),
       veic: { carrinho: this.carrinhoFora(j, { k: 'carrinho' }) ? 1 : 0, mercante: this.navioFora(j) ? 1 : 0 }, // Proteger carrinho / mercante: apagado se não está no mundo
       funcoes: CLA.funcoes, recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })),
@@ -250,6 +252,7 @@ export const Cla = {
     }
     if (!c) return aviso('Funde o seu clã primeiro');
     if (m.acao === 'elogiar') return this.elogiarRecruta(j, String(m.id || '')); // moral (MORAL)
+    if (m.acao === 'entregar') return aviso(m.id === '*' ? this.entregarTodos(this.recrutasNoMundo(j)) : this.entregarRecruta(this.recrutasNoMundo(j).find((x) => x.AMIGA.id === String(m.id || '')))); // Entregar no Baú (um ou * = todos)
     this.cobrarCla(j);
     // 'candidatos' (André 2026-11-23: "aparecem 3 recrutas... e eu escolho entre 3"): o Recrutador mostra
     // FICHA_RECRUTA.candidatos com ficha; 'recrutar' com esc (0, 1, 2) contrata o escolhido. Sem esc: sorteia um (como antes)
@@ -677,6 +680,29 @@ export const Cla = {
     st(`Sem ${nome}: falta ${falta.map(([c, n]) => `${n} ${ITENS[c].nome.toLowerCase()}`).join(' e ')} (pode pôr no Baú do Clã)`);
     return true;
   },
+  // botão "Entregar no Baú" (André 2026-11-26: "eles vão lá me devolver na hora"): larga o que faz e leva agora ao Baú do
+  // Clã o item da ordem que carrega (levarBauRecruta: anda ou usa a casinha); depois volta à ordem. Devolve o aviso
+  entregarRecruta(x) {
+    const a = x?.amiga; if (!a) return 'Esse recruta não está no mundo agora';
+    if (a.morto) return `${x.AMIGA.nome} caiu: espere renascer`;
+    if (!a.ia?.levar || !this.temLevar(a)) return `${x.AMIGA.nome} não carrega nada da ordem para entregar`;
+    if (!this.bauDoCla(this.claDoRecruta(x))) return 'Seu clã ainda não tem Baú do Clã';
+    if (this.levandoRecruta(a)) return `${x.AMIGA.nome} já está indo ao Baú do Clã`;
+    if (a.coleta) this.pararColeta(a, null);
+    if (a.pesca) this.pararPesca(a, null);
+    a.ia.av = { ...(a.ia.av || {}), fase: 'voltar', c: null, coleta: null }; a.ia.viagem = null; a.ia.fase = 'pensar';
+    a.ia.funcaoSt = { txt: 'Indo entregar no Baú do Clã', ate: this.tempo + 60 };
+    return `${x.AMIGA.nome} vai entregar no Baú do Clã`;
+  },
+  // botão ao lado de "Recursos com os recrutas" (André 2026-11-26: "todos que tiverem vão lá e trazem")
+  entregarTodos(xs) {
+    const vao = xs.filter((x) => x.amiga && !x.amiga.morto && this.levarQtd(x.amiga) > 0 && !this.levandoRecruta(x.amiga));
+    if (!vao.length) return xs.some((x) => x.amiga && this.levandoRecruta(x.amiga)) ? 'Os recrutas já estão indo ao Baú do Clã' : 'Nenhum recruta carrega item do clã agora';
+    const n = vao.filter((x) => this.entregarRecruta(x).endsWith('vai entregar no Baú do Clã')).length;
+    return n ? `${n} recruta${n > 1 ? 's vão' : ' vai'} entregar no Baú do Clã` : this.entregarRecruta(vao[0]);
+  },
+  // quanto do item da ordem ele carrega (o botão Entregar só aparece com algo)
+  levarQtd(a) { const L = a?.ia?.levar; let n = 0; if (L) for (const o of a.prog.mochila || []) if (this.ehDoLevar(o, L)) n += o.n || 1; return n; },
   // deixa no Baú do Clã só o recurso pedido que ele carrega (chamado ao chegar no baú)
   depositarRecruta(x) {
     const a = x.amiga, L = a?.ia?.levar; if (!L) return 0;
@@ -987,11 +1013,12 @@ export const Cla = {
     return { n: c.n, nv: c.nv || 1, cofre: c.cofre | 0, semana: semanaCla(c), jogo: heroi ? 1 : 0, ...(!heroi && c.sem <= Date.now() ? { vencida: 1 } : {}), ...(heroi ? { eu: pos(heroi) } : {}),
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, on: a ? 1 : 0, ...(m.dev ? { dev: 1 } : {}),
         ...this.moralInfo(m, c.vis, eM, a), // moral e produção (MORAL), igual ao menu do clã do jogo
-        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), ...this.fzRecruta(a, L), ...pos(a), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length && !a.prog.mochila.some((o) => !o) ? { cheia: 1 } : {}), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length ? { mo: lugares(a.prog.mochila) } : {}) } : {}) }; }),
+        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), ...this.fzRecruta(a, L), ...(this.levarQtd(a) ? { lv: this.levarQtd(a) } : {}), ...pos(a), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length && !a.prog.mochila.some((o) => !o) ? { cheia: 1 } : {}), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length ? { mo: lugares(a.prog.mochila) } : {}) } : {}) }; }),
       log: (c.log || []).slice(-10).reverse(), funcoes: CLA.funcoes.filter((F) => heroi || F.id !== 'seguir'),
       recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })), plantas: plantasFazenda(), arvores: arvoresCla(),
       // o que pede o próximo nível do clã e o que já tem (Baú do Clã + mochila do líder), igual ao Melhorar clã do jogo
       sobe: this.subirPainel(conta, c, raca, heroi, prog),
+      ...(() => { const r = {}; for (const a of vivos.values()) { const Lv = a.ia?.levar; if (Lv) for (const it of a.prog.mochila || []) if (this.ehDoLevar(it, Lv)) r[it.k] = (r[it.k] | 0) + (it.n | 0); } const l = Object.entries(r).map(([k, n]) => ({ k, n, nome: ITENS[k]?.nome || k })); return l.length ? { com: l } : {}; })(), // com os recrutas, ainda vão para o Baú do Clã (igual ao jogo)
       bau: this.bauPainel(conta), ...(this.cheiosCla(conta).bau ? { bauCheio: 1 } : {}), // o que tem no Baú do Clã (André 2026-11-24: "mostrar inventário do clã"), em ícones
       ...(this.bauDoCla({ conta })?.itens ? { bauLug: lugares(this.bauDoCla({ conta }).itens) } : {}), // ocupado/total, como o jogo (40/60)
       ...(this.baseDe?.(L) ? { base: { x: Math.round(this.baseDe(L).x), z: Math.round(this.baseDe(L).z), nv: this.baseDe(L).nv | 0, n: this.baseDe(L).n || c.n, raca: this.baseDe(L).raca || '' } } : {}), // a base do clã no mapa do painel
@@ -1026,6 +1053,12 @@ export const Cla = {
   },
   // ordem pela página com o líder fora do jogo: confere como o cla() 'funcao' e aplica no recruta do mundo (funcaoSemLider).
   // Proteger carrinho / mercante / você e "Me seguir" pedem o líder no jogo. Devolve { texto, ok }. Muda c (o servidor grava)
+  // Entregar no Baú pelo painel (líder fora do jogo)
+  painelEntregar(conta, c, raca, id) {
+    if (id !== '*' && !c?.m?.some((o) => o.id === id)) return 'Esse recruta não está no seu clã';
+    const L = this.liderPainel(conta, c, raca);
+    return id === '*' ? this.entregarTodos(this.recrutasNoMundo(L)) : this.entregarRecruta(this.recrutasNoMundo(L).find((o) => o.AMIGA.id === id));
+  },
   painelFuncao(conta, c, raca, id, fnBruto) {
     const r = c?.m?.find((o) => o.id === id); if (!r) return { texto: 'Esse recruta não está no seu clã' };
     if (c.sem <= Date.now()) return { texto: 'A semana dos recrutas venceu: entre no jogo para pagar' }; // a cobrança é no jogo (cobrarCla)

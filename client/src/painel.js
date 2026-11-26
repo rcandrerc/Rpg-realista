@@ -209,6 +209,7 @@ function cartaoMembro(m) {
     pedir({ acao: 'funcao', id: m.id, fn: f });
   };
   o.append(fn, extra, ok); c.append(o);
+  if (m.lv) { const e = el('button', 'acao', `Entregar no Baú (${m.lv})`); e.onclick = () => { e.disabled = true; setTimeout(() => { e.disabled = false; }, 1500); pedir({ acao: 'entregar', id: m.id }); }; c.append(e); } // leva agora o item da ordem
   return c;
 }
 
@@ -397,6 +398,12 @@ function desenharCla() {
   t.append(opcaoAvisos());
   raiz.append(t);
   if (info.sobe) raiz.append(cartaoSobe(info.sobe));
+  if (info.com?.length) { // com os recrutas, ainda vão para o Baú do Clã + Entregar tudo (André 2026-11-26), igual ao jogo
+    const c = el('div', 'card'), l = el('div', 'linha'), b = el('button', 'acao', 'Entregar tudo no Baú');
+    b.onclick = () => { b.disabled = true; setTimeout(() => { b.disabled = false; }, 1500); pedir({ acao: 'entregar', id: '*' }); };
+    l.append(el('div', 'nome', 'Com os recrutas (vão para o Baú do Clã)'), b); c.append(l);
+    const f = el('div', 'icones'); for (const it of info.com) f.append(iconeQtd(it)); c.append(f); raiz.append(c);
+  }
   if ('bau' in info) raiz.append(cartaoBau(info.bau, info.bauCheio, info.bauLug));
   if (info.gu) raiz.append(cartaoGuerra(info.gu)); // Patente de Guerra (André 2026-11-26)
   if (!info.m.length) raiz.append(el('div', 'vazio', 'Nenhum recruta ainda. Contrate no Recrutador, no jogo.'));
