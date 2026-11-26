@@ -293,6 +293,23 @@ export const Base = {
     this.evento({ t: 'bases', para: id, meu: this.baseDe(j)?.k || '', amigas: Object.values(this.basesCla || {}).filter((B) => B.raca === this.racaDe(j)).map((B) => B.k), lista: Object.values(this.basesCla || {}).map((B) => this.dadosBase(B)) });
     this.enviarJantares?.(id); // os jantares do clã que estão acontecendo (shared/jantar.js)
   },
+  // sair e entrar na base pelo portão (André 2026-11-26, jogo leve: "o personagem não está conseguindo sair da base... preso
+  // tentando sair pela cerca"; "tudo tem que ser idêntico"): a MESMA linha que o app põe na rede do "Ir" (base_cla.gd
+  // _rede_rota -> rota.gd por_bases): da frente do Baú do Clã (ou da porta do salão), um pouco de lado, até o portão e daí
+  // pela estrada da base até a estrada do mundo. Para p dentro do quadrado da base: { k, pontos } (da ponta de dentro até a
+  // de fora); null = fora de qualquer base ou base sem estrada.
+  saidaDaBase(p) {
+    for (const B of Object.values(this.basesCla || {})) {
+      const D = this.basesDesenho?.[B.k], c = this.chaoBases?.[B.k]; if (!D || !c?.estrada?.length) continue;
+      const hc = (D.centro || 14) / 2; if (Math.abs(p.x - B.x) > hc + 0.5 || Math.abs(p.z - B.z) > hc + 0.5) continue;
+      const fr = D.bau || D.frente; if (!fr) continue;
+      const L = [{ x: fr.x + 1.6, z: fr.z + 1.3 }, { x: B.x + 1.6, z: B.z + hc - 1 }, { x: B.x + 1, z: B.z + hc + 1.5 }, ...c.estrada.map((e) => ({ x: e[0], z: e[1] }))];
+      // como o A* do app: entra na linha pelo ponto mais perto e segue até a ponta de fora
+      let i0 = 0; for (let i = 1; i < L.length; i++) if (Math.hypot(L[i].x - p.x, L[i].z - p.z) < Math.hypot(L[i0].x - p.x, L[i0].z - p.z)) i0 = i;
+      return { k: B.k, pontos: L.slice(i0) };
+    }
+    return null;
+  },
   // a área da base onde o lote 1 (do líder) também constrói (shared/simulacao.js naAreaBase): dentro da paliçada (1 m de
   // folga), sem o salão, as torres e os enfeites (sol) e sem o corredor do portão (só a faixa de lado por onde o "Ir" passa, x+0,9 a x+2,5: André 2026-11-24 não conseguia pôr o baú na frente da casa, no meio)
   areaBase(L) {
