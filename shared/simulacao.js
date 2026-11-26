@@ -1055,10 +1055,13 @@ export class Simulacao {
     // NPC (André 2026-11-11): nunca passa do jogador mais alto do servidor (nivelTetoNpc vem do banco; sem banco, sem teto)
     if (j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) return;
     const nivelAntes = p.nivel;
+    const n0 = n;
     if (j.mesa && n > 0) n = Math.max(1, Math.round(n * (1 + j.mesa))); // recruta com fome ou bem alimentado (DESPENSA)
+    if (j.moXp && n > 0) n = Math.max(1, Math.round(n * j.moXp)); // moral do recruta (MORAL.nova: só a XP, shared/cla.js)
+    const nX = n - n0; // o que a comida e a moral tiraram ou puseram (contador da ordem)
     if (n > 0 && p.banq?.ate > Date.now()) n = Math.max(1, Math.round(n * (1 + JANTAR.buff.xp))); // Banquete do clã (shared/jantar.js)
     p.xp += n;
-    if (j.bot && n > 0) { j.xpProd = (j.xpProd || 0) + n; if (j.mesa) j.xpProdX = (j.xpProdX || 0) + n - n / (1 + j.mesa); } // contador da ordem do recruta (shared/cla.js contarOrdem)
+    if (j.bot && n > 0) { j.xpProd = (j.xpProd || 0) + n; if (j.mesa || j.moXp) j.xpProdX = (j.xpProdX || 0) + nX; } // contador da ordem do recruta (shared/cla.js contarOrdem)
     let subiu = false;
     while (p.nivel < NIVEL_MAX && p.xp >= xpProximo(p.nivel) && !(j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc)) { p.xp -= xpProximo(p.nivel); p.nivel++; p.pontos += PONTOS_POR_NIVEL; subiu = true; }
     if (j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) p.xp = Math.min(p.xp, xpProximo(p.nivel) - 1); // parado no teto
@@ -3912,10 +3915,13 @@ export class Simulacao {
     const p = j.prog, ganhou = [];
     // filtro de coleta (André 2026-11-07): o que ele desmarcou na mochila fica no chão
     const por = (it) => { if (filtrado(p, it)) return; const q = guardarQueCabe(p.mochila, it); if (q) ganhou.push({ nome: nomeItem(it), r: it.r ?? -1 }); if (q < (it.n || 1)) this.evento({ t: 'aviso', para: j.id, texto: `Mochila cheia! ${nomeItem(it)} ficou no chão` }); };
-    const ouro = Math.round((d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1))) * ECONOMIA.ouroMonstro * (1 + NIVEL_INIMIGO.ouro * Math.max(0, (c.nivel || 1) - 1)) * (1 + (bonusTitulo(p).ouro || 0) + this.bonusCla(j)));
+    // moral do recruta (MORAL.nova, André 2026-11-26: "a mesma queda que tem na XP tem na carne e no couro... senão vira
+    // dinheiro infinito"): o ouro e a chance de cada item do bicho valem a moral dele, igual à XP (j.moXp, shared/cla.js)
+    const mo = j.moXp || 1;
+    const ouro = Math.round((d.ouro[0] + Math.floor(Math.random() * (d.ouro[1] - d.ouro[0] + 1))) * ECONOMIA.ouroMonstro * (1 + NIVEL_INIMIGO.ouro * Math.max(0, (c.nivel || 1) - 1)) * (1 + (bonusTitulo(p).ouro || 0) + this.bonusCla(j)) * mo);
     if (ouro) { p.ouro += ouro; this.caixa(j, 'monstro', ouro); }
     // bicho muito abaixo do herói solta menos (DROP_NIVEL, André 2026-11-24): comum cai por degrau, valioso some
-    const fc = fatorDropNivel(c.nivel, p.nivel, false, DROP_NIVEL), fv = fatorDropNivel(c.nivel, p.nivel, true, DROP_NIVEL);
+    const fc = fatorDropNivel(c.nivel, p.nivel, false, DROP_NIVEL) * mo, fv = fatorDropNivel(c.nivel, p.nivel, true, DROP_NIVEL) * mo;
     for (const [k, [ch, n]] of Object.entries(d.mat || {})) if (Math.random() < ch * (DROP_NIVEL.valiosos.includes(k) ? fv : fc)) por({ k, n });
     if (Math.random() < d.pocao * fc) por({ k: 'pocao', n: 1 });
     if (Math.random() < d.mana * fc) por({ k: 'pocao_mana', n: 1 });

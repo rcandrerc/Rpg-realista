@@ -14,7 +14,7 @@
 //   A amizade é de cada um (j.amizades[conta]); j.amizade é a de quem ela acompanha agora.
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, NPC_SOLDADO, CLA, CLAS_NPC_ORDENS, LIDERES_CLA } from './dados.js';
+import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, NPC_SOLDADO, CLA, CLAS_NPC_ORDENS, LIDERES_CLA, MORAL } from './dados.js';
 import { CLAS_NPC, AMIGA as CECILIA_DEF, DARIO as DARIO_DEF } from './dados.js'; // recusa do soldado com o clã (André 2026-11-25)
 import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, NPC_CASA_BASE, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO, VEICULOS, DROPS } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
@@ -2590,7 +2590,8 @@ export const Amiga = {
   // segundos caçando sozinha hoje (dia real que vira às 3h de Brasília); no time com alguém não conta
   grindHojeAmiga(a) { const dia = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10); if (a.grind?.dia !== dia) a.grind = { dia, seg: 0 }; return a.grind.seg; },
   // recruta de clã bot (André 2026-11-23): no lugar dos 30 min, CLAS_NPC_ORDENS.horasDia de caça por dia real
-  grindAcabouAmiga(a) { return this.grindHojeAmiga(a) >= ((this.AMIGA.clanpc || this.fixoClaNpc?.(this)) && CLAS_NPC_ORDENS.ligado ? CLAS_NPC_ORDENS.horasDia * 3600 : NPC_VIDA.grind.segPorDia); },
+  // moral nova (MORAL.nova, André 2026-11-26): o recruta de clã bot não tem cota; quem freia o grind é a moral (cai e a XP cai junto)
+  grindAcabouAmiga(a) { const bot = (this.AMIGA.clanpc || this.fixoClaNpc?.(this)) && CLAS_NPC_ORDENS.ligado; if (bot && MORAL.ligado && MORAL.nova) return false; return this.grindHojeAmiga(a) >= (bot ? CLAS_NPC_ORDENS.horasDia * 3600 : NPC_VIDA.grind.segPorDia); },
   // a IA decidiu que ela vai caçar sozinha (ele pediu ou ela quis): sai agora; lugar = nome do campo que ela disse, se der
   sairCacarAmiga(a, j, lugar) {
     const v = this.podeSairAmiga(a, j); if (!v.ok) return v;

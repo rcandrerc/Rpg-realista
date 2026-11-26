@@ -6,6 +6,7 @@ import { Simulacao, MAPA_CLAREIRA, CLAS_NPC, CLAS_NPC_ORDENS, CLA, NIVEL_INIMIGO
 import { sortearRecruta } from '../../shared/cla.js';
 import { xpProximo, xpDoInimigo } from '../../shared/progresso.js';
 import './_tudo-aberto.mjs';
+import { MORAL as MORAL_REGRA } from '../../shared/dados.js'; MORAL_REGRA.nova = false; // a regra antiga da moral (faixas, Livre, cota de horas) continua atrás de MORAL.nova; a nova: moral-nova.mjs
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 
 ok(xpProximo(50) === 11723 && xpProximo(20) === 1478, 'até o Nv50 a curva é a mesma');

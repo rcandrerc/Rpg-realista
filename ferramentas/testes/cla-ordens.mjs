@@ -5,6 +5,7 @@
 import { Simulacao, MAPA_CLAREIRA, CLAS_NPC, CLAS_NPC_ORDENS, NPC_VIDA, CLA } from '../../shared/index.js';
 import { sortearRecruta } from '../../shared/cla.js';
 import './_tudo-aberto.mjs';
+import { MORAL as MORAL_REGRA } from '../../shared/dados.js'; MORAL_REGRA.nova = false; // a regra antiga da moral (faixas, Livre, cota de horas) continua atrás de MORAL.nova; a nova: moral-nova.mjs
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 
 const s = new Simulacao(MAPA_CLAREIRA);

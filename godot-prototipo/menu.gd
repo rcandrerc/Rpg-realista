@@ -393,6 +393,16 @@ static func ha_quanto(ms: float) -> String:
 	return Idioma.frase("há %d d") % int(s / 86400.0)
 
 # o que rendeu a ordem desde que foi dada (pt.desde; zera só ao trocar a ordem): "Coletou 120 (+12 pela moral) em 3 h 20 min"
+# a cor do contador (moral nova, André 2026-11-26): verde com a moral dando XP a mais, vermelho com o que ele perdeu
+static func cor_ganho(d: Dictionary) -> Color:
+	var pt = d.get("pt")
+	var x := int((pt as Dictionary).get("xpx", 0)) if pt is Dictionary else 0
+	if x > 0:
+		return Color(0.45, 0.95, 0.45)
+	if x < 0:
+		return Color(1.0, 0.45, 0.4)
+	return Color(0.75, 0.88, 0.6)
+
 static func texto_ganho(d: Dictionary) -> String:
 	var pt = d.get("pt")
 	if not (pt is Dictionary) or not pt.get("desde", 0):
@@ -400,7 +410,7 @@ static func texto_ganho(d: Dictionary) -> String:
 	var grind: bool = str((d.get("fn", {}) as Dictionary).get("k", "")) == "grind"
 	var t := (Idioma.frase("Derrotou %d monstros") if grind else Idioma.frase("Coletou %d")) % int(pt.get("t", 0))
 	if int(pt.get("x", 0)) != 0:
-		t += Idioma.frase(" (%+d pela moral)") % int(pt.get("x", 0))
+		t += Idioma.frase(" (%+d pela comida)") % int(pt.get("x", 0))
 	if int(pt.get("xp", 0)) > 0:
 		t += " · +%d XP" % int(pt.get("xp", 0))
 		if int(pt.get("xpx", 0)) != 0:
@@ -2526,7 +2536,7 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		vivo["fz"] = rotulo(texto_agora(r), 12, APAGADO.lightened(0.25))
 		v.add_child(vivo["fz"])
 	if str((r.get("fn", {}) as Dictionary).get("k", "livre")) != "livre": # o contador da ordem, igual ao painel (André 2026-11-26)
-		vivo["ganho"] = rotulo(texto_ganho(r), 12, Color(0.75, 0.88, 0.6))
+		vivo["ganho"] = rotulo(texto_ganho(r), 12, cor_ganho(r))
 		vivo["ganho"].visible = vivo["ganho"].text != ""
 		v.add_child(vivo["ganho"])
 	if r.has("dev"):
@@ -2753,6 +2763,7 @@ func _cla_pintar_vivo() -> void:
 			vivo.fz.text = texto_agora(d)
 		if vivo.has("ganho") and is_instance_valid(vivo.ganho):
 			vivo.ganho.text = texto_ganho(d)
+			vivo.ganho.add_theme_color_override("font_color", cor_ganho(d))
 			vivo.ganho.visible = vivo.ganho.text != ""
 		_moral_pintar(vivo, d)
 
@@ -3971,8 +3982,8 @@ func _moral_texto(d: Dictionary) -> String:
 	var pt = d.get("pt")
 	if pt is Dictionary: # quanto pegou na ordem e quanto veio a mais/menos pelo rende (André 2026-11-26)
 		pre = Idioma.frase("Pegou %d") % int(pt.get("t", 0))
-		if int(pt.get("x", 0)) != 0:
-			pre += Idioma.frase(" (%+d pela moral)") % int(pt.get("x", 0))
+		if int(pt.get("x", 0)) != 0: # moral nova: a coleta só muda pela comida (André 2026-11-26)
+			pre += Idioma.frase(" (%+d pela comida)") % int(pt.get("x", 0))
 		if int(pt.get("xp", 0)) > 0: # grind: o XP da ordem (André 2026-11-26)
 			pre += " · +%d XP" % int(pt.get("xp", 0))
 			if int(pt.get("xpx", 0)) != 0:
@@ -3987,7 +3998,7 @@ func _moral_texto(d: Dictionary) -> String:
 	var t := pre + Idioma.frase("Moral %d (%s por hora)") % [int(d.get("ml", 0)), ("+%d" % tend) if tend > 0 else str(tend)]
 	if d.has("fm"):
 		t += Idioma.frase(" · %s: %+d%% (comida no Baú do Clã)") % [Idioma.frase(str(d.get("fn2", ""))), int(d.fm)]
-	t += Idioma.frase(" · rende %d%%. Sobe: perto de você ou no seu time, Livre, Elogiar. Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.") % int(d.get("re", 100))
+	t += Idioma.frase(" · rende %d%% no grind (XP, ouro e o que o bicho solta). Sobe: perto de você ou no seu time, Elogiar, Jantar. Desce: grindando ou caçando sozinho, cada hora mais rápido. Coleta e profissão não mexem na moral.") % int(d.get("re", 100))
 	return t
 
 func _moral_pintar(vivo: Dictionary, d: Dictionary) -> void:

@@ -47,7 +47,7 @@ ok(s.mudasRecruta(m1.id) === 10 && minhas().length === 20, `cresceram: plantou m
   s2.carregarClasNpc(null);
   const C = { lider: 'dario' }, E = { m: [{ id: 'x1' }, { id: 'x2' }, { id: 'x3' }] };
   const ctxs = E.m.map((m) => ({ AMIGA: { id: m.id }, amiga: { prog: { nivel: 30, vigor: { v: 100, t: Date.now(), m: 100 } }, ia: {} } }));
-  Object.assign(s2, { faltaClaNpc: () => ({ lenha: 1 }), ameacaClaNpc: () => false, faltaDespensaNpc: () => ({}), descansoNpc: () => false, membrosFixosNpc: () => [], grindSobraBot: () => 0 });
+  Object.assign(s2, { faltaClaNpc: () => ({ lenha: 1 }), ameacaClaNpc: () => false, faltaDespensaNpc: () => ({}), descansoNpc: () => false, passeioNpc: () => false, membrosFixosNpc: () => [], grindSobraBot: () => 0 });
   let viu = false;
   for (let t = 0; t < 40 && !viu; t++) { for (const m of E.m) m.fn = null; s2.ordensLiderNpc(C, E, { prog: { nivel: 30 } }, ctxs, true); viu = E.m.some((m) => m.fn?.k === 'arvores'); }
   ok(viu, 'líder bot manda um recruta plantar árvores');
