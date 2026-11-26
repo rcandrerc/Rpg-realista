@@ -71,7 +71,7 @@ function fornoPodeSeguir(F, R) {
 }
 // anda o relógio da fornalha até agora; devolve true se mudou alguma coisa
 const fornoTemCoisa = (F) => !!(F && (F.comb || F.ent || F.ent2 || F.sai));
-export function avancarForno(F, agora = Date.now(), C = FORNALHA) {
+export function avancarForno(F, agora = Date.now(), C = FORNALHA, medir = null) { // medir = { s }: soma os segundos de trabalho (fornoLigadoAte)
   let dt = Math.max(0, (agora - F.t) / 1000), mudou = false;
   F.t = agora;
   for (let volta = 0; dt > 1e-6 && volta < 400; volta++) {
@@ -87,6 +87,7 @@ export function avancarForno(F, agora = Date.now(), C = FORNALHA) {
     }
     const passo = Math.min(dt, F.fogo, R.dur - F.prog);
     F.prog += passo; F.fogo -= passo; dt -= passo;
+    if (medir) medir.s += passo;
     if (F.prog >= R.dur - 1e-6) {
       F.prog = 0; F.ent.n -= R.usa; if (F.ent.n <= 0) F.ent = null;
       if (R.ent2) { F.ent2.n -= R.ent2.n; if (F.ent2.n <= 0) F.ent2 = null; }
@@ -97,6 +98,17 @@ export function avancarForno(F, agora = Date.now(), C = FORNALHA) {
   if (!fornoPodeSeguir(F, receitaForno(F, C))) F.prog = 0; // trocou o material: começa do zero
   if (F.fogo <= 1e-6) { F.fogo = 0; if (!F.comb) F.fogoK = ''; }
   return mudou;
+}
+
+// até quando a fornalha ainda trabalha, em ms (0 = parada: sem material, sem combustível ou o pronto encheu). Não mexe em F.
+// O app acende o fogo da fornalha no mundo só até esse instante (André 2026-11-26: "de longe eu percebo se está funcionando")
+export function fornoLigadoAte(F, agora = Date.now(), C = FORNALHA) {
+  if (!F) return 0;
+  const copia = { ...F, comb: F.comb && { ...F.comb }, ent: F.ent && { ...F.ent }, ent2: F.ent2 && { ...F.ent2 }, sai: F.sai && { ...F.sai } };
+  avancarForno(copia, agora, C);
+  const medir = { s: 0 };
+  avancarForno(copia, agora + 7 * 86400000, C, medir);
+  return medir.s > 0.01 ? Math.round(agora + medir.s * 1000) : 0;
 }
 
 // ---------- Vila dos Lotes: contas da construção e da horta (godot-prototipo/construcao.gd repete as mesmas) ----------
@@ -3225,12 +3237,18 @@ export class Simulacao {
     return null;
   }
   // o que o celular precisa saber de um lote (agora = relógio do servidor, para a horta crescer igual nos dois)
+  // fornalhas do terreno que estão trabalhando: { id da peça: ms até quando } (o app acende o fogo delas no mundo)
+  fornalhasLigadas(L, agora) {
+    const f = {};
+    for (const p of L.pecas) if (p.k === 'fornalha' && L.fornos?.[p.id]) { const t = fornoLigadoAte(L.fornos[p.id], agora, FORNALHA); if (t) f[p.id] = t; }
+    return f;
+  }
   dadosLote(L) {
     const agora = Date.now();
     for (const t of Object.values(L.horta)) crescerPlanta(t, agora);
     const { x0, z0, x1, z1 } = L.def;
     return { lote: L.def.id, ret: [x0, z0, x1, z1], dono: L.dono ? L.nomeDono : null, pecas: L.pecas.map((p) => [p.id, p.k, p.x, p.z, p.r]),
-      horta: Object.entries(L.horta).map(([c, t]) => t.mf ? [c, t.c, r2(t.g), t.w, t.u, t.mi, t.mf] : [c, t.c, r2(t.g), t.w, t.u]), agora,
+      fogo: this.fornalhasLigadas(L, agora), horta: Object.entries(L.horta).map(([c, t]) => t.mf ? [c, t.c, r2(t.g), t.w, t.u, t.mi, t.mf] : [c, t.c, r2(t.g), t.w, t.u]), agora,
       ...(this.areaBase?.(L) ? { area: this.areaBaseApp(L) } : {}) };
   }
   avisarLote(L) {
@@ -3743,7 +3761,7 @@ export class Simulacao {
     const F = L.fornos[peca.id] || (L.fornos[peca.id] = fornoVazio());
     if (avancarForno(F, Date.now(), C)) this.lotesMudados.add(L.def.id);
     if (!this.mexerForno(j, F, C, fogao, m)) return;
-    if (m.acao !== 'abrir') this.lotesMudados.add(L.def.id);
+    if (m.acao !== 'abrir') { this.lotesMudados.add(L.def.id); if (!fogao) this.avisarLote(L); } // avisa o terreno: o fogo da fornalha acende ou apaga
     this.evento({ t: 'forno', para: id, p: peca.id, tipo: peca.k, abrir: m.acao === 'abrir', ...this.dadosForno(F, C) });
     if (m.acao !== 'abrir') { this.aplicarStatus(j); this.avisarProg(j); }
   }

@@ -2,7 +2,7 @@
 // cobre e para virar carvão); aço = 1 barra de ferro (Material 1) + 2 carvões (Material 2) + carvão no combustível.
 // Uso: node ferramentas/testes/fornalha-dois-espacos.mjs
 import { Simulacao, MAPA_CLAREIRA, ESTACOES_PUBLICAS, FORNALHA } from '../../shared/index.js';
-import { avancarForno, fornoValido } from '../../shared/simulacao.js';
+import { avancarForno, fornoValido, fornoVazio, fornoLigadoAte } from '../../shared/simulacao.js';
 import './_tudo-aberto.mjs';
 const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 });
@@ -75,4 +75,20 @@ ok(F().sai?.k === 'barra_cobre', 'cobre funde com lenha');
   const bau2 = Array(40).fill(null); bau2[0] = { k: 'minerio_ferro', n: 30 };
   s.fundirBauNpc({ bau: bau2 }, null);
   ok(bau2.every((o) => !o || o.k === 'minerio_ferro'), 'bot sem carvão nem lenha não funde ferro');
+}
+
+// fogo da fornalha no mundo: só acesa enquanto trabalha (fornoLigadoAte)
+{
+  const agora = Date.now(), v = fornoVazio();
+  ok(fornoLigadoAte(v, agora) === 0, 'fornalha vazia: fogo apagado');
+  const c = fornoVazio(); c.t = agora; c.ent = { k: 'minerio_cobre', n: 6 };
+  ok(fornoLigadoAte(c, agora) === 0, 'com material e sem combustível: apagada');
+  c.comb = { k: 'lenha', n: 5 };
+  const ate = fornoLigadoAte(c, agora);
+  ok(ate > agora + 20000 && ate <= agora + 25000, `com material e lenha: acesa por ~24 s (${Math.round((ate - agora) / 1000)} s)`);
+  ok(c.ent.n === 6 && c.comb.n === 5, 'a conta não mexe na fornalha');
+  const f = fornoVazio(); f.t = agora; f.ent = { k: 'minerio_ferro', n: 3 }; f.comb = { k: 'lenha', n: 5 };
+  ok(fornoLigadoAte(f, agora) === 0, 'ferro com lenha: apagada');
+  const g = fornoVazio(); g.t = agora - 60000; g.ent = { k: 'minerio_cobre', n: 3 }; g.comb = { k: 'lenha', n: 5 };
+  ok(fornoLigadoAte(g, agora) === 0, 'já terminou faz tempo: apagada');
 }
