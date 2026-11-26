@@ -213,7 +213,9 @@ export const Cla = {
     const c = j.prog.cla; if (!c) return { sem: 1 };
     const vivos = new Map(this.recrutasNoMundo(j).filter((x) => x.amiga).map((x) => [x.AMIGA.id, x.amiga]));
     const rec = {};
-    for (const a of vivos.values()) for (const it of a.prog.mochila || []) if (it && CLA.recursos.includes(it.k)) rec[it.k] = (rec[it.k] | 0) + (it.n | 0);
+    // só o que vai para o Baú do Clã: o item da ordem de cada um (André 2026-11-26: "mostre só o que vai pro clã"; a pedra
+    // que veio junto do ferro e o que ele farmou no Livre ficam com ele)
+    for (const a of vivos.values()) { const L = a.ia?.levar; if (L) for (const it of a.prog.mochila || []) if (this.ehDoLevar(it, L)) rec[it.k] = (rec[it.k] | 0) + (it.n | 0); }
     // o Baú do Clã (base no seu terreno): o que tem dentro
     const Lb = this.loteDaConta(j.conta), Bs = this.baseDe?.(j), temBau = !!Lb && (Lb.pecas.some((o) => o.k === 'bau_cla') || !!Bs), bau = {};
     if (temBau) for (const it of Lb.bauCla || []) if (it) bau[it.k] = (bau[it.k] | 0) + (it.n || 1);
@@ -224,7 +226,7 @@ export const Cla = {
       eu: { nome: j.nome, nv, ...st(j, j.prog) },
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, sem: semanaDe(tierDe(m.tier), a ? a.prog.nivel | 0 : m.nv), on: a ? 1 : 0, ...(m.dev ? { dev: m.dev } : {}), g: m.g,
         ...this.moralInfo(m, c.vis, eM, a, j), // moral e produção (MORAL): seta + % e ~N/h
-        fn: m.fn || { k: 'livre' }, c: 'r:' + m.id, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, j), x: Math.round(a.x), z: Math.round(a.z), bid: a.id, ...(a.time && a.time === j.time ? { time: 1 } : {}) } : {}) }; }), // x, z: "Ver no mapa"; c: conta (Mensagem), bid: o corpo (Time)
+        fn: m.fn || { k: 'livre' }, c: 'r:' + m.id, ...(a ? { ...st(a, a.prog), ...this.fzRecruta(a, j), ...(this.levarQtd(a) ? { lv: this.levarQtd(a) } : {}), x: Math.round(a.x), z: Math.round(a.z), bid: a.id, ...(a.time && a.time === j.time ? { time: 1 } : {}) } : {}) }; }), // x, z: "Ver no mapa"; c: conta (Mensagem), bid: o corpo (Time)
       bauCla: temBau ? bau : null, plantas: plantasFazenda(), arvores: arvoresCla(),
       veic: { carrinho: this.carrinhoFora(j, { k: 'carrinho' }) ? 1 : 0, mercante: this.navioFora(j) ? 1 : 0 }, // Proteger carrinho / mercante: apagado se não está no mundo
       funcoes: CLA.funcoes, recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })),
@@ -250,6 +252,7 @@ export const Cla = {
     }
     if (!c) return aviso('Funde o seu clã primeiro');
     if (m.acao === 'elogiar') return this.elogiarRecruta(j, String(m.id || '')); // moral (MORAL)
+    if (m.acao === 'entregar') return aviso(m.id === '*' ? this.entregarTodos(this.recrutasNoMundo(j)) : this.entregarRecruta(this.recrutasNoMundo(j).find((x) => x.AMIGA.id === String(m.id || '')))); // Entregar no Baú (um ou * = todos)
     this.cobrarCla(j);
     // 'candidatos' (André 2026-11-23: "aparecem 3 recrutas... e eu escolho entre 3"): o Recrutador mostra
     // FICHA_RECRUTA.candidatos com ficha; 'recrutar' com esc (0, 1, 2) contrata o escolhido. Sem esc: sorteia um (como antes)
@@ -413,6 +416,13 @@ export const Cla = {
     const B = this.bauDoCla(K); if (B && guardarQueCabe(B.itens, item)) this.mexeuBau(B);
   },
   // ---------- funções (André 2026-11-22) ----------
+  // a linha do que ele faz + desde quando (André 2026-11-26: "adiciona nas msg a qtd minutos/hrs"): fzT = ms de quando a
+  // linha mudou pela última vez (o app mostra "há 5 min")
+  fzRecruta(a, j) {
+    const fz = this.fazendoRecruta(a, j);
+    if (a._fz !== fz) { a._fz = fz; a._fzT = Date.now(); }
+    return { fz, fzT: a._fzT };
+  },
   // o que ele está fazendo agora (linha curta no painel)
   fazendoRecruta(a, j) {
     const ia = a.ia;
@@ -670,6 +680,29 @@ export const Cla = {
     st(`Sem ${nome}: falta ${falta.map(([c, n]) => `${n} ${ITENS[c].nome.toLowerCase()}`).join(' e ')} (pode pôr no Baú do Clã)`);
     return true;
   },
+  // botão "Entregar no Baú" (André 2026-11-26: "eles vão lá me devolver na hora"): larga o que faz e leva agora ao Baú do
+  // Clã o item da ordem que carrega (levarBauRecruta: anda ou usa a casinha); depois volta à ordem. Devolve o aviso
+  entregarRecruta(x) {
+    const a = x?.amiga; if (!a) return 'Esse recruta não está no mundo agora';
+    if (a.morto) return `${x.AMIGA.nome} caiu: espere renascer`;
+    if (!a.ia?.levar || !this.temLevar(a)) return `${x.AMIGA.nome} não carrega nada da ordem para entregar`;
+    if (!this.bauDoCla(this.claDoRecruta(x))) return 'Seu clã ainda não tem Baú do Clã';
+    if (this.levandoRecruta(a)) return `${x.AMIGA.nome} já está indo ao Baú do Clã`;
+    if (a.coleta) this.pararColeta(a, null);
+    if (a.pesca) this.pararPesca(a, null);
+    a.ia.av = { ...(a.ia.av || {}), fase: 'voltar', c: null, coleta: null }; a.ia.viagem = null; a.ia.fase = 'pensar';
+    a.ia.funcaoSt = { txt: 'Indo entregar no Baú do Clã', ate: this.tempo + 60 };
+    return `${x.AMIGA.nome} vai entregar no Baú do Clã`;
+  },
+  // botão ao lado de "Recursos com os recrutas" (André 2026-11-26: "todos que tiverem vão lá e trazem")
+  entregarTodos(xs) {
+    const vao = xs.filter((x) => x.amiga && !x.amiga.morto && this.levarQtd(x.amiga) > 0 && !this.levandoRecruta(x.amiga));
+    if (!vao.length) return xs.some((x) => x.amiga && this.levandoRecruta(x.amiga)) ? 'Os recrutas já estão indo ao Baú do Clã' : 'Nenhum recruta carrega item do clã agora';
+    const n = vao.filter((x) => this.entregarRecruta(x).endsWith('vai entregar no Baú do Clã')).length;
+    return n ? `${n} recruta${n > 1 ? 's vão' : ' vai'} entregar no Baú do Clã` : this.entregarRecruta(vao[0]);
+  },
+  // quanto do item da ordem ele carrega (o botão Entregar só aparece com algo)
+  levarQtd(a) { const L = a?.ia?.levar; let n = 0; if (L) for (const o of a.prog.mochila || []) if (this.ehDoLevar(o, L)) n += o.n || 1; return n; },
   // deixa no Baú do Clã só o recurso pedido que ele carrega (chamado ao chegar no baú)
   depositarRecruta(x) {
     const a = x.amiga, L = a?.ia?.levar; if (!L) return 0;
@@ -980,11 +1013,12 @@ export const Cla = {
     return { n: c.n, nv: c.nv || 1, cofre: c.cofre | 0, semana: semanaCla(c), jogo: heroi ? 1 : 0, ...(!heroi && c.sem <= Date.now() ? { vencida: 1 } : {}), ...(heroi ? { eu: pos(heroi) } : {}),
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, on: a ? 1 : 0, ...(m.dev ? { dev: 1 } : {}),
         ...this.moralInfo(m, c.vis, eM, a), // moral e produção (MORAL), igual ao menu do clã do jogo
-        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, L), ...pos(a), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length && !a.prog.mochila.some((o) => !o) ? { cheia: 1 } : {}), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length ? { mo: lugares(a.prog.mochila) } : {}) } : {}) }; }),
+        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), ...this.fzRecruta(a, L), ...(this.levarQtd(a) ? { lv: this.levarQtd(a) } : {}), ...pos(a), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length && !a.prog.mochila.some((o) => !o) ? { cheia: 1 } : {}), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length ? { mo: lugares(a.prog.mochila) } : {}) } : {}) }; }),
       log: (c.log || []).slice(-10).reverse(), funcoes: CLA.funcoes.filter((F) => heroi || F.id !== 'seguir'),
       recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })), plantas: plantasFazenda(), arvores: arvoresCla(),
       // o que pede o próximo nível do clã e o que já tem (Baú do Clã + mochila do líder), igual ao Melhorar clã do jogo
       sobe: this.subirPainel(conta, c, raca, heroi, prog),
+      ...(() => { const r = {}; for (const a of vivos.values()) { const Lv = a.ia?.levar; if (Lv) for (const it of a.prog.mochila || []) if (this.ehDoLevar(it, Lv)) r[it.k] = (r[it.k] | 0) + (it.n | 0); } const l = Object.entries(r).map(([k, n]) => ({ k, n, nome: ITENS[k]?.nome || k })); return l.length ? { com: l } : {}; })(), // com os recrutas, ainda vão para o Baú do Clã (igual ao jogo)
       bau: this.bauPainel(conta), ...(this.cheiosCla(conta).bau ? { bauCheio: 1 } : {}), // o que tem no Baú do Clã (André 2026-11-24: "mostrar inventário do clã"), em ícones
       ...(this.bauDoCla({ conta })?.itens ? { bauLug: lugares(this.bauDoCla({ conta }).itens) } : {}), // ocupado/total, como o jogo (40/60)
       ...(this.baseDe?.(L) ? { base: { x: Math.round(this.baseDe(L).x), z: Math.round(this.baseDe(L).z), nv: this.baseDe(L).nv | 0, n: this.baseDe(L).n || c.n, raca: this.baseDe(L).raca || '' } } : {}), // a base do clã no mapa do painel
@@ -1019,6 +1053,12 @@ export const Cla = {
   },
   // ordem pela página com o líder fora do jogo: confere como o cla() 'funcao' e aplica no recruta do mundo (funcaoSemLider).
   // Proteger carrinho / mercante / você e "Me seguir" pedem o líder no jogo. Devolve { texto, ok }. Muda c (o servidor grava)
+  // Entregar no Baú pelo painel (líder fora do jogo)
+  painelEntregar(conta, c, raca, id) {
+    if (id !== '*' && !c?.m?.some((o) => o.id === id)) return 'Esse recruta não está no seu clã';
+    const L = this.liderPainel(conta, c, raca);
+    return id === '*' ? this.entregarTodos(this.recrutasNoMundo(L)) : this.entregarRecruta(this.recrutasNoMundo(L).find((o) => o.AMIGA.id === id));
+  },
   painelFuncao(conta, c, raca, id, fnBruto) {
     const r = c?.m?.find((o) => o.id === id); if (!r) return { texto: 'Esse recruta não está no seu clã' };
     if (c.sem <= Date.now()) return { texto: 'A semana dos recrutas venceu: entre no jogo para pagar' }; // a cobrança é no jogo (cobrarCla)
@@ -1237,7 +1277,7 @@ export const Cla = {
         while (nv < teto && resto >= xpProximo(nv)) { resto -= xpProximo(nv); nv++; }
       }
       xp = (nv < teto ? resto : 0) - (a.prog.xp | 0); for (let k = antes; k < nv; k++) xp += xpProximo(k); // no teto não guarda sobra
-      if (xp > 0) { this.ganharXP(a, xp); if ((a.prog.nivel | 0) > teto) a.prog.nivel = teto; m.nv = a.prog.nivel | 0; txt = `${m.nome}: caçou e foi do Nv ${antes} ao ${a.prog.nivel}`; }
+      if (xp > 0) { this.ganharXP(a, xp); if ((a.prog.nivel | 0) > teto) a.prog.nivel = teto; m.nv = a.prog.nivel | 0; txt = `${m.nome}: caçou e foi do Nv ${antes} ao ${a.prog.nivel}`; this.contarOrdem(x, m, { n: Math.round(h * F.mobsHora * rM), xp, xpx: rM !== 1 ? xp - xp / rM : 0 }); } // contador da ordem: o tempo fora conta
     } else if (m.fn.k === 'recurso') {
       const R = RECURSOS_CLA[m.fn.r]; if (!R?.item) return null; // Fragmento de Alma: só lutando de verdade
       // a mesma conta do jogo (André 2026-11-25: "o consumo e a quantidade de recurso seguem a regra exata"): vigor da batida
@@ -1262,11 +1302,12 @@ export const Cla = {
         let mais = 0; for (let i = 0; i < batidas && extra > 0; i++) if (Math.random() < extra) mais++;
         resto -= batidas * custo; dar(R.item, q + mais);
         if (q + mais > dado && q + mais > 0) resto += batidas * custo * (1 - dado / (q + mais / rM || 1)); // o que não coube no baú não gasta vigor
-      } else { // caça (couro): o custo fixo de sempre
-        const q = Math.floor(resto / F.couroVigor); dar(R.item, q); resto -= Math.min(q, Math.ceil(dado / rM)) * F.couroVigor;
+      } else { // caça (couro, carne...): sem vigor (André 2026-11-26), F.couroHora por hora fora
+        const q = h * F.couroHora; dar(R.item, Math.floor(q) + (Math.random() < q % 1 ? 1 : 0)); // o vigor só enche (resto = vg)
       }
       a.prog.vigor = { v: Math.max(0, Math.min(a.prog.vigor?.m || VIGOR.max, resto)), t: Date.now(), m: a.prog.vigor?.m || VIGOR.max };
       if (B && dado) this.mexeuBau(B);
+      if (dado) this.contarOrdem(x, m, { n: dado, x: rM !== 1 ? dado - dado / rM : 0 }); // contador da ordem: o tempo fora conta
       txt = dado ? `${m.nome}: juntou ${dado} de ${R.nome}${B ? ' (no Baú do Clã)' : ''}` : `${m.nome}: não juntou nada (${B ? 'Baú do Clã' : 'bolsa'} cheio)`;
     }
     x.guardarAmiga?.();
@@ -1486,7 +1527,11 @@ export const Cla = {
     const perto = !!(j && a && !a.morto && !j.morto && (Math.hypot(a.x - j.x, a.z - j.z) <= MORAL.perto || (!!a.time && a.time === j.time)));
     const tr = (perto ? MORAL.pertoH : livre ? MORAL.livreH : 0) - (!livre && m.fn.k !== 'seguir' && m.ot && agora - m.ot >= MORAL.cansaH * 3600e3 ? MORAL.cansaPorH : 0)
       - (vis && agora - vis >= MORAL.graca * 3600e3 ? MORAL.semLiderH : 0);
-    return { ml: Math.round(v), re, seta: F.seta, cor: F.cor, tr: v >= 100 && tr > 0 ? 0 : tr, ...(fm ? { fm, fn2: est.nome } : {}), ...(ph ? { ph } : {}), ...(P && i ? { pt: { i, t: tot, m: Math.round(w / 60e3), ...(this.rendeNaColeta(m.fn) && re !== 100 ? { x: Math.round(tot - tot * 100 / re) } : {}) } } : {}), ...(el ? { el: 1 } : {}) };
+    // pt: o contador da ordem (m.oc, desde que a ordem foi dada; salvo); sem ele, as últimas janelaH h de antes
+    const oc = m.oc && m.oc.k === this.chaveOrdem(m.fn) ? m.oc : null;
+    const pt = oc && i ? { i, t: oc.n, m: Math.round((agora - oc.t0) / 60e3), desde: 1, ...(Math.round(oc.x) ? { x: Math.round(oc.x) } : {}), ...(oc.xp ? { xp: oc.xp, ...(Math.round(oc.xpx) ? { xpx: Math.round(oc.xpx) } : {}) } : {}) }
+      : P && i ? { i, t: tot, m: Math.round(w / 60e3), ...(this.rendeNaColeta(m.fn) && re !== 100 ? { x: Math.round(tot - tot * 100 / re) } : {}) } : null;
+    return { ml: Math.round(v), re, seta: F.seta, cor: F.cor, tr: v >= 100 && tr > 0 ? 0 : tr, ...(fm ? { fm, fn2: est.nome } : {}), ...(ph ? { ph } : {}), ...(pt ? { pt } : {}), ...(el ? { el: 1 } : {}) };
   },
   // o rende mexe na quantidade desta ordem? (minério, lenha, peixe: batidaColeta/pegarPeixe). x do pt: quanto veio a mais
   // (ou a menos) por causa do rende, para o painel mostrar "Coletou 120 (+20 pela moral)" (André 2026-11-26)
@@ -1503,9 +1548,34 @@ export const Cla = {
       let P = a.prodH; if (!P || P.k !== k) P = a.prodH = { k, t0: agora, ev: [], ult: null };
       const n = k === 'grind' ? a.mortesProd | 0 : contarRecProd(a.prog.mochila, RECURSOS_CLA[fn.r].item) + (a.prodDep || 0); // a bolsa + o que já deixou no Baú do Clã
       if (P.ult != null && n > P.ult) P.ev.push([agora, n - P.ult]);
+      const dn = P.ult != null && n > P.ult ? n - P.ult : 0;
       P.ult = n; P.ev = P.ev.filter((e) => agora - e[0] <= J);
+      // o contador da ordem (André 2026-11-26): fica no membro (salvo), zera só quando a ordem muda
+      const dxp = (a.xpProd || 0) - (P.xpUlt ?? (a.xpProd || 0)), dxx = (a.xpProdX || 0) - (P.xxUlt ?? (a.xpProdX || 0));
+      P.xpUlt = a.xpProd || 0; P.xxUlt = a.xpProdX || 0;
+      const re = a.rende || 1, m = this.membroDoRecruta(x);
+      if (m) this.contarOrdem(x, m, { n: dn, x: o?.k === 'recurso' && this.rendeNaColeta(fn) && re !== 1 ? dn - dn / re : 0, xp: k === 'grind' ? dxp : 0, xpx: k === 'grind' ? dxx : 0 }, agora);
     }
   },
+  // o membro (c.m / E.m) do recruta: onde fica o que é salvo dele (ordem, moral, contador)
+  membroDoRecruta(x) {
+    const K = this.claDoRecruta?.(x); if (!K) return null;
+    const l = K.bot && K.E ? [...K.m, ...this.membrosFixosNpc(K.C, K.E)] : K.m;
+    return l.find((o) => o.id === x.AMIGA.id) || null;
+  },
+  // contador da ordem (André 2026-11-26: "a partir do momento que eu mando até eu parar ... mesmo que eu deslogue e
+  // volte, e mesmo que o servidor resete"): m.oc = { k, t0, n (monstros ou itens), x (a mais/menos pela moral e comida),
+  // xp, xpx }. Fica no membro, que vai no save do líder (jogador) ou do clã bot. Zera quando a ordem (m.fn) muda.
+  chaveOrdem(fn) { return fn?.k === 'grind' ? 'grind' : fn?.k === 'recurso' && fn.r && fn.r !== 'alma' ? 'r:' + fn.r : null; },
+  contarOrdem(x, m, d, agora = Date.now()) {
+    const k = this.chaveOrdem(m.fn);
+    if (!k) { if (m.oc) { delete m.oc; this.sujarMembro(x); } return; }
+    if (!m.oc || m.oc.k !== k) { m.oc = { k, t0: agora, n: 0, x: 0, xp: 0, xpx: 0 }; this.sujarMembro(x); }
+    if (!(d.n || d.xp)) return;
+    const o = m.oc; o.n += d.n | 0; o.x += d.x || 0; o.xp += Math.round(d.xp || 0); o.xpx += d.xpx || 0;
+    this.sujarMembro(x);
+  },
+  sujarMembro(x) { const K = this.claDoRecruta?.(x); if (K?.corpo && !K.bot) K.corpo.progSujo = true; },
   // a ordem de um recruta (do clã do jogador ou do clã bot)
   ordemDoRecruta(x) {
     const K = this.claDoRecruta?.(x); if (!K) return null;
@@ -1815,7 +1885,7 @@ export const Cla = {
       if (cota) op.push([{ k: 'grind' }, (fraco ? 1 : 0.35) * P.grind]);
       for (const [r, fr] of Object.entries(falta)) {
         if (r === 'alma') { op.push([{ k: 'recurso', r: 'alma' }, fr * P.alma]); continue; }
-        if (vigor) op.push([{ k: 'recurso', r }, fr * P.recurso]);
+        if (vigor || !COLETA_ORDEM.includes(RECURSOS_CLA[r]?.coleta)) op.push([{ k: 'recurso', r }, fr * P.recurso]); // caça (carne, couro) não pede vigor (André 2026-11-26)
       }
       op.push([{ k: 'proteger', p: 'lider' }, (ameaca ? 1.5 / (1 + protege) : 0.1) * P.proteger]);
       if (temLote && !fazenda) op.push([{ k: 'fazenda', s: 'cenoura' }, 0.4 * P.fazenda]);

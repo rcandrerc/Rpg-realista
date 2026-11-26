@@ -91,6 +91,15 @@ ok(ph2 && ph2.i === 'lenha' && ph2.n === 20, `lenha: 10 em 30 min = ~${ph2?.n}/h
 // painel mostra igual
 const pi = s.painelInfo(11, p.prog.cla, null, p, p.prog).m[0];
 ok(pi.seta && pi.re && pi.ph?.i === 'lenha' && Number.isInteger(pi.ml), 'painel: seta, % e ~N/h iguais ao jogo');
+// contador da ordem (André 2026-11-26): fica no membro (salvo), desde a ordem; zera só ao trocar a ordem
+ok(r.oc && r.oc.k === 'r:lenha' && r.oc.n === 10, `contador da ordem no membro: ${r.oc?.k} ${r.oc?.n}`);
+delete a.prodH; guardar(a.prog.mochila, { k: 'lenha', n: 5 }); s.passoProdRecrutas(); // corpo novo (deslogou/servidor reiniciou): não zera
+guardar(a.prog.mochila, { k: 'lenha', n: 4 }); s.passoProdRecrutas();
+ok(r.oc.n === 14 && s.claInfo(p).m[0].pt?.t === 14 && s.claInfo(p).m[0].pt?.desde, `continua contando depois de voltar: ${r.oc.n}`);
+const oc0 = JSON.parse(JSON.stringify(r.oc)); ok(oc0.n === 14, 'vai no save (JSON)');
+r.fn = { k: 'grind' }; s.passoProdRecrutas();
+ok(r.oc.k === 'grind' && r.oc.n === 0, 'trocou a ordem: zera');
+r.fn = { k: 'recurso', r: 'lenha' }; s.passoProdRecrutas(); s.passoProdRecrutas();
 
 // clã bot: as mesmas regras
 s.carregarClasNpc(null);

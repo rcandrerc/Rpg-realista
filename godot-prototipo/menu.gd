@@ -378,6 +378,42 @@ static func balao_nome(alvo: Control, texto: String, cor := OURO_CLARO) -> void:
 static func legivel(tam: int) -> int:
 	return tam + 2 if tam <= 11 else (tam + 1 if tam <= 13 else tam)
 
+# há quanto tempo (André 2026-11-26: "adiciona nas msg a qtd minutos/hrs foi enviada"): ms = instante (ms Unix) da
+# mensagem ou de quando a linha "Agora:" do recruta mudou. "" sem hora
+static func ha_quanto(ms: float) -> String:
+	if ms <= 0.0:
+		return ""
+	var s := maxf(0.0, Time.get_unix_time_from_system() - ms / 1000.0)
+	if s < 60.0:
+		return Idioma.frase("agora há pouco")
+	if s < 3600.0:
+		return Idioma.frase("há %d min") % int(s / 60.0)
+	if s < 86400.0:
+		return Idioma.frase("há %d h") % int(s / 3600.0)
+	return Idioma.frase("há %d d") % int(s / 86400.0)
+
+# o que rendeu a ordem desde que foi dada (pt.desde; zera só ao trocar a ordem): "Coletou 120 (+12 pela moral) em 3 h 20 min"
+static func texto_ganho(d: Dictionary) -> String:
+	var pt = d.get("pt")
+	if not (pt is Dictionary) or not pt.get("desde", 0):
+		return ""
+	var grind: bool = str((d.get("fn", {}) as Dictionary).get("k", "")) == "grind"
+	var t := (Idioma.frase("Derrotou %d monstros") if grind else Idioma.frase("Coletou %d")) % int(pt.get("t", 0))
+	if int(pt.get("x", 0)) != 0:
+		t += Idioma.frase(" (%+d pela moral)") % int(pt.get("x", 0))
+	if int(pt.get("xp", 0)) > 0:
+		t += " · +%d XP" % int(pt.get("xp", 0))
+		if int(pt.get("xpx", 0)) != 0:
+			t += Idioma.frase(" (%+d pela moral)") % int(pt.get("xpx", 0))
+	var mn := int(pt.get("m", 0))
+	return t + " · " + (Idioma.frase("desde a ordem: %d min") % mn if mn < 60 else Idioma.frase("desde a ordem: %d h %d min") % [mn / 60, mn % 60])
+
+# "Agora: Coletando · há 5 min"
+static func texto_agora(d: Dictionary) -> String:
+	var t := Idioma.frase("Agora: %s" % str(d.get("fz", "")))
+	var h := ha_quanto(float(d.get("fzT", 0)))
+	return t + (" · " + h if h != "" else "")
+
 static func rotulo(t: String, tam := 15, cor := TEXTO) -> Label:
 	var l := Label.new()
 	l.text = Idioma.frase(t) # inglês (idioma.gd): frase inteira ou modelo com {1}
@@ -2400,7 +2436,14 @@ func montar_cla() -> void:
 	# (André 2026-11-24: nada de lista: cada item no símbolo com a quantidade)
 	var rec: Dictionary = C.get("rec", {})
 	if not rec.is_empty():
-		conteudo.add_child(rotulo("Recursos com os recrutas", 13, TEXTO))
+		var lr := HBoxContainer.new() # o que ainda vão trazer ao Baú do Clã + "Todos entregam" (André 2026-11-26)
+		lr.add_theme_constant_override("separation", 8)
+		var tr := rotulo("Recursos com os recrutas (vão para o Baú do Clã)", 13, TEXTO)
+		tr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tr.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lr.add_child(tr)
+		lr.add_child(botao("Entregar tudo no Baú", func(): rede("cla", {"acao": "entregar", "id": "*"}), 12, true))
+		conteudo.add_child(lr)
 		conteudo.add_child(_icones_estoque(rec))
 	# Baú do Clã (base no seu terreno, André 2026-11-22)
 	if C.get("bauCla") is Dictionary:
@@ -2480,8 +2523,12 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 	if r == null:
 		return card
 	if r.has("fz"):
-		vivo["fz"] = rotulo("Agora: %s" % str(r.fz), 12, APAGADO.lightened(0.25))
+		vivo["fz"] = rotulo(texto_agora(r), 12, APAGADO.lightened(0.25))
 		v.add_child(vivo["fz"])
+	if str((r.get("fn", {}) as Dictionary).get("k", "livre")) != "livre": # o contador da ordem, igual ao painel (André 2026-11-26)
+		vivo["ganho"] = rotulo(texto_ganho(r), 12, Color(0.75, 0.88, 0.6))
+		vivo["ganho"].visible = vivo["ganho"].text != ""
+		v.add_child(vivo["ganho"])
 	if r.has("dev"):
 		v.add_child(rotulo("Sem pagamento", 12, Color(1.0, 0.55, 0.45)))
 	var rid := str(r.id)
@@ -2577,6 +2624,8 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 	var ld := HBoxContainer.new()
 	ld.alignment = BoxContainer.ALIGNMENT_END
 	ld.add_theme_constant_override("separation", 6)
+	if r.has("lv"): # Entregar no Baú (André 2026-11-26): leva agora ao Baú do Clã o item da ordem que carrega
+		ld.add_child(botao("Entregar no Baú (%d)" % int(r.lv), func(): rede("cla", {"acao": "entregar", "id": rid}), 12, true))
 	if r.has("el"): # Elogiar (MORAL): só no jogo, perto dele, 1 vez a cada 8 h
 		ld.add_child(botao("Elogiar", func(): rede("cla", {"acao": "elogiar", "id": rid}), 12, true))
 	if r.has("x"): # onde ele está (André 2026-11-23: "ver no mapa onde ele está" e "Ver" só olhando, sem controlar)
@@ -2622,7 +2671,7 @@ func _marcar_ordem(rid: String, pedido: Dictionary) -> void:
 	_ordem_pend[rid] = pedido
 	atualizar()
 
-const CLA_ANDA := ["hp", "mp", "vg", "fz", "x", "z", "morto", "ml", "re", "seta", "cor", "ph", "pt", "tr", "fm", "fn2"]
+const CLA_ANDA := ["hp", "mp", "vg", "fz", "fzT", "x", "z", "morto", "ml", "re", "seta", "cor", "ph", "pt", "tr", "fm", "fn2"]
 
 func _texto_cobranca(falta: float) -> String:
 	return "Próxima cobrança em %d d %d h" % [int(falta / 86400000.0), int(fmod(falta, 86400000.0) / 3600000.0)]
@@ -2701,7 +2750,10 @@ func _cla_pintar_vivo() -> void:
 			par[0].anchor_right = clampf(float(d.get(k, 0)) / mx, 0.0, 1.0)
 			par[1].text = "%d/%d" % [int(d.get(k, 0)), int(mx)]
 		if vivo.has("fz") and is_instance_valid(vivo.fz):
-			vivo.fz.text = Idioma.frase("Agora: %s" % str(d.get("fz", "")))
+			vivo.fz.text = texto_agora(d)
+		if vivo.has("ganho") and is_instance_valid(vivo.ganho):
+			vivo.ganho.text = texto_ganho(d)
+			vivo.ganho.visible = vivo.ganho.text != ""
 		_moral_pintar(vivo, d)
 
 # com a aba Clã aberta, pede o painel de novo a cada 3 s (HP, mana e vigor andando)
@@ -3921,6 +3973,13 @@ func _moral_texto(d: Dictionary) -> String:
 		pre = Idioma.frase("Pegou %d") % int(pt.get("t", 0))
 		if int(pt.get("x", 0)) != 0:
 			pre += Idioma.frase(" (%+d pela moral)") % int(pt.get("x", 0))
+		if int(pt.get("xp", 0)) > 0: # grind: o XP da ordem (André 2026-11-26)
+			pre += " · +%d XP" % int(pt.get("xp", 0))
+			if int(pt.get("xpx", 0)) != 0:
+				pre += Idioma.frase(" (%+d pela moral)") % int(pt.get("xpx", 0))
+		if pt.get("desde", 0): # desde que a ordem foi dada (zera só ao trocar a ordem)
+			var mn := int(pt.get("m", 0))
+			pre += " · " + (Idioma.frase("desde a ordem: %d min") % mn if mn < 60 else Idioma.frase("desde a ordem: %d h %d min") % [mn / 60, mn % 60])
 		var ph0 = d.get("ph")
 		if ph0 is Dictionary:
 			pre += " · ~%d/h" % int(ph0.get("n", 0))

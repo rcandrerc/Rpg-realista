@@ -1058,6 +1058,7 @@ export class Simulacao {
     if (j.mesa && n > 0) n = Math.max(1, Math.round(n * (1 + j.mesa))); // recruta com fome ou bem alimentado (DESPENSA)
     if (n > 0 && p.banq?.ate > Date.now()) n = Math.max(1, Math.round(n * (1 + JANTAR.buff.xp))); // Banquete do clã (shared/jantar.js)
     p.xp += n;
+    if (j.bot && n > 0) { j.xpProd = (j.xpProd || 0) + n; if (j.mesa) j.xpProdX = (j.xpProdX || 0) + n - n / (1 + j.mesa); } // contador da ordem do recruta (shared/cla.js contarOrdem)
     let subiu = false;
     while (p.nivel < NIVEL_MAX && p.xp >= xpProximo(p.nivel) && !(j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc)) { p.xp -= xpProximo(p.nivel); p.nivel++; p.pontos += PONTOS_POR_NIVEL; subiu = true; }
     if (j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) p.xp = Math.min(p.xp, xpProximo(p.nivel) - 1); // parado no teto
@@ -4249,6 +4250,7 @@ export class Simulacao {
       // penalidade (André 2026-11-05, MORTE em shared/dados.js): perde XP (o ouro não, André 2026-11-18) e o equipamento desgasta
       // Chama x Geada (André 2026-11-18): morte de guerra (golpe da outra raça nos últimos GUERRA.marca s) só desgasta
       const matou = c.pvpDe && this.tempo - (c.pvpT ?? -1e9) <= GUERRA.marca ? this.jogadores.get(c.pvpDe) : null;
+      if (c.bot) c.quedaDe = de ? { tipo: de.tipo, nivel: de.nivel || 1, guerra: !!matou && de === matou, nome: de.tipo === 'jogador' && de.bot ? String(de.nome || '') : '' } : null; // diário do NPC (shared/amiga.js textoMorteAmiga): quem deu o golpe final
       const pen = penalidadeMorte(c.prog, { semXp: !!matou, semDesgaste: !!matou }); // André 2026-11-22: guerra não desgasta o equipamento
       if (matou && de === matou) this.morteGuerra(c, matou); // anúncio e memória do NPC só quando foi ele que derrubou (revisão 2026-11-19); o XP segue a regra dos 15 s
       c.pvpDe = null; c.progSujo = true; if (pen?.ouro) this.caixa(c, 'morte', -pen.ouro);
