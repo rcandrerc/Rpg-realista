@@ -936,7 +936,7 @@ func do_servidor_lote(ev: Dictionary) -> void:
 	L.pecas = ficam
 	var mudou_pecas: bool = mudou_forma or saiu_peca or not novas.is_empty()
 	if mudou_pecas:
-		_refazer_pisos() # antes de pôr as peças: o que fica em cima da fundação usa a altura do piso
+		_refazer_pisos(id) # antes de pôr as peças: o que fica em cima da fundação usa a altura do piso (só este terreno)
 	for k in novas:
 		var p: Dictionary = novas[k]
 		if _modelos.has(p.k) and p.k != "telhado": # o telhado é um só por terreno (_refazer_telhado)
@@ -1133,65 +1133,86 @@ func _y_peca(p: Dictionary) -> float:
 # telhado"): fundação é piso, parede e janela se escalam até o topo, a porta tem batentes e a verga por cima, e o
 # telhado (quadrados juntos) é chão para quem está em cima e teto para quem está dentro. Mesma conta do servidor:
 # shared/simulacao.js pecasCasaSolidas.
-func _refazer_pisos() -> void:
-	for r in _pisos:
-		m.terreno.solidos.erase(r)
-		m.terreno.casas.erase(r)
+# 2026-11-26 (robô 2: tranco de ~140 ms a cada minuto desde o #966, a obra dos bots põe uma peça por minuto): cada peça
+# nova refazia o chão de TODOS os terrenos, e tirar os pisos velhos com erase comparava cada um com a lista inteira de
+# sólidos (dicionário por dicionário). Agora os pisos de cada terreno ficam guardados nele (_pisos_l) e só o terreno
+# que mudou é refeito (so_id); os velhos saem da lista numa passada só (marca _piso). O chão que sai é o mesmo.
+func _refazer_pisos(so_id := "") -> void:
+	_tirar_pisos(m.terreno.solidos)
+	_tirar_pisos(m.terreno.casas)
 	_pisos.clear()
-	var C: Dictionary = D.casa
-	var g := grade() / 2.0
-	var peca := func(x: float, z: float, hw: float, hd: float, y1: float, base: float) -> Dictionary:
-		return {"casa": true, "obra": true, "x": x, "z": z, "cos": 1.0, "sen": 0.0, "hw": hw, "hd": hd, "sobe": 0.0, "y1": y1, "base": base, "R": Vector2(hw, hd).length()}
 	for id in lotes:
 		var L: Dictionary = lotes[id]
-		var cel: Array = []
-		var topo := -INF
-		for p in L.pecas:
-			var T := tipo_peca(p.k)
-			if T == "fundacao":
-				var c0 := _chao(p.x, p.z)
-				_pisos.append(peca.call(p.x, p.z, g, g, c0 + float(C.fundacao), c0))
-			elif T == "borda":
-				var eixo: int = p.r & 1
-				var y0 := _chao(p.x, p.z)
-				var y1 := _y_peca(p) + float(C.parede)
-				var e := float(C.espessura) / 2.0 + 0.02
-				var partes: Array = [[-0.85, 0.3, y0, y1], [0.85, 0.3, y0, y1], [0.0, g + 0.15, y1 - float(C.parede) + float(C.porta), y1]] if como_peca(p.k) == "porta" else [[0.0, g + 0.15, y0, y1]]
-				for q in partes:
-					if eixo:
-						_pisos.append(peca.call(p.x, p.z + q[0], e, q[1], q[3], q[2]))
-					else:
-						_pisos.append(peca.call(p.x + q[0], p.z, q[1], e, q[3], q[2]))
-			elif T == "telhado":
-				cel.append([p.x, p.z, int(p.r)])
-				topo = maxf(topo, _piso(p.x, p.z) + float(C.parede))
-		if cel.is_empty():
-			continue
-		var tem := {}
-		for c in cel:
-			tem[Vector2(c[0], c[1])] = true
-		var seg: Array = []
-		var x0 := INF
-		var z0 := INF
-		var x1 := -INF
-		var z1 := -INF
-		var bei := float(C.beiral)
-		for c in cel:
-			var x: float = c[0]
-			var z: float = c[1]
-			if not tem.has(Vector2(x - 2 * g, z)): seg.append([x - g, z - g, x - g, z + g])
-			if not tem.has(Vector2(x + 2 * g, z)): seg.append([x + g, z - g, x + g, z + g])
-			if not tem.has(Vector2(x, z - 2 * g)): seg.append([x - g, z - g, x + g, z - g])
-			if not tem.has(Vector2(x, z + 2 * g)): seg.append([x - g, z + g, x + g, z + g])
-			x0 = minf(x0, x - g - bei); x1 = maxf(x1, x + g + bei)
-			z0 = minf(z0, z - g - bei); z1 = maxf(z1, z + g + bei)
-		_pisos.append({"casa": true, "obra": true, "cel": cel, "seg": seg, "g": g, "base": topo, "beiral": bei, "inclina": float(C.inclina),
-			"max": float(C.telhaMax), "x0": x0, "z0": z0, "x1": x1, "z1": z1, "x": (x0 + x1) / 2.0, "z": (z0 + z1) / 2.0, "cos": 1.0, "sen": 0.0,
-			"hw": (x1 - x0) / 2.0, "hd": (z1 - z0) / 2.0, "sobe": 0.0, "y1": topo, "R": Vector2(x1 - x0, z1 - z0).length() / 2.0,
-			"rampa": m.terreno.rampas_telhado(cel, 2.0 * g, _telha_sobe())}) # telhado em rampa (2026-11-05)
+		if so_id == "" or id == so_id or not L.has("_pisos_l"):
+			L._pisos_l = _pisos_do_lote(L)
+		_pisos.append_array(L._pisos_l)
 	m.terreno.solidos.append_array(_pisos)
 	m.terreno.casas.append_array(_pisos) # teto: dentro de casa a cabeça bate no telhado e na verga da porta
 	m.terreno.solidos_mudaram() # a grade de 4 m dos sólidos (terreno.gd) se refaz
+
+# tira da lista (no lugar, sem trocar o Array que o terreno.gd guarda) tudo o que é piso de obra
+static func _tirar_pisos(l: Array) -> void:
+	var k := 0
+	for i in l.size():
+		var r = l[i]
+		if r is Dictionary and r.get("_piso", false):
+			continue
+		l[k] = r
+		k += 1
+	l.resize(k)
+
+func _pisos_do_lote(L: Dictionary) -> Array:
+	var lista: Array = []
+	var C: Dictionary = D.casa
+	var g := grade() / 2.0
+	var peca := func(x: float, z: float, hw: float, hd: float, y1: float, base: float) -> Dictionary:
+		return {"casa": true, "obra": true, "_piso": true, "x": x, "z": z, "cos": 1.0, "sen": 0.0, "hw": hw, "hd": hd, "sobe": 0.0, "y1": y1, "base": base, "R": Vector2(hw, hd).length()}
+	var cel: Array = []
+	var topo := -INF
+	for p in L.pecas:
+		var T := tipo_peca(p.k)
+		if T == "fundacao":
+			var c0 := _chao(p.x, p.z)
+			lista.append(peca.call(p.x, p.z, g, g, c0 + float(C.fundacao), c0))
+		elif T == "borda":
+			var eixo: int = p.r & 1
+			var y0 := _chao(p.x, p.z)
+			var y1 := _y_peca(p) + float(C.parede)
+			var e := float(C.espessura) / 2.0 + 0.02
+			var partes: Array = [[-0.85, 0.3, y0, y1], [0.85, 0.3, y0, y1], [0.0, g + 0.15, y1 - float(C.parede) + float(C.porta), y1]] if como_peca(p.k) == "porta" else [[0.0, g + 0.15, y0, y1]]
+			for q in partes:
+				if eixo:
+					lista.append(peca.call(p.x, p.z + q[0], e, q[1], q[3], q[2]))
+				else:
+					lista.append(peca.call(p.x + q[0], p.z, q[1], e, q[3], q[2]))
+		elif T == "telhado":
+			cel.append([p.x, p.z, int(p.r)])
+			topo = maxf(topo, _piso(p.x, p.z) + float(C.parede))
+	if cel.is_empty():
+		return lista
+	var tem := {}
+	for c in cel:
+		tem[Vector2(c[0], c[1])] = true
+	var seg: Array = []
+	var x0 := INF
+	var z0 := INF
+	var x1 := -INF
+	var z1 := -INF
+	var bei := float(C.beiral)
+	for c in cel:
+		var x: float = c[0]
+		var z: float = c[1]
+		if not tem.has(Vector2(x - 2 * g, z)): seg.append([x - g, z - g, x - g, z + g])
+		if not tem.has(Vector2(x + 2 * g, z)): seg.append([x + g, z - g, x + g, z + g])
+		if not tem.has(Vector2(x, z - 2 * g)): seg.append([x - g, z - g, x + g, z - g])
+		if not tem.has(Vector2(x, z + 2 * g)): seg.append([x - g, z + g, x + g, z + g])
+		x0 = minf(x0, x - g - bei); x1 = maxf(x1, x + g + bei)
+		z0 = minf(z0, z - g - bei); z1 = maxf(z1, z + g + bei)
+	lista.append({"casa": true, "obra": true, "_piso": true, "cel": cel, "seg": seg, "g": g, "base": topo, "beiral": bei, "inclina": float(C.inclina),
+		"max": float(C.telhaMax), "x0": x0, "z0": z0, "x1": x1, "z1": z1, "x": (x0 + x1) / 2.0, "z": (z0 + z1) / 2.0, "cos": 1.0, "sen": 0.0,
+		"hw": (x1 - x0) / 2.0, "hd": (z1 - z0) / 2.0, "sobe": 0.0, "y1": topo, "R": Vector2(x1 - x0, z1 - z0).length() / 2.0,
+		"rampa": m.terreno.rampas_telhado(cel, 2.0 * g, _telha_sobe())}) # telhado em rampa (2026-11-05)
+	return lista
 
 # altura do topo das paredes de um quadrado (piso + parede)
 func _topo_parede(x: float, z: float) -> float:
