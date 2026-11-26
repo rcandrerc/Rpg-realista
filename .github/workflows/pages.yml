@@ -52,7 +52,7 @@ jobs:
   # workflow do mesmo jeito (job "site-reserva"). Repositório público (máquinas do GitHub em paralelo): como antes.
   fila:
     if: github.event_name == 'push' && github.event.repository.private
-    runs-on: ${{ github.event.repository.private && vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.repository.private && (vars.RUNNER_BUILD || 'aethra-build') || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
       pular: ${{ steps.olha.outputs.pular }}
@@ -78,7 +78,7 @@ jobs:
   janela:
     needs: fila
     if: always() && needs.fila.outputs.pular != 'true'
-    runs-on: ${{ vars.RUNNER_ATUALIZACAO || 'ubuntu-latest' }}
+    runs-on: ${{ vars.RUNNER_ATUALIZACAO || (github.event.repository.private && 'aethra-build') || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
       publicar: ${{ steps.decide.outputs.publicar }}
@@ -101,7 +101,7 @@ jobs:
     # do GitHub). Repositório público ou sem a variável: roda no GitHub (ubuntu-latest). Ver ferramentas/runner/LEIAME.md.
     # Com a vaga da atualização (RUNNER_ATUALIZACAO) roda sempre na Oracle, público ou privado: só lá existe a chave
     # que assina o pacote do servidor (ferramentas/servidor/assinar.mjs). É um job leve (npm build).
-    runs-on: ${{ vars.RUNNER_ATUALIZACAO || (github.event.repository.private && vars.RUNNER_BUILD) || 'ubuntu-latest' }}
+    runs-on: ${{ vars.RUNNER_ATUALIZACAO || (github.event.repository.private && (vars.RUNNER_BUILD || 'aethra-build')) || 'ubuntu-latest' }}
     timeout-minutes: 30
     environment:
       name: github-pages

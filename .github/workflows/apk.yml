@@ -50,7 +50,7 @@ jobs:
     # PR sem a etiqueta "gerar apk" não gera APK (job pulado não gasta minuto)
     if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'gerar apk') && (github.event.action != 'labeled' || github.event.label.name == 'gerar apk'))
     # main: vaga só da atualização (RUNNER_ATUALIZACAO), não espera Windows nem APK de teste; sem ela, a dos builds
-    runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && (github.ref == 'refs/heads/main' && vars.RUNNER_ATUALIZACAO || vars.RUNNER_BUILD) || 'ubuntu-latest' }}
+    runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && (github.ref == 'refs/heads/main' && vars.RUNNER_ATUALIZACAO || vars.RUNNER_BUILD || 'aethra-build') || 'ubuntu-latest' }}
     timeout-minutes: 10
     outputs:
       tem: ${{ steps.olha.outputs.cache-hit }}
@@ -133,7 +133,7 @@ jobs:
     needs: [modelos-chave, modelos]
     if: always() && needs.modelos.result == 'failure'
     # main: vaga só da atualização (RUNNER_ATUALIZACAO), não espera Windows nem APK de teste; sem ela, a dos builds
-    runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && (github.ref == 'refs/heads/main' && vars.RUNNER_ATUALIZACAO || vars.RUNNER_BUILD) || 'ubuntu-latest' }}
+    runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && (github.ref == 'refs/heads/main' && vars.RUNNER_ATUALIZACAO || vars.RUNNER_BUILD || 'aethra-build') || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -172,7 +172,7 @@ jobs:
     # Oracle e NÃO gasta cota do GitHub. Repositório público (máquinas do GitHub de graça) ou sem a variável: roda no
     # GitHub (ubuntu-latest), mais rápido. Ver ferramentas/runner/LEIAME.md.
     # main: vaga só da atualização (RUNNER_ATUALIZACAO), não espera Windows nem APK de teste; sem ela, a dos builds
-    runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && (github.ref == 'refs/heads/main' && vars.RUNNER_ATUALIZACAO || vars.RUNNER_BUILD) || 'ubuntu-latest' }}
+    runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && (github.ref == 'refs/heads/main' && vars.RUNNER_ATUALIZACAO || vars.RUNNER_BUILD || 'aethra-build') || 'ubuntu-latest' }}
     timeout-minutes: 45
     # um pacote de cada vez na main (publicar.sh e publicar-conteudo.sh em ordem); o mais novo na fila traz todos
     concurrency:
@@ -347,7 +347,7 @@ jobs:
   # agendado (04:40 e 13:40 de Brasília). Ver ferramentas/atualizacao/janela-publicar.mjs.
   janela:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (github.event.repository.private || inputs.maquina == 'oracle')
-    runs-on: ${{ vars.RUNNER_ATUALIZACAO || 'ubuntu-latest' }}
+    runs-on: ${{ vars.RUNNER_ATUALIZACAO || (github.event.repository.private && 'aethra-build') || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
       publicar: ${{ steps.decide.outputs.publicar }}
@@ -367,7 +367,7 @@ jobs:
     needs: janela
     if: needs.janela.outputs.publicar == 'true'
     # vaga da atualização (são 2: esta espera o pacote na outra); sem ela, a dos testes (ficava atrás de testes de PR)
-    runs-on: ${{ vars.RUNNER_ATUALIZACAO || vars.RUNNER_TESTES || vars.RUNNER_BUILD }}
+    runs-on: ${{ vars.RUNNER_ATUALIZACAO || vars.RUNNER_TESTES || vars.RUNNER_BUILD || 'aethra-build' }}
     timeout-minutes: 40
     # mesma fila do pages.yml (o grupo vale para o repositório inteiro): um deploy de cada vez, sem cancelar
     concurrency:
@@ -441,7 +441,7 @@ jobs:
     # Oracle: se o site não saiu pelo job site (pacote ou site falhou, foi cancelado ou pulado), chama o pages.yml
     # pacote cancelado = entrou um merge mais novo na fila, e a execução dele publica o site
     if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && (github.event.repository.private || inputs.maquina == 'oracle') && needs.site.result != 'success' && needs.pacote.result != 'cancelled' && needs.janela.outputs.publicar == 'true'
-    runs-on: ${{ github.event.repository.private && (vars.RUNNER_ATUALIZACAO || vars.RUNNER_BUILD) || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.repository.private && (vars.RUNNER_ATUALIZACAO || vars.RUNNER_BUILD || 'aethra-build') || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - name: Publicar o site sem o pacote novo
@@ -456,7 +456,7 @@ jobs:
     # Com a variável RUNNER_BUILD definida (ex.: "aethra-build") e o repositório PRIVADO, roda no runner próprio da
     # Oracle e NÃO gasta cota do GitHub. Repositório público (máquinas do GitHub de graça) ou sem a variável: roda no
     # GitHub (ubuntu-latest), mais rápido. Ver ferramentas/runner/LEIAME.md.
-    runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    runs-on: ${{ (inputs.maquina == 'oracle' || github.event.repository.private) && (vars.RUNNER_BUILD || 'aethra-build') || 'ubuntu-latest' }}
     timeout-minutes: 60
     # um APK de cada vez por ramo; o mais novo na fila substitui o que esperava
     concurrency:
@@ -566,7 +566,25 @@ jobs:
           printf 'atualizacao/casca=true\n' >> project.godot # fica na seção [aethra] gravada acima
           $GODOT_BIN --headless --export-release "Android casca" $GITHUB_WORKSPACE/rpg-realista-casca.apk
           ls -la $GITHUB_WORKSPACE/rpg-realista-casca.apk
+      # Repositório PRIVADO (André 2026-11-26): os APKs NÃO ficam guardados no GitHub (a cota de armazenamento do Pro,
+      # 2 GB, é dividida com os outros repositórios dele; ~284 MB por merge x 2 dias passava de 10 GB). Vão para o balde
+      # da Oracle com nome fixo (cada build substitui o anterior, não acumula): main = apk/age-of-embers.apk e
+      # apk/age-of-embers-casca.apk; ramo/PR = apk/teste.apk e apk/teste-casca.apk. Público: guarda como antes.
+      - name: APKs no balde da Oracle (repositório privado ou maquina=oracle)
+        if: github.event.repository.private || inputs.maquina == 'oracle'
+        env:
+          ORACLE_PAR: ${{ secrets.ORACLE_PAR }}
+          ORACLE_URL: ${{ vars.ORACLE_URL }}
+        run: |
+          if [ -z "$ORACLE_PAR" ]; then echo "::warning::Sem ORACLE_PAR: APK não foi para o balde"; exit 0; fi
+          if [ "$GITHUB_REF" = refs/heads/main ]; then n=age-of-embers; else n=teste; fi
+          for par in "rpg-realista.apk:$n.apk" "rpg-realista-casca.apk:$n-casca.apk"; do
+            curl -fsS --retry 4 --retry-all-errors -X PUT -H "Content-Type: application/vnd.android.package-archive" \
+              --data-binary @"${par%%:*}" "${ORACLE_PAR%/}/apk/${par##*:}" > /dev/null
+            echo "Balde: ${ORACLE_URL:-https://objectstorage.sa-saopaulo-1.oraclecloud.com/n/gri0v6lf72rz/b/Aethra-jofo/o}/apk/${par##*:}"
+          done
       - uses: actions/upload-artifact@v4
+        if: ${{ !github.event.repository.private }}
         with:
           name: rpg-realista-apk
           path: rpg-realista.apk
@@ -574,6 +592,7 @@ jobs:
           # (2026-11-18). O APK da main fica no release "apk"; o de PR dá para baixar por 2 dias.
           retention-days: 2
       - uses: actions/upload-artifact@v4
+        if: ${{ !github.event.repository.private }}
         with:
           name: rpg-realista-casca-apk
           path: rpg-realista-casca.apk
