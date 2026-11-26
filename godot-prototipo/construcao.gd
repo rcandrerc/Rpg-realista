@@ -1766,8 +1766,11 @@ func _desenhar_fila_canteiros() -> void:
 # o chão mudou de altura (base do clã nivelada, base_cla.gd; André 2026-11-23: "grama sobrepondo a terra arada"): a terra
 # arada e as peças dos lotes dentro da área vão para o chão novo
 func chao_mudou(area: Rect2) -> void:
+	var mexeu: Array = [] # terrenos com peça dentro da área: chão (pisos) e telhado refeitos na altura nova
 	for id in lotes:
 		var L: Dictionary = lotes[id]
+		if L.has("def") and area.intersects(Rect2(float(L.def.x0), float(L.def.z0), float(L.def.x1) - float(L.def.x0), float(L.def.z1) - float(L.def.z0)).grow(1.0)):
+			mexeu.append(L)
 		for c in L.get("horta", {}):
 			var h: Dictionary = L.horta[c]
 			if h.has("no") and is_instance_valid(h.no) and area.has_point(Vector2(h.no.position.x, h.no.position.z)):
@@ -1776,6 +1779,16 @@ func chao_mudou(area: Rect2) -> void:
 		for p in L.get("pecas", []):
 			if p is Dictionary and p.has("no") and is_instance_valid(p.no) and area.has_point(Vector2(float(p.x), float(p.z))):
 				p.no.position.y = _y_peca(p)
+	# André 2026-11-26 ("as casas ainda estão sem telhado até hoje"): o telhado é uma malha só por terreno, feita na
+	# altura do chão de quando a peça chegou. Na base do clã o chão nivela depois (este aviso): paredes e fundação
+	# subiam para o chão novo, mas o telhado ficava na altura velha, enterrado dentro da casa, e o chão de andar
+	# (pisos, guardado por terreno desde o #979) também. Agora os dois são refeitos para os terrenos da área.
+	if not mexeu.is_empty():
+		for L in mexeu:
+			L.erase("_pisos_l")
+		_refazer_pisos_de("-") # só os terrenos sem _pisos_l (os da área) são refeitos; os outros usam o guardado
+		for L in mexeu:
+			_refazer_telhado(L)
 	# André 2026-11-23 (v2975: "todos os móveis, bancadas, baús e fornos ficaram não sólidos"): a batida dos móveis tem
 	# altura (topo = chão + alto); feita com o chão de antes do nivelamento, o herói passava por cima dela quando o
 	# chão subiu. Refaz com o chão novo.

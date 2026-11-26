@@ -675,6 +675,13 @@ export const Amiga = {
   // vai até o ponto (estrada e lobo de longe, como quando vem até o dono); true = chegou
   irLongeAmiga(j, x, z, dt) {
     const d = Math.hypot(x - j.x, z - j.z);
+    // outra terra e sem barquinho (André 2026-11-26: "qualquer um que precisasse atravessar o oceano já faria o barquinho
+    // automático"): faz um com o material da mochila (30 lenha e 4 couro), igual a pedir "faz o barquinho" no chat.
+    // Sem material, vai a nado como antes. Olha no máximo a cada 60 s.
+    if (j.veiculo !== 'barquinho' && this.tempo >= (j.ia.barcoFazT || 0)) {
+      const tx = terraId(x, z);
+      if (tx > 0 && terraId(j.x, j.z) !== tx && contar(j.prog.mochila, 'barquinho') < 1) { j.ia.barcoFazT = this.tempo + 60; this.barcoPedidoAmiga(j); }
+    }
     if (this.marAmiga(j, x, z, dt)) return false;
     if (this.longeAmiga(j, { x, z, solo: true, montado: null }, d, dt)) return false;
     if (d > 2) { j.montado = null; this.irDireto(j, x, z, d > 5); return false; }
@@ -684,7 +691,10 @@ export const Amiga = {
   // do nível (ou a vila, na volta) fica do outro lado do mar e ele tem o barquinho: vai reto até lá, entra no barco na
   // beira (barcoAmiga), rema e desce na margem. true = cuidou do passo
   marAmiga(j, x, z, dt) {
-    const tj = terraId(j.x, j.z), tx = terraId(x, z);
+    // nadando um trecho de água (rio, braço de mar dentro da ilha): conta a última terra em que pisou. Antes, na água era
+    // "outra terra" e ele subia no barquinho, descia na margem, andava, caía na água de novo... (2026-11-26, ilha do meio)
+    const t0 = terraId(j.x, j.z); if (t0 > 0) j.ia.terraUlt = t0;
+    const tj = t0 || (j.veiculo === 'barquinho' ? 0 : j.ia.terraUlt || 0), tx = terraId(x, z);
     const remando = j.veiculo === 'barquinho';
     if (!remando && !(tx > 0 && tj !== tx && contar(j.prog.mochila, 'barquinho') > 0)) return false;
     if (remando && tx > 0 && tj === tx && Math.hypot(x - j.x, z - j.z) < 2) return false;
@@ -732,9 +742,12 @@ export const Amiga = {
       }
       av.semColeta = false;
       if (cansouGrind || !temPocao) return voltar();
-      const c = this.campoAmiga(j, av.fora);
+      // recruta com a ordem de caçar um material (carne, couro, tecido...): o campo que solta ele, também nas voltas
+      // seguintes (antes só a 1ª saída ia ao campo do material; depois do descanso caía no campo comum do nível)
+      const cDrop = ia.levar && !ENCOMENDA.recursos[ia.levar.r] && this.campoDoDrop?.(j, ia.levar.item);
+      const c = cDrop && !av.fora?.has(cDrop.id) ? cDrop : this.campoAmiga(j, av.fora);
       if (!c) return voltar();
-      Object.assign(av, { fase: 'ir', c, coleta: null, ate: t + sorte(A.cacar, R.caca) });
+      { const D = sorte(A.cacar, R.caca); Object.assign(av, { fase: 'ir', c, coleta: null, ate: t + D, dur: D }); }
       ia.viagem = null;
       return;
     }
@@ -745,7 +758,11 @@ export const Amiga = {
       const c = av.c;
       // outra terra: sem barquinho, faz um se tiver o material (e vai de barco); senão, outro campo
       if (ia.viagem?.bloqueio) { if (!av.coleta && contar(j.prog.mochila, 'barquinho') < 1) this.barcoPedidoAmiga(j); if (contar(j.prog.mochila, 'barquinho') < 1) (av.fora ||= new Set()).add(c.id); ia.viagem = null; if (!contar(j.prog.mochila, 'barquinho')) av.fase = 'escolher'; return; }
-      if (noite || livres < A.mochilaLivre || t >= av.ate || (!sold && this.grindAcabouAmiga(j))) return voltar();
+      // o tempo da caçada (ate) conta da chegada ao campo (André 2026-11-26: "atravessou o mar inteiro nadando, deu 2 hits
+      // no monstro e voltou"): antes contava da saída e a viagem longa gastava quase tudo. Na ida o teto é a viagem (A.viagemMax)
+      if (av.fase === 'cacar' && av.dur) { av.ate = t + av.dur; av.dur = 0; } // chegou: começa a contar
+      const fimIda = av.fase === 'ir' && av.dur ? av.ate + (A.viagemMax ?? 900) : av.ate;
+      if (noite || livres < A.mochilaLivre || t >= fimIda || (!sold && this.grindAcabouAmiga(j))) return voltar();
       if (av.fase === 'cacar' && dt > 0) { this.grindHojeAmiga(j); const m0 = Math.floor(j.grind.seg / 60); j.grind.seg += dt; if (Math.floor(j.grind.seg / 60) !== m0) this.guardarAmiga(); } // conta o grind sozinho (grava a cada minuto)
       const alvo = this.alvoSozinhoAmiga(j, c);
       if (av.fase === 'ir') {
@@ -2522,7 +2539,8 @@ export const Amiga = {
     if (!c && pedido?.length) { forte = pedido[0].nome; c = this.campoAmiga(a); }
     if (a.ia.fase === 'trabalhar') { a.ia.fase = 'pensar'; a.acao = null; }
     a.ia.conversaAte = this.tempo + 2; a.ia.vir = null;
-    a.ia.av = c ? { fase: 'ir', c, coleta: null, ate: this.tempo + (A.cacar[0] + Math.random() * (A.cacar[1] - A.cacar[0])) * this.rotinaAmiga().caca } : { fase: 'escolher' };
+    const D = (A.cacar[0] + Math.random() * (A.cacar[1] - A.cacar[0])) * this.rotinaAmiga().caca;
+    a.ia.av = c ? { fase: 'ir', c, coleta: null, ate: this.tempo + D, dur: D } : { fase: 'escolher' }; // dur: conta da chegada (passoSozinhoAmiga)
     if (!contar(a.prog.mochila, 'pocao')) this.pocoesAmiga(a); // passa na Rosa antes
     a.ia.viagem = null;
     return { ok: true, c, forte };

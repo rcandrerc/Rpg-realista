@@ -4364,7 +4364,13 @@ export class Simulacao {
     // onde o jogador pode (posicaoCliente): no cais, nadando no mar, de barco na água e no convés do navio; antes o
     // limitarAoMapa jogava ele para a borda do mapa mais perto (a cidade)
     const livre = c.tipo === 'jogador' && (naCais(this.mapa, c.x, c.z) || !!c.bordo || (c.veiculo && !!noLago(c.x, c.z)) || (!c.veiculo && marNadavel(c.x, c.z)));
-    if (!livre) [c.x, c.z] = limitarAoMapa(this.mapa, c.x, c.z, 2.2); // dentro da vila, da passagem e da clareira de fora (shared/mapa.js)
+    if (!livre) { // dentro da vila, da passagem e da clareira de fora (shared/mapa.js)
+      const [lx, lz] = limitarAoMapa(this.mapa, c.x, c.z, 2.2);
+      // bot na faixa de areia entre o mar nadável e o chão do mapa (praia da ilha): a borda mais perto podia ser a do
+      // continente, do outro lado do mar, e ele "pulava" centenas de metros (2026-11-26: recruta que nadou até a ilha e
+      // voltou). Mais de 6 m de correção num passo nunca é parede de verdade: o bot fica onde está e segue andando
+      if (!(c.bot && Math.hypot(lx - c.x, lz - c.z) > 6)) { c.x = lx; c.z = lz; }
+    }
     if (c.bm) { const A = c.arena, d = Math.hypot(c.x - A.x, c.z - A.z); if (d > A.r) { c.x = A.x + (c.x - A.x) / d * A.r; c.z = A.z + (c.z - A.z) / d * A.r; } } // boss não sai da arena
     if (c.sub) this.prenderNaCaverna(c); // monstro da caverna fica no túnel
     else if (c.sp?.tunel) this.prenderNoTunel(c); // e o do covil das cavernas do mundo grande também

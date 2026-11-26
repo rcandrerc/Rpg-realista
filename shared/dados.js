@@ -4456,7 +4456,7 @@ export const NPC_VIDA = {
     { nivel: 50, nome: 'Porto de Vael', x: 92, z: 318, r: 16 },
     { nivel: 100, nome: 'Aurora', x: 200, z: 1085, r: 30 },
   ],
-  aventura: { chance: 0.6, cacar: [150, 420], campoAcima: 1, mobAcima: 3, raio: 16, mochilaLivre: 3, descanso: [40, 160] },
+  aventura: { chance: 0.6, cacar: [150, 420], viagemMax: 900, campoAcima: 1, mobAcima: 3, raio: 16, mochilaLivre: 3, descanso: [40, 160] }, // cacar conta da chegada ao campo; viagemMax: s de ida até desistir (2026-11-26)
   offline: { horasPorDia: 1.5, porHora: 0.6, meio: 20, maxDias: 14 },
   // André 2026-11-16 ("senão esses caras vão pegar nível 150 em meio dia"): caça SOZINHO conta no máximo segPorDia s por dia
   // real (vira às 3h de Brasília). Depois disso ficam ativos sem grindar (coleta, vila, casa). Caçar no time com alguém

@@ -425,7 +425,9 @@ export const Cla = {
     if (ia.funcao?.k === 'arvores') return 'Plantando árvores';
     if (ia.funcao?.k === 'alma') return !a.guerra ? 'Fragmento de Alma: só acima do Nv 30 e fora da zona segura' : ia.alma?.alvo ? 'Caçando a outra raça' : 'Procurando a outra raça';
     if (ia.encomenda && !ia.encomenda.pronta) return `Coletando ${ENCOMENDA.recursos[ia.encomenda.rec]?.nome || ''}`.trim();
-    if (ia.av) return ia.av.fase === 'voltar' ? 'Voltando' : ia.av.coleta ? 'Coletando' : 'Caçando';
+    // a pausa entre uma saída e outra aparece como pausa (2026-11-26: o painel dizia "Caçando" e o "Ver" mostrava ele
+    // parado perto de casa, parecendo que mexia na terra)
+    if (ia.av) return ia.av.fase === 'voltar' ? 'Voltando' : ia.av.fase === 'descansar' ? 'Descansando' : ia.av.fase === 'evoluir' ? 'Melhorando o equipamento' : ia.av.fase === 'ir' ? (ia.av.coleta ? 'Indo coletar' : 'Indo caçar') : ia.av.coleta ? 'Coletando' : 'Caçando';
     return 'Parado';
   },
   // aplica a função de cada recruta no mundo (a cada minuto e ao entrar)
@@ -1013,7 +1015,9 @@ export const Cla = {
   fazendoBotPainel(B) {
     const ia = B.ia || {};
     if (ia.atividade) return 'Trabalhando';
-    if (ia.av) return ia.av.fase === 'voltar' ? 'Voltando' : ia.av.coleta ? 'Coletando' : 'Caçando';
+    // a pausa entre uma saída e outra aparece como pausa (2026-11-26: o painel dizia "Caçando" e o "Ver" mostrava ele
+    // parado perto de casa, parecendo que mexia na terra)
+    if (ia.av) return ia.av.fase === 'voltar' ? 'Voltando' : ia.av.fase === 'descansar' ? 'Descansando' : ia.av.fase === 'evoluir' ? 'Melhorando o equipamento' : ia.av.fase === 'ir' ? (ia.av.coleta ? 'Indo coletar' : 'Indo caçar') : ia.av.coleta ? 'Coletando' : 'Caçando';
     if (B.guerra || ia.alma?.alvo) return 'Na guerra';
     return 'Na base';
   },
