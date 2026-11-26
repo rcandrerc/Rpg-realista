@@ -112,7 +112,15 @@ function membroValido(m) {
       lu: fichaLuta(m), // a ficha (FICHA_RECRUTA); recruta de antes ganha a sorteada pelo id
       nv0: int(m.nv0, 1, 200, 1), nv: int(m.nv, 1, 200, 1), desde: int(m.desde, 0, 9e15, 0), ...(Number.isFinite(+m.dev) && +m.dev > 0 ? { dev: Math.round(+m.dev) } : {}), ...(funcaoValida(m.fn) ? { fn: funcaoValida(m.fn) } : {}),
       ...(m.pos && Number.isFinite(+m.pos.x) && Number.isFinite(+m.pos.z) && Math.abs(+m.pos.x) < 1e5 && Math.abs(+m.pos.z) < 1e5 ? { pos: { x: +m.pos.x, z: +m.pos.z } } : {}), // onde estava quando o líder saiu
-      ...moralValida(m) }; // moral (MORAL)
+      ...moralValida(m), ...(ordemContValida(m.oc) ? { oc: ordemContValida(m.oc) } : {}) }; // moral (MORAL); oc: contador da ordem
+}
+// o contador da ordem salvo (contarOrdem). André 2026-11-26: "ta resetando qd eu deslogo... deixar permanente até a
+// próxima ordem": antes o membroValido jogava o oc fora ao carregar o save e o contador voltava a zero a cada login
+export function ordemContValida(o) {
+  if (!o || typeof o !== 'object' || typeof o.k !== 'string' || !/^(grind|r:[a-z_]{2,24})$/.test(o.k)) return null;
+  const t0 = +o.t0; if (!(Number.isFinite(t0) && t0 > 0 && t0 < 9e15)) return null;
+  const num = (v, min = 0) => (Number.isFinite(+v) ? Math.max(min, Math.min(1e12, +v)) : 0);
+  return { k: o.k, t0: Math.round(t0), n: Math.round(num(o.n)), x: num(o.x, -1e12), xp: Math.round(num(o.xp)), xpx: num(o.xpx, -1e12) };
 }
 // a moral salva no membro: mo (0 a 100), mt: ms da última conta, ot: ms em que começou a trabalhar sem descanso, el: último elogio
 export function moralValida(m) {
@@ -986,9 +994,22 @@ export const Cla = {
     const B = this.baseDe?.(j);
     if (B) this.pagarBase(B, (v) => { if (c.cofre < v) return false; c.cofre -= v; this.logCla(c, 'Taxa da base atrasada', -v); return true; });
   },
+  // o contador da ordem de cada recruta (m.oc) que andou na cópia velha do clã (clasFora, com o líder fora) passa para a
+  // cópia nova (o save lido no login ou no painel), se é a mesma ordem e contou mais. Devolve c
+  juntarContadores(c, velho) {
+    if (!c?.m || !velho?.m || velho === c) return c;
+    for (const m of c.m) {
+      const o = velho.m.find((q) => q.id === m.id)?.oc;
+      if (o && o.k === this.chaveOrdem(m.fn) && (!m.oc || (m.oc.k === o.k && m.oc.t0 === o.t0 && o.n + o.xp >= m.oc.n + m.oc.xp))) m.oc = { ...o };
+    }
+    return c;
+  },
   // o líder entrou (ou contratou): os recrutas dele ganham corpo perto dele
   entrarRecrutas(j, contratado = null) {
     const c = j?.prog?.cla; if (!c || !j.conta) return;
+    // o contador da ordem andou enquanto ele estava fora (recrutas no mundo com outro jogador online, na cópia do clasFora):
+    // traz para o save que acabou de carregar, senão o login voltava ao número da hora em que ele saiu
+    this.juntarContadores(c, this.clasFora?.get(j.conta));
     this.clasFora?.delete(j.conta);
     const novos = new Set(); // os que estavam fora do mundo (os que ficaram jogando de verdade não ganham o "tempo fora")
     for (const m of c.m) {
