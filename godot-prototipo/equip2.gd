@@ -185,14 +185,87 @@ static func _abrir(arq: String) -> Array:
 				osso_duro = "J_Bip_C_Head" if n.begins_with("cabeca") or n.begins_with("capuz") else ("J_Bip_C_Hips" if n.begins_with("quadril") or n.begins_with("cordao") else "J_Bip_C_UpperChest")
 			out.append([String(mi.name), malha, skin, osso_duro])
 		cena.free()
+	_soldar_meio(out)
 	_colar_no_manto(out)
 	_cenas[arq] = out
 	return out
+
+# Roupão 2 (André 2026-11-26, noite: "quando corre o peito ainda aparece"): o robe é feito de duas metades espelhadas
+# que se encontram no meio (x = 0) sem estar soldadas: na frente e nas costas ficam pares de vértices a 2-4 mm um do
+# outro e, com pesos de osso diferentes de cada lado, correndo a costura abre e a pele aparece por um risco. Os pares
+# do meio viram um vértice só no lugar (posição no meio, mesmos ossos e pesos): a costura fecha sem mudar o desenho.
+const MEIO_X := 0.004
+const MEIO_DIST := 0.007
+static func _soldar_meio(pecas: Array) -> void:
+	for p in pecas:
+		if not String(p[0]).begins_with("peito_robe") or p[2] == null:
+			continue
+		var m: ArrayMesh = p[1]
+		var nova := ArrayMesh.new()
+		var soldou := 0
+		for s in m.get_surface_count():
+			var a := m.surface_get_arrays(s)
+			var vs: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+			var bo: PackedInt32Array = a[Mesh.ARRAY_BONES]
+			var we: PackedFloat32Array = a[Mesh.ARRAY_WEIGHTS]
+			var k: int = bo.size() / maxi(1, vs.size())
+			if k > 0:
+				var esq := [] # vértices do meio no lado -x
+				var dir := []
+				for i in vs.size():
+					if absf(vs[i].x) < MEIO_X:
+						(esq if vs[i].x < 0.0 else dir).append(i)
+				var usado := {}
+				for i in esq:
+					var melhor := -1
+					var md := MEIO_DIST
+					for j in dir:
+						if usado.has(j):
+							continue
+						var d := Vector2(vs[i].y, vs[i].z).distance_to(Vector2(vs[j].y, vs[j].z))
+						if d < md:
+							md = d
+							melhor = j
+					if melhor < 0:
+						continue
+					usado[melhor] = true
+					var meio := (vs[i] + vs[melhor]) * 0.5
+					meio.x = 0.0
+					vs[i] = meio
+					vs[melhor] = meio
+					# pesos: média dos dois lados, os k ossos mais fortes, somando 1
+					var soma := {}
+					for q in k:
+						soma[bo[i * k + q]] = soma.get(bo[i * k + q], 0.0) + we[i * k + q] * 0.5
+						soma[bo[melhor * k + q]] = soma.get(bo[melhor * k + q], 0.0) + we[melhor * k + q] * 0.5
+					var ossos := soma.keys()
+					ossos.sort_custom(func(x, y): return soma[x] > soma[y])
+					var total := 0.0
+					for q in mini(k, ossos.size()):
+						total += soma[ossos[q]]
+					for q in k:
+						var b: int = ossos[q] if q < ossos.size() else 0
+						var w: float = soma[ossos[q]] / maxf(total, 0.0001) if q < ossos.size() else 0.0
+						bo[i * k + q] = b
+						bo[melhor * k + q] = b
+						we[i * k + q] = w
+						we[melhor * k + q] = w
+					soldou += 1
+				a[Mesh.ARRAY_VERTEX] = vs
+				a[Mesh.ARRAY_BONES] = bo
+				a[Mesh.ARRAY_WEIGHTS] = we
+			nova.add_surface_from_arrays(m.surface_get_primitive_type(s), a, [], {}, Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS if k == 8 else 0)
+			nova.surface_set_material(s, m.surface_get_material(s))
+			nova.surface_set_name(s, m.surface_get_name(s))
+		if soldou > 0:
+			p[1] = nova
 
 # Roupão 2 (André 2026-11-26: "quando eu corro, o peitoral aparece"): o peito do robe fica debaixo do manto e, com
 # pesos de osso diferentes (o robe segue mais o busto e a coluna, o manto o peito alto), correndo ele furava o manto.
 # O pedaço do robe que o manto cobre sai da malha (triângulo com os 3 vértices a menos de COLA_DIST do manto, na pose
 # de descanso). Sem volume novo: nada engorda. Feito uma vez por arquivo (cache _cenas).
+# (Correndo o manto sobe uns centímetros e mostra a beira do buraco: no rapaz aparecia a pele do peito. A pele
+# debaixo do Roupão 2 sai do corpo, Armadura._sem_pele_sob_roupao2; pela fresta aparece o pano de dentro.)
 const COLA_DIST := 0.02
 static func _colar_no_manto(pecas: Array) -> void:
 	var robe = null

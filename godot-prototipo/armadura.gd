@@ -460,6 +460,14 @@ static func _cintura(raiz: Node3D, ativo := true, peitoral := true) -> void:
 			if not _malhas.has(chave_x):
 				_malhas[chave_x] = _encolher_axila(alvo, R)
 			alvo = _malhas[chave_x]
+			if _traje2(raiz) == "roupao2":
+				# André 2026-11-26 (noite): "a camisa do roupão 2, quando corre, o peito ainda aparece". O robe e o manto
+				# do Roupão 2 cobrem o tronco inteiro; a pele do rapaz debaixo deles sai da malha, então nenhuma fresta
+				# da roupa correndo (beira do manto, costura do meio) mostra o peito: no lugar aparece o pano de dentro.
+				var chave_r := "sob_roupao2:%d" % alvo.get_instance_id()
+				if not _malhas.has(chave_r):
+					_malhas[chave_r] = _sem_pele_sob_roupao2(alvo, R)
+				alvo = _malhas[chave_r]
 		if ativo and trecho != "Body_00" and feminino:
 			var chave := "cintura:%d" % alvo.get_instance_id()
 			if not _malhas.has(chave):
@@ -1133,6 +1141,35 @@ static func _encolher_axila(orig: ArrayMesh, R: Ref) -> ArrayMesh:
 		arr[Mesh.ARRAY_VERTEX] = _FA(V)
 		var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
 		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, [], {}, flags)
+		am.surface_set_material(sfc, orig.surface_get_material(sfc))
+		am.surface_set_name(sfc, orig.surface_get_name(sfc))
+	return am
+
+# Roupão 2 no corpo masculino: tira os triângulos da pele do tronco (da junta da coxa ao pescoço, ombros até o osso do braço)
+# que ficam inteiros debaixo do robe e do manto. Pescoço, braços e pernas ficam. Ver _cintura.
+static func _sem_pele_sob_roupao2(orig: ArrayMesh, R: Ref) -> ArrayMesh:
+	var am := ArrayMesh.new()
+	am.blend_shape_mode = orig.blend_shape_mode
+	for i in orig.get_blend_shape_count():
+		am.add_blend_shape(orig.get_blend_shape_name(i))
+	for sfc in orig.get_surface_count():
+		var arr := Malhas.arrays(orig, sfc)
+		if arr[Mesh.ARRAY_INDEX] != null:
+			var V: PackedVector3Array = _FA(arr[Mesh.ARRAY_VERTEX])
+			var sob := PackedByteArray()
+			sob.resize(V.size())
+			for i in V.size():
+				var p := V[i]
+				var lim := 0.25 if p.y < R.y_braco - 0.07 else R.x_braco + 0.01
+				sob[i] = 1 if (p.y > R.y_coxa and p.y < R.y_pescoco - 0.03 and absf(p.x) < lim) else 0
+			var I: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+			var J := PackedInt32Array()
+			for t in range(0, I.size(), 3):
+				if not (sob[I[t]] and sob[I[t + 1]] and sob[I[t + 2]]):
+					J.append_array([I[t], I[t + 1], I[t + 2]])
+			arr[Mesh.ARRAY_INDEX] = J
+		var flags: int = orig.surface_get_format(sfc) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		am.add_surface_from_arrays(orig.surface_get_primitive_type(sfc), arr, Malhas.formas(orig, sfc), {}, flags)
 		am.surface_set_material(sfc, orig.surface_get_material(sfc))
 		am.surface_set_name(sfc, orig.surface_get_name(sfc))
 	return am
