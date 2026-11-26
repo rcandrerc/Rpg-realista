@@ -468,6 +468,7 @@ func _ready() -> void:
 	buffs = Buffs.new(self)
 	add_child(buffs)
 	hud.buffs = buffs
+	hud.m = self # Patente de Guerra (hud.gd): o escudo lê o prog e o relógio do servidor
 	alvo_quadro = AlvoQuadro.new(self)
 	add_child(alvo_quadro)
 	leilao = LeilaoUi.new(self)
