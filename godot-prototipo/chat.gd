@@ -632,7 +632,8 @@ func _linha(x: Dictionary, tam: int, com_hora: bool) -> RichTextLabel:
 	var cor_nome: Color = Menu.OURO_CLARO if x.get("meu", false) == true else (COR_AMIGO if amigo else COR_PM if pm else COR_TIME if do_time else COR_LOCAL if local else Color(0.86, 0.72, 0.5))
 	var s := ""
 	if com_hora:
-		s += "[color=#%s]%s[/color]  " % [Menu.APAGADO.to_html(false), _hora(float(x.get("hora", 0)))]
+		var ha := Menu.ha_quanto(float(x.get("hora", 0))) # André 2026-11-26: "às vezes não sei se a msg é atual ou antiga"
+		s += "[color=#%s]%s%s[/color]  " % [Menu.APAGADO.to_html(false), _hora(float(x.get("hora", 0))), " · " + ha if ha != "" else ""]
 	elif amigo:
 		s += "[color=#%s][lb]Amigos][/color] " % COR_AMIGO.to_html(false)
 	elif do_time:
@@ -649,6 +650,8 @@ func _linha(x: Dictionary, tam: int, com_hora: bool) -> RichTextLabel:
 		s += "[b][color=#%s]%s:[/color][/b] [i][color=#%s]%s[/color][/i]" % [cor_nome.to_html(false), _seguro(str(x.get("nome", "?"))), Menu.APAGADO.to_html(false), _seguro(texto)]
 	else:
 		s += "[b][color=#%s]%s:[/color][/b] %s" % [cor_nome.to_html(false), _seguro(str(x.get("nome", "?"))), _seguro(texto)]
+	if not com_hora and float(x.get("hora", 0)) > 0.0 and Time.get_unix_time_from_system() - float(x.get("hora", 0)) / 1000.0 >= 60.0:
+		s += " [color=#%s](%s)[/color]" % [Menu.APAGADO.to_html(false), Menu.ha_quanto(float(x.get("hora", 0)))] # caixa: só a partir de 1 min
 	r.text = s
 	return r
 
@@ -714,6 +717,7 @@ func do_servidor(ev: Dictionary) -> void:
 			if not meu and k != "geral" and m.sons:
 				m.sons.tocar("pano", -16.0)
 
+var _idade_t := 0.0
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
 	_process_parte(dt)
@@ -725,6 +729,11 @@ func _process_parte(dt: float) -> void:
 	var menu_aberto: bool = (m.menu and m.menu.aberto()) or (m.menu_topo and m.menu_topo.aberto())
 	var hud_livre: bool = m.hud != null and not m.hud.esconder_combate and not m.hud.modo_construcao
 	caixa.visible = caixa_lista.get_child_count() > 0 and not aberto() and not menu_aberto and hud_livre
+	_idade_t += dt
+	if _idade_t >= 30.0: # o "há N min" da caixa anda (refaz só as 5 linhas, a cada 30 s)
+		_idade_t = 0.0
+		if caixa.visible:
+			_refazer_caixa()
 	_atualizar_botao(dt)
 	if not aberto():
 		return

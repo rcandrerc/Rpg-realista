@@ -10,6 +10,11 @@ const SALA = 'clareira';
 const A_CADA = 30000; // pede a lista a cada 30 s (com a página visível)
 
 const $ = (id) => document.getElementById(id);
+// há quanto tempo (André 2026-11-26: "adiciona nas msg a qtd minutos/hrs foi enviada"): ms = instante da mensagem ou de
+// quando a linha do que o recruta faz mudou (fzT). '' sem hora
+const haQuanto = (ms) => { if (!(ms > 0)) return ''; const s = Math.max(0, (Date.now() - ms) / 1000); return s < 60 ? 'agora há pouco' : s < 3600 ? `há ${Math.floor(s / 60)} min` : s < 86400 ? `há ${Math.floor(s / 3600)} h` : `há ${Math.floor(s / 86400)} d`; };
+const duracao = (min) => (min < 60 ? `${min} min` : `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ''}`);
+const comHa = (txt, ms) => { const h = haQuanto(ms); return txt && h ? `${txt} · ${h}` : txt; };
 const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 const ler = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const gravar = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* sem armazenamento */ } };
@@ -164,7 +169,7 @@ function moralTag(m) {
   const pc = el('b', null, `${m.re}%`); pc.style.color = m.cor || '';
   t.append(sv, pc);
   if (m.fm) { const f = el('img'); f.src = 'painel-icones/peixe_assado.png'; f.alt = ''; f.className = m.fm < 0 ? 'fome' : 'bem'; t.append(f); } // a comida mexe no %
-  t.onclick = () => aviso(`${m.pt ? `Pegou ${m.pt.t} ${m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`}${m.ph ? ` (~${m.ph.n} por hora${m.re && m.re !== 100 ? `; com rende 100% seria ~${Math.round(m.ph.n * 100 / m.re)}: o rende muda quanto vem por batida, com o mesmo vigor` : ''})` : ' (o por hora aparece com 15 min)'} · ` : ''}Moral ${m.ml} (${m.tr > 0 ? '+' : ''}${m.tr | 0} por hora)${m.fm ? ` · ${m.fn2}: ${m.fm > 0 ? '+' : ''}${m.fm}% (comida no Baú do Clã)` : ''} · rende ${m.re}%. Sobe: perto de você ou no seu time, Livre, Elogiar (no jogo). Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.`);
+  t.onclick = () => aviso(`${m.pt ? `Pegou ${m.pt.t}${m.pt.xp ? ` (+${m.pt.xp} XP)` : ''} ${m.pt.desde ? `em ${duracao(m.pt.m)} desde a ordem` : m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`}${m.ph ? ` (~${m.ph.n} por hora${m.re && m.re !== 100 ? `; com rende 100% seria ~${Math.round(m.ph.n * 100 / m.re)}: o rende muda quanto vem por batida, com o mesmo vigor` : ''})` : ' (o por hora aparece com 15 min)'} · ` : ''}Moral ${m.ml} (${m.tr > 0 ? '+' : ''}${m.tr | 0} por hora)${m.fm ? ` · ${m.fn2}: ${m.fm > 0 ? '+' : ''}${m.fm}% (comida no Baú do Clã)` : ''} · rende ${m.re}%. Sobe: perto de você ou no seu time, Livre, Elogiar (no jogo). Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.`);
   return t;
 }
 function cartaoMembro(m) {
@@ -172,12 +177,14 @@ function cartaoMembro(m) {
   const l = el('div', 'linha'), n = el('div', 'nome', m.nome);
   n.append(el('span', 'tag', m.tier)); if (m.dev) n.append(el('span', 'tag', 'devendo')); if (m.cheia) n.append(el('span', 'tag cheio', 'Mochila cheia')); else if (m.mo) n.append(lugaresTag('Mochila', m.mo));
   l.append(n, ...(m.re ? [moralTag(m)] : []), el('div', 'nv', `Nv ${m.nv}`)); c.append(l);
-  c.append(el('div', 'faz', m.on ? (m.morto ? 'Caído' : m.fz || '') : 'Fora do mundo'));
+  c.append(el('div', 'faz', m.on ? (m.morto ? 'Caído' : comHa(m.fz || '', m.fzT)) : 'Fora do mundo'));
   if (m.pt && m.fn?.k !== 'livre') { // o que rendeu a ordem: "Coletou 120 minério de ferro (+20 pela moral)"
     const nome = m.fn?.k === 'grind' ? 'monstros' : (info.recursos.find((r) => r.k === m.fn?.r)?.nome || '');
-    const tempo = m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`;
+    // desde: o contador da ordem (desde que você deu a ordem; zera só ao trocar a ordem, André 2026-11-26)
+    const tempo = m.pt.desde ? `em ${duracao(m.pt.m)} (desde a ordem)` : m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`;
     const x = m.pt.x ? ` (${m.pt.x > 0 ? '+' : ''}${m.pt.x} pela moral${m.fm ? ' e comida' : ''})` : '';
-    const d = el('div', 'faz ganho' + (m.pt.x < 0 ? ' menos' : m.pt.x > 0 ? ' mais' : ''), `${m.fn?.k === 'grind' ? 'Derrotou' : 'Coletou'} ${m.pt.t} ${nome}${x} ${tempo}${m.ph ? ` · ~${m.ph.n}/h` : ''}`);
+    const xp = m.pt.xp ? ` · +${m.pt.xp.toLocaleString('pt-BR')} XP${m.pt.xpx ? ` (${m.pt.xpx > 0 ? '+' : ''}${m.pt.xpx.toLocaleString('pt-BR')} pela moral${m.fm ? ' e comida' : ''})` : ''}` : '';
+    const d = el('div', 'faz ganho' + (m.pt.x < 0 ? ' menos' : m.pt.x > 0 ? ' mais' : ''), `${m.fn?.k === 'grind' ? 'Derrotou' : 'Coletou'} ${m.pt.t} ${nome}${x}${xp} ${tempo}${m.ph ? ` · ~${m.ph.n}/h` : ''}`);
     c.append(d);
   }
   if (m.on) { const b = el('div', 'barras'); b.append(barra('Vida', m.hp, m.hpM, 'var(--hp)'), barra('Vigor', m.vg, m.vgM, 'var(--vg)')); c.append(b); }
@@ -205,6 +212,7 @@ function cartaoMembro(m) {
     pedir({ acao: 'funcao', id: m.id, fn: f });
   };
   o.append(fn, extra, ok); c.append(o);
+  if (m.lv) { const e = el('button', 'acao', `Entregar no Baú (${m.lv})`); e.onclick = () => { e.disabled = true; setTimeout(() => { e.disabled = false; }, 1500); pedir({ acao: 'entregar', id: m.id }); }; c.append(e); } // leva agora o item da ordem
   return c;
 }
 
@@ -393,6 +401,12 @@ function desenharCla() {
   t.append(opcaoAvisos());
   raiz.append(t);
   if (info.sobe) raiz.append(cartaoSobe(info.sobe));
+  if (info.com?.length) { // com os recrutas, ainda vão para o Baú do Clã + Entregar tudo (André 2026-11-26), igual ao jogo
+    const c = el('div', 'card'), l = el('div', 'linha'), b = el('button', 'acao', 'Entregar tudo no Baú');
+    b.onclick = () => { b.disabled = true; setTimeout(() => { b.disabled = false; }, 1500); pedir({ acao: 'entregar', id: '*' }); };
+    l.append(el('div', 'nome', 'Com os recrutas (vão para o Baú do Clã)'), b); c.append(l);
+    const f = el('div', 'icones'); for (const it of info.com) f.append(iconeQtd(it)); c.append(f); raiz.append(c);
+  }
   if ('bau' in info) raiz.append(cartaoBau(info.bau, info.bauCheio, info.bauLug));
   if (info.gu) raiz.append(cartaoGuerra(info.gu)); // Patente de Guerra (André 2026-11-26)
   if (!info.m.length) raiz.append(el('div', 'vazio', 'Nenhum recruta ainda. Contrate no Recrutador, no jogo.'));
@@ -423,7 +437,7 @@ function desenharLog() {
 // num JPEG só (painel-mapa.jpg, ~85 KB, feito por ferramentas/painel/mapa-painel.py com as cores do mapa do jogo) e os
 // pontos por cima. Zoom no + e −, arrastar com o dedo e pinça. Sem mexer, o quadro se ajusta a quem está no mundo.
 const MUNDO = { x0: -560, z0: -540, w: 1524, h: 2044 }; // a grade do mundo (godot-prototipo/dados/mundo_grade.json): nx·passo, nz·passo
-const ZOOM = { min: 40, max: 2200 }; // metros que cabem no lado do quadro
+const ZOOM = { min: 12, max: 2200 }; // metros que cabem no lado do quadro
 const fundoMapa = new Image(); fundoMapa.onload = () => { if (aba === 'jogar' && info) desenharMapa(); }; fundoMapa.src = 'painel-mapa.jpg';
 // a Vila de hoje nítida por cima (o mesmo desenho do minimapa do jogo: ferramentas/painel/vila-painel.mjs), com a borda
 // esfumada para casar com o fundo
@@ -440,14 +454,24 @@ let vilaMapa = null;
 let vista = null; // { cx, cz, span } quando a pessoa mexeu no mapa; null = ajusta sozinho
 const limitar = (v) => { v.span = Math.max(ZOOM.min, Math.min(ZOOM.max, v.span)); v.cx = Math.max(MUNDO.x0, Math.min(MUNDO.x0 + MUNDO.w, v.cx)); v.cz = Math.max(MUNDO.z0, Math.min(MUNDO.z0 + MUNDO.h, v.cz)); return v; };
 let quadro = null; // a vista do último desenho (para o zoom e o arrasto partirem dela)
-const zoom = (f) => { if (!quadro) return; vista = limitar({ ...quadro, span: quadro.span * f }); desenharMapa(); };
+// Jogar (André 2026-11-26: "o mapa ser um pouco mais próximo... quando eu aproximo e quero ir caminhando com ele, o mapa não
+// anda junto"): o mapa segue o herói em qualquer zoom; + e − (e a pinça) só mudam o zoom de seguir. Arrastar com um dedo
+// solta o mapa; tocar para andar (ou o centralizar) volta a seguir, no mesmo zoom. Padrão 70 m (era 140)
+let spanSegue = (() => { try { return Number(localStorage.getItem('leveZoom')) || 70; } catch { return 70; } })();
+// na luta (André 2026-11-26: "o zoom no combate... me posicionar... noção da distância"): um zoom próprio, bem mais perto
+// (padrão 28 m), também mudado pelo + e −; acabou a luta, volta ao zoom de andar
+let spanLuta = (() => { try { return Number(localStorage.getItem('leveZoomLuta')) || 28; } catch { return 28; } })();
+const naLuta = () => !!(leve.f && (emLuta(leve.f.eu[6]) || bichoPerto()));
+const seguindo = () => !vista && aba === 'jogar' && leve.f;
+const guardarZoom = (s) => { const v = Math.max(ZOOM.min, Math.min(ZOOM.max, s)), luta = naLuta(); if (luta) spanLuta = v; else spanSegue = v; try { localStorage.setItem(luta ? 'leveZoomLuta' : 'leveZoom', String(Math.round(v))); } catch { /* sem armazenamento */ } };
+const zoom = (f) => { if (!quadro) return; if (seguindo()) guardarZoom(quadro.span * f); else vista = limitar({ ...quadro, span: quadro.span * f }); desenharMapa(); };
 $('mapaMais').onclick = () => zoom(1 / 1.6);
 $('mapaMenos').onclick = () => zoom(1.6);
-$('mapaCentro').onclick = () => { vista = null; desenharMapa(); };
+$('mapaCentro').onclick = () => { if (vista && aba === 'jogar') guardarZoom(vista.span); vista = null; desenharMapa(); }; // centralizar: segue no zoom que estava
 { // arrastar (um dedo ou o mouse) e pinça (dois dedos)
   const cv = $('mapa'), dedos = new Map(); let ini = null;
   const estado = () => { const p = [...dedos.values()]; return { p, d: p.length > 1 ? Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) : 0, mx: p.reduce((s, o) => s + o.x, 0) / p.length, my: p.reduce((s, o) => s + o.y, 0) / p.length }; };
-  const comecar = () => { ini = dedos.size && quadro ? { ...estado(), v: { ...quadro } } : null; };
+  const comecar = () => { ini = dedos.size && quadro ? { ...estado(), v: { ...quadro }, segue: !!(ini?.segue && dedos.size > 1) || seguindo() } : null; };
   let toque = null; // Jogar: toque curto no mapa = ir até lá
   cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture?.(e.pointerId); dedos.set(e.pointerId, { x: e.clientX, y: e.clientY }); comecar(); toque = dedos.size === 1 ? { x: e.clientX, y: e.clientY, v: vista } : null; });
   cv.addEventListener('pointermove', (e) => {
@@ -455,11 +479,12 @@ $('mapaCentro').onclick = () => { vista = null; desenharMapa(); };
     dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const a = estado(), m = ini.v.span / cv.clientWidth; // metros por pixel da tela
     const span = a.p.length > 1 && ini.d > 0 && a.d > 0 ? ini.v.span * (ini.d / a.d) : ini.v.span;
-    vista = limitar({ cx: ini.v.cx - (a.mx - ini.mx) * m, cz: ini.v.cz - (a.my - ini.my) * m, span });
+    if (ini.segue && a.p.length > 1) guardarZoom(span); // pinça seguindo o herói: só o zoom, o mapa continua com ele
+    else vista = limitar({ cx: ini.v.cx - (a.mx - ini.mx) * m, cz: ini.v.cz - (a.my - ini.my) * m, span });
     desenharMapa();
   });
   const soltar = (e) => {
-    if (e.type === 'pointerup' && toque && dedos.size === 1 && Math.hypot(e.clientX - toque.x, e.clientY - toque.y) < 10 && aba === 'jogar') { vista = toque.v; tocarMapaLeve(e); }
+    if (e.type === 'pointerup' && toque && dedos.size === 1 && Math.hypot(e.clientX - toque.x, e.clientY - toque.y) < 10 && aba === 'jogar') { vista = toque.v; tocarMapaLeve(e); vista = null; } // andou: o mapa volta a seguir o herói (no zoom de seguir)
     toque = null; dedos.delete(e.pointerId); comecar();
   };
   cv.addEventListener('pointerup', soltar); cv.addEventListener('pointercancel', soltar);
@@ -489,7 +514,7 @@ function desenharMapa() {
   const bots = ler('painelBots') === '1';
   if (bots) for (const C of info.clas || []) if (Number.isFinite(C.x)) pts.push({ x: C.x, z: C.z, cor: C.inimigo ? '#ff3b30' : C.raca === 'Geada' ? '#6fb3e6' : '#e0663a', nome: C.lider, r: 5, losango: true });
   $('mapaBots').checked = bots;
-  if (!vista && jogando) quadro = limitar({ cx: leve.f.eu[0], cz: leve.f.eu[1], span: 140 }); // Jogar: segue o herói
+  if (!vista && jogando) quadro = limitar({ cx: leve.f.eu[0], cz: leve.f.eu[1], span: naLuta() ? spanLuta : spanSegue }); // Jogar: segue o herói (na luta, mais perto)
   else if (!vista) { // ajusta sozinho a quem está no mundo
     const base = pts.length ? pts : [{ x: 0, z: 0 }];
     const x0 = Math.min(...base.map((p) => p.x)), x1 = Math.max(...base.map((p) => p.x)), z0 = Math.min(...base.map((p) => p.z)), z1 = Math.max(...base.map((p) => p.z));
@@ -544,6 +569,9 @@ function desenharMapa() {
     g.fillStyle = p.cor; g.strokeStyle = 'rgba(12,10,8,.9)'; g.lineWidth = Math.max(1.5, W / 400); g.beginPath();
     if (p.losango) { g.moveTo(a, b - r * 1.3); g.lineTo(a + r * 1.3, b); g.lineTo(a, b + r * 1.3); g.lineTo(a - r * 1.3, b); g.closePath(); } else g.arc(a, b, r, 0, 6.283);
     g.fill(); g.stroke();
+    if (p.eu && jogando && naLuta()) { // na luta: o alcance do golpe (2,3 m) em volta do herói, para medir a distância dos bichos
+      const [ra] = P(p.x + 2.3, p.z); g.save(); g.setLineDash([W / 90, W / 120]); g.strokeStyle = 'rgba(255,220,120,.7)'; g.lineWidth = Math.max(1.5, W / 300); g.beginPath(); g.arc(a, b, Math.abs(ra - a), 0, 6.283); g.stroke(); g.restore();
+    }
     if (p.eu) { g.strokeStyle = 'rgba(255,255,255,.45)'; g.lineWidth = r * 0.7; g.beginPath(); g.arc(a, b, r * 1.7, 0, 6.283); g.stroke(); marcas.unshift([p.nome, a, b - r * 2 - 5]); continue; }
     marcas.push([p.nome, a, b - r - 5]);
   }
@@ -607,7 +635,7 @@ function ligarLeve(s) {
 function sairLeve() { if (!leve.sala) return; leve.saindo = true; leve.sala.leave(); }
 function eventoLeve(e) {
   if (e.t === 'aviso') aviso(e.texto);
-  else if (e.t === 'leveRota') { leve.rota = e.pontos.length ? e.pontos : null; leve.rotaI = 0; if (e.pontos.length) leve.rotaNome = e.nome || ''; if (e.texto) aviso(e.texto); }
+  else if (e.t === 'leveRota') { if (e.pontos.length && aba === 'jogar') vista = null; leve.rota = e.pontos.length ? e.pontos : null; leve.rotaI = 0; if (e.pontos.length) leve.rotaNome = e.nome || ''; if (e.texto) aviso(e.texto); }
   else if (e.t === 'leilao') { leve.leilao = e; leve.sujo = true; }
   else if (e.t === 'bau') { leve.bau = e; leve.sujo = true; }
   else if (e.t === 'vila') { leve.rec = e.fase === 'comeca' ? Date.now() + (e.dur || 0) * 1000 : 0; leve.sujo = true; }
@@ -648,7 +676,7 @@ function chatLeve(novas) {
   }
   const lista = $('chatLista'), embaixo = lista.scrollTop + lista.clientHeight >= lista.scrollHeight - 8;
   limpar(lista);
-  for (const m of leve.chat) { const d = el('div', m.meu ? 'meu' : ''); d.append(el('i', null, CANAIS[m.k] || m.k), el('b', null, m.n + ': '), document.createTextNode(m.x)); lista.append(d); }
+  for (const m of leve.chat) { const d = el('div', m.meu ? 'meu' : ''); d.append(el('i', null, CANAIS[m.k] || m.k), el('b', null, m.n + ': '), document.createTextNode(m.x)); if (m.h) d.append(el('small', 'ha', ' (' + haQuanto(m.h) + ')')); lista.append(d); }
   if (embaixo) lista.scrollTop = lista.scrollHeight;
 }
 // toque no mapa: vai até lá (perto de um lugar marcado, vai até ele, com o nome)
@@ -1080,12 +1108,16 @@ function desenharJogar() {
   const P = pertoAgora();
   cartaoAcao(raiz, P, morto, mn);
   const chave = [P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(','), montado ? 'm' : '', P.veio?.[0] || '', P.col.map((o) => o[0]).join(','), leve.f.co?.[0] || ''].join('|');
+  // andando (André 2026-11-26: "monte de pop-up que aparece quando eu estou caminhando"): passar perto de loja, baú ou veio
+  // não abre o "Aqui perto"; ele abre só quando o herói para ali (chegou de verdade)
+  if (leve.pertoPend && !leve.f.r && chave === jogarChave) { leve.pertoPend = false; if (!emLuta(morto) && (P.npc || P.bau || P.totem || P.veio)) { painelLeve = 'perto'; leve.sujo = true; } }
   if (chave === jogarChave && !leve.sujo && raiz.contains(st)) return;
   if (document.activeElement?.tagName === 'INPUT' && raiz.contains(document.activeElement) && chave === jogarChave) return; // digitando: não refaz
   if (chave !== jogarChave) { leve.sel = null; if (!P.npc || P.npc.f !== 'leilao') leve.leilao = null; if (!P.bau) leve.bau = null; }
   const algo = !!(P.npc || P.bau || P.totem), chegou = (algo && chave.split('|').slice(0, 3).join('|') !== jogarChave.split('|').slice(0, 3).join('|'))
     || (P.veio && P.veio[0] !== jogarChave.split('|')[6]); // chegou num veio: o Aqui abre com o Minerar
-  if (chegou && !emLuta(morto)) painelLeve = 'perto';
+  if (chegou && !emLuta(morto)) { if (leve.f.r) leve.pertoPend = true; else painelLeve = 'perto'; }
+  else if (chave !== jogarChave && !algo && !P.veio) leve.pertoPend = false;
   jogarChave = chave; leve.sujo = false;
   // tela do modo leve (André 2026-11-25: "tem q rolar muito... como o menu é sanfonado da pra limpar a tela"): o mapa ocupa
   // a tela; embaixo, uma barra com Perto, Mochila, Lugares e Chat. Cada botão abre um painel por cima do mapa (um por vez;
@@ -1123,6 +1155,8 @@ function desenharJogar() {
     else if (painelLeve === 'time') f.append(cartaoTime());
     else if (painelLeve === 'lugares' && leve.mapa?.lug) { lugaresAberto = true; const c = cartaoLugares(leve.mapa); c.firstChild.remove(); f.append(c); }
     raiz.append(f);
+    { let y0 = null; cab.addEventListener('touchstart', (e) => { y0 = e.touches[0].clientY; }, { passive: true }); // arrastar o topo da folha para baixo fecha
+      cab.addEventListener('touchend', (e) => { if (y0 != null && e.changedTouches[0].clientY - y0 > 50) abrirPainelLeve(''); y0 = null; }); }
     if (rolou) f.scrollTop = rolou;
     rolouChave = chave; rolouPainel = painelLeve;
     f.onscroll = () => { rolouChave = chave; rolouPainel = painelLeve; };
@@ -1137,6 +1171,9 @@ function desenharJogar() {
   red('🏠', 'Base', () => mandar('vila'), leve.rec > Date.now()); // o mesmo da casinha do jogo (Simulacao.voltarVila): canaliza e aparece no Baú do Clã
   red('👥', 'Time', () => abrirPainelLeve(painelLeve === 'time' ? '' : 'time'), painelLeve === 'time');
   red('💬', 'Chat', () => abrirPainelLeve(painelLeve === 'chat' ? '' : 'chat'), painelLeve === 'chat'); // Sair e Ajuda foram para a aba Mais
+  // Golpes (André 2026-11-26: "abrir e fechar essas skills a hora que eu quiser"): abre ou fecha a barra de golpes; fechada,
+  // volta sozinha quando uma luta de verdade começa
+  red('⚔️', 'Golpes', () => { golpesModo = golpesVisiveis() ? 'fechado' : 'aberto'; leve.sujo = true; desenharJogar(); }, golpesModo === 'aberto');
   raiz.append(rd);
   // 5: a dica da primeira vez (guardada no aparelho; o ❓ mostra de novo)
   if (dicaAberta === null) { try { dicaAberta = !localStorage.getItem('leveDica1'); } catch { dicaAberta = false; } }
@@ -1190,7 +1227,9 @@ function lutaLeve(raiz, morto, mana) {
     ga.textContent = `⚠️ Geada perto: ${geada.slice(0, 2).map((o) => `${o[0]}, Nv ${o[5]}`).join(' · ')}`;
     if (!raiz.contains(ga)) raiz.insertBefore(ga, raiz.children[1] || null);
   } else if (ga) ga.remove();
-  const perto = F.hb && emLuta(morto);
+  if (F.lu && !luAntes && golpesModo === 'fechado') golpesModo = null; // a luta começou: os golpes voltam
+  luAntes = !!F.lu;
+  const perto = F.hb && !morto && golpesModo !== 'fechado' && (golpesModo === 'aberto' || emLuta(morto) || bichoPerto()); // golpes já na tela com bicho chegando (André 2026-11-26: "quando as skills aparecem... já tô morto")
   if (!perto) { if (h) h.remove(); habChave = ''; return; }
   const chave = F.hb.l.map((o) => o[0] + o[1]).join('|') + F.hb.mg;
   if (!h || chave !== habChave) {
@@ -1214,14 +1253,34 @@ function lutaLeve(raiz, morto, mana) {
   }
   for (const [i, , cd, mn] of F.hb.l) {
     const b = h.querySelector(`[data-i="${i}"]`); if (!b) continue;
-    const sem = mn > mana; b.classList.toggle('espera', cd > 0 || sem); b.querySelector('.cd').textContent = cd > 0 ? cd : sem ? '💧' : '';
+    const sem = mn > mana; b.classList.toggle('espera', cd > 0 || sem); b._sem = sem; recarga(b, cd);
   }
   for (const [k, i, n, cd] of F.hb.po || []) {
     const b = h.querySelector(`[data-po="${k}"]`); if (!b) continue;
-    b.classList.toggle('espera', i < 0 || cd > 0); b.querySelector('.cd').textContent = cd > 0 ? cd : ''; b.querySelector('span').textContent = `${k === 'pocao' ? 'Vida' : 'Mana'} ×${n}`;
+    b.classList.toggle('espera', i < 0 || cd > 0); recarga(b, cd); b.querySelector('span').textContent = `${k === 'pocao' ? 'Vida' : 'Mana'} ×${n}`;
   }
   if (cartaoEl && h.parentNode !== cartaoEl) cartaoEl.append(h);
 }
+// recarga dos golpes (André 2026-11-26: "faltou os tempos"): o servidor manda os segundos que faltam a cada foto (0,5 s);
+// a página conta sozinha entre as fotos (décimos abaixo de 3 s) e escurece o botão de baixo para cima até liberar
+function recarga(b, cd) {
+  const agora = Date.now();
+  if (cd > 0) { const ate = agora + cd * 1000, resto = (b._ate || 0) - agora; if (!b._ate || resto <= 0 || Math.abs(ate - 500 - b._ate) > 1000) { b._ate = ate - 500; if (resto <= 0) b._max = cd; } b._max = Math.max(b._max || 0, cd); }
+  else { b._ate = 0; b._max = 0; }
+  pintarRecarga(b, agora);
+}
+function pintarRecarga(b, agora) {
+  const resto = Math.max(0, ((b._ate || 0) - agora) / 1000), t = b.querySelector('.cd'); if (!t) return;
+  t.textContent = resto > 0 ? (resto < 3 ? resto.toFixed(1) : Math.ceil(resto)) : b._sem ? '💧' : '';
+  b.style.setProperty('--cdp', resto > 0 && b._max ? Math.min(100, resto / b._max * 100).toFixed(0) + '%' : '0%');
+  if (resto <= 0 && b._ate) { b._ate = 0; if (!b._sem && !(b.dataset.po && b.classList.contains('vazia'))) b.classList.remove('espera'); }
+}
+setInterval(() => { if (aba !== 'jogar' || !cartaoEl) return; const agora = Date.now(); for (const b of cartaoEl.querySelectorAll('.habLeve button')) if (b._ate) pintarRecarga(b, agora); }, 100);
+// bicho a GOLPES_PERTO m ou menos: os golpes já aparecem (e o zoom de luta), antes da primeira pancada; o cartão não muda
+const GOLPES_PERTO = 12;
+let golpesModo = null, luAntes = false; // null = sozinho (luta ou bicho perto); 'aberto' / 'fechado' = o botão ⚔️ Golpes
+const golpesVisiveis = () => !!leve.f && !leve.f.eu[6] && golpesModo !== 'fechado' && (golpesModo === 'aberto' || emLuta(false) || bichoPerto());
+function bichoPerto() { const F = leve.f; return !!F && (F.m || []).some((o) => Math.hypot(o[0] - F.eu[0], o[1] - F.eu[1]) <= GOLPES_PERTO); }
 // em luta (André 2026-11-26): o servidor diz que bateu ou apanhou agora (lu), ou você escolheu um alvo, ou a Geada está
 // perto. Bicho parado perto NÃO vira luta (senão minerar ao lado de um bicho calmo some da tela): toque nele para atacar.
 function emLuta(morto) {
@@ -1318,7 +1377,7 @@ function cartaoTime() {
   for (const m of L) {
     const segue = m.fn?.k === 'seguir', r = el('div', 'recLeve'), n = el('div', 'n');
     const longe = m.on && Number.isFinite(m.x) && leve.f ? metros({ x: m.x, z: m.z }) : '';
-    n.append(el('b', null, `${m.nome} · Nv ${m.nv}`), el('small', null, !m.on ? 'fora do mundo' : m.morto ? 'caído' : segue ? `com você${longe ? ' · ' + longe : ''}` : `${m.fz || 'livre'}${longe ? ' · ' + longe : ''}`));
+    n.append(el('b', null, `${m.nome} · Nv ${m.nv}`), el('small', null, !m.on ? 'fora do mundo' : m.morto ? 'caído' : segue ? `com você${longe ? ' · ' + longe : ''}` : `${m.fz ? comHa(m.fz, m.fzT) : 'livre'}${longe ? ' · ' + longe : ''}`));
     const b = el('button', segue ? 'on' : '', segue ? 'Comigo ✓' : 'Chamar');
     b.disabled = !m.on; b.onclick = () => { ordemTime(m, !segue); leve.sujo = true; desenharJogar(); };
     r.append(n, b); c.append(r);

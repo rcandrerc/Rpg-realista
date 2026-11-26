@@ -538,7 +538,7 @@ export const Amiga = {
     // caiu lutando: renasce em casa (a cama dela), como qualquer jogador, e CONTINUA no time (André 2026-11-11: "quando o bot
     // morre, ele sai do meu time. Eu não quero"). Uma vez por queda: avisa, conserta no Tomás e repõe as poções na Rosa com o
     // ouro dela; ao levantar, o passoTimeAmiga a traz de volta até o dono pela estrada (montada).
-    if (j.morto) { if (!ia.caiu) { ia.caiu = true; ia.caiuT = this.tempo; this.evolucaoAmiga(j, 'morreu', ia.av?.c?.nome || (j.time ? 'no time' : '')); const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); if (ia.encomenda && !ia.encomenda.pronta) this.fimEncomendaAmiga(j, 'luta'); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
+    if (j.morto) { if (!ia.caiu) { ia.caiu = true; ia.caiuT = this.tempo; this.evolucaoAmiga(j, 'morreu', this.textoMorteAmiga(j)); const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); if (ia.encomenda && !ia.encomenda.pronta) this.fimEncomendaAmiga(j, 'luta'); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
     ia.caiu = false;
     if (j.duelo) return this.passoDueloAmiga(j); // duelando (shared/duelo.js): só luta contra quem chamou
     if (ia.jantar && this.jantarAmiga?.(j, dt)) return; // chamado para o jantar do clã: anda até a Mesa do Clã e senta (shared/jantar.js)
@@ -1163,6 +1163,14 @@ export const Amiga = {
   // se eles bugarem alguma missão") ----------
   // Só números do jogo, nada de conversa: { t, nv, o: 'nivel'|'missao'|'morreu'|'travou'|'reforco'|'evoluir', txt }.
   // Sai em /npcs.json (server/index.js) para a ronda diária contar ao André.
+  // a queda no diário (ronda de 26/11: o Gael caiu 37 vezes perto do Juncal e o diário não dizia de quê): o campo ou "no
+  // time", o que fazia, quem deu o golpe final (j.quedaDe, anotado no morrer de shared/simulacao.js) e onde caiu. De jogador
+  // de verdade não sai o nome, só "um jogador"; bot e recruta saem pelo nome. Só para a ronda (/npcs.json, com crachá).
+  textoMorteAmiga(j) {
+    const ia = j.ia || {}, q = j.quedaDe; j.quedaDe = null;
+    const de = !q ? 'sem golpe' : q.tipo === 'jogador' ? `${q.guerra ? 'guerra, ' : ''}${q.nome || 'um jogador'}` : `${TIPOS_INIMIGO[q.tipo]?.nome || q.tipo} Nv ${q.nivel}`;
+    return [ia.av?.c?.nome || (j.time ? 'no time' : ''), ia.av?.fase || '', `por ${de}`, `em ${Math.round(j.x)},${Math.round(j.z)}`].filter(Boolean).join(' · ');
+  },
   evolucaoAmiga(j, o, txt = '') {
     (j.evolucao ||= []).push({ t: Date.now(), nv: j.prog.nivel | 0, o, txt: String(txt).slice(0, 120) });
     if (j.evolucao.length > NPC_VIDA.evolucao.max) j.evolucao.splice(0, j.evolucao.length - NPC_VIDA.evolucao.max);
@@ -2292,7 +2300,9 @@ export const Amiga = {
     if (a.ia.av && ['ir', 'cacar'].includes(a.ia.av.fase)) return { ok: false, motivo: 'você já está caçando', ja: true };
     // soldado do clã (André 2026-11-22: "ele só obedece minhas regras e acabou. Só se ele tiver sem vigor"): sem horário,
     // sem limite do dia, sem desculpa; só o vigor zerado
-    if (this.soldadoAmiga()) return vigorAgora(a.prog.vigor) < 1 ? { ok: false, motivo: 'você está sem vigor', fala: SEM_VIGOR, semVigor: true } : { ok: true };
+    // André 2026-11-26 ("carne crua vem dos mobs e não precisa de vigor"): caçar (grind, carne, couro...) não gasta nem pede
+    // vigor; vigor é só das profissões, horta e transporte
+    if (this.soldadoAmiga()) return { ok: true };
     if (!naHoraDe(this.rotinaAmiga(), horaDoJogo(a.prog.dia))) { // André 2026-11-18 (ronda): "ainda é dia, temos que ficar até a noite" (inventou): o horário de verdade
       const R = this.rotinaAmiga(), hh = (h) => `${Math.floor(h)}h`;
       return { ok: false, motivo: `está fora do seu horário de caçar ${this.AMIGA.genero === "m" ? "sozinho" : "sozinha"} (você sai das ${hh(R.saiDe)} às ${hh(R.voltaDe)}; agora são ${hh(horaDoJogo(a.prog.dia))})`, fala: ehNoite(horaDoJogo(a.prog.dia)) ? 'de noite eu não saio, só quando amanhecer' : 'agora não é meu horário de sair, mais tarde eu vou' };

@@ -705,6 +705,14 @@ class SalaClareira extends Room {
       const texto = typeof m.texto === 'string' ? m.texto.slice(0, 24) : undefined; // parte do nome, sem acento nem maiúscula (semAcento)
       return client.send('painelLeilao', { lista: leilao.buscar({ tipo, ordem, texto }, kc).map(app), meus: leilao.meus(kc).map(app), tipos: TIPOS_LEILAO, agora });
     }
+    if (m.acao === 'entregar' && typeof m.id === 'string' && m.id.length <= 20) { // Entregar no Baú (André 2026-11-26)
+      if (agora - (u.painelOrdem || 0) < PAINEL.ordemMs) return; u.painelOrdem = agora;
+      const k = 'c' + client.auth.id, h = heroiDe(k);
+      if (h) { h.s.sim.cla(h.j.id, { acao: 'entregar', id: m.id }); return this.enviarPainel(client, 'Pedido enviado (você está no jogo)'); }
+      const prog = contas.lerProgresso(client.auth.id);
+      if (!prog?.cla) return this.enviarPainel(client, 'Você não tem clã');
+      return this.enviarPainel(client, this.sim.painelEntregar(k, prog.cla, prog.raca, m.id));
+    }
     if (m.acao !== 'funcao' || typeof m.id !== 'string' || m.id.length > 20) return;
     if (agora - (u.painelOrdem || 0) < PAINEL.ordemMs) return;
     u.painelOrdem = agora;

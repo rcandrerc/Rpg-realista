@@ -264,7 +264,7 @@ ok(true, 'simulação roda com os recrutas');
   ok(!naHoraDe(R, horaDoJogo(a.prog.dia)) && v.ok, `fora do horário dele (${horaDoJogo(a.prog.dia).toFixed(0)}h): vai upar mesmo assim`);
   a.ia.av = null; a.prog.vigor = { v: 0, t: Date.now() };
   const v2 = x.sairCacarAmiga(a, L);
-  ok(!v2.ok && v2.fala === 'Estou sem vigor, no momento não posso.', `sem vigor: única recusa (${v2.fala})`);
+  ok(v2.ok, `sem vigor: caçar não pede vigor (André 2026-11-26: carne crua vem dos mobs) (${v2.fala || 'ok'})`);
 }
 {
   const s6 = new Simulacao(MAPA_CLAREIRA);
