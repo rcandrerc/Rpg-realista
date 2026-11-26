@@ -8,8 +8,8 @@
 import { planejarRota, terraId } from './rota.js';
 import { TUNEL } from './caverna.js';
 import { LUGARES_MUNDO } from './mundo.js';
-import { LUGARES, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
-import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax } from './progresso.js';
+import { LUGARES, TITULOS, BUILD_PADRAO, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
+import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax, ATRIBUTOS, xpProximo } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
 import { liberado, missaoAtual } from './historia.js';
 
@@ -312,7 +312,18 @@ export const Leve = {
     }
     const G = this.guildaInfo(j), B = this.baseDe?.(j);
     return { hi, di: this.diariasInfo(j), gu: G && { rank: G.rank, pg: G.pg, pgMax: G.pgMax, prova: G.prova ? 1 : 0, pv: G.pv ? 1 : 0, perto: G.perto ? 1 : 0, ativos: G.ativos, l: G.l },
-      mc: j.prog.cla && B ? this.missaoInfo(B) : null };
+      mc: j.prog.cla && B ? this.missaoInfo(B) : null, pe: this.personagemLeve(j) };
+  },
+  // Personagem (etapa 4, André 2026-11-26): status, atributos (+ e Confirmar = msg 'atributos'), golpes (a build de 8 do
+  // jogo = msg 'build') e títulos (msg 'item' titulo). Tudo o servidor confere, como no menu do jogo.
+  personagemLeve(j) {
+    const p = j.prog, st = j.st || {}, pc = (v) => Math.round((v || 0) * 1000) / 10;
+    const b = (o) => Object.entries(o || {}).map(([k, v]) => `+${pc(v)}% ${({ dano: 'dano', vida: 'vida', critico: 'crítico', defesa: 'defesa', xp: 'XP', venda: 'venda' })[k] || k}`).join(' · ');
+    return { nv: p.nivel | 0, xp: Math.floor(p.xp || 0), xpM: xpProximo(p.nivel), pts: p.pontos | 0, atr: p.atr,
+      an: Object.fromEntries(Object.entries(ATRIBUTOS).map(([k, A]) => [k, [A.nome, A.desc]])),
+      st: [['Vida', Math.round(j.vidaMax)], ['Mana', Math.round(j.manaMax)], ['Defesa', Math.round(st.defesa || 0)], ['Dano físico', Math.round(st.danoFisico || 0)], ['Dano mágico', Math.round(st.danoMagico || 0)], ['Crítico', pc(st.critico) + '%']],
+      bd: j.build || BUILD_PADRAO, hs: Object.entries(HABILIDADES).filter(([, H]) => H.tipo === 'Espada' || H.tipo === 'Magia').map(([k, H]) => [k, H.nome, H.tipo === 'Espada' ? 0 : 1, H.desc || '']),
+      tit: p.tit?.uso || '', tits: (p.tit?.tem || []).filter((k) => TITULOS[k]).map((k) => [k, TITULOS[k].nome, `${TITULOS[k].como}${TITULOS[k].b ? ' · ' + b(TITULOS[k].b) : ''}`]) };
   },
   // a foto pequena da página: eu, o caminho que falta, e só quem está perto
   fotoLeve(j) {
