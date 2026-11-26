@@ -7,7 +7,7 @@ extends RefCounted
 
 const PARTES := [["FaceBrow", "sobrancelha"], ["HAIR", "cabelo"], ["EyeIris", "olhos"], ["SKIN", "pele"], ["Bottoms", "calca"], ["Tops", "roupa"], ["Accessory", "roupa"]]
 const ROSTO := ["olhosT", "narizT", "bocaT"]
-const CORES := ["cabelo", "olhos", "pele", "roupa", "calca"]
+const CORES := ["cabelo", "olhos", "pele", "roupa", "calca", "borda", "capa", "capa_borda"]
 
 # troca a cor guardando o claro e escuro da textura ("troca"); a pele multiplica cada canal ("razao"), como no site
 # As contas são feitas no mesmo espaço de cor em que a textura chega no shader (linear no celular; no renderizador de
@@ -88,9 +88,16 @@ static func aplicar(no: Node3D, ap, esperar := true) -> void:
 	var cr = _cor(int(a.roupa)) if a.get("roupa") != null else null
 	var cc = _cor(int(a.calca)) if a.get("calca") != null else cr
 	# (has_meta antes: get_meta com padrão null dá ERROR no log a cada chamada; centenas por partida no robô 2, 24/11)
-	if (no.get_meta("cor_roupa") if no.has_meta("cor_roupa") else null) != cr or (no.get_meta("cor_calca") if no.has_meta("cor_calca") else null) != cc:
-		no.set_meta("cor_roupa", cr)
-		no.set_meta("cor_calca", cc)
+	# André 2026-11-25: borda do set, cor da capa (sem escolha = a do set, como antes) e borda da capa
+	var cb = _cor(int(a.borda)) if a.get("borda") != null else null
+	var ck = _cor(int(a.capa)) if a.get("capa") != null else cr
+	var ckb = _cor(int(a.capa_borda)) if a.get("capa_borda") != null else cb # André 26/11: borda da capa = a do set
+	var muda := false
+	for par in [["cor_roupa", cr], ["cor_calca", cc], ["cor_borda", cb], ["cor_capa", ck], ["cor_capa_borda", ckb]]:
+		if (no.get_meta(par[0]) if no.has_meta(par[0]) else null) != par[1]:
+			no.set_meta(par[0], par[1])
+			muda = true
+	if muda:
 		load("res://armadura.gd").tingir_v5(no)
 	var alt = a.get("altura")
 	no.scale = Vector3.ONE * (float(alt) if alt != null else 1.0)

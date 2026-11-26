@@ -14,7 +14,7 @@ jobs:
   rede:
     # Repositório PRIVADO: roda na Oracle (vaga de testes; sem ela, no runner dos builds), sem gastar a cota do GitHub.
     # Público: máquina do GitHub, como antes. Ver ferramentas/runner/LEIAME.md.
-    runs-on: ${{ github.event.repository.private && (vars.RUNNER_TESTES || vars.RUNNER_BUILD) || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.repository.private && (vars.RUNNER_TESTES || vars.RUNNER_BUILD || 'aethra-build') || 'ubuntu-latest' }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -58,7 +58,7 @@ jobs:
   vulkan:
     # Repositório PRIVADO: roda na Oracle (vaga de testes; sem ela, no runner dos builds), sem gastar a cota do GitHub.
     # Público: máquina do GitHub, como antes. Ver ferramentas/runner/LEIAME.md.
-    runs-on: ${{ github.event.repository.private && (vars.RUNNER_TESTES || vars.RUNNER_BUILD) || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.repository.private && (vars.RUNNER_TESTES || vars.RUNNER_BUILD || 'aethra-build') || 'ubuntu-latest' }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
