@@ -225,7 +225,11 @@ export const Leve = {
     const L = this.loteDe?.(j);
     if (L) for (const o of L.pecas || []) if (o.k === 'bau' || o.k === 'bau_cla') baus.push({ cla: o.k === 'bau_cla' ? 1 : 0, x: r1(o.x), z: r1(o.z) });
     const bb = this.bauBase?.(this.baseDe?.(j)); if (bb) baus.push({ cla: 1, x: r1(bb.x), z: r1(bb.z) });
-    return { npcs, totens, loja, baus, lug: this.leveLugares(j) };
+    // no mapa, como o minimapa do jogo (minimapa.gd, André 2026-11-26: "todos os recursos, spots aparecendo no próprio mapa"):
+    // as clareiras de caça [x, z, nível, bicho, boss] e as zonas de mineração [x, z, tipo]
+    const cc = CACA.filter((c) => !c.tunel && Number.isFinite(c.x)).map((c) => [r1(c.x), r1(c.z), c.nivel | 0, c.bicho || '', c.boss ? 1 : 0]);
+    const mn = (this.mapa.mina || []).map((o) => [r1(o.x), r1(o.z), o.tipo || '']);
+    return { npcs, totens, loja, baus, lug: this.leveLugares(j), cc, mn };
   },
   // a lista "Lugares" do mapa (André 2026-11-25: "menu igual do jogo real com todos os NPCs, recursos, mercadores, e
   // sanfonado, que pudesse clicar ir para"): as mesmas seções do mapa do jogo (minimapa.gd SECOES). [seção, nome, x, z].
@@ -440,7 +444,7 @@ export const Leve = {
       ...(R ? { r: [Math.round(falta), Math.round(falta / (v || 1))] } : {}),
       g, m, hb: this.habLeve(j), c: this.coletaLeve(j), ...(j.coleta ? { co: [j.coleta.no, COLETA[this.coletaveis.get(j.coleta.no)?.tipo]?.nome || ''] } : {}),
       ...(j.pesca ? { pe: [j.pesca.st, j.pesca.st === 'briga' ? Math.round(j.pesca.prog * 100) : 0] } : {}), // pescando (etapa 6): o estado e a barra da briga
-      ...((() => { const s = this.spotsLeve(j)[0]; return s ? { sp: Math.round(s[1]) } : {}; })()), // metros até o spot de pesca à vista
+      ...((() => { const l = this.spotsLeve(j); return l.length ? { sp: Math.round(l[0][1]), ss: l.slice(0, 12).map(([v]) => [r1(v.x), r1(v.z)]) } : {}; })()), // metros até o spot de pesca à vista; ss: os spots no mapa (à vista ou com o Radar, como no jogo)
       ...(this.emCombate(j) ? { lu: 1 } : {}), // em luta (bateu ou apanhou nos últimos ESTAMINA.combate s): o cartão de baixo vira "Em luta" (André 2026-11-26)
     };
   },
