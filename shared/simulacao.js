@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, moverQtd, pilhasIguais, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos, fatorDropNivel } from './progresso.js';
-import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, curaDe, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, totemMaisPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado } from './dados.js';
+import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, curaDe, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, totemMaisPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado, patenteDe, pontosGuerra } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
 import { Transporte, carrinhoNovo, topoCarrinho, lugarDoVeiculo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
@@ -31,6 +31,7 @@ import { MissaoCla } from './missao-cla.js'; // Missão do Clã em grupo (André
 import { Guilda } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11-18)
 import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
 import { Guerra } from './guerra.js'; // Chama x Geada (André 2026-11-18)
+import { Patente } from './patente.js'; // Patente de Guerra (André 2026-11-26)
 import { Arena } from './arena.js'; // Arena PvP 3x3 Geada x Chama (André 2026-11-21)
 import { Leve } from './leve.js'; // modo leve: jogar pelo painel do clã (André 2026-11-25)
 import { RIVAIS, RACA_PADRAO, GUERRA, RACAS, COMANDOS_TIME } from './dados.js';
@@ -486,6 +487,7 @@ export class Simulacao {
     if (testador && j.prog.rgDado !== 1 && guardar(j.prog.mochila, { k: 'rastreio', n: GUERRA.radar.presente })) { j.prog.rgDado = 1; j.progSujo = true; } // Pó de rastreio de presente para testar (André 2026-11-22)
     if (robo) j.robo = true; // robô de testes (ferramentas/robo): não negocia, não compra terreno, não puxa o nível dos NPCs
     this.nascerOndeSaiu(j);
+    if (!robo) this.fecharMesPatente(j); // Patente de Guerra: prêmio do mês que fechou enquanto estava fora
     this.conferirTitulos(j, true); // conta de antes dos títulos: já ganha os que o progresso merece (sem faixa)
     this.aplicarStatus(j, true);
     j.sta = j.staMax;
@@ -2867,7 +2869,7 @@ export class Simulacao {
     return s.n;
   }
   proximaBatida(j, no) {
-    const C = COLETA[no.tipo], dur = C.tempo / profBonus(j.prog.prof[C.prof]).rapidez / (j.rende || 1); // j.rende: moral x mesa do recruta (MORAL)
+    const C = COLETA[no.tipo], dur = C.tempo / profBonus(j.prog.prof[C.prof]).rapidez; // o rende do recruta (moral x mesa) mexe na quantidade, não na velocidade (batidaColeta)
     j.coleta = { no: no.id, x: j.x, z: j.z, fim: this.tempo + dur };
     this.evento({ t: 'coleta', id: j.id, no: no.id, dur: r2(dur), prof: C.prof });
   }
@@ -2881,7 +2883,12 @@ export class Simulacao {
     const b = profBonus(p.prof[C.prof]), ganhou = [];
     const por = (k, n) => { const q = guardarQueCabe(p.mochila, { k, n }); if (q) { const g = ganhou.find((x) => x.k === k); if (g) g.n += q; else ganhou.push({ k, nome: ITENS[k].nome, n: q }); } if (q < n) this.evento({ t: 'aviso', para: j.id, texto: 'Mochila cheia' }); }; // o que couber entra (o bônus +1 sem lugar não leva a coleta junto)
     const extra = b.extra + bonusTituloProf(p, C.prof, 'extra'); // título da profissão em uso
-    for (const [k, n] of Object.entries(C.da)) por(k, n + (Math.random() < extra ? 1 : 0));
+    // j.rende (recruta: moral x mesa, MORAL): a QUANTIDADE da batida, com o mesmo vigor (André 2026-11-26: "deveria ser drop
+    // e não velocidade... se no final vai dar no mesmo, pra que eu vou me matar?"). 120% = 20% a mais; 75% = 25% a menos (a
+    // fração vira chance). Igual à conta do tempo fora (trabalhoFora, rM)
+    const rende = (n) => { if (!j.rende || j.rende === 1) return n; const q = n * j.rende; return Math.floor(q) + (Math.random() < q - Math.floor(q) ? 1 : 0); };
+    let rendeuZero = false;
+    for (const [k, n0] of Object.entries(C.da)) { const n = rende(n0 + (Math.random() < extra ? 1 : 0)); if (n > 0) por(k, n); else rendeuZero = true; }
     for (const [k, ch] of Object.entries(C.raro || {})) if (Math.random() < ch && !filtrado(p, { k })) por(k, 1); // bônus desmarcado no filtro fica no chão
     const volta = no.mina ? this.minas.get(no.mina)?.volta ?? C.volta : C.volta;
     const s = { n: this.cargas(j, no) - 1, volta: this.tempo + volta };
@@ -2896,7 +2903,7 @@ export class Simulacao {
     this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: s.n, volta });
     for (const g of ganhou) this.historia(j, 'item', { k: g.k, n: g.n, de: 'coleta' });
     if (ganhou.length) { this.contarDiaria(j, 'coleta', { tipo: no.tipo }); this.contarGuilda(j, 'coleta', { tipo: no.tipo }); } // diária "Corte ou minere" e contrato da Guilda: uma por batida
-    if (!ganhou.length) return this.pararColeta(j, null);
+    if (!ganhou.length && !rendeuZero) return this.pararColeta(j, null); // rende baixo tirou a batida: segue batendo
     if (s.n <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`);
     if (vigorAgora(p.vigor) < this.custoVigor(j, C)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     this.proximaBatida(j, no);
@@ -2991,6 +2998,9 @@ export class Simulacao {
     const custo = P.vigor[k] * (1 - profBonus(p.prof.pes).menosVigor);
     gastarVigor(p, Math.min(custo, vigorAgora(p.vigor))); // Quimera: paga o que tem
     const dobro = Math.random() < P.dobro * profBonus(p.prof.pes).rank + bonusTituloProf(p, 'pes', 'extra') && guardar(p.mochila, { k, n: 1 });
+    // rende do recruta (MORAL, igual à batidaColeta): acima de 100% chance de +1 peixe; abaixo, chance de o peixe escapar
+    if (j.rende > 1 && Math.random() < j.rende - 1) guardar(p.mochila, { k, n: 1 });
+    else if (j.rende < 1 && Math.random() < 1 - j.rende) tirar(p.mochila, k, 1);
     this.pontosProf(j, 'pes', P.vigor[k]);
     p.vara = (p.vara || 0) + 1;
     let quebrou = false;
@@ -3081,6 +3091,8 @@ export class Simulacao {
   }
   // por que não dá para criar a receita agora: { motivo: '' | texto, npc: onde cria }
   motivoReceita(j, R) {
+    // André 2026-11-26: "nem uma barra de forja deve ser feita em criar": carvão e barras (ferro, cobre, aço) só saem da fornalha
+    if (RECEITA_ESTACAO(R) === 'fornalha') return { motivo: 'Carvão e barras só saem da fornalha: ponha o material e o combustível lá' };
     const of = OFICINA[R.prof];
     // perto da estação certa: a pública da vila (André 2026-11-11: o NPC não cria mais, quem cria é o herói na bigorna,
     // no forninho ou na bancada ao lado dele) ou uma construída num lote (bigorna, fornalha ou bancada)
@@ -4548,8 +4560,9 @@ export class Simulacao {
       }
     }
     this.passoMissoesCla(); // Escolta do Clã (shared/missao-cla.js)
+    this.passoPatente(); // Patente de Guerra (shared/patente.js): o mês virou?
     this.passoGuerra(); this.passoDuplasGuerra(); // Chama x Geada (shared/guerra.js): quem pode lutar agora e as falas de quem avistou alguém
-    if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); this.passoRecrutasSemLider?.(); this.passoProdRecrutas?.(); } // a semana do clã (shared/cla.js)
+    if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); this.passoObraCasas?.(60); this.passoRecrutasSemLider?.(); this.passoProdRecrutas?.(); } // a semana do clã (shared/cla.js)
     this.passoJantares(dt); // jantar do clã (shared/jantar.js)
     for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
     for (const j of this.jogadores.values()) { // modo leve: o servidor anda o herói (shared/leve.js); no carrinho, gasta combustível e não entra na água
@@ -5063,6 +5076,8 @@ export class Simulacao {
         semCapacete: !!j.prog.semCapacete,
         ...(j.espia && this.jogadores.get(j.espia) ? { espia: j.espia } : {}), // "Ver" o recruta (shared/cla.js): a visão do servidor fica em volta dele
         tit: j.prog.tit?.uso || null, // título em uso (aparece em cima da cabeça para todos)
+        cn: this.nomeClaFoto(j), // nome do clã em cima da cabeça (André 2026-11-26)
+        pt: j.prog.gu?.m === this.guerraMes?.m ? patenteDe(pontosGuerra(j.prog.gu)).i : 0, // Patente de Guerra do mês (escudo em cima da cabeça; 0 = Recruta)
         ...(j.prog.guilda?.r >= 7 && this.vantagensDe(j).marca ? { gss: 1 } : {}), // vantagem SS da Guilda: "SS" no nome para todos
         pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, ...((bd) => (bd ? { bd } : {}))(j.bordo ? this.fotoBordo(j) : null), // bd: o lugar no navio (fotoBordo) // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
@@ -5083,6 +5098,7 @@ export class Simulacao {
 // packs e transportes (FASE 1): as funções de shared/transporte.js entram na Simulacao
 Object.assign(Simulacao.prototype, Transporte);
 Object.assign(Simulacao.prototype, Amiga);
+Object.assign(Simulacao.prototype, Patente); // Patente de Guerra (André 2026-11-26, shared/patente.js)
 Object.assign(Simulacao.prototype, Kit);
 Object.assign(Simulacao.prototype, Plantio); // árvores plantadas (André 2026-11-16)
 Object.assign(Simulacao.prototype, Diarias); // missões diárias (André 2026-11-16)

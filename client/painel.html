@@ -47,7 +47,7 @@ button.acao:disabled{opacity:.5}
 .card.cheio{border-color:#d9534a;box-shadow:0 0 0 1px #d9534a inset}
 .tag.cheio{color:#fff;background:#b8382f;border-color:#d9534a}
 .tag.quase{color:#1a1206;background:#e0a03a;border-color:#f0b850}
-.moral{display:inline-flex;align-items:center;gap:4px;flex:none;cursor:pointer;font-size:.9rem}.moral img{width:20px;height:20px}.moral .ph{color:var(--muted);margin-right:4px}.moral .seta{width:15px;height:15px}.moral img.fome{width:16px;height:16px;filter:sepia(1) saturate(4) hue-rotate(-20deg)}.moral img.bem{width:16px;height:16px}
+.faz.ganho{font-size:.85rem}.faz.ganho.mais{color:#9ad86a}.faz.ganho.menos{color:#e0a050}.moral{display:inline-flex;align-items:center;gap:4px;flex:none;cursor:pointer;font-size:.9rem}.moral img{width:20px;height:20px}.moral .ph{color:var(--muted);margin-right:4px}.moral .seta{width:15px;height:15px}.moral img.fome{width:16px;height:16px;filter:sepia(1) saturate(4) hue-rotate(-20deg)}.moral img.bem{width:16px;height:16px}
 nav button.alerta::after{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#e0483e;margin-left:6px;vertical-align:2px}
 #aviso{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom,0) + 16px);max-width:608px;margin:0 auto;background:#2c2418;border:1px solid rgba(217,165,74,.5);border-radius:10px;padding:10px 12px;z-index:5}
 #mapa{width:100%;aspect-ratio:1;border-radius:12px;border:1px solid var(--line);background:#1a3e66;display:block;touch-action:none;cursor:grab}
@@ -56,6 +56,8 @@ nav button.alerta::after{content:"";display:inline-block;width:8px;height:8px;bo
 .zoom button{width:44px;height:44px;border-radius:10px;border:1px solid rgba(239,231,214,.35);background:rgba(16,15,12,.82);color:var(--ink);font:600 1.4rem/1 system-ui,sans-serif;cursor:pointer}
 .zoom button:active{background:rgba(217,165,74,.35)}
 .icones{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.ico.pat{width:64px}.ico.pat small{max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ico.pat .apagado{opacity:.7}
+.placar{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:6px;font-size:26px}.placar img{width:40px;height:40px}.placar .chama{color:#ff9a3c}.placar .geada{color:#8fd0ff}
 .ico{width:52px;display:grid;justify-items:center;gap:2px;cursor:pointer}
 .ico .q{width:46px;height:46px;border-radius:8px;background:#0b0a09;border:1px solid rgba(224,128,106,.8);display:grid;place-items:center;overflow:hidden}
 .ico.ok .q{border-color:rgba(115,199,115,.8)}
@@ -92,6 +94,7 @@ input.busca:focus{outline:none;border-color:var(--gold)}
 .opc{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted)}
 /* Jogar: o modo leve (André 2026-11-25) */
 /* tela do modo leve (André 2026-11-25: "tem q rolar muito"): mapa na tela toda, status em cima, barra embaixo, painéis por cima do mapa */
+body.leveTela #aviso{top:40%;font-size:.9rem;padding:6px 12px;bottom:auto;left:50%;right:auto;transform:translateX(-50%);width:max-content;max-width:min(86vw,420px);text-align:center;background:rgba(44,36,24,.9);pointer-events:none;z-index:6}
 #jogarAba.tela{display:block;position:relative;max-width:980px;padding:4px 8px 8px;overflow:hidden}
 #jogarAba.tela>#jogarMapa{position:absolute;inset:4px 8px 8px}
 #jogarAba.tela .mapaCx{height:100%}
@@ -101,6 +104,12 @@ input.busca:focus{outline:none;border-color:var(--gold)}
 #jogarAba.tela .hud{align-self:flex-start;width:calc(100% - 64px);max-width:440px;margin:6px 0 0 6px;padding:8px 10px;background:rgba(22,20,16,.86);backdrop-filter:blur(2px);color:var(--ink)}
 #jogarAba.tela .hud .faz,#jogarAba.tela .hud .nome{font-size:.8rem;margin:2px 0}
 .bts.mini{margin-top:4px;gap:5px}
+.coletaLeve{margin-top:6px;padding:8px 10px;border:1px solid rgba(217,165,74,.6);border-radius:10px;background:rgba(217,165,74,.12)}
+.coletaLeve .titulo{font-weight:700;font-size:1rem}
+.progColeta{height:8px;margin:6px 0 4px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden}
+.progColeta i{display:block;height:100%;width:0;background:#d9a54a;transition:width .5s linear}
+.progColeta.vai i{width:35%;animation:vaiColeta 1.2s linear infinite}
+@keyframes vaiColeta{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
 .bts.mini button.acao{flex:1 1 auto;min-height:32px;padding:0 8px;font-size:.78rem}
 #jogarAba.tela .folha{margin-top:auto;max-height:58%;overflow-y:auto;overscroll-behavior:contain;background:rgba(22,20,16,.95);border:1px solid var(--line);border-radius:12px;padding:8px;display:grid;gap:8px}
 #jogarAba.tela .folha .card{background:transparent;border:0;padding:2px}

@@ -27,7 +27,7 @@ const http = () => endereco().replace(/^ws/, 'http');
 
 function estado(txt, tipo = '') { const e = $('estado'); e.className = 'estado ' + tipo; e.lastElementChild.textContent = txt; }
 let avisoT = 0;
-function aviso(txt) { const a = $('aviso'); a.textContent = txt; a.hidden = false; clearTimeout(avisoT); avisoT = setTimeout(() => { a.hidden = true; }, 4000); }
+function aviso(txt) { const a = $('aviso'); a.textContent = txt; a.hidden = false; const hud = document.body.classList.contains('leveTela') && $('jogarStatus'); a.style.top = hud ? Math.round(hud.getBoundingClientRect().bottom + 8) + 'px' : ''; clearTimeout(avisoT); avisoT = setTimeout(() => { a.hidden = true; }, 4000); } // jogo leve: o aviso fica logo abaixo do quadro de cima, em cima do mapa (André 2026-11-26)
 
 // ---------- login (o mesmo do site do jogo: sessão guardada no aparelho, login com Google) ----------
 async function sessaoValida() {
@@ -137,13 +137,16 @@ const opcao = (v, t, sel) => { const o = el('option', null, t); o.value = v; if 
 const SETA = { cima: 'M8 1 15 9 10.5 9 10.5 15 5.5 15 5.5 9 1 9Z', baixo: 'M8 15 1 7 5.5 7 5.5 1 10.5 1 10.5 7 15 7Z', lado: 'M15 8 7 1 7 5.5 1 5.5 1 10.5 7 10.5 7 15Z' };
 function moralTag(m) {
   const t = el('span', 'moral');
-  if (m.ph) { const i = el('img'); i.src = `painel-icones/${m.ph.i}.png`; i.alt = ''; i.onerror = () => { i.remove(); }; t.append(i, el('span', 'ph', `~${m.ph.n}/h`)); }
+  // ícone da ordem com quanto pegou de verdade (pt.t) e, entre parênteses, quanto veio a mais/menos pelo rende (pt.x)
+  // (André 2026-11-26: "coletou tantos e entre parênteses quanto a mais porque estava com 120 de moral"); ~N/h no toque
+  const P = m.pt || (m.ph && { i: m.ph.i });
+  if (P) { const i = el('img'); i.src = `painel-icones/${P.i}.png`; i.alt = ''; i.onerror = () => { i.remove(); }; t.append(i, el('span', 'ph', m.pt ? `${m.pt.t}${m.pt.x ? ` (${m.pt.x > 0 ? '+' : ''}${m.pt.x})` : ''}` : `~${m.ph.n}/h`)); }
   const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('viewBox', '0 0 16 16'); sv.setAttribute('class', 'seta');
   const pa = document.createElementNS('http://www.w3.org/2000/svg', 'path'); pa.setAttribute('d', SETA[m.seta] || SETA.cima); pa.setAttribute('fill', m.cor || '#9ad86a'); sv.append(pa);
   const pc = el('b', null, `${m.re}%`); pc.style.color = m.cor || '';
   t.append(sv, pc);
   if (m.fm) { const f = el('img'); f.src = 'painel-icones/peixe_assado.png'; f.alt = ''; f.className = m.fm < 0 ? 'fome' : 'bem'; t.append(f); } // a comida mexe no %
-  t.onclick = () => aviso(`Moral ${m.ml} (${m.tr > 0 ? '+' : ''}${m.tr | 0} por hora)${m.fm ? ` · ${m.fn2}: ${m.fm > 0 ? '+' : ''}${m.fm}% (comida no Baú do Clã)` : ''} · rende ${m.re}%. Sobe: perto de você ou no seu time, Livre, Elogiar (no jogo). Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.`);
+  t.onclick = () => aviso(`${m.pt ? `Pegou ${m.pt.t} ${m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`}${m.ph ? ` (~${m.ph.n} por hora${m.re && m.re !== 100 ? `; com rende 100% seria ~${Math.round(m.ph.n * 100 / m.re)}: o rende muda quanto vem por batida, com o mesmo vigor` : ''})` : ' (o por hora aparece com 15 min)'} · ` : ''}Moral ${m.ml} (${m.tr > 0 ? '+' : ''}${m.tr | 0} por hora)${m.fm ? ` · ${m.fn2}: ${m.fm > 0 ? '+' : ''}${m.fm}% (comida no Baú do Clã)` : ''} · rende ${m.re}%. Sobe: perto de você ou no seu time, Livre, Elogiar (no jogo). Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.`);
   return t;
 }
 function cartaoMembro(m) {
@@ -152,6 +155,13 @@ function cartaoMembro(m) {
   n.append(el('span', 'tag', m.tier)); if (m.dev) n.append(el('span', 'tag', 'devendo')); if (m.cheia) n.append(el('span', 'tag cheio', 'Mochila cheia')); else if (m.mo) n.append(lugaresTag('Mochila', m.mo));
   l.append(n, ...(m.re ? [moralTag(m)] : []), el('div', 'nv', `Nv ${m.nv}`)); c.append(l);
   c.append(el('div', 'faz', m.on ? (m.morto ? 'Caído' : m.fz || '') : 'Fora do mundo'));
+  if (m.pt && m.fn?.k !== 'livre') { // o que rendeu a ordem: "Coletou 120 minério de ferro (+20 pela moral)"
+    const nome = m.fn?.k === 'grind' ? 'monstros' : (info.recursos.find((r) => r.k === m.fn?.r)?.nome || '');
+    const tempo = m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`;
+    const x = m.pt.x ? ` (${m.pt.x > 0 ? '+' : ''}${m.pt.x} pela moral${m.fm ? ' e comida' : ''})` : '';
+    const d = el('div', 'faz ganho' + (m.pt.x < 0 ? ' menos' : m.pt.x > 0 ? ' mais' : ''), `${m.fn?.k === 'grind' ? 'Derrotou' : 'Coletou'} ${m.pt.t} ${nome}${x} ${tempo}${m.ph ? ` · ~${m.ph.n}/h` : ''}`);
+    c.append(d);
+  }
   if (m.on) { const b = el('div', 'barras'); b.append(barra('Vida', m.hp, m.hpM, 'var(--hp)'), barra('Vigor', m.vg, m.vgM, 'var(--vg)')); c.append(b); }
   // ordem: as mesmas do painel do clã no jogo
   const o = el('div', 'ordem'), fn = el('select'), extra = el('select');
@@ -217,6 +227,32 @@ function cartaoBau(itens, cheio, lug) {
   if (!itens) { c.append(el('div', 'faz', 'Sem Baú do Clã: funde a base do clã ou crie um baú na construção.')); return c; }
   if (!itens.length) { c.append(el('div', 'faz', 'Vazio.')); return c; }
   const f = el('div', 'icones'); for (const it of itens) f.append(iconeQtd(it)); c.append(f);
+  return c;
+}
+// Patente de Guerra (André 2026-11-26, shared/patente.js guerraInfo): igual à parte "Guerra do mês" do clã no jogo:
+// placar Chama x Geada do mês e o escudo de cada um com o anel até a próxima patente (ícones, sem lista de texto)
+const PATENTES = ['Recruta', 'Soldado', 'Cabo', 'Sargento', 'Tenente', 'Capitão', 'Comandante', 'Lenda'];
+function escudoGuerra(o, raca, nome) {
+  const d = el('div', 'ico pat'), r = 21, C = 2 * Math.PI * r, cor = raca === 'geada' ? '#73c7ff' : '#ff8c2b';
+  d.innerHTML = `<svg viewBox="0 0 52 52" width="52" height="52"><circle cx="26" cy="26" r="${r}" fill="#0b0a09" stroke="#3d3326" stroke-width="4"/>`
+    + (o.pct > 0 ? `<circle cx="26" cy="26" r="${r}" fill="none" stroke="${cor}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(C * Math.min(1, o.pct)).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 26 26)"/>` : '')
+    + `<image href="painel-icones/patente/${raca === 'geada' ? 'geada' : 'chama'}_${o.i | 0}.png" x="11" y="11" width="30" height="30"/></svg>`;
+  d.append(el('small', null, nome), el('small', 'apagado', `${o.a | 0} abates`));
+  const i = o.i | 0, txt = i >= 7 ? 'Lenda · topo do mês' : `${PATENTES[i]} · ${Math.round((o.pct || 0) * 100)}% para ${PATENTES[i + 1]}`;
+  d.onclick = () => aviso(`${nome}: ${txt} · ${o.a | 0} abates no mês`);
+  return d;
+}
+function cartaoGuerra(G) {
+  const c = el('div', 'card'), l = el('div', 'linha');
+  l.append(el('div', 'nome', 'Guerra do mês'), el('div', 'nv', `Clã: ${G.cla | 0} abates`)); c.append(l);
+  const p = el('div', 'placar');
+  const lado = (r) => { const i = el('img'); i.src = `painel-icones/patente/${r}_3.png`; i.alt = r; return i; };
+  p.append(lado('chama'), el('b', 'chama', String(G.r?.chama | 0)), el('span', null, 'x'), el('b', 'geada', String(G.r?.geada | 0)), lado('geada'));
+  c.append(p);
+  const f = el('div', 'icones');
+  if (G.eu) f.append(escudoGuerra(G.eu, G.raca, 'Você'));
+  for (const o of G.m || []) f.append(escudoGuerra(o, G.raca, o.nome));
+  c.append(f, el('div', 'faz', 'Anel = quanto falta para a próxima patente. Dia 1º volta a Recruta e cada um ganha o prêmio da patente que pegou; o título da maior fica.'));
   return c;
 }
 function cartaoSobe(S) {
@@ -340,6 +376,7 @@ function desenharCla() {
   raiz.append(t);
   if (info.sobe) raiz.append(cartaoSobe(info.sobe));
   if ('bau' in info) raiz.append(cartaoBau(info.bau, info.bauCheio, info.bauLug));
+  if (info.gu) raiz.append(cartaoGuerra(info.gu)); // Patente de Guerra (André 2026-11-26)
   if (!info.m.length) raiz.append(el('div', 'vazio', 'Nenhum recruta ainda. Contrate no Recrutador, no jogo.'));
   for (const m of info.m) raiz.append(cartaoMembro(m));
 }
@@ -549,7 +586,15 @@ function eventoLeve(e) {
   else if (e.t === 'leilao') { leve.leilao = e; leve.sujo = true; }
   else if (e.t === 'bau') { leve.bau = e; leve.sujo = true; }
   else if (e.t === 'vila') { leve.rec = e.fase === 'comeca' ? Date.now() + (e.dur || 0) * 1000 : 0; leve.sujo = true; }
-  else if (e.t === 'coletou' && e.itens?.length) aviso(e.itens.map((o) => `+${o.n} ${o.nome}`).join(' · '));
+  else if (e.t === 'coleta') { // começou uma batida: zera a conta se for outro veio ou se parou faz tempo
+    const c = leve.col, agora = Date.now();
+    if (!c || c.no !== e.no || agora - c.ult > 12000) leve.col = { no: e.no, prof: e.prof, tot: {}, cargas: null, ult: agora };
+    Object.assign(leve.col, { ini: agora, dur: (e.dur || 1) * 1000, ult: agora }); leve.sujo = true;
+  }
+  else if (e.t === 'coletou') {
+    if (leve.col && leve.col.no === e.no) { for (const o of e.itens || []) leve.col.tot[o.nome] = (leve.col.tot[o.nome] || 0) + o.n; leve.col.cargas = e.cargas; leve.col.ult = Date.now(); }
+    if (e.itens?.length) aviso(e.itens.map((o) => `+${o.n} ${o.nome}`).join(' · ')); leve.sujo = true;
+  }
   else if (e.t === 'fabricando') { leve.fab = e.fim ? null : { nome: e.nome, ate: Date.now() + (e.dur || 0) * 1000 }; leve.sujo = true; }
   else if (e.t === 'chat') chatLeve([e]);
   else if (e.t === 'chatHist') { leve.chat = []; chatLeve(e.l); }
@@ -891,6 +936,8 @@ function cartaoLugares(M) {
   // 3 (André 2026-11-25): os lugares mais usados em 4 botões grandes (1 toque e o herói vai) e a busca pelo nome; as seções
   // continuam embaixo. Ir fecha o painel para ver o mapa.
   const ir = (a) => { irLeve(a); painelLeve = ''; leve.sujo = true; desenharJogar(); };
+  // recurso (veio, árvore, solto): o servidor escolhe o mais perto desse tipo que não está esgotado (André 2026-11-25)
+  const irLugar = (a) => { if (a.t) { mandar('leveIrRecurso', { t: a.t }); painelLeve = ''; leve.sujo = true; desenharJogar(); } else ir(a); };
   const base = M.lug.find((o) => o[0] === 'vilas' && o[1] === 'Base do clã'), nPerto = (f) => maisPerto(M.npcs.filter(f));
   const tot = maisPerto(M.totens.filter((t) => t.d)), lei = nPerto((n) => n.f === 'leilao'), loja = nPerto((n) => n.f === 'loja');
   const at = el('div', 'atalhos');
@@ -905,7 +952,7 @@ function cartaoLugares(M) {
   const achar = () => {
     buscaLug = busca.value; limpar(achados); const t = semAcento(buscaLug); if (!t) return;
     const r = M.lug.filter((o) => semAcento(o[1]).includes(t)).sort((a, b) => dEu({ x: a[2], z: a[3] }) - dEu({ x: b[2], z: b[3] })).slice(0, 12);
-    for (const [, nome, x, z] of r) { const b = el('button', 'linha'); b.append(el('span', null, nome), el('span', null, metros({ x, z }))); b.onclick = () => ir({ x, z, nome: nome.split(',')[0].replace(/ \(mais perto\)$/, '') }); achados.append(b); }
+    for (const [, nome, x, z, t] of r) { const b = el('button', 'linha'); b.append(el('span', null, nome), el('span', null, metros({ x, z }))); b.onclick = () => irLugar({ x, z, nome: nome.split(',')[0].replace(/ \(mais perto\)$/, ''), t }); achados.append(b); }
     if (!r.length) achados.append(el('div', 'faz', 'Nada com esse nome.'));
   };
   busca.oninput = achar; c.append(busca, achados); achar();
@@ -917,10 +964,10 @@ function cartaoLugares(M) {
     c.append(t);
     if (secAberta !== id) continue;
     const lista = PERTO_PRIMEIRO.has(id) ? [...L].sort((a, b) => dEu({ x: a[2], z: a[3] }) - dEu({ x: b[2], z: b[3] })) : L;
-    for (const [, nome, x, z] of lista) {
+    for (const [, nome, x, z, t] of lista) {
       const curto = nome.split(',')[0], pg = id === 'mercadores' ? pagaPk.get(curto) : 0;
       const b = el('button', 'linha'); b.append(el('span', null, id === 'mercadores' ? curto : nome), el('span', null, `${pg ? pg + ' de ouro · ' : ''}${metros({ x, z })}`));
-      b.onclick = () => ir({ x, z, nome: curto.replace(/ \(mais perto\)$/, '') });
+      b.onclick = () => irLugar({ x, z, nome: curto.replace(/ \(mais perto\)$/, ''), t });
       c.append(b);
     }
   }
@@ -963,7 +1010,14 @@ function desenharJogar() {
   const R = leve.f.r;
   if (leve.f.co && !morto) { // coletando: o que é e o Parar (a mesma mensagem do jogo)
     const l = el('div', 'bts mini'), p = el('button', 'acao cinza', 'Parar'); p.onclick = () => mandar('leveColetar', { no: leve.f.co[0], parar: true }); p.style.flex = '0 0 auto';
-    l.style.alignItems = 'center'; l.style.flexWrap = 'nowrap'; l.append(el('div', 'nome', `⛏️ Coletando: ${leve.f.co[1]}…`), p); l.firstChild.style.flex = '1'; st.append(l);
+    const c = leve.col?.no === leve.f.co[0] ? leve.col : null, [ic] = COLETA_VERBO[c?.prof] || COLETA_VERBO[''];
+    const fazendo = { min: 'Minerando', len: 'Cortando' }[c?.prof] || 'Coletando';
+    const box = el('div', 'coletaLeve'), topo = el('div', 'bts mini');
+    topo.style.alignItems = 'center'; topo.style.flexWrap = 'nowrap'; topo.append(el('div', 'titulo', `${ic} ${fazendo} ${leve.f.co[1]}…`), p); topo.firstChild.style.flex = '1';
+    const barra = el('div', 'progColeta'), enche = el('i'); barra.append(enche);
+    if (c?.ini) { const f = Math.min(1, (Date.now() - c.ini) / c.dur); enche.style.width = (f * 100).toFixed(0) + '%'; } else barra.classList.add('vai');
+    const tot = Object.entries(c?.tot || {}).map(([n, q]) => `${q} ${n}`).join(' · ');
+    box.append(topo, barra, el('div', 'faz', `Pegou: ${tot || 'nada ainda'}${c?.cargas != null ? ` · restam ${c.cargas}` : ''}`)); st.append(box);
   }
   if (morto) st.append(el('div', 'nome', 'Você caiu. Espere renascer no totem.'));
   else if (R) {
@@ -1104,11 +1158,21 @@ function lutaLeve(raiz, morto, mana) {
     });
     const tr = el('button'); tr.append(el('i', null, '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
     tr.onclick = () => mandar('modo', F.hb.mg ? 'Espada' : 'Magia'); h.append(tr);
+    // poções (André 2026-11-26): mesmas da mochila e mesma recarga do jogo (o servidor confere)
+    for (const [k, ic, nome] of [['pocao', '❤️', 'Poção vida'], ['pocao_mana', '💙', 'Poção mana']]) {
+      const b = el('button'); b.dataset.po = k; b.append(el('i', null, ic), el('span', null, nome), el('b', 'cd'));
+      b.onclick = () => { const p = (leve.f?.hb?.po || []).find((o) => o[0] === k); if (!p || p[1] < 0) return aviso(`Sem ${nome.toLowerCase()} na mochila`); if (p[3] > 0) return; mandar('item', { acao: 'usar', i: p[1] }); };
+      h.append(b);
+    }
     // sem botão Fugir (André 2026-11-25: "pra fugir eu clico no mapa"): tocar no mapa anda, mesmo no meio da luta
   }
   for (const [i, , cd, mn] of F.hb.l) {
     const b = h.querySelector(`[data-i="${i}"]`); if (!b) continue;
     const sem = mn > mana; b.classList.toggle('espera', cd > 0 || sem); b.querySelector('.cd').textContent = cd > 0 ? cd : sem ? '💧' : '';
+  }
+  for (const [k, i, n, cd] of F.hb.po || []) {
+    const b = h.querySelector(`[data-po="${k}"]`); if (!b) continue;
+    b.classList.toggle('espera', i < 0 || cd > 0); b.querySelector('.cd').textContent = cd > 0 ? cd : ''; b.querySelector('span').textContent = `${k === 'pocao' ? 'Vida' : 'Mana'} ×${n}`;
   }
   if (!raiz.contains(h)) raiz.insertBefore(h, raiz.querySelector('.doca'));
 }
@@ -1154,7 +1218,7 @@ function abrirPainelLeve(k) {
 }
 // o modo leve ocupa a altura que sobra embaixo do cabeçalho (sem rolar a página); o mapa se ajusta e redesenha
 function telaLeve(liga) {
-  const t = $('jogarAba'); t.classList.toggle('tela', liga);
+  const t = $('jogarAba'); t.classList.toggle('tela', liga); document.body.classList.toggle('leveTela', liga); // o aviso sobe para o meio do mapa (André 2026-11-26)
   const h = liga ? Math.max(360, Math.floor(innerHeight - t.getBoundingClientRect().top - 4)) + 'px' : '';
   if (t.style.height !== h) { t.style.height = h; if (aba === 'jogar' && info) requestAnimationFrame(() => desenharMapa()); }
 }

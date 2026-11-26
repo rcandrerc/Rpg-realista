@@ -252,6 +252,7 @@ var _frente_v := 0.0
 var _incl := 0.0
 var _incl_v := 0.0
 var _vel_ant := 0.0
+var cam_alvo = null # bicho que o herói está atacando agora (camera_heroi.gd gira para ele)
 var _dir_joy := Vector2.ZERO # para onde o joystick aponta agora (a cabeça vira antes do corpo)
 var _olhar := 0.0
 var _forca_joy := 0.0
@@ -467,6 +468,7 @@ func _ready() -> void:
 	buffs = Buffs.new(self)
 	add_child(buffs)
 	hud.buffs = buffs
+	hud.m = self # Patente de Guerra (hud.gd): o escudo lê o prog e o relógio do servidor
 	alvo_quadro = AlvoQuadro.new(self)
 	add_child(alvo_quadro)
 	leilao = LeilaoUi.new(self)
@@ -4213,6 +4215,10 @@ func atualizar_heroi(dt: float) -> void:
 	# o tiro básico do cajado anda junto, mais devagar (P.dados.andarAtirando), mudando aos poucos (sem tranco)
 	var k_alvo: float = float(P.dados.andarAtirando) if not acao.is_empty() and acao.get("livre", false) else 1.0
 	var alvo_mira = mira_mago()
+	# câmera acompanha o alvo enquanto bate (André 2026-11-26): o de quem está atacando agora; parou, fica livre
+	cam_alvo = alvo_mira
+	if cam_alvo == null and not acao.is_empty() and acao.has("alvo") and vivo(acao.alvo):
+		cam_alvo = acao.alvo
 	if alvo_mira != null:
 		k_alvo = float(P.dados.andarAtirando) # andando de lado ou de costas: o mesmo passo de quem atira
 	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)

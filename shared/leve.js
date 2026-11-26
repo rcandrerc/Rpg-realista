@@ -71,6 +71,21 @@ export const Leve = {
     if (tam > LEVE.montaDe && !j.montado && !j.veiculo && !this.motivoCarga?.(j) && liberado(j.prog, 'lobo') && !((j.pvpT ?? -1e9) + GUERRA.montaria > this.tempo && !j.pvp) && !(j.trava > 0) && !j.esc) { j.montado = 'lobo'; this.historia?.(j, 'montar'); }
     this.evento({ t: 'leveRota', para: id, pontos: r.pontos.map((p) => [Math.round(p.x), Math.round(p.z)]), nome: j.leveRota.nome });
   },
+  // Recursos > "Veio de ferro (mais perto)" (André 2026-11-25: "já me direciona pro mais próximo que não esteja esgotado...
+  // se o mais próximo tiver esgotado me joga pra outro"): o mais perto DESSE tipo com carga para você, na hora do toque.
+  // Só leva; minerar continua no toque do Minerar
+  leveIrRecurso(id, m) {
+    const j = this.jogadores.get(id); if (!j || !j.leve || j.criando || j.morto) return;
+    const t = String(m?.t || ''); if (!COLETA[t]) return;
+    let melhor = null, md = LEVE.longe;
+    for (const no of this.coletaveis.values()) {
+      if (no.tipo !== t || (no.y != null && Math.abs((j.y || 0) - no.y) > 2.5)) continue;
+      const d = Math.hypot(no.x - j.x, no.z - j.z); if (d >= md || this.cargas(j, no) <= 0) continue;
+      md = d; melhor = no;
+    }
+    if (!melhor) return this.evento({ t: 'aviso', para: id, texto: `${COLETA[t].nome}: todos esgotados por perto, volte mais tarde` });
+    this.leveIr(id, { x: melhor.x, z: melhor.z, nome: COLETA[t].nome });
+  },
   // Minerar / Cortar / Pegar pelo modo leve: perto, coleta na hora; longe, anda até a borda e coleta ao chegar
   leveColetar(id, m) {
     const j = this.jogadores.get(id); if (!j || !j.leve || j.criando || j.morto) return;
@@ -167,7 +182,7 @@ export const Leve = {
     for (const o of M.mina || []) ver('mina_' + o.tipo, { pedra: 'Veio de pedra', cobre: 'Veio de cobre', ferro: 'Veio de ferro', cristal: 'Veio de cristal' }[o.tipo] || o.nome, o);
     for (const o of M.mata || []) ver('arvore', 'Árvore, madeira', o);
     for (const o of M.soltos || []) if (o.tipo === 'galho' || o.tipo === 'pedrinha') ver(o.tipo, o.tipo === 'galho' ? 'Galho no chão' : 'Pedra solta', o);
-    for (const [, nome, o] of perto.values()) por('recursos', nome + ' (mais perto)', o.x, o.z);
+    for (const [k, [, nome, o]] of perto) { por('recursos', nome + ' (mais perto)', o.x, o.z); L[L.length - 1]?.push(k.startsWith('mina_') ? k.slice(5) : k); } // 5º: o tipo (leveIrRecurso escolhe o que não está esgotado)
     for (const o of M.lagos || []) if (o.pesca) por('pesca', o.nome, o.chegada?.[0] ?? o.x, o.chegada?.[1] ?? o.z);
     for (const o of M.estacoes || []) por('oficinas', o.nome, o.x, o.z);
     for (const n of M.npcs || []) por(n.funcao === 'pack' ? 'mercadores' : 'npcs', n.nome, n.x, n.z);
@@ -184,6 +199,9 @@ export const Leve = {
     if (e.t === 'chatHist') return { t: 'chatHist', l: (e.lista || []).slice(-LEVE.chat).map((m) => ({ k: m.canal, n: m.nome, x: m.texto, ...(m.meu ? { meu: 1 } : {}) })) };
     if (e.t === 'vila') return { t: 'vila', fase: e.fase, ...(e.dur ? { dur: e.dur } : {}) }; // recall ou totem: só a fase (o painel mostra a contagem)
     if (e.t === 'fabricando') return { t: 'fabricando', nome: e.nome || ITENS[e.k]?.nome || '', dur: e.dur, ...(e.fim ? { fim: 1 } : {}) };
+    // coleta (André 2026-11-26): o painel mostra "Minerando…", a barra até a próxima batida e quanto já pegou
+    if (e.t === 'coleta') return { t: 'coleta', no: e.no, dur: e.dur, prof: e.prof || '' };
+    if (e.t === 'coletou') return { t: 'coletou', no: e.no, itens: (e.itens || []).map((o) => ({ nome: o.nome, n: o.n })), cargas: e.cargas };
     if (e.t === 'bau') return { t: 'bau', cla: e.cla ? 1 : 0, l: (e.itens || []).length, it: listaLeve(e.itens) };
     return e;
   },
@@ -247,7 +265,7 @@ export const Leve = {
     return {
       est,
       max: CRIAR_OBRA.maxFila,
-      r: Object.entries(RECEITAS).map(([r, R]) => {
+      r: Object.entries(RECEITAS).filter(([, R]) => RECEITA_ESTACAO(R) !== 'fornalha').map(([r, R]) => { // carvão e barras só na fornalha (André 2026-11-26)
         const e = RECEITA_ESTACAO(R);
         return [r, ITENS[R.faz].nome, Object.entries(R.usa).map(([k, q]) => [k, ITENS[k]?.nome || k, q]), e, e === 'fogao' ? 'Fogão' : CONSTRUCOES[e]?.nome || e,
           this.estacaoPerto(j, R) ? 1 : 0, this.motivoReceitaSem(j, R).motivo, Math.round(tempoCriar(R))];
@@ -296,6 +314,11 @@ export const Leve = {
     um(mg ? 10 : 0, mg ? 'magia' : 'basico', mg ? BASICO_MAGIA : BASICO);
     for (let k = 0; k < ESPACOS_ESPADA; k++) { const i = (mg ? ESPACOS_ESPADA : 0) + k + 1, c = j.build?.[i - 1]; if (c) um(i, c, HABILIDADES[c]); }
     um(9, 'cura', CURA);
-    return { mg: mg ? 1 : 0, l };
+    // poções (André 2026-11-26): [k, lugar da 1ª pilha na mochila (-1 = nenhuma), quantas ao todo, recarga s]; usa a msg 'item' do jogo
+    const po = ['pocao', 'pocao_mana'].map((k) => {
+      let i = -1, n = 0; (j.prog?.mochila || []).forEach((it, q) => { if (it?.k === k) { if (i < 0) i = q; n += it.n || 1; } });
+      return [k, i, n, Math.max(0, Math.ceil((j.pocaoAte?.[k] || 0) - this.tempo))];
+    });
+    return { mg: mg ? 1 : 0, l, po };
   },
 };

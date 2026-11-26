@@ -10,6 +10,7 @@ signal tocou(pos: Vector2) # toque rápido na tela, sem arrastar (fora dos botõ
 
 const Menu = preload("res://menu.gd")
 const Idioma = preload("res://idioma.gd") # Português ou English (Configurações > Idioma / Language)
+const Patente = preload("res://patente.gd") # Patente de Guerra (André 2026-11-26): escudo com anel no quadro do herói
 const COR_FUNDO := Color(0.1, 0.088, 0.072, 0.9)
 const COR_BORDA := Color(0.72, 0.57, 0.32, 0.9) # dourado discreto, igual ao menu do personagem
 const COR_GOLPE := Color(0.33, 0.16, 0.12, 0.95)
@@ -69,6 +70,7 @@ const SEGURAR := 0.55 # segundos segurando o painel para abrir o modo de ediçã
 var _painel_dedo := -1
 var _painel_t := 0.0
 var _painel_ini := Vector2.ZERO
+var _patente_rect := Rect2() # onde fica o escudo da Patente de Guerra na tela (tocar = "Sargento · 64% para Tenente")
 var retrato: Texture2D # rosto do herói (main.gd monta o palco); sem ele fica a letra
 var fonte: Font
 var relogio_teste := -1.0 # só para gravar o clipe do medalhão (>= 0 troca o relógio do brilho)
@@ -78,6 +80,7 @@ var aviso_txt := ""
 var _aviso_t := 0.0
 var destaque_txt := "" # subiu de nível: grande e dourado, separado dos outros avisos
 var _destaque_t := 0.0
+var m # main.gd (Patente de Guerra: prog e relógio do servidor)
 var festa # festa.gd (main.gd liga); sem ela o nível segue no destaque dourado de antes
 var _dano_t := 0.0 # levou golpe: borda vermelha rápida (e fraca, contínua, com a vida baixa)
 
@@ -323,6 +326,10 @@ func _input(ev: InputEvent) -> void:
 		return
 	if ev is InputEventScreenTouch:
 		if ev.pressed and buffs and buffs.tocar(ev.position): # ícone de buff/debuff (herói, alvo, time): dica
+			return
+		if ev.pressed and _patente_rect.has_point(ev.position) and m and m.P: # escudo da patente: quanto falta
+			var pt := Patente.do_prog(m.P.prog, m.P.agora_ms())
+			aviso(Patente.texto(int(pt.i), float(pt.pct)) + " · " + Idioma.frase("%d abates no mês") % int(pt.a))
 			return
 		if ev.pressed and menu_topo and menu_topo.cobre(ev.position):
 			return
@@ -713,6 +720,13 @@ func _desenhar() -> void:
 		else:
 			var bp := Vector2(PAINEL.size.x + 6.0, 29.0)
 			buffs.desenhar(_tela, "heroi", bl, bp, 24.0, PAINEL.position + painel_d + bp * painel_s, painel_s, 8)
+	# Patente de Guerra (André 2026-11-26, patente.gd): escudo com o anel de 0 a 100% até a próxima, embaixo dos buffs
+	_patente_rect = Rect2()
+	if m and m.P and not editando:
+		var pt := Patente.do_prog(m.P.prog, m.P.agora_ms())
+		var pc := Vector2(PAINEL.size.x + 26.0, 80.0)
+		Patente.desenhar(_tela, pc, 19.0, str(m.online.eu_raca) if m.online else "", int(pt.i), float(pt.pct))
+		_patente_rect = Rect2(PAINEL.position + painel_d + (pc - Vector2(24, 24)) * painel_s, Vector2(48, 48) * painel_s)
 	_tela.draw_set_transform(Vector2.ZERO)
 	if canal >= 0.0 and canal_vila: # Voltar para a vila: barra própria no meio da tela, acima dos botões (direção de arte)
 		var tam := Vector2(280, 10)
