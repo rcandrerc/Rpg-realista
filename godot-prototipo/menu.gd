@@ -2598,6 +2598,8 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		var lpl := HFlowContainer.new()
 		lpl.add_theme_constant_override("h_separation", 6)
 		lpl.add_theme_constant_override("v_separation", 6)
+		# só colhe e rega, sem plantar (o painel já tinha; André 2026-11-26: "uma opção só de colher")
+		lpl.add_child(botao(Idioma.frase("Só colher e regar"), func(): _marcar_ordem(rid, {"k": "fazenda"}), 12, str(fn.get("s", "")) == ""))
 		for P in C.get("plantas", []):
 			var sk := str(P.k)
 			# André 2026-11-25: com o ícone da semente
