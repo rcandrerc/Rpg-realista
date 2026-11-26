@@ -4082,9 +4082,10 @@ func _passo_main(dt: float) -> void:
 	if P.mudou:
 		P.mudou = false
 		mostrar_build()
+		tp = _parte("m:build", tp)
 		if menu:
 			menu.atualizar_do_servidor() # aba Clã aberta e só HP/mana/vigor andando: troca os números no lugar (menu.gd)
-		tp = _parte("m:build", tp)
+			tp = _parte("m:menu_srv:" + str(menu.aba) if menu.aberto() else "m:menu_srv", tp) # qual aba pesa (registro)
 	hud.recarga("cura", recargas.get("cura", 0.0), D.CURA.cd)
 	for k in ["pocao", "pocao_mana"]:
 		hud.recarga(k, recargas.get("it:" + k, 0.0), recarga_pocao())
