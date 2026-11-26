@@ -3439,6 +3439,7 @@ export const CLA = {
   farmar: 40, // quanto ele junta por viagem (o máximo da encomenda); acabou, vai de novo
   // entrega (André 2026-11-23): só o recurso pedido vai para o Baú do Clã, e ele leva andando (perto: m do baú para deixar)
   entrega: { perto: 2.4 },
+  esvaziar: { max: 900 }, // botão Esvaziar bags (shared/cla.js esvaziarRecruta): s até desistir se travar no caminho
   // recall (André 2026-11-24: "além de totem, eles podem usar o recall para guardar as coisas no baú"): longe do Baú do
   // Clã (mais de `min` m), o recruta que leva o recurso usa a casinha como o jogador (VOLTA_VILA: canaliza parado,
   // andar ou dano cancela, recarga de 10 min) e aparece na frente do baú. Em recarga: vai andando (ou pelo totem).
