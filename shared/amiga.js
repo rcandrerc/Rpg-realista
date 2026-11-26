@@ -1207,7 +1207,7 @@ export const Amiga = {
     if (profNivel(p.prof?.[R.prof]) < R.nivel) return 'nivel';
     if (motivoLibera(p, 'forja') || motivoLibera(p, 'evoluir', R.r)) return 'libera';
     for (const [k, n] of Object.entries(R.usa)) if (contar(p.mochila, k) < n) return 'material';
-    if (this.vigorLivreAmiga(j) < R.vigor) return 'vigor'; // membro de clã: só os 20% do Livre (CLA.livreVigor)
+    if (vigorAgora(p.vigor) < R.vigor) return 'vigor'; // evoluir a peça fica fora da reserva do Livre (CLA.livreVigor): custa mais que os 20% e nunca sairia
     return '';
   },
   // qual peça do corpo dá para evoluir agora e em qual estação pública: { l, x, z, k } ou null
