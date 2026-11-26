@@ -11,7 +11,7 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { ARVORES_PLANTIO, PLANTIO, naBaseCla, VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS, DESPENSA, BASES_FRIAS, MORAL, PESCA } from './dados.js';
+import { ARVORES_PLANTIO, PLANTIO, naBaseCla, VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS, DESPENSA, BASES_FRIAS, MORAL, PESCA, CASA_OBRA } from './dados.js';
 import { contextoDeAmigo, pecaDaCasa, mesmaPeca } from './amiga.js';
 import { profNivel, guardar, guardarQueCabe, moverQtd, profBonus, bonusTituloProf, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
 import { fundoAgua } from './transporte.js';
@@ -1183,6 +1183,21 @@ export const Cla = {
     if (!feitas) return null;
     x.guardarAmiga?.();
     return `${x.AMIGA.nome}: construiu ${feitas} peça${feitas > 1 ? 's' : ''} da casa`;
+  },
+  // a casa do lote fica pronta mesmo com o bot ocupado (André 2026-11-26: "todas as casas de bot estão sem telhado... já
+  // se passou quase 1 dia... mesmo no modo livre"): o bot só construía entre uma tarefa e outra (e o recruta com ordem do
+  // líder quase nunca para), e o tempo fora do clã bot só contava depois do servidor ficar vazio. Agora, a cada minuto,
+  // todo bot com lote na base (líder, membro fixo e recruta de todos os clãs; recruta do jogador no modo Livre) põe as peças que faltam no
+  // mesmo ritmo do tempo fora (casaFora: uma peça a cada passo.obra x1,3 s), sem largar o que está fazendo. As peças que
+  // não couberam (pulas) valiam até o servidor reiniciar; agora ele tenta de novo a cada CASA_OBRA.esquece s.
+  passoObraCasas(seg = 60) {
+    for (const x of this.amigosIa || []) {
+      const a = x.amiga; if (!a || a.morto) continue;
+      const L = x.loteDaAmiga?.(); if (!L) continue;
+      if (a.ia.pulas?.size && !(this.tempo < (a.ia.pulasT ??= this.tempo + CASA_OBRA.esquece))) { a.ia.pulas = null; a.ia.pulasT = null; }
+      // recruta do jogador com ordem no painel não mexe na casa (André 2026-11-24: "só no modo livre"); clã bot: sempre
+      if (x.modoLivreAmiga?.() && x.casaFaltaAmiga?.(a, L)) x.casaFora(x, seg);
+    }
   },
   // o que um recruta fez em h horas fora (grind: XP até o nível do líder; farm: o que o vigor paga, direto no Baú do
   // Clã; fazenda: os canteiros crescem sozinhos e ele colhe e replanta quando o líder volta). Texto ou null.

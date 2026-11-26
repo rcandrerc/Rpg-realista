@@ -871,6 +871,7 @@ export const Amiga = {
     return { x: p.x, z: Math.min(L.def.z1 - 0.4, R[3] + 0.7) };
   },
   colocarPeca(L, falta) {
+    if (L.pecas.some((o) => mesmaPeca(o, falta))) return; // a obra do minuto (cla.js passoObraCasas) já pôs esta
     const p = { id: 'p' + L.prox, ...falta, lote: L.def.id };
     const motivo = motivoPeca(L, p, null, this.areaBase?.(L));
     if (motivo) { // não cabe (alguém mudou o mapa): pula esta peça para sempre nesta sala

@@ -4552,7 +4552,7 @@ export class Simulacao {
     this.passoMissoesCla(); // Escolta do Clã (shared/missao-cla.js)
     this.passoPatente(); // Patente de Guerra (shared/patente.js): o mês virou?
     this.passoGuerra(); this.passoDuplasGuerra(); // Chama x Geada (shared/guerra.js): quem pode lutar agora e as falas de quem avistou alguém
-    if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); this.passoRecrutasSemLider?.(); this.passoProdRecrutas?.(); } // a semana do clã (shared/cla.js)
+    if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); this.passoObraCasas?.(60); this.passoRecrutasSemLider?.(); this.passoProdRecrutas?.(); } // a semana do clã (shared/cla.js)
     this.passoJantares(dt); // jantar do clã (shared/jantar.js)
     for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
     for (const j of this.jogadores.values()) { // modo leve: o servidor anda o herói (shared/leve.js); no carrinho, gasta combustível e não entra na água
