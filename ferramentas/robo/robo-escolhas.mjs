@@ -1,6 +1,6 @@
 // Escolhas do robô de testes que dá para conferir sem servidor (ferramentas/testes/robo-escolhas.mjs): o que vender
 // com a mochila cheia. O robo.mjs usa estas funções no turno.
-import { ITENS, ehEquip } from '../../shared/index.js';
+import { ITENS, ehEquip, durab, custoConserto } from '../../shared/index.js';
 
 export const POCOES = ['pocao', 'pocao_mana'];
 
@@ -85,4 +85,19 @@ export function outraTerraParaCacar({ minha, campos, totens, visitados, ok, fech
     if (!r || (c.nivel || 1) > (r.campo.nivel || 1)) r = { terra, campo: c, totem: t };
   }
   return r || (semTotem ? { semTotem: true, ...semTotem } : null);
+}
+
+// Ronda 2026-11-26: cada morte gasta 10% da peça (MORTE.desgaste) e peça quebrada não dá bônus (shared/progresso.js). O
+// robô nunca consertava: com 18 a 20 mortes por turno, a armadura estava quebrada e ele morria 3 vezes em 10 min até no
+// campo Nv 56 da Ilha. Com alguma peça do corpo abaixo de CONSERTA_ABAIXO, conserta com o ouro que tem: primeiro as
+// quebradas, depois as mais gastas, cada peça inteira ou nada (como consertarPecas no servidor). null = ainda não precisa.
+export const CONSERTA_ABAIXO = 40;
+export function pecasParaConsertar(equip, ouro) {
+  const gastas = Object.entries(equip || {}).filter(([, it]) => it && ehEquip(it.k) && custoConserto(it) > 0)
+    .map(([lugar, it]) => ({ lugar, d: durab(it), c: custoConserto(it) }));
+  if (!gastas.some((x) => x.d < CONSERTA_ABAIXO)) return null;
+  gastas.sort((a, b) => a.d - b.d || a.c - b.c);
+  const lista = []; let custo = 0;
+  for (const x of gastas) if (custo + x.c <= (ouro || 0)) { lista.push({ lugar: x.lugar }); custo += x.c; }
+  return { lista, custo, ficam: gastas.length - lista.length, quebradas: gastas.filter((x) => x.d <= 0).length, menor: gastas[0].d };
 }
