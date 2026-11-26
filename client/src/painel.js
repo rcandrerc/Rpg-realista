@@ -901,11 +901,50 @@ function cartaoMochila() {
   cab.onclick = () => { mochilaAberta = !mochilaAberta; leve.sujo = true; desenharJogar(); };
   c.append(cab);
   if (!mochilaAberta) return c;
+  // etapa 2 (André 2026-11-26): o que está vestido em cima (tocar = ver e Tirar) e a mochila embaixo (tocar = ver,
+  // Vestir, Usar, Trancar). As mesmas mensagens do jogo ('item' equipar/tirar/usar/cadeado).
+  if (aba === 'mochila') {
+    const eq = new Map((leve.mo?.eq || []).map((o) => [o[0], o])), v = el('div', 'icones');
+    for (const [l, ic, nomeL] of VESTE) {
+      const o = eq.get(l);
+      if (o) v.append(itemLeve(o[1], o[2], o[3], 1, null, false, () => janelaPeca({ eq: o, nomeL })));
+      else { const d = el('div', 'ico vazioEq'), q = el('div', 'q'); q.append(el('span', 'nvb', ic)); d.title = nomeL; d.append(q, el('small', null, nomeL)); d.onclick = () => aviso(`${nomeL}: nada vestido. Toque numa peça da mochila e em Vestir.`); v.append(d); }
+    }
+    c.append(el('div', 'faz', 'Vestindo'), v, el('div', 'faz', 'Mochila · toque num item'));
+  }
   const f = el('div', 'icones');
-  for (const [, k, n, nome, cor] of it) f.append(itemLeve(k, nome, cor, n, null, false, () => aviso(`${nome}: ${n}`)));
+  for (const o of it) { const [, k, n, nome, cor] = o; f.append(itemLeve(k, nome, cor, n, null, false, () => (aba === 'mochila' ? janelaPeca({ it: o }) : aviso(`${nome}: ${n}`)))); }
   if (!it.length) f.append(el('div', 'faz', 'Mochila vazia.'));
   c.append(f);
   return c;
+}
+const VESTE = [['cabeca', '🪖', 'Cabeça'], ['corpo', '🦺', 'Corpo'], ['pernas', '👖', 'Pernas'], ['pes', '🥾', 'Pés'], ['capa', '🧣', 'Capa'], ['acessorio', '💍', 'Acessório'], ['espada', '🗡️', 'Espada'], ['cajado', '🪄', 'Cajado']];
+// a janelinha da peça: nome, o que dá, o que você usa no mesmo lugar (para comparar) e os botões que valem
+function janelaPeca({ it, eq, nomeL }) {
+  const fechar = () => { const j = document.querySelector('.janelaLeve.peca'); if (j) j.remove(); };
+  fechar();
+  const corpo = [], bts = el('div', 'bts');
+  const acao = (txt, m, cinza) => { const b = el('button', 'acao' + (cinza ? ' cinza' : ''), txt); b.onclick = () => { mandar('item', m); fechar(); }; bts.append(b); };
+  if (eq) {
+    corpo.push(el('div', 'nome', eq[2]), el('div', 'faz', `${nomeL} · vestido`), el('div', null, eq[4] || ''));
+    acao('Tirar', { acao: 'tirar', lugar: eq[0] }, true);
+  } else {
+    const [i, , n, nome, , preco, cad, tipo, lugar, txt] = it;
+    corpo.push(el('div', 'nome', n > 1 ? `${nome} ×${n}` : nome));
+    if (txt) corpo.push(el('div', null, txt));
+    if (tipo === 'e') {
+      const agora = (leve.mo?.eq || []).find((o) => o[0] === lugar);
+      corpo.push(el('div', 'faz', agora ? `Você usa: ${agora[2]}${agora[4] ? ' · ' + agora[4] : ''}` : `${VESTE.find((v) => v[0] === lugar)?.[2] || ''}: nada vestido`));
+      acao(agora ? 'Trocar' : 'Vestir', { acao: 'equipar', i });
+    }
+    if (tipo === 'u') acao('Usar', { acao: 'usar', i });
+    acao(cad ? '🔓 Destrancar' : '🔒 Trancar', { acao: 'cadeado', i }, true);
+    corpo.push(el('div', 'faz', `${cad ? 'Trancado: não vende nem joga fora. ' : ''}Vende por ${num(preco)} de ouro na loja.`));
+  }
+  const x = el('button', 'acao cinza', 'Fechar'); x.onclick = fechar; bts.append(x);
+  corpo.push(bts);
+  const j = janelaLeve(corpo); j.classList.add('peca'); j.onclick = (e) => { if (e.target === j) fechar(); };
+  document.body.append(j);
 }
 
 // Criar (André 2026-11-25): mesmas receitas e regras do jogo; o servidor manda a lista (leveReceitas) e confere tudo de novo

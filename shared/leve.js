@@ -8,7 +8,7 @@
 import { planejarRota, terraId } from './rota.js';
 import { TUNEL } from './caverna.js';
 import { LUGARES_MUNDO } from './mundo.js';
-import { RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
+import { LUGARES, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, HABILIDADES, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
 import { liberado } from './historia.js';
@@ -42,6 +42,15 @@ const r1 = (n) => Math.round(n * 10) / 10;
 const corDe = (o) => (o.r != null && RARIDADES[o.r] ? cor(RARIDADES[o.r].cor) : ITENS[o.k]?.cor != null ? (typeof ITENS[o.k].cor === 'number' ? cor(ITENS[o.k].cor) : ITENS[o.k].cor) : null);
 // lugares com item: [lugar, k, n, nome, cor]
 const listaLeve = (itens) => { const r = []; (itens || []).forEach((o, i) => { if (o && ITENS[o.k]) r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o)]); }); return r; };
+
+// o que a peça dá, curto ("Defesa 10 · Vida 22"); comida e poção: o que cura
+const NOME_ST = { vida: 'Vida', mana: 'Mana', defesa: 'Defesa', critico: 'Crítico %', danoCritico: 'Dano crítico %', danoFisico: 'Dano físico', danoMagico: 'Dano mágico', danoK: 'Dano %', regenManaK: 'Volta de mana %' };
+function textoPeca(o) {
+  const I = ITENS[o.k]; if (!I) return '';
+  if (I.st && o.r != null) return Object.entries(I.st).map(([c, v]) => `${NOME_ST[c] || c} ${Math.round(((v[o.r] ?? 0) * (c.endsWith('K') ? 100 : 1)) * 10) / 10}`).join(' · ');
+  const u = I.usar; if (!u) return '';
+  return [u.vida && `Vida +${Math.round(u.vida * 100)}%`, u.mana && `Mana +${Math.round(u.mana * 100)}%`, u.vigor && `Vigor +${u.vigor}`].filter(Boolean).join(' · ');
+}
 
 export const Leve = {
   // a página tocou no mapa: o herói vai até lá pela estrada
@@ -248,13 +257,18 @@ export const Leve = {
     if (!this.andouVeiculo(j, j.x, j.z, d)) { j.x = x0; j.z = z0; this.leveParar(j.id, 'O carrinho não entra na água'); }
   },
   // a mochila como a página mostra: só os lugares com item (i = o lugar de verdade), nome, cor da raridade e preço de venda
+  // etapa 2 (André 2026-11-26, versão leve completa): [7] o que dá para fazer ('e' = vestir no lugar [8], 'u' = usar,
+  // '' = nada), [9] o que a peça dá; eq = o que está vestido [lugar, k, nome, cor, o que dá]. Equipar, tirar e usar são
+  // as mesmas mensagens do jogo ('item' equipar/tirar/usar): o servidor confere tudo.
   mochilaLeve(j) {
     const p = j.prog, merc = mercador(p.prof?.mer).venda + (bonusTitulo(p).venda || 0), r = [];
     (p.mochila || []).forEach((o, i) => {
       if (!o || !ITENS[o.k]) return;
-      r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o), precoVenda(o, merc), o.cad ? 1 : 0]);
+      const I = ITENS[o.k], tipo = I.lugar ? 'e' : (I.usar && !I.usar.veiculo) || o.k === 'tomo' ? 'u' : '';
+      r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o), precoVenda(o, merc), o.cad ? 1 : 0, tipo, I.lugar || '', textoPeca(o)]);
     });
-    return { l: (p.mochila || []).length, it: r };
+    const eq = LUGARES.filter((l) => p.equip?.[l] && ITENS[p.equip[l].k]).map((l) => { const o = p.equip[l]; return [l, o.k, nomeItem(o), corDe(o), textoPeca(o)]; });
+    return { l: (p.mochila || []).length, it: r, eq };
   },
   // Criar (André 2026-11-25): as MESMAS receitas e regras do jogo (RECEITAS, motivoReceita, `criar`); aqui só se lista.
   // [receita, nome, [[k, nome, qtd]], estação, nome da estação, perto dela (1/0), motivo (sem contar a estação), segundos]
