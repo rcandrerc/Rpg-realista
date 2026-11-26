@@ -46,6 +46,7 @@ var _giro_pend := Vector2.ZERO
 # Travar câmera (André 2026-11-14: "a câmera travada nas costas do personagem, para quando eu virar à direita ficar
 # sempre com a visão nas costas"): chave em Configurações, com ou sem a voz. Andando, a câmera volta sozinha para trás
 # do herói. A voz vira o herói em 90° (virar): o giro anda aos poucos e a câmera vai junto.
+const SEGUE_ALVO := 3.5 # quão rápido a câmera vira para o alvo enquanto bate
 const TRAVA_VEL := 5.0 # quão rápido volta para as costas
 const VIRAR_VEL := 3.5 # rad/s do giro pedido pela voz
 var giro_voz := 0.0 # giro que falta (rad)
@@ -234,6 +235,12 @@ func atualizar(dt: float, giro: Vector2) -> void:
 		giro_voz -= passo
 	elif travada() and not _conversando and foco_livre == null and vel > 0.5 and not m.heroi_anim.mirando and _sem_dedo > 0.6:
 		yaw = lerp_angle(yaw, mov.ry + PI, min(1.0, dt * TRAVA_VEL))
+	# batendo num alvo: a câmera gira devagar para ficar atrás do herói olhando o bicho (André 2026-11-26: "na hora da
+	# confusão eu fico batendo e nem sei aonde"); dedo na tela manda, parou de bater = câmera livre de novo
+	elif not do_alto and _iso_k <= 0.0 and not _conversando and foco_livre == null and _sem_dedo > 0.5 and m.cam_alvo != null and is_instance_valid(m.cam_alvo.no) and m.mov.esc == null and m.montaria == null:
+		var da: Vector3 = m.cam_alvo.no.position - m.heroi.position
+		if Vector2(da.x, da.z).length() > 0.8:
+			yaw = lerp_angle(yaw, atan2(da.x, da.z) + PI, min(1.0, dt * SEGUE_ALVO))
 	# virado para o alvo (mirando, andando de lado): a câmera não persegue o giro do corpo (tremia entre alvo e caminho)
 	if not do_alto and _iso_k <= 0.0 and _sem_dedo > SEGUE_APOS and vel > 2.0 and mov.esc == null and m.acao.is_empty() and not m.heroi_anim.mirando and j.y < -0.45 and abs(j.x) < 0.6:
 		var atras: float = mov.ry + PI
