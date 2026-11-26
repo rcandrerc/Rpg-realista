@@ -3514,6 +3514,10 @@ static func tingir_v5(raiz: Node3D) -> void:
 		return
 	var cr = (raiz.get_meta("cor_roupa") if raiz.has_meta("cor_roupa") else null)
 	var cc = (raiz.get_meta("cor_calca") if raiz.has_meta("cor_calca") else null)
+	# André 2026-11-25: aba Set (cor + borda) e aba Capa (cor + borda) da Aparência; null = a cor original
+	var cb = (raiz.get_meta("cor_borda") if raiz.has_meta("cor_borda") else null)
+	var ck = (raiz.get_meta("cor_capa") if raiz.has_meta("cor_capa") else cr)
+	var ckb = (raiz.get_meta("cor_capa_borda") if raiz.has_meta("cor_capa_borda") else null)
 	for mi in raiz.find_children("*", "MeshInstance3D", true, false):
 		if mi.has_meta("capa_pano"):
 			# capa de pano: o PanoCapa guarda o material dela e mexe nele todo quadro (grade do balanço). Trocar por uma
@@ -3521,44 +3525,60 @@ static func tingir_v5(raiz: Node3D) -> void:
 			var cm := mi.material_override as ShaderMaterial
 			if cm:
 				if not mi.has_meta("capa_cor0"):
-					mi.set_meta("capa_cor0", [cm.get_shader_parameter("fora"), cm.get_shader_parameter("dentro")])
+					mi.set_meta("capa_cor0", [cm.get_shader_parameter("fora"), cm.get_shader_parameter("dentro"), cm.get_shader_parameter("friso")])
 				var c0: Array = mi.get_meta("capa_cor0")
-				cm.set_shader_parameter("fora", cr if cr != null else c0[0])
-				cm.set_shader_parameter("dentro", (cr as Color).darkened(0.45) if cr != null else c0[1])
+				cm.set_shader_parameter("fora", ck if ck != null else c0[0])
+				cm.set_shader_parameter("dentro", (ck as Color).darkened(0.45) if ck != null else c0[1])
+				if c0.size() > 2:
+					cm.set_shader_parameter("friso", ckb if ckb != null else c0[2])
 			continue
 		if mi.has_meta("equip2_nome"): # Patrulheiro 2 / Roupão 2: pano pintado em equip2.gd
-			Equip2.tingir(mi, cr, cc)
+			Equip2.tingir(mi, cr, cc, cb)
 			continue
-		mi.material_override = _tinta(mi, "mo", mi.material_override, cr, cc)
+		mi.material_override = _tinta(mi, "mo", mi.material_override, cr, cc, cb, ck, ckb)
 		if mi.mesh:
 			for i in mi.mesh.get_surface_count():
 				var at: Material = mi.get_surface_override_material(i)
 				if at:
-					mi.set_surface_override_material(i, _tinta(mi, "s%d" % i, at, cr, cc))
+					mi.set_surface_override_material(i, _tinta(mi, "s%d" % i, at, cr, cc, cb, ck, ckb))
 
-static func _tinta(mi: MeshInstance3D, lugar: String, atual: Material, cr, cc) -> Material:
+static func _tinta(mi: MeshInstance3D, lugar: String, atual: Material, cr, cc, cb = null, ck = null, ckb = null) -> Material:
 	if atual == null:
 		return null
 	var orig: Material = mi.get_meta("v5_orig_" + lugar) if atual.has_meta("v5_tinta") and mi.has_meta("v5_orig_" + lugar) else atual
 	var tipo := str(orig.get_meta("v5_tipo", ""))
-	var cor = cr if tipo in TINTA_ROUPA else (cc if tipo in TINTA_CALCA else null)
-	if cor == null:
+	var cor = null
+	var borda = null
+	if tipo == "capa":
+		cor = ck
+		borda = ckb
+	else:
+		cor = cr if tipo in TINTA_ROUPA else (cc if tipo in TINTA_CALCA else null)
+		if tipo.begins_with("v5_") and orig is ShaderMaterial:
+			borda = cb # barra da borda (acento) de todas as peças v5: pano, colete, luva, cinto
+	if cor == null and borda == null:
 		return orig
 	mi.set_meta("v5_orig_" + lugar, orig)
-	var chave := "tinta|%d|%s" % [orig.get_instance_id(), (cor as Color).to_html()]
+	var chave := "tinta|%d|%s|%s" % [orig.get_instance_id(), (cor as Color).to_html() if cor != null else "-", (borda as Color).to_html() if borda != null else "-"]
 	if not _materiais.has(chave):
 		var t: Material = orig.duplicate()
 		t.set_meta("v5_tinta", true)
-		var c: Color = cor
-		if tipo == "capa": # capa: por fora na cor escolhida, por dentro um tom mais escuro
-			t.set_shader_parameter("fora", c)
-			t.set_shader_parameter("dentro", c.darkened(0.45))
+		if tipo == "capa": # capa: por fora na cor escolhida, por dentro um tom mais escuro; friso na borda da capa
+			if cor != null:
+				t.set_shader_parameter("fora", cor)
+				t.set_shader_parameter("dentro", (cor as Color).darkened(0.45))
+			if borda != null:
+				t.set_shader_parameter("friso", borda)
 		elif t is ShaderMaterial:
-			t.set_shader_parameter("claro", c.lightened(0.25))
-			t.set_shader_parameter("medio", c)
-			t.set_shader_parameter("sombra", c.darkened(0.6))
-		elif t is BaseMaterial3D:
-			t.albedo_color = c
+			if cor != null:
+				var c: Color = cor
+				t.set_shader_parameter("claro", c.lightened(0.25))
+				t.set_shader_parameter("medio", c)
+				t.set_shader_parameter("sombra", c.darkened(0.6))
+			if borda != null:
+				t.set_shader_parameter("acento", borda)
+		elif t is BaseMaterial3D and cor != null:
+			t.albedo_color = cor
 		_materiais[chave] = t
 	return _materiais[chave]
 

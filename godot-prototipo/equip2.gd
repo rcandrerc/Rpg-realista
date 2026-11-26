@@ -144,6 +144,7 @@ static func material(nome: String) -> Material:
 	sm.set_shader_parameter("forca", d[6])
 	sm.set_shader_parameter("ruido", _ruido)
 	sm.set_meta("tipo2", d[0]) # tingir() só pinta pano (tipo 2)
+	sm.set_meta("borda2", k.begins_with("cetim") or k.begins_with("bordado")) # barra/bordado: cor da borda do set
 	_mats[k] = sm
 	return sm
 
@@ -249,22 +250,25 @@ static func armas(espada: Node3D, cajado: Node3D, traje: String, r_espada: int, 
 # costura e gemas ficam como estão. cr / cc = null: volta à cor do set. O material pintado é copiado e guardado por
 # cor (_tintas), então não pesa; a malha compartilhada não muda, só o material da peça (surface override).
 static var _tintas := {}
-static func tingir(mi: MeshInstance3D, cr, cc) -> void:
+# André 2026-11-25: cb = cor da "Borda do set" (aba Set da Aparência): pinta o cetim da gola/barra e o bordado. O pano
+# principal (tipo 2 sem ser borda) segue a cor do set; null = a cor original.
+static func tingir(mi: MeshInstance3D, cr, cc, cb = null) -> void:
 	if mi.mesh == null:
 		return
 	var cor = cc if String(mi.get_meta("equip2_nome", "")).to_lower().contains("calca") else cr
 	for s in mi.mesh.get_surface_count():
 		var base: Material = mi.mesh.surface_get_material(s)
-		if cor == null or not (base is ShaderMaterial) or int(base.get_meta("tipo2", -1)) != 2:
+		var e_borda: bool = base != null and bool(base.get_meta("borda2", false))
+		var c = cb if e_borda else cor
+		if c == null or not (base is ShaderMaterial) or (not e_borda and int(base.get_meta("tipo2", -1)) != 2):
 			mi.set_surface_override_material(s, null)
 			continue
-		var c: Color = cor
-		var chave := "%d|%s" % [base.get_instance_id(), c.to_html()]
+		var chave := "%d|%s" % [base.get_instance_id(), (c as Color).to_html()]
 		if not _tintas.has(chave):
 			var t: ShaderMaterial = base.duplicate()
 			t.set_shader_parameter("cor", c)
 			var c2: Color = base.get_shader_parameter("cor2")
 			if c2.r + c2.g + c2.b > 0.01:
-				t.set_shader_parameter("cor2", c.lightened(0.3)) # brilho de seda na borda
+				t.set_shader_parameter("cor2", (c as Color).lightened(0.45 if e_borda else 0.3)) # linha do bordado / brilho de seda
 			_tintas[chave] = t
 		mi.set_surface_override_material(s, _tintas[chave])
