@@ -1244,7 +1244,7 @@ export const Cla = {
         while (nv < teto && resto >= xpProximo(nv)) { resto -= xpProximo(nv); nv++; }
       }
       xp = (nv < teto ? resto : 0) - (a.prog.xp | 0); for (let k = antes; k < nv; k++) xp += xpProximo(k); // no teto não guarda sobra
-      if (xp > 0) { this.ganharXP(a, xp); if ((a.prog.nivel | 0) > teto) a.prog.nivel = teto; m.nv = a.prog.nivel | 0; txt = `${m.nome}: caçou e foi do Nv ${antes} ao ${a.prog.nivel}`; }
+      if (xp > 0) { this.ganharXP(a, xp); if ((a.prog.nivel | 0) > teto) a.prog.nivel = teto; m.nv = a.prog.nivel | 0; txt = `${m.nome}: caçou e foi do Nv ${antes} ao ${a.prog.nivel}`; this.contarOrdem(x, m, { n: Math.round(h * F.mobsHora * rM), xp, xpx: rM !== 1 ? xp - xp / rM : 0 }); } // contador da ordem: o tempo fora conta
     } else if (m.fn.k === 'recurso') {
       const R = RECURSOS_CLA[m.fn.r]; if (!R?.item) return null; // Fragmento de Alma: só lutando de verdade
       // a mesma conta do jogo (André 2026-11-25: "o consumo e a quantidade de recurso seguem a regra exata"): vigor da batida
@@ -1274,6 +1274,7 @@ export const Cla = {
       }
       a.prog.vigor = { v: Math.max(0, Math.min(a.prog.vigor?.m || VIGOR.max, resto)), t: Date.now(), m: a.prog.vigor?.m || VIGOR.max };
       if (B && dado) this.mexeuBau(B);
+      if (dado) this.contarOrdem(x, m, { n: dado, x: rM !== 1 ? dado - dado / rM : 0 }); // contador da ordem: o tempo fora conta
       txt = dado ? `${m.nome}: juntou ${dado} de ${R.nome}${B ? ' (no Baú do Clã)' : ''}` : `${m.nome}: não juntou nada (${B ? 'Baú do Clã' : 'bolsa'} cheio)`;
     }
     x.guardarAmiga?.();
@@ -1493,7 +1494,11 @@ export const Cla = {
     const perto = !!(j && a && !a.morto && !j.morto && (Math.hypot(a.x - j.x, a.z - j.z) <= MORAL.perto || (!!a.time && a.time === j.time)));
     const tr = (perto ? MORAL.pertoH : livre ? MORAL.livreH : 0) - (!livre && m.fn.k !== 'seguir' && m.ot && agora - m.ot >= MORAL.cansaH * 3600e3 ? MORAL.cansaPorH : 0)
       - (vis && agora - vis >= MORAL.graca * 3600e3 ? MORAL.semLiderH : 0);
-    return { ml: Math.round(v), re, seta: F.seta, cor: F.cor, tr: v >= 100 && tr > 0 ? 0 : tr, ...(fm ? { fm, fn2: est.nome } : {}), ...(ph ? { ph } : {}), ...(P && i ? { pt: { i, t: tot, m: Math.round(w / 60e3), ...(this.rendeNaColeta(m.fn) && re !== 100 ? { x: Math.round(tot - tot * 100 / re) } : {}) } } : {}), ...(el ? { el: 1 } : {}) };
+    // pt: o contador da ordem (m.oc, desde que a ordem foi dada; salvo); sem ele, as últimas janelaH h de antes
+    const oc = m.oc && m.oc.k === this.chaveOrdem(m.fn) ? m.oc : null;
+    const pt = oc && i ? { i, t: oc.n, m: Math.round((agora - oc.t0) / 60e3), desde: 1, ...(Math.round(oc.x) ? { x: Math.round(oc.x) } : {}), ...(oc.xp ? { xp: oc.xp, ...(Math.round(oc.xpx) ? { xpx: Math.round(oc.xpx) } : {}) } : {}) }
+      : P && i ? { i, t: tot, m: Math.round(w / 60e3), ...(this.rendeNaColeta(m.fn) && re !== 100 ? { x: Math.round(tot - tot * 100 / re) } : {}) } : null;
+    return { ml: Math.round(v), re, seta: F.seta, cor: F.cor, tr: v >= 100 && tr > 0 ? 0 : tr, ...(fm ? { fm, fn2: est.nome } : {}), ...(ph ? { ph } : {}), ...(pt ? { pt } : {}), ...(el ? { el: 1 } : {}) };
   },
   // o rende mexe na quantidade desta ordem? (minério, lenha, peixe: batidaColeta/pegarPeixe). x do pt: quanto veio a mais
   // (ou a menos) por causa do rende, para o painel mostrar "Coletou 120 (+20 pela moral)" (André 2026-11-26)
@@ -1510,9 +1515,34 @@ export const Cla = {
       let P = a.prodH; if (!P || P.k !== k) P = a.prodH = { k, t0: agora, ev: [], ult: null };
       const n = k === 'grind' ? a.mortesProd | 0 : contarRecProd(a.prog.mochila, RECURSOS_CLA[fn.r].item) + (a.prodDep || 0); // a bolsa + o que já deixou no Baú do Clã
       if (P.ult != null && n > P.ult) P.ev.push([agora, n - P.ult]);
+      const dn = P.ult != null && n > P.ult ? n - P.ult : 0;
       P.ult = n; P.ev = P.ev.filter((e) => agora - e[0] <= J);
+      // o contador da ordem (André 2026-11-26): fica no membro (salvo), zera só quando a ordem muda
+      const dxp = (a.xpProd || 0) - (P.xpUlt ?? (a.xpProd || 0)), dxx = (a.xpProdX || 0) - (P.xxUlt ?? (a.xpProdX || 0));
+      P.xpUlt = a.xpProd || 0; P.xxUlt = a.xpProdX || 0;
+      const re = a.rende || 1, m = this.membroDoRecruta(x);
+      if (m) this.contarOrdem(x, m, { n: dn, x: o?.k === 'recurso' && this.rendeNaColeta(fn) && re !== 1 ? dn - dn / re : 0, xp: k === 'grind' ? dxp : 0, xpx: k === 'grind' ? dxx : 0 }, agora);
     }
   },
+  // o membro (c.m / E.m) do recruta: onde fica o que é salvo dele (ordem, moral, contador)
+  membroDoRecruta(x) {
+    const K = this.claDoRecruta?.(x); if (!K) return null;
+    const l = K.bot && K.E ? [...K.m, ...this.membrosFixosNpc(K.C, K.E)] : K.m;
+    return l.find((o) => o.id === x.AMIGA.id) || null;
+  },
+  // contador da ordem (André 2026-11-26: "a partir do momento que eu mando até eu parar ... mesmo que eu deslogue e
+  // volte, e mesmo que o servidor resete"): m.oc = { k, t0, n (monstros ou itens), x (a mais/menos pela moral e comida),
+  // xp, xpx }. Fica no membro, que vai no save do líder (jogador) ou do clã bot. Zera quando a ordem (m.fn) muda.
+  chaveOrdem(fn) { return fn?.k === 'grind' ? 'grind' : fn?.k === 'recurso' && fn.r && fn.r !== 'alma' ? 'r:' + fn.r : null; },
+  contarOrdem(x, m, d, agora = Date.now()) {
+    const k = this.chaveOrdem(m.fn);
+    if (!k) { if (m.oc) { delete m.oc; this.sujarMembro(x); } return; }
+    if (!m.oc || m.oc.k !== k) { m.oc = { k, t0: agora, n: 0, x: 0, xp: 0, xpx: 0 }; this.sujarMembro(x); }
+    if (!(d.n || d.xp)) return;
+    const o = m.oc; o.n += d.n | 0; o.x += d.x || 0; o.xp += Math.round(d.xp || 0); o.xpx += d.xpx || 0;
+    this.sujarMembro(x);
+  },
+  sujarMembro(x) { const K = this.claDoRecruta?.(x); if (K?.corpo && !K.bot) K.corpo.progSujo = true; },
   // a ordem de um recruta (do clã do jogador ou do clã bot)
   ordemDoRecruta(x) {
     const K = this.claDoRecruta?.(x); if (!K) return null;

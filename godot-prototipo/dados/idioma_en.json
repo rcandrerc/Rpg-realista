@@ -1,4 +1,8 @@
 {
+"Derrotou %d monstros": "Defeated %d monsters",
+"Coletou %d": "Collected %d",
+"desde a ordem: %d min": "since the order: %d min",
+"desde a ordem: %d h %d min": "since the order: %d h %d min",
 "agora há pouco": "just now",
 "há %d min": "%d min ago",
 "há %d h": "%d h ago",

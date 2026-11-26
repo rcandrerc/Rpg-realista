@@ -13,6 +13,7 @@ const $ = (id) => document.getElementById(id);
 // há quanto tempo (André 2026-11-26: "adiciona nas msg a qtd minutos/hrs foi enviada"): ms = instante da mensagem ou de
 // quando a linha do que o recruta faz mudou (fzT). '' sem hora
 const haQuanto = (ms) => { if (!(ms > 0)) return ''; const s = Math.max(0, (Date.now() - ms) / 1000); return s < 60 ? 'agora há pouco' : s < 3600 ? `há ${Math.floor(s / 60)} min` : s < 86400 ? `há ${Math.floor(s / 3600)} h` : `há ${Math.floor(s / 86400)} d`; };
+const duracao = (min) => (min < 60 ? `${min} min` : `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ''}`);
 const comHa = (txt, ms) => { const h = haQuanto(ms); return txt && h ? `${txt} · ${h}` : txt; };
 const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 const ler = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -162,7 +163,7 @@ function moralTag(m) {
   const pc = el('b', null, `${m.re}%`); pc.style.color = m.cor || '';
   t.append(sv, pc);
   if (m.fm) { const f = el('img'); f.src = 'painel-icones/peixe_assado.png'; f.alt = ''; f.className = m.fm < 0 ? 'fome' : 'bem'; t.append(f); } // a comida mexe no %
-  t.onclick = () => aviso(`${m.pt ? `Pegou ${m.pt.t} ${m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`}${m.ph ? ` (~${m.ph.n} por hora${m.re && m.re !== 100 ? `; com rende 100% seria ~${Math.round(m.ph.n * 100 / m.re)}: o rende muda quanto vem por batida, com o mesmo vigor` : ''})` : ' (o por hora aparece com 15 min)'} · ` : ''}Moral ${m.ml} (${m.tr > 0 ? '+' : ''}${m.tr | 0} por hora)${m.fm ? ` · ${m.fn2}: ${m.fm > 0 ? '+' : ''}${m.fm}% (comida no Baú do Clã)` : ''} · rende ${m.re}%. Sobe: perto de você ou no seu time, Livre, Elogiar (no jogo). Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.`);
+  t.onclick = () => aviso(`${m.pt ? `Pegou ${m.pt.t}${m.pt.xp ? ` (+${m.pt.xp} XP)` : ''} ${m.pt.desde ? `em ${duracao(m.pt.m)} desde a ordem` : m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`}${m.ph ? ` (~${m.ph.n} por hora${m.re && m.re !== 100 ? `; com rende 100% seria ~${Math.round(m.ph.n * 100 / m.re)}: o rende muda quanto vem por batida, com o mesmo vigor` : ''})` : ' (o por hora aparece com 15 min)'} · ` : ''}Moral ${m.ml} (${m.tr > 0 ? '+' : ''}${m.tr | 0} por hora)${m.fm ? ` · ${m.fn2}: ${m.fm > 0 ? '+' : ''}${m.fm}% (comida no Baú do Clã)` : ''} · rende ${m.re}%. Sobe: perto de você ou no seu time, Livre, Elogiar (no jogo). Desce: 3 h seguidas trabalhando, 12 h sem você no jogo.`);
   return t;
 }
 function cartaoMembro(m) {
@@ -173,9 +174,11 @@ function cartaoMembro(m) {
   c.append(el('div', 'faz', m.on ? (m.morto ? 'Caído' : comHa(m.fz || '', m.fzT)) : 'Fora do mundo'));
   if (m.pt && m.fn?.k !== 'livre') { // o que rendeu a ordem: "Coletou 120 minério de ferro (+20 pela moral)"
     const nome = m.fn?.k === 'grind' ? 'monstros' : (info.recursos.find((r) => r.k === m.fn?.r)?.nome || '');
-    const tempo = m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`;
+    // desde: o contador da ordem (desde que você deu a ordem; zera só ao trocar a ordem, André 2026-11-26)
+    const tempo = m.pt.desde ? `em ${duracao(m.pt.m)} (desde a ordem)` : m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`;
     const x = m.pt.x ? ` (${m.pt.x > 0 ? '+' : ''}${m.pt.x} pela moral${m.fm ? ' e comida' : ''})` : '';
-    const d = el('div', 'faz ganho' + (m.pt.x < 0 ? ' menos' : m.pt.x > 0 ? ' mais' : ''), `${m.fn?.k === 'grind' ? 'Derrotou' : 'Coletou'} ${m.pt.t} ${nome}${x} ${tempo}${m.ph ? ` · ~${m.ph.n}/h` : ''}`);
+    const xp = m.pt.xp ? ` · +${m.pt.xp.toLocaleString('pt-BR')} XP${m.pt.xpx ? ` (${m.pt.xpx > 0 ? '+' : ''}${m.pt.xpx.toLocaleString('pt-BR')} pela moral${m.fm ? ' e comida' : ''})` : ''}` : '';
+    const d = el('div', 'faz ganho' + (m.pt.x < 0 ? ' menos' : m.pt.x > 0 ? ' mais' : ''), `${m.fn?.k === 'grind' ? 'Derrotou' : 'Coletou'} ${m.pt.t} ${nome}${x}${xp} ${tempo}${m.ph ? ` · ~${m.ph.n}/h` : ''}`);
     c.append(d);
   }
   if (m.on) { const b = el('div', 'barras'); b.append(barra('Vida', m.hp, m.hpM, 'var(--hp)'), barra('Vigor', m.vg, m.vgM, 'var(--vg)')); c.append(b); }

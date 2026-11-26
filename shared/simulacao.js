@@ -1044,6 +1044,7 @@ export class Simulacao {
     if (j.mesa && n > 0) n = Math.max(1, Math.round(n * (1 + j.mesa))); // recruta com fome ou bem alimentado (DESPENSA)
     if (n > 0 && p.banq?.ate > Date.now()) n = Math.max(1, Math.round(n * (1 + JANTAR.buff.xp))); // Banquete do clã (shared/jantar.js)
     p.xp += n;
+    if (j.bot && n > 0) { j.xpProd = (j.xpProd || 0) + n; if (j.mesa) j.xpProdX = (j.xpProdX || 0) + n - n / (1 + j.mesa); } // contador da ordem do recruta (shared/cla.js contarOrdem)
     let subiu = false;
     while (p.nivel < NIVEL_MAX && p.xp >= xpProximo(p.nivel) && !(j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc)) { p.xp -= xpProximo(p.nivel); p.nivel++; p.pontos += PONTOS_POR_NIVEL; subiu = true; }
     if (j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) p.xp = Math.min(p.xp, xpProximo(p.nivel) - 1); // parado no teto
