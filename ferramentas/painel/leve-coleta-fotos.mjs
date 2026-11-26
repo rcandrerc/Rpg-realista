@@ -44,6 +44,6 @@ await pg.locator('.sanfona>button.sec', { hasText: 'Recursos' }).click(); await 
 await pg.locator('.sanfona .linha', { hasText: 'Veio de pedra' }).first().click();
 for (let i = 0; i < 200; i++) { await esperar(500); if (await pg.locator('text=Recursos aqui').count() && !(await pg.locator('#jogarStatus button', { hasText: 'Parar' }).count())) break; }
 await foto('1-chegou-veio.png');
-await pg.locator('#jogar .card button', { hasText: 'Minerar' }).first().click(); await esperar(2500); await foto('2-minerando.png');
+await pg.locator('#jogar .card button', { hasText: 'Minerar' }).first().click(); await esperar(2500); await foto('2-minerando.png'); await esperar(4000); await foto('2b-minerando-depois.png');
 await esperar(8000); await foto('3-coletou.png');
 await nav.close(); fim(); process.exit();

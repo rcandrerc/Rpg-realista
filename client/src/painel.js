@@ -549,7 +549,15 @@ function eventoLeve(e) {
   else if (e.t === 'leilao') { leve.leilao = e; leve.sujo = true; }
   else if (e.t === 'bau') { leve.bau = e; leve.sujo = true; }
   else if (e.t === 'vila') { leve.rec = e.fase === 'comeca' ? Date.now() + (e.dur || 0) * 1000 : 0; leve.sujo = true; }
-  else if (e.t === 'coletou' && e.itens?.length) aviso(e.itens.map((o) => `+${o.n} ${o.nome}`).join(' · '));
+  else if (e.t === 'coleta') { // começou uma batida: zera a conta se for outro veio ou se parou faz tempo
+    const c = leve.col, agora = Date.now();
+    if (!c || c.no !== e.no || agora - c.ult > 12000) leve.col = { no: e.no, prof: e.prof, tot: {}, cargas: null, ult: agora };
+    Object.assign(leve.col, { ini: agora, dur: (e.dur || 1) * 1000, ult: agora }); leve.sujo = true;
+  }
+  else if (e.t === 'coletou') {
+    if (leve.col && leve.col.no === e.no) { for (const o of e.itens || []) leve.col.tot[o.nome] = (leve.col.tot[o.nome] || 0) + o.n; leve.col.cargas = e.cargas; leve.col.ult = Date.now(); }
+    if (e.itens?.length) aviso(e.itens.map((o) => `+${o.n} ${o.nome}`).join(' · ')); leve.sujo = true;
+  }
   else if (e.t === 'fabricando') { leve.fab = e.fim ? null : { nome: e.nome, ate: Date.now() + (e.dur || 0) * 1000 }; leve.sujo = true; }
   else if (e.t === 'chat') chatLeve([e]);
   else if (e.t === 'chatHist') { leve.chat = []; chatLeve(e.l); }
@@ -965,7 +973,14 @@ function desenharJogar() {
   const R = leve.f.r;
   if (leve.f.co && !morto) { // coletando: o que é e o Parar (a mesma mensagem do jogo)
     const l = el('div', 'bts mini'), p = el('button', 'acao cinza', 'Parar'); p.onclick = () => mandar('leveColetar', { no: leve.f.co[0], parar: true }); p.style.flex = '0 0 auto';
-    l.style.alignItems = 'center'; l.style.flexWrap = 'nowrap'; l.append(el('div', 'nome', `⛏️ Coletando: ${leve.f.co[1]}…`), p); l.firstChild.style.flex = '1'; st.append(l);
+    const c = leve.col?.no === leve.f.co[0] ? leve.col : null, [ic] = COLETA_VERBO[c?.prof] || COLETA_VERBO[''];
+    const fazendo = { min: 'Minerando', len: 'Cortando' }[c?.prof] || 'Coletando';
+    const box = el('div', 'coletaLeve'), topo = el('div', 'bts mini');
+    topo.style.alignItems = 'center'; topo.style.flexWrap = 'nowrap'; topo.append(el('div', 'titulo', `${ic} ${fazendo} ${leve.f.co[1]}…`), p); topo.firstChild.style.flex = '1';
+    const barra = el('div', 'progColeta'), enche = el('i'); barra.append(enche);
+    if (c?.ini) { const f = Math.min(1, (Date.now() - c.ini) / c.dur); enche.style.width = (f * 100).toFixed(0) + '%'; } else barra.classList.add('vai');
+    const tot = Object.entries(c?.tot || {}).map(([n, q]) => `${q} ${n}`).join(' · ');
+    box.append(topo, barra, el('div', 'faz', `Pegou: ${tot || 'nada ainda'}${c?.cargas != null ? ` · restam ${c.cargas}` : ''}`)); st.append(box);
   }
   if (morto) st.append(el('div', 'nome', 'Você caiu. Espere renascer no totem.'));
   else if (R) {
