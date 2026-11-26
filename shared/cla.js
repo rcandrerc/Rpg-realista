@@ -283,6 +283,7 @@ export const Cla = {
     if (!c) return aviso('Funde o seu clã primeiro');
     if (m.acao === 'elogiar') return this.elogiarRecruta(j, String(m.id || '')); // moral (MORAL)
     if (m.acao === 'entregar') return aviso(m.id === '*' ? this.entregarTodos(this.recrutasNoMundo(j)) : this.entregarRecruta(this.recrutasNoMundo(j).find((x) => x.AMIGA.id === String(m.id || '')))); // Entregar no Baú (um ou * = todos)
+    if (m.acao === 'esvaziar') return aviso(m.id === '*' ? this.esvaziarTodos(this.recrutasNoMundo(j)) : this.esvaziarRecruta(this.recrutasNoMundo(j).find((x) => x.AMIGA.id === String(m.id || '')))); // Esvaziar bags (um ou * = todos)
     this.cobrarCla(j);
     // 'candidatos' (André 2026-11-23: "aparecem 3 recrutas... e eu escolho entre 3"): o Recrutador mostra
     // FICHA_RECRUTA.candidatos com ficha; 'recrutar' com esc (0, 1, 2) contrata o escolhido. Sem esc: sorteia um (como antes)
@@ -458,6 +459,7 @@ export const Cla = {
     const ia = a.ia;
     if (a.morto) return 'Caído';
     if (this.levandoRecruta(a)) return `Levando ${ia.levar.nome} ao Baú do Clã`;
+    if (ia.esvaziar) return 'Indo esvaziar a bolsa no Baú do Clã';
     if (ia.funcaoSt && ia.funcaoSt.ate > this.tempo) return ia.funcaoSt.txt;
     if (a.time && a.time === j.time) return 'No seu time';
     if (ia.funcao?.k === 'proteger') return VEIC_PROTEGE[ia.funcao.p] ? (ia.pv?.sem ? `Esperando ${VEIC_PROTEGE[ia.funcao.p]}` : `Protegendo ${VEIC_PROTEGE[ia.funcao.p]}`) : 'Protegendo';
@@ -733,6 +735,87 @@ export const Cla = {
     if (!vao.length) return xs.some((x) => x.amiga && this.levandoRecruta(x.amiga)) ? 'Os recrutas já estão indo ao Baú do Clã' : 'Nenhum recruta carrega item do clã agora';
     const n = vao.filter((x) => this.entregarRecruta(x).endsWith('vai entregar no Baú do Clã')).length;
     return n ? `${n} recruta${n > 1 ? 's vão' : ' vai'} entregar no Baú do Clã` : this.entregarRecruta(vao[0]);
+  },
+  // ---------- botão "Esvaziar bags" (André 2026-11-26: "esvaziar bag, deixar as coisas necessárias no baú do clã e vender
+  // o que não for necessário") ----------
+  // O recruta larga o que faz, ANDA até o Baú do Clã (ou usa a casinha, como no Entregar), deixa lá o que o clã usa
+  // (precisaCla) e vende o resto como na volta para a vila (arrumarMochilaAmiga: ferramenta, poção, semente, comida dele e
+  // o travado ficam com ele; peça melhor ele veste). Depois volta à função. Vale para todo clã, jogador ou bot; jogo e leve.
+  // o que o clã usa: material dos níveis do clã, o que o líder bot exige, comida da despensa, Fragmento de Alma, carvão
+  // da fornalha e todo recurso que o painel pode pedir (Farmar recurso)
+  precisaCla() {
+    if (this._precisaCla) return this._precisaCla;
+    const s = new Set([...(CLAS_NPC_ORDENS.exigir?.itens || []), almaDe('geada'), almaDe('chama'), 'carvao']);
+    for (const N of Object.values(CLA.niveis || {})) for (const k of Object.keys(N?.mat || {})) s.add(k);
+    if (DESPENSA.ligado) for (const k of Object.keys(DESPENSA.racao)) s.add(k);
+    for (const R of Object.values(RECURSOS_CLA)) if (R.item) s.add(R.item);
+    for (const k of [...s]) if (!ITENS[k]) s.delete(k);
+    return (this._precisaCla = s);
+  },
+  // tem algo para guardar ou vender? (ferramenta, poção, semente e travado ficam com ele)
+  temEsvaziar(a) {
+    const P = this.precisaCla();
+    return (a?.prog?.mochila || []).some((o) => o && !o.h && (P.has(o.k) || !(FERRAMENTAS_FAZENDA[o.k] || o.k === 'pocao' || o.k.startsWith('semente_') || ITENS[o.k]?.usar?.veiculo)));
+  },
+  esvaziarRecruta(x) {
+    const a = x?.amiga; if (!a) return 'Esse recruta não está no mundo agora';
+    const nome = x.AMIGA.nome;
+    if (a.morto) return `${nome} caiu: espere renascer`;
+    if (!this.bauDoCla(this.claDoRecruta(x))) return 'Seu clã ainda não tem Baú do Clã';
+    if (a.ia?.esvaziar) return `${nome} já está indo esvaziar a bolsa`;
+    if (!this.temEsvaziar(a)) return `${nome} está com a bolsa vazia`;
+    if (a.coleta) this.pararColeta(a, null);
+    if (a.pesca) this.pararPesca(a, null);
+    a.ia.viagem = null; a.ia.fase = 'pensar';
+    a.ia.esvaziar = { ate: this.tempo + CLA.esvaziar.max };
+    a.ia.funcaoSt = { txt: 'Indo esvaziar a bolsa no Baú do Clã', ate: this.tempo + 60 };
+    return `${nome} vai esvaziar a bolsa no Baú do Clã`;
+  },
+  esvaziarTodos(xs) {
+    const vao = xs.filter((x) => x.amiga && !x.amiga.morto && !x.amiga.ia?.esvaziar && this.temEsvaziar(x.amiga));
+    if (!vao.length) return xs.some((x) => x.amiga?.ia?.esvaziar) ? 'Os recrutas já estão indo esvaziar a bolsa' : 'Nenhum recruta tem o que esvaziar agora';
+    const n = vao.filter((x) => this.esvaziarRecruta(x).endsWith('esvaziar a bolsa no Baú do Clã')).length;
+    return n ? `${n} recruta${n > 1 ? 's vão' : ' vai'} esvaziar a bolsa no Baú do Clã` : this.esvaziarRecruta(vao[0]);
+  },
+  // guarda no Baú do Clã tudo que o clã usa (não só o da ordem); lenha e couro do barquinho ficam se ele não tem barquinho
+  depositarTudoRecruta(x, B) {
+    const a = x.amiga, mo = a.prog.mochila, P = this.precisaCla();
+    const fica = contar(mo, 'barquinho') < 1 && a.veiculo !== 'barquinho' ? { ...FERRAMENTAS_FAZENDA.barquinho.custo } : {};
+    let n = 0;
+    for (let i = 0; i < mo.length; i++) {
+      const o = mo[i]; if (!o || o.h || !P.has(o.k)) continue;
+      const tem = o.n || 1, f = Math.min(fica[o.k] || 0, tem); if (f) fica[o.k] -= f;
+      const q = tem - f; if (q <= 0) continue;
+      const g = guardarQueCabe(B.itens, { ...o, n: q }); if (!g) continue;
+      n += g; if (g >= tem) mo[i] = null; else o.n = tem - g;
+    }
+    if (n) { this.mexeuBau(B); x.guardarAmiga?.(); }
+    return n;
+  },
+  // o passo da ordem: anda até o Baú do Clã, guarda, vende e volta à função. true = ocupou o passo
+  esvaziarPassoRecruta(x, a, dt) {
+    const E = a.ia?.esvaziar; if (!E) return false;
+    const K = this.claDoRecruta(x), B = this.bauDoCla(K);
+    if (!B || this.tempo > E.ate) { a.ia.esvaziar = null; return false; } // sem baú ou travou no caminho: desiste
+    const P = this.lugarBauCla(K);
+    if (P) {
+      const d = Math.hypot(P.x - a.x, P.z - a.z);
+      if (d > CLA.entrega.perto) {
+        if (this.recallRecruta(x, a, P, d)) return true;
+        if (d > 30) x.irLongeAmiga(a, P.x, P.z, dt); else this.irDireto(a, P.x, P.z, d > 6);
+        return true;
+      }
+      x.pararAmiga(a);
+    } // sem baú no mapa (clã bot sem base): guarda ali mesmo
+    const n = (a.ia.levar ? this.depositarRecruta(x) : 0) + this.depositarTudoRecruta(x, B);
+    const v = x.arrumarMochilaAmiga(a, this.precisaCla(), true) || {}; // o que o clã usa e não coube no baú (cheio) fica com ele
+    a.ia.esvaziar = null; a.ia.av = null; a.ia.fase = 'pensar'; a.ia.encomenda = null;
+    const cheio = a.prog.mochila.some((o) => o && !o.h && this.precisaCla().has(o.k) && !FERRAMENTAS_FAZENDA.barquinho.custo[o.k]);
+    const mm = K.m?.find((o) => o.id === x.AMIGA.id);
+    if (K.corpo && mm) this.aplicarFuncao(K.corpo, x, mm, false); // volta à função
+    else if (!K.corpo && !K.bot && mm) this.funcaoSemLider(x, a, mm.fn || { k: 'livre' }, { id: null, conta: K.conta, bot: false, time: null, prog: { cla: { m: K.m } } });
+    a.ia.funcaoSt = { txt: [n ? `Guardou ${n} no Baú do Clã` : 'Nada para o Baú do Clã', v.vendeu ? `vendeu o resto por ${v.ouro} de ouro` : 'nada para vender', cheio ? 'o Baú do Clã encheu' : ''].filter(Boolean).join(', '), ate: this.tempo + 60 };
+    return true;
   },
   // quanto do item da ordem ele carrega (o botão Entregar só aparece com algo)
   levarQtd(a) { const L = a?.ia?.levar; let n = 0; if (L) for (const o of a.prog.mochila || []) if (this.ehDoLevar(o, L)) n += o.n || 1; return n; },
@@ -1121,6 +1204,12 @@ export const Cla = {
     if (id !== '*' && !c?.m?.some((o) => o.id === id)) return 'Esse recruta não está no seu clã';
     const L = this.liderPainel(conta, c, raca);
     return id === '*' ? this.entregarTodos(this.recrutasNoMundo(L)) : this.entregarRecruta(this.recrutasNoMundo(L).find((o) => o.AMIGA.id === id));
+  },
+  // Esvaziar bags pelo painel (líder fora do jogo)
+  painelEsvaziar(conta, c, raca, id) {
+    if (id !== '*' && !c?.m?.some((o) => o.id === id)) return 'Esse recruta não está no seu clã';
+    const L = this.liderPainel(conta, c, raca);
+    return id === '*' ? this.esvaziarTodos(this.recrutasNoMundo(L)) : this.esvaziarRecruta(this.recrutasNoMundo(L).find((o) => o.AMIGA.id === id));
   },
   painelFuncao(conta, c, raca, id, fnBruto) {
     const r = c?.m?.find((o) => o.id === id); if (!r) return { texto: 'Esse recruta não está no seu clã' };

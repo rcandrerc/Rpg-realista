@@ -713,6 +713,14 @@ class SalaClareira extends Room {
       if (!prog?.cla) return this.enviarPainel(client, 'Você não tem clã');
       return this.enviarPainel(client, this.sim.painelEntregar(k, prog.cla, prog.raca, m.id));
     }
+    if (m.acao === 'esvaziar' && typeof m.id === 'string' && m.id.length <= 20) { // Esvaziar bags (André 2026-11-26)
+      if (agora - (u.painelOrdem || 0) < PAINEL.ordemMs) return; u.painelOrdem = agora;
+      const k = 'c' + client.auth.id, h = heroiDe(k);
+      if (h) { h.s.sim.cla(h.j.id, { acao: 'esvaziar', id: m.id }); return this.enviarPainel(client, 'Pedido enviado (você está no jogo)'); }
+      const prog = contas.lerProgresso(client.auth.id);
+      if (!prog?.cla) return this.enviarPainel(client, 'Você não tem clã');
+      return this.enviarPainel(client, this.sim.painelEsvaziar(k, prog.cla, prog.raca, m.id));
+    }
     if (m.acao !== 'funcao' || typeof m.id !== 'string' || m.id.length > 20) return;
     if (agora - (u.painelOrdem || 0) < PAINEL.ordemMs) return;
     u.painelOrdem = agora;

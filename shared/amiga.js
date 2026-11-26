@@ -541,6 +541,7 @@ export const Amiga = {
     if (j.morto) { if (!ia.caiu) { ia.caiu = true; ia.caiuT = this.tempo; this.evolucaoAmiga(j, 'morreu', this.textoMorteAmiga(j)); const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); if (ia.encomenda && !ia.encomenda.pronta) this.fimEncomendaAmiga(j, 'luta'); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
     ia.caiu = false;
     if (j.duelo) return this.passoDueloAmiga(j); // duelando (shared/duelo.js): só luta contra quem chamou
+    if (ia.esvaziar && this.esvaziarPassoRecruta?.(this, j, dt)) return; // botão Esvaziar bags: anda ao Baú do Clã, guarda o que o clã usa e vende o resto (cla.js)
     if (ia.jantar && this.jantarAmiga?.(j, dt)) return; // chamado para o jantar do clã: anda até a Mesa do Clã e senta (shared/jantar.js)
     if (ia.packOrdem && this.passoOrdemPackAmiga(j, dt)) return; // ordem de pack da barra do time (De → Pra, andando)
     if (this.protegerVeiculoAmiga(j, dt)) return; // "Proteger carrinho / mercante" (painel do clã): antes da guerra, para não perseguir
@@ -3176,7 +3177,7 @@ export const Amiga = {
     }
     return vestiu;
   },
-  arrumarMochilaAmiga(j) {
+  arrumarMochilaAmiga(j, manter, tudo) { // manter: Set que não vende (Esvaziar bags: o que o clã usa e não coube no baú); tudo: não guarda para o leilão
     const p = j.prog, nota = (it) => (it ? it.r * 100 + (it.e || 0) * 10 - (it.d || 0) : -1);
     for (let i = 0; i < p.mochila.length; i++) {
       const it = itemValido(p.mochila[i]); if (!it || !ehEquip(it.k)) continue;
@@ -3192,7 +3193,7 @@ export const Amiga = {
     // material do barquinho (lenha e couro) fica enquanto ele não tem barquinho (André 2026-11-26: junta para atravessar)
     const semBarco = contar(j.prog.mochila, 'barquinho') < 1, CB = FERRAMENTAS_FAZENDA.barquinho.custo;
     const fica = semBarco ? { ...CB } : {}; // quanto ainda guarda de cada um (o que passa vai para a loja como antes)
-    const guarda = (it) => daEnc(it) || it.cad || it.k === 'pocao' || it.k.startsWith('semente_') || this.AMIGA.plantas.includes(it.k) || this.AMIGA.pedidos.some((o) => o.k === it.k) || ITENS[it.k].comida || !!FERRAMENTAS_FAZENDA[it.k] || !!this.guardaLeilaoAmiga?.(j, it, livresL); // ferramenta (picareta, machado, vara...) nunca vai para a loja (André 2026-11-24: "tô achando que ele tá vendendo a picareta")
+    const guarda = (it) => manter?.has(it.k) || daEnc(it) || it.cad || it.k === 'pocao' || it.k.startsWith('semente_') || this.AMIGA.plantas.includes(it.k) || this.AMIGA.pedidos.some((o) => o.k === it.k) || ITENS[it.k].comida || !!FERRAMENTAS_FAZENDA[it.k] || (!tudo && !!this.guardaLeilaoAmiga?.(j, it, livresL)); // ferramenta (picareta, machado, vara...) nunca vai para a loja (André 2026-11-24: "tô achando que ele tá vendendo a picareta")
     let ouro = 0, vendeu = 0;
     for (let i = 0; i < p.mochila.length; i++) {
       const it = itemValido(p.mochila[i]); if (!it) continue;
