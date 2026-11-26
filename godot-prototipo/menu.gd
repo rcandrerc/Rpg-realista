@@ -384,14 +384,13 @@ static func ha_quanto(ms: float) -> String:
 	if ms <= 0.0:
 		return ""
 	var s := maxf(0.0, Time.get_unix_time_from_system() - ms / 1000.0)
-	var en: bool = Idioma.atual == "en"
 	if s < 60.0:
-		return "just now" if en else "agora há pouco"
+		return Idioma.frase("agora há pouco")
 	if s < 3600.0:
-		return ("%d min ago" if en else "há %d min") % int(s / 60.0)
+		return Idioma.frase("há %d min") % int(s / 60.0)
 	if s < 86400.0:
-		return ("%d h ago" if en else "há %d h") % int(s / 3600.0)
-	return ("%d d ago" if en else "há %d d") % int(s / 86400.0)
+		return Idioma.frase("há %d h") % int(s / 3600.0)
+	return Idioma.frase("há %d d") % int(s / 86400.0)
 
 # "Agora: Coletando · há 5 min"
 static func texto_agora(d: Dictionary) -> String:
