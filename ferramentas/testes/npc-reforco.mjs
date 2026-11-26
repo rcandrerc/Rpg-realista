@@ -76,6 +76,24 @@ const novo = () => {
   ok(a.evolucao.filter((x) => x.o === 'travou').length === 1, 'etapa parada tempo demais: avisa "travou" uma vez');
   a.morto = true; a.ia.caiu = false; c.cabecaAmiga(0.05);
   ok(a.evolucao.some((x) => x.o === 'morreu'), 'queda entra no diário');
+  ok(a.evolucao.some((x) => x.o === 'morreu' && x.txt.includes('por sem golpe') && x.txt.includes(`em ${Math.round(a.x)},${Math.round(a.z)}`)), 'queda sem golpe: o diário diz "sem golpe" e onde caiu');
+  void s;
+}
+// a queda no diário diz quem deu o golpe final (ronda 26/11: as 37 quedas do Gael no Juncal não diziam de quê)
+{
+  const { s, c, a } = novo();
+  a.vida = 1; s.morrer(a, { tipo: 'lobo', nivel: 47 }); c.cabecaAmiga(0.05);
+  const m1 = a.evolucao.filter((x) => x.o === 'morreu').pop();
+  ok(m1 && m1.txt.includes('por Lobo Nv 47'), `golpe de monstro: "${m1?.txt}"`);
+  ok(a.quedaDe == null, 'o golpe anotado some depois de ir para o diário');
+  a.morto = false; a.ia.caiu = false; c.cabecaAmiga(0.05);
+  const bot = { tipo: 'jogador', bot: true, nome: 'Gael Lobo', nivel: 44 };
+  s.morrer(a, bot); c.cabecaAmiga(0.05);
+  ok(a.evolucao.filter((x) => x.o === 'morreu').pop()?.txt.includes('por Gael Lobo'), 'golpe de bot: sai o nome do bot');
+  a.morto = false; a.ia.caiu = false; c.cabecaAmiga(0.05);
+  s.morrer(a, { tipo: 'jogador', nome: 'André', nivel: 62 }); c.cabecaAmiga(0.05);
+  const m3 = a.evolucao.filter((x) => x.o === 'morreu').pop();
+  ok(m3?.txt.includes('por um jogador') && !m3.txt.includes('André'), 'golpe de jogador de verdade: sem o nome dele');
   c.guardarAmiga(); const L = c.loteDaAmiga();
   ok(!L || L.amiga.evolucao?.length >= 4, 'o diário fica salvo');
   void s;
