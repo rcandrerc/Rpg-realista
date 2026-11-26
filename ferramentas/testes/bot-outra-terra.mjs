@@ -19,11 +19,11 @@ const morrer = s.morrer.bind(s); s.morrer = (c, de) => { if (c === b) { b.vida =
 for (let i = 0; i < 5; i++) guardar(b.prog.mochila, { k: 'pocao', n: 5 });
 let c = null; for (let i = 0; i < 20 && !(c && terraId(c.x, c.z) === 2); i++) c = ctx.campoAmiga(b);
 ok(c && terraId(c.x, c.z) === 2, `o campo do nível dele é na Ilha do Meio: ${c?.nome}`);
-// sem barquinho e sem material: escolhe outro campo (no continente)
+// sem barquinho e sem material: não vai nadando. Junta couro/lenha pro barquinho (André 26/11) ou escolhe outro campo
 const semBarco = () => { b.ia.av = { fase: 'ir', c, coleta: null, ate: s.tempo + 9999 }; b.ia.viagem = null; };
 semBarco(); let foi = false;
-for (let i = 0; i < 20 * 120 && !foi; i++) { dia(); s.passo(0.05); if (b.ia.av?.fora?.has(c.id)) foi = true; }
-ok(foi, 'sem barquinho: desiste do campo da ilha');
+for (let i = 0; i < 20 * 120 && !foi; i++) { dia(); s.passo(0.05); if (b.ia.av?.fora?.has(c.id) || b.ia.av?.barcoK) foi = true; if (terraId(b.x, b.z) === 2) break; }
+ok(foi && terraId(b.x, b.z) !== 2, `sem barquinho: não nada pra ilha (${b.ia.av?.barcoK ? 'junta ' + b.ia.av.barcoK + ' pro barquinho' : 'outro campo'})`);
 // com barquinho: vai
 guardar(b.prog.mochila, { k: 'barquinho', n: 1 });
 b.ia.av = { fase: 'ir', c, coleta: null, ate: s.tempo + 9999 }; b.ia.viagem = null;

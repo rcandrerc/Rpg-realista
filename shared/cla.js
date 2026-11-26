@@ -437,7 +437,8 @@ export const Cla = {
     if (ia.encomenda && !ia.encomenda.pronta) return `Coletando ${ENCOMENDA.recursos[ia.encomenda.rec]?.nome || ''}`.trim();
     // a pausa entre uma saída e outra aparece como pausa (2026-11-26: o painel dizia "Caçando" e o "Ver" mostrava ele
     // parado perto de casa, parecendo que mexia na terra)
-    if (ia.av) return ia.av.fase === 'voltar' ? 'Voltando' : ia.av.fase === 'descansar' ? 'Descansando' : ia.av.fase === 'evoluir' ? 'Melhorando o equipamento' : ia.av.fase === 'ir' ? (ia.av.coleta ? 'Indo coletar' : 'Indo caçar') : ia.av.coleta ? 'Coletando' : 'Caçando';
+    // André 2026-11-26: "tem que dizer tudo: a caminho do spot, descansando e caçando"
+    if (ia.av) return ia.av.barcoK && ['ir', 'cacar'].includes(ia.av.fase) ? (ia.av.barcoK === 'lenha' ? 'Cortando lenha pro barquinho' : 'Caçando couro pro barquinho') : ia.av.fase === 'voltar' ? 'Voltando' : ia.av.fase === 'descansar' ? 'Descansando' : ia.av.fase === 'evoluir' ? 'Melhorando o equipamento' : ia.av.fase === 'ir' || ia.av.fase === 'escolher' ? 'A caminho do spot' : ia.av.coleta ? 'Coletando' : 'Caçando';
     return 'Parado';
   },
   // aplica a função de cada recruta no mundo (a cada minuto e ao entrar)
@@ -716,6 +717,20 @@ export const Cla = {
       n += q; if (q >= (o.n || 1)) a.prog.mochila[i] = null; else o.n -= q;
     }
     if (n) { this.mexeuBau(B); x.guardarAmiga?.(); a.prodDep = (a.prodDep || 0) + n; } // prodDep: o que já foi para o baú (MORAL.prod conta junto)
+    // sem barquinho: pega no Baú do Clã a lenha e o couro que faltam para ele (André 2026-11-26: pede no privado e o
+    // líder põe no Baú) e faz na hora
+    if (contar(a.prog.mochila, 'barquinho') < 1 && a.veiculo !== 'barquinho') {
+      let pegou = false;
+      for (const [k, q] of Object.entries(FERRAMENTAS_FAZENDA.barquinho.custo)) {
+        let falta = q - contar(a.prog.mochila, k);
+        for (let i = 0; i < B.itens.length && falta > 0; i++) {
+          const o = B.itens[i]; if (o?.k !== k) continue;
+          const t = Math.min(falta, o.n || 1), g = guardarQueCabe(a.prog.mochila, { k, n: t }); if (!g) break;
+          falta -= g; pegou = true; if (g >= (o.n || 1)) B.itens[i] = null; else o.n -= g;
+        }
+      }
+      if (pegou) { this.mexeuBau(B); x.barcoPedidoAmiga?.(a); x.guardarAmiga?.(); }
+    }
     return n;
   },
   // o líder abre o Baú do Clã (perto da peça no terreno dele): guardar, tirar e organizar, como o baú particular
@@ -1051,7 +1066,8 @@ export const Cla = {
     if (ia.atividade) return 'Trabalhando';
     // a pausa entre uma saída e outra aparece como pausa (2026-11-26: o painel dizia "Caçando" e o "Ver" mostrava ele
     // parado perto de casa, parecendo que mexia na terra)
-    if (ia.av) return ia.av.fase === 'voltar' ? 'Voltando' : ia.av.fase === 'descansar' ? 'Descansando' : ia.av.fase === 'evoluir' ? 'Melhorando o equipamento' : ia.av.fase === 'ir' ? (ia.av.coleta ? 'Indo coletar' : 'Indo caçar') : ia.av.coleta ? 'Coletando' : 'Caçando';
+    // André 2026-11-26: "tem que dizer tudo: a caminho do spot, descansando e caçando"
+    if (ia.av) return ia.av.barcoK && ['ir', 'cacar'].includes(ia.av.fase) ? (ia.av.barcoK === 'lenha' ? 'Cortando lenha pro barquinho' : 'Caçando couro pro barquinho') : ia.av.fase === 'voltar' ? 'Voltando' : ia.av.fase === 'descansar' ? 'Descansando' : ia.av.fase === 'evoluir' ? 'Melhorando o equipamento' : ia.av.fase === 'ir' || ia.av.fase === 'escolher' ? 'A caminho do spot' : ia.av.coleta ? 'Coletando' : 'Caçando';
     if (B.guerra || ia.alma?.alvo) return 'Na guerra';
     return 'Na base';
   },

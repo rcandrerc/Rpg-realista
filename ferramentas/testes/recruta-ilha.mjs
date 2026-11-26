@@ -30,3 +30,23 @@ ok(barco, 'fez o barquinho com o material e atravessou de barco');
 ok(naIlha && b.ia.av?.c?.nome?.includes('Ilha') !== false, 'chegou na Ilha do Meio (campo da carne no nível dele)');
 ok(pulo === 0, `não foi jogado de volta ao continente na praia (${pulo} pulos)`);
 ok(chegou !== null && cacando >= NPC_VIDA.aventura.cacar[0] * 0.5, `caçou ${cacando} s depois de chegar (antes a viagem gastava o tempo)`);
+
+// sem o material (André 2026-11-26: "ele vai e coleta os itens para fazer o barquinho e depois vai para a ilha... não vai
+// mais para a ilha nadando"): com machado e vigor, corta a lenha perto, faz o barquinho e só então atravessa
+{
+  const m2 = (s.cla('A', { acao: 'recrutar', tier: 'recruta' }), a.prog.cla.m[1]), x2 = s.recrutasNoMundo(a).find((o) => o.AMIGA.id === m2.id), c = x2.amiga;
+  c.prog.nivel = 60; c.prog.mochila.fill(null); c.x = -10; c.z = -6;
+  c.prog.mochila[0] = { k: 'pocao', n: 20 }; c.prog.mochila[1] = { k: 'machado', n: 1 }; c.prog.mochila[2] = { k: 'couro', n: 4 }; c.prog.vigor = { v: 500, t: Date.now() };
+  s.cla('A', { acao: 'funcao', id: m2.id, fn: { k: 'recurso', r: 'carne' } });
+  let nadou = 0, cortando = false, fez = false;
+  for (let i = 0; i < 4 * 600 && !fez; i++) {
+    s.passo(0.25);
+    if (c.ia.av?.barcoK === 'lenha') cortando = true;
+    if (terraId(c.x, c.z) === 0 && c.veiculo !== 'barquinho') nadou++;
+    if (contar(c.prog.mochila, 'barquinho') > 0 || c.veiculo === 'barquinho') fez = true;
+  }
+  ok(cortando, 'sem lenha: foi cortar lenha para o barquinho');
+  ok(fez, 'juntou a lenha e fez o barquinho');
+  ok(nadou === 0, 'não foi nadando para a ilha');
+  ok(s.fazendoRecruta(c, a) === 'A caminho do spot' || c.ia.av?.fase === 'ir', `status: "${s.fazendoRecruta(c, a)}"`);
+}

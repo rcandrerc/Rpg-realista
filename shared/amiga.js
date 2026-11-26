@@ -16,7 +16,7 @@
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
 import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, NPC_SOLDADO, CLA, CLAS_NPC_ORDENS, LIDERES_CLA } from './dados.js';
 import { CLAS_NPC, AMIGA as CECILIA_DEF, DARIO as DARIO_DEF } from './dados.js'; // recusa do soldado com o clã (André 2026-11-25)
-import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, NPC_CASA_BASE, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO, VEICULOS } from './dados.js';
+import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, NPC_CASA_BASE, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO, VEICULOS, DROPS } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota, terraId } from './rota.js';
 import { lugarDoVeiculo, fundoAgua, devolverBarquinho, centroNavio, packValido, precoPack, mercadoK, mercadoConta, capacidadeCarrinho } from './transporte.js';
@@ -717,6 +717,7 @@ export const Amiga = {
     const livres = j.prog.mochila.filter((o) => !o).length, temPocao = j.prog.mochila.some((o) => o?.k === 'pocao');
     const voltar = () => { if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null); Object.assign(av, { fase: 'voltar', c: null, coleta: null }); ia.viagem = null; };
     if (av.fase === 'escolher') {
+      av.barcoK = null; av.volta = null; // juntando para o barquinho e saiu (lugar acabou, voltou): escolhe de novo
       if (noite || livres < A.mochilaLivre) return voltar();
       // a casa no lote da base ainda não está pronta (André 2026-11-23, NPC_CASA_BASE): primeiro vai construir, como um
       // jogador; quem obedece o líder do clã quase nunca fica em casa à toa, então a casa vem antes da próxima saída
@@ -753,6 +754,10 @@ export const Amiga = {
     }
     if (av.fase === 'missao') return this.missaoSozinhoAmiga(j, av, noite, voltar, dt);
     if (av.fase === 'plantar') return this.plantarSozinhoAmiga(j, av, noite, voltar, dt);
+    // barquinho antes da outra terra (André 2026-11-26: "se ele não tiver os itens para fazer o barquinho, ele vai e coleta
+    // os itens... e depois vai para a ilha. Enquanto não tiver o barquinho, não vai mais para a ilha nadando")
+    if (av.barcoK && (av.fase === 'ir' || av.fase === 'cacar') && this.barcoJuntouAmiga(j, av)) return;
+    if (av.fase === 'ir' && !av.barcoK && av.c && this.semBarcoAmiga(j, av.c) && this.prepararBarcoAmiga(j, av, voltar)) return;
     if (av.coleta && (av.fase === 'ir' || av.fase === 'cacar')) return this.coletaSozinhoAmiga(j, av, noite, livres, voltar, dt);
     if (av.fase === 'ir' || av.fase === 'cacar') {
       const c = av.c;
@@ -2124,6 +2129,54 @@ export const Amiga = {
   },
   // pediu o barquinho pelo chat: faz de verdade (com o material da mochila) ou diz o que falta; a fala é sempre o que
   // aconteceu no jogo (a IA dizia "já fiz" e "tô de barco" sem ter feito)
+  // o lugar (c) fica em outra terra e ele não tem barquinho? Tenta fazer agora com o que tem na mochila
+  semBarcoAmiga(j, c) {
+    if (j.veiculo === 'barquinho' || contar(j.prog.mochila, 'barquinho') > 0) return false;
+    const tc = terraId(c.x, c.z), t0 = terraId(j.x, j.z) || j.ia.terraUlt || 0;
+    if (!(tc > 0 && t0 > 0 && tc !== t0)) return false;
+    this.barcoPedidoAmiga(j);
+    return contar(j.prog.mochila, 'barquinho') < 1;
+  },
+  // falta material para o barquinho: vai juntar na terra onde está (couro: caça no campo que solta; lenha: corta) e depois
+  // segue para o lugar de antes (barcoJuntouAmiga). true = cuidou (mudou o av)
+  prepararBarcoAmiga(j, av, voltar) {
+    const custo = FERRAMENTAS_FAZENDA.barquinho.custo, t0 = terraId(j.x, j.z) || j.ia.terraUlt || 0, A = NPC_VIDA.aventura;
+    const falta = (k) => (custo[k] || 0) - contar(j.prog.mochila, k);
+    const guarda = { c: av.c, coleta: av.coleta, noTipo: av.noTipo, dur: av.dur || Math.max(0, (av.ate || 0) - this.tempo) };
+    if (falta('couro') > 0) {
+      const teto = (j.prog.nivel | 0) + A.campoAcima - (j.licoes?.acima || 0);
+      const l = this.cacas.map((x) => x.def).filter((c) => !c.boss && !c.tunel && terraId(c.x, c.z) === t0 && (c.nivel || 1) <= teto && (c.tipos || [c.bicho]).some((t) => DROPS[t]?.mat?.couro)).sort((x, y) => (y.nivel || 1) - (x.nivel || 1));
+      if (l[0]) { const D = (A.cacar[1]) * 2; Object.assign(av, { barcoK: 'couro', volta: guarda, c: l[0], coleta: null, noTipo: null, fase: 'ir', ate: this.tempo + D, dur: D }); j.ia.viagem = null; return true; }
+    } else if (falta('lenha') > 0 && vigorAgora(j.prog.vigor) < 1) { // cortar lenha gasta vigor: sem vigor, pede ao líder no privado
+      const L = (this.AMIGA.recruta || this.fixoClaNpc?.(this)) && this.corpoLiderDe?.(this);
+      if (L && !L.bot) this.avisarLiderRecruta?.(this, L, 'barco', `Preciso ir pra outra terra e tô sem barquinho e sem vigor pra cortar lenha. Me falta ${falta('lenha')} lenha${falta('couro') > 0 ? ` e ${falta('couro')} couro` : ''} pro barquinho (pode pôr no Baú do Clã).`);
+    } else if (falta('lenha') > 0) {
+      // a árvore com carga mais perto DELE na mesma terra (a da vila dele podia ficar longe ou sem caminho)
+      let c = null, md = Infinity;
+      if (contar(j.prog.mochila, 'machado') > 0) for (const no of this.coletaveis.values()) {
+        if (no.tipo !== 'arvore' || this.cargas(j, no) <= 0 || terraId(no.x, no.z) !== t0 || j.ia.ruins?.get(no.id) > this.tempo) continue;
+        const d = Math.hypot(no.x - j.x, no.z - j.z); if (d < md) { md = d; c = { id: no.id, x: no.x, z: no.z, y: no.y ?? null }; }
+      }
+      if (contar(j.prog.mochila, 'machado') > 0 && !c) c = this.lugarColetaAmiga(j, 'lenha');
+      if (c && terraId(c.x, c.z) === t0) { Object.assign(av, { barcoK: 'lenha', volta: guarda, c, coleta: 'lenha', noTipo: null, fase: 'ir', ate: this.tempo + 1800, dur: 0 }); j.ia.viagem = null; j.ia.alvoColeta = null; return true; }
+      if (!c && (this.AMIGA.recruta || this.fixoClaNpc?.(this)) && !j.ia.fazFer && contar(j.prog.mochila, 'machado') < 1) { j.ia.fazFer = { k: 'machado' }; voltar(); return true; } // sem machado: pega no Baú do Clã ou faz (cla.js ferramentaRecruta)
+    }
+    // não dá para juntar aqui: não vai nadando; deixa este lugar e escolhe outro (como o bot sozinho fazia)
+    (av.fora ||= new Set()).add(av.c.id); av.fase = 'escolher'; av.c = null; av.coleta = null; j.ia.viagem = null;
+    if (j.ia.funcaoSt?.txt !== 'Sem barquinho') j.ia.funcaoSt = { txt: 'Sem barquinho', ate: this.tempo + 60 };
+    return true;
+  },
+  // juntando para o barquinho: tem o material? faz o barquinho e volta para o lugar de antes. true = cuidou do passo
+  barcoJuntouAmiga(j, av) {
+    const custo = FERRAMENTAS_FAZENDA.barquinho.custo;
+    if (contar(j.prog.mochila, av.barcoK) < (custo[av.barcoK] || 0)) return false;
+    if (j.coleta) this.pararColeta(j, null);
+    this.barcoPedidoAmiga(j);
+    const g = av.volta || {}; av.barcoK = null; av.volta = null;
+    Object.assign(av, { c: g.c || null, coleta: g.coleta || null, noTipo: g.noTipo || null, fase: g.c ? 'ir' : 'escolher', ate: this.tempo + (g.dur || 300), dur: g.dur || 0 });
+    j.ia.viagem = null; j.ia.alvoColeta = null;
+    return true;
+  },
   barcoPedidoAmiga(a) {
     const P = this.AMIGA.barcoFalas || {};
     if (a.veiculo === 'barquinho') return P.nele || 'Tô no barquinho agora, remando atrás de você!';
@@ -3135,6 +3188,9 @@ export const Amiga = {
     // vale anunciar (peça Rara+, Tomo, material) enquanto houver espaço na mochila
     this.leilaoTalvezAmiga?.(j);
     const livresL = p.mochila.filter((o) => !o).length;
+    // material do barquinho (lenha e couro) fica enquanto ele não tem barquinho (André 2026-11-26: junta para atravessar)
+    const semBarco = contar(j.prog.mochila, 'barquinho') < 1, CB = FERRAMENTAS_FAZENDA.barquinho.custo;
+    const fica = semBarco ? { ...CB } : {}; // quanto ainda guarda de cada um (o que passa vai para a loja como antes)
     const guarda = (it) => daEnc(it) || it.cad || it.k === 'pocao' || it.k.startsWith('semente_') || this.AMIGA.plantas.includes(it.k) || this.AMIGA.pedidos.some((o) => o.k === it.k) || ITENS[it.k].comida || !!FERRAMENTAS_FAZENDA[it.k] || !!this.guardaLeilaoAmiga?.(j, it, livresL); // ferramenta (picareta, machado, vara...) nunca vai para a loja (André 2026-11-24: "tô achando que ele tá vendendo a picareta")
     let ouro = 0, vendeu = 0;
     for (let i = 0; i < p.mochila.length; i++) {
@@ -3142,6 +3198,7 @@ export const Amiga = {
       if (it.k === 'tomo') { this.item(j.id, { acao: 'usar', i }); if (!p.mochila[i]) continue; } // tomo de espada que ela pode ler
       if (it.k === 'pocao' && it.n > this.AMIGA.mochila.pocoes) { const n = it.n - this.AMIGA.mochila.pocoes; ouro += precoVenda(it) * n; p.mochila[i].n -= n; vendeu++; continue; }
       if (guarda(it) || ITENS[it.k].usar?.veiculo) continue;
+      if (fica[it.k] > 0) { const k = Math.min(fica[it.k], it.n || 1); fica[it.k] -= k; const n = (it.n || 1) - k; if (n > 0) { ouro += precoVenda(it) * n; p.mochila[i].n = k; vendeu++; } continue; }
       ouro += precoVenda(it) * (it.n || 1); p.mochila[i] = null; vendeu++;
     }
     if (vendeu) { p.ouro += ouro; this.aplicarStatus(j); }
