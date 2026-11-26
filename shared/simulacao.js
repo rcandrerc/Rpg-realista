@@ -4250,6 +4250,7 @@ export class Simulacao {
       // penalidade (André 2026-11-05, MORTE em shared/dados.js): perde XP (o ouro não, André 2026-11-18) e o equipamento desgasta
       // Chama x Geada (André 2026-11-18): morte de guerra (golpe da outra raça nos últimos GUERRA.marca s) só desgasta
       const matou = c.pvpDe && this.tempo - (c.pvpT ?? -1e9) <= GUERRA.marca ? this.jogadores.get(c.pvpDe) : null;
+      if (c.bot) c.quedaDe = de ? { tipo: de.tipo, nivel: de.nivel || 1, guerra: !!matou && de === matou, nome: de.tipo === 'jogador' && de.bot ? String(de.nome || '') : '' } : null; // diário do NPC (shared/amiga.js textoMorteAmiga): quem deu o golpe final
       const pen = penalidadeMorte(c.prog, { semXp: !!matou, semDesgaste: !!matou }); // André 2026-11-22: guerra não desgasta o equipamento
       if (matou && de === matou) this.morteGuerra(c, matou); // anúncio e memória do NPC só quando foi ele que derrubou (revisão 2026-11-19); o XP segue a regra dos 15 s
       c.pvpDe = null; c.progSujo = true; if (pen?.ouro) this.caixa(c, 'morte', -pen.ouro);
