@@ -2283,7 +2283,9 @@ export const Amiga = {
     if (a.ia.av && ['ir', 'cacar'].includes(a.ia.av.fase)) return { ok: false, motivo: 'você já está caçando', ja: true };
     // soldado do clã (André 2026-11-22: "ele só obedece minhas regras e acabou. Só se ele tiver sem vigor"): sem horário,
     // sem limite do dia, sem desculpa; só o vigor zerado
-    if (this.soldadoAmiga()) return vigorAgora(a.prog.vigor) < 1 ? { ok: false, motivo: 'você está sem vigor', fala: SEM_VIGOR, semVigor: true } : { ok: true };
+    // André 2026-11-26 ("carne crua vem dos mobs e não precisa de vigor"): caçar (grind, carne, couro...) não gasta nem pede
+    // vigor; vigor é só das profissões, horta e transporte
+    if (this.soldadoAmiga()) return { ok: true };
     if (!naHoraDe(this.rotinaAmiga(), horaDoJogo(a.prog.dia))) { // André 2026-11-18 (ronda): "ainda é dia, temos que ficar até a noite" (inventou): o horário de verdade
       const R = this.rotinaAmiga(), hh = (h) => `${Math.floor(h)}h`;
       return { ok: false, motivo: `está fora do seu horário de caçar ${this.AMIGA.genero === "m" ? "sozinho" : "sozinha"} (você sai das ${hh(R.saiDe)} às ${hh(R.voltaDe)}; agora são ${hh(horaDoJogo(a.prog.dia))})`, fala: ehNoite(horaDoJogo(a.prog.dia)) ? 'de noite eu não saio, só quando amanhecer' : 'agora não é meu horário de sair, mais tarde eu vou' };
