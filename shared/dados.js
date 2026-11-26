@@ -3548,6 +3548,15 @@ export const MORAL = {
   // na rodada de ordens, quem está cansado (cansaH h seguidas) ou abaixo de 'abaixo' ganha Livre por 'descansoH' h.
   // Às vezes esquece ('esquece'), como na Despensa. Perto dele, elogia (passoMoralNpc).
   bots: { abaixo: 50, descansoH: 1, esquece: 0.1 },
+  // MORAL NOVA (André 2026-11-26: "o Vigor controla as profissões... e a moral controla o grind"; "mesmo que eles estejam com
+  // moral baixa vão farmar do mesmo jeito, só vão ser prejudicados no grind"). Uma regra só, online e offline, todos os clãs:
+  // - a moral só mexe na XP (xp = moral/100, piso xpMin). Coleta, profissão e dano não mudam (a Despensa continua a dela).
+  // - grind sozinho: cai cada vez mais rápido (cai: [acima de, por hora]): 100 -> 85 -> 60 -> 25 -> 0 em ~4 h. Nunca para.
+  // - outras ordens e Livre: a moral fica parada (livreH 0, semLiderH 0). Perto do líder / no time dele: +pertoH por
+  //   hora até 100; Elogiar e Jantar passam de 100 até o teto.
+  // - clã bot: o líder sai com os recrutas (passeio: vezes por dia, h cada; esquece às vezes) no lugar do Livre e do limite de horasDia.
+  nova: true, teto: 120, xpMin: 0.05, cai: [[85, 15], [60, 25], [25, 35], [0, 45]], pertoNovaH: 60,
+  passeio: { vezes: 2, h: 1, esquece: 0.1 },
 };
 // Ficha do recruta (André 2026-11-23: "aparecem 3 recrutas... corajoso, preferência magia... cuidadoso, preferência
 // guerreiro, e eu escolho entre 3"; "e dependendo da preferência eles focam o status em inteligência em vez de STR").
@@ -4456,7 +4465,7 @@ export const NPC_VIDA = {
     { nivel: 50, nome: 'Porto de Vael', x: 92, z: 318, r: 16 },
     { nivel: 100, nome: 'Aurora', x: 200, z: 1085, r: 30 },
   ],
-  aventura: { chance: 0.6, cacar: [150, 420], campoAcima: 1, mobAcima: 3, raio: 16, mochilaLivre: 3, descanso: [40, 160] },
+  aventura: { chance: 0.6, cacar: [150, 420], viagemMax: 900, campoAcima: 1, mobAcima: 3, raio: 16, mochilaLivre: 3, descanso: [40, 160] }, // cacar conta da chegada ao campo; viagemMax: s de ida até desistir (2026-11-26)
   offline: { horasPorDia: 1.5, porHora: 0.6, meio: 20, maxDias: 14 },
   // André 2026-11-16 ("senão esses caras vão pegar nível 150 em meio dia"): caça SOZINHO conta no máximo segPorDia s por dia
   // real (vira às 3h de Brasília). Depois disso ficam ativos sem grindar (coleta, vila, casa). Caçar no time com alguém

@@ -5,6 +5,7 @@ import { COLETA } from '../../shared/dados.js';
 import { RECURSOS_CLA } from '../../shared/cla.js';
 import { acharLugarBase } from '../../shared/base.js';
 import './_tudo-aberto.mjs';
+import { MORAL } from '../../shared/dados.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);
 const a = s.adicionarJogador('A', 'Ana', undefined, { conta: 1 }); a.criando = false; a.ciente = true; a.prog.ouro = 90000; a.prog.nivel = 40;
@@ -22,7 +23,7 @@ const roda = (rec, pontos) => { limpa(); j.prog.prof[C.prof] = pontos; j.prog.pr
 const no = RECURSOS_CLA.lenha.no, C = COLETA[no];
 const C0 = C; const base = roda('lenha', 0), alto = roda('lenha', 8 * 19 * 19);
 console.log('lenha: rank 0 =', base, ' rank alto =', alto, ' (vigor/batida', C.vigor, ')');
-ok(Math.abs(base - 100 / C.vigor * (C.da.lenha || 1) * 1.1) <= 2 && base > 0, `rank 0: conta base (${base})`);
+ok(Math.abs(base - 100 / C.vigor * (C.da.lenha || 1) * (MORAL.nova ? 1 : 1.1)) <= 2 && base > 0, `rank 0: conta base (${base}; moral nova: a coleta não muda pela moral)`);
 ok(alto > base, `rank alto junta mais que rank 0 (${alto} > ${base})`);
 const p0 = roda('peixe', 0), p1 = roda('peixe', 8 * 19 * 19);
 ok(p0 > 0 && p1 >= p0 * 0.9, `pesca peixe a peixe (${p0} com rank 0, ${p1} com rank alto)`);
