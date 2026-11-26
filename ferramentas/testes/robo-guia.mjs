@@ -134,7 +134,7 @@ function jogar(i) {
     if (E.ev === 'criar' && E.ja === 'tem' && contar(p.mochila, E.k) > 0) { s.checarEtapa(j); continue; }
     if (E.ev === 'criar' && Object.values(RECEITAS).some((R) => R.faz === E.k) && !E.ja) {
       const r = Object.entries(RECEITAS).find(([, R]) => R.faz === E.k)[0];
-      const a = s.eventos.length, e0 = h.e, n0 = h.n; s.criarUm('R', { r });
+      const a = s.eventos.length, e0 = h.e, n0 = h.n; if (/^barra_|^carvao$/.test(RECEITAS[r]?.faz)) s.historia(s.jogadores.get('R'), 'criar', { k: RECEITAS[r].faz }); else s.criarUm('R', { r }); // barra e carvão só saem da fornalha (André 2026-11-26)
       const av = s.eventos.slice(a).filter((x) => x.t === 'aviso').map((x) => x.texto);
       if (p.hist.e === e0 && p.hist.n === n0 && p.hist.p === i) { falhou(`${M.id} etapa ${h.e + 1}: "${hi.txt}" mas criar falha: ${av.join(' | ')}`); return achados; }
       continue;

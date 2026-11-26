@@ -265,7 +265,7 @@ export const Leve = {
     return {
       est,
       max: CRIAR_OBRA.maxFila,
-      r: Object.entries(RECEITAS).map(([r, R]) => {
+      r: Object.entries(RECEITAS).filter(([, R]) => RECEITA_ESTACAO(R) !== 'fornalha').map(([r, R]) => { // carvão e barras só na fornalha (André 2026-11-26)
         const e = RECEITA_ESTACAO(R);
         return [r, ITENS[R.faz].nome, Object.entries(R.usa).map(([k, q]) => [k, ITENS[k]?.nome || k, q]), e, e === 'fogao' ? 'Fogão' : CONSTRUCOES[e]?.nome || e,
           this.estacaoPerto(j, R) ? 1 : 0, this.motivoReceitaSem(j, R).motivo, Math.round(tempoCriar(R))];
