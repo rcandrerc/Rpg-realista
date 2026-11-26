@@ -4062,6 +4062,29 @@ export const GUERRA = { radar: { mostra: 300, recarga: 1800, presente: 3 }, // P
       geada: [[546, 43], [505, 175], [330, 300], [212, 292], [206, 134], [104, -30], [135, -255], [440, -215], [508, -126], [546, 43]],
       chama: [[-6, 1], [104, -30], [206, 134], [330, 300], [505, 175], [690, -60], [440, -215], [135, -255], [-6, 1]],
     } } };
+// Patente de Guerra (André 2026-11-26, "igual Call of Duty / Free Fire"; shared/patente.js): cada abate da outra raça
+// no mundo (não na Arena) conta no mês. abates[i] = quantos no mês para chegar à patente i (0 = Recruta). O anel da tela
+// enche de 0 a 100% até a próxima. No dia 1º (hora de Brasília) todo mundo volta a Recruta e ganha o prêmio da patente
+// que alcançou; o título da MAIOR patente que já pegou fica para sempre (TITULOS pat1..pat7, sem bônus: patente não dá
+// força). Contra farm: a mesma pessoa só conta de novo depois de repete s; quem é fraco+ níveis mais fraco não conta.
+// O clã que mais abateu no mês ganha um Lendário (PATENTE.cla, sorteado) no Baú do Clã. Bots iguais: o prêmio deles vai para o baú do clã.
+export const PATENTE = {
+  nomes: ['Recruta', 'Soldado', 'Cabo', 'Sargento', 'Tenente', 'Capitão', 'Comandante', 'Lenda'],
+  abates: [0, 5, 15, 30, 50, 80, 120, 180],
+  // premio[i]: o que a patente i dá no fim do mês; k lista = sorteia um por unidade (runa para arma ou selo para armadura)
+  premio: [null, [{ k: 'pocao', n: 5 }], [{ k: ['runa_rara', 'selo_raro'], n: 1 }], [{ k: ['runa_rara', 'selo_raro'], n: 2 }],
+    [{ k: ['runa_epica', 'selo_epico'], n: 1 }], [{ k: ['runa_epica', 'selo_epico'], n: 2 }], [{ k: ['runa_lendaria', 'selo_lendario'], n: 1 }],
+    [{ k: ['runa_mitica', 'selo_mitico'], n: 1 }]],
+  cla: ['runa_lendaria', 'selo_lendario'],
+  repete: 600, fraco: 10, guarda: 60, passo: 30,
+};
+// patente pelos abates do mês e quanto falta para a próxima (0..1; 1 na última)
+export function patenteDe(a) {
+  const L = PATENTE.abates; let i = 0; while (i + 1 < L.length && (a | 0) >= L[i + 1]) i++;
+  return { i, pct: i + 1 < L.length ? ((a | 0) - L[i]) / (L[i + 1] - L[i]) : 1 };
+}
+// o mês da guerra na hora de Brasília: 'AAAA-MM'
+export const mesGuerra = (ms = Date.now()) => new Date(ms - 3 * 3600e3).toISOString().slice(0, 7);
 // Os três da Geada (fase 1, aprovados pelo André 2026-11-18; fotos em /mnt/project-files/racas-rivais/). Iguais aos
 // aventureiros por dentro (caçam, vendem, consertam, sobem de nível), moram no Juncal (casa da Geada) e caçam nos campos
 // do leste. guerra: coragem (ataca mesmo em desvantagem), honra (poupa quem é muito mais fraco), paciencia (espera a hora
@@ -5704,6 +5727,14 @@ export const TITULOS = {
   arena_lamina: { nome: 'Lâmina da Arena', r: 2, como: 'Comprado na Loja da Arena', cond: { loja: 'pvp' }, b: { dano: 0.03 } },
   arena_muralha: { nome: 'Muralha da Arena', r: 2, como: 'Comprado na Loja da Arena', cond: { loja: 'pvp' }, b: { defesa: 0.03 } },
   arena_lenda: { nome: 'Lenda da Arena', r: 3, como: 'Comprado na Loja da Arena', cond: { loja: 'pvp' }, b: { dano: 0.03, critico: 0.03 } },
+  // Patente de Guerra (André 2026-11-26, PATENTE): a maior patente que já pegou num mês fica para sempre; sem bônus
+  pat1: { nome: 'Soldado', r: 0, como: 'Chegou a Soldado na guerra (5 abates no mês)', cond: { pat: 1 }, b: {} },
+  pat2: { nome: 'Cabo', r: 0, como: 'Chegou a Cabo na guerra (15 abates no mês)', cond: { pat: 2 }, b: {} },
+  pat3: { nome: 'Sargento', r: 1, como: 'Chegou a Sargento na guerra (30 abates no mês)', cond: { pat: 3 }, b: {} },
+  pat4: { nome: 'Tenente', r: 1, como: 'Chegou a Tenente na guerra (50 abates no mês)', cond: { pat: 4 }, b: {} },
+  pat5: { nome: 'Capitão', r: 2, como: 'Chegou a Capitão na guerra (80 abates no mês)', cond: { pat: 5 }, b: {} },
+  pat6: { nome: 'Comandante', r: 3, como: 'Chegou a Comandante na guerra (120 abates no mês)', cond: { pat: 6 }, b: {} },
+  pat7: { nome: 'Lenda da Guerra', r: 4, como: 'Chegou a Lenda na guerra (180 abates no mês)', cond: { pat: 7 }, b: {} },
 };
 // profissões: Nv 10 (Raro) e Nv 20 (Lendário) de cada uma
 for (const [k, n10, n20, bk, v] of [
@@ -5714,7 +5745,7 @@ for (const [k, n10, n20, bk, v] of [
   TITULOS[k + '10'] = { nome: n10, r: 1, como: `${PROFISSOES[k].nome} Nv 10`, cond: { prof: k, nv: 10 }, b: { [bk]: v } };
   TITULOS[k + '20'] = { nome: n20, r: 3, como: `${PROFISSOES[k].nome} Nv 20`, cond: { prof: k, nv: 20 }, b: { [bk]: v * 2 } };
 }
-for (const t of Object.values(TITULOS)) t.txt = textoBonusTitulo(t); // "+5% crítico" (a aba mostra "Venceu o Uivo-Rei · +5% crítico")
+for (const t of Object.values(TITULOS)) t.txt = textoBonusTitulo(t) || (t.cond.pat ? 'Patente de Guerra' : ''); // patente não dá bônus (André 2026-11-26) // "+5% crítico" (a aba mostra "Venceu o Uivo-Rei · +5% crítico")
 // título que ainda não dá para ganhar (boss esperando o modelo) não aparece na aba
 export const tituloAtivo = (id) => { const c = TITULOS[id]?.cond; return !!c && !(c.boss && BOSSES_MUNDO[c.boss]?.ativo === false); };
 

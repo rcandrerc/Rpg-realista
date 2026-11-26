@@ -859,6 +859,11 @@ func outro(j: Dictionary) -> void:
 	if tit != str(o.get("tit", "")) and m.titulos != null:
 		o.tit = tit
 		m.titulos.por(o.no, o.placa, tit)
+	# Patente de Guerra do mês (André 2026-11-26): escudo ao lado do nome, da cor da raça (titulos.gd patente)
+	var ptc := "%d|%s|%s" % [int(j.get("pt", 0)), str(j.get("raca", "")), o.placa_txt]
+	if ptc != str(o.get("pt", "")) and m.titulos != null:
+		o.pt = ptc
+		m.titulos.patente(o.no, o.placa, str(j.get("raca", "")), int(j.get("pt", 0)))
 	if j.has("bot"):
 		o.bot = true # a Cecília: não pede troca nem amizade (troca.gd)
 	# Chama x Geada (André 2026-11-18): a raça vem só para quem não é da Chama (Kira, Rufo e Lis na fase 1). O nome fica da
