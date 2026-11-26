@@ -5074,6 +5074,7 @@ export class Simulacao {
         semCapacete: !!j.prog.semCapacete,
         ...(j.espia && this.jogadores.get(j.espia) ? { espia: j.espia } : {}), // "Ver" o recruta (shared/cla.js): a visão do servidor fica em volta dele
         tit: j.prog.tit?.uso || null, // título em uso (aparece em cima da cabeça para todos)
+        cn: this.nomeClaFoto(j), // nome do clã em cima da cabeça (André 2026-11-26)
         pt: j.prog.gu?.m === this.guerraMes?.m ? patenteDe(j.prog.gu.a).i : 0, // Patente de Guerra do mês (escudo em cima da cabeça; 0 = Recruta)
         ...(j.prog.guilda?.r >= 7 && this.vantagensDe(j).marca ? { gss: 1 } : {}), // vantagem SS da Guilda: "SS" no nome para todos
         pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, ...((bd) => (bd ? { bd } : {}))(j.bordo ? this.fotoBordo(j) : null), // bd: o lugar no navio (fotoBordo) // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem

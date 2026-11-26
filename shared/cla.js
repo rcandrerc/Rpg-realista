@@ -514,6 +514,19 @@ export const Cla = {
     return { bot: false, corpo: j || null, conta: A.lider, m: j?.prog?.cla?.m || this.clasFora?.get(A.lider)?.m || [], c: j?.prog?.cla };
   },
   corpoLiderDe(x) { return this.claDoRecruta(x)?.corpo || null; },
+  // o nome do clã de um corpo (André 2026-11-26: "coloca o nome do clã na cabeça"): vai na foto (cn). Guardado por 5 s
+  nomeClaFoto(j) {
+    if (j._cnT > this.tempo) return j._cn;
+    let n = '';
+    if (!j.bot) n = j.prog?.cla?.n || '';
+    else {
+      const x = this.amigoIaDe?.(j);
+      if (x && (x.AMIGA.recruta || x.AMIGA.clanpc)) { const K = this.claDoRecruta(x); n = K ? (K.bot ? K.C.n : K.c?.n || this.clasFora?.get(K.conta)?.n || '') : ''; }
+      else if (x) n = CLAS_NPC.find((o) => o.lider === x.AMIGA.id || o.membros.includes(x.AMIGA.id))?.n || '';
+    }
+    j._cn = String(n || '').slice(0, 24); j._cnT = this.tempo + 5;
+    return j._cn;
+  },
   loteDaConta(conta) { if (conta == null) return null; for (const L of this.lotes.values()) if (L.dono === conta) return L; return null; },
   // o Baú do Clã: o do terreno do líder (peça bau_cla); clã bot ganha o dele sozinho (guardado no estado do clã)
   bauDoCla(K) {
