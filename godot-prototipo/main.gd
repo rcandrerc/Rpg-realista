@@ -4082,9 +4082,10 @@ func _passo_main(dt: float) -> void:
 	if P.mudou:
 		P.mudou = false
 		mostrar_build()
+		tp = _parte("m:build", tp)
 		if menu:
 			menu.atualizar_do_servidor() # aba Clã aberta e só HP/mana/vigor andando: troca os números no lugar (menu.gd)
-		tp = _parte("m:build", tp)
+			tp = _parte("m:menu_srv:" + str(menu.aba) if menu.aberto() else "m:menu_srv", tp) # qual aba pesa (registro)
 	hud.recarga("cura", recargas.get("cura", 0.0), D.CURA.cd)
 	for k in ["pocao", "pocao_mana"]:
 		hud.recarga(k, recargas.get("it:" + k, 0.0), recarga_pocao())
@@ -4530,9 +4531,15 @@ func lod_inimigos() -> void:
 	# NPCs (FPS 2026-11-07): longe como os monstros (outra ponta do mapa, 70 m), o NPC some e para de animar (o guardião
 	# do leste animava e era desenhado com o herói na vila). Perto volta igual; a conversa e a loja só valem de perto.
 	var mostrar_n := 0 # NPCs que apareceram ou sumiram neste quadro (NPC_MOSTRAR_QUADRO)
+	# degraus mínimos da Baixa (grafico.gd corpos, André 2026-11-25: celular fraco): NPC some mais perto e, de perto,
+	# também fica simples (sem sombra e sem contorno)
+	var cps: int = grafico.corpos() if grafico else 0
+	var npc_longe: float = [NPC_LONGE, 30.0, 22.0][clampi(cps, 0, 2)]
+	var npc_det: float = NPC_DETALHE if cps == 0 else 0.0
+	var npc_det_sai: float = NPC_DETALHE_SAI if cps == 0 else 0.0
 	for n in npcs:
 		var dn: float = n.no.position.distance_squared_to(hp)
-		var longe_n: bool = dn > (NPC_LONGE + 5.0) * (NPC_LONGE + 5.0) if n.get("longe", false) else dn > NPC_LONGE * NPC_LONGE
+		var longe_n: bool = dn > (npc_longe + 5.0) * (npc_longe + 5.0) if n.get("longe", false) else dn > npc_longe * npc_longe
 		# personagens mais leves (2026-11-23, registros do Poco X7: li:npcs 16 a 37 ms no pior quadro do minuto, entrando
 		# na vila): no máximo NPC_MOSTRAR_QUADRO NPCs aparecem ou somem por quadro (mostrar liga sombra, malhas e animação
 		# de uma vez); os outros ficam para os quadros seguintes, a 45 m ninguém nota
@@ -4545,7 +4552,7 @@ func lod_inimigos() -> void:
 			n.no.process_mode = Node.PROCESS_MODE_DISABLED if longe_n else Node.PROCESS_MODE_INHERIT
 			tl = _parte("li:npc_mostrar", tl)
 		# André 2026-11-07 (escolheu "as duas" no FPS da vila): NPC a mais de 15 m fica sem sombra e sem contorno
-		var meio_n: bool = dn > NPC_DETALHE_SAI * NPC_DETALHE_SAI if n.get("simples", false) else dn > NPC_DETALHE * NPC_DETALHE
+		var meio_n: bool = dn > npc_det_sai * npc_det_sai if n.get("simples", false) else dn > npc_det * npc_det
 		# registros do celular 2026-11-16: entrando na cidade de lobo, vários NPCs passavam de 15 m no mesmo quadro e a
 		# troca (sombra, contorno, animação) somava 300-370 ms num segundo (li:npc_simples). No máximo
 		# NPC_TROCAS_QUADRO por quadro; os outros trocam nos quadros seguintes (alguns centésimos de segundo depois)
@@ -4573,7 +4580,7 @@ func lod_inimigos() -> void:
 						n.esq_p.advance(n.anim_acc)
 					n.anim_acc = 0.0
 		# (registros 2026-11-16, li:npcs 345 ms num segundo entrando na cidade): um NPC por quadro
-		if not longe_n and dn <= NPC_LONGE * NPC_LONGE and not n.has("lod_pedido") and trocas_detalhe < NPC_TROCAS_QUADRO + 1: # (longe de verdade, só esperando a vez de sumir: sem LOD) # roupa e cabelo montados no jogo ganham LOD (lod_malha.gd)
+		if not longe_n and dn <= npc_longe * npc_longe and not n.has("lod_pedido") and trocas_detalhe < NPC_TROCAS_QUADRO + 1: # (longe de verdade, só esperando a vez de sumir: sem LOD) # roupa e cabelo montados no jogo ganham LOD (lod_malha.gd)
 			trocas_detalhe = NPC_TROCAS_QUADRO + 1
 			n.lod_pedido = true
 			tl = _parte("li:npcs", tl)

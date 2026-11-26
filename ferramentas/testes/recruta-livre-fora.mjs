@@ -21,3 +21,8 @@ const tel = () => L.pecas.filter((p) => p.k === 'telhado').length;
 a.prog.cla.saiu = Date.now() - 3600e3; x.foraDesde = 0;
 s.foraRecrutas(a);
 ok(tel() === 6 && L.pecas.length >= 25, `1 h fora no Livre: casa pronta com telhado (${L.pecas.length} peças, ${tel()} telhados)`);
+// Livre marcado no painel vira fn { k: 'livre' } (não fica sem fn): também constrói fora (André 2026-11-26)
+L.pecas = L.pecas.filter((p) => p.k !== 'telhado'); s.refazerSolidosLotes(); m.fn = { k: 'livre' };
+a.prog.cla.saiu = Date.now() - 3600e3; x.foraDesde = 0;
+s.foraRecrutas(a);
+ok(tel() === 6, `Livre marcado no painel, 1 h fora: telhado de volta (${tel()} telhados)`);
