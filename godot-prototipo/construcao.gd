@@ -648,13 +648,17 @@ func _modelo_fornalha() -> Node3D:
 	_caixa(r, Vector3(1.04, 0.14, 0.8), Vector3(0, 1.09, -0.04), pedra)
 	# boca: buraco escuro com a brasa no fundo e a grelha na frente
 	_caixa(r, Vector3(0.56, 0.4, 0.05), Vector3(0, 0.46, 0.53), escuro)
-	_caixa(r, Vector3(0.46, 0.08, 0.04), Vector3(0, 0.3, 0.55), brasa)
-	_caixa(r, Vector3(0.36, 0.12, 0.04), Vector3(0, 0.38, 0.552), _mat_cor(Color(1.0, 0.62, 0.2), 1.8))
+	# o fogo (brasa e chamas) fica num nó solto "chama" (MANTER): só acende enquanto a fornalha trabalha (_fogo_fornalhas)
+	var fogo := Node3D.new()
+	fogo.name = "chama"
+	r.add_child(fogo)
+	_caixa(fogo, Vector3(0.46, 0.08, 0.04), Vector3(0, 0.3, 0.55), brasa)
+	_caixa(fogo, Vector3(0.36, 0.12, 0.04), Vector3(0, 0.38, 0.552), _mat_cor(Color(1.0, 0.62, 0.2), 1.8))
 	for i in 4:
 		_caixa(r, Vector3(0.025, 0.4, 0.025), Vector3(-0.2 + i * 0.133, 0.46, 0.575), ferro)
 	# (2026-11-07) chamas achatadas atrás da grelha, mexendo como as do fogão
 	for c in [[0.0, 0.07, 0.22], [-0.13, 0.05, 0.15], [0.13, 0.05, 0.17]]:
-		var ch := _chama(r, Color(1.0, 0.42, 0.12), Color(1.0, 0.85, 0.4), c[1], c[2], Vector3(c[0], 0.33 + c[2] / 2.0, 0.578))
+		var ch := _chama(fogo, Color(1.0, 0.42, 0.12), Color(1.0, 0.85, 0.4), c[1], c[2], Vector3(c[0], 0.33 + c[2] / 2.0, 0.578))
 		ch.scale = Vector3(1.0, 1.0, 0.12)
 	_caixa(r, Vector3(0.64, 0.06, 0.08), Vector3(0, 0.69, 0.56), pedra)
 	# chaminé
@@ -943,6 +947,11 @@ func do_servidor_lote(ev: Dictionary) -> void:
 			if pil: # dois pilares no mesmo canto: cada giro um tiquinho maior, para um cobrir o outro sem piscar
 				pil.scale = Vector3(1.0 + 0.012 * p.r, 1.0 + 0.003 * p.r, 1.0 + 0.012 * p.r)
 			L.raiz.add_child(p.no)
+	var fogos = ev.get("fogo", {}) # fornalhas que trabalham: id -> ms (relógio do servidor) até quando
+	for p in L.pecas:
+		if p.k == "fornalha":
+			p["fim"] = float(fogos.get(p.id, 0.0)) if fogos is Dictionary else 0.0
+	_fogo_fornalhas()
 	if mudou_pecas:
 		_marca_paletes(L)
 		_refazer_telhado(L)
@@ -1666,6 +1675,22 @@ func _mexer_portas(hp: Vector3, dt: float) -> void:
 # ---------- horta: terra arada, molhada e a planta em cada fase ----------
 func agora_ms() -> float:
 	return Time.get_unix_time_from_system() * 1000.0 + relogio
+
+# André 2026-11-26: "eu passando de longe conseguiria perceber que ela está em funcionamento": o fogo da fornalha só fica
+# aceso até o instante (fim) que o servidor mandou; sem material, sem combustível ou pronto cheio, apaga
+var _fogo_t := 0.0
+func _fogo_fornalhas() -> void:
+	var agora := agora_ms()
+	for id in lotes:
+		for p in lotes[id].pecas:
+			if p.k != "fornalha":
+				continue
+			var no = p.get("no")
+			if no == null or not is_instance_valid(no):
+				continue
+			var f = no.get_node_or_null("chama")
+			if f != null:
+				f.visible = float(p.get("fim", 0.0)) > agora
 
 func _crescida(h: Dictionary) -> float:
 	if h.c == "" or not D.plantas.has(h.c):
@@ -2885,6 +2910,10 @@ func _process_parte(dt: float) -> void:
 	if m.heroi == null or m.hud == null:
 		return
 	_pede_aos_poucos(dt)
+	_fogo_t -= dt
+	if _fogo_t <= 0.0:
+		_fogo_t = 0.5
+		_fogo_fornalhas()
 	if not _fila_canteiros.is_empty():
 		_desenhar_fila_canteiros()
 	var hp: Vector3 = m.heroi.position
@@ -4980,14 +5009,15 @@ func _lugar_forno(titulo: String, lugar: String, barra, marcado: bool) -> VBoxCo
 	v.add_child(Menu.rotulo(titulo, 14, Menu.OURO if marcado else Menu.APAGADO))
 	var it = forno.get(lugar)
 	var fn := func():
+		# André 2026-11-26: o 1º toque num lugar só o seleciona; o 2º devolve o que está nele para a bolsa (o "Pronto" já sai no 1º)
 		if forno_tipo == "fogao" and lugar != "sai" and fogao_alvo != lugar:
 			fogao_alvo = lugar # André 2026-11-21: toca no combustível e aparece a lenha; na panela, os pratos
 			_montar_forno()
+		elif forno_tipo != "fogao" and lugar != "sai" and forno_alvo != lugar:
+			forno_alvo = lugar # o item que você tocar na bolsa vai para o lugar selecionado
+			_montar_forno()
 		elif forno.get(lugar) != null:
 			m.rede("forno", {"acao": "tirar", "p": forno_id, "lugar": lugar})
-		elif lugar != "sai":
-			forno_alvo = lugar # lugar vazio: a lenha da mochila passa a ir para cá
-			_montar_forno()
 	var cel: Button = m.menu.celula(it, marcado, fn, 64)
 	cel.set_meta("guia", "forno:lugar:" + lugar) # guia.gd: combustível, material ou o pronto
 	v.add_child(cel)
@@ -5015,36 +5045,45 @@ func _montar_forno() -> void:
 	var cfg: Dictionary = D.get("fornalha", {})
 	var comb: Dictionary = cfg.get("combustivel", {})
 	var rec: Dictionary = cfg.get("receitas", {})
+	var ent2k := {} # o que vai no Material 2 (o aço pede carvão)
+	for rk in rec:
+		if rec[rk].has("ent2"):
+			ent2k[str(rec[rk].ent2.k)] = true
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 16)
 	h.alignment = BoxContainer.ALIGNMENT_CENTER
 	caixa_forno.add_child(h)
-	h.add_child(_lugar_forno("Combustível", "comb", barra_fogo, forno_alvo == "comb"))
-	h.add_child(_lugar_forno("Material", "ent", barra_forno, forno_alvo == "ent"))
+	# André 2026-11-26: os dois materiais em cima, o combustível embaixo; a barrinha de preparo fica no Pronto (só o
+	# combustível "gasta", então só ele tem a barra de consumo)
+	h.add_child(_lugar_forno("Material", "ent", null, forno_alvo == "ent"))
+	h.add_child(_lugar_forno("Material 2", "ent2", null, forno_alvo == "ent2"))
 	var seta := Menu.rotulo("→", 30, Menu.OURO)
 	seta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(seta)
-	h.add_child(_lugar_forno("Pronto", "sai", null, false))
-	# o que está acontecendo, em palavras
+	h.add_child(_lugar_forno("Pronto", "sai", barra_forno, false))
+	var h2 := HBoxContainer.new()
+	h2.alignment = BoxContainer.ALIGNMENT_CENTER
+	caixa_forno.add_child(h2)
+	h2.add_child(_lugar_forno("Combustível", "comb", barra_fogo, forno_alvo == "comb"))
+	# o que está acontecendo, em poucas palavras
 	var t := ""
 	var faz := str(forno.get("faz", ""))
+	var pede2 = forno.get("pede2")
 	if str(forno.get("precisa", "")) != "":
 		t = Idioma.frase("%s só sai com %s no combustível." % [_nome(faz), _nome(str(forno.precisa)).to_lower()])
+	elif pede2 != null:
+		t = Idioma.frase("%s pede mais %d %s no Material 2." % [_nome(faz), int(pede2.n), _nome(str(pede2.k)).to_lower()])
 	elif forno.get("anda", false):
-		t = Idioma.frase("Queimando: sai %s a cada %d s. Pode ir embora, ela continua." % [_nome(faz), int(forno.get("dur", 0))])
+		t = Idioma.frase("Funcionando: %s a cada %d s." % [_nome(faz), int(forno.get("dur", 0))])
 	elif forno.get("ent") == null:
-		t = Idioma.frase("Ponha minério de ferro ou de cobre (3 viram uma barra), lenha (2 viram carvão) ou barra de ferro (vira aço com carvão).")
+		t = Idioma.frase("Ponha o material e o combustível.")
 	elif forno.get("comb") == null and float(forno.get("fogo", 0)) <= 0.0:
-		t = Idioma.frase("Sem fogo: ponha lenha ou carvão no combustível.")
+		t = Idioma.frase("Sem combustível.")
 	elif forno.get("sai") != null and str(forno.sai.k) != faz:
-		t = Idioma.frase("Tire o que está pronto para começar outra coisa.")
+		t = Idioma.frase("Tire o pronto.")
 	else:
-		t = Idioma.frase("Parada: o lugar de pronto encheu ou falta material.")
-	if forno_alvo == "comb":
-		t += " " + Idioma.frase("A lenha que você tocar vai para o combustível.")
-	else:
-		t += " " + Idioma.frase("A lenha que você tocar vira carvão (toque no combustível vazio para mudar).")
-	txt_forno.text = t # cada frase já saiu traduzida (inglês)
+		t = Idioma.frase("Parada.")
+	txt_forno.text = t # a frase já saiu traduzida (inglês)
 	# mochila: só o que entra na fornalha
 	var moch: Array = m.P.prog.get("mochila", [])
 	for i in moch.size():
@@ -5054,11 +5093,20 @@ func _montar_forno() -> void:
 		var k := str(it.k)
 		var e_comb := comb.has(k)
 		var e_mat := rec.has(k)
-		if not e_comb and not e_mat:
+		var e_mat2 := ent2k.has(k)
+		if not e_comb and not e_mat and not e_mat2:
 			continue
-		var lugar := forno_alvo if e_comb and e_mat else ("comb" if e_comb else "ent")
+		var onde: Array = []
+		if e_comb:
+			onde.append("comb")
+		if e_mat:
+			onde.append("ent")
+		if e_mat2:
+			onde.append("ent2")
+		var lugar: String = forno_alvo if forno_alvo in onde else str(onde[0]) # o selecionado, se serve; senão o primeiro que serve
 		var fn := func():
 			if not _bau_arrastou:
+				forno_alvo = lugar # o lugar onde foi fica selecionado
 				_por_forno(it, lugar, i)
 		var cel: Button = m.menu.celula(it, false, fn, 56)
 		cel.set_meta("guia_i", i) # guia.gd: o lugar da mochila (lenha, minério...)
@@ -5067,6 +5115,9 @@ func _montar_forno() -> void:
 # pôr na fornalha ou no fogão (André 2026-11-17: "escolher tudo ou a quantidade"): pilha abre a janelinha do menu.gd
 # (pedir_qtd) com o máximo que cabe no lugar; cheio ou um só vai direto (o servidor avisa se não couber)
 func _por_forno(it: Dictionary, lugar: String, i: int) -> void:
+	if forno_tipo != "fogao": # André 2026-11-26: tocar no item da bolsa completa o lugar (até 50), sem janelinha e sem parar o processo
+		m.rede("forno", {"acao": "por", "p": forno_id, "lugar": lugar, "i": i})
+		return
 	var tem := int(it.get("n", 1))
 	var atual = forno.get(lugar)
 	if atual != null and str(atual.get("k", "")) == str(it.k):

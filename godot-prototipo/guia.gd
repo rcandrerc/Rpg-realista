@@ -271,7 +271,11 @@ func _passos_criar(k: String) -> Array:
 	for ent in forn:
 		if str(forn[ent].get("faz", "")) == k:
 			# "b^Tudo (": a pilha tocada abre a janelinha da quantidade (menu.gd pedir_qtd, André 2026-11-17); pisca o Tudo
-			return ["ir", "hud:forno", "forno:comb:" + str(forn[ent].get("fogo", "")), "b^Tudo (", "forno:mat:" + str(ent), "b^Tudo (", "forno:sai:" + k]
+			var passos := ["ir", "hud:forno", "forno:comb:" + str(forn[ent].get("fogo", "")), "b^Tudo (", "forno:mat:" + str(ent), "b^Tudo ("]
+			if forn[ent].has("ent2"): # André 2026-11-26: o aço leva 2 carvões no 2º espaço de material
+				passos.append_array(["forno:ent2:" + str(forn[ent].ent2.k), "b^Tudo ("])
+			passos.append("forno:sai:" + k)
+			return passos
 	var chave := k.trim_prefix("obra_") if k.begins_with("obra_") else k
 	if not D.get("receitas", {}).has(chave): # receita pelo que ela faz (colar, short, peixe assado...)
 		for r in D.get("receitas", {}):
@@ -774,9 +778,23 @@ func _achar_forno(p: String) -> bool:
 				if it == null or not comb.has(str(it.k)) or (fogo != "" and str(it.k) != fogo):
 					continue
 				_alvo = _itens[i]
-				if str(it.k) == "lenha" and cons.forno_alvo != "comb": # a lenha iria para o material: toca no combustível antes
+				if (str(it.k) == "lenha" and cons.forno_alvo != "comb") or cons.forno_alvo == "ent2": # iria para o material: toca no combustível antes
 					_alvo = _meta("forno:lugar:comb")
 				break
+		"ent2":
+			# 2º espaço de material (aço: 2 carvões): toca no espaço vazio e depois no carvão da mochila
+			var e2 = F.get("ent2")
+			if e2 != null:
+				if str(e2.get("k", "")) == (f[1] if f.size() > 1 else ""):
+					return false
+				_alvo = _meta("forno:lugar:ent2") # outra coisa lá: toque para tirar
+				return _alvo != null
+			for i in _itens:
+				if moch[i] != null and str(moch[i].k) == f[1]:
+					_alvo = _itens[i]
+					break
+			if _alvo != null and cons.forno_alvo != "ent2":
+				_alvo = _meta("forno:lugar:ent2")
 		_:
 			return false
 	return _alvo != null
