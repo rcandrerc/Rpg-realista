@@ -172,6 +172,15 @@ func _soltar(chave: String) -> void:
 func _input(ev: InputEvent) -> void:
 	if instalador or not is_instance_valid(hud):
 		return
+	# mouse esquerdo segurando o golpe: o arrasto dele nunca vira giro de câmera (a câmera segue o alvo como no celular)
+	if _mouse_golpe >= 0 and ev is InputEventScreenDrag and ev.index == _mouse_golpe:
+		get_viewport().set_input_as_handled()
+		return
+	# soltou o botão fora da janela/em cima de menu e o golpe ficou preso: solta (senão o próximo clique cairia na HUD
+	# como dedo na câmera e a câmera não travaria no alvo)
+	if _mouse_golpe >= 0 and ev is InputEventMouseMotion and not (ev.button_mask & MOUSE_BUTTON_MASK_LEFT):
+		_mouse_golpe = -1
+		_soltar("mouse_golpe")
 	if ev is InputEventKey:
 		_tecla(ev)
 	elif ev is InputEventScreenTouch:
@@ -231,6 +240,7 @@ func _area_livre(p: Vector2) -> bool:
 	if hud.construcao and hud.construcao.cobre(p): return false
 	if hud.troca and hud.troca.cobre(p): return false
 	if hud.PAINEL.has_point(p): return false
+	if hud.buffs and hud.buffs.cobre(p): return false # ícone de buff/debuff: o clique abre a dica (hud.gd), não é golpe
 	for b in hud.botoes:
 		if not b.oculto and p.distance_to(hud._centro(b)) <= b.raio * 1.15:
 			return false
