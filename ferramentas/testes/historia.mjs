@@ -164,7 +164,7 @@ subir(3); falar('ferreiro'); ok(missao() === 'a4' && h().ac, 'Tomás deu o cobre
 ok(!liberado(p, 'forja'), 'forja ainda fechada');
 s.historia(j, 'item', { k: 'minerio_cobre', n: 6, de: 'coleta' }); ok(liberado(p, 'forja') && h().e === 1, 'minerou: forja aberta');
 dar('minerio_cobre', 6); dar('lenha', 4); ir(npc('ferreiro').x + 1, npc('ferreiro').z);
-s.criarUm('A', { r: 'barra_cobre' }); s.criarUm('A', { r: 'barra_cobre' }); correr(0.1); ok(h().e === 2, 'fundiu 2 barras de cobre | ' + avisos());
+s.historia(j, 'criar', { k: 'barra_cobre' }); s.historia(j, 'criar', { k: 'barra_cobre' }); dar('barra_cobre', 2); /* barra só sai da fornalha (André 2026-11-26): fundiu lá */ correr(0.1); ok(h().e === 2, 'fundiu 2 barras de cobre | ' + avisos());
 falar('ferreiro'); fim('a4');
 falar('comerciante'); ok(missao() === 'a5', 'Rosa deu a banca');
 ok(contar(p.mochila, 'couro') >= 2 && contar(p.mochila, 'tecido') >= 1, 'a Rosa deu o couro e o tecido ao dar a missão'); // André 2026-11-11
@@ -182,7 +182,7 @@ const ci3 = s.cacas.findIndex((c) => c.def.id === 'caca3');
 for (let k = 0; k < 6; k++) s.contarHistoria(j, { tipo: 'lobo', sp: { caca: ci3 } });
 tirarTudo('couro'); dar('couro', 4); correr(0.6); falar('andarilho'); fim('a7');
 falar('andarilho'); s.historia(j, 'item', { k: 'minerio_ferro', n: 3, de: 'coleta' }); dar('minerio_ferro', 3); dar('lenha', 2);
-ir(npc('ferreiro').x + 1, npc('ferreiro').z); s.criarUm('A', { r: 'barra_ferro' }); correr(0.1); ok(h().e === 2, 'barra de ferro');
+ir(npc('ferreiro').x + 1, npc('ferreiro').z); s.historia(j, 'criar', { k: 'barra_ferro' }); dar('barra_ferro', 1); /* barra só sai da fornalha (André 2026-11-26): fundiu lá */ correr(0.1); ok(h().e === 2, 'barra de ferro');
 falar('andarilho'); fim('a8');
 p.dia = { h: 12, t: Date.now() }; // de dia antes de aceitar (sem isso o relógio da conta segue a hora real e às vezes já é noite)
 falar('andarilho'); ok(missao() === 'a9', 'o alfa da noite');

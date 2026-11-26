@@ -23,6 +23,7 @@ h1{font-size:1.1rem;margin:0;color:var(--gold);letter-spacing:.02em;overflow:hid
 .estado i{width:9px;height:9px;border-radius:50%;background:#666;display:inline-block}
 .estado.on i{background:#5fbf5a;box-shadow:0 0 6px #5fbf5a}
 .estado.caiu i{background:#d0903a}
+.wiki{color:var(--gold);text-decoration:none;font:600 .8rem system-ui,sans-serif;border:1px solid var(--line);border-radius:999px;padding:4px 10px}
 nav{display:flex;gap:4px;margin-top:8px;overflow-x:auto}
 nav button{flex:1;min-height:40px;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);font:600 .9rem system-ui,sans-serif;cursor:pointer;white-space:nowrap}
 nav button.ativo{color:var(--ink);border-bottom-color:var(--gold)}
@@ -45,6 +46,8 @@ button.acao:disabled{opacity:.5}
 .fora{opacity:.7}
 .card.cheio{border-color:#d9534a;box-shadow:0 0 0 1px #d9534a inset}
 .tag.cheio{color:#fff;background:#b8382f;border-color:#d9534a}
+.tag.quase{color:#1a1206;background:#e0a03a;border-color:#f0b850}
+.faz.ganho{font-size:.85rem}.faz.ganho.mais{color:#9ad86a}.faz.ganho.menos{color:#e0a050}.moral{display:inline-flex;align-items:center;gap:4px;flex:none;cursor:pointer;font-size:.9rem}.moral img{width:20px;height:20px}.moral .ph{color:var(--muted);margin-right:4px}.moral .seta{width:15px;height:15px}.moral img.fome{width:16px;height:16px;filter:sepia(1) saturate(4) hue-rotate(-20deg)}.moral img.bem{width:16px;height:16px}
 nav button.alerta::after{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#e0483e;margin-left:6px;vertical-align:2px}
 #aviso{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom,0) + 16px);max-width:608px;margin:0 auto;background:#2c2418;border:1px solid rgba(217,165,74,.5);border-radius:10px;padding:10px 12px;z-index:5}
 #mapa{width:100%;aspect-ratio:1;border-radius:12px;border:1px solid var(--line);background:#1a3e66;display:block;touch-action:none;cursor:grab}
@@ -53,6 +56,8 @@ nav button.alerta::after{content:"";display:inline-block;width:8px;height:8px;bo
 .zoom button{width:44px;height:44px;border-radius:10px;border:1px solid rgba(239,231,214,.35);background:rgba(16,15,12,.82);color:var(--ink);font:600 1.4rem/1 system-ui,sans-serif;cursor:pointer}
 .zoom button:active{background:rgba(217,165,74,.35)}
 .icones{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.ico.pat{width:64px}.ico.pat small{max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ico.pat .apagado{opacity:.7}
+.placar{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:6px;font-size:26px}.placar img{width:40px;height:40px}.placar .chama{color:#ff9a3c}.placar .geada{color:#8fd0ff}
 .ico{width:52px;display:grid;justify-items:center;gap:2px;cursor:pointer}
 .ico .q{width:46px;height:46px;border-radius:8px;background:#0b0a09;border:1px solid rgba(224,128,106,.8);display:grid;place-items:center;overflow:hidden}
 .ico.ok .q{border-color:rgba(115,199,115,.8)}
@@ -64,6 +69,15 @@ nav button.alerta::after{content:"";display:inline-block;width:8px;height:8px;bo
 .ico.qtd small{color:var(--ink)}
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
 .chips button{flex:none;min-height:36px;border-radius:999px;border:1px solid var(--line);background:#26231d;color:var(--muted);font:600 .82rem system-ui,sans-serif;padding:0 12px;cursor:pointer}
+/* modo leve só em pé (André 2026-11-25): deitado no celular ou tablet, pede para girar; tablet em pé usa a largura em 2 colunas */
+#jogarAba>.gire{display:none;text-align:center;padding:24px 16px;color:var(--ink)}
+@media (orientation:landscape) and (hover:none),(orientation:landscape) and (pointer:coarse),(orientation:landscape) and (max-height:520px){#jogarAba>*{display:none!important}#jogarAba>.gire{display:block!important}}
+@media (orientation:portrait) and (min-width:700px){#jogarAba:not(.tela){max-width:980px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}#jogarChat{grid-column:1/-1}}
+.sanfona .cab{display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:0;color:var(--ink);font:700 1rem system-ui,sans-serif;padding:0;cursor:pointer;text-align:left}
+.sanfona>button.sec{display:flex;justify-content:space-between;align-items:center;width:100%;min-height:36px;margin-top:6px;background:none;border:0;border-top:1px solid var(--line);color:var(--ink);font:600 .95rem system-ui,sans-serif;padding:0 2px;cursor:pointer;text-align:left}
+.sanfona>button.sec small{color:var(--muted);font-weight:500}
+.sanfona .linha{display:flex;justify-content:space-between;gap:8px;width:100%;min-height:32px;background:#26231d;border:1px solid var(--line);border-radius:8px;color:var(--ink);font:500 .84rem system-ui,sans-serif;padding:4px 10px;margin:3px 0;cursor:pointer;text-align:left}
+.sanfona .linha span:last-child{color:var(--muted);flex:none}
 .chips button.ativo{color:var(--ink);border-color:var(--gold);background:rgba(217,165,74,.18)}
 .ico.preco small{color:var(--gold)}
 input.busca{width:100%;min-height:44px;border-radius:10px;border:1px solid var(--line);background:#0b0a09;color:var(--ink);font:500 1rem system-ui,sans-serif;padding:0 12px;margin-bottom:8px}
@@ -78,17 +92,116 @@ input.busca:focus{outline:none;border-color:var(--gold)}
 #entrar p{color:var(--muted);margin:0;max-width:420px}
 .vazio{color:var(--muted);text-align:center;padding:20px 0}
 .opc{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted)}
+/* Jogar: o modo leve (André 2026-11-25) */
+/* tela do modo leve (André 2026-11-25: "tem q rolar muito"): mapa na tela toda, status em cima, barra embaixo, painéis por cima do mapa */
+body.leveTela #aviso{top:40%;font-size:.9rem;padding:6px 12px;bottom:auto;left:50%;right:auto;transform:translateX(-50%);width:max-content;max-width:min(86vw,420px);text-align:center;background:rgba(44,36,24,.9);pointer-events:none;z-index:6}
+#jogarAba.tela{display:block;position:relative;max-width:980px;padding:4px 8px 8px;overflow:hidden}
+#jogarAba.tela>#jogarMapa{position:absolute;inset:4px 8px 8px}
+#jogarAba.tela .mapaCx{height:100%}
+#jogarAba.tela #mapa{height:100%;aspect-ratio:auto}
+#jogarAba.tela>#jogar{position:absolute;inset:4px 8px 8px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;pointer-events:none}
+#jogarAba.tela>#jogar>*{pointer-events:auto}
+#jogarAba.tela .hud{align-self:flex-start;width:calc(100% - 64px);max-width:440px;margin:6px 0 0 6px;padding:8px 10px;background:rgba(22,20,16,.86);backdrop-filter:blur(2px);color:var(--ink)}
+#jogarAba.tela .hud .faz,#jogarAba.tela .hud .nome{font-size:.8rem;margin:2px 0}
+.bts.mini{margin-top:4px;gap:5px}
+.coletaLeve{margin-top:6px;padding:8px 10px;border:1px solid rgba(217,165,74,.6);border-radius:10px;background:rgba(217,165,74,.12)}
+.coletaLeve .titulo{font-weight:700;font-size:1rem}
+.progColeta{height:8px;margin:6px 0 4px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden}
+.progColeta i{display:block;height:100%;width:0;background:#d9a54a;transition:width .5s linear}
+.progColeta.vai i{width:35%;animation:vaiColeta 1.2s linear infinite}
+@keyframes vaiColeta{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
+.bts.mini button.acao{flex:1 1 auto;min-height:32px;padding:0 8px;font-size:.78rem}
+#jogarAba.tela .folha{margin-top:auto;max-height:58%;overflow-y:auto;overscroll-behavior:contain;background:rgba(22,20,16,.95);border:1px solid var(--line);border-radius:12px;padding:8px;display:grid;gap:8px}
+#jogarAba.tela .folha .card{background:transparent;border:0;padding:2px}
+.folhaCab{display:flex;justify-content:space-between;align-items:center;position:sticky;top:-8px;background:rgba(22,20,16,.98);margin:-8px -8px 0;padding:6px 8px;border-bottom:1px solid var(--line);z-index:1}
+.folhaCab .fecha{width:36px;height:36px;border-radius:8px;border:1px solid var(--line);background:#26231d;color:var(--ink);font-size:1rem;cursor:pointer}
+.doca{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;background:rgba(16,15,12,.9);border:1px solid var(--line);border-radius:12px;padding:6px}
+.doca button{position:relative;min-height:44px;border-radius:9px;border:1px solid var(--line);background:#26231d;color:var(--ink);font:600 .86rem system-ui,sans-serif;cursor:pointer}
+.doca button.ativo{border-color:var(--gold);background:rgba(217,165,74,.22)}
+.doca button.tem::after{content:"";position:absolute;top:6px;right:8px;width:8px;height:8px;border-radius:50%;background:#73c773}
+#jogarAba.tela>#jogarChat{position:absolute;left:8px;right:8px;bottom:70px;max-height:58%;overflow:auto;background:rgba(22,20,16,.95);z-index:1}
+#jogarAba.tela .gire{position:absolute;inset:0;z-index:3}
+#jogarAba.tela>#jogarExtra{display:none}
+#jogarExtra{display:grid;gap:8px}
+#jogar{display:grid;gap:10px}
+#jogarAba>*,#jogar>*{min-width:0}
+.vm{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:.75rem;color:var(--muted)}
+.vm .barra{flex:1}
+.vm>div{min-width:92px}
+.bts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.bts button.acao{flex:1 1 30%}
+button.acao.cinza{background:#26231d;border-color:var(--line)}
+.ico.sel .q{box-shadow:0 0 0 2px var(--gold) inset;border-color:var(--gold)}
+.qtd-linha{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.qtd-linha input{width:84px;min-height:40px;border-radius:8px;border:1px solid var(--line);background:#0b0a09;color:var(--ink);font:500 1rem system-ui,sans-serif;padding:0 8px}
+.progresso{height:6px;border-radius:3px;background:#2b2822;overflow:hidden;margin:6px 0}
+.progresso b{display:block;height:100%;background:var(--gold)}
+.perigo{border-color:#d9534a}
+.chatLista{max-height:180px;overflow-y:auto;font-size:.86rem;display:grid;gap:3px;margin:6px 0}
+.chatLista b{color:var(--gold);font-weight:600}
+.chatLista .meu b{color:#7fcf7f}
+.chatLista i{color:var(--muted);font-style:normal;font-size:.72rem;margin-right:4px}
+.chatEnvia{display:flex;gap:6px}
+.chatEnvia input{flex:1;min-width:0;width:0;min-height:40px;border-radius:8px;border:1px solid var(--line);background:#0b0a09;color:var(--ink);font:500 .95rem system-ui,sans-serif;padding:0 10px}
+.chatEnvia select{flex:none;max-width:96px}
+/* jogo leve mais simples (André 2026-11-25: "mais intuitivo e fluido... um celular no trabalho"): botões redondos à direita, barra com ícones, Ir para com atalhos, janelinha de quantidade, dica da 1ª vez */
+.redondos{position:absolute;right:6px;top:6px;display:flex;flex-direction:column;gap:6px;z-index:2}
+#jogarAba.tela .folha{position:relative;z-index:3}
+#jogarAba.tela .zoom{top:auto;bottom:80px}
+.redondos button{width:50px;min-height:50px;border-radius:14px;border:1px solid var(--line);background:rgba(22,20,16,.92);color:var(--ink);font:600 .62rem system-ui,sans-serif;cursor:pointer;display:grid;place-items:center;padding:3px 0;line-height:1.1}
+.redondos button i{font-style:normal;font-size:1.3rem}
+.redondos button.ativo{border-color:var(--gold);background:rgba(217,165,74,.3)}
+.doca button i{display:block;font-style:normal;font-size:1.25rem;line-height:1.2}
+.doca button{font-size:.72rem;padding:4px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.doca button.tem{border-color:var(--gold);background:rgba(217,165,74,.25)}
+.doca button.tem::after{display:none}
+.conta{font:700 .92rem system-ui,sans-serif;margin:4px 0 2px}
+.conta .cheia{color:#e0806a}
+.atalhos{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:4px 0}
+.atalhos button{min-height:52px;border-radius:10px;border:1px solid var(--gold);background:rgba(217,165,74,.14);color:var(--ink);font:600 .86rem system-ui,sans-serif;cursor:pointer;padding:4px}
+.atalhos button small{display:block;color:var(--muted);font-weight:500;font-size:.72rem}
+.atalhos button:disabled{opacity:.4;border-color:var(--line)}
+.janelaLeve{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:grid;place-items:center;padding:16px}
+.janelaLeve .caixa{width:100%;max-width:340px;background:#1d1a15;border:2px solid var(--gold);border-radius:14px;padding:14px;display:grid;gap:10px;text-align:center}
+.janelaLeve .caixa .nome{font-size:1.05rem}
+.janelaLeve .mm{display:flex;gap:6px;justify-content:center;align-items:center}
+.janelaLeve .mm button{min-width:52px;min-height:50px;border-radius:10px;border:1px solid var(--line);background:#26231d;color:var(--ink);font:700 1.2rem system-ui,sans-serif;cursor:pointer}
+.janelaLeve .mm button.txt{font-size:.85rem;padding:0 8px}
+.janelaLeve .mm input{width:70px;min-height:50px;text-align:center;border-radius:10px;border:1px solid var(--line);background:#0b0a09;color:var(--ink);font:700 1.3rem system-ui,sans-serif}
+.janelaLeve .extra{display:flex;gap:6px;justify-content:center}
+.janelaLeve .extra input,.janelaLeve .extra select{min-height:44px;border-radius:8px;border:1px solid var(--line);background:#0b0a09;color:var(--ink);font:500 1rem system-ui,sans-serif;padding:0 8px;width:110px}
+.janelaLeve button.acao{min-height:54px;font-size:1.05rem}
+.janelaLeve .dica{text-align:left;line-height:1.55;font-size:.95rem}
+/* combate e time no modo leve (André 2026-11-25) */
+#jogarAba.tela .alvoLeve,#jogarAba.tela .geadaLeve{align-self:flex-start;width:calc(100% - 64px);max-width:440px;margin:0 0 0 6px;padding:6px 10px;background:rgba(60,14,10,.92);border:1px solid #d9362b;color:var(--ink);border-radius:10px}
+.geadaLeve{font:700 .85rem system-ui,sans-serif}
+.alvoLeve .linha{display:flex;align-items:center;gap:8px}.alvoLeve .linha b{flex:1}.alvoLeve .linha small{color:var(--muted)}
+.alvoLeve .fecha{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:#26231d;color:var(--ink);cursor:pointer}
+.alvoLeve .barra{margin:5px 0}.alvoLeve button.acao{width:100%;min-height:46px;margin-top:4px}
+.habLeve{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:auto}
+.habLeve button{position:relative;min-height:58px;border-radius:12px;border:1px solid var(--line);background:rgba(22,20,16,.94);color:var(--ink);font:600 .66rem system-ui,sans-serif;cursor:pointer;padding:2px;overflow:hidden;touch-action:manipulation}
+.habLeve button i{display:block;font-style:normal;font-size:1.35rem;line-height:1.2}
+.habLeve button span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.habLeve button.grande{grid-column:span 2;background:rgba(160,82,45,.92);border-color:var(--gold);font-size:.9rem}
+.habLeve button.espera{opacity:.45}
+.habLeve .cd{position:absolute;inset:0;display:grid;place-items:center;font-size:1.3rem;color:#fff;text-shadow:0 0 4px #000;pointer-events:none}
+.habLeve button:active{transform:scale(.96)}
+.recLeve{display:flex;align-items:center;gap:8px;background:#26231d;border:1px solid var(--line);border-radius:9px;padding:8px;margin:5px 0}
+.recLeve .n{flex:1;min-width:0}.recLeve small{display:block;color:var(--muted)}
+.recLeve button{min-height:40px;min-width:92px;border-radius:999px;border:1px solid var(--line);background:#26231d;color:var(--ink);font:700 .82rem system-ui,sans-serif;cursor:pointer}
+.recLeve button.on{background:#3c7a3c;border-color:#7fcf7f}
+.recLeve button:disabled{opacity:.4}
 </style>
 </head>
 <body>
 <header>
   <div class="topo">
     <div style="min-width:0"><h1 id="titulo">Painel do Clã</h1><div class="sub" id="subtitulo">Age of Embers</div></div>
-    <div class="estado" id="estado"><i></i><span>Ligando…</span></div>
+    <div style="display:flex;align-items:center;gap:10px;flex:none"><a class="wiki" href="wiki/" target="_blank" rel="noopener" title="Wiki: como jogar">📖 Wiki</a><div class="estado" id="estado"><i></i><span>Ligando…</span></div></div>
   </div>
   <nav id="abas" hidden>
     <button data-aba="cla" class="ativo">Clã</button>
-    <button data-aba="mapa">Mapa</button>
+    <button data-aba="jogar">Jogar</button>
     <button data-aba="leilao">Leilão</button>
     <button data-aba="bots">Clãs bot</button>
     <button data-aba="log">Registro</button>
@@ -101,14 +214,10 @@ input.busca:focus{outline:none;border-color:var(--gold)}
   <p id="entrarErro"></p>
 </section>
 <main id="cla"></main>
-<main id="mapaAba" hidden>
-  <div class="mapaCx">
+<main id="jogarAba" hidden><div class="gire card">Gire o aparelho e use em pé: o modo leve é feito para a tela em pé.</div><div id="jogarMapa"><div class="mapaCx" id="mapaCx">
     <canvas id="mapa" width="600" height="600"></canvas>
     <div class="zoom"><button id="mapaMais" aria-label="Aproximar">+</button><button id="mapaMenos" aria-label="Afastar">−</button><button id="mapaCentro" aria-label="Centralizar no clã">◎</button></div>
-  </div>
-  <label class="opc"><input type="checkbox" id="mapaBots"> Mostrar os líderes dos clãs bot</label>
-  <div class="legenda"><span style="--c:var(--gold)">Seus recrutas</span><span style="--c:#fff">Você (no jogo)</span><span style="--c:var(--geada)">Líder Geada</span><span style="--c:var(--chama)">Líder Chama</span></div>
-</main>
+  </div></div><div id="jogar"></div><div id="jogarExtra"><label class="opc"><input type="checkbox" id="mapaBots"> Mostrar os líderes dos clãs bot</label>  <div class="legenda"><span style="--c:var(--gold)">Seus recrutas</span><span style="--c:#fff">Você (no jogo)</span><span style="--c:var(--geada)">Líder Geada</span><span style="--c:var(--chama)">Líder Chama</span></div></div><div id="jogarChat" class="card" hidden></div></main>
 <main id="leilaoAba" hidden></main>
 <main id="bots" hidden></main>
 <main id="log" hidden></main>

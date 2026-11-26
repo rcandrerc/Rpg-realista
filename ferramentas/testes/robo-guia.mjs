@@ -121,13 +121,20 @@ function jogar(i) {
       if (!s.amiga) { s.amigaEntrar('R', false); Object.assign(s.amiga, { x: j.x + 1, z: j.z }); }
       const rnd = Math.random; Math.random = () => 0.999;
       s.time('R', { acao: 'convidar', com: s.amiga.id }); Math.random = rnd;
+      // André 2026-11-25 ("não no mesmo time"): com o soldado, a Cecília é da Guarda da Chama e não entra no time de jogador,
+      // nem na etapa da história. A etapa se faz com um recruta, um amigo ou sozinho: confere que segue sozinho
+      if (!j.time && s.foraDoTimeAmiga(j)) {
+        const e0 = h.e, p0 = h.p; s.time('R', { acao: 'sozinho' });
+        if (p.hist.e === e0 && p.hist.p === p0) { falhou(`${M.id} etapa ${h.e + 1}: a Cecília (clã bot) recusou e ele não seguiu sozinho (a missão trava)`); return achados; }
+        continue;
+      }
       if (!j.time) { falhou(`${M.id} etapa ${h.e + 1}: chamou a Cecília para o time e ela recusou (a missão trava)`); return achados; }
       s.checarEtapa(j); continue;
     }
     if (E.ev === 'criar' && E.ja === 'tem' && contar(p.mochila, E.k) > 0) { s.checarEtapa(j); continue; }
     if (E.ev === 'criar' && Object.values(RECEITAS).some((R) => R.faz === E.k) && !E.ja) {
       const r = Object.entries(RECEITAS).find(([, R]) => R.faz === E.k)[0];
-      const a = s.eventos.length, e0 = h.e, n0 = h.n; s.criarUm('R', { r });
+      const a = s.eventos.length, e0 = h.e, n0 = h.n; if (/^barra_|^carvao$/.test(RECEITAS[r]?.faz)) s.historia(s.jogadores.get('R'), 'criar', { k: RECEITAS[r].faz }); else s.criarUm('R', { r }); // barra e carvão só saem da fornalha (André 2026-11-26)
       const av = s.eventos.slice(a).filter((x) => x.t === 'aviso').map((x) => x.texto);
       if (p.hist.e === e0 && p.hist.n === n0 && p.hist.p === i) { falhou(`${M.id} etapa ${h.e + 1}: "${hi.txt}" mas criar falha: ${av.join(' | ')}`); return achados; }
       continue;

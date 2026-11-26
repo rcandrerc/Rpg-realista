@@ -19,6 +19,7 @@ var amiga_id := "" # a Cecília (shared/amiga.js): o servidor só manda para o d
 var amiga_ids: Array = [] # todos os amigos virtuais com quem posso conversar: Cecília e Dario (André 2026-11-11)
 var amiga_papeis := {} # id -> "a guerreira" / "o guerreiro" (o título na janela de conversa)
 var amiga_segue := {} # id -> true: dá para seguir (botão Seguir no cartão; só a Cecília, AMIGA.seguivel)
+var amiga_sem_time := {} # id -> true: líder de clã bot, sem convite para o time (André 2026-11-25, shared/amiga.js semTimeAmiga)
 var outros := {} # id -> {no, anim, alvo, ry, seq, barra, modo, uma_vez}
 var eu_guerra := false # Chama x Geada: eu estou na zona de guerra (acima da Trégua e fora da zona segura)
 var eu_raca := "" # "" = Chama
@@ -73,6 +74,7 @@ var _status_t := 0.0
 var _lugar_pendente := false # entrou agora: a primeira foto traz o herói para onde a conta guardou (onde ele saiu)
 var jogadores := 0
 # Área de interesse (server/visao.js): o servidor manda só o que está perto, e de cada corpo só o que mudou.
+var bf_meu: Array = [] # buffs e debuffs do herói, da foto (shared/simulacao.js bfJogador; buffs.gd desenha)
 var _srv := {} # id -> tudo o que já chegou daquele corpo (a foto nova completa o que faltou)
 var no_mapa: Array = [] # [[id, x, z], ...] de todos os jogadores da sala (a cada 0,5 s): mapa e minimapa
 # tela de login
@@ -518,6 +520,7 @@ func voltar_ao_login(texto := "") -> void:
 	amiga_ids.clear()
 	amiga_papeis.clear()
 	amiga_segue.clear()
+	amiga_sem_time.clear()
 	_foi_desconectado = false
 	_foi_trocado = false
 	_conta_antes = {}
@@ -552,9 +555,13 @@ func ao_receber(tipo, dados) -> void:
 	if dados.has("foto"):
 		aplicar_foto(dados.foto)
 	t0 = _marca("rx:foto", t0)
+	# rx:eventos subiu de 3,2 s para 8,9 s somados nos quadros lentos do Poco (ronda de 25/11) e chegou a 1.971 ms num
+	# quadro no Note 10 Lite, sem dizer qual aviso: cada um que passa de 1 ms vai para o registro como "ev:<tipo>"
+	var t_ini := t0
 	for ev in dados.get("eventos", []):
 		evento(ev)
-	_marca("rx:eventos", t0)
+		t0 = _marca("ev:" + str(ev.get("t", "?")) if ev is Dictionary else "ev:?", t0)
+	_marca("rx:eventos", t_ini)
 
 # Quadro lento (2026-11-14, registros do celular: "rede" e "online" chegavam a 300 a 500 ms num quadro logo depois da
 # capa, sem dizer o quê): cada pedaço que passa de 1 ms vai para o registro (lentidao.gd ev) com o nome dele.
@@ -651,9 +658,13 @@ func aplicar_foto(f: Dictionary) -> void:
 		jogadores += 1
 		if str(j.id) == meu_id:
 			meu(j)
+			bf_meu = j.get("bf", bf_meu) # buffs e debuffs do herói (buffs.gd, perto da barra de vida)
 		else:
 			vistos[str(j.id)] = true
 			outro(j)
+			var ob = outros.get(str(j.id))
+			if ob is Dictionary and j.has("bf"): # buffs e debuffs dele (buffs.gd: quadro do alvo e barras do time)
+				ob.bf = j.bf
 	if aoi: # quem está na sala inteira (a foto só traz os de perto)
 		jogadores = int(f.get("total", jogadores))
 	for id in outros.keys():
@@ -838,6 +849,8 @@ func outro(j: Dictionary) -> void:
 		o.nome = str(j.nome) # troca.gd mostra o nome de quem tocou
 	# André 2026-11-10: os outros jogadores veem o nome e o nível em cima da cabeça (só mexe no texto quando muda)
 	var placa: String = "%s · Nv %d" % [str(j.get("nome", "")), int(j.get("nivel", 1))] if j.has("nivel") else str(j.get("nome", ""))
+	if str(j.get("cn", "")) != "": # nome do clã antes do nome (André 2026-11-26: "coloca o nome do clã na cabeça")
+		placa = "[%s] %s" % [str(j.cn), placa]
 	if j.has("gss"): # vantagem SS da Guilda (Presidente 2026-11-19): a marca no nome, para todos verem
 		placa = "[SS] " + placa
 	if placa != o.placa_txt and o.placa != null:
@@ -848,6 +861,11 @@ func outro(j: Dictionary) -> void:
 	if tit != str(o.get("tit", "")) and m.titulos != null:
 		o.tit = tit
 		m.titulos.por(o.no, o.placa, tit)
+	# Patente de Guerra do mês (André 2026-11-26): escudo ao lado do nome, da cor da raça (titulos.gd patente)
+	var ptc := "%d|%s|%s" % [int(j.get("pt", 0)), str(j.get("raca", "")), o.placa_txt]
+	if ptc != str(o.get("pt", "")) and m.titulos != null:
+		o.pt = ptc
+		m.titulos.patente(o.no, o.placa, str(j.get("raca", "")), int(j.get("pt", 0)))
 	if j.has("bot"):
 		o.bot = true # a Cecília: não pede troca nem amizade (troca.gd)
 	# Chama x Geada (André 2026-11-18): a raça vem só para quem não é da Chama (Kira, Rufo e Lis na fase 1). O nome fica da
@@ -858,10 +876,12 @@ func outro(j: Dictionary) -> void:
 	var raca := str(j.get("raca", ""))
 	if raca != str(o.get("raca", "")):
 		o.raca = raca
-		if o.placa != null:
-			o.placa.modulate = Color(str(_raca(raca).get("cor", "ffffff")))
 		o.capa_raca = "" # pinta de novo depois que a roupa vier
 		o.roupa = "-" # veste de novo: a capa volta ao material normal (corpo reaproveitado de alguém de outra raça)
+	var ck := raca + "|" + eu_raca # cor do nome pela facção de quem olha (cor_nome): só quando muda
+	if o.placa != null and ck != str(o.get("cor_k", "")):
+		o.cor_k = ck
+		o.placa.modulate = cor_nome(raca)
 	o.alvo = Vector3(float(j.x), float(j.y), float(j.z))
 	o.ry = float(j.ry)
 	# roupa que aparece no corpo (armadura.gd) e a capa abrindo com a velocidade (a foto vem 20 vezes por segundo)
@@ -963,6 +983,11 @@ func animar(o: Dictionary, c: Dictionary) -> void:
 		return
 	o.uma_vez = 0.0
 	var nome := str(c.get("anim", "Idle"))
+	# sentado na Mesa do Clã (jantar.gd): o servidor manda kk_sentado; aqui vai a parada e o jantar.gd põe o quadril no
+	# banco (sentar.gd), como no carrinho. A animação sentada do KayKit deixava o corpo VRoid flutuando atrás do banco
+	o.mesa_sent = nome == "kk_sentado"
+	if o.mesa_sent:
+		nome = "Idle"
 	# outro jogador parado com o cajado na mão: a mesma guarda de mago do herói (o servidor manda só "parada")
 	if o.get("modo", "") == "Magia" and not o.get("sentado", false) and animacao(nome) == "parada" and an.has_animation("cajado_parada"):
 		nome = "cajado_parada"
@@ -1005,6 +1030,8 @@ func inimigo(c: Dictionary) -> void:
 	if e.has("boss") and c.has("vidaMax"): # boss de mundo: a vida inteira vem do servidor (barra do topo, boss_mundo.gd)
 		e.vida_max = float(c.vidaMax)
 	e.vida_max_srv = float(c.get("vidaMax", e.get("vida_max_srv", 1.0)))
+	if c.has("bf"): # atordoado, lento, Quebrado (buffs.gd: quadro do alvo)
+		e.bf = c.bf
 	_barra_prevista(e)
 	if not e.has("seq"):
 		e.seq = -1
@@ -1155,6 +1182,10 @@ func evento(ev: Dictionary) -> void:
 			amiga_papeis[aid] = str(ev.get("papel", "a guerreira"))
 			if ev.get("segue", false):
 				amiga_segue[aid] = true
+			if ev.get("semTime", false):
+				amiga_sem_time[aid] = true
+			else: # o evento vem sempre completo: quem deixou de ser líder volta a ter o convite
+				amiga_sem_time.erase(aid)
 			return
 		"seguir": # botão Seguir (seguir.gd, André 2026-11-17): ela topou, o herói vai atrás dela
 			if m.seguir:
@@ -1476,6 +1507,10 @@ func evento(ev: Dictionary) -> void:
 		"comando": # comando rápido do time (André 2026-11-19): alguém do time mandou "Espera aqui", "Me segue"...
 			m.hud.comando(str(ev.get("nome", "")), str(ev.get("texto", "")))
 			m.sons.tocar("q_anel_1", -12.0)
+		"jantar", "jantarInfo", "jantarSentar": # jantar do clã (jantar.gd, shared/jantar.js): a comida na mesa, a janela e o herói sentado
+			if m.jantar != null:
+				m.jantar.do_servidor(ev)
+			return
 		"balao": # chat Local (André 2026-11-18): a frase em cima da cabeça de quem falou, por uns segundos
 			_balao(str(ev.get("id", "")), str(ev.get("texto", "")), int(ev.get("npc", 0)) == 1, str(ev.get("lingua", "")) != "")
 			return
@@ -1804,7 +1839,19 @@ func reservar_corpo(vis: String) -> void:
 	o.sumiu = false
 	o.tit = ""
 	o.roupa = "-"
+	# registros de 25/11 (Poco X7): a primeira roupa num corpo de outro modelo (o menino, por exemplo) custou 441 ms num
+	# quadro (o:vestir: ar:inicio 179 + ar:montar_corpo 124 cada), porque as malhas apertadas de cada modelo
+	# (armadura.gd _malhas) nascem na primeira vez. A primeira reserva de cada modelo veste um conjunto comum aqui,
+	# atrás da capa: as malhas ficam prontas e quem chega só troca a cor. Nada muda na tela (o corpo está guardado)
+	if not _vestido_quente.has(vis):
+		_vestido_quente[vis] = true
+		var tv := Time.get_ticks_usec()
+		m.Armadura.vestir(o.no, m.Armadura.de_texto(VESTIR_QUENTE))
+		_marca("o:vestir_quente", tv)
 	_soltar_corpo(o)
+
+const VESTIR_QUENTE := "chapeu0,peitoral0,calca0,botas0,capa0"
+var _vestido_quente := {}
 
 # Repor a reserva com o menu aberto (frente "personagens mais leves", André 2026-11-24): quem chega perto e acha a
 # reserva vazia monta um corpo novo, e isso dava 116 a 160 ms num quadro no Poco X7 (o:corpo, registros de 23/11).
@@ -1812,12 +1859,22 @@ func reservar_corpo(vis: String) -> void:
 # fica parado na tela, ninguém sente o tranco), monta de novo um corpo da reserva que foi usado: no máximo um a cada
 # REPOR_INTERVALO, até RESERVA de cada corpo do criador. Nada muda na tela.
 const REPOR_INTERVALO := 0.5 # s
+# registros de 25/11 (Poco X7): cada corpo montado aqui custou 100 a 267 ms num quadro (o:repor) e a lista do menu
+# engasgava quando o dedo estava rolando ou tocando. Só monta com o dedo parado há REPOR_PARADO_MS (lendo o menu)
+const REPOR_PARADO_MS := 2000
 var _repor_t := 0.0
+var _toque_ms := 0 # último toque ou arrasto na tela
+func _input(ev: InputEvent) -> void:
+	if ev is InputEventScreenTouch or ev is InputEventScreenDrag or ev is InputEventMouseButton:
+		_toque_ms = Time.get_ticks_msec()
+
 func _repor_reserva(dt: float) -> void:
 	_repor_t -= dt
 	if _repor_t > 0.0 or _cobrindo:
 		return
 	if not ((m.menu and m.menu.aberto()) or (m.menu_topo and m.menu_topo.aberto())):
+		return
+	if Time.get_ticks_msec() - _toque_ms < REPOR_PARADO_MS:
 		return
 	_repor_t = REPOR_INTERVALO
 	var cri = m.P.dados.get("criador") if m.P.dados is Dictionary else null
@@ -1972,6 +2029,8 @@ func _passo(dt: float) -> void:
 		_pos_t = 0.05
 		var p: Vector3 = m.heroi.position - m.desliza # o lugar de verdade (sem o deslize da correção na tela)
 		var a: String = para_servidor.get(m.heroi_anim.current_animation, {"freada": "Walk", "meia_volta": "Run"}.get(m.heroi_anim.current_animation, "Idle"))
+		if m.jantar != null and m.jantar.sentado_ok(): # sentado na Mesa do Clã: os outros veem sentado (jantar.gd)
+			a = "kk_sentado"
 		if m.montaria != null: # montado: vai o passo do lobo (o site e os outros apps põem o lobo andando ou galopando)
 			a = "Run" if m.mov.velocidade() > 4.4 else ("Walk" if m.mov.velocidade() > 0.35 else "Idle")
 		# e: 1 = este app conhece a estamina (o servidor só deixa correr com fôlego)
@@ -2101,6 +2160,13 @@ func _corpo_humano(e: Dictionary, hc: String) -> void:
 	e.anim = h.anim
 	e.barra = h.barra
 	e.monstro = guarda
+
+# cor do nome de quem é jogador (André 2026-11-26: "isso já é assim no 4x4"): as mesmas cores da Arena (arena_pvp.gd
+# AZUL/VERMELHO), pela facção de quem olha. A sua (e você) = azul, a inimiga = vermelho. Hoje todo jogador é Chama, então
+# a Geada fica vermelha; quem for da Geada um dia vê a Geada azul.
+const ArenaPvp = preload("res://arena_pvp.gd")
+func cor_nome(raca: String) -> Color:
+	return ArenaPvp.AZUL if (raca if raca != "" else "chama") == (eu_raca if eu_raca != "" else "chama") else ArenaPvp.VERMELHO
 
 # Chama x Geada (André 2026-11-18): as cores de cada raça (shared/dados.js RACAS, exportado em habilidades.json)
 func _raca(raca: String) -> Dictionary:

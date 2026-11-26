@@ -580,11 +580,10 @@ func escolher(a: String) -> void:
 		"comprar":
 			fechar()
 			m.menu.abrir("loja")
-		"vender": # a mochila abre já marcando itens para vender (André 2026-11-04); Pronto volta ao Vender de um em um
+		"vender": # André 2026-11-25 (remoção aprovada do Vender vários): abre a mochila; toque no item para vender
 			fechar()
 			m.menu.abrir("mochila")
-			m.menu.modo_vender(true)
-			m.hud.aviso("%s compra: marque os itens ou Selecionar tudo" % _curto(n))
+			m.hud.aviso("%s compra: toque no item para vender" % _curto(n))
 		"habilidades":
 			fechar()
 			m.menu.abrir("habilidades")

@@ -1588,6 +1588,10 @@ func _voltas_passo(dt: float) -> void:
 		if not ok and v.vivo:
 			v.vivo = false
 		v.t += dt
+		# trava de segurança (André 2026-11-25): o recall só dura o canal. Se o evento "chegou"/"cancela" não veio (bot ou recruta
+		# que teletransportou fora da vista, corpo trocado), o círculo e a coluna acabam sozinhos em vez de seguir quem anda
+		if v.vivo and v.t > v.dur + 3.0:
+			volta_vila_fim(corpo, false)
 		var u: float = clamp(v.t / v.dur, 0.0, 1.0)
 		v.f = min(1.0, v.f + dt * 2.0) if v.vivo else v.f - dt * 2.5
 		var p: Vector3 = corpo.global_position if ok and v.vivo else v.g.position

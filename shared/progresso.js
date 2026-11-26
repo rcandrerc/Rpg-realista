@@ -1,7 +1,7 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
-import { fichaJogadorValida } from './dados.js';
-import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS, TITULOS, HISTORIA } from './dados.js';
+import { fichaJogadorValida, JANTAR } from './dados.js';
+import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS, TITULOS, HISTORIA, PATENTE } from './dados.js';
 import { packValido, carrinhoValido, navioValido } from './transporte.js';
 import { histNova, histValida } from './historia.js';
 import { diariasValidas } from './diarias.js'; // missões diárias (André 2026-11-16)
@@ -82,6 +82,7 @@ export const golpeHeroiNivel = (nv, nh, N) => {
 export function calcularStatus(p, passivas = {}) {
   const a = p.atr, n = p.nivel, eq = bonusEquip(p.equip, a), ti = bonusTitulo(p); // ti: título em uso (TITULOS)
   const co = bonusComida(p); // co: buff da comida (André 2026-11-24)
+  const bq = p.banq?.ate > Date.now() ? JANTAR.buff.dano : 0; // Banquete do clã: o líder que sentou no jantar (André 2026-11-25); soma com a comida
   const nivelK = 1 + 0.08 * (n - 1);
   const def = (a.for + (passivas.pele_pedra ? 3 : 0) + eq.defesa) * (1 + (ti.defesa || 0) + (co.defesa || 0));
   return {
@@ -92,8 +93,8 @@ export function calcularStatus(p, passivas = {}) {
     regenVida: REGEN.vida + REGEN.vidaNivel * n + REGEN.vidaVit * a.vit,
     defesa: def,
     reducao: def / (def + 24), // fração do dano que a defesa segura
-    danoFisico: (10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0)),
-    danoMagico: (10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0)),
+    danoFisico: (10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
+    danoMagico: (10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
     critico: Math.min(1, 0.0455 + 0.0015 * a.des + (passivas.sorte_arcana ? 0.02 : 0) + eq.critico + (ti.critico || 0) + (co.critico || 0)),
     danoCritico: eq.danoCritico, // somado no golpe crítico (o dobro + este número), André 2026-11-17
     recarga: Math.min(0.4, 0.0133 * a.des), // fração a menos no tempo de recarga
@@ -125,6 +126,7 @@ export function titulosNovos(p) {
     const c = t.cond;
     if ((c.abates && (p.abates | 0) >= c.abates) || (c.prof && profNivel(p.prof?.[c.prof]) >= c.nv)
       || (c.hist && h > HISTORIA.findIndex((M) => M.id === c.hist) && HISTORIA.some((M) => M.id === c.hist))
+      || (c.pat && (p.gu?.x | 0) >= c.pat) // Patente de Guerra (shared/patente.js): a maior que já pegou
       || (c.pvpV && (p.pvp?.v | 0) >= c.pvpV)) r.push(id); // Arena PvP (André 2026-11-21): vitórias na arena
   }
   return r;
@@ -259,6 +261,32 @@ export function guardarQueCabe(mochila, item) {
     const cabe = Math.min(it.n - n, ITENS[it.k].pilha - o.n); o.n += cabe; n += cabe;
   }
   return n;
+}
+// ---------- mover por quantidade (André 2026-11-25: "colocar um número menor, igual ou maior que o stack") ----------
+// Mochila, venda, Baú e troca usam o mesmo jeito: número maior que a pilha puxa das outras pilhas iguais (mesmo item,
+// mesmo cadeado; a que está no lugar rápido fica de fora). Peça de equipamento é sempre uma só.
+export function pilhasIguais(lista, i) {
+  const o = lista[i]; if (!o) return [];
+  if (!o.n || ehEquip(o.k)) return [i];
+  const r = [i];
+  for (let x = 0; x < lista.length; x++) if (x !== i && lista[x] && mesmo(lista[x], o)) r.push(x);
+  return r;
+}
+// Passa n do item do lugar i de `de` para `para` (sem n: a pilha inteira; n maior que a pilha: das pilhas iguais).
+// Não mexe nas listas: devolve { de, para, n } novas (n = quantos couberam) ou null se nada passou.
+export function moverQtd(de, para, i, n) {
+  const src = de.map((q) => (q ? { ...q } : null)), dst = para.map((q) => (q ? { ...q } : null));
+  const o = src[i]; if (!o) return null;
+  let quer = o.n ? (Number.isInteger(n) && n > 0 ? n : o.n) : 1, foi = 0;
+  for (const x of pilhasIguais(src, i)) {
+    if (quer <= 0) break;
+    const v = src[x], t = v.n || 1, q = v.n ? Math.min(quer, t) : 1;
+    const c = guardarQueCabe(dst, v.n ? { ...v, n: q } : { ...v }); if (!c) break;
+    foi += c; quer -= c;
+    if (c >= t) src[x] = null; else v.n = t - c;
+    if (c < q) break; // destino cheio
+  }
+  return foi ? { de: src, para: dst, n: foi } : null;
 }
 // ---------- filtro de coleta (André 2026-11-07: "a bag enche muito rápido") ----------
 // prog.filtro = { r: [raridades desmarcadas], k: [recursos desmarcados] }. O que está desmarcado não entra na mochila:
@@ -620,6 +648,7 @@ export function progressoValido(p) {
   if (p.dia && num(p.dia.h) && num(p.dia.t) && p.dia.h >= 0 && p.dia.h < 24) n.dia = { h: p.dia.h, t: Math.min(agora, p.dia.t) };
   if (num(p.camaT) && p.camaT > 0) n.camaT = Math.min(agora, p.camaT);
   // buff da comida (André 2026-11-24): só item que tem buff e no máximo a duração dele a partir de agora
+  if (p.banq && num(p.banq.ate) && p.banq.ate > agora) n.banq = { ate: Math.min(p.banq.ate, agora + JANTAR.buff.dur * 1000) }; // Banquete do clã (shared/jantar.js)
   if (p.buff && typeof p.buff.k === 'string' && ITENS[p.buff.k]?.buff && num(p.buff.ate) && p.buff.ate > agora) n.buff = { k: p.buff.k, ate: Math.min(p.buff.ate, agora + ITENS[p.buff.k].buff.dur * 1000) };
   // forninho público da ferraria (André 2026-11-11): o que cada um deixou dentro (a Simulacao confere com fornoValido)
   if (p.fornosPub && typeof p.fornosPub === 'object') {
@@ -652,6 +681,7 @@ export function progressoValido(p) {
   n.abates = int(p.abates, 0, 1e9, 0);
   { const d = placarDueloValido(p.duelos); if (d) n.duelos = d; } // placar de duelos (André 2026-11-17, shared/duelo.js)
   { const f = fichaJogadorValida(p.fic); if (f) n.fic = f; } // ficha do jogador, opcional (André 2026-11-23, FICHA_RECRUTA)
+  { const g = patenteValida(p.gu); if (g) n.gu = g; } // Patente de Guerra (André 2026-11-26, shared/patente.js)
   { const a = pvpValido(p.pvp); if (a) n.pvp = a; } // Arena PvP (André 2026-11-21, shared/arena.js): Insígnias e placar
   if (Number.isFinite(p.rgCd) && p.rgCd > 0) n.rgCd = Math.round(p.rgCd); // Pó de rastreio: quando a recarga acaba (ms, hora de verdade)
   if (p.rgDado === 1) n.rgDado = 1; // Pó de rastreio de presente já entregue (conta de teste do André)
@@ -676,6 +706,20 @@ export function placarDueloValido(o) {
 }
 
 // Arena PvP vinda da conta (prog.pvp, shared/arena.js): Insígnias (pts), vitórias, derrotas, empates, abates e quedas
+// Patente de Guerra (shared/patente.js): prog.gu = { m, a, x, l, u, p, v }
+export function patenteValida(g) {
+  if (!g || typeof g !== 'object') return null;
+  const n = (v, hi) => (Number.isInteger(v) && v >= 0 && v <= hi ? v : 0);
+  const u = {};
+  if (g.u && typeof g.u === 'object') for (const [k, v] of Object.entries(g.u).slice(-PATENTE.guarda)) if (typeof k === 'string' && k.length <= 64 && Number.isFinite(v)) u[k] = Math.round(v);
+  const v = {};
+  if (g.v && typeof g.v === 'object') for (const [k, t] of Object.entries(g.v).slice(-PATENTE.guarda)) if (typeof k === 'string' && k.length <= 64 && Number.isFinite(t)) v[k] = Math.round(t);
+  const r = { m: typeof g.m === 'string' && /^\d{4}-\d{2}$/.test(g.m) ? g.m : '', a: n(g.a, 1e6), x: n(g.x, PATENTE.nomes.length - 1), l: n(g.l, 1e4), u };
+  if (Number.isFinite(g.p) && g.p > 0) r.p = Math.min(r.a, Math.round(g.p * 100) / 100); // pontos que as mortes tiraram
+  if (Object.keys(v).length) r.v = v;
+  return r.m || r.x || r.l ? r : null;
+}
+
 export function pvpValido(o) {
   if (!o || typeof o !== 'object') return null;
   const n = (v) => (Number.isInteger(v) && v >= 0 && v <= 1e9 ? v : 0);

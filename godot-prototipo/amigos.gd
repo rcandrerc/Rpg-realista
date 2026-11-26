@@ -341,6 +341,8 @@ func _desenhar_barras() -> void:
 	var f := ThemeDB.fallback_font
 	var eu := str(m.online.meu_id) if m.online else ""
 	_barras.draw_set_transform(BARRAS + barras_d, 0.0, Vector2(barras_s, barras_s))
+	if m.buffs:
+		m.buffs.limpar_prefixo("time:")
 	var y := _topo()
 	for t in time:
 		if str(t.id) == eu:
@@ -361,6 +363,11 @@ func _desenhar_barras() -> void:
 		var fm: float = float(t.get("mana", 0)) / max(1.0, float(t.get("manaMax", 1)))
 		_barra(p + Vector2(8, 17), Vector2(tam.x - 16, 10), fv, Color(0.8, 0.22, 0.2), Idioma.t("CAÍDO") if morto else "%d/%d" % [int(t.get("vida", 0)), int(t.get("vidaMax", 0))])
 		_barra(p + Vector2(8, 29), Vector2(tam.x - 16, 4), fm, Color(0.22, 0.45, 0.85), "")
+		if m.buffs and not morto: # buffs e debuffs dele (buffs.gd): ícones pequenos do lado direito do cartão
+			var bl: Array = m.buffs.do_id(str(t.id))
+			if not bl.is_empty():
+				var bp := p + Vector2(tam.x + 4.0, 9.0)
+				m.buffs.desenhar(_barras, "time:" + str(t.id), bl, bp, 18.0, BARRAS + barras_d + bp * barras_s, barras_s, 4)
 		y += tam.y + 4.0
 	_barras.draw_set_transform(Vector2.ZERO)
 
@@ -539,7 +546,7 @@ func montar_janela(mt) -> void:
 			var vid := str(v.get("id", "")) if v.get("id") != null else ""
 			if v.get("time", false):
 				linha.add_child(_pequeno(mt._botao("Sair do time", func(): _time_virtual(mt, "expulsar", vid, c), false), 120))
-			elif int(v.get("on", 1)) == 1:
+			elif int(v.get("on", 1)) == 1 and not v.get("semTime", false): # líder de clã bot: sem convite (André 2026-11-25)
 				linha.add_child(_pequeno(mt._botao("Time", func(): _time_virtual(mt, "convidar", vid, c)), 70))
 			var conf_v := _remover == c # desfazer a amizade com o NPC: dois toques, como com gente
 			linha.add_child(_pequeno(mt._botao("Certeza?" if conf_v else "Remover", func():

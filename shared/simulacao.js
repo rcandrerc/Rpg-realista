@@ -2,8 +2,8 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos, fatorDropNivel } from './progresso.js';
-import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, curaDe, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, totemMaisPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado } from './dados.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, moverQtd, pilhasIguais, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos, fatorDropNivel } from './progresso.js';
+import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, curaDe, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, totemMaisPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado, patenteDe, pontosGuerra } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
 import { Transporte, carrinhoNovo, topoCarrinho, lugarDoVeiculo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
@@ -14,6 +14,7 @@ import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS, VISAO } from './dados.js'; // bo
 import { ECONOMIA, precoLoja } from './dados.js'; // economia (André 2026-11-16)
 import { CEREBRO, fichaInfo, estiloDe, fichaJogadorValida, fichaJogadorInfo } from './dados.js'; // perfil na janela de equipamento (André 2026-11-23)
 import { AVISO_EVOLUIR } from './dados.js'; // aviso de ir à bigorna/bancada ao evoluir (André 2026-11-21)
+import { JANTAR } from './dados.js'; // jantar do clã: o buff Banquete (André 2026-11-25)
 import { DROP_NIVEL } from './dados.js'; // drop menor em bicho muito abaixo do herói (André 2026-11-24)
 import { Economia } from './economia.js';
 import { LUGARES_MUNDO } from './mundo.js'; // os cais: a pesca no mar nasce em volta deles (André 2026-11-13)
@@ -25,11 +26,14 @@ import { Plantio } from './plantio.js'; // árvores plantadas pelos jogadores (A
 import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
 import { Cla } from './cla.js'; // clã e recrutas (André 2026-11-22)
 import { Base } from './base.js'; // base do clã (André 2026-11-22)
+import { Jantar } from './jantar.js'; // jantar do clã na Mesa do Clã (André 2026-11-25)
 import { MissaoCla } from './missao-cla.js'; // Missão do Clã em grupo (André 2026-11-23)
 import { Guilda } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11-18)
 import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
 import { Guerra } from './guerra.js'; // Chama x Geada (André 2026-11-18)
+import { Patente } from './patente.js'; // Patente de Guerra (André 2026-11-26)
 import { Arena } from './arena.js'; // Arena PvP 3x3 Geada x Chama (André 2026-11-21)
+import { Leve } from './leve.js'; // modo leve: jogar pelo painel do clã (André 2026-11-25)
 import { RIVAIS, RACA_PADRAO, GUERRA, RACAS, COMANDOS_TIME } from './dados.js';
 
 const TAU = Math.PI * 2;
@@ -483,6 +487,7 @@ export class Simulacao {
     if (testador && j.prog.rgDado !== 1 && guardar(j.prog.mochila, { k: 'rastreio', n: GUERRA.radar.presente })) { j.prog.rgDado = 1; j.progSujo = true; } // Pó de rastreio de presente para testar (André 2026-11-22)
     if (robo) j.robo = true; // robô de testes (ferramentas/robo): não negocia, não compra terreno, não puxa o nível dos NPCs
     this.nascerOndeSaiu(j);
+    if (!robo) this.fecharMesPatente(j); // Patente de Guerra: prêmio do mês que fechou enquanto estava fora
     this.conferirTitulos(j, true); // conta de antes dos títulos: já ganha os que o progresso merece (sem faixa)
     this.aplicarStatus(j, true);
     j.sta = j.staMax;
@@ -1037,6 +1042,7 @@ export class Simulacao {
     if (j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc) return;
     const nivelAntes = p.nivel;
     if (j.mesa && n > 0) n = Math.max(1, Math.round(n * (1 + j.mesa))); // recruta com fome ou bem alimentado (DESPENSA)
+    if (n > 0 && p.banq?.ate > Date.now()) n = Math.max(1, Math.round(n * (1 + JANTAR.buff.xp))); // Banquete do clã (shared/jantar.js)
     p.xp += n;
     let subiu = false;
     while (p.nivel < NIVEL_MAX && p.xp >= xpProximo(p.nivel) && !(j.bot && !j.semTeto && this.nivelTetoNpc != null && p.nivel >= this.nivelTetoNpc)) { p.xp -= xpProximo(p.nivel); p.nivel++; p.pontos += PONTOS_POR_NIVEL; subiu = true; }
@@ -1148,6 +1154,7 @@ export class Simulacao {
   }
   // Algo aconteceu com j (ev e dados d): conta na etapa da vez se casar (shared/historia.js casaEtapa)
   historia(j, ev, d = {}) {
+    if (ev === 'matar' && j?.bot) j.mortesProd = (j.mortesProd | 0) + 1; // produção do recruta por hora (MORAL.prod, shared/cla.js)
     if (ev !== 'diaria' && ev !== 'diaria_vista') { this.contarDiaria(j, ev, d); this.contarGuilda(j, ev, d); } // diárias e contratos da Guilda contam pelo mesmo funil
     const p = j?.prog, h = p?.hist; if (!h?.ac || j.bot) return;
     const M = HISTORIA[h.p], E = M && etapasDe(M)[h.e]; if (!E) return;
@@ -2027,11 +2034,19 @@ export class Simulacao {
       if (it.cad) return aviso('Item trancado. Abra o cadeado para vender');
       if (this.carrinhoFora(j, it)) return aviso(`${it.k === 'navio' ? 'O navio' : 'O carrinho'} está no mundo. Toque nele na mochila pra guardar antes`);
       if (!this.pertoDeQuemCompra(j)) return aviso('Venda com a Rosa, a comerciante, ou com o Tomás, o ferreiro');
-      const preco = precoVenda(it, mercador(p.prof.mer).venda + (bonusTitulo(p).venda || 0)); // título de Mercador ou Voz das Estradas
-      if (it.n > 1) it.n--; else p.mochila[i] = null;
+      const merc = mercador(p.prof.mer).venda + (bonusTitulo(p).venda || 0); // título de Mercador ou Voz das Estradas
+      // André 2026-11-25: m.n = quantos (sem n = 1); maior que a pilha vende também das pilhas iguais
+      let quer = it.n && Number.isInteger(m.n) && m.n > 1 ? m.n : 1, preco = 0, n = 0;
+      for (const x of pilhasIguais(p.mochila, i)) {
+        if (quer <= 0) break;
+        const v = p.mochila[x]; if (this.carrinhoFora(j, v)) continue;
+        const t = v.n || 1, q = Math.min(quer, t);
+        preco += precoVenda(v, merc) * q; n += q; quer -= q;
+        if (q >= t) p.mochila[x] = null; else v.n = t - q;
+      }
       p.ouro += preco; this.caixa(j, ehEquip(it.k) ? 'vendaEquip' : it.k === 'tomo' ? 'vendaTomo' : 'venda', preco);
       this.pontosMercador(j, preco);
-      aviso(`Vendeu ${nomeItem(it)} por ${preco} de ouro`);
+      aviso(n > 1 ? `Vendeu ${n} ${nomeItem(it)} por ${preco} de ouro` : `Vendeu ${nomeItem(it)} por ${preco} de ouro`);
       this.historia(j, 'vender', { k: it.k });
     } else if (m.acao === 'vender_varios' && Array.isArray(m.lista)) {
       // André 2026-11-04: marcar vários itens (ou "Selecionar tudo") e vender de uma vez; cada lugar vende a pilha inteira
@@ -2238,18 +2253,29 @@ export class Simulacao {
     // daqui em diante muda a oferta: só destrancada (o cadeado protege o que o outro já viu)
     if (eu.tranca) return aviso('Sua oferta está trancada. Destranque para mudar');
     if (m.acao === 'por') {
-      const i = Number.isInteger(m.i) ? m.i : -1, it = i >= 0 && i < j.prog.mochila.length ? itemValido(j.prog.mochila[i]) : null;
-      if (!it) return;
-      if (it.cad) return aviso('Item trancado. Abra o cadeado na mochila para trocar');
-      if (this.carrinhoFora(j, it)) return aviso(`${it.k === 'navio' ? 'O navio' : 'O carrinho'} está no mundo. Guarde ele antes de trocar`);
-      const ja = eu.itens.find((e) => e.i === i), tem = it.n || 1, pos = ja ? ja.n : 0;
-      const n = Math.min(Number.isInteger(m.n) && m.n > 0 ? m.n : 1, tem - pos);
-      if (n <= 0) return aviso('Você já pôs tudo desse item');
-      if (ja) ja.n += n;
-      else {
-        if (eu.itens.length >= TROCA.maxItens) return aviso(`No máximo ${TROCA.maxItens} itens por troca`);
-        eu.itens.push({ i, n, chave: chaveItem(it) });
+      // André 2026-11-25: n maior que a pilha puxa das pilhas iguais; lista = várias pilhas inteiras (os botões de tipo)
+      const moch = j.prog.mochila, lista = Array.isArray(m.lista);
+      const lugares = lista ? [...new Set(m.lista.slice(0, 400))].filter((x) => Number.isInteger(x) && x >= 0 && x < moch.length && moch[x])
+        : (Number.isInteger(m.i) && m.i >= 0 && m.i < moch.length && moch[m.i] ? pilhasIguais(moch, m.i) : []);
+      if (!lugares.length) return;
+      const it0 = itemValido(moch[lugares[0]]);
+      if (!lista && it0?.cad) return aviso('Item trancado. Abra o cadeado na mochila para trocar');
+      if (!lista && it0 && this.carrinhoFora(j, it0)) return aviso(`${it0.k === 'navio' ? 'O navio' : 'O carrinho'} está no mundo. Guarde ele antes de trocar`);
+      let quer = lista ? Infinity : (Number.isInteger(m.n) && m.n > 0 ? m.n : 1), pos = 0, cheio = false;
+      for (const i of lugares) {
+        if (quer <= 0) break;
+        const it = itemValido(moch[i]); if (!it || it.cad || this.carrinhoFora(j, it)) continue;
+        const ja = eu.itens.find((e) => e.i === i), tem = it.n || 1, n = Math.min(quer, tem - (ja ? ja.n : 0));
+        if (n <= 0) continue;
+        if (ja) ja.n += n;
+        else {
+          if (eu.itens.length >= TROCA.maxItens) { cheio = true; break; }
+          eu.itens.push({ i, n, chave: chaveItem(it) });
+        }
+        quer -= n; pos += n;
       }
+      if (cheio) aviso(`No máximo ${TROCA.maxItens} itens por troca`);
+      if (!pos) return cheio ? undefined : aviso('Você já pôs tudo desse item');
     } else if (m.acao === 'tirar') {
       const k = Number.isInteger(m.o) ? m.o : -1; if (!eu.itens[k]) return;
       eu.itens.splice(k, 1);
@@ -2420,7 +2446,7 @@ export class Simulacao {
     // amigos virtuais (André 2026-11-09, como no Quimera): a Cecília aparece só para o dono, numa parte separada da lista
     // André 2026-11-16: só quem ela aceitou como amigo (pedido tocando nela ou pela busca); o ♥ e o selo de NPC ficam
     const meu = (x) => !!(x.AMIGA.recruta && !x.AMIGA.clanpc && x.AMIGA.lider === j.conta); // os recrutas dele: fora da lista, mas com Msg e Time no painel do clã (recrutas, abaixo)
-    const virtuais = this.amigosIa.flatMap((x) => { const a = x.amiga, D = x.AMIGA; if (!this.amigoBotOk(x, j) && !meu(x)) return []; if (a ? !x.ehAmigoAmiga(j) : !this.amigoIaSalvo?.(D, j.conta)) return []; return a ? [{ c: D.conta, nome: D.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: x.amizadeAmiga(j), ia: !IA_CONVERSA.ligada || x.iaAmiga(j.id) }] : this.iaPorChave ? [{ c: D.conta, nome: D.nome, id: null, on: 0, amizade: 0, ia: true }] : []; }); // IA desligada: sem o botão de ativar chave (André 2026-11-18) // todos veem; sem chave, o botão de ativar (André 2026-11-10)
+    const virtuais = this.amigosIa.flatMap((x) => { const a = x.amiga, D = x.AMIGA; if (!this.amigoBotOk(x, j) && !meu(x)) return []; if (a ? !x.ehAmigoAmiga(j) : !this.amigoIaSalvo?.(D, j.conta)) return []; return a ? [{ c: D.conta, nome: D.nome, id: a.id, nivel: a.prog.nivel, on: 1, time: !!(j.time && a.time === j.time), amizade: x.amizadeAmiga(j), ia: !IA_CONVERSA.ligada || x.iaAmiga(j.id), ...(x.semTimeAmiga?.() ? { semTime: 1 } : {}) }] : this.iaPorChave ? [{ c: D.conta, nome: D.nome, id: null, on: 0, amizade: 0, ia: true }] : []; }); // IA desligada: sem o botão de ativar chave (André 2026-11-18) // todos veem; sem chave, o botão de ativar (André 2026-11-10)
     // André 2026-11-23 (#828 tirou o chat e o time dos recrutas da lista): os recrutas dele vão à parte (recrutas), o app usa
     // no painel do clã e no toque no mundo; a lista de amigos mostra só virtuais
     const contasMeus = new Set(this.amigosIa.filter((x) => meu(x) && !this.amigoBotOk(x, j)).map((x) => x.AMIGA.conta));
@@ -2843,7 +2869,7 @@ export class Simulacao {
     return s.n;
   }
   proximaBatida(j, no) {
-    const C = COLETA[no.tipo], dur = C.tempo / profBonus(j.prog.prof[C.prof]).rapidez;
+    const C = COLETA[no.tipo], dur = C.tempo / profBonus(j.prog.prof[C.prof]).rapidez; // o rende do recruta (moral x mesa) mexe na quantidade, não na velocidade (batidaColeta)
     j.coleta = { no: no.id, x: j.x, z: j.z, fim: this.tempo + dur };
     this.evento({ t: 'coleta', id: j.id, no: no.id, dur: r2(dur), prof: C.prof });
   }
@@ -2857,7 +2883,12 @@ export class Simulacao {
     const b = profBonus(p.prof[C.prof]), ganhou = [];
     const por = (k, n) => { const q = guardarQueCabe(p.mochila, { k, n }); if (q) { const g = ganhou.find((x) => x.k === k); if (g) g.n += q; else ganhou.push({ k, nome: ITENS[k].nome, n: q }); } if (q < n) this.evento({ t: 'aviso', para: j.id, texto: 'Mochila cheia' }); }; // o que couber entra (o bônus +1 sem lugar não leva a coleta junto)
     const extra = b.extra + bonusTituloProf(p, C.prof, 'extra'); // título da profissão em uso
-    for (const [k, n] of Object.entries(C.da)) por(k, n + (Math.random() < extra ? 1 : 0));
+    // j.rende (recruta: moral x mesa, MORAL): a QUANTIDADE da batida, com o mesmo vigor (André 2026-11-26: "deveria ser drop
+    // e não velocidade... se no final vai dar no mesmo, pra que eu vou me matar?"). 120% = 20% a mais; 75% = 25% a menos (a
+    // fração vira chance). Igual à conta do tempo fora (trabalhoFora, rM)
+    const rende = (n) => { if (!j.rende || j.rende === 1) return n; const q = n * j.rende; return Math.floor(q) + (Math.random() < q - Math.floor(q) ? 1 : 0); };
+    let rendeuZero = false;
+    for (const [k, n0] of Object.entries(C.da)) { const n = rende(n0 + (Math.random() < extra ? 1 : 0)); if (n > 0) por(k, n); else rendeuZero = true; }
     for (const [k, ch] of Object.entries(C.raro || {})) if (Math.random() < ch && !filtrado(p, { k })) por(k, 1); // bônus desmarcado no filtro fica no chão
     const volta = no.mina ? this.minas.get(no.mina)?.volta ?? C.volta : C.volta;
     const s = { n: this.cargas(j, no) - 1, volta: this.tempo + volta };
@@ -2872,7 +2903,7 @@ export class Simulacao {
     this.evento({ t: 'coletou', para: j.id, no: no.id, itens: ganhou, cargas: s.n, volta });
     for (const g of ganhou) this.historia(j, 'item', { k: g.k, n: g.n, de: 'coleta' });
     if (ganhou.length) { this.contarDiaria(j, 'coleta', { tipo: no.tipo }); this.contarGuilda(j, 'coleta', { tipo: no.tipo }); } // diária "Corte ou minere" e contrato da Guilda: uma por batida
-    if (!ganhou.length) return this.pararColeta(j, null);
+    if (!ganhou.length && !rendeuZero) return this.pararColeta(j, null); // rende baixo tirou a batida: segue batendo
     if (s.n <= 0) return this.pararColeta(j, `${C.nome} ${C.esgotado || 'esgotado'}`);
     if (vigorAgora(p.vigor) < this.custoVigor(j, C)) return this.pararColeta(j, 'Sem vigor: ele volta sozinho com o tempo (cheio a cada 6 h)');
     this.proximaBatida(j, no);
@@ -2967,6 +2998,9 @@ export class Simulacao {
     const custo = P.vigor[k] * (1 - profBonus(p.prof.pes).menosVigor);
     gastarVigor(p, Math.min(custo, vigorAgora(p.vigor))); // Quimera: paga o que tem
     const dobro = Math.random() < P.dobro * profBonus(p.prof.pes).rank + bonusTituloProf(p, 'pes', 'extra') && guardar(p.mochila, { k, n: 1 });
+    // rende do recruta (MORAL, igual à batidaColeta): acima de 100% chance de +1 peixe; abaixo, chance de o peixe escapar
+    if (j.rende > 1 && Math.random() < j.rende - 1) guardar(p.mochila, { k, n: 1 });
+    else if (j.rende < 1 && Math.random() < 1 - j.rende) tirar(p.mochila, k, 1);
     this.pontosProf(j, 'pes', P.vigor[k]);
     p.vara = (p.vara || 0) + 1;
     let quebrou = false;
@@ -3057,12 +3091,18 @@ export class Simulacao {
   }
   // por que não dá para criar a receita agora: { motivo: '' | texto, npc: onde cria }
   motivoReceita(j, R) {
-    const p = j.prog;
+    // André 2026-11-26: "nem uma barra de forja deve ser feita em criar": carvão e barras (ferro, cobre, aço) só saem da fornalha
+    if (RECEITA_ESTACAO(R) === 'fornalha') return { motivo: 'Carvão e barras só saem da fornalha: ponha o material e o combustível lá' };
     const of = OFICINA[R.prof];
     // perto da estação certa: a pública da vila (André 2026-11-11: o NPC não cria mais, quem cria é o herói na bigorna,
     // no forninho ou na bancada ao lado dele) ou uma construída num lote (bigorna, fornalha ou bancada)
     const npc = this.estacaoPerto(j, R);
     if (!npc) return { motivo: RECEITA_ESTACAO(R) === 'fornalha' ? 'Funda no forninho da ferraria do Tomás ou na fornalha do seu terreno' : RECEITA_ESTACAO(R) === 'fogao' ? 'Cozinhe perto do fogão do seu terreno' : `Crie ${of.onde} ou perto de uma ${CONSTRUCOES[RECEITA_ESTACAO(R)].nome.toLowerCase()}` };
+    return this.motivoReceitaSem(j, R, npc);
+  }
+  // o resto da conta (nível, progressão, material, vigor), sem olhar a estação: a página leve lista com isso (`leveReceitas`)
+  motivoReceitaSem(j, R, npc = null) {
+    const p = j.prog;
     if (profNivel(p.prof[R.prof]) < R.nivel && !(!R.r && this.livreHistoria(j, R.faz))) return { motivo: `Precisa de ${PROFISSOES[R.prof].nome} Nv ${R.nivel}` };
     { // progressão (André 2026-11-10): Ferreiro e Alfaiate depois da missão do Tomás; cada receita e cada evolução no seu nível
       const lib = (R.prof === 'fer' || R.prof === 'alf') && motivoLibera(p, 'forja') || (R.r ? motivoLibera(p, 'evoluir', R.r) : motivoLibera(p, 'receita', R.faz));
@@ -3337,6 +3377,12 @@ export class Simulacao {
     const maxP = maxPecasTerreno(L.def.x1 - L.def.x0, L.def.z1 - L.def.z0);
     if (L.pecas.length >= maxP) return aviso(`Limite de ${maxP} peças no terreno: desmonte uma para pôr outra`);
     const p = { id: 'p' + L.prox, k: m.k, x, z, r, lote: L.def.id };
+    if (m.k === 'mesa_cla') { // a Mesa do Clã (André 2026-11-25: "só do clã, não posso fazer várias, mas quero mudar de lugar")
+      const B = this.baseDe?.(j);
+      if (!j.prog.cla || !B) return aviso('A Mesa do Clã fica na base do clã: funde a base primeiro (aba Clã)');
+      if (L.def.baseK !== B.k) return aviso('A Mesa do Clã só vai dentro da base do seu clã');
+      if (this.mesaBase?.(B)) return aviso('O seu clã já tem uma Mesa do Clã: toque nela e em Mudar de lugar');
+    }
     const motivo = motivoPeca(L, p, j, this.areaBase?.(L)); if (motivo) return aviso(motivo);
     if (m.k === 'bau_cla') { // um por clã, no terreno do líder (André 2026-11-22)
       if (!j.prog.cla) return aviso('Funde o seu clã primeiro (aba Clã)');
@@ -3364,6 +3410,7 @@ export class Simulacao {
     if (!this.loteParaMexer(j, p.x, p.z, aviso)) return;
     const dep = motivoDesmontar(L, p); if (dep) return aviso(dep);
     if (p.k === 'bau' && L.pecas.filter((o) => o.k === 'bau').length === 1 && (L.bau || []).some(Boolean)) return aviso('Esvazie o baú antes de desmontar o último');
+    if (p.k === 'mesa_cla' && L.def.baseK && this.jantares?.has(L.def.baseK)) return aviso('Termine o jantar antes de desmontar a mesa'); // jantar do clã (shared/jantar.js)
     if (p.k === 'palete' && this.packsNoPalete?.(p.id).length) return aviso('Tire os packs de cima do palete antes de desmontar'); // André 2026-11-23
     if ((p.k === 'fornalha' || p.k === 'fogao') && L.fornos && L.fornos[p.id]) {
       avancarForno(L.fornos[p.id], Date.now(), regraForno(p.k));
@@ -3604,19 +3651,23 @@ export class Simulacao {
     if (!Array.isArray(L.bau)) L.bau = Array(bauLugares(L.bauNv)).fill(null);
     const p = j.prog, i = m.i | 0;
     if (m.acao === 'guardar') {
-      const o = p.mochila[i]; if (!o) return;
+      const o = p.mochila[i]; if (!o && !Array.isArray(m.lista)) return;
       // o.h do Tomo é a habilidade dele, não lugar rápido (André 2026-11-07: Tomo não entrava no baú)
-      if (o.h && o.k !== 'tomo') return aviso('Tire o item do lugar rápido antes de guardar');
-      const tem = o.n || 1, n = o.n && Number.isInteger(m.n) && m.n > 0 ? Math.min(m.n, tem) : tem;
-      const bau = L.bau.map((q) => (q ? { ...q } : null));
-      if (!guardar(bau, o.n ? { ...o, n } : { ...o })) return aviso('O baú está cheio');
-      L.bau = bau; p.mochila[i] = n < tem ? { ...o, n: tem - n } : null;
+      if (o && !Array.isArray(m.lista) && o.h && o.k !== 'tomo') return aviso('Tire o item do lugar rápido antes de guardar');
+      // André 2026-11-25: n maior que a pilha puxa das pilhas iguais; lista = várias pilhas inteiras (os botões de tipo)
+      let foi = 0;
+      for (const x of Array.isArray(m.lista) ? [...new Set(m.lista.slice(0, 400))].filter((x) => Number.isInteger(x) && p.mochila[x] && !(p.mochila[x].h && p.mochila[x].k !== 'tomo')) : [i]) {
+        const r = moverQtd(p.mochila, L.bau, x, Array.isArray(m.lista) ? undefined : m.n); if (!r) break;
+        p.mochila = r.de; L.bau = r.para; foi += r.n;
+      }
+      if (!foi) return aviso('O baú está cheio');
     } else if (m.acao === 'tirar') {
-      const o = L.bau[i]; if (!o) return;
-      const tem = o.n || 1, n = o.n && Number.isInteger(m.n) && m.n > 0 ? Math.min(m.n, tem) : tem;
-      const prova = p.mochila.map((q) => (q ? { ...q } : null));
-      if (!guardar(prova, o.n ? { ...o, n } : { ...o })) return aviso('Mochila cheia');
-      p.mochila = prova; L.bau[i] = n < tem ? { ...o, n: tem - n } : null;
+      let foi = 0;
+      for (const x of Array.isArray(m.lista) ? [...new Set(m.lista.slice(0, 400))].filter((x) => Number.isInteger(x) && L.bau[x]) : [i]) {
+        const r = moverQtd(L.bau, p.mochila, x, Array.isArray(m.lista) ? undefined : m.n); if (!r) break;
+        L.bau = r.de; p.mochila = r.para; foi += r.n;
+      }
+      if (!foi) return aviso('Mochila cheia');
     } else if (m.acao === 'organizar') { // botão Organizar do baú (André 2026-11-07), igual ao da mochila
       L.bau = organizar(L.bau);
     } else if (m.acao === 'melhorar') { // André 2026-11-07: 40 → 60 → 80 lugares, os itens ficam dentro
@@ -4497,6 +4548,7 @@ export class Simulacao {
 
     const agoraMs = Date.now();
     for (const c of this.todos()) {
+      if (c.prog?.banq && c.prog.banq.ate <= agoraMs) { delete c.prog.banq; c.progSujo = true; this.aplicarStatus(c); this.avisarProg(c); if (!c.bot) this.evento({ t: 'aviso', para: c.id, texto: `O buff ${JANTAR.buff.nome} acabou` }); } // jantar do clã (shared/jantar.js)
       if (c.prog?.buff && c.prog.buff.ate <= agoraMs) { delete c.prog.buff; c.progSujo = true; this.aplicarStatus(c); this.avisarProg(c); if (!c.bot) this.evento({ t: 'aviso', para: c.id, texto: 'O buff da comida acabou' }); } // André 2026-11-24
       if (c.dash && c.dash.t > 0) { if (!this.guiado(c)) this.mover(c, c.dash.vx * dt, c.dash.vz * dt); c.dash.t -= dt; } // guiado: o celular já fez o avanço
       if (c.trava > 0 && c.trava !== Infinity) {
@@ -4508,10 +4560,18 @@ export class Simulacao {
       }
     }
     this.passoMissoesCla(); // Escolta do Clã (shared/missao-cla.js)
+    this.passoPatente(); // Patente de Guerra (shared/patente.js): o mês virou?
     this.passoGuerra(); this.passoDuplasGuerra(); // Chama x Geada (shared/guerra.js): quem pode lutar agora e as falas de quem avistou alguém
-    if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); this.passoRecrutasSemLider?.(); } // a semana do clã (shared/cla.js)
+    if ((this.claT = (this.claT || 0) + dt) >= 60) { this.claT = 0; for (const j of [...this.jogadores.values()]) if (this.temCla(j)) this.cobrarCla(j); this.passoClasNpc(); this.passoObraCasas?.(60); this.passoRecrutasSemLider?.(); this.passoProdRecrutas?.(); } // a semana do clã (shared/cla.js)
+    this.passoJantares(dt); // jantar do clã (shared/jantar.js)
     for (const ctx of this.amigosIa) ctx.passoAmiga(dt); // Cecília e Dario decidem o que fazer (como jogadores sem celular)
-    for (const j of this.jogadores.values()) this.passoJogador(j, dt);
+    for (const j of this.jogadores.values()) { // modo leve: o servidor anda o herói (shared/leve.js); no carrinho, gasta combustível e não entra na água
+      if (!j.leve) { this.passoJogador(j, dt); continue; }
+      const x0 = j.x, z0 = j.z;
+      try { this.passoLeve(j, dt); } catch (e) { j.leveRota = null; console.error('modo leve: passo deu erro:', e); }
+      this.passoJogador(j, dt);
+      if (j.veiculo) try { this.leveAndouVeiculo(j, x0, z0); } catch (e) { console.error('modo leve: carrinho deu erro:', e); }
+    }
     this.passoTrocas();
     this.passoDuelos(); // duelo (André 2026-11-17)
     this.passoArena(dt); // Arena PvP 3x3 Geada x Chama (André 2026-11-21)
@@ -4572,13 +4632,14 @@ export class Simulacao {
       a.t -= dt; if (a.t <= 0) j.arrancada = null;
     } else if (m > 0.15) {
       const vv = this.velVeiculo(j); // no carrinho, barquinho ou navio: na velocidade dele (antes ia na do herói correndo)
-      const v = vv != null ? vv : mont ? mont.correr : (correr ? HEROI.correr : HEROI.andar) * (j.bot && j.prog?.pack ? PACK_REGRAS.costas.vel : 1); // montado: o lobo vai sempre no galope (André 2026-11-07); bot com pack nas costas vai devagar como o jogador (André 2026-11-21, pack roubado)
+      const v = vv != null ? vv : mont ? mont.correr : (correr ? HEROI.correr : HEROI.andar) * (j.prog?.pack ? PACK_REGRAS.costas.vel : 1); // montado: o lobo vai sempre no galope (André 2026-11-07); bot com pack nas costas vai devagar como o jogador (André 2026-11-21, pack roubado)
       this.mover(j, mx * v * dt, mz * v * dt);
       const alvo = Math.atan2(mx, mz);
       j.ry += angDif(alvo, j.ry) * Math.min(1, dt * 12);
     }
     if (j.chao && !j.arrancada && m > 0.5 && !mont) { this.tentarEscalar(j, correr, dt); if (j.esc) return; } else j.empurra = 0;
     j.anim = j.veiculo === 'barquinho' ? 'Idle' : this.animMovimento(j, m > 0.15, correr); // remando: sentado (o barco é que anda)
+    if (j.mesaSent) j.anim = 'kk_sentado'; // sentado na Mesa do Clã (shared/jantar.js)
   }
   // Queda, pouso e o tempo do mortal
   passoVertical(j, dt) {
@@ -4926,6 +4987,7 @@ export class Simulacao {
       j.presoAte = Math.max(j.presoAte || 0, this.tempo + preso);
       if (j.canal) this.cancelarCanal(j.id, 'Atordoado');
       j.trava = Math.max(j.trava || 0, preso); j.acao = null; j.fila = null; j.montado = null;
+      j.presoEf = ef.congela ? 'congela' : ef.derruba ? 'derruba' : 'atordoa'; // o ícone em cima da barra de vida (bfJogador)
       this.evento({ t: 'efeito', id: j.id, ef: ef.congela ? 'congela' : ef.derruba ? 'derruba' : 'atordoa', dur: preso });
     }
     if (ef.lento) { j.lentoH = { k: ef.lento.k, ate: this.tempo + ef.lento.dur }; this.evento({ t: 'efeito', id: j.id, ef: 'lento', k: ef.lento.k, dur: ef.lento.dur }); }
@@ -4974,11 +5036,38 @@ export class Simulacao {
     this.avisarProg(j);
   }
 
+  // ---------- buffs e debuffs na barra de vida (André 2026-11-25) ----------
+  // Lista curta [código, fim, valor] por corpo. "fim" é absoluto (s do relógio da Simulacao; comida em ms do relógio do
+  // servidor), assim a lista só muda quando o efeito entra, renova ou sai: a foto por área de interesse (server/visao.js,
+  // parte FIXO) manda de novo só nessa hora. fim 0 = enquanto durar (clã, mesa). O app desenha o ícone e a dica (buffs.gd).
+  bfJogador(j) {
+    const t = this.tempo, r = [], f1 = (x) => Math.round(x * 10) / 10;
+    if (!(j._bfT > t)) { j._bfT = t + 2; j._bfCla = this.nivelClaDe?.(j) || 0; } // o nível do clã muda raro: confere a cada 2 s
+    if (j._bfCla >= 2) r.push(['cla', 0, j._bfCla, Math.round((j._bfCla - 1) * CLA.bonusNivel * 1000) / 1000]); // nível e o bônus (+XP e +ouro)
+    if (j.mesa) r.push(['mesa', 0, j.mesa]); // recruta: despensa cheia (+) ou com fome (-), shared/cla.js
+    const B = j.prog?.buff; if (B && ITENS[B.k]?.buff && B.ate > (this._bfMs ||= Date.now())) r.push(['co', B.ate, B.k]);
+    if (j.prog?.banq?.ate > (this._bfMs ||= Date.now())) r.push(['banq', j.prog.banq.ate, JANTAR.buff.dano]); // Banquete do clã (shared/jantar.js): ms, como a comida
+    if (j.escudo && j.escudo.ate > t) r.push(['escudo', f1(j.escudo.ate), j.escudo.n]);
+    if ((j.presoAte || 0) > t) r.push([j.presoEf || 'atordoa', f1(j.presoAte), 0]);
+    if (j.lentoH && j.lentoH.ate > t) r.push(['lento', f1(j.lentoH.ate), j.lentoH.k]);
+    if (j.vuln && j.vuln.ate > t) r.push(['vuln', f1(j.vuln.ate), j.vuln.k]);
+    if (j.dots?.length) { const v = {}; for (const d of j.dots) if (d.ate > t) { const o = (v[d.k] ||= [d.k, 0, 0]); o[1] = Math.max(o[1], f1(d.ate)); o[2]++; } r.push(...Object.values(v)); }
+    return r;
+  }
+  bfInimigo(e) {
+    const t = this.tempo, r = [], f1 = (x) => Math.round(x * 10) / 10;
+    if (e.parado > t && e.ef) r.push([e.ef === 'congelado' ? 'congela' : 'atordoa', f1(e.parado), 0]);
+    if (e.lento?.ate > t) r.push(['lento', f1(e.lento.ate), e.lento.k]);
+    if (e.vuln?.ate > t) r.push(['vuln', f1(e.vuln.ate), e.vuln.k]);
+    return r;
+  }
+
   // ---------- o que vai para a tela ----------
   foto() {
     const roupa = (eq) => ['cabeca', 'corpo', 'pernas', 'pes', 'capa'].map((l) => (eq?.[l] ? eq[l].k + eq[l].r : '')).filter(Boolean).join(',');
     const corpo = (c) => ({ id: c.id, x: r2(c.x), y: r2(c.y), z: r2(c.z), ry: r2(((c.ry % TAU) + TAU) % TAU), vida: c.vida, vidaMax: c.vidaMax,
       morto: c.morto, anim: c.anim, acao: c.acao, acaoSeq: c.acaoSeq, nome: c.nome });
+    this._bfMs = Date.now(); // bfJogador: o relógio da comida, uma vez por foto
     return {
       tempo: r2(this.tempo),
       jogadores: [...this.jogadores.values()].map((j) => ({ ...corpo(j), vida: Math.round(j.vida), criando: !!j.criando, mana: Math.round(j.mana), manaMax: j.manaMax, nivel: j.prog.nivel, sta: Math.round(j.sta), staMax: j.staMax, coleta: j.coleta?.no || null,
@@ -4987,12 +5076,14 @@ export class Simulacao {
         semCapacete: !!j.prog.semCapacete,
         ...(j.espia && this.jogadores.get(j.espia) ? { espia: j.espia } : {}), // "Ver" o recruta (shared/cla.js): a visão do servidor fica em volta dele
         tit: j.prog.tit?.uso || null, // título em uso (aparece em cima da cabeça para todos)
+        cn: this.nomeClaFoto(j), // nome do clã em cima da cabeça (André 2026-11-26)
+        pt: j.prog.gu?.m === this.guerraMes?.m ? patenteDe(pontosGuerra(j.prog.gu)).i : 0, // Patente de Guerra do mês (escudo em cima da cabeça; 0 = Recruta)
         ...(j.prog.guilda?.r >= 7 && this.vantagensDe(j).marca ? { gss: 1 } : {}), // vantagem SS da Guilda: "SS" no nome para todos
         pack: j.prog.pack?.k || null, veiculo: j.veiculo || null, ...((bd) => (bd ? { bd } : {}))(j.bordo ? this.fotoBordo(j) : null), // bd: o lugar no navio (fotoBordo) // pack nas costas e veículo (os outros veem) // capacete escondido pelo dono: os outros também não veem
         escudo: j.escudo && j.escudo.ate > this.tempo ? j.escudo.n : 0, build: j.build, visual: j.visual, aparencia: j.aparencia || null, modo: j.modo, missoes: j.missoes, montado: j.montado || null, caverna: !!j.caverna,
-        cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])), ...(j.bot ? { bot: 1 } : {}),
+        cds: Object.fromEntries(Object.entries(j.cds).map(([k, v]) => [k, r2(Math.max(0, v - this.tempo))])), bf: this.bfJogador(j), ...(j.bot ? { bot: 1 } : {}),
         ...(this.racaDe(j) !== RACA_PADRAO ? { raca: this.racaDe(j) } : {}), guerra: j.guerra ? 1 : 0, prot: this.protegido(j) ? 1 : 0, ...(j.radarGuerraAte > this.tempo && !j.bot ? { rg: Math.ceil(j.radarGuerraAte - this.tempo) } : {}) })), // guerra/prot sempre (0 ou 1): a foto por área de interesse só manda o que mudou, e o app mira na outra raça por eles (André 2026-11-22) // Chama x Geada: a raça (só quem não é da Chama) e se está na zona de guerra // bot: a Cecília (só o dono conversa)
-      inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ...(e.hc ? { hc: e.hc, esc: e.esc, cor: e.cor } : {}), ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null })),
+      inimigos: this.inimigos.map((e) => ({ ...corpo(e), tipo: e.tipo, v: e.v, nivel: e.nivel, ...(e.hc ? { hc: e.hc, esc: e.esc, cor: e.cor } : {}), ef: e.parado > this.tempo ? e.ef : e.lento?.ate > this.tempo ? 'lento' : null, bf: this.bfInimigo(e) })),
       // veios das zonas de mineração e árvores já batidos: [id, cargas que sobram, s para voltar] (quem entra depois também vê)
       veios: [...this.veiosComuns].filter(([, v]) => v.volta > this.tempo).map(([id, v]) => [id, v.n, r2(v.volta - this.tempo)]),
       // árvores plantadas (shared/plantio.js): server/visao.js manda só as de perto, uma vez, com o tempo para ficar adulta
@@ -5007,12 +5098,15 @@ export class Simulacao {
 // packs e transportes (FASE 1): as funções de shared/transporte.js entram na Simulacao
 Object.assign(Simulacao.prototype, Transporte);
 Object.assign(Simulacao.prototype, Amiga);
+Object.assign(Simulacao.prototype, Patente); // Patente de Guerra (André 2026-11-26, shared/patente.js)
 Object.assign(Simulacao.prototype, Kit);
 Object.assign(Simulacao.prototype, Plantio); // árvores plantadas (André 2026-11-16)
 Object.assign(Simulacao.prototype, Diarias); // missões diárias (André 2026-11-16)
 Object.assign(Simulacao.prototype, Cla); // clã e recrutas (André 2026-11-22, shared/cla.js)
+Object.assign(Simulacao.prototype, Leve); // modo leve pelo painel do clã (André 2026-11-25, shared/leve.js)
 Object.assign(Simulacao.prototype, MissaoCla); // Missão do Clã em grupo (André 2026-11-23, shared/missao-cla.js)
 Object.assign(Simulacao.prototype, Base); // base do clã (André 2026-11-22, shared/base.js)
+Object.assign(Simulacao.prototype, Jantar); // jantar do clã (André 2026-11-25, shared/jantar.js)
 Object.assign(Simulacao.prototype, Guilda); // Guilda dos Aventureiros: contratos e ranks F a SS (André 2026-11-18)
 Object.assign(Simulacao.prototype, Economia); // livro-caixa da economia (André 2026-11-16)
 Object.assign(Simulacao.prototype, Duelo); // duelo (André 2026-11-17)

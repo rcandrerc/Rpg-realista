@@ -53,6 +53,7 @@ const Troca = preload("res://troca.gd")
 const Duelo = preload("res://duelo.gd") # duelo (André 2026-11-17, shared/duelo.js)
 const ArenaPvp = preload("res://arena_pvp.gd") # Arena PvP 3x3 Geada x Chama (André 2026-11-21, shared/arena.js)
 const AlvoQuadro = preload("res://alvo_quadro.gd") # quadro do alvo (André 2026-11-17, como no Quimera)
+const Buffs = preload("res://buffs.gd") # buffs e debuffs perto da barra de vida (André 2026-11-25)
 const LeilaoUi = preload("res://leilao_ui.gd") # Casa do Comércio: o leilão do Otávio no Rio Claro (história v2, Entrega 3)
 const Reforco = preload("res://reforco.gd")
 const Festa = preload("res://festa.gd")
@@ -70,6 +71,7 @@ const Rota = preload("res://rota.gd")
 const Seguir = preload("res://seguir.gd") # botão Seguir da Cecília (André 2026-11-17)
 const Construcao = preload("res://construcao.gd")
 const BaseCla = preload("res://base_cla.gd") # base do clã no mapa (André 2026-11-22)
+const Jantar = preload("res://jantar.gd") # jantar do clã na Mesa do Clã (André 2026-11-25)
 const EditarHud = preload("res://editar_hud.gd")
 const RetratoHeroi = preload("res://retrato_heroi.gd")
 const Montaria = preload("res://montaria.gd")
@@ -167,6 +169,7 @@ var duelo # duelo.gd: duelo entre jogadores e com a Cecília/Dario (botão no ca
 var arena_pvp # arena_pvp.gd: Arena PvP 3x3 Geada x Chama (botão PvP do menu do topo)
 var alvo_atual = null # quem a marca no chão aponta (monstro, chefe ou o outro do duelo)
 var alvo_quadro # alvo_quadro.gd: nome, nível e vida do alvo, à esquerda
+var buffs # buffs.gd: ícones de buff/debuff do herói, do alvo e do time, e a dica ao tocar
 var leilao # leilao_ui.gd: a janela da Casa do Comércio (só online)
 var reforco # reforco.gd: janelinha do reforço de equipamento (igual ao Quimera)
 var reinicio # reinicio.gd: faixa "o servidor vai reiniciar" e a contagem de 10 s no alto da tela (André 2026-11-12)
@@ -187,6 +190,7 @@ var minimapa # minimapa.gd: minimapa no canto de cima à direita; tocar abre o m
 var voz # voz.gd: comando de voz no celular (Configurações > Comando de voz; André 2026-11-14)
 var construcao # construcao.gd: Vila dos Lotes (comprar lote, modo construção e horta, como no Quimera)
 var base_cla # base_cla.gd: as bases dos clãs (salão, torre, paliçada, lotes)
+var jantar # jantar.gd: o jantar do clã (a janela, a comida na mesa e o herói sentado)
 var editar_hud # editar_hud.gd: segurar o painel de vida e mana abre o modo de editar a interface
 var retrato_heroi # retrato_heroi.gd: rosto do herói no painel
 var vibracao := true # Configurações: vibrar no golpe e no dano
@@ -248,6 +252,7 @@ var _frente_v := 0.0
 var _incl := 0.0
 var _incl_v := 0.0
 var _vel_ant := 0.0
+var cam_alvo = null # bicho que o herói está atacando agora (camera_heroi.gd gira para ele)
 var _dir_joy := Vector2.ZERO # para onde o joystick aponta agora (a cabeça vira antes do corpo)
 var _olhar := 0.0
 var _forca_joy := 0.0
@@ -460,6 +465,10 @@ func _ready() -> void:
 	add_child(duelo)
 	arena_pvp = ArenaPvp.new(self)
 	add_child(arena_pvp)
+	buffs = Buffs.new(self)
+	add_child(buffs)
+	hud.buffs = buffs
+	hud.m = self # Patente de Guerra (hud.gd): o escudo lê o prog e o relógio do servidor
 	alvo_quadro = AlvoQuadro.new(self)
 	add_child(alvo_quadro)
 	leilao = LeilaoUi.new(self)
@@ -537,6 +546,8 @@ func _ready() -> void:
 	add_child(construcao)
 	base_cla = BaseCla.new(self)
 	add_child(base_cla)
+	jantar = Jantar.new(self)
+	add_child(jantar)
 	hud.construcao = construcao
 	hud.tocou.connect(construcao.tocou_tela) # modo construção: tocar no chão leva a mira para lá
 	editar_hud = EditarHud.new(self) # por último: lê o layout guardado e passa para todos os elementos
@@ -2987,7 +2998,7 @@ func usar(qual: String) -> void:
 			acao = {} # golpe que já acertou: esquiva na hora
 	if _tentar(qual):
 		fila = null
-	elif not qual in ["troca", "menu", "coletar", "falar", "selo", "disparada", "montar", "construir", "lote", "bancada", "bau", "forno", "cama", "encher"]:
+	elif not qual in ["troca", "menu", "coletar", "falar", "selo", "disparada", "montar", "construir", "lote", "bancada", "bau", "forno", "cama", "encher", "jantar"]:
 		fila = {"q": qual, "ate": tempo + (FILA_PULO if qual == "pular" else FILA_TEMPO)}
 
 # 3ª velocidade (André 2026-11-03): o botão liga a corrida que gasta estamina (andar.gd disparada).
@@ -3131,6 +3142,8 @@ func _tentar(qual: String) -> bool:
 			construcao.tocar_estacao("bau") # 2026-11-07: longe ou do lado de fora da parede, anda até ele e abre
 		"encher": # perto do poço da vila ou na beira do lago (André 2026-11-07): enche o regador
 			construcao.encher_regador()
+		"jantar": # perto da Mesa do Clã (jantar.gd, André 2026-11-25): abre a janela do jantar
+			jantar.abrir()
 		"cama": # à noite, perto da minha cama (construcao.gd, dia e noite do Quimera 2026-11-07): anda até ela e dorme
 			construcao.tocar_estacao("cama")
 		"forno": # a minha fornalha (construcao.gd, 2026-11-07): anda até o lado dela e abre a janela de combustível + material
@@ -4202,6 +4215,10 @@ func atualizar_heroi(dt: float) -> void:
 	# o tiro básico do cajado anda junto, mais devagar (P.dados.andarAtirando), mudando aos poucos (sem tranco)
 	var k_alvo: float = float(P.dados.andarAtirando) if not acao.is_empty() and acao.get("livre", false) else 1.0
 	var alvo_mira = mira_mago()
+	# câmera acompanha o alvo enquanto bate (André 2026-11-26): o de quem está atacando agora; parou, fica livre
+	cam_alvo = alvo_mira
+	if cam_alvo == null and not acao.is_empty() and acao.has("alvo") and vivo(acao.alvo):
+		cam_alvo = acao.alvo
 	if alvo_mira != null:
 		k_alvo = float(P.dados.andarAtirando) # andando de lado ou de costas: o mesmo passo de quem atira
 	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)
@@ -4228,6 +4245,8 @@ func atualizar_heroi(dt: float) -> void:
 		desliza = desliza.lerp(Vector3.ZERO, minf(1.0, dt * 12.0))
 		if desliza.length_squared() < 0.0004:
 			desliza = Vector3.ZERO
+	if jantar != null and jantar.sentado_ok(): # sentado na Mesa do Clã (jantar.gd): fica no lugar; o joystick levanta
+		jantar.prender_heroi(forca)
 	heroi.position = mov.posicao() + desliza
 	heroi.rotation.y = mov.ry
 	passo_encostar(dt)
@@ -4280,6 +4299,8 @@ func atualizar_heroi(dt: float) -> void:
 			a = "sair_agua" # termina de ficar de pé antes de andar
 		elif _nadando:
 			a = "andar" if mov.velocidade() > 0.3 else "parada" # quem troca para nadar/boiar é o anim_heroi.gd (nome para o servidor)
+		elif jantar != null and jantar.sentado_ok():
+			a = "parada" # sentado na Mesa do Clã: o jantar.gd põe o quadril no banco (sentar.gd) por cima da parada
 		elif montaria != null:
 			a = "parada" # montado: quem anda é o lobo (cavalgar.gd põe o corpo na sela por cima)
 		elif not mov.veiculo.is_empty():
@@ -4494,7 +4515,7 @@ func npcs_das_vilas(dt: float) -> void:
 # monstro longe (outra clareira): a animação para (o corpo já não é desenhado: visibility_range_end em criar_inimigo).
 # Online ele continua andando pelo que o servidor manda; sem internet ele não pensa (atualizar_inimigos)
 const NPC_TROCAS_QUADRO := 2
-const NPC_MOSTRAR_QUADRO := 2
+const NPC_MOSTRAR_QUADRO := 1 # registros de 25/11 (Poco X7): cada NPC que aparece custa uns 10 ms (li:npc_mostrar)
 func lod_inimigos() -> void:
 	if heroi == null:
 		return

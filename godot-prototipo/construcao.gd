@@ -132,6 +132,8 @@ var txt_compra_tit: Label
 var painel_bau: PanelContainer
 var grade_bau: GridContainer
 var grade_mochila: GridContainer
+var tipos_bau: VBoxContainer # o que aparece (menu.gd botoes_ver) e Tirar/Guardar tudo em cima de cada grade
+var tipos_mochila: VBoxContainer
 var txt_bau: Label
 var bau_itens: Array = []
 var bau_slots := 40 # lugares do baú (André 2026-11-07: Melhorar 40 → 60 → 80)
@@ -228,6 +230,7 @@ func _carregar_modelos() -> void:
 	_modelos["cama"] = _modelo_gltf("res://construcao3d/Bed_Twin1.gltf", 1.0)
 	_modelos["tocha"] = _modelo_tocha()
 	_modelos["palete"] = _modelo_palete() # palete de packs (André 2026-11-23): os packs ficam em cima e não somem
+	_modelos["mesa_cla"] = _modelo_mesa_cla() # Mesa do Clã (André 2026-11-25): 8 lugares para o jantar do clã (jantar.gd)
 	for k in _modelos:
 		juntar_malhas(_modelos[k]) # FPS (2026-11-07): a peça vira 1 ou 2 malhas, com o mesmo visual
 		_alcance_peca(_modelos[k], k)
@@ -441,6 +444,82 @@ func _modelo_palete() -> Node3D:
 		var x := -0.69 + i * 0.23
 		_caixa(r, Vector3(0.19, 0.035, 1.2), Vector3(x, 0.1425, 0), madeira, Vector3(0, 0, 0.004 * (i % 3 - 1)))
 	return r # a marca pintada no chão é do grupo todo (_marca_paletes): encostados viram uma área só
+
+# Mesa do Clã (André 2026-11-25: "aumentar aquela mesa ali do clã... bastante, pra que dê um clã inteiro"; "3 de um lado,
+# 3 do outro e a cabeceira"): tampo de tábuas grossas de 3,6 x 1,1 m em cavaletes, um banco comprido de cada lado (3
+# lugares) e uma cadeira de espaldar em cada cabeceira (a do líder em +x, com o pano do clã). Os lugares batem com
+# JANTAR.lugares (shared/dados.js): lados em z = ±1,0, cabeceiras em x = ±2,35. Assento a MESA_ASSENTO m (a pose
+# kk_sentado do KayKit apoia o quadril aí). Caminho de mesa vermelho com borda dourada e dois castiçais.
+const MESA_ASSENTO := 0.46
+const MESA_TAMPO := 0.78
+func _modelo_mesa_cla() -> Node3D:
+	var r := Node3D.new()
+	var madeira := _mat_tex("medieval_wood", Color("8a6446"), 1.0)
+	var escura := _mat_tex("medieval_wood", Color("5a3f2b"), 1.0)
+	var pano := _mat_cor(Color(0.55, 0.1, 0.08))
+	var ouro := _mat_cor(Color(0.85, 0.66, 0.25))
+	var ferro := _mat_cor(Color(0.16, 0.15, 0.14))
+	# tampo: 5 tábuas ao comprido, com fresta, em duas travessas
+	for i in 5:
+		var z := -0.44 + i * 0.22
+		_caixa(r, Vector3(3.6, 0.07, 0.205), Vector3(0, MESA_TAMPO - 0.035, z), madeira, Vector3(0.0, 0.0, 0.003 * (i % 3 - 1)))
+	for x in [-1.45, 0.0, 1.45]:
+		_caixa(r, Vector3(0.12, 0.08, 1.0), Vector3(x, MESA_TAMPO - 0.11, 0), escura)
+	# cavaletes em X nas duas pontas e uma viga no meio, embaixo
+	for x in [-1.45, 1.45]:
+		for lado in [-1.0, 1.0]:
+			_caixa(r, Vector3(0.09, 0.86, 0.09), Vector3(x, (MESA_TAMPO - 0.14) / 2.0, 0), escura, Vector3(lado * 0.62, 0, 0))
+		_caixa(r, Vector3(0.1, 0.07, 0.9), Vector3(x, 0.04, 0), escura)
+	_caixa(r, Vector3(2.9, 0.1, 0.1), Vector3(0, 0.3, 0), escura)
+	# caminho de mesa do clã: vermelho com a borda dourada, caindo um pouco nas cabeceiras
+	_caixa(r, Vector3(3.9, 0.012, 0.42), Vector3(0, MESA_TAMPO + 0.006, 0), pano)
+	for z in [-0.22, 0.22]:
+		_caixa(r, Vector3(3.9, 0.014, 0.03), Vector3(0, MESA_TAMPO + 0.008, z), ouro)
+	for x in [-1.95, 1.95]:
+		_caixa(r, Vector3(0.012, 0.22, 0.42), Vector3(x, MESA_TAMPO - 0.1, 0), pano)
+	# bancos compridos (3 lugares cada): assento de duas tábuas e três pés de cada lado
+	for lz in [-1.0, 1.0]:
+		var z: float = lz * 1.02
+		for k in 2:
+			_caixa(r, Vector3(3.2, 0.05, 0.17), Vector3(0, MESA_ASSENTO - 0.025, z + (k - 0.5) * 0.18), madeira)
+		for x in [-1.45, 0.0, 1.45]:
+			for dz in [-0.13, 0.13]:
+				_caixa(r, Vector3(0.07, MESA_ASSENTO - 0.05, 0.07), Vector3(x, (MESA_ASSENTO - 0.05) / 2.0, z + dz), escura)
+		_caixa(r, Vector3(3.0, 0.06, 0.05), Vector3(0, 0.14, z), escura)
+	# cadeiras das cabeceiras (espaldar alto; a do líder, em +x, com o pano do clã e o friso dourado)
+	for sx in [1.0, -1.0]:
+		var cx: float = sx * 2.4
+		_caixa(r, Vector3(0.46, 0.06, 0.5), Vector3(cx, MESA_ASSENTO - 0.03, 0), madeira)
+		for p in [Vector2(-0.2, -0.21), Vector2(-0.2, 0.21), Vector2(0.2, -0.21), Vector2(0.2, 0.21)]:
+			_caixa(r, Vector3(0.06, MESA_ASSENTO - 0.06, 0.06), Vector3(cx + p.x, (MESA_ASSENTO - 0.06) / 2.0, p.y), escura)
+		var alto := 1.25 if sx > 0.0 else 1.0
+		for dz in [-0.22, 0.22]:
+			_caixa(r, Vector3(0.07, alto - MESA_ASSENTO, 0.07), Vector3(cx + sx * 0.21, MESA_ASSENTO + (alto - MESA_ASSENTO) / 2.0, dz), escura)
+		for k in 3:
+			_caixa(r, Vector3(0.04, 0.07, 0.42), Vector3(cx + sx * 0.21, MESA_ASSENTO + 0.18 + k * (alto - MESA_ASSENTO - 0.2) / 2.0, 0), madeira)
+		if sx > 0.0:
+			_caixa(r, Vector3(0.015, 0.5, 0.3), Vector3(cx + sx * 0.18, alto - 0.33, 0), pano)
+			_caixa(r, Vector3(0.017, 0.05, 0.3), Vector3(cx + sx * 0.18, alto - 0.07, 0), ouro)
+			_caixa(r, Vector3(0.08, 0.08, 0.08), Vector3(cx + sx * 0.21, alto + 0.04, -0.22), ouro)
+			_caixa(r, Vector3(0.08, 0.08, 0.08), Vector3(cx + sx * 0.21, alto + 0.04, 0.22), ouro)
+	# dois castiçais de ferro com vela (a chama brilha; sem luz, pelo FPS)
+	for x in [-0.8, 0.8]:
+		_caixa(r, Vector3(0.12, 0.02, 0.12), Vector3(x, MESA_TAMPO + 0.02, 0), ferro)
+		_caixa(r, Vector3(0.03, 0.14, 0.03), Vector3(x, MESA_TAMPO + 0.09, 0), ferro)
+		_caixa(r, Vector3(0.05, 0.12, 0.05), Vector3(x, MESA_TAMPO + 0.22, 0), _mat_cor(Color(0.95, 0.92, 0.82)))
+		var ch := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.025
+		sm.height = 0.07
+		sm.radial_segments = 6
+		sm.rings = 3
+		ch.mesh = sm
+		ch.material_override = _mat_cor(Color(1.0, 0.72, 0.3), 3.0)
+		ch.position = Vector3(x, MESA_TAMPO + 0.31, 0)
+		ch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		ch.name = "chama"
+		r.add_child(ch)
+	return r
 
 func _modelo_tocha() -> Node3D:
 	var r := Node3D.new()
@@ -764,7 +843,6 @@ var _pede := {}
 func do_servidor_lotes(ev: Dictionary) -> void:
 	meu = str(ev.meu) if ev.get("meu") != null else ""
 	_em_lista = true
-	_pede = {}
 	for d in ev.get("lista", []):
 		do_servidor_lote(d)
 	_em_lista = false
@@ -784,6 +862,30 @@ func meu_lote(id: String) -> void:
 		sair_compra()
 	if id == "" and ativo:
 		sair()
+
+# Terreno que mudou num aviso solto (ronda de 25/11: lote 189 ms e construcao 382 ms no mesmo quadro no Note 10 Lite;
+# os clãs bot constroem e a Cecília e o Dario mexem na horta a toda hora): portas, grama embaixo da horta e sólidos
+# passam por TODOS os terrenos. Agora ficam anotados e saem um por quadro, depois de PEDE_ESPERA s (vários avisos
+# seguidos viram uma passada só). As peças e a altura do piso continuam na hora.
+const PEDE_ESPERA := 0.15 # s
+var _pede_t := -1.0
+func _pede_aos_poucos(dt: float) -> void:
+	if _em_lista or _pede.is_empty():
+		_pede_t = -1.0
+		return
+	if _pede_t < 0.0:
+		_pede_t = PEDE_ESPERA
+	_pede_t -= dt
+	if _pede_t > 0.0:
+		return
+	for k in ["solidos", "portas", "grama"]: # sólidos primeiro (é o que segura o herói na parede nova)
+		if _pede.has(k):
+			_pede.erase(k)
+			match k:
+				"solidos": _refazer_solidos()
+				"portas": _achar_portas()
+				"grama": _grama_sob_horta()
+			return
 
 func do_servidor_lote(ev: Dictionary) -> void:
 	var id := str(ev.get("lote", ""))
@@ -844,10 +946,7 @@ func do_servidor_lote(ev: Dictionary) -> void:
 	if mudou_pecas:
 		_marca_paletes(L)
 		_refazer_telhado(L)
-		if _em_lista:
-			_pede.portas = true
-		else:
-			_achar_portas()
+		_pede.portas = true # junto: no fim da lista ou, um aviso solto, aos poucos (_pede_aos_poucos)
 		L.erase("_moveis_chave") # peças mudaram: _moveis_dentro confere de novo
 	# horta
 	var mudou_canteiros := false
@@ -897,15 +996,9 @@ func do_servidor_lote(ev: Dictionary) -> void:
 		elif h.mask != h.get("mask_feita", -1):
 			_enfileirar_canteiro(h)
 	if mudou_pecas or mudou_canteiros:
-		if _em_lista:
-			_pede.grama = true
-		else:
-			_grama_sob_horta(L)
+		_pede.grama = true
 	if mudou_pecas:
-		if _em_lista:
-			_pede.solidos = true
-		else:
-			_refazer_solidos()
+		_pede.solidos = true
 	if ativo and id == meu:
 		_mostrar_borda(true)
 		_montar_itens()
@@ -2791,6 +2884,7 @@ func _process(dt: float) -> void:
 func _process_parte(dt: float) -> void:
 	if m.heroi == null or m.hud == null:
 		return
+	_pede_aos_poucos(dt)
 	if not _fila_canteiros.is_empty():
 		_desenhar_fila_canteiros()
 	var hp: Vector3 = m.heroi.position
@@ -4370,6 +4464,7 @@ func do_bau(ev: Dictionary) -> void:
 	var t0 := Time.get_ticks_usec()
 	var abriu: bool = ev.get("abrir", false)
 	if abriu:
+		m.menu.limpar_ver() # o filtro do que aparece é só do momento (André 2026-11-25)
 		painel_bau.visible = true
 		m.sons.tocar("pano", -6.0)
 	if painel_bau.visible:
@@ -4380,6 +4475,7 @@ func do_bau(ev: Dictionary) -> void:
 
 func fechar_bau() -> void:
 	painel_bau.visible = false
+	m.menu.limpar_ver()
 
 # baú ou fornalha aberta: arrastar o dedo para cima/baixo em cima dos itens rola a lista; um toque parado ainda guarda/tira
 func _input(ev: InputEvent) -> void:
@@ -4387,12 +4483,14 @@ func _input(ev: InputEvent) -> void:
 		return
 	if m.menu != null and m.menu._confirma != null: # a janelinha da quantidade (menu.gd pedir_qtd) está por cima
 		return
+	if m.menu != null and m.menu.menu_ver_aberto(): # o menuzinho do filtro está por cima: ele é que rola
+		return
 	if ev is InputEventScreenTouch:
 		if ev.pressed:
 			_bau_dentro = null
 			for sc in rolar_bau:
 				var vb: VScrollBar = sc.get_v_scroll_bar()
-				if sc.is_visible_in_tree() and sc.get_global_rect().has_point(ev.position) and not (vb.visible and vb.get_global_rect().has_point(ev.position)):
+				if sc.is_visible_in_tree() and sc.get_global_rect().has_point(ev.position) and not (vb.visible and vb.mouse_filter != Control.MOUSE_FILTER_IGNORE and vb.get_global_rect().has_point(ev.position)):
 					_bau_dentro = sc # na barra não: a própria barra rola
 			if _bau_dentro != null and Engine.has_meta("rolagem_toque"):
 				Engine.get_meta("rolagem_toque", null).esquecer()
@@ -4458,6 +4556,14 @@ func _montar_tela_bau() -> void:
 		var org := _botao("Organizar", organizar_bau if qual == "bau" else organizar_mochila_bau, false, 15)
 		org.custom_minimum_size = Vector2(118, 38)
 		cab.add_child(org)
+		# André 2026-11-25: o mesmo filtro da mochila, venda e troca (2 botões) e o Tirar/Guardar tudo do que aparece
+		var tipos := VBoxContainer.new()
+		tipos.add_theme_constant_override("separation", 6)
+		c.add_child(tipos)
+		if qual == "bau":
+			tipos_bau = tipos
+		else:
+			tipos_mochila = tipos
 		var sc := ScrollContainer.new()
 		sc.custom_minimum_size = Vector2(7 * 60 + 12 + 22, 4 * 60 + 6) # itens + respiro + barra larga
 		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -4493,9 +4599,21 @@ func organizar_mochila_bau() -> void:
 		m.rede("item", {"acao": "organizar"})
 
 func _montar_bau() -> void:
-	for g in [grade_bau, grade_mochila]:
+	for g in [grade_bau, grade_mochila, tipos_bau, tipos_mochila]:
 		for n in g.get_children():
 			n.queue_free()
+	# o mesmo filtro da mochila, venda e troca (menu.gd botoes_ver) + "Tirar tudo" / "Guardar tudo" do que aparece
+	for lado in [[tipos_bau, bau_itens, "Tirar tudo", "tirar", "bau"], [tipos_mochila, m.P.prog.get("mochila", []), "Guardar tudo", "guardar", "moch"]]:
+		var fila := HBoxContainer.new()
+		fila.add_theme_constant_override("separation", 6)
+		fila.add_child(m.menu.botoes_ver(lado[1], _montar_bau, 88, lado[4]))
+		var vis: Array = m.menu.ids_visiveis(lado[1], true)
+		var bt := _botao(lado[2], func(): _rede_bau({"acao": lado[3], "lista": vis}), false, 15)
+		bt.custom_minimum_size = Vector2(150, 38)
+		bt.disabled = vis.is_empty()
+		fila.add_child(bt)
+		lado[0].add_child(fila)
+
 	var cheios := 0
 	if bau_prox != null:
 		var partes: Array = []
@@ -4510,19 +4628,21 @@ func _montar_bau() -> void:
 		var it = bau_itens[i] if i < bau_itens.size() else null
 		if it != null:
 			cheios += 1
+		if m.menu.filtrando() and not m.menu.aparece(it): # filtro: só o que aparece, sem lugar vazio
+			continue
 		var fn := func():
 			if not _bau_arrastou: # pilha: Tudo ou quantos (menu.gd pedir_qtd, André 2026-11-17)
-				m.menu.pedir_qtd(it, int(it.get("n", 1)), "Tirar", func(n: int): _rede_bau({"acao": "tirar", "i": i, "n": n}))
+				m.menu.pedir_qtd(it, m.menu.total_igual(bau_itens, i), "Tirar", func(n: int): _rede_bau({"acao": "tirar", "i": i, "n": n}))
 		grade_bau.add_child(m.menu.celula(it, false, fn if it != null else func(): pass, 56))
 	txt_bau.text = Idioma.frase("%s · %d/%d" % ["Baú do Clã" if bau_cla else "Baú", cheios, bau_slots])
 	var moch: Array = m.P.prog.get("mochila", [])
 	for i in moch.size():
 		var it = moch[i]
-		if it == null:
+		if it == null or not m.menu.aparece(it):
 			continue
 		var fn := func():
 			if not _bau_arrastou: # pilha: Tudo ou quantos (menu.gd pedir_qtd, André 2026-11-17)
-				m.menu.pedir_qtd(it, int(it.get("n", 1)), "Guardar", func(n: int): _rede_bau({"acao": "guardar", "i": i, "n": n}))
+				m.menu.pedir_qtd(it, m.menu.total_igual(moch, i), "Guardar", func(n: int): _rede_bau({"acao": "guardar", "i": i, "n": n}))
 		grade_mochila.add_child(m.menu.celula(it, false, fn, 56))
 
 # ---------- tocar numa estação (André 2026-11-07): o herói vai andando até o lado dela e só aí abre ----------

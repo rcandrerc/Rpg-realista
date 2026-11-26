@@ -1,5 +1,6 @@
 extends Node
 const Idioma = preload("res://idioma.gd") # inglês (idioma.gd): texto montado também sai traduzido
+const Patente = preload("res://patente.gd") # Patente de Guerra (André 2026-11-26): escudo ao lado do nome
 # Títulos (André 2026-11-12): o título em uso aparece em cima da cabeça, acima do nome e do nível. Quanto mais difícil,
 # mais bonito: Comum (texto simples), Raro (azul com ◇), Épico (roxo com ◆), Lendário (dourado, maior, pulsando) e
 # Mítico (maior ainda, cor que corre do rosa ao dourado). Os títulos vêm de habilidades.json "titulos" (TITULOS em
@@ -13,6 +14,7 @@ var _placa: Label3D # "Nome · Nv X" do herói
 var _tit_heroi: Label3D
 var _texto := ""
 var _id_heroi := "-"
+var _pt_heroi := "-" # patente + raça + texto da placa do herói (refaz o escudo quando muda)
 var _t := 0.0
 var _brilham: Array = [] # Label3D dos títulos Lendário e Mítico (pulsam)
 
@@ -34,6 +36,37 @@ static func enfeite(nome: String, r: int) -> String:
 		2, 3: return "◆ %s ◆" % nome
 		4: return "◆◇ %s ◇◆" % nome
 	return nome
+
+# Patente de Guerra (André 2026-11-26): escudo da patente do mês à esquerda do nome (Recruta = sem escudo). Sprite3D
+# leve, mesmo tamanho fixo na tela que a placa; refazer só quando a patente, a raça ou o texto da placa mudam.
+func patente(no: Node3D, placa: Label3D, raca: String, i: int) -> void:
+	var sp: Sprite3D = no.get_node_or_null("PatenteJogador")
+	if i <= 0 or placa == null:
+		if sp:
+			sp.queue_free()
+		return
+	if sp == null:
+		sp = Sprite3D.new()
+		sp.name = "PatenteJogador"
+		sp.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		sp.fixed_size = true
+		sp.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		sp.no_depth_test = placa.no_depth_test
+		sp.render_priority = placa.render_priority
+		no.add_child(sp)
+	sp.texture = Patente.textura(raca, i)
+	var fs := float(placa.font_size)
+	var alto := fs * 1.25 # o escudo um pouco mais alto que as letras
+	sp.pixel_size = placa.pixel_size * alto / 128.0
+	var w := 0.0
+	if placa.font:
+		w = placa.font.get_string_size(placa.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs)).x
+	# no espaço da placa (px da fonte): à esquerda do texto, centro na altura das letras
+	var px := Vector2(-(w * 0.5 + alto * 0.55), placa.offset.y + fs * 0.05)
+	sp.position = placa.position
+	sp.offset = px * placa.pixel_size / sp.pixel_size
+	sp.visibility_range_end = placa.visibility_range_end
+	sp.visible = placa.visible
 
 # põe (ou tira, id "") o título em cima de quem tem a placa do nome; devolve o Label3D (ou null)
 func por(no: Node3D, placa: Label3D, id: String) -> Label3D:
@@ -123,7 +156,7 @@ func _heroi() -> void:
 		_placa.outline_size = 7
 		_placa.pixel_size = 0.00034 * 1.5 # do tamanho dos nomes dos NPCs (main.gd nome_legivel): legível no celular
 		_placa.offset = Vector2(0, 52.0 / 1.5)
-		_placa.modulate = Color(1, 0.93, 0.8)
+		_placa.modulate = preload("res://arena_pvp.gd").AZUL # o seu nome é azul, como o da sua facção e o do seu time na Arena (André 2026-11-26; online.gd cor_nome)
 		_placa.outline_modulate = Color(0.06, 0.05, 0.04, 0.9)
 		_placa.position = Vector3(0, 1.95, 0)
 		h.add_child(_placa)
@@ -131,6 +164,9 @@ func _heroi() -> void:
 		_id_heroi = "-"
 	var prog: Dictionary = m.P.prog
 	var texto := "%s · Nv %d" % [str(m.hud.nome), int(prog.get("nivel", 1))]
+	var cla = prog.get("cla")
+	if cla is Dictionary and str(cla.get("n", "")) != "": # nome do clã antes do nome (André 2026-11-26)
+		texto = "[%s] %s" % [str(cla.n), texto]
 	var gu: Dictionary = m.P.guilda
 	if gu.get("v") is Dictionary and int(gu.v.get("marca", 0)) > 0: # vantagem SS da Guilda: a marca no nome
 		texto = "[SS] " + texto
@@ -147,3 +183,10 @@ func _heroi() -> void:
 	_placa.visible = ver
 	if _tit_heroi != null and is_instance_valid(_tit_heroi):
 		_tit_heroi.visible = ver
+	# Patente de Guerra do herói (o escudo ao lado do nome): pelo prog, só quando muda
+	var pt: int = int(Patente.do_prog(prog, m.P.agora_ms()).i) if ver else 0
+	var raca := str(m.online.eu_raca) if m.online else ""
+	var chave := "%d|%s|%s" % [pt, raca, _texto]
+	if chave != _pt_heroi:
+		_pt_heroi = chave
+		patente(h, _placa, raca, pt)

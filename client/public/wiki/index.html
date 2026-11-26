@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Wiki · Age of Embers</title>
+<meta name="description" content="Como jogar Age of Embers: equipamento, clã, mochila, packs, pescaria e todas as atividades, resumido.">
+<meta name="theme-color" content="#14120e">
+<style>
+/* Wiki do jogo (André 2026-11-25): "bem resumido, muita imagem, autoexplicativo". Só como jogar: sem história e sem
+   missões. Números tirados de shared/dados.js na main de 25/11. Página estática: o vite copia client/public para o site. */
+:root{--ink:#efe7d6;--muted:#a99e88;--line:rgba(239,231,214,.14);--card:#1c1a15;--card2:#24211b;--fundo:#100f0c;--gold:#d9a54a;
+--comum:#cfc8b8;--raro:#5aa8ff;--epico:#b974ff;--lend:#ffb03a;--mitico:#ff5a72;--chama:#e0663a;--geada:#6fb3e6;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:96px}
+body{margin:0;background:var(--fundo);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:env(safe-area-inset-bottom,0)}
+header{position:sticky;top:0;z-index:3;background:rgba(16,15,12,.97);border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top,0) + 8px) 0 0}
+.topo{display:flex;align-items:baseline;gap:8px;padding:0 16px}
+.topo h1{font-size:1.05rem;margin:0;color:var(--gold)}
+.topo span{color:var(--muted);font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+nav{display:flex;gap:6px;overflow-x:auto;padding:8px 16px 10px;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+nav a{flex:none;color:var(--ink);text-decoration:none;font:600 .82rem system-ui,sans-serif;background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:6px 12px;white-space:nowrap}
+nav a.ativo{border-color:var(--gold);color:var(--gold)}
+main{max-width:720px;margin:0 auto;padding:8px 16px 40px}
+section{padding-top:18px}
+h2{font-size:1.25rem;margin:0 0 10px;color:var(--gold);display:flex;align-items:center;gap:8px}
+h2 img{width:30px;height:30px}
+h3{font-size:1rem;margin:16px 0 6px}
+p{margin:6px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}
+.resumo{border-left:3px solid var(--gold)}
+ol,ul{margin:6px 0;padding-left:22px}
+li{margin:3px 0}
+figure{margin:10px 0}
+figure img{width:100%;height:auto;border-radius:10px;border:1px solid var(--line);display:block;background:#000}
+figcaption{color:var(--muted);font-size:.8rem;margin-top:4px}
+.duas{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.duas figure{margin:0}
+.ic{width:22px;height:22px;vertical-align:-6px}
+.icg{width:34px;height:34px}
+.fila{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.it{display:inline-flex;flex-direction:column;align-items:center;font-size:.72rem;color:var(--muted);width:58px;text-align:center}
+.tb{width:100%;border-collapse:collapse;font-size:.85rem;margin:8px 0}
+.tb th,.tb td{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left;vertical-align:top}
+.tb th{color:var(--muted);font-weight:600}
+.rolar{overflow-x:auto}
+.r0{color:var(--comum)}.r1{color:var(--raro)}.r2{color:var(--epico)}.r3{color:var(--lend)}.r4{color:var(--mitico)}
+.tag{display:inline-block;font-size:.72rem;border:1px solid var(--line);border-radius:6px;padding:1px 6px;color:var(--muted)}
+.dica{background:rgba(217,165,74,.1);border:1px solid rgba(217,165,74,.35);border-radius:10px;padding:8px 10px;margin:8px 0;font-size:.9rem}
+.dica b{color:var(--gold)}
+b{font-weight:650}
+.topo-btn{position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom,0) + 14px);background:var(--card2);border:1px solid var(--line);color:var(--gold);border-radius:999px;width:44px;height:44px;display:grid;place-items:center;text-decoration:none;font-size:1.2rem}
+#zoom{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;padding:10px}
+#zoom.on{display:flex}
+#zoom img{max-width:100%;max-height:100%;border-radius:8px}
+figure img{cursor:zoom-in}
+footer{color:var(--muted);font-size:.75rem;text-align:center;padding:24px 16px}
+</style>
+</head>
+<body>
+<header>
+  <div class="topo"><h1>📖 Wiki</h1><span>Age of Embers · como jogar</span></div>
+  <nav id="menu">
+    <a href="#comeco">Começo</a>
+    <a href="#equip">Equipamento</a>
+    <a href="#reforco">Reforço</a>
+    <a href="#evoluir">Evoluir</a>
+    <a href="#mochila">Mochila</a>
+    <a href="#cla">Clã</a>
+    <a href="#base">Base</a>
+    <a href="#packs">Packs</a>
+    <a href="#pesca">Pescaria</a>
+    <a href="#coleta">Coleta</a>
+    <a href="#criar">Criar</a>
+    <a href="#comida">Comida</a>
+    <a href="#horta">Horta</a>
+    <a href="#terreno">Lote</a>
+    <a href="#bosses">Bosses</a>
+    <a href="#viagem">Viagem</a>
+    <a href="#comercio">Comércio</a>
+    <a href="#guerra">Guerra</a>
+  </nav>
+</header>
+<main>
+
+<!-- ================= COMEÇO ================= -->
+<section id="comeco">
+  <h2>🔥 O básico</h2>
+  <div class="card resumo">
+    <ul>
+      <li><b>Sem classe.</b> A arma decide o estilo: <img class="ic" src="../painel-icones/espada.png" alt=""> espada = Força, <img class="ic" src="../painel-icones/cajado.png" alt=""> cajado = Inteligência (magia).</li>
+      <li><b>Monstro não dá ouro.</b> Ouro vem de <b>packs</b>, vender equipamento, vender no leilão e da loja.</li>
+      <li><b>Vigor</b> é a energia do trabalho (coletar, criar, pescar, fazer pack). Máximo 100 +1 por nível. Enche sozinho com o tempo. Comida não dá vigor.</li>
+      <li><b>Morrer:</b> perde 5% do XP do nível (nunca cai de nível), as peças gastam 10 de durabilidade e você nasce no <b>totem mais perto</b>. Não perde ouro.</li>
+      <li><b>Conserto</b> com o ferreiro da vila. Peça gasta custa caro: 100 / 800 / 4.000 / 16.000 / 60.000 de ouro (Comum → Mítico, peça zerada).</li>
+      <li><b>Raças:</b> jogadores nascem <span style="color:var(--chama)">Chama</span>. A <span style="color:var(--geada)">Geada</span> (clãs bot) é inimiga.</li>
+    </ul>
+  </div>
+  <p style="color:var(--muted);font-size:.82rem">Toque em qualquer foto para ampliar.</p>
+  <h3>O que libera com o nível</h3>
+  <table class="tb">
+    <tr><th>Nível</th><th>Libera</th></tr>
+    <tr><td>1</td><td>Fundar clã e a base do clã (seu lote vem com a base)</td></tr>
+    <tr><td>10</td><td>Evoluir peça para <span class="r1">Raro</span></td></tr>
+    <tr><td>12</td><td>Reforçar peça (+1, +2…) e fazer pack</td></tr>
+    <tr><td>20 / 35 / 50</td><td>Evoluir para <span class="r2">Épico</span> / <span class="r3">Lendário</span> / <span class="r4">Mítico</span></td></tr>
+    <tr><td>30</td><td>Guilda (Brenda, no Rio Claro); acima do 30, guerra com a Geada</td></tr>
+    <tr><td>40</td><td>Alquimista (juntar catalisadores)</td></tr>
+    <tr><td>60</td><td>Navio mercante</td></tr>
+  </table>
+</section>
+
+<!-- ================= EQUIPAMENTO ================= -->
+<section id="equip">
+  <h2><img src="../painel-icones/peitoral_aco.png" alt="">Equipamento</h2>
+  <div class="card resumo">
+    <p>9 peças: <b>Capacete, Peitoral, Calça ou Short, Botas, Capa, Colar</b> e a <b>arma</b> (Espada ou Cajado). Uma linha só de armadura serve para espada e magia.</p>
+  </div>
+  <div class="fila">
+    <span class="it"><img class="icg" src="../painel-icones/chapeu_aco.png" alt="">Capacete</span>
+    <span class="it"><img class="icg" src="../painel-icones/peitoral_aco.png" alt="">Peitoral</span>
+    <span class="it"><img class="icg" src="../painel-icones/calca_aco.png" alt="">Calça</span>
+    <span class="it"><img class="icg" src="../painel-icones/short.png" alt="">Short</span>
+    <span class="it"><img class="icg" src="../painel-icones/botas_aco.png" alt="">Botas</span>
+    <span class="it"><img class="icg" src="../painel-icones/capa.png" alt="">Capa</span>
+    <span class="it"><img class="icg" src="../painel-icones/colar.png" alt="">Colar</span>
+    <span class="it"><img class="icg" src="../painel-icones/espada.png" alt="">Espada</span>
+    <span class="it"><img class="icg" src="../painel-icones/cajado.png" alt="">Cajado</span>
+  </div>
+  <h3>Raridades</h3>
+  <p><b class="r0">Comum</b> → <b class="r1">Raro</b> → <b class="r2">Épico</b> → <b class="r3">Lendário</b> → <b class="r4">Mítico</b>. Cada degrau aumenta todos os números da peça.</p>
+  <table class="tb">
+    <tr><th>Peça</th><th>O que dá</th></tr>
+    <tr><td>Peitoral</td><td>defesa, vida, mana</td></tr>
+    <tr><td>Capacete / Botas</td><td>defesa, vida, dano crítico</td></tr>
+    <tr><td>Calça</td><td>mais defesa e vida</td></tr>
+    <tr><td>Short</td><td>menos defesa, mais mana</td></tr>
+    <tr><td>Capa</td><td>mana e volta da mana</td></tr>
+    <tr><td>Colar</td><td>vida e % de dano</td></tr>
+    <tr><td>Espada / Cajado</td><td>dano físico / mágico e chance de crítico</td></tr>
+  </table>
+  <h3>Onde conseguir</h3>
+  <ul>
+    <li><b>Comerciante da vila</b> (Rosa, na Clareira): só peça <span class="r0">Comum</span> (150 de ouro).</li>
+    <li><b>Monstros:</b> soltam até <span class="r1">Raro</span>. Bicho muito abaixo do seu nível solta menos.</li>
+    <li><b>Criar</b> (Ferreiro / Alfaiate): pode sair melhor, até <span class="r4">Mítico</span>. Ver <a href="#criar">Criar</a>.</li>
+    <li><b>Evoluir</b> com catalisador. Ver <a href="#evoluir">Evoluir</a>.</li>
+    <li><b>Leilão:</b> peças de outros jogadores e dos bots.</li>
+  </ul>
+  <h3>Conjunto (bônus de set)</h3>
+  <p>Peças da <b>mesma raridade (ou melhor)</b> vestidas juntas somam bônus. O reforço não conta, só a raridade.</p>
+  <table class="tb">
+    <tr><th></th><th>2 peças</th><th>4 peças</th><th>6 peças</th></tr>
+    <tr><td class="r1">Raro</td><td>+15 vida, +15 mana</td><td>+1,5% crítico, +3% dano</td><td>+1,5% crítico, +3% dano</td></tr>
+    <tr><td class="r4">Mítico</td><td>+50 vida, +50 mana</td><td>+5% crítico, +10% dano</td><td>+5% crítico, +10% dano</td></tr>
+  </table>
+  <p style="color:var(--muted);font-size:.82rem">Os níveis somam: 6 peças Míticas = 10% de crítico e 20% de dano.</p>
+  <figure><img src="img/conjunto.jpg" alt="Janela da peça mostrando o conjunto"><figcaption>Na janela da peça aparece o conjunto e quantas peças você tem.</figcaption></figure>
+</section>
+
+<!-- ================= REFORÇO ================= -->
+<section id="reforco">
+  <h2>✨ Reforço (+1, +2…)</h2>
+  <div class="card resumo">
+    <ol>
+      <li>Abra a mochila e toque na peça.</li>
+      <li>Toque em <b>Reforçar</b>. Cada tentativa gasta ouro (e <img class="ic" src="../painel-icones/tecido.png" alt=""> Tecido se não for arma).</li>
+      <li>Deu certo: sobe 1. Falhou: volta 1, mas <b>nunca abaixo de +5, +10, +15…</b> (são pontos seguros).</li>
+    </ol>
+  </div>
+  <table class="tb">
+    <tr><th>Raridade</th><th>Vai até</th></tr>
+    <tr><td class="r0">Comum</td><td>não reforça</td></tr>
+    <tr><td class="r1">Raro</td><td>+10</td></tr>
+    <tr><td class="r2">Épico</td><td>+20</td></tr>
+    <tr><td class="r3">Lendário</td><td>+30</td></tr>
+    <tr><td class="r4">Mítico</td><td>+40</td></tr>
+  </table>
+  <ul>
+    <li><b>Chance:</b> +1 é certo (100%), +5 ~66%, +10 ~50%, +20 ~30%, do +25 em diante 25%.</li>
+    <li><b>Ganho:</b> cada + soma 40% dos números da peça (crítico 20%).</li>
+    <li><b>Atributo:</b> do +3 em diante precisa de 10 × (nível do reforço) de Força (espada), Inteligência (cajado) ou da maior das duas (armadura).</li>
+    <li><b>Tecido</b> por tentativa (armadura): 1 até +10, 2 até +20, 3 até +30, 4 até +40.</li>
+    <li>Peça reforçada brilha na arma (aura azul que cresce com o +).</li>
+  </ul>
+  <figure><img src="img/reforco.jpg" alt="Janela de reforço com sucesso"><figcaption>Barrinha do reforço: verde = deu certo.</figcaption></figure>
+</section>
+
+<!-- ================= EVOLUIR ================= -->
+<section id="evoluir">
+  <h2><img src="../painel-icones/runa_epica.png" alt="">Evoluir raridade (catalisador)</h2>
+  <div class="card resumo">
+    <p><b>Runa</b> = arma (espada, cajado). <b>Selo</b> = armadura e colar.</p>
+    <div class="fila">
+      <span class="it"><img class="icg" src="../painel-icones/runa_rara.png" alt=""><span class="r1">Runa Rara</span></span>
+      <span class="it"><img class="icg" src="../painel-icones/runa_epica.png" alt=""><span class="r2">Runa Épica</span></span>
+      <span class="it"><img class="icg" src="../painel-icones/runa_lendaria.png" alt=""><span class="r3">Runa Lendária</span></span>
+      <span class="it"><img class="icg" src="../painel-icones/runa_mitica.png" alt=""><span class="r4">Runa Mítica</span></span>
+      <span class="it"><img class="icg" src="../painel-icones/selo_raro.png" alt=""><span class="r1">Selo Raro</span></span>
+      <span class="it"><img class="icg" src="../painel-icones/selo_epico.png" alt=""><span class="r2">Selo Épico</span></span>
+      <span class="it"><img class="icg" src="../painel-icones/selo_lendario.png" alt=""><span class="r3">Selo Lendário</span></span>
+      <span class="it"><img class="icg" src="../painel-icones/selo_mitico.png" alt=""><span class="r4">Selo Mítico</span></span>
+    </div>
+  </div>
+  <h3>1. Conseguir catalisador: destruir peça</h3>
+  <p>Na mochila, toque numa peça que não quer e em <b>Destruir</b> (ou "Destruir todas"). Catalisador <b>não cai de monstro</b> (só de boss de mundo).</p>
+  <table class="tb">
+    <tr><th>Destruir</th><th>Dá</th></tr>
+    <tr><td class="r0">Comum</td><td><img class="ic" src="../painel-icones/barra_cobre.png" alt=""> Barra de cobre</td></tr>
+    <tr><td class="r1">Raro</td><td>Runa/Selo <span class="r1">Raro</span></td></tr>
+    <tr><td class="r2">Épico</td><td>Runa/Selo <span class="r1">Raro</span> + 25% de chance de 1 <span class="r2">Épico</span></td></tr>
+    <tr><td class="r3">Lendário</td><td><span class="r2">Épico</span> + 20% de 1 <span class="r3">Lendário</span></td></tr>
+    <tr><td class="r4">Mítico</td><td><span class="r3">Lendário</span> + 15% de 1 <span class="r4">Mítico</span></td></tr>
+  </table>
+  <p style="color:var(--muted);font-size:.82rem">Normalmente sai 1; às vezes 2 ou 3; 8% de vez nada.</p>
+  <h3>2. Evoluir</h3>
+  <ol>
+    <li>Vá até uma <b>bigorna</b> (espada, cajado, colar, capacete, peitoral) ou <b>bancada</b> (calça, short, botas, capa). Toda vila tem as duas na ferraria; também vale a do seu lote na base.</li>
+    <li>Toque na peça → <b>Evoluir</b>. Gasta 1 catalisador + material + 8 de vigor.</li>
+    <li>A peça sobe 1 raridade e volta para +0.</li>
+  </ol>
+  <table class="tb">
+    <tr><th>Para</th><th>Arma (+ Runa)</th><th>Armadura (+ Selo)</th></tr>
+    <tr><td class="r1">Raro</td><td>4 lenha, 3 barra de cobre</td><td>4 couro, 3 barra de cobre, 3 tecido</td></tr>
+    <tr><td class="r2">Épico</td><td>6 lenha, 4 barra de ferro</td><td>6 couro, 4 barra de ferro, 5 tecido</td></tr>
+    <tr><td class="r3">Lendário</td><td>8 lenha, 5 cristal</td><td>8 couro, 5 cristal, 8 tecido</td></tr>
+    <tr><td class="r4">Mítico</td><td>10 lenha, 6 cristal, 2 aço</td><td>10 couro, 6 cristal, 2 aço, 12 tecido</td></tr>
+  </table>
+  <ul>
+    <li><b>Falha:</b> 10% / 15% / 20% / 25% (Raro → Mítico). Na falha perde catalisador e material, <b>a peça fica</b>. Profissão Nv 20 corta a falha pela metade.</li>
+    <li><b>Sorte:</b> 2% a 6% de pular uma raridade.</li>
+  </ul>
+  <h3>3. Alquimista (Nv 40)</h3>
+  <p>A <b>Mirela</b>, na Vila do Rio Claro, junta catalisadores: <b>10 <span class="r1">Raros</span> + 8.000 ouro = 1 <span class="r2">Épico</span></b>; <b>10 <span class="r2">Épicos</span> + 30.000 = 1 <span class="r3">Lendário</span></b>. Mítico ela não faz.</p>
+  <div class="duas">
+    <figure><img src="img/catalisadores.jpg" alt="Ícones dos catalisadores"><figcaption>Runas e Selos.</figcaption></figure>
+    <figure><img src="img/catalisador-menu.jpg" alt="Peça com botões Destruir e Evoluir"><figcaption>Destruir e Evoluir na janela da peça.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ================= MOCHILA ================= -->
+<section id="mochila">
+  <h2><img src="../painel-icones/pack.png" alt="">Mochila</h2>
+  <div class="card resumo">
+    <ul>
+      <li>Cada página tem <b>40 lugares</b>. Começa com 1 página; compra até 4: <b>1.000</b>, <b>5.000</b> e <b>15.000</b> de ouro (pelo menu, em qualquer lugar).</li>
+      <li><b>Organizar</b> junta pilhas e ordena: equipamento, consumível, Tomo, ferramenta, obra, semente, material.</li>
+      <li><b>Cadeado</b> na peça: não vende, não destrói e não vai ao leilão por engano.</li>
+    </ul>
+  </div>
+  <figure><img src="img/mochila.jpg" alt="Mochila aberta"><figcaption>Mochila com as abas Mochila e Criar.</figcaption></figure>
+  <h3>Filtros e quantidade (venda, baú e troca)</h3>
+  <ul>
+    <li>Botões em cima: <span class="r0">⚔ Comum</span>, <span class="r1">⚔ Raro</span>, <span class="r2">⚔ Épico</span> e <img class="ic" src="../painel-icones/couro.png" alt=""> Recursos. O número mostra quantos tem.</li>
+    <li><b>Na venda</b> o botão marca todos daquele tipo. <b>No baú e na troca</b> passa todos de uma vez.</li>
+    <li><b>Janela de quantidade:</b> − / + / Tudo. Se pedir mais que a pilha, puxa das outras pilhas iguais.</li>
+  </ul>
+  <div class="duas">
+    <figure><img src="img/venda.jpg" alt="Venda com filtros"><figcaption>Venda: filtros e quantidade.</figcaption></figure>
+    <figure><img src="img/bau-cla.jpg" alt="Baú do clã com filtros"><figcaption>Baú do Clã: mesmos botões.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ================= CLÃ ================= -->
+<section id="cla">
+  <h2>🛡️ Clã</h2>
+  <div class="card resumo">
+    <ol>
+      <li><b>Fundar:</b> menu Clã → nome (3 a 20 letras). Você vira o líder.</li>
+      <li><b>Contratar:</b> fale com o <b>Sargento Bruno</b>, o recrutador da Clareira. Ele mostra <b>3 candidatos</b> com ficha; você escolhe 1.</li>
+      <li><b>Pagar:</b> a taxa semanal sai do <b>cofre do clã</b> (deposite ouro no menu Clã).</li>
+      <li><b>Mandar:</b> escolha a ordem do recruta e toque em <b>Dar ordem</b>.</li>
+    </ol>
+  </div>
+  <h3>Tipos de recruta</h3>
+  <table class="tb">
+    <tr><th>Tipo</th><th>Nível dele</th><th>Contratar</th><th>Precisa clã</th></tr>
+    <tr><td>Recruta</td><td>Nv 1</td><td>150 ouro</td><td>Nv 1</td></tr>
+    <tr><td>Veterano</td><td>metade do seu</td><td>40 × nível dele</td><td>Nv 3</td></tr>
+    <tr><td>Elite</td><td>igual ao seu</td><td>80 × nível dele</td><td>Nv 5</td></tr>
+  </table>
+  <div class="duas">
+    <figure><img src="img/candidatos.jpg" alt="3 candidatos no Recrutador"><figcaption>Recrutador: 3 candidatos.</figcaption></figure>
+    <figure><img src="img/perfil-recruta.jpg" alt="Ficha do recruta"><figcaption>Ficha: jeito, preferência espada/magia, coragem.</figcaption></figure>
+  </div>
+  <h3>Ordens</h3>
+  <table class="tb">
+    <tr><th>Ordem</th><th>O que ele faz</th></tr>
+    <tr><td><b>Livre</b></td><td>Cuida da própria vida (caça, coleta).</td></tr>
+    <tr><td><b>Me seguir</b></td><td>Anda com você e luta junto. Só com você no jogo.</td></tr>
+    <tr><td><b>Grind</b></td><td>Caça monstros para subir de nível.</td></tr>
+    <tr><td><b>Farmar recurso</b></td><td>Coleta o recurso escolhido e leva ao <b>Baú do Clã</b> (usa recall se estiver longe).</td></tr>
+    <tr><td><b>Proteger</b></td><td>Guarda você, o carrinho ou o navio mercante.</td></tr>
+    <tr><td><b>Fazenda</b></td><td>Trabalha na horta da base.</td></tr>
+    <tr><td><b>Plantar árvores</b></td><td>Planta até 10 mudas nas áreas de plantio perto da base, avisa e volta ao Livre.</td></tr>
+  </table>
+  <p>Com uma ordem ele <b>obedece</b>; só cuida da própria vida em Livre ou sem vigor. Com você fora do jogo, os recrutas continuam no mundo fazendo a ordem sempre que tiver alguém online no servidor. Com o servidor vazio, contam como simulação: até 0,25 nível por hora (até 12 h).</p>
+  <h3>Subir o clã (vagas)</h3>
+  <p>Nível do clã = número de vagas (máx. 10). Cada nível acima de 1 dá +2% de XP e ouro.</p>
+  <div class="rolar"><table class="tb">
+    <tr><th>Nv</th><th>Seu nível</th><th>Ouro</th><th>Material</th><th>Alma</th></tr>
+    <tr><td>2</td><td>10</td><td>500</td><td>50 lenha, 30 pedra</td><td>–</td></tr>
+    <tr><td>3</td><td>20</td><td>1.500</td><td>80 lenha, 30 barra de ferro</td><td>–</td></tr>
+    <tr><td>4</td><td>35</td><td>4.000</td><td>30 aço, 20 couro</td><td>40</td></tr>
+    <tr><td>5</td><td>50</td><td>10.000</td><td>40 aço, 20 cristal</td><td>80</td></tr>
+    <tr><td>6</td><td>70</td><td>25.000</td><td>60 aço, 40 cristal</td><td>150</td></tr>
+    <tr><td>7</td><td>80</td><td>50.000</td><td>80 aço, 60 cristal, 40 couro</td><td>250</td></tr>
+    <tr><td>8</td><td>88</td><td>90.000</td><td>100 aço, 80 cristal, 60 couro</td><td>400</td></tr>
+    <tr><td>9</td><td>94</td><td>150.000</td><td>130 aço, 100 cristal, 80 couro</td><td>600</td></tr>
+    <tr><td>10</td><td>100</td><td>250.000</td><td>160 aço, 130 cristal, 100 couro</td><td>900</td></tr>
+  </table></div>
+  <p style="color:var(--muted);font-size:.82rem"><img class="ic" src="../painel-icones/alma_geada.png" alt=""> Alma = Fragmento de Alma da Geada (ver <a href="#guerra">Guerra</a>). O que falta aparece em ícones "tenho / preciso" no menu do clã.</p>
+  <figure><img src="img/painel-nivel.jpg" alt="Próximo nível do clã em ícones"><figcaption>Próximo nível: ícones tenho / preciso.</figcaption></figure>
+  <h3>Painel do clã (fora do jogo)</h3>
+  <p>Página leve no celular: dá ordens, vê mapa, Baú do Clã, mochilas e leilão (só olhar; comprar e anunciar pela aba Jogar, indo até o Otávio). Com ela aberta, os recrutas contam como se você estivesse online. <a href="../painel.html" style="color:var(--gold)">Abrir o painel</a>.</p>
+  <div class="duas">
+    <figure><img src="img/painel.jpg" alt="Painel do clã"><figcaption>Aba Clã do painel.</figcaption></figure>
+    <figure><img src="img/painel-mapa.jpg" alt="Mapa do painel"><figcaption>Mapa 2D com zoom.</figcaption></figure>
+  </div>
+  <h3>Jogar pelo painel (modo leve)</h3>
+  <p>Na aba <b>Jogar</b> o seu herói entra no mundo de verdade, sem 3D (roda em celular fraco). Toque no mapa e ele vai a pé pela estrada, na velocidade normal; não teleporta. Os outros veem você e a Geada pode atacar. Chegando perto, dá para usar a loja (comprar e vender), o leilão do Otávio (comprar, anunciar, cancelar e retirar), o seu baú, o Baú do Clã e o totem (pago como no jogo). Abrir o jogo tira o modo leve: é o mesmo herói.</p>
+  <p><b>Pack pelo modo leve:</b> perto de um mercador de pack aparece o material (tenho/preciso) e o botão Fazer pack, com a mesma barrinha e o mesmo vigor do jogo. Com o pack nas costas você anda devagar (metade da corrida). Em Lugares > Mercadores aparece quanto cada mercador paga pelo seu pack e a distância; tocando, o herói vai até lá. O carrinho também funciona: colocar, pôr e tirar packs, pôr galão, dirigir pela estrada (gasta combustível, não entra na água), descer e guardar. Se tiver bots no time, dá para mandar as ordens de Pack do time. Se você cair, o pack fica no chão.</p>
+  <p><b>Tela do modo leve:</b> o mapa ocupa a tela toda (a antiga aba Mapa virou o Jogar: fora do mundo ele mostra os recrutas e, se marcar, os líderes dos clãs bot). Em cima ficam vida, mana, vigor, ouro e os botões (Parar, Montar lobo, Recall, Sair). Embaixo, a barra Perto, Mochila, Lugares e Chat: cada botão abre um painel por cima do mapa (um por vez; tocar de novo ou no ✕ fecha). O Perto ganha uma bolinha verde quando há algo perto e abre sozinho quando você chega numa loja, baú, totem ou mercador.</p>
+  <p><b>Lugares (modo leve):</b> o cartão Lugares começa fechado. Tocando, aparecem as mesmas seções do mapa do jogo (Vilas e cidades, Totens, Caçada, Bosses, Dungeons, Recursos, Pescaria, Oficinas, NPCs e Mercadores); uma abre por vez. Cada linha mostra a distância (e, nos mercadores, quanto pagam pelo seu pack); tocar leva o herói até lá pela estrada. Montar no lobo também funciona, com as regras do jogo; como no "Ir para" do jogo, viagem longa já sobe no lobo sozinha (sem pack, fora de combate). O modo leve é só em pé: deitado, ele pede para girar; no tablet em pé o mapa fica ao lado dos cartões.</p>
+  <p><b>Recall (modo leve):</b> o botão "Recall: base do clã" é a mesma casinha do jogo: 8 s parado e o herói aparece no Baú do Clã (sem base, na vila do começo), com a mesma recarga de 10 min. Se ele estava andando, a caminhada acaba ali. Tocar de novo durante a contagem desiste.</p>
+  <figure><img src="img/painel-jogar.jpg" alt="Aba Jogar do painel"><figcaption>Indo até o leilão: o tracejado é o caminho que falta.</figcaption></figure>
+</section>
+
+<!-- ================= BASE ================= -->
+<section id="base">
+  <h2>🏰 Base do clã, despensa e lenha</h2>
+  <div class="card resumo">
+    <ul>
+      <li>O líder funda a base pelo menu Clã (Escolher o lugar da base), onde está. Precisa ser no território da Chama, longe de vila, totem, estrada, rio, veio, campo de caça e de outra base (100 m+). Mudar de lugar: 10.000 ouro, 1 vez a cada 7 dias.</li>
+      <li>A base sobe junto com o nível do clã (até o Castelo, Nv 6). Em volta ficam os <b>lotes de 10×10 m</b>: o lote 1 é do líder e os outros vão para os membros. <b>Não se compra mais terreno</b>: o lote vem com a base.</li>
+      <li>Dentro da base é <b>área segura</b> (como no totem). PvP não muda.</li>
+      <li><b>Taxa semanal</b> sai do cofre. Atrasou 2 semanas: lotes e Baú do Clã travam até pagar.</li>
+    </ul>
+  </div>
+  <table class="tb">
+    <tr><th>Nv</th><th>Ganha</th><th>Taxa/semana</th><th>Lenha/semana</th></tr>
+    <tr><td>1</td><td>Salão pequeno e Baú do Clã</td><td>300</td><td>20</td></tr>
+    <tr><td>2</td><td>Torre de vigia</td><td>600</td><td>40</td></tr>
+    <tr><td>3</td><td>Paliçada</td><td>1.200</td><td>70</td></tr>
+    <tr><td>4</td><td>Forja do clã</td><td>2.500</td><td>110</td></tr>
+    <tr><td>5</td><td>Salão grande</td><td>5.000</td><td>150</td></tr>
+    <tr><td>6</td><td>Castelo</td><td>9.000</td><td>200</td></tr>
+  </table>
+  <h3>Baú do Clã</h3>
+  <p>60 lugares, de todo o clã. Recrutas em "Farmar recurso" entregam aqui. Daqui saem a comida e a lenha.</p>
+  <h3>Despensa (comida)</h3>
+  <ul>
+    <li>Cada morador come <b>3 rações por dia</b> do Baú do Clã. Peixe, legume e prato contam (prato vale mais: ensopado e torta = 5 rações).</li>
+    <li>Afeta os recrutas. <b>Com fome:</b> −10%. <b>Famintos</b> (48 h sem comer): −25%. Ninguém sai do clã.</li>
+    <li><b>Bem alimentados</b> (2 dias seguidos e 3 tipos de comida): +5% de dano e XP.</li>
+  </ul>
+  <h3>Lenha</h3>
+  <p>A base gasta lenha toda semana (tabela acima). <b>Sem lenha a base deixa de ser área segura.</b> Os bots também precisam abastecer (e às vezes esquecem).</p>
+  <div class="duas">
+    <figure><img src="img/despensa.jpg" alt="Despensa bem alimentada"><figcaption>Despensa: bem alimentados.</figcaption></figure>
+    <figure><img src="img/base-mapa.jpg" alt="Marcador da base no mapa"><figcaption>Escudo dourado = sua base no mapa.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ================= PACKS ================= -->
+<section id="packs">
+  <h2><img src="../painel-icones/pack.png" alt="">Packs (o principal jeito de ganhar ouro)</h2>
+  <div class="card resumo">
+    <ol>
+      <li>Junte o material do pack.</li>
+      <li>No <b>mercador de pack</b> daquele tipo, toque em <b>Fazer pack</b> (12 de vigor). Ele vai nas costas.</li>
+      <li>Leve até <b>outro</b> mercador de pack, longe, e entregue. Recebe ouro.</li>
+    </ol>
+  </div>
+  <div class="dica"><b>Quanto mais longe, mais paga.</b> Até ~460 m o preço sobe até 3,6×; depois continua subindo devagar até 6×. Região de nível alto paga mais (até 5,9×). Mercador a menos de 40 m de onde fez não aceita.</div>
+  <ul>
+    <li><b>Nas costas:</b> anda na metade da velocidade, não corre, não monta. Morreu: o pack cai no chão (qualquer um pega). "Largar" deixa no chão.</li>
+    <li><b>Mercado cansa:</b> o 5º pack igual no mesmo mercador paga 3% a menos a cada um (até 50%). Volta ao normal com o tempo.</li>
+    <li>Profissão <b>Mercador</b> alta: pack mais barato de fazer (−15%) e paga mais (+25%).</li>
+    <li><b>Pack do time:</b> na barra do time, "Time todo" + De → Pra: os recrutas carregam do palete/carrinho/navio até o destino; o ouro vai ao cofre do clã.</li>
+  </ul>
+  <h3>Tipos de pack</h3>
+  <div class="rolar"><table class="tb">
+    <tr><th>Pack</th><th>Material</th><th>Base</th></tr>
+    <tr><td>Lenha Nobre</td><td>20 lenha</td><td>45</td></tr>
+    <tr><td>Pedra Lapidada</td><td>18 pedra, 1 cristal</td><td>60</td></tr>
+    <tr><td>Couro Curtido</td><td>8 couro, 2 carne</td><td>80</td></tr>
+    <tr><td>Temperos da Horta</td><td>4 rabanete, 4 cenoura, 3 tomate</td><td>85</td></tr>
+    <tr><td>Peixe Salgado</td><td>4 lambari, 2 tilápia, 3 pedra</td><td>95</td></tr>
+    <tr><td>Conservas</td><td>5 batata, 4 milho, 2 tecido</td><td>100</td></tr>
+    <tr><td>Doce de Abóbora</td><td>2 abóbora, 6 rabanete, 2 pão de milho</td><td>130</td></tr>
+    <tr><td>Barras de Metal</td><td>3 barra de ferro, 3 de cobre</td><td>140</td></tr>
+    <tr><td>Pérolas</td><td>3 traíra, 2 cristal, 3 tecido</td><td>150</td></tr>
+    <tr><td>Ervas do Pântano</td><td>8 rabanete, 4 tecido, 2 fragmento</td><td>160</td></tr>
+    <tr><td>Obsidiana</td><td>25 pedra, 3 cristal, 2 barra de ferro</td><td>190</td></tr>
+    <tr><td>Brasa Viva</td><td>4 cristal, 6 carvão, 1 aço</td><td>220</td></tr>
+  </table></div>
+  <h3>Veículos</h3>
+  <table class="tb">
+    <tr><th></th><th>Leva</th><th>Como faz (bancada)</th></tr>
+    <tr><td><img class="ic" src="../painel-icones/carrinho.png" alt=""> Carrinho</td><td>2 packs (até 8 melhorando) + 1 nas costas</td><td>30 lenha, 6 barra de ferro, 4 de cobre, 4 couro (Nv 15)</td></tr>
+    <tr><td><img class="ic" src="../painel-icones/barquinho.png" alt=""> Barquinho</td><td>2 pessoas, a remo</td><td>30 lenha, 4 couro (Nv 10)</td></tr>
+    <tr><td><img class="ic" src="../painel-icones/navio.png" alt=""> Navio mercante</td><td>16 packs + 1 nas costas</td><td>400 lenha, 40 ferro, 30 cobre, 40 couro, 40.000 ouro (Nv 60)</td></tr>
+  </table>
+  <ul>
+    <li>Carrinho gasta combustível: <img class="ic" src="../painel-icones/galao.png" alt=""> Galão (2 carvão + 1 tecido) = 160 m. Não entra na água. Quebrou: os packs caem; conserta com lenha e ferro.</li>
+    <li>Veículo fica na mochila: use na mochila para pôr no chão (barco e navio na beira da água).</li>
+  </ul>
+  <div class="duas">
+    <figure><img src="img/carrinho-barco.jpg" alt="Carrinho e barquinho"><figcaption>Carrinho e barquinho.</figcaption></figure>
+    <figure><img src="img/carrinho-janela.jpg" alt="Janela do carrinho"><figcaption>Janela do carrinho: combustível, carga, melhorar.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ================= PESCARIA ================= -->
+<section id="pesca">
+  <h2><img src="../painel-icones/vara.png" alt="">Pescaria</h2>
+  <div class="card resumo">
+    <ol>
+      <li>Faça uma <b>Vara</b> (3 lenha + 1 couro) no menu Criar.</li>
+      <li>Ache um <b>spot</b>: círculo de ondinhas na água. Chegue na beira e toque em <b>Pescar</b>.</li>
+      <li>Espere a boia afundar e <b>toque na hora</b> que fisgou.</li>
+      <li><b>Briga:</b> toque rápido para manter a barra cheia até puxar o peixe.</li>
+    </ol>
+  </div>
+  <div class="duas">
+    <figure><img src="img/pesca-spot.jpg" alt="Spot de pesca na beira"><figcaption>1. Spot na água + botão Pescar.</figcaption></figure>
+    <figure><img src="img/pesca-fisgou.jpg" alt="Boia na água"><figcaption>2. Esperando a boia.</figcaption></figure>
+    <figure><img src="img/pesca-briga.jpg" alt="Barra da briga"><figcaption>3. Briga: toque rápido.</figcaption></figure>
+    <figure><img src="img/pesca-pegou.jpg" alt="Pegou o peixe"><figcaption>4. Pegou (com o peso).</figcaption></figure>
+  </div>
+  <h3>Spots e peixes</h3>
+  <table class="tb">
+    <tr><th>Spot</th><th>Onde</th><th>Peixes</th></tr>
+    <tr><td>Comum <span class="tag" style="color:#7fd0ff">azul claro</span></td><td>rio, lago e mar</td><td>Doce: lambari, tilápia, traíra · Mar: sardinha, robalo</td></tr>
+    <tr><td class="r1">Raro</td><td>mar</td><td>sardinha, robalo, garoupa, atum</td></tr>
+    <tr><td class="r2">Épico</td><td>mar (some e demora a voltar)</td><td>garoupa, atum, <b class="r3">Peixe-Dourado</b></td></tr>
+  </table>
+  <div class="fila">
+    <span class="it"><img class="icg" src="../painel-icones/lambari.png" alt="">Lambari</span>
+    <span class="it"><img class="icg" src="../painel-icones/tilapia.png" alt="">Tilápia</span>
+    <span class="it"><img class="icg" src="../painel-icones/traira.png" alt="">Traíra</span>
+    <span class="it"><img class="icg" src="../painel-icones/sardinha.png" alt="">Sardinha</span>
+    <span class="it"><img class="icg" src="../painel-icones/robalo.png" alt="">Robalo</span>
+    <span class="it"><img class="icg" src="../painel-icones/garoupa.png" alt="">Garoupa</span>
+    <span class="it"><img class="icg" src="../painel-icones/atum.png" alt="">Atum</span>
+    <span class="it"><img class="icg" src="../painel-icones/dourado.png" alt="">Dourado</span>
+  </div>
+  <ul>
+    <li>Peixe maior gasta mais vigor (0,5 a 6) e briga mais.</li>
+    <li><img class="ic" src="../painel-icones/radar_pesca.png" alt=""> <b>Radar de pesca</b> (1 barra de cobre + 1 cristal, na bancada): use na mochila e todos os spots aparecem no mapa por 3 min. Não gasta.</li>
+    <li>Peixe serve para comer, cozinhar, fazer pack e alimentar o clã. <b>Atum</b> e <b>Dourado</b> dão buff.</li>
+    <li>Dá para pescar sentado no barquinho.</li>
+  </ul>
+</section>
+
+<!-- ================= COLETA ================= -->
+<section id="coleta">
+  <h2><img src="../painel-icones/minerio_ferro.png" alt="">Coleta (minerar e lenha)</h2>
+  <div class="card resumo">
+    <ul>
+      <li><b>Ferramentas</b> (menu Criar, sem bancada): <b>Picareta</b> (2 lenha, 3 pedra) e <b>Machado</b> (3 lenha, 2 pedra).</li>
+      <li><b>Galho</b> e <b>pedra solta</b> no chão: pega com a mão, sem vigor.</li>
+      <li>Chegue perto do veio ou da árvore e toque no botão de ação.</li>
+    </ul>
+  </div>
+  <table class="tb">
+    <tr><th>Fonte</th><th>Dá</th><th>Profissão</th></tr>
+    <tr><td>Veio de pedra</td><td><img class="ic" src="../painel-icones/pedra.png" alt=""> 2 pedra</td><td>Minerador</td></tr>
+    <tr><td>Veio de cobre</td><td><img class="ic" src="../painel-icones/minerio_cobre.png" alt=""> minério de cobre</td><td>Minerador</td></tr>
+    <tr><td>Veio de ferro</td><td><img class="ic" src="../painel-icones/minerio_ferro.png" alt=""> minério de ferro</td><td>Minerador Nv 5</td></tr>
+    <tr><td>Veio de cristal</td><td><img class="ic" src="../painel-icones/cristal.png" alt=""> cristal</td><td>Minerador Nv 8</td></tr>
+    <tr><td>Árvore</td><td><img class="ic" src="../painel-icones/lenha.png" alt=""> lenha (3 cortes, volta em 1 dia)</td><td>Lenhador</td></tr>
+  </table>
+  <p>Veio esgota e volta em 1,5 a 2,5 min. Às vezes sai cristal no ferro e no cobre.</p>
+  <h3>Monstros (material)</h3>
+  <ul>
+    <li><b>Lobo, Puglin, Maw:</b> <img class="ic" src="../painel-icones/couro.png" alt=""> couro e <img class="ic" src="../painel-icones/carne.png" alt=""> carne.</li>
+    <li><b>Imp:</b> <img class="ic" src="../painel-icones/tecido.png" alt=""> tecido (reforço e armadura).</li>
+    <li><b>Golem:</b> <img class="ic" src="../painel-icones/cristal.png" alt=""> cristal.</li>
+    <li>Todos: <img class="ic" src="../painel-icones/fragmento.png" alt=""> fragmento (às vezes), poção, peça e Tomo raros.</li>
+    <li>Monstro mais de 5 níveis abaixo de você solta menos; fragmento, cristal, peça e Tomo somem com mais de 10 abaixo.</li>
+  </ul>
+  <div class="duas">
+    <figure><img src="img/arvore.jpg" alt="Cortando árvore"><figcaption>Cortando lenha.</figcaption></figure>
+    <figure><img src="img/minerar.jpg" alt="Minerando"><figcaption>Minerando.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ================= CRIAR ================= -->
+<section id="criar">
+  <h2>🔨 Criar (fornalha, bigorna, bancada)</h2>
+  <div class="card resumo">
+    <p>Abra a mochila → aba <b>Criar</b>. Cada receita diz onde fazer. Gasta vigor e sobe a profissão (até Nv 20). Profissão alta = mais chance de sair peça de raridade melhor (no Nv 20: Épico 9%, Lendário 2,7%, Mítico 0,8%).</p>
+  </div>
+  <h3>Fornalha (fundir)</h3>
+  <table class="tb">
+    <tr><th>Põe</th><th>Sai</th></tr>
+    <tr><td>3 minério de ferro</td><td><img class="ic" src="../painel-icones/barra_ferro.png" alt=""> barra de ferro</td></tr>
+    <tr><td>3 minério de cobre</td><td><img class="ic" src="../painel-icones/barra_cobre.png" alt=""> barra de cobre</td></tr>
+    <tr><td>2 lenha</td><td><img class="ic" src="../painel-icones/carvao.png" alt=""> carvão</td></tr>
+    <tr><td>1 barra de ferro + carvão</td><td><img class="ic" src="../painel-icones/barra_aco.png" alt=""> aço (Ferreiro Nv 5)</td></tr>
+  </table>
+  <p style="color:var(--muted);font-size:.82rem">Fogo: lenha (12 s) ou carvão (30 s).</p>
+  <h3>Bigorna (Ferreiro)</h3>
+  <ul>
+    <li><b>Espada:</b> 3 barra de ferro, 2 lenha</li>
+    <li><b>Cajado:</b> 4 lenha, 1 barra de cobre, 1 cristal</li>
+    <li><b>Capacete:</b> 2 barra de ferro, 1 couro, 1 tecido</li>
+    <li><b>Peitoral:</b> 4 barra de ferro, 2 couro, 2 tecido</li>
+    <li><b>Colar:</b> 2 barra de cobre, 2 cristal, 1 tecido</li>
+  </ul>
+  <h3>Bancada (Alfaiate)</h3>
+  <ul>
+    <li><b>Calça:</b> 3 couro, 1 tecido · <b>Short:</b> 2 couro, 1 tecido</li>
+    <li><b>Botas:</b> 4 couro, 1 tecido · <b>Capa:</b> 4 tecido, 1 couro</li>
+    <li>Também: regador, radar de pesca, galão, carrinho, barquinho, navio.</li>
+  </ul>
+  <p style="color:var(--muted);font-size:.82rem">Algumas pedem nível do herói: bancada e bigorna Nv 3, fornalha 5, fogão 6, peitoral 8, colar 12, aço 15.</p>
+  <p>Bigorna, bancada e fornalha: toda vila tem na ferraria (na Clareira, a do Tomás e a bancada ao lado da Rosa). Também dá para construir no seu lote da base.</p>
+  <figure><img src="img/criar.jpg" alt="Aba Criar"><figcaption>Aba Criar: mostra se a estação está perto ("aqui").</figcaption></figure>
+</section>
+
+<!-- ================= COMIDA ================= -->
+<section id="comida">
+  <h2><img src="../painel-icones/ensopado.png" alt="">Comida e buffs</h2>
+  <div class="card resumo">
+    <p>Construa um <b>Fogão a lenha</b> (8 pedra, 4 lenha, 1 barra de ferro) no seu lote da base (a vila não tem fogão). Perto dele, cozinhe pela aba Criar. Comida cura e dá <b>buff</b> (um por vez; morrer tira).</p>
+  </div>
+  <table class="tb">
+    <tr><th>Prato</th><th>Faz com</th><th>Buff</th></tr>
+    <tr><td><img class="ic" src="../painel-icones/carne_assada.png" alt=""> Carne assada</td><td>1 carne</td><td>+5% dano, 10 min</td></tr>
+    <tr><td><img class="ic" src="../painel-icones/peixe_assado.png" alt=""> Peixe assado</td><td>2 lambari</td><td>+2% crítico, 10 min</td></tr>
+    <tr><td><img class="ic" src="../painel-icones/sopa_legumes.png" alt=""> Sopa de legumes</td><td>cenoura, batata, rabanete</td><td>+10% defesa, 10 min</td></tr>
+    <tr><td><img class="ic" src="../painel-icones/pao_milho.png" alt=""> Pão de milho</td><td>2 milho</td><td>+20% volta da mana, 10 min</td></tr>
+    <tr><td><img class="ic" src="../painel-icones/ensopado.png" alt=""> Ensopado</td><td>2 carne, batata, tomate</td><td>+8% dano, +5% defesa, 15 min</td></tr>
+    <tr><td><img class="ic" src="../painel-icones/torta_abobora.png" alt=""> Torta de abóbora</td><td>abóbora, milho</td><td>+3% crítico, +5% dano, 20 min</td></tr>
+  </table>
+  <p><img class="ic" src="../painel-icones/pocao.png" alt=""> Poção de vida (35%) e <img class="ic" src="../painel-icones/pocao_mana.png" alt=""> de mana (40%) na loja da Rosa; recarga de 10 s.</p>
+  <figure><img src="img/fogao.jpg" alt="Fogão a lenha"><figcaption>Fogão a lenha.</figcaption></figure>
+</section>
+
+<!-- ================= HORTA ================= -->
+<section id="horta">
+  <h2><img src="../painel-icones/semente_tomate.png" alt="">Horta e árvores</h2>
+  <div class="card resumo">
+    <ol>
+      <li>Faça uma <img class="ic" src="../painel-icones/enxada.png" alt=""> <b>Enxada</b> (3 lenha, 2 pedra) e um <img class="ic" src="../painel-icones/regador.png" alt=""> <b>Regador</b> (1 barra de cobre, 2 lenha, na bancada).</li>
+      <li>Compre <b>sementes</b> com a comerciante (Rosa, na Clareira).</li>
+      <li>No seu lote da base: <b>arar → plantar → regar → colher</b>. Encha o regador no poço ou na beira da água.</li>
+      <li>Recruta com a ordem <b>Fazenda</b> cuida da horta da base.</li>
+      <li>Com <b>Plantar árvores</b> ele planta até 10 mudas nas áreas de plantio e volta ao Livre. Para cortar, use <b>Farmar recurso &gt; Lenha</b>.</li>
+    </ol>
+  </div>
+  <div class="fila">
+    <span class="it"><img class="icg" src="../painel-icones/rabanete.png" alt="">Rabanete</span>
+    <span class="it"><img class="icg" src="../painel-icones/cenoura.png" alt="">Cenoura</span>
+    <span class="it"><img class="icg" src="../painel-icones/batata.png" alt="">Batata</span>
+    <span class="it"><img class="icg" src="../painel-icones/tomate.png" alt="">Tomate</span>
+    <span class="it"><img class="icg" src="../painel-icones/milho.png" alt="">Milho</span>
+    <span class="it"><img class="icg" src="../painel-icones/abobora.png" alt="">Abóbora</span>
+  </div>
+  <p>Legumes: comer, cozinhar, packs e despensa do clã. <b>Mudas de árvore</b> se plantam nos bosques perto das vilas (até 10 mudas crescendo, igual para todos) e viram lenha.</p>
+</section>
+
+<!-- ================= TERRENO ================= -->
+<section id="terreno">
+  <h2>🏠 Seu lote e construção</h2>
+  <div class="card resumo">
+    <ul>
+      <li><b>Não se compra terreno.</b> Funde o clã e a base: o <b>lote 1</b> (10×10 m) é seu; os outros lotes vão para os membros.</li>
+      <li>No lote, toque no <b>martelo</b> (topo da tela, aceso no seu lote) e escolha o que construir.</li>
+      <li><b>Móveis:</b> Bancada (6 lenha, 3 pedra), Bigorna (3 barra de ferro, 2 lenha), Fornalha (12 pedra, 2 lenha), Fogão (8 pedra, 4 lenha, 1 barra de ferro), Baú (10 lenha, 40 lugares, melhora até 80), Palete de packs (guarda packs sem sumir), Tocha, Cama e Cerca.</li>
+      <li><b>Casa:</b> fundação, paredes, porta, janela e telhado, de madeira ou pedra.</li>
+      <li>Lote travado: a taxa do clã está 2 semanas atrasada.</li>
+    </ul>
+  </div>
+  <figure><img src="img/construir.jpg" alt="Construindo fornalha"><figcaption>Colocando uma fornalha com o martelo.</figcaption></figure>
+</section>
+
+<!-- ================= BOSSES ================= -->
+<section id="bosses">
+  <h2>🐉 Bosses de mundo e caverna</h2>
+  <div class="card resumo">
+    <ul>
+      <li>Toda skill do boss <b>avisa antes</b> com marca vermelha no chão: role ou dê dash na hora.</li>
+      <li>Com metade da vida ele entra em <b>fúria</b> (mais rápido e forte).</li>
+      <li>Morto, volta em 4 a 5,5 h.</li>
+    </ul>
+  </div>
+  <p><b>Drop:</b> 2 a 4 poções, 1 peça <span class="r1">Rara</span>, 1 catalisador (Épico nos 2 primeiros, Lendário nos outros), chance de catalisador <span class="r4">Mítico</span> e 35% de Tomo.</p>
+  <div class="rolar"><table class="tb">
+    <tr><th>Boss</th><th>Nv</th><th>Onde</th><th>Mítico</th></tr>
+    <tr><td>Brasaferro (Golem)</td><td>28</td><td>Terras dos Golens</td><td>5%</td></tr>
+    <tr><td>Uivo-Rei (Lobo)</td><td>36</td><td>Oeste de Vael</td><td>8%</td></tr>
+    <tr><td>Mandíbula Velha</td><td>42</td><td>Norte de Vael</td><td>10%</td></tr>
+    <tr><td>Chifre-de-Ferro</td><td>48</td><td>Leste de Vael</td><td>12%</td></tr>
+    <tr><td>Colosso Gélido</td><td>76</td><td>Oeste de Aurora</td><td>20%</td></tr>
+    <tr><td>Dragão de Cinzas</td><td>92</td><td>Leste de Aurora</td><td>25%</td></tr>
+  </table></div>
+  <h3>Caverna (dungeon)</h3>
+  <p>Passe com o <b>Guardião</b>: 5 fragmento, 2 couro, 2 tecido (vale para o time). 3 salas: Galeria dos Golens (Nv 18), Poço dos Maws (Nv 20), Trono do Warrok (Nv 22). Monstros mais fortes e mais XP.</p>
+  <figure><img src="img/caverna.jpg" alt="Dentro da caverna"><figcaption>Primeira sala da caverna.</figcaption></figure>
+</section>
+
+<!-- ================= VIAGEM ================= -->
+<section id="viagem">
+  <h2>🗿 Totens, voltar para a vila e montaria</h2>
+  <div class="card resumo">
+    <ul>
+      <li><b>Totem:</b> passe perto (8 m) para descobrir. Depois, pelo mapa (Lugares, do mais perto ao mais longe) viaje para qualquer totem descoberto: 5 s parado, custa 10 × seu nível de ouro (mín. 50).</li>
+      <li>Em volta do totem é área segura e regenera vida.</li>
+      <li><b>Voltar para a vila</b> (ícone da casinha): 8 s parado, recarga de 10 min.</li>
+      <li><b>Montaria:</b> o Lobo (anda 3, corre 9), liberado ao avançar na história. Não monta com pack nas costas nem em combate.</li>
+      <li><b>Ir</b> no mapa: anda sozinho até o lugar.</li>
+    </ul>
+  </div>
+  <figure><img src="img/totem-mapa.jpg" alt="Mapa com totens"><figcaption>Mapa: toque no totem para viajar.</figcaption></figure>
+</section>
+
+<!-- ================= COMÉRCIO ================= -->
+<section id="comercio">
+  <h2><img src="../painel-icones/ouro.png" alt="">Loja, leilão e troca</h2>
+  <h3>Loja da Rosa</h3>
+  <p>Toda vila tem uma comerciante (Rosa na Clareira). Poções, sementes e peças Comuns. Compra várias de uma vez (janela de quantidade, botão Máx). Vende o que você tem.</p>
+  <figure><img src="img/loja.jpg" alt="Comprar quantidade na loja"><figcaption>Escolher quantidade na loja.</figcaption></figure>
+  <h3>Leilão (Casa do Comércio)</h3>
+  <ul>
+    <li>Com o <b>Otávio</b>, na Vila do Rio Claro. Um só para o mundo todo (jogadores e bots).</li>
+    <li>Até 10 anúncios, por 24 ou 48 h. Taxa de 5% na venda.</li>
+    <li>O ouro das vendas e o que venceu ficam com o Otávio: retire lá.</li>
+    <li>Busca por parte do nome. No painel do clã dá para olhar o leilão (comprar só no jogo).</li>
+  </ul>
+  <h3>Troca entre jogadores</h3>
+  <ol>
+    <li>Fique perto (6 m) e peça a troca.</li>
+    <li>Cada um põe itens (até 12) e ouro e <b>tranca</b> o cadeado.</li>
+    <li>Com os dois trancados, os dois confirmam. Mexeu em algo: destranca.</li>
+  </ol>
+  <figure><img src="img/troca.jpg" alt="Janela de troca"><figcaption>Janela de troca.</figcaption></figure>
+</section>
+
+<!-- ================= GUERRA ================= -->
+<section id="guerra">
+  <h2><img src="../painel-icones/alma_geada.png" alt="">Guerra Chama × Geada</h2>
+  <div class="card resumo">
+    <ul>
+      <li>Acima do Nv 30, fora da área segura, dá para lutar com a outra raça. Matar a Geada dá <b>Fragmento de Alma</b> (sobe o clã do Nv 4 em diante).</li>
+      <li>Recruta com a ordem "Farmar recurso → Alma" caça a Geada por você.</li>
+      <li><img class="ic" src="../painel-icones/rastreio.png" alt=""> <b>Pó de rastreio</b> (2 cristal, 1 carvão, na bancada): por 5 min a outra raça aparece em vermelho no mapa.</li>
+      <li>A Geada faz rondas e emboscadas nas estradas e pode roubar o seu pack. Cuidado levando pack.</li>
+      <li><b>Arena PvP 4×4:</b> partidas de 5 min, ganha Insígnias da Arena.</li>
+    </ul>
+  </div>
+  <h3><img class="ic" src="../painel-icones/patente/chama_3.png" alt="">Patente de Guerra</h3>
+  <div class="card">
+    <p>Cada abate da outra raça no mundo (a Arena não conta) enche o anel do escudo ao lado da sua vida. Encheu, sobe de patente. O escudo aparece do lado do nome, em cima da cabeça (Recruta não mostra). Toque no escudo para ver quanto falta.</p>
+    <table>
+      <tr><th>Patente</th><th>Abates no mês</th><th>Prêmio no dia 1º</th></tr>
+      <tr><td><img class="ic" src="../painel-icones/patente/chama_1.png" alt=""> Soldado</td><td>5</td><td>5 poções de vida</td></tr>
+      <tr><td><img class="ic" src="../painel-icones/patente/chama_2.png" alt=""> Cabo</td><td>15</td><td>1 runa ou selo Raro</td></tr>
+      <tr><td><img class="ic" src="../painel-icones/patente/chama_3.png" alt=""> Sargento</td><td>30</td><td>2 Raros</td></tr>
+      <tr><td><img class="ic" src="../painel-icones/patente/chama_4.png" alt=""> Tenente</td><td>50</td><td>1 runa ou selo Épico</td></tr>
+      <tr><td><img class="ic" src="../painel-icones/patente/chama_5.png" alt=""> Capitão</td><td>80</td><td>2 Épicos</td></tr>
+      <tr><td><img class="ic" src="../painel-icones/patente/chama_6.png" alt=""> Comandante</td><td>120</td><td>1 Lendário</td></tr>
+      <tr><td><img class="ic" src="../painel-icones/patente/chama_7.png" alt=""> Lenda</td><td>180</td><td>1 Mítico</td></tr>
+    </table>
+    <ul>
+      <li>Dia 1º (hora de Brasília) todo mundo volta a Recruta e ganha o prêmio da patente que pegou. Mochila cheia: o prêmio espera espaço.</li>
+      <li>O título da maior patente que você já pegou fica para sempre (aba Títulos, grupo Guerra). Não dá bônus.</li>
+      <li>Morrer para a outra raça no mundo tira 5% do anel, mas você nunca desce de patente (para em 0%). Morrer de novo para a mesma pessoa só tira de novo depois de 10 minutos. Na Lenda não tira.</li>
+      <li>A mesma pessoa só conta de novo depois de 10 min. Quem é 10 níveis mais fraco não conta.</li>
+      <li>O clã que mais abateu no mês ganha 1 runa ou selo Lendário no Baú do Clã. Placar no menu do clã e no painel ("Guerra do mês").</li>
+      <li>Os bots sobem de patente igual; o prêmio deles vai para o Baú do Clã deles.</li>
+    </ul>
+  </div>
+</section>
+
+</main>
+<footer>Age of Embers · Wiki · resumo do jogo de 26/11/2026 (revisado)<br>© 2026 André Coutinho. Todos os direitos reservados.</footer>
+<div id="zoom" role="dialog" aria-label="Imagem ampliada"><img alt=""></div>
+<a class="topo-btn" href="#comeco" aria-label="Voltar ao topo">↑</a>
+<script>
+// toque na foto: abre grande (fecha tocando de novo)
+(() => {
+  const z = document.getElementById('zoom'), zi = z.querySelector('img');
+  document.querySelectorAll('figure img').forEach((im) => im.addEventListener('click', () => { zi.src = im.src; zi.alt = im.alt; z.classList.add('on'); }));
+  z.addEventListener('click', () => z.classList.remove('on'));
+})();
+// marca no menu de cima a seção que está na tela (e rola o menu até ela)
+(() => {
+  const links = [...document.querySelectorAll('#menu a')];
+  const por = Object.fromEntries(links.map((a) => [a.getAttribute('href').slice(1), a]));
+  const ver = new IntersectionObserver((es) => {
+    for (const e of es) if (e.isIntersecting) {
+      links.forEach((a) => a.classList.remove('ativo'));
+      const a = por[e.target.id]; if (!a) continue;
+      a.classList.add('ativo');
+      const n = a.parentElement; n.scrollTo({ left: a.offsetLeft - (n.clientWidth - a.offsetWidth) / 2, behavior: 'smooth' }); // só o menu rola: scrollIntoView parava a rolagem da página
+    }
+  }, { rootMargin: '-45% 0px -50% 0px' });
+  document.querySelectorAll('main section').forEach((s) => ver.observe(s));
+})();
+</script>
+</body>
+</html>

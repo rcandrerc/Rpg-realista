@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, LEILAO_BOT, TIPOS_LEILAO, anuncioParaApp, nomeItem, ehEquip, RARIDADES, estadoTomo, COR_TOMO, CAIXA, lancarCaixa, resumoCaixa } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, LEILAO_BOT, TIPOS_LEILAO, anuncioParaApp, nomeItem, ehEquip, RARIDADES, estadoTomo, COR_TOMO, CAIXA, lancarCaixa, resumoCaixa, LEVE } from '@rpg/shared';
 import { Contas, verificadorGoogle, roboCel, roboCarga, ROBO } from './contas.js';
 import { Visao } from './visao.js';
 import { Push } from './push.js'; // avisos no celular do painel do clã (André 2026-11-24)
@@ -25,7 +25,7 @@ const PORTA = Number(process.env.PORT || 2567);
 const TICK = 1 / 20;
 // Limite de mensagens por jogador (balde que enche 90 por segundo, guarda até 150; a posição sozinha usa 20).
 // O jogo normal manda bem menos; quem passa disso tem o excesso ignorado. O que grava na conta custa mais.
-const LIMITE = { porSeg: 90, max: 150, custo: { amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, construir: 5, desmontar: 5, horta: 3, plantarArvore: 3, diaria: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5, lentidao: 5 } };
+const LIMITE = { porSeg: 90, max: 150, custo: { leveIr: 60, leveIrRecurso: 60, leveMapa: 30, amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, construir: 5, desmontar: 5, horta: 3, plantarArvore: 3, diaria: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5, lentidao: 5 } };
 // O robô de testes (ferramentas/robo/robo.mjs, André 2026-11-14) joga como um jogador, mas nunca negocia, nunca compra
 // terreno, não conversa e não convida ninguém: assim não estraga a economia nem o jogo de quem joga de verdade
 const ROBO_NAO = new Set(['troca', 'chat', 'amigo', 'time', 'amiga', 'chaveIa', 'trocarNome', 'lote', 'construir', 'desmontar', 'nivelTeste', 'verEquip', 'duelo', 'comando', 'pvp']);
@@ -38,6 +38,8 @@ const contaLigadaEmOutro = (id, sessao) => [...salas].some((s) => s.clients.some
 const heroiDe = (contaId) => { for (const s of salas) for (const j of s.sim.jogadores.values()) if (!j.bot && j.conta === contaId) return { s, j }; return null; };
 // painel do clã (página leve, André 2026-11-24): ver no máximo a cada 2 s e ordem no máximo a cada 0,5 s por página
 const PAINEL = { verMs: 2000, ordemMs: 500, volta: 20 };
+// modo leve: os avisos do herói que a página usa (o resto do jogo, como o 'prog' inteiro, não vai: pesa no celular fraco)
+const LEVE_EVENTOS = new Set(['aviso', 'leilao', 'bau', 'compra', 'leveRota', 'chat', 'chatHist', 'fabricando', 'pack', 'veiculo', 'vila', 'coleta', 'coletou']);
 // '__proto__', 'constructor' e 'prototype' como texto ou chave numa mensagem do cliente: nunca é dado de jogo e serve para
 // mexer no Object.prototype (auditoria 2026-11-13). A mensagem inteira é descartada.
 const PROIBIDO = new Set(['__proto__', 'constructor', 'prototype']);
@@ -174,6 +176,7 @@ class SalaClareira extends Room {
     if (contas) this.sim.nivelTetoNpc = contas.nivelMaisAlto(); // NPCs nunca passam do jogador mais alto (André 2026-11-11)
     if (contas && salas.size === 1) this.npcsForaDoMundo(true); // primeira sala aberta: os aventureiros fora do mundo evoluem pelo tempo vazio
     if (contas) { this.sim.carregarBosses(contas.lerMundo('bosses')); this.sim.aoBosses = (est) => contas.gravarMundo('bosses', est); }
+    if (contas) { this.sim.carregarGuerraMes(contas.lerMundo('guerra_mes')); this.sim.aoGuerraMes = (est) => contas.gravarMundo('guerra_mes', est); } // Patente de Guerra: o placar do mês (shared/patente.js)
     if (contas) { this.sim.carregarClasNpc(contas.lerMundo('clas_npc')); this.sim.aoClasNpc = (est) => contas.gravarMundo('clas_npc', est); } // clãs bot: os recrutas do Gael (shared/cla.js)
     // bases dos clãs (André 2026-11-22, shared/base.js): todas as salas no mesmo registro; terreno novo só na base
     if (contas) { this.sim.carregarBases(contas.lerMundo('bases_cla')); this.sim.aoBases = (est) => contas.gravarMundo('bases_cla', est); this.sim.soBaseCla = true;
@@ -203,7 +206,7 @@ class SalaClareira extends Room {
     };
     this.sim.aoAnuncioTela = (ev) => { for (const s of salas) s.sim.evento({ ...ev }); }; // bosses de mundo: faixa na tela, fora do chat
     this.ouvir('entrada', (c, m) => this.sim.entrada(c.sessionId, m || {}));
-    this.ouvir('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) this.sim.usarHabilidade(c.sessionId, i); });
+    this.ouvir('habilidade', (c, i) => { if (Number.isInteger(i) && i >= 0 && i <= 10) { if (c.userData?.leve) this.sim.leveParar(c.sessionId, null); this.sim.usarHabilidade(c.sessionId, i); } }); // modo leve: golpear para a caminhada
     this.ouvir('build', (c, b) => { this.sim.definirBuild(c.sessionId, b); if (contas && c.auth) contas.salvarBuild(c.auth.id, b); });
     // skills do Quimera (shared/progresso.js): usar, as duas barras de 6 botões e os pontos de atributo
     this.ouvir('habQ', (c, k) => {
@@ -219,6 +222,13 @@ class SalaClareira extends Room {
     this.ouvir('painel', (c, m) => this.pedidoPainel(c, m)); // painel do clã (página leve, André 2026-11-24)
     this.ouvir('cla', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) this.sim.cla(c.sessionId, { acao: m.acao, nome: typeof m.nome === 'string' ? m.nome.slice(0, 40) : null, tier: typeof m.tier === 'string' ? m.tier.slice(0, 12) : null, id: typeof m.id === 'string' ? m.id.slice(0, 20) : null, ouro: Number(m.ouro) || 0, ...(Number.isFinite(+m.x) && Number.isFinite(+m.z) && m.x != null && m.z != null ? { x: +m.x, z: +m.z } : {}), mudar: m.mudar === true, ...(Number.isInteger(+m.esc) && +m.esc >= 0 && +m.esc < 10 ? { esc: +m.esc } : {}) /* o candidato escolhido (André 2026-11-24: sem isso o servidor sorteava outro recruta: "Flora Brasa virou Bento Fogo") */, fn: m.fn && typeof m.fn === 'object' ? { k: String(m.fn.k || '').slice(0, 12), r: String(m.fn.r || '').slice(0, 12), p: String(m.fn.p || '').slice(0, 20), s: String(m.fn.s || '').slice(0, 16) } : null }); });
     this.ouvir('item', (c, m) => this.sim.item(c.sessionId, m)); // mochila: equipar, tirar, usar, comprar, vender
+    // modo leve (André 2026-11-25, shared/leve.js): a aba Jogar do painel manda o destino e o servidor anda o herói
+    this.ouvir('leveIrRecurso', (c, m) => { if (c.userData?.leve && m && typeof m.t === 'string' && m.t.length < 12) this.sim.leveIrRecurso(c.sessionId, { t: m.t }); }); // Recursos: o mais perto não esgotado
+    this.ouvir('leveColetar', (c, m) => { if (c.userData?.leve && m && typeof m.no === 'string' && m.no.length < 8) this.sim.leveColetar(c.sessionId, { no: m.no, parar: m.parar === true }); }); // Minerar/Cortar/Pegar no modo leve
+    this.ouvir('leveIr', (c, m) => { if (c.userData?.leve && m && typeof m === 'object') this.sim.leveIr(c.sessionId, { x: m.x, z: m.z, nome: m.nome, ...(typeof m.alvo === 'string' && /^e\d{1,9}$/.test(m.alvo) ? { alvo: m.alvo } : {}) }); });
+    this.ouvir('leveParar', (c) => { if (c.userData?.leve) this.sim.leveParar(c.sessionId); });
+    this.ouvir('leveReceitas', (c, m) => { if (c.userData?.leve) { c.userData.leveRc = m?.ver !== false; c.userData.leveRcTxt = ''; } }); // Criar da página leve: só manda as receitas enquanto o cartão está aberto
+    this.ouvir('leveMapa', (c) => { const j = c.userData?.leve && this.sim.jogadores.get(c.sessionId); if (j) c.send('leveMapa', this.sim.leveMapa(j)); });
     this.ouvir('leilao', (c, m) => { // Casa do Comércio (Otávio, Rio Claro)
       // robô de testes (André 2026-11-16: "conserta os dois robôs"): faz a missão do leilão sem mexer na economia de
       // ninguém. Anuncia só pelo preço máximo (e cancela logo depois) e compra só os anúncios da casa.
@@ -458,6 +468,7 @@ class SalaClareira extends Room {
     let perto = null; // área de interesse: preparada uma vez por passo, só se alguém pediu
     for (const c of this.clients) {
       if (c.userData?.substituido || c.userData?.painel) continue; // já saiu do mundo (onJoin): só falta o socket fechar; o painel do clã não recebe o mundo
+      if (c.userData?.leve) { try { this.enviarLeve(c, eventos); } catch (e) { console.error('modo leve: foto deu erro:', e); } continue; } // modo leve: foto pequena a cada LEVE.envio s (shared/leve.js)
       if (c.userData?.aoi) {
         perto ??= this.visao.preparar(foto, eventos);
         c.send('mundoJ', this.visao.paraJogador(perto, c.sessionId));
@@ -488,6 +499,7 @@ class SalaClareira extends Room {
     if (opcoes?.json === true) (client.userData ||= {}).json = true;
     if (typeof opcoes?.sessao === 'string') (client.userData ||= {}).sessao = opcoes.sessao; // de qual aparelho (contaLigadaEmOutro)
     if (opcoes?.json === true && opcoes?.aoi === true) client.userData.aoi = true; // só o que está perto (server/visao.js)
+    if (opcoes?.leve === true) (client.userData ||= {}).leve = true; // modo leve: a aba Jogar do painel do clã (shared/leve.js)
     const conta = contas ? client.auth : null;
     const velhos = [], fantasmas = []; // sessões antigas da mesma conta: o herói novo fica com o time e os amigos delas (trocarSessao)
     if (conta) {
@@ -539,6 +551,10 @@ class SalaClareira extends Room {
     if (conta?.build) this.sim.definirBuild(client.sessionId, conta.build);
     if (conta) this.sim.definirAmigos(client.sessionId, contas.amigos(conta.id).map((a) => ({ c: 'c' + a.id, nome: a.nome })), contas.pedidos(conta.id, AMIGOS.pedidoDias));
     this.sim.historicoChat(client.sessionId, historicoChat.geral, historicoChat.amigos, historicoChat.pm, historicoChat.time); // as últimas mensagens do chat
+    if (client.userData?.leve) { // modo leve: herói de verdade, andado pelo servidor; sem personagem criado, só pelo jogo
+      const j = this.sim.jogadores.get(client.sessionId);
+      if (podeCriar || !j) { client.send('leveErro', 'Crie o personagem no jogo primeiro'); } else { j.leve = true; client.userData.leveT = 0; client.send('leveMapa', this.sim.leveMapa(j)); }
+    }
     if (podeCriar) this.sim.definirCriando(client.sessionId, true);
     // Cecília (André 2026-11-09): entra na sala junto com o dono (as contas de teste do André; sem contas, o primeiro
     // que entra) e sai quando ele sai. O terreno dela vem do banco do jeito que está (outra sala pode ter mexido).
@@ -597,6 +613,24 @@ class SalaClareira extends Room {
         contas.gravarMundo(k, { ...salvo, t: Date.now() });
       }
     } catch (e) { console.warn('npcsForaDoMundo:', e.message); }
+  }
+
+  // ---------- modo leve (André 2026-11-25, shared/leve.js) ----------
+  // A página do celular fraco não recebe o mundo inteiro a cada passo: junta os avisos dela e, a cada LEVE.envio s, manda
+  // uma foto pequena (fotoLeve). A mochila só vai quando muda; os lugares fixos (leveMapa), a cada minuto.
+  enviarLeve(c, eventos) {
+    const u = c.userData, j = this.sim.jogadores.get(c.sessionId); if (!j) return;
+    const ev = (u.leveEv ||= []);
+    for (const e of eventos) if ((e.para === c.sessionId || ((e.t === 'vila' || e.t === 'coleta') && e.id === c.sessionId)) && LEVE_EVENTOS.has(e.t)) ev.push(this.sim.leveEvento(e));
+    if (ev.length > 30) ev.splice(0, ev.length - 30);
+    u.leveT = (u.leveT || 0) + TICK; if (u.leveT < LEVE.envio && !ev.some((e) => e.t !== 'aviso')) return;
+    u.leveT = 0;
+    const m = { f: this.sim.fotoLeve(j), ev: ev.splice(0) };
+    const mo = this.sim.mochilaLeve(j), moTxt = JSON.stringify(mo); if (moTxt !== u.leveMo) { u.leveMo = moTxt; m.mo = mo; }
+    const pk = this.sim.packLeve(j), pkTxt = JSON.stringify(pk); if (pkTxt !== u.levePk) { u.levePk = pkTxt; m.pk = pk; } // packs e carrinho (PR 2)
+    if (u.leveRc) { const rc = this.sim.leveReceitas(j), rcTxt = JSON.stringify(rc); if (rcTxt !== u.leveRcTxt) { u.leveRcTxt = rcTxt; m.rc = rc; } } // muda quando mochila ou lugar mudam
+    if (Date.now() - (u.leveMapaT || 0) > 60e3) { u.leveMapaT = Date.now(); m.mapa = this.sim.leveMapa(j); }
+    c.send('leve', m);
   }
 
   // ---------- painel do clã (página leve, André 2026-11-24) ----------

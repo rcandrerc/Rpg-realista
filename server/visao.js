@@ -37,8 +37,8 @@ const MUDA_J = ['x', 'y', 'z', 'ry', 'vida', 'morto', 'anim', 'acao', 'acaoSeq',
 const MUDA_I = ['x', 'y', 'z', 'ry', 'vida', 'morto', 'anim', 'acao', 'acaoSeq', 'ef'];
 // o que quase não muda. Dos OUTROS jogadores o celular só usa isto (online.gd: outro e animar);
 // recargas, missões, mana, estamina e build são só do dono e vão só para ele (inteiro, como antes).
-const FIXO_J = ['vidaMax', 'nome', 'nivel', 'tit', 'roupa', 'semCapacete', 'visual', 'aparencia', 'modo', 'bot', 'raca']; // bot: a Cecília (shared/amiga.js)
-const FIXO_I = ['vidaMax', 'nome', 'tipo', 'v', 'nivel', 'hc', 'esc', 'cor']; // hc/esc/cor: chefe com nome da história (CHEFES_HISTORIA)
+const FIXO_J = ['vidaMax', 'nome', 'nivel', 'tit', 'pt', 'cn', 'roupa', 'semCapacete', 'visual', 'aparencia', 'modo', 'bot', 'raca', 'bf']; // bf: buffs e debuffs da barra de vida (simulacao.js bfJogador): só muda quando um efeito entra ou sai // bot: a Cecília (shared/amiga.js)
+const FIXO_I = ['vidaMax', 'nome', 'tipo', 'v', 'nivel', 'hc', 'esc', 'cor', 'bf']; // hc/esc/cor: chefe com nome da história (CHEFES_HISTORIA)
 // pedaço de JSON sem as chaves de fora: "x":1,"z":2 (null entra; undefined fica de fora, igual ao JSON.stringify)
 const pedaco = (o, ks) => { let s = ''; for (const k of ks) if (o[k] !== undefined) s += (s ? ',' : '') + JSON.stringify(k) + ':' + JSON.stringify(o[k]); return s; };
 const r1 = (n) => Math.round(n * 10) / 10;

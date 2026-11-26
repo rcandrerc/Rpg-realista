@@ -15,6 +15,7 @@
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
 import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, NPC_SOLDADO, CLA, CLAS_NPC_ORDENS, LIDERES_CLA } from './dados.js';
+import { CLAS_NPC, AMIGA as CECILIA_DEF, DARIO as DARIO_DEF } from './dados.js'; // recusa do soldado com o clã (André 2026-11-25)
 import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, NPC_CASA_BASE, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO, VEICULOS } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
 import { planejarRota, terraId } from './rota.js';
@@ -26,7 +27,7 @@ import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js';
 import { diaDiarias, premioDiaria } from './diarias.js';
 import { ARVORES_PLANTIO, ENCOMENDA, TITULOS, PROFISSOES, MINA, PACK_BOT, PACKS, PACK_REGRAS, GUERRA, PACK_TIME, PALETE } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
 import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera, QUEM_LIBERA, SEM_NEVOA } from './historia.js';
-import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
+import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, vigorMax, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
 // sorteia sem repetir a última da mesma lista (André 2026-11-15: as respostas prontas pareciam de robô)
@@ -271,7 +272,7 @@ export const Amiga = {
     if (outra) fala = false;
     if (fala && !this.jogadores.has(this.amigaDono)) this.mudarDonoAmiga(donoId); // ninguém com ela: acompanha quem chegou
     if (outra) return; // da outra raça não vira amigo virtual de quem entrou
-    this.evento({ t: 'amiga', para: donoId, id: this.AMIGA.id, nome: this.AMIGA.nome, papel: this.AMIGA.papel, lote: this.loteDaAmiga()?.def.id || null, segue: !!this.AMIGA.seguivel });
+    this.evento({ t: 'amiga', para: donoId, id: this.AMIGA.id, nome: this.AMIGA.nome, papel: this.AMIGA.papel, lote: this.loteDaAmiga()?.def.id || null, segue: !!this.AMIGA.seguivel, ...(this.semTimeAmiga() ? { semTime: true } : {}) });
     this.avisarVirtuaisAmiga(); // ela aparece em "Amigos virtuais" (para todos; quem não tem chave vê o botão de ativar)
   },
   // ---------- vários amigos (André 2026-11-10: irmão e irmã com a chave de cada um) ----------
@@ -280,6 +281,44 @@ export const Amiga = {
   // (amigaFalam: quem colou a chave Groq e as contas de teste), ver iaAmiga e server/index.js falarComAmigoIa.
   // recruta de jogador com o modo soldado: obedece sempre ao líder (André 2026-11-22)
   soldadoAmiga() { return NPC_SOLDADO.ligado && !!this.AMIGA.recruta && !this.AMIGA.clanpc; },
+  // André 2026-11-25 (o Dario topou depois de um "por favor": "não no mesmo time"): com o soldado, quem não é recruta de
+  // quem chama nunca entra no time dele. Nem com "por favor" (apelo), combinado, chamado, "posso ir com você?" ou a etapa
+  // de time da história (essa se faz com um recruta, um amigo ou sozinho: timeSozinho). Vale para quem é de clã bot (o
+  // líder, os membros fixos e os recrutas dele); quem não é de clã nenhum segue como antes. Devolve o motivo da recusa
+  // ('lider' ou 'cla') ou '' (segue o caminho de sempre: vontadeAmiga, que só dá p 1 ao líder do recruta).
+  foraDoTimeAmiga(j) {
+    const A = this.AMIGA;
+    if (!NPC_SOLDADO.ligado || (A.recruta && !A.clanpc && j?.conta === A.lider)) return '';
+    // ele se ofereceu para a missão dela (André 2026-11-21, "eu poder me oferecer pra ajudar"): ela chama ele para o time
+    // dela durante a ajuda, como era antes desta regra
+    const MJ = this.amiga?.ia?.missaoJunto; if (j && MJ?.id === j.id && !(this.tempo > MJ.ate)) return '';
+    const m = this.motivoSoldadoAmiga(); return m === 'ocupada' ? '' : m;
+  },
+  // André 2026-11-25 ("era mais fácil só remover o botão de convite do Dario"; a aliança da Chama vem depois): líder de
+  // clã bot não mostra convite para o time (botão no cartão, Time na lista de amigos, "Entra no meu time?"). Quem pedir
+  // pelo chat ouve a recusa de foraDoTimeAmiga
+  semTimeAmiga() { return !!NPC_SOLDADO.ligado && this.motivoSoldadoAmiga() === 'lider'; },
+  // líder de clã bot (Dario, Gael, Kael, Varek), membro de clã bot (recruta dele ou membro fixo) ou outro
+  motivoSoldadoAmiga() { const C = this.claBotAmiga(); return !C ? 'ocupada' : C.lider === this.AMIGA.id ? 'lider' : 'cla'; },
+  // o clã bot de quem fala: o que ele lidera, o do recruta (clanpc) ou o dos membros fixos (fora do clã depois do reset: nenhum)
+  claBotAmiga() {
+    const A = this.AMIGA;
+    return CLAS_NPC.find((C) => C.lider === A.id) || (A.clanpc && CLAS_NPC.find((C) => C.id === A.clanpc))
+      || CLAS_NPC.find((C) => C.membros.includes(A.id) && !this.fixoForaNpc?.(A.id)) || null;
+  },
+  // a fala de recusa com o nome do clã no lugar de {cla}. Recruta de clã bot, Kael e Varek guardam em AMIGA.falas só o nome
+  // de quem copiam as falas da guerra (FALAS_GUERRA): aí valem as da Cecília ou do Dario, pelo gênero, como na criação deles
+  falaRecusaAmiga(motivo) {
+    const F = this.AMIGA.falas?.recusa ? this.AMIGA.falas : (this.AMIGA.genero === 'm' ? DARIO_DEF : CECILIA_DEF).falas;
+    return (F.recusa[motivo] || F.recusa.vontade).replace(/\{cla\}/g, this.claBotAmiga()?.n || 'meu clã');
+  },
+  // o aviso do botão Time (o botão não fala no chat, André 2026-11-13) com o motivo; na etapa de time da história, diz o que fazer
+  avisoForaDoTimeAmiga(motivo, j) {
+    const n = this.AMIGA.nome, C = this.claBotAmiga();
+    const t = motivo === 'lider' && C ? `${n} é líder do clã ${C.n} e não entra no time de ninguém`
+      : motivo === 'cla' && C ? `${n} é do clã ${C.n} e só anda com o clã ${this.AMIGA.genero === 'm' ? 'dele' : 'dela'}` : `${n} recusou o convite para o time`;
+    return j && !j.bot && j.prog && etapaAtual(j.prog)?.ev === 'time' ? `${t}. Para a missão, chame um recruta seu ou um amigo` : t;
+  },
   podeAmiga(id) { const j = id != null && this.jogadores.get(id); return !!this.amiga && !!j && !j.bot && (!this.AMIGA.recruta || !!this.AMIGA.clanpc || j.conta === this.AMIGA.lider); }, // recruta: só o líder
   // André 2026-11-19: a IA vale para todo jogador (sem precisar de chave própria), só nos da Chama (a Geada é só código)
   iaAmiga(id) { return IA_CONVERSA.ligada && !!this.amiga && (IA_CONVERSA.quem.includes(this.AMIGA.id) || (!!this.AMIGA.recruta && !this.AMIGA.clanpc)) && id != null && this.podeAmiga(id); },
@@ -502,6 +541,7 @@ export const Amiga = {
     if (j.morto) { if (!ia.caiu) { ia.caiu = true; ia.caiuT = this.tempo; this.evolucaoAmiga(j, 'morreu', ia.av?.c?.nome || (j.time ? 'no time' : '')); const f = this.aprenderMorteAmiga(j); if (j.time) this.falarAmiga(`${this.AMIGA.falas.caiu} ${f}`); this.pocoesAmiga(j); if (ia.encomenda && !ia.encomenda.pronta) this.fimEncomendaAmiga(j, 'luta'); } ia.fase = 'pensar'; ia.av = null; ia.viagem = null; return; }
     ia.caiu = false;
     if (j.duelo) return this.passoDueloAmiga(j); // duelando (shared/duelo.js): só luta contra quem chamou
+    if (ia.jantar && this.jantarAmiga?.(j, dt)) return; // chamado para o jantar do clã: anda até a Mesa do Clã e senta (shared/jantar.js)
     if (ia.packOrdem && this.passoOrdemPackAmiga(j, dt)) return; // ordem de pack da barra do time (De → Pra, andando)
     if (this.protegerVeiculoAmiga(j, dt)) return; // "Proteger carrinho / mercante" (painel do clã): antes da guerra, para não perseguir
     if (this.guerraAmiga(j, dt)) return; // Chama x Geada (shared/guerra.js): atacar, ajudar, fugir ou poupar a outra raça
@@ -686,7 +726,7 @@ export const Amiga = {
       }
       // quem gosta de pescar, minerar ou cortar lenha vai fazer isso (com vigor); senão, caça
       const gosto = this.AMIGA.gosto, Ativ = this.AMIGA.atividades?.[gosto];
-      if (Ativ && !av.semColeta && Math.random() < R.coleta && vigorAgora(j.prog.vigor) >= 1 && contar(j.prog.mochila, Ativ.ferramenta) > 0) {
+      if (Ativ && !av.semColeta && Math.random() < R.coleta && this.vigorLivreAmiga(j) >= 1 && contar(j.prog.mochila, Ativ.ferramenta) > 0) {
         const c = this.lugarColetaAmiga(j, gosto);
         if (c) { Object.assign(av, { fase: 'ir', c, coleta: gosto, ate: t + sorte(A.cacar, R.caca) }); ia.viagem = null; ia.alvoColeta = null; return; }
       }
@@ -773,7 +813,7 @@ export const Amiga = {
   // menos NPC coletando por perto. { id, x, z, y } ou null
   lugarColetaAmiga(j, tipo) {
     const NC = NPC_VIDA.coleta, M = this.moradiaAmiga(j), cand = [];
-    if (tipo === 'pescar') { for (const v of this.spots || []) if (v.ativo && Math.hypot(v.x - M.x, v.z - M.z) <= NC.raio) cand.push({ id: v.id, x: v.x, z: v.z, y: 0 }); }
+    if (tipo === 'pescar') { for (const v of this.spots || []) if (v.ativo && v.lago && Math.hypot(v.x - M.x, v.z - M.z) <= NC.raio) cand.push({ id: v.id, x: v.x, z: v.z, y: 0 }); }
     else for (const no of this.coletaveis.values()) {
       const K = COLETA[no.tipo]; if (!K || K.mao) continue;
       if (tipo === 'lenha' ? no.tipo !== 'arvore' : K.prof !== 'min') continue;
@@ -795,6 +835,7 @@ export const Amiga = {
     const enc = av.encomenda ? ia.encomenda : null, voltar = (m) => { if (enc && !enc.pronta) this.fimEncomendaAmiga(j, m); voltar0(); };
     if (enc && !enc.pronta && contarRec(j.prog.mochila, enc.item) - enc.base >= enc.n) return voltar(); // juntou tudo
     if (foraDeHora || livres < A.mochilaLivre || t >= av.ate) return voltar(foraDeHora ? 'hora' : livres < A.mochilaLivre ? 'mochila' : 'tempo');
+    if (!enc && this.vigorLivreAmiga(j) < 1) { av.semColeta = true; return voltar('vigor'); } // Livre: os 80% ficam para o clã
     const bate = this.inimigosDe(j).find((e) => !e.morto && !e.treino && e.vez === j.id && Math.hypot(e.x - j.x, e.z - j.z) < 6);
     if (bate) { if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null); if (!this.cerebroAmiga(j, j, bate)) this.pararAmiga(j); if (ia.cer?.faca === 'fugir') voltar('luta'); return; }
     if (j.pesca) return this.pescandoAmiga(j);
@@ -806,6 +847,14 @@ export const Amiga = {
     if (!al && enc) { // acabou o veio dela: tenta o próximo lugar com o recurso; senão traz o que tem
       const outro = this.lugarRecursoAmiga(j, ENCOMENDA.recursos[enc.rec], c);
       if (outro) { Object.assign(av, { fase: 'ir', c: outro }); ia.viagem = null; return; }
+      return voltar('acabou');
+    }
+    // recruta com a ordem Farmar recurso (ia.levar) sem o líder no jogo: acabou o veio, vai ao próximo DO RECURSO PEDIDO
+    // (André 2026-11-26: "todos estão zero mineração/hora"; antes ia caçar e a ordem não voltava mais)
+    const Rl = !al && !enc && ia.levar && ENCOMENDA.recursos[ia.levar.r];
+    if (Rl && Rl.coleta === av.coleta) {
+      const outro = this.lugarRecursoAmiga(j, Rl, c);
+      if (outro) { Object.assign(av, { fase: 'ir', c: outro, noTipo: Rl.no }); ia.viagem = null; ia.alvoColeta = null; return; }
       return voltar('acabou');
     }
     if (!al) { av.semColeta = true; av.fase = 'escolher'; av.coleta = null; return; } // acabou o lugar: vai caçar
@@ -831,6 +880,7 @@ export const Amiga = {
     return { x: p.x, z: Math.min(L.def.z1 - 0.4, R[3] + 0.7) };
   },
   colocarPeca(L, falta) {
+    if (L.pecas.some((o) => mesmaPeca(o, falta))) return; // a obra do minuto (cla.js passoObraCasas) já pôs esta
     const p = { id: 'p' + L.prox, ...falta, lote: L.def.id };
     const motivo = motivoPeca(L, p, null, this.areaBase?.(L));
     if (motivo) { // não cabe (alguém mudou o mapa): pula esta peça para sempre nesta sala
@@ -843,11 +893,20 @@ export const Amiga = {
     this.refazerSolidosLotes();
     this.avisarLote(L);
     // ficou presa dentro de uma parede? sai para o lado de fora da porta
-    if (!this.livreParaHeroi(this.amiga, this.amiga.x, this.amiga.z)) Object.assign(this.amiga, { x: casaX0(L.def) + this.AMIGA.porta[0], z: casaZ0(L.def) + this.AMIGA.porta[1] });
+    // (só quem está no lote: a obra do minuto põe peça com o bot longe, num barco ou na água, e ele não pode ir parar em casa)
+    const a = this.amiga, D = L.def;
+    if (a.x > D.x0 - 1 && a.x < D.x1 + 1 && a.z > D.z0 - 1 && a.z < D.z1 + 1 && !this.livreParaHeroi(a, a.x, a.z)) Object.assign(this.amiga, { x: casaX0(L.def) + this.AMIGA.porta[0], z: casaZ0(L.def) + this.AMIGA.porta[1] });
   },
   // recruta do jogador com função no painel (grind, farmar, fazenda...): missão e diária só no modo livre (André 2026-11-23:
   // "se ele tiver em alguma função específica, ele só vai fazer a missão quando tiver em modo livre"). Os clãs bot seguem
   // como estão (o líder bot reparte as ordens)
+  // o vigor que ele pode gastar por conta própria (CLA.livreVigor): membro de clã sem ordem guarda 80% do máximo para o clã;
+  // com a ordem Farmar recurso (ia.levar) ou encomenda andando, usa tudo. Quem não é de clã: o vigor todo
+  vigorLivreAmiga(j) {
+    const v = vigorAgora(j.prog.vigor), ia = j.ia;
+    if (!(this.AMIGA.recruta || this.fixoClaNpc?.(this)) || ia?.levar || (ia?.encomenda && !ia.encomenda.pronta)) return v;
+    return v - CLA.livreVigor.reserva * (j.prog.vigor?.m || vigorMax(j.prog));
+  },
   modoLivreAmiga() {
     if (!this.AMIGA.recruta || this.AMIGA.clanpc) return true;
     const m = this.claDoRecruta?.(this)?.m?.find((o) => o.id === this.AMIGA.id);
@@ -973,6 +1032,8 @@ export const Amiga = {
       case 'horta': return diga(sorteia(F.horta));
       case 'time': {
         if (a.time && a.time === j.time) return diga(sorteia(F.jaNoTime));
+        const fora = this.foraDoTimeAmiga(j); // soldado de outro líder: nunca entra, e diz o motivo certo (André 2026-11-25)
+        if (fora) { this.recusarTimeAmiga(a, j, fora); return diga(this.falaRecusaAmiga(fora)); }
         const topou = this.combinouAmiga(a) || (a.ia.chamado?.quer === 'time' && a.ia.chamado.ate > this.tempo);
         if (!topou && (a.ia.recusaAte || 0) > this.tempo) return diga(F.recusa.jaFalei);
         const v = this.decisaoTimeAmiga(a, j);
@@ -1149,7 +1210,7 @@ export const Amiga = {
     if (profNivel(p.prof?.[R.prof]) < R.nivel) return 'nivel';
     if (motivoLibera(p, 'forja') || motivoLibera(p, 'evoluir', R.r)) return 'libera';
     for (const [k, n] of Object.entries(R.usa)) if (contar(p.mochila, k) < n) return 'material';
-    if (vigorAgora(p.vigor) < R.vigor) return 'vigor';
+    if (vigorAgora(p.vigor) < R.vigor) return 'vigor'; // evoluir a peça fica fora da reserva do Livre (CLA.livreVigor): custa mais que os 20% e nunca sairia
     return '';
   },
   // qual peça do corpo dá para evoluir agora e em qual estação pública: { l, x, z, k } ou null
@@ -1200,8 +1261,8 @@ export const Amiga = {
   // vontade de entrar no time (0 a 1) e o motivo mais forte contra. Regras com sorteio, sem IA paga.
   vontadeAmiga(a, dono) {
     // soldado obedece só ao líder do clã dele (André 2026-11-22). Clã bot (Guarda da Chama, Lobos da Geada) é neutro ou
-    // inimigo: não entra no time de jogador nenhum
-    if (NPC_SOLDADO.ligado) return this.AMIGA.recruta && !this.AMIGA.clanpc && dono?.conta === this.AMIGA.lider ? { p: 1, motivo: 'vontade' } : { p: 0, motivo: 'ocupada' };
+    // inimigo: não entra no time de jogador nenhum. O motivo é o de verdade (André 2026-11-25): líder de clã, membro de clã
+    if (NPC_SOLDADO.ligado) return this.AMIGA.recruta && !this.AMIGA.clanpc && dono?.conta === this.AMIGA.lider ? { p: 1, motivo: 'vontade' } : { p: 0, motivo: this.motivoSoldadoAmiga() };
     const R = this.AMIGA.time, A = this.AMIGA, contra = [];
     // André 2026-11-16: amizade até 4 = base (60%), de 4 a 10 sobe até 100%; cada 5 níveis ACIMA de quem chama tira 5%
     const amz = this.amizadeAmiga(dono), b = A.amizadeBase ?? 4, topo = A.amizade?.max || 10;
@@ -1289,6 +1350,7 @@ export const Amiga = {
     const p = j.conviteTime; if (!p || p.de !== a.id || p.ate < this.tempo || !C || C.id !== id) return aviso('O convite para o time já expirou');
     j.conviteTime = null; a.ia.convidou = null;
     if (a.time && a.time !== j.time) return aviso(`${this.AMIGA.nome} já está em outro time`);
+    const fora = !(a.time && a.time === j.time) && this.foraDoTimeAmiga(j); if (fora) return aviso(this.avisoForaDoTimeAmiga(fora, j)); // convite de antes da regra (André 2026-11-25)
     if (!(a.time && a.time === j.time)) {
       if (!this.trocarDonoAmiga(id)) return aviso(this.comOutroAmiga());
       if (!this.entrarTimeAmiga(a, j)) return aviso(`O time já tem ${TIME.max} pessoas`);
@@ -1310,6 +1372,7 @@ export const Amiga = {
   // Combinou pelo chat (ou ela chamou para o time): entra. Sem combinar: decide como sempre (pode recusar).
   // André 2026-11-14 ("só na missão ela não nega"): na etapa da história que pede time, ela sempre aceita, e quem não
   // jogador também. Fora dessa etapa, tudo igual: pode recusar.
+  // André 2026-11-25: soldado de outro líder (o Dario, os clãs bot) nunca entra, nem na etapa da história; o aviso diz por quê.
   conviteTimeAmiga(id) {
     const a = this.amiga, j = this.jogadores.get(id), nome = this.AMIGA.nome; if (!a || !j) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
@@ -1318,10 +1381,11 @@ export const Amiga = {
     if (a.time && a.time === j.time) return aviso(`${nome} já está no seu time`);
     if (a.time) return aviso(`${nome} já está em outro time`);
     if (this.timeCheioAmiga(j)) return aviso(`O time já tem ${TIME.max} pessoas`);
+    const fora = this.foraDoTimeAmiga(j); if (fora) return aviso(this.avisoForaDoTimeAmiga(fora, j));
     if (!this.trocarDonoAmiga(id)) return aviso(`${nome} está com outra pessoa agora`);
     const ia = a.ia, recusa = () => aviso(`${nome} recusou o convite para o time`);
     if (a.morto) return recusa();
-    if (this.semIaAmiga(a, j)) { this.dizerAmiga(this.AMIGA.falas.recusa.ocupada, false, id); return recusa(); } // a IA dela acabou hoje (André 2026-11-17)
+    if (this.semIaAmiga(a, j)) { this.dizerAmiga(this.falaRecusaAmiga('ocupada'), false, id); return recusa(); } // a IA dela acabou hoje (André 2026-11-17)
     const topou = missao || this.combinouAmiga(a) || (ia.chamado?.quer === 'time' && ia.chamado.ate > this.tempo);
     if (!topou && (ia.recusaAte || 0) > this.tempo) return recusa();
     const dv = this.decisaoTimeAmiga(a, j);
@@ -2146,6 +2210,8 @@ export const Amiga = {
       chamou: id === this.amigaDono && a.ia.chamado && a.ia.chamado.ate > this.tempo ? a.ia.chamado.quer : null,
       humor: (() => { // o que ela decidiu sobre caçar/time agora (decisaoTimeAmiga); o mesmo sorteio vale quando ele chamar
         if (a.time && a.time === j.time) return null;
+        const fora = this.foraDoTimeAmiga(j); // soldado de outro líder: a IA sabe que nunca entra e o motivo (André 2026-11-25)
+        if (fora) return { aceita: false, motivo: fora, sempre: true, cla: this.claBotAmiga()?.n || null };
         const topou = this.combinouAmiga(a) || (a.ia.chamado?.quer === 'time' && a.ia.chamado.ate > this.tempo);
         if (topou) return { aceita: true, combinado: true };
         const h = this.decisaoTimeAmiga(a, j, true);
@@ -2348,7 +2414,7 @@ export const Amiga = {
   },
   // as diárias que faltam e que ele sabe fazer agora (sem sorteio)
   diariasQueFaltamAmiga(j) {
-    if (!j.tarefas || !this.modoLivreAmiga() || !this.temDiarias?.(j) || vigorAgora(j.prog.vigor) < 1 || (j.ia.diariaFalhou || 0) > this.tempo) return [];
+    if (!j.tarefas || !this.modoLivreAmiga() || !this.temDiarias?.(j) || this.vigorLivreAmiga(j) < 1 || (j.ia.diariaFalhou || 0) > this.tempo) return [];
     const st = this.diariasDe(j), falta = (id) => { const D = DIARIAS.lista.find((x) => x.id === id); return D && (st.n[id] || 0) < D.n; };
     const tem = (f) => contar(j.prog.mochila, f) > 0;
     const op = [];
@@ -2380,7 +2446,7 @@ export const Amiga = {
   // plantarArvore do jogador: gasta vigor, conta a diária, cresce no mapa para todo mundo)
   plantarSozinhoAmiga(j, av, noite, voltar, dt) {
     const D = DIARIAS.lista.find((x) => x.id === 'arvores'), st = this.diariasDe(j);
-    if (noite || !D || (st.n.arvores || 0) >= D.n || vigorAgora(j.prog.vigor) < 1 || av.tentou > 12) {
+    if (noite || !D || (st.n.arvores || 0) >= D.n || this.vigorLivreAmiga(j) < 1 || av.tentou > 12) {
       if (av.tentou > 12) j.ia.diariaFalhou = this.tempo + 1800; // não deu: tenta outra coisa por meia hora
       return voltar();
     }
@@ -2488,6 +2554,14 @@ export const Amiga = {
     switch (r.assunto) {
       case 'time': {
         if (noTime) { fala = sorteia(FA.jaNoTime); break; }
+        // soldado de outro líder (André 2026-11-25, o Dario topou depois do "por favor"): nem apelo, nem combinado, nem
+        // chamado. Recusa com o motivo certo, e a fala é a do jogo (a da IA podia prometer o time)
+        const fora = this.foraDoTimeAmiga(j);
+        if (fora) {
+          const apelo = this.apeloAmiga(a, j); // o "por favor" vira pedido de time uma vez por recusa, como no apelo de sempre
+          ia.chamado = null; this.recusarTimeAmiga(a, j, fora); if (apelo) ia.apelou = ia.recusaAte;
+          fala = this.falaRecusaAmiga(fora); r = { ...r, fala: '' }; break;
+        }
         if (a.morto) { fala = FA.caiu; break; }
         // ela que chamou, já topou ou ele pediu para ir junto na caçada que ela já está fazendo (André 2026-11-17: "posso ir
         // com você? Ela: claro, vem"): aceita sem sorteio
@@ -2521,6 +2595,8 @@ export const Amiga = {
       case 'pescar': case 'minerar': case 'lenha': {
         if (a.morto) { fala = FA.caiu; break; }
         if (!noTime) {
+          const fora = this.foraDoTimeAmiga(j); // pescar junto é entrar no time: soldado de outro líder recusa (André 2026-11-25)
+          if (fora) { ia.chamado = null; this.recusarTimeAmiga(a, j, fora); fala = this.falaRecusaAmiga(fora); r = { ...r, fala: '' }; break; }
           const pediu = chamado?.quer === 'time' || chamado?.quer === r.assunto || this.combinouAmiga(a);
           if (!pediu && (ia.recusaAte || 0) > this.tempo) { fala = FA.recusa.jaFalei; break; }
           const v = this.decisaoTimeAmiga(a, j);
@@ -2635,7 +2711,7 @@ export const Amiga = {
     const a = this.amiga, j = this.jogadores.get(id); if (!a || !j) return [];
     const D = DIALOGO, noTime = !!(a.time && a.time === j.time), av = a.ia.av, g = this.AMIGA.genero || 'f';
     const ok = { noTime, foraTime: !noTime, atividade: !!a.ia.atividade, pedido: !!a.pedido, semPedido: !a.pedido, caçando: !noTime && !!(av && ['ir', 'cacar', 'escolher'].includes(av.fase)) };
-    return (Object.hasOwn(D.menus, menu) ? D.menus[menu] : D.menus.inicio).filter((k) => { const o = D.opcoes[k]; return o && (!o.quando || ok[o.quando]) && !(k === 'seguir' && !this.AMIGA.seguivel); }).map((k) => ({ id: k, t: vozAmiga(D.opcoes[k].t, g) }));
+    return (Object.hasOwn(D.menus, menu) ? D.menus[menu] : D.menus.inicio).filter((k) => { const o = D.opcoes[k]; return o && (!o.quando || ok[o.quando]) && !(k === 'seguir' && !this.AMIGA.seguivel) && !(o.acao === 'time' && this.semTimeAmiga()); }).map((k) => ({ id: k, t: vozAmiga(D.opcoes[k].t, g) }));
   },
   // abriu a janela (acao 'menu') ou tocou numa opção (acao 'op', m.op, m.menu = o menu que estava na tela). De perto, ou de
   // qualquer lugar se estiver no time dele (tocando no nome no painel do time). A fala dele vai na janela com as próximas opções.
@@ -3514,7 +3590,9 @@ export const Amiga = {
   lugarRecursoAmiga(j, R, menos = null) {
     let melhor = null, md = Infinity;
     const ok = (x, z) => !(menos && Math.hypot(x - menos.x, z - menos.z) < 12) && !(j.tarefas && zonaFechadaEm(j.prog, x, z));
-    if (R.coleta === 'pescar') { for (const v of this.spots || []) if (v.ativo && ok(v.x, v.z)) { const d = Math.hypot(v.x - j.x, v.z - j.z); if (d < md) { md = d; melhor = { id: v.id, x: v.x, z: v.z, y: 0 }; } } return melhor; }
+    // só spot de lago: o do mar nasce longe da margem (de barco) e ninguém pesca dali em pé (André 2026-11-26: Farmar peixe
+    // ficava indo de um spot do mar para outro, sem pescar nada)
+    if (R.coleta === 'pescar') { for (const v of this.spots || []) if (v.ativo && v.lago && ok(v.x, v.z)) { const d = Math.hypot(v.x - j.x, v.z - j.z); if (d < md) { md = d; melhor = { id: v.id, x: v.x, z: v.z, y: 0 }; } } return melhor; }
     for (const no of this.coletaveis.values()) {
       if (no.tipo !== R.no || this.cargas(j, no) <= 0 || !ok(no.x, no.z)) continue;
       const d = Math.hypot(no.x - j.x, no.z - j.z); if (d < md) { md = d; melhor = { id: no.id, x: no.x, z: no.z, y: no.y ?? null }; }

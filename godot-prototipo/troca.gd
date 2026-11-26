@@ -183,7 +183,7 @@ func cartao_acoes(achou: String, nome: String, longe: bool, bot: bool) -> Array:
 	if A and A.no_meu_time(achou):
 		if bot or A.sou_lider(): # tirar outro jogador só o líder (o servidor confere)
 			bts.append(["Tirar do time", func(): esconder_cartao(); m.rede("time", {"acao": "expulsar", "com": achou})])
-	elif amigo and (bot or m.on()):
+	elif amigo and (bot or m.on()) and not (bot and m.online.amiga_sem_time.has(achou)): # líder de clã bot: sem convite (André 2026-11-25)
 		bts.append(["Chamar pro time", func(): esconder_cartao(); m.rede("time", {"acao": "convidar", "com": achou})])
 	var conta: String = (A.conta_virtual(achou) if bot else A.conta_amigo(achou)) if A else ""
 	if conta != "" and m.chat:
@@ -475,6 +475,7 @@ func do_servidor(ev: Dictionary) -> void:
 			fechar()
 
 func abrir() -> void:
+	m.menu.limpar_ver() # o filtro do que aparece é só do momento (André 2026-11-25)
 	esconder_cartao()
 	sel = -1
 	pag = 0
@@ -498,6 +499,7 @@ func fechar() -> void:
 	if raiz == null or not raiz.visible:
 		return
 	raiz.visible = false
+	m.menu.limpar_ver()
 	m.hud.esconder_combate = false
 	if not m.menu.aberto() and not m.conversa.aberto():
 		m.hud.bloqueado = false
@@ -563,7 +565,7 @@ func coluna_mochila() -> Control:
 	var por_pag: int = int(P.dados.mochila)
 	var tem: int = int(P.prog.get("paginas", 1))
 	pag = clampi(pag, 0, tem - 1)
-	if tem > 1:
+	if tem > 1 and not m.menu.filtrando(): # filtrando: tudo que aparece numa grade só
 		var abas := HBoxContainer.new()
 		abas.add_theme_constant_override("separation", 5)
 		for n in tem:
@@ -572,12 +574,24 @@ func coluna_mochila() -> Control:
 			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			abas.add_child(b)
 		v.add_child(abas)
+	# (André 2026-11-25: os 2 botões de equipamento e recurso escolhem o que aparece; Pôr tudo põe só o que aparece)
+	var lf := HBoxContainer.new()
+	lf.add_theme_constant_override("separation", 6)
+	lf.add_child(m.menu.botoes_ver(P.prog.mochila, montar, 88, "troca"))
+	if not eu_tranquei():
+		var vis: Array = m.menu.ids_visiveis(P.prog.mochila).filter(func(i): return posto(i) < int(P.prog.mochila[i].get("n", 1)))
+		var bt: Button = m.menu.botao("Pôr tudo", func(): _por({"acao": "por", "lista": vis}), 13)
+		bt.custom_minimum_size = Vector2(120, 38)
+		bt.disabled = vis.is_empty()
+		lf.add_child(bt)
+	v.add_child(lf)
 	var g := GridContainer.new()
 	g.columns = 10
 	g.add_theme_constant_override("h_separation", 4)
 	g.add_theme_constant_override("v_separation", 4)
 	var fim: int = P.prog.mochila.size() if pag == tem - 1 else (pag + 1) * por_pag
-	for i in range(pag * por_pag, min(P.prog.mochila.size(), fim)):
+	var lugares: Array = m.menu.ids_visiveis(P.prog.mochila, true) if m.menu.filtrando() else range(pag * por_pag, min(P.prog.mochila.size(), fim))
+	for i in lugares:
 		var it = P.prog.mochila[i]
 		var resta = null
 		if it != null:
@@ -634,7 +648,9 @@ func tocar_item(i: int) -> void:
 	if eu_tranquei():
 		m.hud.aviso("Sua oferta está trancada. Destranque para mudar")
 		return
-	var resta := int(it.get("n", 1)) - posto(i)
+	var resta := 0 # André 2026-11-25: soma das pilhas iguais que ainda não foram (o número pode passar da pilha)
+	for x in m.menu.pilhas_iguais(m.P.prog.mochila, i):
+		resta += maxi(0, int(m.P.prog.mochila[x].get("n", 1)) - posto(x))
 	if resta <= 0:
 		m.hud.aviso("Você já pôs tudo desse item")
 		return
