@@ -223,6 +223,9 @@ export const Leve = {
     if (e.t === 'coleta') return { t: 'coleta', no: e.no, dur: e.dur, prof: e.prof || '' };
     if (e.t === 'coletou') return { t: 'coletou', no: e.no, itens: (e.itens || []).map((o) => ({ nome: o.nome, n: o.n })), cargas: e.cargas };
     if (e.t === 'fala') return { t: 'fala', npc: (this.mapa.npcs || []).find((n) => n.id === e.npc)?.nome?.split(',')[0] || '', texto: e.texto }; // o que o NPC disse (missão)
+    // troca (etapa 5): os itens com nome e cor (a página não tem a tabela de itens)
+    if (e.t === 'troca' && e.fase === 'estado') { const of = (o) => ({ ouro: o.ouro, tranca: o.tranca ? 1 : 0, ok: o.ok ? 1 : 0, itens: o.itens.map((x) => ({ ...(x.i != null ? { i: x.i } : {}), n: x.n, k: x.it?.k, nome: x.it ? nomeItem(x.it) : '?', c: x.it ? corDe(x.it) : null })) }); return { t: 'troca', fase: 'estado', com: e.com, nome: e.nome, eu: of(e.eu), ele: of(e.ele) }; }
+    if (e.t === 'pvp' && e.fase === 'info') { const { loja, ...r } = e; return r; } // a loja de Insígnias fica no jogo
     if (e.t === 'bau') return { t: 'bau', cla: e.cla ? 1 : 0, l: (e.itens || []).length, it: listaLeve(e.itens) };
     return e;
   },
@@ -334,7 +337,7 @@ export const Leve = {
     const g = [];
     for (const o of this.jogadores.values()) {
       if (o === j || o.criando || o.caverna || Math.hypot(o.x - j.x, o.z - j.z) > LEVE.gente) continue;
-      g.push([o.nome, r1(o.x), r1(o.z), this.racaDe(o) === 'Geada' ? 1 : 0, o.bot ? 1 : 0, o.prog?.nivel | 0, o.morto ? 1 : 0]);
+      g.push([o.nome, r1(o.x), r1(o.z), this.racaDe(o) === 'Geada' ? 1 : 0, o.bot ? 1 : 0, o.prog?.nivel | 0, o.morto ? 1 : 0, o.id]); // [7] id: grupo, duelo, troca e amizade (etapa 5)
       if (g.length >= LEVE.max) break;
     }
     const m = [];

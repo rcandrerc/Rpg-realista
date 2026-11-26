@@ -117,14 +117,14 @@ async function tela() {
 // da barra de cima e ficam no Mais (a barra de baixo acende o Mais enquanto estão abertas).
 let aba = 'jogar';
 $('mapaBots').onchange = (e) => { gravar('painelBots', e.target.checked ? '1' : null); desenhar(); };
-const DO_MAIS = new Set(['leilao', 'bots', 'log', 'personagem']);
+const DO_MAIS = new Set(['leilao', 'bots', 'log', 'personagem', 'social']);
 function irAba(a) {
   aba = a;
   for (const o of $('abas').querySelectorAll('button')) o.classList.toggle('ativo', o.dataset.aba === a || (o.dataset.aba === 'mais' && DO_MAIS.has(a)));
   document.body.classList.toggle('abaCla', a === 'cla');
   $('cla').hidden = aba !== 'cla'; $('bots').hidden = aba !== 'bots'; $('log').hidden = aba !== 'log';
   $('leilaoAba').hidden = aba !== 'leilao'; if (aba === 'leilao') pedirLeilao();
-  $('mochilaAba').hidden = aba !== 'mochila'; $('missoesAba').hidden = aba !== 'missoes'; $('maisAba').hidden = aba !== 'mais'; $('personagemAba').hidden = aba !== 'personagem';
+  $('mochilaAba').hidden = aba !== 'mochila'; $('missoesAba').hidden = aba !== 'missoes'; $('maisAba').hidden = aba !== 'mais'; $('personagemAba').hidden = aba !== 'personagem'; $('socialAba').hidden = aba !== 'social';
   $('jogarAba').hidden = aba !== 'jogar';
   if (aba !== 'jogar') document.body.classList.remove('leveTela');
   // a aba Mapa saiu (André 2026-11-25: "no jogar já tem o mapa... pode remover"): o mapa, os líderes bot e a legenda ficam no Jogar
@@ -134,6 +134,7 @@ function irAba(a) {
   if (querMs !== !!leve.msVer) { leve.msVer = querMs; mandar('leveMissoes', { ver: querMs }); } // a lista só vem com a aba aberta (Missões ou Personagem)
   if (aba === 'missoes') desenharMissoes();
   if (aba === 'personagem') desenharPersonagem();
+  if (aba === 'social') { mandar('amigo', { acao: 'lista' }); mandar('pvp', { acao: 'info' }); desenharSocial(); }
   if (aba === 'mais') desenharMais();
   scrollTo(0, 0);
   desenhar();
@@ -617,6 +618,7 @@ function eventoLeve(e) {
   }
   else if (e.t === 'fabricando') { leve.fab = e.fim ? null : { nome: e.nome, ate: Date.now() + (e.dur || 0) * 1000 }; leve.sujo = true; }
   else if (e.t === 'fala') falaLeve(e); // o NPC respondeu (missão)
+  else if (['time', 'duelo', 'pvp', 'troca', 'amigos', 'amigo'].includes(e.t)) socialEvento(e); // etapa 5
   else if (e.t === 'diaria_ir' && e.alvo) irLeve(e.alvo); // Ir da diária ou do contrato: o servidor diz o lugar aberto mais perto
   else if (e.t === 'chat') chatLeve([e]);
   else if (e.t === 'chatHist') { leve.chat = []; chatLeve(e.l); }
@@ -1366,6 +1368,91 @@ function falaLeve(e) {
   const fechar = () => j.remove(); ok.onclick = fechar; j.onclick = (ev) => { if (ev.target === j) fechar(); };
   j.firstChild.append(ok); document.querySelectorAll('.janelaLeve.fala').forEach((o) => o.remove()); document.body.append(j);
 }
+// ---------- Gente e PvP (etapa 5, André 2026-11-26): grupo, duelo, troca, amizade e Arena 4x4, com as mesmas mensagens do
+// jogo ('time', 'duelo', 'troca', 'amigo', 'pvp'). Convites que chegam abrem uma janelinha com Aceitar e Recusar.
+function convite(txt, aceitar, recusar) {
+  const j = janelaLeve([el('div', 'nome', txt)]), b = el('div', 'bts'), fechar = () => j.remove();
+  const s = el('button', 'acao', 'Aceitar'); s.onclick = () => { aceitar(); fechar(); };
+  const n = el('button', 'acao cinza', 'Recusar'); n.onclick = () => { recusar(); fechar(); };
+  b.append(s, n); j.firstChild.append(b); j.onclick = null; document.body.append(j);
+  setTimeout(fechar, 30000); // o pedido do jogo vence sozinho
+}
+function socialEvento(e) {
+  const f = e.fase;
+  if (e.t === 'time') { if (f === 'convite') convite(`${e.nome} chamou você para o grupo`, () => mandar('time', { acao: 'aceitar', com: e.de }), () => mandar('time', { acao: 'recusar', com: e.de })); else if (f === 'estado') leve.grupo = e; else if (f === 'fim') leve.grupo = null; }
+  else if (e.t === 'duelo') { if (f === 'pedido') convite(`${e.nome} chamou você para um duelo`, () => mandar('duelo', { acao: 'aceitar', com: e.de }), () => mandar('duelo', { acao: 'recusar', com: e.de })); else if (f === 'inicio') { aviso(`Duelo com ${e.nome}: luta em ${e.conta || 3} s`); irAba('jogar'); } else if (f === 'fim') aviso(e.ganhou ? 'Você venceu o duelo!' : `Duelo: venceu ${e.vencedor || 'o outro'}`); }
+  else if (e.t === 'troca') { if (f === 'pedido') convite(`${e.nome} quer trocar com você`, () => mandar('troca', { acao: 'aceitar', com: e.de }), () => mandar('troca', { acao: 'recusar', com: e.de })); else if (f === 'estado') { leve.troca = e; janelaTroca(); } else if (f === 'fim') { leve.troca = null; janelaTroca(); aviso(e.feita ? 'Troca feita!' : e.motivo || 'Troca fechada'); } }
+  else if (e.t === 'amigo') { if (f === 'pedido') convite(`${e.nome} quer ser seu amigo`, () => mandar('amigo', { acao: 'aceitar', com: e.de }), () => mandar('amigo', { acao: 'recusar', com: e.de })); else if (f === 'pedidoC') convite(`${e.nome} quer ser seu amigo`, () => mandar('amigo', { acao: 'aceitarC', c: e.c }), () => mandar('amigo', { acao: 'recusarC', c: e.c })); }
+  else if (e.t === 'amigos') leve.amigos = e;
+  else if (e.t === 'pvp') { if (f === 'info') leve.pvp = e; else if (f === 'fila') leve.pvpFila = e.na ? e : null; else if (f === 'inicio') { leve.pvpFila = null; aviso('Arena: a partida começou!'); irAba('jogar'); } else if (f === 'fim') aviso(`Arena: ${e.ganhou ? 'vitória' : e.resultado || 'fim'}`); }
+  if (aba === 'social') desenharSocial();
+}
+// a troca: as duas ofertas, pôr item (toque na mochila), ouro, trancar e confirmar (as regras do jogo)
+function janelaTroca() {
+  document.querySelectorAll('.janelaLeve.troca').forEach((o) => o.remove());
+  const T = leve.troca; if (!T) return;
+  const fecha = el('button', 'acao cinza', 'Fechar troca'); fecha.onclick = () => mandar('troca', { acao: 'cancelar' });
+  const lado = (tit, of, meu) => {
+    const c = el('div'); c.append(el('div', 'faz', `${tit}${of.tranca ? ' · 🔒 trancada' : ''}${of.ok ? ' · ✓ confirmou' : ''} · ${of.ouro} ouro`));
+    const g = el('div', 'icones'); of.itens.forEach((x, k) => g.append(itemLeve(x.k, x.nome, x.c, x.n, null, false, () => { if (meu && !of.tranca) mandar('troca', { acao: 'tirar', o: k }); else aviso(`${x.nome} ×${x.n}`); })));
+    if (!of.itens.length) g.append(el('div', 'faz', 'nada'));
+    c.append(g); return c;
+  };
+  const corpo = [el('div', 'nome', `Troca com ${T.nome}`), lado('Você dá', T.eu, true), lado(`${T.nome} dá`, T.ele, false)];
+  if (!T.eu.tranca) {
+    corpo.push(el('div', 'faz', 'Toque num item para pôr na troca:'));
+    const g = el('div', 'icones'); for (const [i, k, n, nome, cor, , cad] of leve.mo?.it || []) if (!cad) g.append(itemLeve(k, nome, cor, n, null, false, () => mandar('troca', { acao: 'por', i, n })));
+    g.style.maxHeight = '30vh'; g.style.overflowY = 'auto'; corpo.push(g);
+    const ouro = el('input'); ouro.type = 'number'; ouro.min = 0; ouro.value = T.eu.ouro; ouro.inputMode = 'numeric'; ouro.style.width = '110px';
+    const ob = el('button', 'acao cinza', 'Pôr ouro'); ob.onclick = () => mandar('troca', { acao: 'ouro', n: Math.max(0, ouro.value | 0) });
+    const l = el('div', 'extra'); l.append(ouro, ob); corpo.push(l);
+  }
+  const b = el('div', 'bts');
+  b.append(bt(T.eu.tranca ? '🔓 Destrancar' : '🔒 Trancar', () => mandar('troca', { acao: 'trancar', v: !T.eu.tranca }), T.eu.tranca));
+  if (T.eu.tranca && T.ele.tranca && !T.eu.ok) b.append(bt('✓ Confirmar', () => mandar('troca', { acao: 'confirmar' })));
+  b.append(fecha); corpo.push(b);
+  const j = janelaLeve(corpo); j.classList.add('troca'); j.onclick = null; j.firstChild.style.maxHeight = '90vh'; j.firstChild.style.overflowY = 'auto'; document.body.append(j);
+}
+function desenharSocial() {
+  const raiz = $('socialAba'); if (aba !== 'social') return;
+  if (document.activeElement?.tagName === 'INPUT' && raiz.contains(document.activeElement)) return;
+  limpar(raiz);
+  if (!leve.sala || !leve.f) return foraDoMundo(raiz, 'quem está perto');
+  const card = (tit) => { const c = el('div', 'card'); c.append(el('div', 'nome', tit)); raiz.append(c); return c; };
+  // perto de você (o mesmo raio da foto): os da sua raça; a Geada é guerra (luta pelo mapa)
+  { const c = card('📍 Perto de você'), L = (leve.f.g || []).filter((o) => !o[3] && !o[6] && o[7]);
+    if (!L.length) c.append(el('div', 'faz', 'Ninguém da Chama perto agora.'));
+    for (const o of L) {
+      const d = Math.round(Math.hypot(o[1] - leve.f.eu[0], o[2] - leve.f.eu[1]));
+      const r = el('div', 'recLeve'), n = el('div', 'n'); n.append(el('b', null, `${o[0]} · Nv ${o[5]}`), el('small', null, `${d} m${o[4] ? ' · bot' : ''}`)); r.append(n);
+      const b = (t, tipo, acao) => { const x = el('button', null, t); x.style.minWidth = '0'; x.style.padding = '0 10px'; x.onclick = () => mandar(tipo, { acao, com: o[7] }); r.append(x); };
+      b('👥', 'time', 'convidar'); b('⚔️', 'duelo', 'pedir'); b('🔁', 'troca', 'pedir'); b('🤝', 'amigo', 'pedir');
+      c.append(r);
+    }
+    c.append(el('div', 'faz', '👥 grupo · ⚔️ duelo · 🔁 troca · 🤝 amizade. Precisa estar perto, como no jogo.'));
+  }
+  // meu grupo
+  { const c = card('👥 Meu grupo'), G = leve.grupo;
+    if (!G) c.append(el('div', 'faz', 'Sem grupo. Chame alguém perto com 👥.'));
+    else { for (const m of G.membros || []) c.append(el('div', null, `${m.nome || m.id}${m.id === G.lider ? ' (líder)' : ''}`)); const b = el('div', 'bts'); b.append(bt('Sair do grupo', () => mandar('time', { acao: 'sair' }), true)); c.append(b); }
+  }
+  // arena 4x4
+  { const c = card('🏟️ Arena 4x4'), P = leve.pvp;
+    if (P) c.append(el('div', 'faz', `${P.pts} ${P.moeda || 'Insígnias'} · ${P.v} vitórias · ${P.d} derrotas · ${P.k} abates`));
+    const b = el('div', 'bts');
+    if (leve.pvpFila || P?.naFila) { c.append(el('div', null, `Na fila${leve.pvpFila?.n ? ` (${leve.pvpFila.n} na fila)` : ''}…`)); b.append(bt('Sair da fila', () => mandar('pvp', { acao: 'sair' }), true)); }
+    else b.append(bt('Entrar na fila', () => mandar('pvp', { acao: 'fila' })));
+    c.append(b);
+  }
+  // amigos
+  { const c = card('🤝 Amigos'), A = leve.amigos;
+    if (!A) c.append(el('div', 'faz', 'Abrindo…'));
+    else if (![...(A.lista || []), ...(A.virtuais || [])].length) c.append(el('div', 'faz', 'Nenhum amigo ainda.'));
+    else for (const a of [...(A.lista || []), ...(A.virtuais || [])]) { const r = el('div', 'recLeve'), n = el('div', 'n'); n.append(el('b', null, a.nome), el('small', null, a.on === 1 ? `no jogo${a.nivel ? ' · Nv ' + a.nivel : ''}` : a.on === 2 ? 'no painel' : 'fora')); r.append(n);
+      if (a.on === 1 && a.id && !a.time) { const x = el('button', null, '👥 Chamar'); x.onclick = () => mandar('time', { acao: 'convidar', com: a.id }); r.append(x); }
+      c.append(r); }
+  }
+}
 // ---------- Personagem (etapa 4, André 2026-11-26): status, atributos, golpes e títulos, iguais ao menu do jogo
 let atrPend = {}, golpeSel = -1;
 function desenharPersonagem() {
@@ -1492,8 +1579,7 @@ function desenharMais() {
   item('📜 Registro do clã', 'o que aconteceu', () => irAba('log'));
   // Missões ganhou aba própria (etapa 3)
   item('🧍 Personagem', 'atributos, golpes, títulos', () => irAba('personagem'));
-  item('⚔️ PvP', 'arena 4x4, duelo, patente · em breve', null);
-  item('👥 Amigos, grupo e troca', 'em breve', null);
+  item('👥 Gente e PvP', 'grupo, duelo, troca, amigos, arena 4x4', leve.sala ? () => irAba('social') : null);
   item('🌾 Fazenda, base e pesca', 'em breve', null);
   item('❓ Como jogar', 'a dica da primeira vez', () => { dicaAberta = true; irAba('jogar'); });
   const w = el('button', 'item'); w.append(el('span', null, '📖 Wiki'), el('small', null, 'abre em outra aba')); w.onclick = () => open('wiki/', '_blank', 'noopener'); L.append(w);
