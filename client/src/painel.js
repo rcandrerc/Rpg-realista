@@ -44,7 +44,7 @@ async function sessaoValida() {
   return null;
 }
 function login() {
-  $('entrar').hidden = false; $('cla').hidden = true;
+  $('entrar').hidden = false; $('cla').hidden = true; $('jogarAba').hidden = true;
   estado('Fora');
   return new Promise((pronto) => {
     const s = document.createElement('script');
@@ -59,7 +59,7 @@ function login() {
           const d = await r.json().catch(() => ({}));
           if (!r.ok) throw new Error(d.semConta ? 'Essa conta Google ainda não tem personagem. Crie no jogo primeiro.' : d.erro || 'O servidor recusou o login.');
           gravar('sessao', d.sessao);
-          $('entrar').hidden = true; $('cla').hidden = false;
+          $('entrar').hidden = true; irAba(aba);
           pronto(d.sessao);
         } catch (e) { $('entrarErro').textContent = e.message === 'Failed to fetch' ? 'Servidor fora do ar. Tente de novo daqui a pouco.' : e.message; }
       } });
@@ -116,18 +116,30 @@ async function tela() {
 }
 
 // ---------- desenho ----------
-let aba = 'cla';
+// versão leve completa (André 2026-11-26: "uma versão inteira do jogo... botar o painel do clã dentro do jogo"): a página
+// abre no Jogo; 5 abas fixas embaixo (Jogo, Mochila, Clã, Missões, Mais). Leilão (só olhar), Clãs bot e Registro saíram
+// da barra de cima e ficam no Mais (a barra de baixo acende o Mais enquanto estão abertas).
+let aba = 'jogar';
 $('mapaBots').onchange = (e) => { gravar('painelBots', e.target.checked ? '1' : null); desenhar(); };
-for (const b of $('abas').querySelectorAll('button')) b.onclick = () => {
-  aba = b.dataset.aba;
-  for (const o of $('abas').querySelectorAll('button')) o.classList.toggle('ativo', o === b);
+const DO_MAIS = new Set(['leilao', 'bots', 'log']);
+function irAba(a) {
+  aba = a;
+  for (const o of $('abas').querySelectorAll('button')) o.classList.toggle('ativo', o.dataset.aba === a || (o.dataset.aba === 'mais' && DO_MAIS.has(a)));
+  document.body.classList.toggle('abaCla', a === 'cla');
   $('cla').hidden = aba !== 'cla'; $('bots').hidden = aba !== 'bots'; $('log').hidden = aba !== 'log';
   $('leilaoAba').hidden = aba !== 'leilao'; if (aba === 'leilao') pedirLeilao();
+  $('mochilaAba').hidden = aba !== 'mochila'; $('missoesAba').hidden = aba !== 'missoes'; $('maisAba').hidden = aba !== 'mais';
   $('jogarAba').hidden = aba !== 'jogar';
+  if (aba !== 'jogar') document.body.classList.remove('leveTela');
   // a aba Mapa saiu (André 2026-11-25: "no jogar já tem o mapa... pode remover"): o mapa, os líderes bot e a legenda ficam no Jogar
-  if (aba === 'jogar') { vista = null; desenharJogar(); }
+  if (aba === 'jogar') { vista = null; leve.sujo = true; desenharJogar(); if (leve.sala) desenharMapa(); }
+  if (aba === 'mochila') { leve.sujo = true; desenharMochila(); }
+  if (aba === 'missoes') desenharMissoes();
+  if (aba === 'mais') desenharMais();
+  scrollTo(0, 0);
   desenhar();
-};
+}
+for (const b of $('abas').querySelectorAll('button')) b.onclick = () => irAba(b.dataset.aba);
 
 function barra(rot, v, max, cor) {
   const d = el('div'); d.append(el('div', 'rot', `${rot} ${v}/${max}`));
@@ -568,7 +580,11 @@ function ligarLeve(s) {
   s.onMessage('leve', (d) => {
     leve.f = d.f; if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa;
     for (const e of d.ev || []) eventoLeve(e);
-    if (aba === 'jogar') { desenharMapa(); desenharJogar(); }
+    // apanhou minerando (André 2026-11-26: "quando chega o combate... tá meio confuso"): o servidor para a coleta (igual ao
+    // jogo 3D); a página guarda o veio para o botão "Voltar a minerar" quando a luta acabar
+    const coAntes = leve.coAntes; leve.coAntes = d.f?.co ? { no: d.f.co[0], nome: d.f.co[1], prof: leve.col?.no === d.f.co[0] ? leve.col.prof : '' } : null;
+    if (d.f?.co) leve.volta = null; else if (coAntes && d.f?.lu) leve.volta = coAntes;
+    if (aba === 'jogar') { desenharMapa(); desenharJogar(); } else if (aba === 'mochila' && leve.sujo) desenharMochila();
   });
   s.onMessage('leveMapa', (d) => { leve.mapa = d; leve.sujo = true; });
   s.onMessage('leveErro', (t) => { aviso(t); leve.saindo = true; s.leave(); });
@@ -580,7 +596,7 @@ function ligarLeve(s) {
     else if (!leve.saindo && codigo !== 4003) { // queda de internet: tenta voltar no mesmo herói
       try { ligarLeve(await cliente.reconnect(token)); return; } catch { aviso('O modo leve caiu. Toque em Entrar no mundo.'); }
     }
-    desenharJogar(); if (aba === 'jogar') desenharMapa();
+    desenharJogar(); if (aba === 'jogar') desenharMapa(); if (aba === 'mochila') desenharMochila();
   });
 }
 function sairLeve() { if (!leve.sala) return; leve.saindo = true; leve.sala.leave(); }
@@ -637,7 +653,7 @@ function tocarMapaLeve(e) {
   for (const L of leve.mapa ? [...leve.mapa.npcs, ...leve.mapa.totens] : []) { const d = Math.hypot(L.x - x, L.z - z); if (d < melhor) { melhor = d; alvo = { x: L.x, z: L.z, nome: L.n.split(',')[0] }; } }
   irLeve(alvo);
 }
-const irLeve = (a) => mandar('leveIr', { x: Math.round(a.x * 10) / 10, z: Math.round(a.z * 10) / 10, nome: a.nome || undefined });
+const irLeve = (a) => { mandar('leveIr', { x: Math.round(a.x * 10) / 10, z: Math.round(a.z * 10) / 10, nome: a.nome || undefined }); if (aba !== 'jogar') irAba('jogar'); }; // de outra aba (ex.: Criar > Ir até a bigorna): volta ao mapa para ver o herói andar
 
 const dEu = (o) => Math.hypot(o.x - leve.f.eu[0], o.z - leve.f.eu[1]);
 const maisPerto = (lista) => lista.reduce((m, o) => (!m || dEu(o) < dEu(m) ? o : m), null);
@@ -980,6 +996,7 @@ function cartaoLugares(M) {
 
 let jogarChave = '';
 function desenharJogar() {
+  if (aba === 'mochila') return desenharMochila(); // os cartões da Mochila e do Criar chamam este redesenho
   const raiz = $('jogar'); if (aba !== 'jogar') return;
   telaLeve(!!leve.sala);
   $('jogarChat').hidden = !leve.sala || painelLeve !== 'chat';
@@ -1009,35 +1026,15 @@ function desenharJogar() {
   st.append(conta);
   const extras = [pack && '📦 pack nas costas', montado && '🐺 no lobo', leve.pk?.car?.onde === 2 && '🛒 no carrinho'].filter(Boolean);
   if (extras.length) st.append(el('div', 'faz', extras.join(' · ')));
-  if (leve.rec > Date.now()) st.append(el('div', 'nome', `🏠 Voltando para a base… ${Math.ceil((leve.rec - Date.now()) / 1000)} s (toque 🏠 de novo para desistir)`));
-  if (leve.fab) { const s = Math.max(0, Math.ceil((leve.fab.ate - Date.now()) / 1000)); st.append(el('div', 'nome', `Fazendo ${leve.fab.nome}… ${s} s (fique perto)`)); }
-  const R = leve.f.r;
-  if (leve.f.co && !morto) { // coletando: o que é e o Parar (a mesma mensagem do jogo)
-    const l = el('div', 'bts mini'), p = el('button', 'acao cinza', 'Parar'); p.onclick = () => mandar('leveColetar', { no: leve.f.co[0], parar: true }); p.style.flex = '0 0 auto';
-    const c = leve.col?.no === leve.f.co[0] ? leve.col : null, [ic] = COLETA_VERBO[c?.prof] || COLETA_VERBO[''];
-    const fazendo = { min: 'Minerando', len: 'Cortando' }[c?.prof] || 'Coletando';
-    const box = el('div', 'coletaLeve'), topo = el('div', 'bts mini');
-    topo.style.alignItems = 'center'; topo.style.flexWrap = 'nowrap'; topo.append(el('div', 'titulo', `${ic} ${fazendo} ${leve.f.co[1]}…`), p); topo.firstChild.style.flex = '1';
-    const barra = el('div', 'progColeta'), enche = el('i'); barra.append(enche);
-    if (c?.ini) { const f = Math.min(1, (Date.now() - c.ini) / c.dur); enche.style.width = (f * 100).toFixed(0) + '%'; } else barra.classList.add('vai');
-    const tot = Object.entries(c?.tot || {}).map(([n, q]) => `${q} ${n}`).join(' · ');
-    box.append(topo, barra, el('div', 'faz', `Pegou: ${tot || 'nada ainda'}${c?.cargas != null ? ` · restam ${c.cargas}` : ''}`)); st.append(box);
-  }
-  if (morto) st.append(el('div', 'nome', 'Você caiu. Espere renascer no totem.'));
-  else if (R) {
-    const l = el('div', 'bts mini'), p = el('button', 'acao cinza', 'Parar'); p.onclick = () => mandar('leveParar'); p.style.flex = '0 0 auto';
-    l.style.alignItems = 'center'; l.style.flexWrap = 'nowrap';
-    l.append(el('div', 'nome', `🚶 ${leve.rotaNome || 'Andando'} · ${R[0]} m · ${R[1] >= 60 ? Math.floor(R[1] / 60) + ' min' : R[1] + ' s'}`), p);
-    l.firstChild.style.flex = '1'; st.append(l);
-  } else st.append(el('div', 'faz', 'Toque no mapa ou em 🧭 Ir para.'));
-  lutaLeve(raiz, morto, mn);
-  const P = pertoAgora(), chave = [P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(','), montado ? 'm' : '', P.veio?.[0] || '', P.col.map((o) => o[0]).join(','), leve.f.co?.[0] || ''].join('|');
+  const P = pertoAgora();
+  cartaoAcao(raiz, P, morto, mn);
+  const chave = [P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(','), montado ? 'm' : '', P.veio?.[0] || '', P.col.map((o) => o[0]).join(','), leve.f.co?.[0] || ''].join('|');
   if (chave === jogarChave && !leve.sujo && raiz.contains(st)) return;
   if (document.activeElement?.tagName === 'INPUT' && raiz.contains(document.activeElement) && chave === jogarChave) return; // digitando: não refaz
   if (chave !== jogarChave) { leve.sel = null; if (!P.npc || P.npc.f !== 'leilao') leve.leilao = null; if (!P.bau) leve.bau = null; }
   const algo = !!(P.npc || P.bau || P.totem), chegou = (algo && chave.split('|').slice(0, 3).join('|') !== jogarChave.split('|').slice(0, 3).join('|'))
     || (P.veio && P.veio[0] !== jogarChave.split('|')[6]); // chegou num veio: o Aqui abre com o Minerar
-  if (chegou) painelLeve = 'perto';
+  if (chegou && !emLuta(morto)) painelLeve = 'perto';
   jogarChave = chave; leve.sujo = false;
   // tela do modo leve (André 2026-11-25: "tem q rolar muito... como o menu é sanfonado da pra limpar a tela"): o mapa ocupa
   // a tela; embaixo, uma barra com Perto, Mochila, Lugares e Chat. Cada botão abre um painel por cima do mapa (um por vez;
@@ -1079,25 +1076,16 @@ function desenharJogar() {
     rolouChave = chave; rolouPainel = painelLeve;
     f.onscroll = () => { rolouChave = chave; rolouPainel = painelLeve; };
   }
-  // 2 (André 2026-11-25): barra de baixo com ícone e nome; o 1º botão diz onde você está (acende ao chegar)
-  const doca = el('div', 'doca');
-  const temPerto = algo || !!(P.car || P.chao?.length || leve.pk?.c || P.veio);
-  const aqui = P.npc ? P.npc.n.split(',')[0] : P.bau ? (P.bau.cla ? 'Baú do Clã' : 'Baú') : P.totem ? 'Totem' : P.veio ? 'Minério' : temPerto ? 'Pack' : 'Aqui';
-  for (const [k, ic, txt] of [['perto', '📍', aqui], ['mochila', '🎒', 'Mochila'], ['criar', '🔨', 'Criar'], ['lugares', '🧭', 'Ir para'], ['chat', '💬', 'Chat']]) {
-    const b = el('button', (painelLeve === k ? 'ativo' : '') + (k === 'perto' && temPerto ? ' tem' : ''));
-    b.append(el('i', null, ic), document.createTextNode(txt));
-    b.onclick = () => abrirPainelLeve(painelLeve === k ? '' : k);
-    doca.append(b);
-  }
-  raiz.append(doca);
-  lutaLeve(raiz, morto, mn); // a tela foi refeita: os botões de luta voltam (acima da barra)
+  // a barra de baixo (Aqui, Mochila, Criar, Ir para, Chat) virou o cartão único (André 2026-11-26): Aqui e Ir para ficam
+  // no cartão; Mochila e Criar na aba Mochila; Chat no botão redondo 💬
+  if (cartaoEl) raiz.append(cartaoEl);
+  cartaoAcao(raiz, P, morto, mn); // a tela foi refeita: o cartão e os golpes voltam
   // os botões redondos à direita: lobo, base (recall), sair e ajuda
   const rd = el('div', 'redondos'), red = (ic, txt, fazer, ativo) => { const b = el('button', ativo ? 'ativo' : ''); b.append(el('i', null, ic), document.createTextNode(txt)); b.onclick = fazer; rd.append(b); };
   if (!leve.pk?.car || leve.pk.car.onde !== 2) red('🐺', montado ? 'Descer' : 'Lobo', () => mandar('montar'), montado); // a mesma mensagem do jogo ('montar')
   red('🏠', 'Base', () => mandar('vila'), leve.rec > Date.now()); // o mesmo da casinha do jogo (Simulacao.voltarVila): canaliza e aparece no Baú do Clã
-  red('⏻', 'Sair', () => { if (confirm('Sair do mundo? Seu herói sai do jogo.')) sairLeve(); });
   red('👥', 'Time', () => abrirPainelLeve(painelLeve === 'time' ? '' : 'time'), painelLeve === 'time');
-  red('❓', 'Ajuda', () => { dicaAberta = true; leve.sujo = true; desenharJogar(); });
+  red('💬', 'Chat', () => abrirPainelLeve(painelLeve === 'chat' ? '' : 'chat'), painelLeve === 'chat'); // Sair e Ajuda foram para a aba Mais
   raiz.append(rd);
   // 5: a dica da primeira vez (guardada no aparelho; o ❓ mostra de novo)
   if (dicaAberta === null) { try { dicaAberta = !localStorage.getItem('leveDica1'); } catch { dicaAberta = false; } }
@@ -1105,10 +1093,12 @@ function desenharJogar() {
     const ok = el('button', 'acao', 'Entendi');
     ok.onclick = () => { dicaAberta = false; try { localStorage.setItem('leveDica1', '1'); } catch { /* sem armazenamento */ } leve.sujo = true; desenharJogar(); };
     const d = el('div', 'dica');
-    for (const t of ['👆 Toque no mapa: seu herói anda até lá sozinho, pela estrada.', '🧭 Ir para: base, totem, leilão e loja com 1 toque, ou busque pelo nome.',
-      '📍 Chegou numa loja, baú ou totem: a janela dele abre sozinha.', '🎒 Mochila mostra o que você leva. Toque num item da loja ou do baú para vender, comprar ou guardar.',
-      '🟢 Verde: você e seus recrutas · 🔴 Vermelho: Geada (inimigo) · 🔵 Azul: outros da Chama · 🟠 Laranja: monstro.', '⚔️ Toque num monstro (laranja) e em Atacar. Com monstro perto aparecem os golpes: cada toque é um golpe.',
-      '⛏️ Minerar ou cortar: 🧭 Ir para > Recursos. Ao chegar, toque em Minerar ou Cortar no 📍 (precisa de picareta ou machado).', '👥 Time: chame seus recrutas para andar e lutar com você.', '🐺 monta no lobo · 🏠 volta para a base do clã · ⏻ sai do mundo.']) d.append(el('div', null, t));
+    for (const t of ['👆 Toque no mapa: seu herói anda até lá sozinho, pela estrada.', '🟫 O cartão embaixo do mapa diz o que você está fazendo: Parado, Andando, Minerando, Em luta ou Caído. Os botões dele são os que valem agora.',
+      '🧭 Ir para: base, totem, leilão e loja com 1 toque, ou busque pelo nome.', '📍 Chegou numa loja, baú ou totem: a janela dele abre sozinha.',
+      '🎒 Aba Mochila: o que você leva e o Criar. 🛡️ Aba Clã: seus recrutas e ordens. ☰ Mais: chat, leilão, sair.',
+      '⛏️ Apanhou minerando: a mineração para e o cartão vira Em luta. Acabou a luta: "Voltar a minerar".',
+      '🟢 Verde: você e seus recrutas · 🔴 Vermelho: Geada (inimigo) · 🔵 Azul: outros da Chama · 🟠 Laranja: monstro.', '⚔️ Toque num monstro (laranja) e em Atacar. Em luta, os golpes ficam no cartão: cada toque é um golpe. Para fugir, toque no mapa.',
+      '⛏️ Minerar ou cortar: 🧭 Ir para > Recursos. Ao chegar, toque em Minerar ou Cortar no 📍 (precisa de picareta ou machado).', '👥 Time: chame seus recrutas para andar e lutar com você.', '🐺 monta no lobo · 🏠 volta para a base do clã · 💬 chat.']) d.append(el('div', null, t));
     const j = janelaLeve([el('div', 'nome', 'Como jogar o modo leve'), d, ok]); j.onclick = null; raiz.append(j);
   }
 }
@@ -1140,7 +1130,7 @@ function lutaLeve(raiz, morto, mana) {
     }
   } else if (a) a.remove();
   // os botões de luta: só com monstro perto (ou alvo escolhido) e sem painel aberto por cima
-  let h = $('jogarHab');
+  let h = cartaoEl?.querySelector('.habLeve') || null; // os golpes moram no cartão (que pode estar fora do DOM agora)
   // Geada perto (André 2026-11-25: "e se um geada aparecer?"): aviso vermelho e os golpes aparecem (o servidor mira no mais perto, como no jogo)
   const geada = (F.g || []).filter((o) => o[3] && !o[6] && Math.hypot(o[1] - F.eu[0], o[2] - F.eu[1]) < LUTA_PERTO * 2);
   let ga = $('jogarGeada');
@@ -1149,11 +1139,12 @@ function lutaLeve(raiz, morto, mana) {
     ga.textContent = `⚠️ Geada perto: ${geada.slice(0, 2).map((o) => `${o[0]}, Nv ${o[5]}`).join(' · ')}`;
     if (!raiz.contains(ga)) raiz.insertBefore(ga, raiz.children[1] || null);
   } else if (ga) ga.remove();
-  const perto = !morto && !painelLeve && F.hb && (leve.mira || geada.some((o) => Math.hypot(o[1] - F.eu[0], o[2] - F.eu[1]) < LUTA_PERTO) || M.some((o) => Math.hypot(o[0] - F.eu[0], o[1] - F.eu[1]) < LUTA_PERTO));
+  const perto = F.hb && emLuta(morto);
   if (!perto) { if (h) h.remove(); habChave = ''; return; }
   const chave = F.hb.l.map((o) => o[0] + o[1]).join('|') + F.hb.mg;
   if (!h || chave !== habChave) {
-    h = el('div', 'habLeve'); h.id = 'jogarHab'; habChave = chave;
+    if (h) h.remove();
+    h = el('div', 'habLeve'); habChave = chave;
     F.hb.l.forEach(([i, nome], n) => {
       const b = el('button', n === 0 ? 'grande' : ''); b.dataset.i = i;
       b.append(el('i', null, ICONE_HAB[nome] || '✨'), el('span', null, nome), el('b', 'cd'));
@@ -1178,7 +1169,70 @@ function lutaLeve(raiz, morto, mana) {
     const b = h.querySelector(`[data-po="${k}"]`); if (!b) continue;
     b.classList.toggle('espera', i < 0 || cd > 0); b.querySelector('.cd').textContent = cd > 0 ? cd : ''; b.querySelector('span').textContent = `${k === 'pocao' ? 'Vida' : 'Mana'} ×${n}`;
   }
-  if (!raiz.contains(h)) raiz.insertBefore(h, raiz.querySelector('.doca'));
+  if (cartaoEl && h.parentNode !== cartaoEl) cartaoEl.append(h);
+}
+// em luta (André 2026-11-26): o servidor diz que bateu ou apanhou agora (lu), ou você escolheu um alvo, ou a Geada está
+// perto. Bicho parado perto NÃO vira luta (senão minerar ao lado de um bicho calmo some da tela): toque nele para atacar.
+function emLuta(morto) {
+  const F = leve.f; if (!F || morto) return false;
+  const d = (x, z) => Math.hypot(x - F.eu[0], z - F.eu[1]);
+  return !!(F.lu || (leve.mira && (F.m || []).some((o) => o[4] === leve.mira.id)) || (F.g || []).some((o) => o[3] && !o[6] && d(o[1], o[2]) < LUTA_PERTO));
+}
+// ---------- o cartão único da aba Jogo (André 2026-11-26: "fique bem intuitivo"): um só, embaixo do mapa, com o que o
+// herói faz agora, na ordem: Caído > Em luta > Minerando > Criando > Voltando para a base > Andando > Parado. Cada estado
+// só tem os botões que valem nele. Refaz só quando o estado muda (não troca o botão embaixo do dedo); o resto atualiza no lugar.
+let cartaoChave = '', lutaAntes = false, cartaoEl = null; // o cartão sai do DOM quando a tela é refeita: guardado aqui
+function cartaoAcao(raiz, P, morto, mana) {
+  const F = leve.f, R = F.r, luta = emLuta(morto);
+  if (luta && !lutaAntes && painelLeve && painelLeve !== 'chat') { painelLeve = ''; leve.sujo = true; } // começou a luta: fecha o painel por cima e mostra os golpes
+  lutaAntes = luta;
+  const estado = morto ? 'morto' : luta ? 'luta' : F.co ? 'coleta' : leve.fab ? 'criar' : leve.rec > Date.now() ? 'base' : R ? 'anda' : 'parado';
+  if (!cartaoEl) { cartaoEl = el('div', 'cartaoAcao'); cartaoEl.id = 'jogarCartao'; }
+  const c = cartaoEl;
+  const temPerto = !!(P.npc || P.bau || P.totem || P.car || P.chao?.length || leve.pk?.c || P.veio || P.col?.length);
+  const aqui = P.npc ? P.npc.n.split(',')[0] : P.bau ? (P.bau.cla ? 'Baú do Clã' : 'Baú') : P.totem ? 'Totem' : P.veio ? 'Minério' : P.col?.length ? 'Recursos' : temPerto ? 'Pack' : '';
+  const volta = leve.volta && (F.c || []).find((o) => o[0] === leve.volta.no);
+  const chave = [estado, estado === 'coleta' ? F.co[0] : '', estado === 'parado' ? aqui + '|' + (volta ? volta[0] : '') : '', estado === 'anda' ? leve.rotaNome : ''].join('/');
+  if (chave !== cartaoChave || !c.firstChild) {
+    cartaoChave = chave; limpar(c); c.className = 'cartaoAcao' + (estado === 'luta' ? ' luta' : estado === 'morto' ? ' morto' : '');
+    const tit = el('div', 'tit'), txt = el('span'); c._txt = txt; c._barra = null; c._sub = null; tit.append(txt); c.append(tit);
+    const botao = (t, fazer, cinza) => { const b = bt(t, fazer, cinza); b.style.flex = '0 0 auto'; tit.append(b); };
+    if (estado === 'coleta') {
+      botao('Parar', () => mandar('leveColetar', { no: F.co[0], parar: true }), true);
+      const barra = el('div', 'progColeta'), enche = el('i'); c._barra = enche; c._sub = el('div', 'faz'); barra.append(enche); c.append(barra, c._sub);
+    } else if (estado === 'criar') botao('Parar', () => mandar('fabricar', { parar: true }), true);
+    else if (estado === 'base') botao('Desistir', () => mandar('vila'), true);
+    else if (estado === 'anda') botao('Parar', () => mandar('leveParar'), true);
+    else if (estado === 'luta') { const b = el('div', 'barraAlvo'), i = el('b'); c._barra = i; b.append(i); c.append(b); }
+    else if (estado === 'parado') {
+      const b = el('div', 'bts');
+      if (volta) { const [ic, verbo] = COLETA_VERBO[leve.volta.prof] || COLETA_VERBO['']; const v = bt(`${ic} Voltar a ${verbo.toLowerCase()} ${volta[1]}`, () => { leve.volta = null; mandar('leveColetar', { no: volta[0] }); }); v.classList.add('volta'); v.style.flexBasis = '100%'; b.append(v); }
+      b.append(bt('🧭 Ir para…', () => abrirPainelLeve(painelLeve === 'lugares' ? '' : 'lugares')));
+      if (aqui) b.append(bt(`📍 ${aqui}`, () => abrirPainelLeve(painelLeve === 'perto' ? '' : 'perto'), true));
+      c.append(b);
+    }
+  }
+  // o que muda a cada foto, no lugar
+  const txt = c._txt, barra = c._barra, sub = c._sub;
+  const extra = [F.eu[9] && '📦', F.eu[10] && '🐺', leve.pk?.car?.onde === 2 && '🛒'].filter(Boolean).join(' ');
+  if (estado === 'morto') txt.textContent = '💀 Você caiu. Espere renascer no totem mais perto.';
+  else if (estado === 'luta') {
+    const M = F.m || [], alvo = (leve.mira && M.find((o) => o[4] === leve.mira.id)) || M.reduce((m, o) => (!m || Math.hypot(o[0] - F.eu[0], o[1] - F.eu[1]) < Math.hypot(m[0] - F.eu[0], m[1] - F.eu[1]) ? o : m), null);
+    const ge = (F.g || []).find((o) => o[3] && !o[6] && Math.hypot(o[1] - F.eu[0], o[2] - F.eu[1]) < LUTA_PERTO);
+    txt.textContent = ge && !leve.mira ? `⚔️ Em luta: ${ge[0]} (Geada, Nv ${ge[5]})` : alvo ? `⚔️ Em luta: ${alvo[5] || 'Monstro'} · Nv ${alvo[2]} · ❤ ${alvo[3]}%` : '⚔️ Em luta';
+    if (barra) { barra.style.width = (alvo && !(ge && !leve.mira) ? alvo[3] : 0) + '%'; barra.parentNode.hidden = !alvo || !!(ge && !leve.mira); }
+  } else if (estado === 'coleta') {
+    const cl = leve.col?.no === F.co[0] ? leve.col : null, [ic] = COLETA_VERBO[cl?.prof] || COLETA_VERBO[''];
+    txt.textContent = `${ic} ${{ min: 'Minerando', len: 'Cortando' }[cl?.prof] || 'Coletando'} ${F.co[1]}`;
+    if (cl?.ini) { barra.parentNode.classList.remove('vai'); barra.style.width = (Math.min(1, (Date.now() - cl.ini) / cl.dur) * 100).toFixed(0) + '%'; } else barra.parentNode.classList.add('vai');
+    const tot = Object.entries(cl?.tot || {}).map(([n, q]) => `${q} ${n}`).join(' · ');
+    sub.textContent = `Pegou: ${tot || 'nada ainda'}${cl?.cargas != null ? ` · restam ${cl.cargas}` : ''}`;
+  } else if (estado === 'criar') txt.textContent = `🔨 Fazendo ${leve.fab.nome}… ${Math.max(0, Math.ceil((leve.fab.ate - Date.now()) / 1000))} s (fique perto)`;
+  else if (estado === 'base') txt.textContent = `🏠 Voltando para a base… ${Math.ceil((leve.rec - Date.now()) / 1000)} s`;
+  else if (estado === 'anda') txt.textContent = `🚶 ${leve.rotaNome || 'Andando'} · ${R[0]} m · ${R[1] >= 60 ? Math.floor(R[1] / 60) + ' min' : R[1] + ' s'}${extra ? ' ' + extra : ''}`;
+  else txt.textContent = aqui ? `Parado perto de: ${aqui}${extra ? ' ' + extra : ''}` : `Parado. Toque no mapa para andar.${extra ? ' ' + extra : ''}`;
+  if (!raiz.contains(c)) raiz.insertBefore(c, raiz.querySelector('.redondos'));
+  lutaLeve(raiz, morto, mana);
 }
 
 // ---------- time (André 2026-11-25): os recrutas andam e lutam com você. "Chamar" = a função "Me seguir" do jogo (a
@@ -1223,7 +1277,7 @@ function abrirPainelLeve(k) {
 // o modo leve ocupa a altura que sobra embaixo do cabeçalho (sem rolar a página); o mapa se ajusta e redesenha
 function telaLeve(liga) {
   const t = $('jogarAba'); t.classList.toggle('tela', liga); document.body.classList.toggle('leveTela', liga); // o aviso sobe para o meio do mapa (André 2026-11-26)
-  const h = liga ? Math.max(360, Math.floor(innerHeight - t.getBoundingClientRect().top - 4)) + 'px' : '';
+  const h = liga ? Math.max(360, Math.floor(innerHeight - t.getBoundingClientRect().top - ($('abas').offsetHeight || 0) - 4)) + 'px' : ''; // sobra acima das 5 abas
   if (t.style.height !== h) { t.style.height = h; if (aba === 'jogar' && info) requestAnimationFrame(() => desenharMapa()); }
 }
 addEventListener('resize', () => { if (aba === 'jogar' && leve.sala) { telaLeve(true); desenharMapa(); } });
@@ -1232,7 +1286,7 @@ function desenhar() {
   if (!info) return;
   $('abas').hidden = false;
   $('abas').querySelector('[data-aba=cla]').classList.toggle('alerta', !!(info.bauCheio || info.m?.some((m) => m.cheia))); // algo cheio: bolinha vermelha na aba
-  $('titulo').textContent = info.sem ? 'Painel do Clã' : `${info.n} · Nv ${info.nv}`;
+  $('titulo').textContent = aba !== 'cla' ? 'Age of Embers' : info.sem ? 'Painel do Clã' : `${info.n} · Nv ${info.nv}`; // o jogo primeiro; o nome do clã na aba Clã
   $('subtitulo').textContent = info.sem ? info.nome || '' : `Líder ${info.nome} · Cofre ${info.cofre} de ouro`;
   const foco = document.activeElement?.tagName === 'SELECT'; // escolhendo uma ordem: não refaz a lista por baixo do dedo
   if (aba === 'cla' && !foco) desenharCla();
@@ -1240,6 +1294,52 @@ function desenhar() {
   if (aba === 'log') desenharLog();
   if (aba === 'jogar' && !leve.sala) desenharMapa(); // fora do mundo: o mapa do clã (recrutas, líderes bot)
   if (aba === 'jogar' && !leve.sala) desenharJogar();
+  if (aba === 'mais') desenharMais();
+}
+
+// ---------- aba Mochila (André 2026-11-26): o que você leva e o Criar, numa página só (antes eram 2 botões da barra do
+// mapa). Equipar e usar chegam na etapa 2. Fora do mundo: só o botão para entrar.
+function foraDoMundo(raiz, oque) {
+  const c = el('div', 'card'); c.append(el('div', 'nome', 'Seu herói está fora do mundo'), el('div', 'faz', `Entre no mundo para ver ${oque}.`));
+  const b = el('div', 'bts'); b.append(bt(leve.entrando ? 'Entrando…' : 'Entrar no mundo', () => { irAba('jogar'); entrarLeve(); })); c.append(b); raiz.append(c);
+}
+let mochilaRolou = 0;
+function desenharMochila() {
+  const raiz = $('mochilaAba'); if (aba !== 'mochila') return;
+  if (document.activeElement?.tagName === 'INPUT' && raiz.contains(document.activeElement)) return; // digitando a quantidade: não refaz
+  limpar(raiz); leve.sujo = false;
+  if (!leve.sala || !leve.f) return foraDoMundo(raiz, 'a mochila e criar');
+  mochilaAberta = true; const m = cartaoMochila(); m.firstChild.remove();
+  m.prepend(el('div', 'nome', `🎒 Mochila ${(leve.mo?.it || []).length}/${leve.mo?.l || 0}`)); raiz.append(m);
+  if (!criarAberto) { criarAberto = true; pedirReceitas(true); }
+  const c = cartaoCriar(); c.firstChild.remove(); c.prepend(el('div', 'nome', '🔨 Criar')); raiz.append(c);
+  if (mochilaRolou) scrollTo(0, mochilaRolou);
+}
+addEventListener('scroll', () => { if (aba === 'mochila') mochilaRolou = scrollY; }, { passive: true });
+
+// ---------- aba Missões: chega na etapa 3 (história, diárias, guilda e missão do clã)
+function desenharMissoes() {
+  const raiz = $('missoesAba'); limpar(raiz);
+  const c = el('div', 'card'); c.append(el('div', 'nome', '📜 Missões'), el('div', 'faz', 'Em construção: aqui vão ficar a História, as Diárias, a Guilda e a Missão do Clã, com o botão para ir até quem dá a missão. Por enquanto, faça as missões no jogo 3D.'));
+  raiz.append(c);
+}
+
+// ---------- aba Mais: o que não cabe nas 4 primeiras. O que ainda não existe no leve aparece apagado, com a etapa.
+function desenharMais() {
+  const raiz = $('maisAba'); if (aba !== 'mais') return; limpar(raiz);
+  const L = el('div', 'lista'), item = (txt, sub, fazer) => { const b = el('button', 'item'); b.append(el('span', null, txt), el('small', null, sub)); if (fazer) b.onclick = fazer; else b.disabled = true; L.append(b); };
+  item('💬 Chat', leve.sala ? 'geral, local, amigos, time' : 'entre no mundo primeiro', leve.sala ? () => { irAba('jogar'); abrirPainelLeve('chat'); } : null);
+  item('⚖️ Leilão (ver preços)', 'comprar e anunciar: perto do leiloeiro', () => irAba('leilao'));
+  item('🏴 Clãs bot', 'Geada e Chama', () => irAba('bots'));
+  item('📜 Registro do clã', 'o que aconteceu', () => irAba('log'));
+  item('🧍 Personagem', 'atributos, golpes, títulos · em breve', null);
+  item('⚔️ PvP', 'arena 4x4, duelo, patente · em breve', null);
+  item('👥 Amigos, grupo e troca', 'em breve', null);
+  item('🌾 Fazenda, base e pesca', 'em breve', null);
+  item('❓ Como jogar', 'a dica da primeira vez', () => { dicaAberta = true; irAba('jogar'); });
+  const w = el('button', 'item'); w.append(el('span', null, '📖 Wiki'), el('small', null, 'abre em outra aba')); w.onclick = () => open('wiki/', '_blank', 'noopener'); L.append(w);
+  if (leve.sala) item('⏻ Sair do mundo', 'seu herói sai do jogo', () => { if (confirm('Sair do mundo? Seu herói sai do jogo.')) { sairLeve(); irAba('jogar'); } });
+  raiz.append(L);
 }
 
 (async () => {
