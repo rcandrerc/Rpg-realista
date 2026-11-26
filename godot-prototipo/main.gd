@@ -4140,6 +4140,8 @@ func atualizar_heroi(dt: float) -> void:
 			hud.aviso("Você se levanta de novo" + _penalidade_txt)
 			_penalidade_txt = ""
 		return
+	# registro do quadro lento por pedaço (2026-11-26, Note 10 Lite: m:heroi ~10 ms por quadro, sem dizer onde)
+	var th := Time.get_ticks_usec()
 	var luta: bool = trabalho.em_combate() # Quimera: em luta a mana volta a 35% e a vida não volta
 	var R: Dictionary = P.regen()
 	h.mana = min(P.st.manaMax, h.mana + P.st.regenMana * (float(R.manaCombate) if luta else 1.0) * dt)
@@ -4193,6 +4195,7 @@ func atualizar_heroi(dt: float) -> void:
 		else:
 			dir = Vector3.ZERO
 			forca = 0.0
+	th = _parte("h:entrada", th)
 	mov.outros.clear()
 	var fantasma: bool = h.lunge != null and h.lunge.fantasma
 	if not fantasma:
@@ -4249,7 +4252,9 @@ func atualizar_heroi(dt: float) -> void:
 	h.vel_k = move_toward(h.vel_k, k_alvo, dt * 4.0)
 	if boss_mundo.preso(): # atordoado, congelado ou derrubado por skill de boss: não anda
 		livre = false
+	th = _parte("h:acao", th)
 	mov.passo(dt, dir.x, dir.z, forca >= 0.85, livre and h.lunge == null, h.vel_k * boss_mundo.lento())
+	th = _parte("h:mov", th)
 	_dir_joy = Vector2(dir.x, dir.z) if forca > 0.15 else Vector2.ZERO
 	_forca_joy = forca
 	trabalho.passo_estamina(dt)
@@ -4274,7 +4279,9 @@ func atualizar_heroi(dt: float) -> void:
 		jantar.prender_heroi(forca)
 	heroi.position = mov.posicao() + desliza
 	heroi.rotation.y = mov.ry
+	th = _parte("h:mira", th)
 	passo_encostar(dt)
+	th = _parte("h:encostar", th)
 	# nado: entrou ou saiu da água funda
 	var nada_agora: bool = mov.nadando() and h.morto <= 0.0
 	if nada_agora != _nadando:
@@ -4356,6 +4363,7 @@ func atualizar_heroi(dt: float) -> void:
 				heroi_anim.play(a, 0.35 if heroi_anim.current_animation == "freada" else 0.15, ritmo(a) if mov.arrancada == null else 1.0)
 		elif mov.manobra != null and a == mov.manobra.nome:
 			heroi_anim.ritmo_acao(mov.ritmo_manobra())
+	th = _parte("h:anim", th)
 	# cajado na mão (modo magia): segue a mão e fica de pé, um pouco inclinado, com a mão fechada em volta dele
 	# (montado as duas armas vão nas costas e a mão segura a juba)
 	var mao_no_cajado: bool = cajado_na_mao() and cajado.visible
@@ -4374,7 +4382,9 @@ func atualizar_heroi(dt: float) -> void:
 		lamina = [espada.global_transform * Vector3(0, 0.2, 0), espada.global_transform * Vector3(0, 0.92, 0)]
 	fx.corpo_passo(heroi, dt, mov.arrancada != null, lamina)
 	sol.global_position = centro_visao() # a sombra acompanha o que a câmera mostra ("Ver" o recruta)
+	th = _parte("h:armas_fx", th)
 	corpo_vivo(dt, estava_no_chao)
+	_parte("h:corpo", th)
 
 # o que dá peso ao corpo: mistura da locomoção, inclinar na curva, afundar no pouso e o som dos passos
 func corpo_vivo(dt: float, estava_no_chao: bool) -> void:
