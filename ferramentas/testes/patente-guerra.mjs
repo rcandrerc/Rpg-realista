@@ -75,3 +75,11 @@ ok(PATENTE.premio.length === PATENTE.nomes.length && PATENTE.abates.length === P
   b.prog.gu.m = '2000-04'; b.prog.gu.p = 3; s.fecharMesPatente(b);
   ok(b.prog.gu.p === 0 && !Object.keys(b.prog.gu.v).length, 'virou o mês: a perda zera');
 }
+// recruta fora do mundo: a aba Guerra mostra os abates do save dele (antes mostrava Recruta 0%)
+{
+  const L = { conta: 9, nome: 'Lider', prog: { cla: { m: [{ id: 'rx', nome: 'Rex' }] } } };
+  (s.npcSalvos ||= new Map()).set('rx', { prog: { gu: { m: mesGuerra(), a: 7, x: 1, u: {} } } });
+  const vivos = new Map();
+  const gi = s.guerraInfo(L, L.prog.cla.m.map((m) => vivos.get(m.id) || { nome: m.nome, prog: s.npcSalvos?.get(m.id)?.prog || null }));
+  ok(gi.m[0].a === 7 && gi.m[0].i === 1, 'recruta fora do mundo mostra os abates do mês');
+}
