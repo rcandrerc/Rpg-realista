@@ -477,6 +477,10 @@ $('mapaCentro').onclick = () => { if (vista && aba === 'jogar') guardarZoom(vist
   cv.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY > 0 ? 1.25 : 0.8); }, { passive: false });
 }
 
+// as mesmas cores do minimapa do jogo (godot-prototipo/minimapa.gd COR_BICHO, NOME_BICHO, COR_MINA)
+const COR_BICHO = { puglin: '#b98cff', imp: '#ff8f45', lobo: '#a9d6ff', chefe: '#ff4a4a', golem: '#ff7a1a', maw: '#9cff5a', warrok: '#ffcc40' };
+const NOME_BICHO = { puglin: 'Puglins', imp: 'Imps', lobo: 'Lobos', golem: 'Golens', maw: 'Maws' };
+const COR_MINA = { cobre: '#d9822b', pedra: '#a39d92', ferro: '#8fa3bd', cristal: '#9a7cff' };
 function desenharMapa() {
   // Jogar (André 2026-11-25: "tem q rolar muito"): o mapa ocupa a tela toda, então pode ser mais alto que largo; span = metros na largura
   const cv = $('mapa'), dpr = Math.min(2, devicePixelRatio || 1), lado = Math.round(cv.clientWidth * dpr) || 600, alto = Math.round(cv.clientHeight * dpr) || lado;
@@ -540,6 +544,28 @@ function desenharMapa() {
     const [a0, b0] = P(leve.f.eu[0], leve.f.eu[1]); g.moveTo(a0, b0);
     for (const [x, z] of leve.rota.slice(leve.rotaI)) { const [a, b] = P(x, z); g.lineTo(a, b); }
     g.stroke(); g.restore();
+  }
+  if (jogando && leve.mapa) { // caçadas, minas e spots de pesca, como o minimapa do jogo (André 2026-11-26)
+    const fora = (a, b) => a < -30 || b < -30 || a > W + 30 || b > H + 30, rr = Math.max(7, W / 55);
+    for (const [x, z, tipo] of leve.mapa.mn || []) {
+      const [a, b] = P(x, z); if (fora(a, b)) continue; const r = rr * 0.75;
+      g.fillStyle = COR_MINA[tipo] || '#d9822b'; g.strokeStyle = 'rgba(12,10,8,.9)'; g.lineWidth = Math.max(1.5, W / 400);
+      g.beginPath(); g.moveTo(a, b - r * 1.2); g.lineTo(a + r, b); g.lineTo(a, b + r * 1.2); g.lineTo(a - r, b); g.closePath(); g.fill(); g.stroke();
+      if (span <= 250) marcas.push([`Veio de ${tipo}`, a, b - r * 1.2 - 4]);
+    }
+    for (const [x, z, nv, bicho, boss] of leve.mapa.cc || []) {
+      const [a, b] = P(x, z); if (fora(a, b)) continue; const r = boss ? rr * 1.25 : rr;
+      g.fillStyle = 'rgba(13,10,8,.85)'; g.beginPath(); g.arc(a, b, r + 2, 0, 6.283); g.fill();
+      g.fillStyle = boss ? '#b4141e' : COR_BICHO[bicho] || '#ffffff'; g.beginPath(); g.arc(a, b, r, 0, 6.283); g.fill();
+      g.save(); g.font = `800 ${Math.round(r * 1.15)}px system-ui,sans-serif`; g.textBaseline = 'middle'; g.fillStyle = boss ? '#ffe9a0' : '#1a120a'; g.fillText(String(nv), a, b + 1); g.restore();
+      if (span <= 900) marcas.push([`${boss ? 'Boss' : NOME_BICHO[bicho] || 'Monstros'} Nv ${nv}`, a, b + r + fonte + 2]);
+    }
+    for (const [x, z] of leve.f.ss || []) {
+      const [a, b] = P(x, z); if (fora(a, b)) continue; const r = rr * 0.8;
+      g.fillStyle = 'rgba(111,200,255,.35)'; g.beginPath(); g.arc(a, b, r * 1.7, 0, 6.283); g.fill();
+      g.fillStyle = '#6fc8ff'; g.strokeStyle = 'rgba(12,10,8,.9)'; g.beginPath(); g.arc(a, b, r, 0, 6.283); g.fill(); g.stroke();
+      marcas.push(['🎣 Spot', a, b - r - 4]);
+    }
   }
   if (jogando && leve.mapa && span <= 600) { // os lugares com janela e os totens
     for (const L of [...leve.mapa.npcs, ...leve.mapa.totens.map((t) => ({ ...t, f: 'totem' }))]) {
