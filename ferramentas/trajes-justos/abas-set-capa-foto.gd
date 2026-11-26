@@ -1,5 +1,6 @@
 extends SceneTree
-# Fotos das abas Set e Capa da Aparência (André 2026-11-25: cada set tem só a cor principal e a borda; a capa idem),
+# Fotos da Cor do set e da Borda do set na Aparência (André 2026-11-26: a cor do set pinta a capa junto e a borda do
+# set pinta a borda da capa),
 # nos 4 trajes, na raridade Épico (a borda aparece do Raro em diante). Uso: FOTO_SAIDA=/pasta xvfb-run -a godot
 #   --path godot-prototipo --rendering-driver opengl3 --render-thread safe -s ../ferramentas/trajes-justos/abas-set-capa-foto.gd
 var m
@@ -35,22 +36,18 @@ func _initialize() -> void:
 		c.ap.roupa = 0x6e1e2a # vinho
 		c.ap.calca = 0x6e1e2a
 		c.ap.borda = 0xd8a848 # ouro
-		c.ap.capa = 0x222226 # preto
-		c.ap.capa_borda = 0xd8a848 # ouro
 	c.mudou()
 	var pre := "cor" if cores else "orig"
 	for i in c.trajes_fl.get_child_count():
 		c.trajes_fl.get_child(i).emit_signal("pressed")
 		await esperar(40)
-		var abas: Control = c.abas_cor_ui["set"].get_parent()
-		c.rolagem.scroll_vertical = int(abas.position.y) - 40
-		c.mostrar_aba_cor("set")
+		var fl: Control = c.cores_ui["roupa"][0][0].get_parent()
+		c.rolagem.scroll_vertical = int(fl.position.y) - 70
 		await esperar(10)
-		await foto("%s-traje%d-aba-set" % [pre, i])
-		c.mostrar_aba_cor("capa")
+		await foto("%s-traje%d-frente" % [pre, i])
 		c.giro = PI * 0.8 # a capa aparece de costas
 		await esperar(40)
-		await foto("%s-traje%d-aba-capa" % [pre, i])
+		await foto("%s-traje%d-costas" % [pre, i])
 		c.giro = 0.0
 		await esperar(30)
 	quit()

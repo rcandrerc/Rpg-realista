@@ -117,15 +117,13 @@ var raridade_ui := [] # [botão, raridade ou null]
 # André 2026-11-24: "pode editar as duas cores, só que em abas separadas". A cor da Roupa e a da Calça e saia
 # (Aparencia.roupa / .calca) ficam cada uma na sua aba, uma paleta por vez. Valem nos 4 trajes: patrulheiro e roupão
 # do irmão (Armadura.tingir_v5) e Patrulheiro 2 / Roupão 2 (Equip2.tingir).
-# André 2026-11-25: "só tem praticamente duas cores cada set": as abas viraram Set (cor do set + borda do set) e Capa
-# (cor da capa + borda da capa). A cor do set pinta o set inteiro (roupa e calça juntas: a aba da calça/short quase não
-# mudava nada). Contas com calça escolhida antes seguem iguais até trocar a cor do set.
-const ABAS_COR := ["set", "capa"]
-const CORES_ABA := {"roupa": "set", "borda": "set", "capa": "capa", "capa_borda": "capa"}
-const TITULO_COR := {"roupa": "Cor principal", "borda": "Borda e bordado", "capa": "Cor principal", "capa_borda": "Borda e bordado"}
-var aba_cor := "set"
-var abas_cor_ui := {} # parte -> botão da aba
-var blocos_aba := {} # parte -> [cabeçalho, paleta]
+# André 2026-11-25/26: "só tem praticamente duas cores cada set": a Aparência mostra só duas cores do equipamento.
+# Cor do set pinta o set inteiro (roupa, calça/saia) e a capa junto; Borda do set pinta a barra/bordado do set e o friso
+# da capa. A aba "Calça e saia" saiu (no roupão não mudava nada). Contas com calça/capa escolhidas antes seguem
+# iguais até trocar a cor do set. As chaves capa/capa_borda continuam aceitas (null = seguem o set).
+const CORES_ABA := {"roupa": "set", "borda": "set"}
+const TITULO_COR := {"roupa": "Cor do set", "borda": "Borda do set"}
+const CORES_OCULTAS := ["calca", "capa", "capa_borda"]
 var linha_rar: Control
 var _boneco_de := "" # corpo que está no palco agora
 static var _rostos := {} # corpo -> ImageTexture do rosto (feito uma vez por partida)
@@ -476,16 +474,13 @@ func montar_painel() -> Control:
 	linha_rar = vr
 	lista.add_child(vr)
 	for k in Aparencia.CORES:
-		if k == "calca" or not criador.has(k):
-			continue # a calça vai junto com a cor do set (aba Set)
-		if k == "roupa":
-			lista.add_child(montar_abas_cor())
+		if k in CORES_OCULTAS or not criador.has(k):
+			continue # calça e capa vão junto com a cor e a borda do set
 		var cab := HBoxContainer.new()
 		var rt := Menu.rotulo(NOMES[k], 15, OURO_CLARO)
 		rt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if CORES_ABA.has(k):
-			rt.text = Idioma.frase(TITULO_COR[k]) # o nome da aba já diz se é do set ou da capa
-			rt.add_theme_font_size_override("font_size", 13)
+			rt.text = Idioma.frase(TITULO_COR[k])
 		cab.add_child(rt)
 		# volta para a cor da Ruiva (fica aceso quando é a original)
 		var orig := Button.new()
@@ -501,7 +496,10 @@ func montar_painel() -> Control:
 				return
 			ap[k] = null
 			if k == "roupa":
-				ap.calca = null # o set inteiro volta à cor original
+				ap.calca = null # o set inteiro e a capa voltam à cor original
+				ap.capa = null
+			elif k == "borda":
+				ap.capa_borda = null
 			rosto = false
 			mudou())
 		cab.add_child(orig)
@@ -524,16 +522,15 @@ func montar_painel() -> Control:
 				ap[k] = cor
 				if k == "roupa":
 					ap.calca = _calca_de(cor) # a cor do set pinta a calça junto
+					ap.capa = null # e a capa (null = segue o set)
+				elif k == "borda":
+					ap.capa_borda = null # a borda da capa segue a do set
 				rosto = false
 				mudou())
 			cores_ui[k].append([b, cor])
 			fl.add_child(b)
 		lista.add_child(fl)
-		if CORES_ABA.has(k):
-			if not blocos_aba.has(CORES_ABA[k]):
-				blocos_aba[CORES_ABA[k]] = []
-			blocos_aba[CORES_ABA[k]].append_array([cab, fl])
-	mostrar_aba_cor(aba_cor)
+
 	lista.add_child(Menu.rotulo("Altura", 15, OURO_CLARO))
 	lista.add_child(faixa("altura", float(criador.altura[0]), float(criador.altura[1]), "Baixa", "Alta"))
 	lista.add_child(Menu.rotulo("Rosto", 15, OURO_CLARO))
@@ -564,35 +561,12 @@ func montar_painel() -> Control:
 	col.add_child(baixo)
 	return p
 
-func montar_abas_cor() -> Control:
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 6)
-	for k in ABAS_COR:
-		var b := botao(NOMES[k], k == aba_cor, func():
-			if _arrastou:
-				return
-			mostrar_aba_cor(k))
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.custom_minimum_size = Vector2(0, 38)
-		b.add_theme_font_size_override("font_size", 15)
-		abas_cor_ui[k] = b
-		h.add_child(b)
-	return h
-
 # a calça só aceita as cores da paleta dela: a mesma do set quando existe; senão, sem escolha (= segue a do set)
 func _calca_de(cor: int):
 	for c in criador.get("calca", []):
 		if c != null and int(c) == cor:
 			return cor
 	return null
-
-func mostrar_aba_cor(k: String) -> void:
-	aba_cor = k
-	for kk in blocos_aba:
-		for no in blocos_aba[kk]:
-			no.visible = kk == k
-	for kk in abas_cor_ui:
-		Menu.estilo_botao(abas_cor_ui[kk], kk == k)
 
 # linha inteira é um botão: toca para marcar ou desmarcar "Ver equipado"
 func linha_ver_equip() -> Control:
@@ -1004,8 +978,12 @@ func valido(n: String) -> String:
 
 func sortear() -> void:
 	for k in Aparencia.CORES:
+		if k in CORES_OCULTAS or not criador.has(k):
+			ap[k] = null
+			continue
 		var l: Array = criador[k]
 		ap[k] = int(l[1 + randi() % (l.size() - 1)]) # nunca a "original"
+	ap.calca = _calca_de(int(ap.roupa)) # calça e capa seguem a cor do set
 	var a: Array = criador.altura
 	ap.altura = snappedf(randf_range(float(a[0]), float(a[1])), 0.01)
 	for k in Aparencia.ROSTO:

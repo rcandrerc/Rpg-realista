@@ -91,7 +91,7 @@ static func aplicar(no: Node3D, ap, esperar := true) -> void:
 	# André 2026-11-25: borda do set, cor da capa (sem escolha = a do set, como antes) e borda da capa
 	var cb = _cor(int(a.borda)) if a.get("borda") != null else null
 	var ck = _cor(int(a.capa)) if a.get("capa") != null else cr
-	var ckb = _cor(int(a.capa_borda)) if a.get("capa_borda") != null else null
+	var ckb = _cor(int(a.capa_borda)) if a.get("capa_borda") != null else cb # André 26/11: borda da capa = a do set
 	var muda := false
 	for par in [["cor_roupa", cr], ["cor_calca", cc], ["cor_borda", cb], ["cor_capa", ck], ["cor_capa_borda", ckb]]:
 		if (no.get_meta(par[0]) if no.has_meta(par[0]) else null) != par[1]:
