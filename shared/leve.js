@@ -12,6 +12,10 @@ import { LUGARES, TITULOS, BUILD_PADRAO, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DI
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax, ATRIBUTOS, xpProximo } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
 import { liberado, missaoAtual } from './historia.js';
+import { noLago } from './relevo.js';
+import { aguaRegador, pertoDeAgua, distRet, crescerPlanta, retPeca, semParede } from './simulacao.js'; // fazenda e cama (etapa 6); só usadas na hora, depois que tudo carregou
+import { PESCA, PLANTAS, HORTA, LOTE, fasePlanta } from './dados.js';
+import { horaDoJogo, ehNoite } from './progresso.js';
 
 export const LEVE = {
   envio: 0.5, // s entre as fotos para a página
@@ -32,6 +36,7 @@ export const LEVE = {
   coleta: 12, // m: veios, árvores e soltos que aparecem no Aqui (Minerar, Cortar, Pegar)
   reto: 30, // m do monstro: o Atacar deixa a estrada e vai reto até ele
   encosta: 2, // m do monstro: o Atacar para aqui (alcance do golpe é 2,3 m)
+  spotVe: 40, // m: spot de pesca que aparece sem o Radar (a água borbulhando, como no jogo); com o Radar ligado, qualquer um
   montaDe: 25, // m de caminho: daqui pra cima o "Ir para" sobe no lobo sozinho (como no jogo)
 };
 // quem a página mostra como lugar no mapa (as janelas do jogo de cada um)
@@ -63,6 +68,31 @@ function rotaLeve(sim, de, ate) {
   return { pontos, metros };
 }
 
+// pesca do leve: onde a boia cai. O jogo aceita de 1,5 a 5,2 m do herói, na água e dentro do spot (raioSpot + 0,4).
+// Procura na direção do spot e para os lados (o jogador mira a boia com o dedo; aqui o servidor acha o mesmo lugar válido)
+function pontoLancar(j, sp) {
+  const ok = (x, z) => Math.hypot(x - sp.x, z - sp.z) <= PESCA.raioSpot + 0.3 && (noLago(x, z)?.fundo || 0) > 0.15;
+  const d = Math.hypot(sp.x - j.x, sp.z - j.z) || 1, a0 = Math.atan2(sp.z - j.z, sp.x - j.x);
+  for (const da of [0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9, 1.2, -1.2]) for (const r of [4.8, 4, 3, 2]) {
+    const x = j.x + Math.cos(a0 + da) * r, z = j.z + Math.sin(a0 + da) * r; if (ok(x, z)) return { x, z };
+  }
+  return d >= 1.6 && d <= 5 && ok(sp.x, sp.z) ? { x: sp.x, z: sp.z } : null;
+}
+// a beira mais perto do herói de onde a linha alcança o spot (terra seca, com um ponto de lançar válido)
+function beiraDoSpot(j, sp) {
+  let b = null, md = Infinity;
+  for (let k = 0; k < 32; k++) {
+    const a = (k / 32) * Math.PI * 2;
+    for (let r = PESCA.raioSpot + 1; r <= PESCA.raioSpot + 9; r += 1) {
+      const x = sp.x + Math.cos(a) * r, z = sp.z + Math.sin(a) * r;
+      if ((noLago(x, z)?.fundo || 0) > 0 || terraId(x, z) === 0) continue;
+      if (!pontoLancar({ x, z }, sp)) break; // a primeira terra seca desse lado não alcança: lado ruim
+      const q = Math.hypot(x - j.x, z - j.z); if (q < md) { md = q; b = { x, z }; }
+      break;
+    }
+  }
+  return b;
+}
 export const Leve = {
   // a página tocou no mapa: o herói vai até lá pela estrada
   leveIr(id, m) {
@@ -135,6 +165,17 @@ export const Leve = {
       if (d < COLETA_DISTANCIA - 0.4) { const k = R.no; this.leveParar(j.id, null); j.montado = null; return this.coletar(j.id, { no: k }); }
       if (d < LEVE.quase + 2) { j.entrada = { mx: (no.x - j.x) / (d + no.r), mz: (no.z - j.z) / (d + no.r), correr: false }; return; } // perto: reto até a borda
     }
+    if (R.spot != null) { // indo pescar (etapa 6): chegou na beira, lança a linha no spot (o mesmo 'pescar' do jogo)
+      const sp = this.spots.find((v) => v.ativo && v.id === R.spot); if (!sp) return this.leveParar(j.id, 'O spot sumiu');
+      const q = (noLago(j.x, j.z)?.fundo || 0) < 0.3 && pontoLancar(j, sp); // passando pela água rasa: só lança depois de sair dela
+      if (q) { this.leveParar(j.id, null); j.montado = null; return this.pescar(j.id, { acao: 'lancar', x: q.x, z: q.z }); }
+      const fim = R.pontos[R.pontos.length - 1];
+      if (R.beira != null || Math.hypot(fim.x - j.x, fim.z - j.z) < LEVE.chega + 0.5) { // na beira e a linha não alcança: uns passos retos para a água (como o joystick)
+        R.beira = (R.beira || 0) + dt;
+        if (R.beira > 4 || (noLago(j.x, j.z)?.fundo || 0) > 0.6) { this.leveParar(j.id, null); return this.evento({ t: 'aviso', para: j.id, texto: 'Chegue mais perto da água' }); }
+        const d = Math.hypot(sp.x - j.x, sp.z - j.z) || 1; j.entrada = { mx: (sp.x - j.x) / d, mz: (sp.z - j.z) / d, correr: false }; return;
+      }
+    }
     if (R.alvo != null) { // indo atacar: segue o monstro (ele anda) e para a LEVE.encosta m dele
       const e = this.inimigos.find((o) => o.id === R.alvo);
       if (!e || e.morto) return this.leveParar(j.id, 'O alvo sumiu');
@@ -167,6 +208,7 @@ export const Leve = {
   },
   leveChegou(j) {
     const nome = j.leveRota?.nome;
+    if (j.leveRota?.spot != null) { const sp = this.spots.find((v) => v.ativo && v.id === j.leveRota.spot), q = sp && pontoLancar(j, sp); this.leveParar(j.id, null); if (q) { j.montado = null; return this.pescar(j.id, { acao: 'lancar', x: q.x, z: q.z }); } return this.evento({ t: 'aviso', para: j.id, texto: 'Chegue mais perto da água' }); }
     j.leveRota = null; j.entrada = { mx: 0, mz: 0, correr: false };
     this.evento({ t: 'leveRota', para: j.id, pontos: [], chegou: 1, texto: nome ? `Chegou: ${nome}` : 'Chegou' });
   },
@@ -223,6 +265,9 @@ export const Leve = {
     if (e.t === 'coleta') return { t: 'coleta', no: e.no, dur: e.dur, prof: e.prof || '' };
     if (e.t === 'coletou') return { t: 'coletou', no: e.no, itens: (e.itens || []).map((o) => ({ nome: o.nome, n: o.n })), cargas: e.cargas };
     if (e.t === 'fala') return { t: 'fala', npc: (this.mapa.npcs || []).find((n) => n.id === e.npc)?.nome?.split(',')[0] || '', texto: e.texto }; // o que o NPC disse (missão)
+    // troca (etapa 5): os itens com nome e cor (a página não tem a tabela de itens)
+    if (e.t === 'troca' && e.fase === 'estado') { const of = (o) => ({ ouro: o.ouro, tranca: o.tranca ? 1 : 0, ok: o.ok ? 1 : 0, itens: o.itens.map((x) => ({ ...(x.i != null ? { i: x.i } : {}), n: x.n, k: x.it?.k, nome: x.it ? nomeItem(x.it) : '?', c: x.it ? corDe(x.it) : null })) }); return { t: 'troca', fase: 'estado', com: e.com, nome: e.nome, eu: of(e.eu), ele: of(e.ele) }; }
+    if (e.t === 'pvp' && e.fase === 'info') { const { loja, ...r } = e; return r; } // a loja de Insígnias fica no jogo
     if (e.t === 'bau') return { t: 'bau', cla: e.cla ? 1 : 0, l: (e.itens || []).length, it: listaLeve(e.itens) };
     return e;
   },
@@ -326,6 +371,53 @@ export const Leve = {
       tit: p.tit?.uso || '', tits: (p.tit?.tem || []).filter((k) => TITULOS[k]).map((k) => [k, TITULOS[k].nome, `${TITULOS[k].como}${TITULOS[k].b ? ' · ' + b(TITULOS[k].b) : ''}`]) };
   },
   // a foto pequena da página: eu, o caminho que falta, e só quem está perto
+  // ---------- pesca (etapa 6, André 2026-11-26): o mesmo 'pescar' do jogo. Lançar = no spot que ele vê (40 m, ou o mapa
+  // todo com o Radar de pesca ligado). Longe: anda até a beira e lança ao chegar. Puxar/parar: msg 'pescar' direto.
+  spotsLeve(j) {
+    const radar = j.radarAte > this.tempo, r = [];
+    for (const v of this.spots) { if (!v.ativo) continue; const d = Math.hypot(v.x - j.x, v.z - j.z); if (radar || d <= LEVE.spotVe) r.push([v, d]); }
+    return r.sort((a, b) => a[1] - b[1]);
+  },
+  levePescar(id) {
+    const j = this.jogadores.get(id); if (!j || !j.leve || j.criando || j.morto || j.pesca) return;
+    const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (!liberado(j.prog, 'pesca')) return this.pescar(id, { acao: 'lancar' }); // o motivo do jogo
+    if (contar(j.prog.mochila, 'vara') < 1) return aviso('Você precisa de uma vara de pescar (crie na mochila: Criar > Ferramentas)');
+    const sp = this.spotsLeve(j)[0]?.[0];
+    if (!sp) return aviso('Nenhum spot de pesca à vista. Use o Radar de pesca ou procure a água borbulhando');
+    const q = pontoLancar(j, sp); if (q) { this.leveParar(id, null); return this.pescar(id, { acao: 'lancar', x: q.x, z: q.z }); }
+    const b = beiraDoSpot(j, sp); if (!b) return aviso('Não achei beira para esse spot');
+    this.leveIr(id, { x: b.x, z: b.z, nome: 'Spot de pesca' });
+    if (j.leveRota) j.leveRota.spot = sp.id;
+  },
+  // ---------- fazenda, base e cama (etapa 6): o terreno/base do jogador numa grade; as ações são as do jogo (horta,
+  // construir, desmontar, regador, dormir), com as mesmas regras (perto do terreno, vigor, ferramentas)
+  fazendaLeve(j) {
+    const L = this.loteDe(j); if (!L) return { sem: 1 };
+    const A = this.areaBase?.(L), d = L.def, p = j.prog, agora = Date.now();
+    const R = A ? [Math.min(d.x0, A.x0), Math.min(d.z0, A.z0), Math.max(d.x1, A.x1), Math.max(d.z1, A.z1)] : [d.x0, d.z0, d.x1, d.z1];
+    const perto = distRet(d, j.x, j.z) <= LOTE.alcance + 0.5 || !!(A && distRet(A, j.x, j.z) <= LOTE.alcance + 0.5);
+    const h = [];
+    for (const [c, t0] of Object.entries(L.horta || {})) {
+      const t = { ...t0 }; crescerPlanta(t, agora); const P = PLANTAS[t.c];
+      h.push([c, t.c || '', P ? fasePlanta(t.g / P.G) : -1, t.w && agora < t.w + HORTA.rega * 3600000 ? 1 : 0]);
+    }
+    let cama = null, dc = Infinity;
+    for (const o of L.pecas) if (o.k === 'cama') { const q = Math.hypot(o.x - j.x, o.z - j.z); if (q < dc) { dc = q; cama = o; } }
+    const custo = (C) => Object.entries(C.custo || {}).map(([k, n]) => `${n} ${ITENS[k]?.nome || k}`).join(', ');
+    const pode = (C) => Object.entries(C.custo || {}).every(([k, n]) => contar(p.mochila, k) >= n);
+    const hr = horaDoJogo(p.dia, agora);
+    return {
+      ret: R.map(r1), lote: [d.x0, d.z0, d.x1, d.z1].map(r1), ...(A ? { base: [A.x0, A.z0, A.x1, A.z1].map(r1) } : {}),
+      eu: [r1(j.x), r1(j.z)], perto: perto ? 1 : 0, h,
+      pc: L.pecas.map((o) => [o.id, o.k, ...retPeca(o).map(r1), CONSTRUCOES[o.k]?.nome || o.k]),
+      se: Object.keys(PLANTAS).map((s) => [s, PLANTAS[s].nome, contar(p.mochila, 'semente_' + s)]).filter((x) => x[2] > 0),
+      en: contar(p.mochila, 'enxada'), rg: contar(p.mochila, 'regador'), ag: aguaRegador(p), aguaMax: HORTA.agua, poco: pertoDeAgua(j.x, j.z) ? 1 : 0,
+      ...(cama ? { cama: [r1(cama.x), r1(cama.z), dc <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, cama) ? 1 : 0] } : {}),
+      hora: `${String(Math.floor(hr)).padStart(2, '0')}:${String(Math.floor((hr % 1) * 6) * 10).padStart(2, '0')}`, noite: ehNoite(hr) ? 1 : 0,
+      cons: Object.entries(CONSTRUCOES).map(([k, C]) => [k, C.nome, C.w, C.d, custo(C), pode(C) ? 1 : 0]),
+    };
+  },
   fotoLeve(j) {
     const R = j.leveRota;
     let falta = 0;
@@ -334,7 +426,7 @@ export const Leve = {
     const g = [];
     for (const o of this.jogadores.values()) {
       if (o === j || o.criando || o.caverna || Math.hypot(o.x - j.x, o.z - j.z) > LEVE.gente) continue;
-      g.push([o.nome, r1(o.x), r1(o.z), this.racaDe(o) === 'Geada' ? 1 : 0, o.bot ? 1 : 0, o.prog?.nivel | 0, o.morto ? 1 : 0]);
+      g.push([o.nome, r1(o.x), r1(o.z), this.racaDe(o) === 'Geada' ? 1 : 0, o.bot ? 1 : 0, o.prog?.nivel | 0, o.morto ? 1 : 0, o.id]); // [7] id: grupo, duelo, troca e amizade (etapa 5)
       if (g.length >= LEVE.max) break;
     }
     const m = [];
@@ -347,6 +439,8 @@ export const Leve = {
       eu: [r1(j.x), r1(j.z), Math.round(j.vida), Math.round(j.vidaMax), Math.round(j.mana), Math.round(j.manaMax), j.morto ? 1 : 0, j.prog.ouro | 0, j.prog.nivel | 0, j.prog.pack ? 1 : 0, j.montado ? 1 : 0, Math.floor(Math.min(vigorAgora(j.prog.vigor), vigorMax(j.prog))), vigorMax(j.prog)], // vigor (André 2026-11-25: "adiciona a barra de vigor"): agora e máximo; montado: o lobo (botão Montar, a mesma mensagem e regra do jogo)
       ...(R ? { r: [Math.round(falta), Math.round(falta / (v || 1))] } : {}),
       g, m, hb: this.habLeve(j), c: this.coletaLeve(j), ...(j.coleta ? { co: [j.coleta.no, COLETA[this.coletaveis.get(j.coleta.no)?.tipo]?.nome || ''] } : {}),
+      ...(j.pesca ? { pe: [j.pesca.st, j.pesca.st === 'briga' ? Math.round(j.pesca.prog * 100) : 0] } : {}), // pescando (etapa 6): o estado e a barra da briga
+      ...((() => { const s = this.spotsLeve(j)[0]; return s ? { sp: Math.round(s[1]) } : {}; })()), // metros até o spot de pesca à vista
       ...(this.emCombate(j) ? { lu: 1 } : {}), // em luta (bateu ou apanhou nos últimos ESTAMINA.combate s): o cartão de baixo vira "Em luta" (André 2026-11-26)
     };
   },
