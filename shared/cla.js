@@ -1808,7 +1808,7 @@ export const Cla = {
       if (cota) op.push([{ k: 'grind' }, (fraco ? 1 : 0.35) * P.grind]);
       for (const [r, fr] of Object.entries(falta)) {
         if (r === 'alma') { op.push([{ k: 'recurso', r: 'alma' }, fr * P.alma]); continue; }
-        if (vigor) op.push([{ k: 'recurso', r }, fr * P.recurso]);
+        if (vigor || !COLETA_ORDEM.includes(RECURSOS_CLA[r]?.coleta)) op.push([{ k: 'recurso', r }, fr * P.recurso]); // caça (carne, couro) não pede vigor (André 2026-11-26)
       }
       op.push([{ k: 'proteger', p: 'lider' }, (ameaca ? 1.5 / (1 + protege) : 0.1) * P.proteger]);
       if (temLote && !fazenda) op.push([{ k: 'fazenda', s: 'cenoura' }, 0.4 * P.fazenda]);
