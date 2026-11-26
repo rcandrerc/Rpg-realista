@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   copiar:
-    runs-on: ${{ vars.RUNNER_BUILD || 'ubuntu-latest' }}
+    runs-on: ${{ vars.RUNNER_BUILD || (github.event.repository.private && 'aethra-build') || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - name: Baixar a cópia cifrada
