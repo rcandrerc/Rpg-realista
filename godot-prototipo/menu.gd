@@ -1113,7 +1113,9 @@ func abrir(qual := "", sub := "") -> void:
 	atualizar()
 	_viu_barra()
 	if m.lentidao:
-		m.lentidao.menu_aberto(aba, t0, conteudo.get_child_count())
+		# aberto por baixo da capa (aquecer_passo 0): "aq:" na frente, para o registro não parecer um toque do jogador
+		# (26/11: o "status 3,5 a 5 s" do Poco era isso, o aquecimento, e não a aba aberta na mão)
+		m.lentidao.menu_aberto(("aq:" if _aquecendo else "") + aba, t0, conteudo.get_child_count())
 
 # botão de ação perto da bancada, bigorna ou fornalha: a aba Criar inteira, aberta no que esta estação faz
 func abrir_estacao() -> void:
@@ -2695,7 +2697,16 @@ func _chave_cla() -> String:
 	for r in c.get("m", []):
 		ms.append(_sem_o_que_anda(r))
 	c.m = ms
-	return JSON.stringify([c, P_menu.prog, m.on()])
+	# do progresso, a aba só usa o nível e o ouro (e o ouro só para ligar/desligar botões). Antes ia o progresso inteiro:
+	# grindando com a aba aberta, cada XP ou loot mudava a chave e refazia tudo (Poco v3518 26/11: m:menu_srv:cla 73 ms,
+	# 26 vezes). Agora só o que muda a tela.
+	var ouro := int(P_menu.prog.get("ouro", 0))
+	var da := []
+	for dd in c.get("disp", []):
+		da.append(ouro >= int((dd as Dictionary).get("taxa", 0)) if dd is Dictionary else false)
+	for T in c.get("tiers", []):
+		da.append(ouro >= int((T as Dictionary).get("preco", 0)) if T is Dictionary else false)
+	return JSON.stringify([c, int(P_menu.prog.get("nivel", 1)), da, m.on()])
 
 func _recruta_agora(rid: String, antes: Dictionary) -> Dictionary:
 	if P_menu.cla is Dictionary:
@@ -2725,7 +2736,7 @@ var _tudo_chave := ""
 var _tudo_t := 0
 func _chave_tudo() -> String:
 	var P = P_menu
-	return JSON.stringify([_chave_cla(), P.st, P.hist_info, P.diarias, P.guilda, P.teste, aba, vendo_recruta(), m.perto_da_loja()])
+	return JSON.stringify([_chave_cla(), P.prog, P.st, P.hist_info, P.diarias, P.guilda, P.teste, aba, vendo_recruta(), m.perto_da_loja()])
 
 func _cla_pintar_vivo() -> void:
 	var C: Dictionary = P_menu.cla
