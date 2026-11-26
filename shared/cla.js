@@ -224,7 +224,7 @@ export const Cla = {
       eu: { nome: j.nome, nv, ...st(j, j.prog) },
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, sem: semanaDe(tierDe(m.tier), a ? a.prog.nivel | 0 : m.nv), on: a ? 1 : 0, ...(m.dev ? { dev: m.dev } : {}), g: m.g,
         ...this.moralInfo(m, c.vis, eM, a, j), // moral e produção (MORAL): seta + % e ~N/h
-        fn: m.fn || { k: 'livre' }, c: 'r:' + m.id, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, j), x: Math.round(a.x), z: Math.round(a.z), bid: a.id, ...(a.time && a.time === j.time ? { time: 1 } : {}) } : {}) }; }), // x, z: "Ver no mapa"; c: conta (Mensagem), bid: o corpo (Time)
+        fn: m.fn || { k: 'livre' }, c: 'r:' + m.id, ...(a ? { ...st(a, a.prog), ...this.fzRecruta(a, j), x: Math.round(a.x), z: Math.round(a.z), bid: a.id, ...(a.time && a.time === j.time ? { time: 1 } : {}) } : {}) }; }), // x, z: "Ver no mapa"; c: conta (Mensagem), bid: o corpo (Time)
       bauCla: temBau ? bau : null, plantas: plantasFazenda(), arvores: arvoresCla(),
       veic: { carrinho: this.carrinhoFora(j, { k: 'carrinho' }) ? 1 : 0, mercante: this.navioFora(j) ? 1 : 0 }, // Proteger carrinho / mercante: apagado se não está no mundo
       funcoes: CLA.funcoes, recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })),
@@ -413,6 +413,13 @@ export const Cla = {
     const B = this.bauDoCla(K); if (B && guardarQueCabe(B.itens, item)) this.mexeuBau(B);
   },
   // ---------- funções (André 2026-11-22) ----------
+  // a linha do que ele faz + desde quando (André 2026-11-26: "adiciona nas msg a qtd minutos/hrs"): fzT = ms de quando a
+  // linha mudou pela última vez (o app mostra "há 5 min")
+  fzRecruta(a, j) {
+    const fz = this.fazendoRecruta(a, j);
+    if (a._fz !== fz) { a._fz = fz; a._fzT = Date.now(); }
+    return { fz, fzT: a._fzT };
+  },
   // o que ele está fazendo agora (linha curta no painel)
   fazendoRecruta(a, j) {
     const ia = a.ia;
@@ -980,7 +987,7 @@ export const Cla = {
     return { n: c.n, nv: c.nv || 1, cofre: c.cofre | 0, semana: semanaCla(c), jogo: heroi ? 1 : 0, ...(!heroi && c.sem <= Date.now() ? { vencida: 1 } : {}), ...(heroi ? { eu: pos(heroi) } : {}),
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, on: a ? 1 : 0, ...(m.dev ? { dev: 1 } : {}),
         ...this.moralInfo(m, c.vis, eM, a), // moral e produção (MORAL), igual ao menu do clã do jogo
-        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), fz: this.fazendoRecruta(a, L), ...pos(a), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length && !a.prog.mochila.some((o) => !o) ? { cheia: 1 } : {}), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length ? { mo: lugares(a.prog.mochila) } : {}) } : {}) }; }),
+        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), ...this.fzRecruta(a, L), ...pos(a), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length && !a.prog.mochila.some((o) => !o) ? { cheia: 1 } : {}), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length ? { mo: lugares(a.prog.mochila) } : {}) } : {}) }; }),
       log: (c.log || []).slice(-10).reverse(), funcoes: CLA.funcoes.filter((F) => heroi || F.id !== 'seguir'),
       recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })), plantas: plantasFazenda(), arvores: arvoresCla(),
       // o que pede o próximo nível do clã e o que já tem (Baú do Clã + mochila do líder), igual ao Melhorar clã do jogo
@@ -1262,8 +1269,8 @@ export const Cla = {
         let mais = 0; for (let i = 0; i < batidas && extra > 0; i++) if (Math.random() < extra) mais++;
         resto -= batidas * custo; dar(R.item, q + mais);
         if (q + mais > dado && q + mais > 0) resto += batidas * custo * (1 - dado / (q + mais / rM || 1)); // o que não coube no baú não gasta vigor
-      } else { // caça (couro): o custo fixo de sempre
-        const q = Math.floor(resto / F.couroVigor); dar(R.item, q); resto -= Math.min(q, Math.ceil(dado / rM)) * F.couroVigor;
+      } else { // caça (couro, carne...): sem vigor (André 2026-11-26), F.couroHora por hora fora
+        const q = h * F.couroHora; dar(R.item, Math.floor(q) + (Math.random() < q % 1 ? 1 : 0)); // o vigor só enche (resto = vg)
       }
       a.prog.vigor = { v: Math.max(0, Math.min(a.prog.vigor?.m || VIGOR.max, resto)), t: Date.now(), m: a.prog.vigor?.m || VIGOR.max };
       if (B && dado) this.mexeuBau(B);

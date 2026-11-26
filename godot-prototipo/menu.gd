@@ -378,6 +378,27 @@ static func balao_nome(alvo: Control, texto: String, cor := OURO_CLARO) -> void:
 static func legivel(tam: int) -> int:
 	return tam + 2 if tam <= 11 else (tam + 1 if tam <= 13 else tam)
 
+# há quanto tempo (André 2026-11-26: "adiciona nas msg a qtd minutos/hrs foi enviada"): ms = instante (ms Unix) da
+# mensagem ou de quando a linha "Agora:" do recruta mudou. "" sem hora
+static func ha_quanto(ms: float) -> String:
+	if ms <= 0.0:
+		return ""
+	var s := maxf(0.0, Time.get_unix_time_from_system() - ms / 1000.0)
+	var en: bool = Idioma.atual == "en"
+	if s < 60.0:
+		return "just now" if en else "agora há pouco"
+	if s < 3600.0:
+		return ("%d min ago" if en else "há %d min") % int(s / 60.0)
+	if s < 86400.0:
+		return ("%d h ago" if en else "há %d h") % int(s / 3600.0)
+	return ("%d d ago" if en else "há %d d") % int(s / 86400.0)
+
+# "Agora: Coletando · há 5 min"
+static func texto_agora(d: Dictionary) -> String:
+	var t := Idioma.frase("Agora: %s" % str(d.get("fz", "")))
+	var h := ha_quanto(float(d.get("fzT", 0)))
+	return t + (" · " + h if h != "" else "")
+
 static func rotulo(t: String, tam := 15, cor := TEXTO) -> Label:
 	var l := Label.new()
 	l.text = Idioma.frase(t) # inglês (idioma.gd): frase inteira ou modelo com {1}
@@ -2480,7 +2501,7 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 	if r == null:
 		return card
 	if r.has("fz"):
-		vivo["fz"] = rotulo("Agora: %s" % str(r.fz), 12, APAGADO.lightened(0.25))
+		vivo["fz"] = rotulo(texto_agora(r), 12, APAGADO.lightened(0.25))
 		v.add_child(vivo["fz"])
 	if r.has("dev"):
 		v.add_child(rotulo("Sem pagamento", 12, Color(1.0, 0.55, 0.45)))
@@ -2622,7 +2643,7 @@ func _marcar_ordem(rid: String, pedido: Dictionary) -> void:
 	_ordem_pend[rid] = pedido
 	atualizar()
 
-const CLA_ANDA := ["hp", "mp", "vg", "fz", "x", "z", "morto", "ml", "re", "seta", "cor", "ph", "pt", "tr", "fm", "fn2"]
+const CLA_ANDA := ["hp", "mp", "vg", "fz", "fzT", "x", "z", "morto", "ml", "re", "seta", "cor", "ph", "pt", "tr", "fm", "fn2"]
 
 func _texto_cobranca(falta: float) -> String:
 	return "Próxima cobrança em %d d %d h" % [int(falta / 86400000.0), int(fmod(falta, 86400000.0) / 3600000.0)]
@@ -2701,7 +2722,7 @@ func _cla_pintar_vivo() -> void:
 			par[0].anchor_right = clampf(float(d.get(k, 0)) / mx, 0.0, 1.0)
 			par[1].text = "%d/%d" % [int(d.get(k, 0)), int(mx)]
 		if vivo.has("fz") and is_instance_valid(vivo.fz):
-			vivo.fz.text = Idioma.frase("Agora: %s" % str(d.get("fz", "")))
+			vivo.fz.text = texto_agora(d)
 		_moral_pintar(vivo, d)
 
 # com a aba Clã aberta, pede o painel de novo a cada 3 s (HP, mana e vigor andando)

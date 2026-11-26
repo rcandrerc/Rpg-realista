@@ -10,6 +10,10 @@ const SALA = 'clareira';
 const A_CADA = 30000; // pede a lista a cada 30 s (com a página visível)
 
 const $ = (id) => document.getElementById(id);
+// há quanto tempo (André 2026-11-26: "adiciona nas msg a qtd minutos/hrs foi enviada"): ms = instante da mensagem ou de
+// quando a linha do que o recruta faz mudou (fzT). '' sem hora
+const haQuanto = (ms) => { if (!(ms > 0)) return ''; const s = Math.max(0, (Date.now() - ms) / 1000); return s < 60 ? 'agora há pouco' : s < 3600 ? `há ${Math.floor(s / 60)} min` : s < 86400 ? `há ${Math.floor(s / 3600)} h` : `há ${Math.floor(s / 86400)} d`; };
+const comHa = (txt, ms) => { const h = haQuanto(ms); return txt && h ? `${txt} · ${h}` : txt; };
 const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 const ler = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const gravar = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* sem armazenamento */ } };
@@ -154,7 +158,7 @@ function cartaoMembro(m) {
   const l = el('div', 'linha'), n = el('div', 'nome', m.nome);
   n.append(el('span', 'tag', m.tier)); if (m.dev) n.append(el('span', 'tag', 'devendo')); if (m.cheia) n.append(el('span', 'tag cheio', 'Mochila cheia')); else if (m.mo) n.append(lugaresTag('Mochila', m.mo));
   l.append(n, ...(m.re ? [moralTag(m)] : []), el('div', 'nv', `Nv ${m.nv}`)); c.append(l);
-  c.append(el('div', 'faz', m.on ? (m.morto ? 'Caído' : m.fz || '') : 'Fora do mundo'));
+  c.append(el('div', 'faz', m.on ? (m.morto ? 'Caído' : comHa(m.fz || '', m.fzT)) : 'Fora do mundo'));
   if (m.pt && m.fn?.k !== 'livre') { // o que rendeu a ordem: "Coletou 120 minério de ferro (+20 pela moral)"
     const nome = m.fn?.k === 'grind' ? 'monstros' : (info.recursos.find((r) => r.k === m.fn?.r)?.nome || '');
     const tempo = m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`;
@@ -616,7 +620,7 @@ function chatLeve(novas) {
   }
   const lista = $('chatLista'), embaixo = lista.scrollTop + lista.clientHeight >= lista.scrollHeight - 8;
   limpar(lista);
-  for (const m of leve.chat) { const d = el('div', m.meu ? 'meu' : ''); d.append(el('i', null, CANAIS[m.k] || m.k), el('b', null, m.n + ': '), document.createTextNode(m.x)); lista.append(d); }
+  for (const m of leve.chat) { const d = el('div', m.meu ? 'meu' : ''); d.append(el('i', null, CANAIS[m.k] || m.k), el('b', null, m.n + ': '), document.createTextNode(m.x)); if (m.h) d.append(el('small', 'ha', ' (' + haQuanto(m.h) + ')')); lista.append(d); }
   if (embaixo) lista.scrollTop = lista.scrollHeight;
 }
 // toque no mapa: vai até lá (perto de um lugar marcado, vai até ele, com o nome)
@@ -1200,7 +1204,7 @@ function cartaoTime() {
   for (const m of L) {
     const segue = m.fn?.k === 'seguir', r = el('div', 'recLeve'), n = el('div', 'n');
     const longe = m.on && Number.isFinite(m.x) && leve.f ? metros({ x: m.x, z: m.z }) : '';
-    n.append(el('b', null, `${m.nome} · Nv ${m.nv}`), el('small', null, !m.on ? 'fora do mundo' : m.morto ? 'caído' : segue ? `com você${longe ? ' · ' + longe : ''}` : `${m.fz || 'livre'}${longe ? ' · ' + longe : ''}`));
+    n.append(el('b', null, `${m.nome} · Nv ${m.nv}`), el('small', null, !m.on ? 'fora do mundo' : m.morto ? 'caído' : segue ? `com você${longe ? ' · ' + longe : ''}` : `${m.fz ? comHa(m.fz, m.fzT) : 'livre'}${longe ? ' · ' + longe : ''}`));
     const b = el('button', segue ? 'on' : '', segue ? 'Comigo ✓' : 'Chamar');
     b.disabled = !m.on; b.onclick = () => { ordemTime(m, !segue); leve.sujo = true; desenharJogar(); };
     r.append(n, b); c.append(r);
