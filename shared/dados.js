@@ -3341,6 +3341,11 @@ export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
 // tiers: preco = fixo + porNivel × nível do recruta; semana = fixo + porNivel × nível ATUAL do recruta (sobe com ele).
 // nivel: 'um' (Nv 1), 'metade' (metade do nível do líder), 'igual' (o nível do líder).
 export const CLA = {
+  // vigor no modo livre (André 2026-11-26: "sempre reservam 80% do vigor deles para o clã. 20% eles gastam quando estão no
+  // modo livre"): membro de clã (recruta de jogador ou de clã bot, membro fixo) sem ordem só gasta vigor acima disto (fração
+  // do máximo). Ordem do líder (Farmar recurso, encomenda) usa tudo. retoma: sem o líder no jogo, quem caiu no Livre por
+  // falta de vigor volta à ordem de coleta com esta fração do máximo (não fica indo e voltando a cada ponto de vigor)
+  livreVigor: { reserva: 0.8, retoma: 0.1 },
   painelVer: 40, // painel do clã: líder da outra raça (Geada) só aparece no mapa a até 40 m de você ou de um recruta seu (como o minimapa)
   nome: { min: 3, max: 20 },
   // queda de conexão ou servidor reiniciando no meio do caminho (André 2026-11-23: "no mar eles saem do meu time e somem do
@@ -3514,7 +3519,7 @@ export const JANTAR = {
 // Moral dos recrutas (André 2026-11-25: "o que não tem muita interatividade com o líder vai perdendo eficiência... medida
 // de uma maneira bem clara"; aprovou a versão enxuta com seta e percentual; "deixar um tempo livre... mais de 2 horas numa
 // tarefa ele começa a perder moral, sobrecarregado"). De 0 a 100, recruta novo com 'inicio'. A faixa dá o rende (dano, XP
-// e coleta), multiplicado pelo da Despensa (com fome/bem alimentados); o menu do clã (jogo e painel) mostra só o total.
+// e coleta: quantidade por batida com o mesmo vigor, não velocidade, André 2026-11-26), multiplicado pelo da Despensa (com fome/bem alimentados); o menu do clã (jogo e painel) mostra só o total.
 // - perto: o líder no jogo a até 'perto' m, ou no time dele: +pertoH por hora (não soma com o Livre: vale o maior).  - livre: na ordem Livre (descanso): +livreH por hora.
 // - elogio: botão Elogiar, no jogo e a até 'elogioPerto' m, 1 vez a cada 'elogioH' horas por recruta: +elogio.
 // - graca: passou 'graca' h sem o líder entrar no jogo: -semLiderH por hora.
