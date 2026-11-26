@@ -849,6 +849,8 @@ func outro(j: Dictionary) -> void:
 		o.nome = str(j.nome) # troca.gd mostra o nome de quem tocou
 	# André 2026-11-10: os outros jogadores veem o nome e o nível em cima da cabeça (só mexe no texto quando muda)
 	var placa: String = "%s · Nv %d" % [str(j.get("nome", "")), int(j.get("nivel", 1))] if j.has("nivel") else str(j.get("nome", ""))
+	if str(j.get("cn", "")) != "": # nome do clã antes do nome (André 2026-11-26: "coloca o nome do clã na cabeça")
+		placa = "[%s] %s" % [str(j.cn), placa]
 	if j.has("gss"): # vantagem SS da Guilda (Presidente 2026-11-19): a marca no nome, para todos verem
 		placa = "[SS] " + placa
 	if placa != o.placa_txt and o.placa != null:
@@ -859,6 +861,11 @@ func outro(j: Dictionary) -> void:
 	if tit != str(o.get("tit", "")) and m.titulos != null:
 		o.tit = tit
 		m.titulos.por(o.no, o.placa, tit)
+	# Patente de Guerra do mês (André 2026-11-26): escudo ao lado do nome, da cor da raça (titulos.gd patente)
+	var ptc := "%d|%s|%s" % [int(j.get("pt", 0)), str(j.get("raca", "")), o.placa_txt]
+	if ptc != str(o.get("pt", "")) and m.titulos != null:
+		o.pt = ptc
+		m.titulos.patente(o.no, o.placa, str(j.get("raca", "")), int(j.get("pt", 0)))
 	if j.has("bot"):
 		o.bot = true # a Cecília: não pede troca nem amizade (troca.gd)
 	# Chama x Geada (André 2026-11-18): a raça vem só para quem não é da Chama (Kira, Rufo e Lis na fase 1). O nome fica da
@@ -869,10 +876,12 @@ func outro(j: Dictionary) -> void:
 	var raca := str(j.get("raca", ""))
 	if raca != str(o.get("raca", "")):
 		o.raca = raca
-		if o.placa != null:
-			o.placa.modulate = Color(str(_raca(raca).get("cor", "ffffff")))
 		o.capa_raca = "" # pinta de novo depois que a roupa vier
 		o.roupa = "-" # veste de novo: a capa volta ao material normal (corpo reaproveitado de alguém de outra raça)
+	var ck := raca + "|" + eu_raca # cor do nome pela facção de quem olha (cor_nome): só quando muda
+	if o.placa != null and ck != str(o.get("cor_k", "")):
+		o.cor_k = ck
+		o.placa.modulate = cor_nome(raca)
 	o.alvo = Vector3(float(j.x), float(j.y), float(j.z))
 	o.ry = float(j.ry)
 	# roupa que aparece no corpo (armadura.gd) e a capa abrindo com a velocidade (a foto vem 20 vezes por segundo)
@@ -2151,6 +2160,13 @@ func _corpo_humano(e: Dictionary, hc: String) -> void:
 	e.anim = h.anim
 	e.barra = h.barra
 	e.monstro = guarda
+
+# cor do nome de quem é jogador (André 2026-11-26: "isso já é assim no 4x4"): as mesmas cores da Arena (arena_pvp.gd
+# AZUL/VERMELHO), pela facção de quem olha. A sua (e você) = azul, a inimiga = vermelho. Hoje todo jogador é Chama, então
+# a Geada fica vermelha; quem for da Geada um dia vê a Geada azul.
+const ArenaPvp = preload("res://arena_pvp.gd")
+func cor_nome(raca: String) -> Color:
+	return ArenaPvp.AZUL if (raca if raca != "" else "chama") == (eu_raca if eu_raca != "" else "chama") else ArenaPvp.VERMELHO
 
 # Chama x Geada (André 2026-11-18): as cores de cada raça (shared/dados.js RACAS, exportado em habilidades.json)
 func _raca(raca: String) -> Dictionary:

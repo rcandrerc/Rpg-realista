@@ -3341,6 +3341,11 @@ export const AMIGOS_VIRTUAIS = [AMIGA, DARIO, ...AVENTUREIROS];
 // tiers: preco = fixo + porNivel × nível do recruta; semana = fixo + porNivel × nível ATUAL do recruta (sobe com ele).
 // nivel: 'um' (Nv 1), 'metade' (metade do nível do líder), 'igual' (o nível do líder).
 export const CLA = {
+  // vigor no modo livre (André 2026-11-26: "sempre reservam 80% do vigor deles para o clã. 20% eles gastam quando estão no
+  // modo livre"): membro de clã (recruta de jogador ou de clã bot, membro fixo) sem ordem só gasta vigor acima disto (fração
+  // do máximo). Ordem do líder (Farmar recurso, encomenda) usa tudo. retoma: sem o líder no jogo, quem caiu no Livre por
+  // falta de vigor volta à ordem de coleta com esta fração do máximo (não fica indo e voltando a cada ponto de vigor)
+  livreVigor: { reserva: 0.8, retoma: 0.1 },
   painelVer: 40, // painel do clã: líder da outra raça (Geada) só aparece no mapa a até 40 m de você ou de um recruta seu (como o minimapa)
   nome: { min: 3, max: 20 },
   // queda de conexão ou servidor reiniciando no meio do caminho (André 2026-11-23: "no mar eles saem do meu time e somem do
@@ -3514,7 +3519,7 @@ export const JANTAR = {
 // Moral dos recrutas (André 2026-11-25: "o que não tem muita interatividade com o líder vai perdendo eficiência... medida
 // de uma maneira bem clara"; aprovou a versão enxuta com seta e percentual; "deixar um tempo livre... mais de 2 horas numa
 // tarefa ele começa a perder moral, sobrecarregado"). De 0 a 100, recruta novo com 'inicio'. A faixa dá o rende (dano, XP
-// e coleta), multiplicado pelo da Despensa (com fome/bem alimentados); o menu do clã (jogo e painel) mostra só o total.
+// e coleta: quantidade por batida com o mesmo vigor, não velocidade, André 2026-11-26), multiplicado pelo da Despensa (com fome/bem alimentados); o menu do clã (jogo e painel) mostra só o total.
 // - perto: o líder no jogo a até 'perto' m, ou no time dele: +pertoH por hora (não soma com o Livre: vale o maior).  - livre: na ordem Livre (descanso): +livreH por hora.
 // - elogio: botão Elogiar, no jogo e a até 'elogioPerto' m, 1 vez a cada 'elogioH' horas por recruta: +elogio.
 // - graca: passou 'graca' h sem o líder entrar no jogo: -semLiderH por hora.
@@ -4062,6 +4067,35 @@ export const GUERRA = { radar: { mostra: 300, recarga: 1800, presente: 3 }, // P
       geada: [[546, 43], [505, 175], [330, 300], [212, 292], [206, 134], [104, -30], [135, -255], [440, -215], [508, -126], [546, 43]],
       chama: [[-6, 1], [104, -30], [206, 134], [330, 300], [505, 175], [690, -60], [440, -215], [135, -255], [-6, 1]],
     } } };
+// Patente de Guerra (André 2026-11-26, "igual Call of Duty / Free Fire"; shared/patente.js): cada abate da outra raça
+// no mundo (não na Arena) conta no mês. abates[i] = quantos no mês para chegar à patente i (0 = Recruta). O anel da tela
+// enche de 0 a 100% até a próxima. No dia 1º (hora de Brasília) todo mundo volta a Recruta e ganha o prêmio da patente
+// que alcançou; o título da MAIOR patente que já pegou fica para sempre (TITULOS pat1..pat7, sem bônus: patente não dá
+// força). Contra farm: a mesma pessoa só conta de novo depois de repete s; quem é fraco+ níveis mais fraco não conta.
+// O clã que mais abateu no mês ganha um Lendário (PATENTE.cla, sorteado) no Baú do Clã. Bots iguais: o prêmio deles vai para o baú do clã.
+export const PATENTE = {
+  nomes: ['Recruta', 'Soldado', 'Cabo', 'Sargento', 'Tenente', 'Capitão', 'Comandante', 'Lenda'],
+  abates: [0, 5, 15, 30, 50, 80, 120, 180],
+  // premio[i]: o que a patente i dá no fim do mês; k lista = sorteia um por unidade (runa para arma ou selo para armadura)
+  premio: [null, [{ k: 'pocao', n: 5 }], [{ k: ['runa_rara', 'selo_raro'], n: 1 }], [{ k: ['runa_rara', 'selo_raro'], n: 2 }],
+    [{ k: ['runa_epica', 'selo_epico'], n: 1 }], [{ k: ['runa_epica', 'selo_epico'], n: 2 }], [{ k: ['runa_lendaria', 'selo_lendario'], n: 1 }],
+    [{ k: ['runa_mitica', 'selo_mitico'], n: 1 }]],
+  cla: ['runa_lendaria', 'selo_lendario'],
+  repete: 600, fraco: 10, guarda: 60, passo: 30,
+  // morrer para a outra raça fora da Arena (André 2026-11-26): tira perde (5%) do anel da patente, mas nunca desce de
+  // patente (para em 0%); a mesma pessoa só tira de novo depois de repete s. Na Lenda não tira (o anel já está cheio).
+  perde: 0.05,
+};
+// patente pelos abates do mês e quanto falta para a próxima (0..1; 1 na última)
+// a = pontos do mês (abates menos o que as mortes tiraram; pode ter fração, ver pontosGuerra)
+export function patenteDe(a) {
+  const L = PATENTE.abates, v = Math.max(0, +a || 0); let i = 0; while (i + 1 < L.length && v + 1e-9 >= L[i + 1]) i++;
+  return { i, pct: i + 1 < L.length ? Math.max(0, Math.min(1, (v - L[i]) / (L[i + 1] - L[i]))) : 1 };
+}
+// pontos do mês de prog.gu: abates (a) menos o que as mortes tiraram (p)
+export const pontosGuerra = (G) => Math.max(0, (G?.a | 0) - (+G?.p || 0));
+// o mês da guerra na hora de Brasília: 'AAAA-MM'
+export const mesGuerra = (ms = Date.now()) => new Date(ms - 3 * 3600e3).toISOString().slice(0, 7);
 // Os três da Geada (fase 1, aprovados pelo André 2026-11-18; fotos em /mnt/project-files/racas-rivais/). Iguais aos
 // aventureiros por dentro (caçam, vendem, consertam, sobem de nível), moram no Juncal (casa da Geada) e caçam nos campos
 // do leste. guerra: coragem (ataca mesmo em desvantagem), honra (poupa quem é muito mais fraco), paciencia (espera a hora
@@ -4296,6 +4330,9 @@ export const NPC_SEM_NEVOA = true;
 // com lote na base do clã (líder, membros, recrutas do jogador e dos clãs bot) constrói a casa com cama e baú nele, e todo
 // recruta faz as missões da história e as diárias no modo livre, como um jogador. false: só Cecília, Dario e Lia (como antes).
 export const NPC_CASA_BASE = { ligado: true };
+// obra da casa dos bots (shared/cla.js passoObraCasas, André 2026-11-26): a cada minuto todo bot com lote põe as peças
+// que faltam; peça que não coube é tentada de novo depois de 'esquece' s (antes só quando o servidor reiniciava)
+export const CASA_OBRA = { esquece: 600 };
 // Encomenda pelo chat (André 2026-11-21: "minera um pouco de ferro pra mim, eu compro"; "isso pra árvore, ferro, qualquer
 // recurso"; "depois eu peço vem aqui que vou trocar"). O bot vai ao lugar mais perto DELE daquele recurso (mesmo com você
 // longe), coleta de verdade, guarda separado (não vende na vila) e avisa. "Vem aqui" com a encomenda pronta: ele vem sempre
@@ -5704,6 +5741,14 @@ export const TITULOS = {
   arena_lamina: { nome: 'Lâmina da Arena', r: 2, como: 'Comprado na Loja da Arena', cond: { loja: 'pvp' }, b: { dano: 0.03 } },
   arena_muralha: { nome: 'Muralha da Arena', r: 2, como: 'Comprado na Loja da Arena', cond: { loja: 'pvp' }, b: { defesa: 0.03 } },
   arena_lenda: { nome: 'Lenda da Arena', r: 3, como: 'Comprado na Loja da Arena', cond: { loja: 'pvp' }, b: { dano: 0.03, critico: 0.03 } },
+  // Patente de Guerra (André 2026-11-26, PATENTE): a maior patente que já pegou num mês fica para sempre; sem bônus
+  pat1: { nome: 'Soldado', r: 0, como: 'Chegou a Soldado na guerra (5 abates no mês)', cond: { pat: 1 }, b: {} },
+  pat2: { nome: 'Cabo', r: 0, como: 'Chegou a Cabo na guerra (15 abates no mês)', cond: { pat: 2 }, b: {} },
+  pat3: { nome: 'Sargento', r: 1, como: 'Chegou a Sargento na guerra (30 abates no mês)', cond: { pat: 3 }, b: {} },
+  pat4: { nome: 'Tenente', r: 1, como: 'Chegou a Tenente na guerra (50 abates no mês)', cond: { pat: 4 }, b: {} },
+  pat5: { nome: 'Capitão', r: 2, como: 'Chegou a Capitão na guerra (80 abates no mês)', cond: { pat: 5 }, b: {} },
+  pat6: { nome: 'Comandante', r: 3, como: 'Chegou a Comandante na guerra (120 abates no mês)', cond: { pat: 6 }, b: {} },
+  pat7: { nome: 'Lenda da Guerra', r: 4, como: 'Chegou a Lenda na guerra (180 abates no mês)', cond: { pat: 7 }, b: {} },
 };
 // profissões: Nv 10 (Raro) e Nv 20 (Lendário) de cada uma
 for (const [k, n10, n20, bk, v] of [
@@ -5714,7 +5759,7 @@ for (const [k, n10, n20, bk, v] of [
   TITULOS[k + '10'] = { nome: n10, r: 1, como: `${PROFISSOES[k].nome} Nv 10`, cond: { prof: k, nv: 10 }, b: { [bk]: v } };
   TITULOS[k + '20'] = { nome: n20, r: 3, como: `${PROFISSOES[k].nome} Nv 20`, cond: { prof: k, nv: 20 }, b: { [bk]: v * 2 } };
 }
-for (const t of Object.values(TITULOS)) t.txt = textoBonusTitulo(t); // "+5% crítico" (a aba mostra "Venceu o Uivo-Rei · +5% crítico")
+for (const t of Object.values(TITULOS)) t.txt = textoBonusTitulo(t) || (t.cond.pat ? 'Patente de Guerra' : ''); // patente não dá bônus (André 2026-11-26) // "+5% crítico" (a aba mostra "Venceu o Uivo-Rei · +5% crítico")
 // título que ainda não dá para ganhar (boss esperando o modelo) não aparece na aba
 export const tituloAtivo = (id) => { const c = TITULOS[id]?.cond; return !!c && !(c.boss && BOSSES_MUNDO[c.boss]?.ativo === false); };
 
