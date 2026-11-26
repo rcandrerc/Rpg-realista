@@ -47,11 +47,11 @@ const ehArma = (k) => ['espada', 'cajado'].includes(ITENS[k]?.lugar); // catalis
 // ---------- Fornalha (shared/dados.js FORNALHA): queima sozinha pelo relógio, mesmo com o dono fora do jogo ----------
 // F = { comb, ent, sai: {k, n} | null, fogo: s de fogo que sobra da unidade acesa, fogoK: o que está queimando,
 // prog: s do que está saindo agora, t: última conta (ms) }. Só faz a conta quando alguém olha (abre, põe, tira, salva).
-export function fornoVazio() { return { comb: null, ent: null, sai: null, fogo: 0, fogoK: '', prog: 0, t: Date.now() }; }
+export function fornoVazio() { return { comb: null, ent: null, ent2: null, sai: null, fogo: 0, fogoK: '', prog: 0, t: Date.now() }; }
 export function fornoValido(d) {
   const F = fornoVazio();
   if (!d || typeof d !== 'object') return F;
-  for (const c of ['comb', 'ent', 'sai']) {
+  for (const c of ['comb', 'ent', 'ent2', 'sai']) {
     const o = d[c];
     if (o && ITENS[o.k] && (o.n | 0) > 0) F[c] = { k: o.k, n: Math.min(o.n | 0, ITENS[o.k].pilha || 50) };
   }
@@ -66,10 +66,11 @@ export const regraForno = (k) => (k === 'fogao' ? FOGAO : FORNALHA);
 // dá para seguir agora? (material bastante e cabe na saída)
 function fornoPodeSeguir(F, R) {
   if (!R || !F.ent || F.ent.n < R.usa) return false;
+  if (R.ent2 && !(F.ent2 && F.ent2.k === R.ent2.k && F.ent2.n >= R.ent2.n)) return false; // 2º espaço de material (aço: 2 carvões)
   return !F.sai || (F.sai.k === R.faz && F.sai.n < (ITENS[R.faz].pilha || 50));
 }
 // anda o relógio da fornalha até agora; devolve true se mudou alguma coisa
-const fornoTemCoisa = (F) => !!(F && (F.comb || F.ent || F.sai));
+const fornoTemCoisa = (F) => !!(F && (F.comb || F.ent || F.ent2 || F.sai));
 export function avancarForno(F, agora = Date.now(), C = FORNALHA) {
   let dt = Math.max(0, (agora - F.t) / 1000), mudou = false;
   F.t = agora;
@@ -88,6 +89,7 @@ export function avancarForno(F, agora = Date.now(), C = FORNALHA) {
     F.prog += passo; F.fogo -= passo; dt -= passo;
     if (F.prog >= R.dur - 1e-6) {
       F.prog = 0; F.ent.n -= R.usa; if (F.ent.n <= 0) F.ent = null;
+      if (R.ent2) { F.ent2.n -= R.ent2.n; if (F.ent2.n <= 0) F.ent2 = null; }
       if (F.sai) F.sai.n++; else F.sai = { k: R.faz, n: 1 };
       mudou = true;
     }
@@ -3777,12 +3779,13 @@ export class Simulacao {
       if (!atual) F.prog = 0;
       aviso(`${n}x ${ITENS[R.faz].nome} na panela`);
     } else if (m.acao === 'por') {
-      if (lugar !== 'comb' && lugar !== 'ent') return;
+      if (lugar !== 'comb' && lugar !== 'ent' && !(lugar === 'ent2' && !fogao)) return; // ent2: o 2º espaço de material, só na fornalha
       const o = p.mochila[m.i | 0]; if (!o) return;
       if (o.h) return aviso('Tire o item do lugar rápido antes');
       if (lugar === 'comb' && !C.combustivel[o.k]) return aviso('Combustível é lenha ou carvão');
+      if (lugar === 'ent2' && !Object.values(C.receitas).some((q) => q.ent2?.k === o.k)) return aviso('No 2º material vai o que a receita pede a mais: o aço leva 2 carvões');
       const R = lugar === 'ent' ? C.receitas[o.k] : null;
-      if (lugar === 'ent' && !R) return aviso('A fornalha derrete minério de ferro ou de cobre, queima lenha em carvão e faz aço da barra de ferro');
+      if (lugar === 'ent' && !R) return aviso('A fornalha derrete minério de ferro ou de cobre, queima lenha em carvão e faz aço da barra de ferro (com carvão)');
       if (R && profNivel(p.prof.fer) < R.nivel && !this.livreHistoria(j, R.faz)) return aviso(`Precisa de Ferreiro Nv ${R.nivel}`);
       const atual = F[lugar];
       if (atual && atual.k !== o.k) return aviso('Tire o que já está lá antes');
@@ -3794,7 +3797,7 @@ export class Simulacao {
       if ((o.n | 0) > n) o.n -= n; else p.mochila[m.i | 0] = null; // o que não coube fica na mochila
       if (lugar === 'ent' && !atual) F.prog = 0;
     } else if (m.acao === 'tirar') {
-      if (!['comb', 'ent', 'sai'].includes(lugar)) return;
+      if (!['comb', 'ent', 'ent2', 'sai'].includes(lugar) || (lugar === 'ent2' && fogao)) return;
       const o = F[lugar]; if (!o) return;
       const prova = p.mochila.map((q) => (q ? { ...q } : null));
       if (fogao && lugar === 'ent') { // o que não cozinhou volta como ingredientes
@@ -3817,8 +3820,8 @@ export class Simulacao {
   dadosForno(F, C = FORNALHA) {
     const R = receitaForno(F, C), anda = fornoPodeSeguir(F, R) && (F.fogo > 0 || (F.comb && (!R.fogo || F.comb.k === R.fogo)));
     const c = (o) => (o ? { k: o.k, n: o.n } : null);
-    return { comb: c(F.comb), ent: c(F.ent), sai: c(F.sai), fogo: r2(F.fogo), fogoK: F.fogoK, fogoMax: C.combustivel[F.fogoK] || 0,
-      prog: r2(F.prog), dur: R ? R.dur : 0, faz: R ? R.faz : '', anda: !!anda, precisa: R && R.fogo && (!F.comb || F.comb.k !== R.fogo) && !(F.fogo > 0 && F.fogoK === R.fogo) ? R.fogo : '' };
+    return { comb: c(F.comb), ent: c(F.ent), ent2: c(F.ent2), sai: c(F.sai), fogo: r2(F.fogo), fogoK: F.fogoK, fogoMax: C.combustivel[F.fogoK] || 0,
+      prog: r2(F.prog), dur: R ? R.dur : 0, faz: R ? R.faz : '', pede2: R?.ent2 && !(F.ent2 && F.ent2.k === R.ent2.k && F.ent2.n >= R.ent2.n) ? { k: R.ent2.k, n: R.ent2.n } : null, anda: !!anda, precisa: R && R.fogo && (!F.comb || F.comb.k !== R.fogo) && !(F.fogo > 0 && F.fogoK === R.fogo) ? R.fogo : '' };
   }
   // m = { acao: 'arar' | 'plantar' | 'regar' | 'colher' | 'tirar', c: 'i,j' (quadrado de 1 m), s: planta (no plantar) }
   horta(id, m) {

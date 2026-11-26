@@ -915,13 +915,16 @@ export const bauLugares = (nv) => BAU.niveis[Math.max(0, Math.min(BAU.niveis.len
 // lugar de saída até você pegar. combustivel = segundos de fogo de cada unidade; receitas pelo material posto:
 // usa = quantos viram um, dur = segundos de cada um, fogo = só com esse combustível (aço: ferro com carvão),
 // nivel = Ferreiro mínimo, vigor = pontos de Ferreiro (e XP) por unidade, dados quando você pega.
+// André 2026-11-26 (fornalha com 2 espaços de material): "a partir do ferro já deveria ser obrigatório usar carvão"; lenha
+// serve só para o cobre (e para virar carvão). ent2 = o que vai no segundo espaço de material, por unidade feita (aço:
+// 1 barra de ferro no Material 1 e 2 carvões no Material 2, mais o carvão do combustível). Sem ent2 a receita só usa o 1.
 export const FORNALHA = {
   combustivel: { lenha: 12, carvao: 30 },
   receitas: {
-    minerio_ferro: { faz: 'barra_ferro', usa: 3, dur: 12, nivel: 1, vigor: 1 },
+    minerio_ferro: { faz: 'barra_ferro', usa: 3, dur: 12, nivel: 1, vigor: 1, fogo: 'carvao' },
     minerio_cobre: { faz: 'barra_cobre', usa: 3, dur: 12, nivel: 1, vigor: 1 },
     lenha: { faz: 'carvao', usa: 2, dur: 8, nivel: 1, vigor: 1 },
-    barra_ferro: { faz: 'barra_aco', usa: 1, dur: 30, nivel: 5, vigor: 2, fogo: 'carvao' },
+    barra_ferro: { faz: 'barra_aco', usa: 1, dur: 30, nivel: 5, vigor: 2, fogo: 'carvao', ent2: { k: 'carvao', n: 2 } },
   },
 };
 // Plantas da horta (números do Quimera: G = horas de rega para ficar madura, y = quantos saem na colheita,
@@ -5034,7 +5037,7 @@ export const HISTORIA = [
     ],
     pronto: 'Bom couro. Se a gente fizer uma coleira de verdade, talvez dê para amansar um deles. Um lobo na estrada vale mais que dez cavalos.' },
   { id: 'a8', cap: 3, nv: 5, npc: 'andarilho', nome: 'A coleira', libera: [],
-    pedido: 'A ideia é uma coleira: com ela, talvez dê para amansar um lobo. Mas couro sozinho não segura bicho bravo. Funda uma barra de ferro no forninho do Tomás, com 3 minérios, e traga junto com os couros.',
+    pedido: 'A ideia é uma coleira: com ela, talvez dê para amansar um lobo. Mas couro sozinho não segura bicho bravo. Funda uma barra de ferro no forninho do Tomás, com 3 minérios, e traga junto com os couros. O fogo do ferro é de carvão: no próprio forninho, 2 lenhas viram 1 carvão.',
     lembra: 'Sem ferro a coleira arrebenta no primeiro puxão. Estou contando com você.',
     etapas: [
       { ev: 'item', k: 'minerio_ferro', de: 'coleta', n: 3, txt: 'Minere minério de ferro', alvo: 'veio:ferro' },

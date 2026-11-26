@@ -5015,12 +5015,17 @@ func _montar_forno() -> void:
 	var cfg: Dictionary = D.get("fornalha", {})
 	var comb: Dictionary = cfg.get("combustivel", {})
 	var rec: Dictionary = cfg.get("receitas", {})
+	var ent2k := {} # o que vai no Material 2 (o aço pede carvão)
+	for rk in rec:
+		if rec[rk].has("ent2"):
+			ent2k[str(rec[rk].ent2.k)] = true
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 16)
 	h.alignment = BoxContainer.ALIGNMENT_CENTER
 	caixa_forno.add_child(h)
 	h.add_child(_lugar_forno("Combustível", "comb", barra_fogo, forno_alvo == "comb"))
 	h.add_child(_lugar_forno("Material", "ent", barra_forno, forno_alvo == "ent"))
+	h.add_child(_lugar_forno("Material 2", "ent2", null, forno_alvo == "ent2")) # André 2026-11-26: o aço leva 2 carvões aqui
 	var seta := Menu.rotulo("→", 30, Menu.OURO)
 	seta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(seta)
@@ -5028,12 +5033,15 @@ func _montar_forno() -> void:
 	# o que está acontecendo, em palavras
 	var t := ""
 	var faz := str(forno.get("faz", ""))
+	var pede2 = forno.get("pede2")
 	if str(forno.get("precisa", "")) != "":
 		t = Idioma.frase("%s só sai com %s no combustível." % [_nome(faz), _nome(str(forno.precisa)).to_lower()])
+	elif pede2 != null:
+		t = Idioma.frase("%s pede mais %d %s no Material 2." % [_nome(faz), int(pede2.n), _nome(str(pede2.k)).to_lower()])
 	elif forno.get("anda", false):
 		t = Idioma.frase("Queimando: sai %s a cada %d s. Pode ir embora, ela continua." % [_nome(faz), int(forno.get("dur", 0))])
 	elif forno.get("ent") == null:
-		t = Idioma.frase("Ponha minério de ferro ou de cobre (3 viram uma barra), lenha (2 viram carvão) ou barra de ferro (vira aço com carvão).")
+		t = Idioma.frase("Ponha minério de cobre (3 viram uma barra), minério de ferro (3 viram uma barra, só com carvão no combustível), lenha (2 viram carvão) ou barra de ferro (vira aço: 2 carvões no Material 2 e carvão no combustível).")
 	elif forno.get("comb") == null and float(forno.get("fogo", 0)) <= 0.0:
 		t = Idioma.frase("Sem fogo: ponha lenha ou carvão no combustível.")
 	elif forno.get("sai") != null and str(forno.sai.k) != faz:
@@ -5041,9 +5049,11 @@ func _montar_forno() -> void:
 	else:
 		t = Idioma.frase("Parada: o lugar de pronto encheu ou falta material.")
 	if forno_alvo == "comb":
-		t += " " + Idioma.frase("A lenha que você tocar vai para o combustível.")
+		t += " " + Idioma.frase("A lenha e o carvão que você tocar vão para o combustível.")
+	elif forno_alvo == "ent2":
+		t += " " + Idioma.frase("O carvão que você tocar vai para o Material 2 (toque no combustível vazio para mudar).")
 	else:
-		t += " " + Idioma.frase("A lenha que você tocar vira carvão (toque no combustível vazio para mudar).")
+		t += " " + Idioma.frase("A lenha que você tocar vira carvão e o carvão vai para o combustível (toque num lugar vazio para mudar).")
 	txt_forno.text = t # cada frase já saiu traduzida (inglês)
 	# mochila: só o que entra na fornalha
 	var moch: Array = m.P.prog.get("mochila", [])
@@ -5054,9 +5064,17 @@ func _montar_forno() -> void:
 		var k := str(it.k)
 		var e_comb := comb.has(k)
 		var e_mat := rec.has(k)
-		if not e_comb and not e_mat:
+		var e_mat2 := ent2k.has(k)
+		if not e_comb and not e_mat and not e_mat2:
 			continue
-		var lugar := forno_alvo if e_comb and e_mat else ("comb" if e_comb else "ent")
+		var onde: Array = []
+		if e_comb:
+			onde.append("comb")
+		if e_mat:
+			onde.append("ent")
+		if e_mat2:
+			onde.append("ent2")
+		var lugar: String = forno_alvo if forno_alvo in onde else str(onde[0])
 		var fn := func():
 			if not _bau_arrastou:
 				_por_forno(it, lugar, i)
