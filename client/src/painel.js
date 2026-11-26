@@ -27,7 +27,7 @@ const http = () => endereco().replace(/^ws/, 'http');
 
 function estado(txt, tipo = '') { const e = $('estado'); e.className = 'estado ' + tipo; e.lastElementChild.textContent = txt; }
 let avisoT = 0;
-function aviso(txt) { const a = $('aviso'); a.textContent = txt; a.hidden = false; clearTimeout(avisoT); avisoT = setTimeout(() => { a.hidden = true; }, 4000); }
+function aviso(txt) { const a = $('aviso'); a.textContent = txt; a.hidden = false; const hud = document.body.classList.contains('leveTela') && $('jogarStatus'); a.style.top = hud ? Math.round(hud.getBoundingClientRect().bottom + 8) + 'px' : ''; clearTimeout(avisoT); avisoT = setTimeout(() => { a.hidden = true; }, 4000); } // jogo leve: o aviso fica logo abaixo do quadro de cima, em cima do mapa (André 2026-11-26)
 
 // ---------- login (o mesmo do site do jogo: sessão guardada no aparelho, login com Google) ----------
 async function sessaoValida() {
@@ -1121,11 +1121,21 @@ function lutaLeve(raiz, morto, mana) {
     });
     const tr = el('button'); tr.append(el('i', null, '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
     tr.onclick = () => mandar('modo', F.hb.mg ? 'Espada' : 'Magia'); h.append(tr);
+    // poções (André 2026-11-26): mesmas da mochila e mesma recarga do jogo (o servidor confere)
+    for (const [k, ic, nome] of [['pocao', '❤️', 'Poção vida'], ['pocao_mana', '💙', 'Poção mana']]) {
+      const b = el('button'); b.dataset.po = k; b.append(el('i', null, ic), el('span', null, nome), el('b', 'cd'));
+      b.onclick = () => { const p = (leve.f?.hb?.po || []).find((o) => o[0] === k); if (!p || p[1] < 0) return aviso(`Sem ${nome.toLowerCase()} na mochila`); if (p[3] > 0) return; mandar('item', { acao: 'usar', i: p[1] }); };
+      h.append(b);
+    }
     // sem botão Fugir (André 2026-11-25: "pra fugir eu clico no mapa"): tocar no mapa anda, mesmo no meio da luta
   }
   for (const [i, , cd, mn] of F.hb.l) {
     const b = h.querySelector(`[data-i="${i}"]`); if (!b) continue;
     const sem = mn > mana; b.classList.toggle('espera', cd > 0 || sem); b.querySelector('.cd').textContent = cd > 0 ? cd : sem ? '💧' : '';
+  }
+  for (const [k, i, n, cd] of F.hb.po || []) {
+    const b = h.querySelector(`[data-po="${k}"]`); if (!b) continue;
+    b.classList.toggle('espera', i < 0 || cd > 0); b.querySelector('.cd').textContent = cd > 0 ? cd : ''; b.querySelector('span').textContent = `${k === 'pocao' ? 'Vida' : 'Mana'} ×${n}`;
   }
   if (!raiz.contains(h)) raiz.insertBefore(h, raiz.querySelector('.doca'));
 }
@@ -1171,7 +1181,7 @@ function abrirPainelLeve(k) {
 }
 // o modo leve ocupa a altura que sobra embaixo do cabeçalho (sem rolar a página); o mapa se ajusta e redesenha
 function telaLeve(liga) {
-  const t = $('jogarAba'); t.classList.toggle('tela', liga);
+  const t = $('jogarAba'); t.classList.toggle('tela', liga); document.body.classList.toggle('leveTela', liga); // o aviso sobe para o meio do mapa (André 2026-11-26)
   const h = liga ? Math.max(360, Math.floor(innerHeight - t.getBoundingClientRect().top - 4)) + 'px' : '';
   if (t.style.height !== h) { t.style.height = h; if (aba === 'jogar' && info) requestAnimationFrame(() => desenharMapa()); }
 }

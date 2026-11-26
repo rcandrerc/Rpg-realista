@@ -314,6 +314,11 @@ export const Leve = {
     um(mg ? 10 : 0, mg ? 'magia' : 'basico', mg ? BASICO_MAGIA : BASICO);
     for (let k = 0; k < ESPACOS_ESPADA; k++) { const i = (mg ? ESPACOS_ESPADA : 0) + k + 1, c = j.build?.[i - 1]; if (c) um(i, c, HABILIDADES[c]); }
     um(9, 'cura', CURA);
-    return { mg: mg ? 1 : 0, l };
+    // poções (André 2026-11-26): [k, lugar da 1ª pilha na mochila (-1 = nenhuma), quantas ao todo, recarga s]; usa a msg 'item' do jogo
+    const po = ['pocao', 'pocao_mana'].map((k) => {
+      let i = -1, n = 0; (j.prog?.mochila || []).forEach((it, q) => { if (it?.k === k) { if (i < 0) i = q; n += it.n || 1; } });
+      return [k, i, n, Math.max(0, Math.ceil((j.pocaoAte?.[k] || 0) - this.tempo))];
+    });
+    return { mg: mg ? 1 : 0, l, po };
   },
 };

@@ -63,6 +63,7 @@ if (achou) {
   for (let i = 0; i < 6; i++) { await pg.locator('#jogarHab button.grande').click(); await esperar(400); }
   await foto('3-golpes.png');
   await pg.locator('#jogarHab button').nth(1).click(); await esperar(1200); await foto('4-habilidade.png');
+  await pg.locator('#jogarHab button[data-po="pocao"]').click(); await esperar(1200); await foto('4b-pocao.png');
 }
 await pg.locator('.redondos button', { hasText: 'Time' }).click(); await esperar(900); await foto('5-time.png');
 await nav.close(); fim(); process.exit();
