@@ -470,8 +470,9 @@ export const Leve = {
   },
   // os botões de luta do modo leve (André 2026-11-25): os mesmos do jogo, do modo da arma (Espada: golpe + 4 de espada;
   // Magia: disparo + 4 de magia) e a cura. [i da mensagem 'habilidade', nome, recarga que falta (s), mana]
+  // [.., chave]: o ícone do jogo (godot-prototipo/icones/<chave>.svg, André 2026-11-27)
   habLeve(j) {
-    const mg = j.modo === 'Magia', l = [], um = (i, chave, h) => { if (h) l.push([i, h.nome, Math.max(0, Math.ceil((j.cds[chave] || 0) - this.tempo)), h.mana || 0]); };
+    const mg = j.modo === 'Magia', l = [], um = (i, chave, h) => { if (h) l.push([i, h.nome, Math.max(0, Math.ceil((j.cds[chave] || 0) - this.tempo)), h.mana || 0, chave]); };
     um(mg ? 10 : 0, mg ? 'magia' : 'basico', mg ? BASICO_MAGIA : BASICO);
     for (let k = 0; k < ESPACOS_ESPADA; k++) { const i = (mg ? ESPACOS_ESPADA : 0) + k + 1, c = j.build?.[i - 1]; if (c) um(i, c, HABILIDADES[c]); }
     um(9, 'cura', CURA);

@@ -1245,6 +1245,14 @@ let dicaAberta = null;
 // mais perto e confere recarga e mana). Nada bate sozinho: cada toque é um golpe.
 const LUTA_PERTO = 14;
 const ICONE_HAB = { Golpe: '⚔️', Disparo: '🔮', Cura: '💚' };
+// os mesmos símbolos dos botões do jogo (André 2026-11-27: "coloca igual do jogo pra quem já joga já nem pensa"): os .svg de
+// godot-prototipo/icones copiados em client/public/painel-icones/hab; o básico da espada é 'basico' e o da magia 'magia'
+const ICONE_JOGO = { basico: 'basico', magia: 'magia', cura: 'cura' };
+function iconeHab(chave, reserva) {
+  const i = el('i'); if (!chave) { i.textContent = reserva; return i; }
+  const im = el('img'); im.alt = ''; im.src = `painel-icones/hab/${ICONE_JOGO[chave] || chave}.svg`; im.onerror = () => { im.remove(); i.textContent = reserva; };
+  i.append(im); return i;
+}
 let habChave = '';
 function lutaLeve(raiz, morto, mana) {
   const F = leve.f, M = F.m || [];
@@ -1279,22 +1287,23 @@ function lutaLeve(raiz, morto, mana) {
   luAntes = !!F.lu;
   const perto = F.hb && !morto && golpesModo !== 'fechado' && (golpesModo === 'aberto' || emLuta(morto) || bichoPerto()); // golpes já na tela com bicho chegando (André 2026-11-26: "quando as skills aparecem... já tô morto")
   if (!perto) { if (h) h.remove(); habChave = ''; return; }
-  const chave = F.hb.l.map((o) => o[0] + o[1]).join('|') + F.hb.mg;
+  const chave = F.hb.l.map((o) => o[0] + o[1] + (o[4] || '')).join('|') + F.hb.mg;
   if (!h || chave !== habChave) {
     if (h) h.remove();
     h = el('div', 'habLeve'); habChave = chave;
-    F.hb.l.forEach(([i, nome], n) => {
+    F.hb.l.forEach(([i, nome, , , chave], n) => {
       const b = el('button', n === 0 ? 'grande' : ''); b.dataset.i = i;
-      b.append(el('i', null, ICONE_HAB[nome] || '✨'), el('span', null, nome), el('b', 'cd'));
+      b.append(iconeHab(chave, ICONE_HAB[nome] || '✨'), el('span', null, nome), el('b', 'cd'));
       if (n === 0) segurarBasico(b, i); // segurar = bate sem parar, como no jogo (André 2026-11-27)
       else b.onclick = () => { if (b.classList.contains('espera')) return; mandar('habilidade', i); };
       h.append(b);
     });
-    const tr = el('button'); tr.append(el('i', null, '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
+    const tr = el('button'); tr.append(iconeHab('troca', '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
     tr.onclick = () => mandar('modo', F.hb.mg ? 'Espada' : 'Magia'); h.append(tr);
     // poções (André 2026-11-26): mesmas da mochila e mesma recarga do jogo (o servidor confere)
     for (const [k, ic, nome] of [['pocao', '❤️', 'Poção vida'], ['pocao_mana', '💙', 'Poção mana']]) {
-      const b = el('button'); b.dataset.po = k; b.append(el('i', null, ic), el('span', null, nome), el('b', 'cd'));
+      const b = el('button'), ii = el('i'), im = el('img'); im.alt = ''; im.src = `painel-icones/${k}.png`; im.className = 'po'; im.onerror = () => { im.remove(); ii.textContent = ic; }; ii.append(im); // a poção pintada do jogo (it_pocao)
+      b.dataset.po = k; b.append(ii, el('span', null, nome), el('b', 'cd'));
       b.onclick = () => { const p = (leve.f?.hb?.po || []).find((o) => o[0] === k); if (!p || p[1] < 0) return aviso(`Sem ${nome.toLowerCase()} na mochila`); if (p[3] > 0) return; mandar('item', { acao: 'usar', i: p[1] }); };
       h.append(b);
     }
