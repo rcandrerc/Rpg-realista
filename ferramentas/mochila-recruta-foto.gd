@@ -48,6 +48,7 @@ func cartoes(ms: Array, C: Dictionary) -> void:
 	vb.add_child(m.menu.rotulo("Membros", 17, m.menu.OURO_CLARO))
 	for r in ms:
 		vb.add_child(m.menu._cartao_cla(r, "%s Nv %d · %d/semana" % [str(r.tier), int(r.nv), int(r.sem)], r, ms, C))
+	m.menu._quebrar_linhas(vb) # igual ao menu de verdade (quebra os textos compridos)
 	await esperar(10)
 
 func _initialize() -> void:

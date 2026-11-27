@@ -207,8 +207,13 @@ button.acao.cinza{background:#26231d;border-color:var(--line)}
 .habLeve{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:auto}
 .habLeve button{position:relative;min-height:58px;border-radius:12px;border:1px solid var(--line);background:rgba(22,20,16,.94);color:var(--ink);font:600 .66rem system-ui,sans-serif;cursor:pointer;padding:2px;overflow:hidden;touch-action:manipulation}
 .habLeve button i{display:block;font-style:normal;font-size:1.35rem;line-height:1.2}
+.habLeve button i img{display:block;width:1.55rem;height:1.55rem;margin:1px auto 0}
+.habLeve button i img.po{width:1.7rem;height:1.7rem;object-fit:contain}
+.habLeve button.grande i img{width:2rem;height:2rem}
 .habLeve button span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .habLeve button.grande{grid-column:span 2;background:rgba(160,82,45,.92);border-color:var(--gold);font-size:.9rem}
+.habLeve button.grande{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.habLeve button.segurando{box-shadow:0 0 0 2px #ff6a3a inset,0 0 14px rgba(255,90,40,.6)}
 .habLeve button.espera{opacity:.45}
 .habLeve button::after{content:'';position:absolute;left:0;right:0;bottom:0;height:var(--cdp,0%);background:rgba(0,0,0,.6);pointer-events:none;transition:height .1s linear}
 .habLeve .cd{z-index:1;position:absolute;inset:0;display:grid;place-items:center;font-size:1.3rem;color:#fff;text-shadow:0 0 4px #000;pointer-events:none}
@@ -218,6 +223,57 @@ button.acao.cinza{background:#26231d;border-color:var(--line)}
 .recLeve button{min-height:40px;min-width:92px;border-radius:999px;border:1px solid var(--line);background:#26231d;color:var(--ink);font:700 .82rem system-ui,sans-serif;cursor:pointer}
 .recLeve button.on{background:#3c7a3c;border-color:#7fcf7f}
 .recLeve button:disabled{opacity:.4}
+/* tela do jogo (André 2026-11-27, prévia aprovada "tela-nova-jogo-leve-v2"): no mundo, sem cabeçalho e sem abas de baixo;
+   a barra do jogo em cima (ícones da HUD do jogo, seta que recolhe), o minimapa no canto, os golpes no arco do jogo e um
+   balão de ação junto da bolinha. As outras abas abrem por cima do mapa (body.sobre) */
+body.leveTela header,body.leveTela #abas{display:none!important}
+body.leveTela{padding-bottom:env(safe-area-inset-bottom,0)}
+body.leveTela #jogarAba.tela{padding:0;max-width:none}
+body.leveTela #jogarAba.tela>#jogarMapa,body.leveTela #jogarAba.tela>#jogar{inset:0}
+body.leveTela #jogarAba.tela>#jogar{display:block}
+body.leveTela #jogarAba.tela>#jogar>*{position:absolute}
+.topoJogo{position:absolute;left:6px;right:6px;top:6px;display:flex;justify-content:space-between;gap:3px;z-index:8}
+.topoJogo button{flex:1 1 0;max-width:36px;aspect-ratio:1;border-radius:50%;border:1.5px solid #b8915a;background:rgba(26,22,18,.92);display:grid;place-items:center;padding:0;cursor:pointer;touch-action:manipulation}
+.topoJogo button i{font-style:normal;font-size:1rem;line-height:1;display:grid;place-items:center}
+.topoJogo button img{width:20px;height:20px;display:block}
+.topoJogo button.on{background:#7a4a1c;border-color:#ffd36b;box-shadow:0 0 8px #ffb84a}
+.topoJogo.recolhido{justify-content:flex-end}.topoJogo.recolhido button[data-k]{display:none}
+.topoJogo button.seta img{transform:rotate(180deg);transition:transform .25s}.topoJogo.recolhido button.seta img{transform:none}
+body.leveTela #jogarAba.tela .hud{left:6px;top:50px;width:164px;max-width:none;margin:0;padding:5px 8px;z-index:5}
+body.leveTela #jogarAba.tela .hud .vm{display:grid;gap:1px}body.leveTela #jogarAba.tela .hud .vm>div{min-width:0}
+body.leveTela #jogarAba.tela .hud .vm .rot{font-size:.66rem;line-height:1.15}
+body.leveTela #jogarAba.tela .hud .conta{font-size:.72rem;white-space:nowrap}
+body.mapaGeral .habLeve.arco,body.mapaGeral .balaoLeve{display:none}
+body.leveTela.mapaGeral #jogarAba.tela .folha{max-height:50%}
+.miniJogo{position:absolute;right:8px;top:50px;width:92px;height:92px;border-radius:50%;border:2px solid #b8915a;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.6);cursor:pointer;background:#1a3e66}
+body.mapaGeral .miniJogo{display:none}
+.fechaMapa{right:8px;top:50px;width:40px;height:40px;border-radius:50%;border:1.5px solid #b8915a;background:rgba(26,22,18,.94);color:var(--ink);font:800 1.1rem system-ui;z-index:9;cursor:pointer}
+body.leveTela #jogarAba.tela .zoom{display:none}body.leveTela.mapaGeral #jogarAba.tela .zoom{display:grid;top:100px;bottom:auto}
+body.leveTela #jogarCartao{left:6px;right:6px;top:148px;z-index:5;padding:6px 10px}
+body.leveTela #jogarAba.tela .alvoLeve,body.leveTela #jogarAba.tela .geadaLeve{left:50%;transform:translateX(-50%);top:206px;width:min(240px,70%);margin:0;z-index:5}
+body.leveTela #jogarAba.tela .folha{left:6px;right:6px;bottom:6px;max-height:62%;margin:0;z-index:12}
+body.leveTela #jogarAba.tela>#jogarChat{bottom:6px;z-index:12}
+.habLeve.arco{right:0;bottom:0;width:360px;height:300px;margin:0;display:block;pointer-events:none;z-index:4}
+.habLeve.arco button{position:absolute;min-height:0;padding:0;border-radius:50%;border:2px solid #b8915a;background:rgba(26,22,18,.92);display:grid;place-items:center;pointer-events:auto}
+.habLeve.arco button span{display:none}
+.habLeve.arco button i{display:grid;place-items:center;font-size:1.2rem;width:100%;height:100%}
+.habLeve.arco button i img{width:58%;height:58%;margin:0}
+.habLeve.arco button.grande{background:rgba(84,41,31,.96);grid-column:auto}.habLeve.arco button.grande i img{width:56%;height:56%}
+.habLeve.arco button.cura{background:rgba(31,77,51,.96)}.habLeve.arco button.troca{background:rgba(84,61,31,.96)}
+.habLeve.arco button.pv{background:rgba(77,26,23,.95)}.habLeve.arco button.pm{background:rgba(23,36,77,.95)}
+.habLeve.arco button.pv span,.habLeve.arco button.pm span{display:block;position:absolute;right:-4px;bottom:-4px;font:700 .62rem system-ui;background:#000;border-radius:7px;padding:0 4px;color:#fff}
+.habLeve.arco button.pv i img,.habLeve.arco button.pm i img{width:72%;height:72%}
+.habLeve.arco button.lobo.on{background:#7a4a1c;border-color:#ffd36b}
+.habLeve.arco button .cd{position:absolute;inset:0;display:grid;place-items:center;font:800 .9rem system-ui;z-index:1}
+.habLeve.arco button::after{border-radius:0}
+.balaoLeve{position:absolute;z-index:7;display:flex;align-items:center;gap:7px;padding:6px 12px 6px 6px;background:#f6ecd6;color:#2b1d10;border:2px solid #7a5a2c;border-radius:16px;font:800 .9rem system-ui,sans-serif;box-shadow:0 4px 10px rgba(0,0,0,.5);cursor:pointer;max-width:70vw}
+.balaoLeve span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.balaoLeve i{font-style:normal;width:30px;height:30px;border-radius:50%;background:#2b2016;display:grid;place-items:center;flex:none}.balaoLeve i img{width:22px;height:22px}
+.balaoLeve::after{content:'';position:absolute;left:20px;bottom:-10px;border:8px solid transparent;border-top-color:#7a5a2c;border-bottom:0}
+.fechaSobre{display:none}
+body.leveTela.sobre .fechaSobre{display:grid;place-items:center;position:fixed;top:54px;right:14px;z-index:31;width:36px;height:36px;border-radius:50%;border:1.5px solid #b8915a;background:rgba(26,22,18,.96);color:var(--ink);font:800 1rem system-ui;cursor:pointer}
+body.leveTela.sobre>main:not(#jogarAba):not([hidden]){position:fixed;z-index:30;left:6px;right:6px;top:48px;bottom:6px;overflow:auto;overscroll-behavior:contain;background:rgba(20,18,14,.97);border:1.5px solid var(--gold);border-radius:14px;padding:46px 8px 8px;max-width:none;margin:0}
+body.leveTela.sobre[data-sobre=mochila]>main#mochilaAba{bottom:250px}
 </style>
 </head>
 <body>
@@ -241,6 +297,7 @@ button.acao.cinza{background:#26231d;border-color:var(--line)}
   <div id="botaoEntrar"></div>
   <p id="entrarErro"></p>
 </section>
+<button id="fechaSobre" class="fechaSobre" aria-label="Fechar">✕</button>
 <main id="cla" hidden></main>
 <main id="jogarAba"><div class="gire card">Gire o aparelho e use em pé: o modo leve é feito para a tela em pé.</div><div id="jogarMapa"><div class="mapaCx" id="mapaCx">
     <canvas id="mapa" width="600" height="600"></canvas>
