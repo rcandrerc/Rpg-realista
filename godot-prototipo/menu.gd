@@ -2448,13 +2448,12 @@ func montar_cla() -> void:
 	# (André 2026-11-24: nada de lista: cada item no símbolo com a quantidade)
 	var rec: Dictionary = C.get("rec", {})
 	if not rec.is_empty():
-		var lr := HBoxContainer.new() # o que ainda vão trazer ao Baú do Clã + "Todos entregam" (André 2026-11-26)
+		var lr := HBoxContainer.new() # o que ainda vão trazer ao Baú do Clã ("Entregar tudo no Baú" saiu: remoção aprovada, André 2026-11-27)
 		lr.add_theme_constant_override("separation", 8)
 		var tr := rotulo("Recursos com os recrutas (vão para o Baú do Clã)", 13, TEXTO)
 		tr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tr.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lr.add_child(tr)
-		lr.add_child(botao("Entregar tudo no Baú", func(): rede("cla", {"acao": "entregar", "id": "*"}), 12, true))
 		conteudo.add_child(lr)
 		conteudo.add_child(_icones_estoque(rec))
 	# Baú do Clã (base no seu terreno, André 2026-11-22)
