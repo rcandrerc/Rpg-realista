@@ -34,6 +34,8 @@ const AguaFx = preload("res://agua_fx.gd")
 const Armadura = preload("res://armadura.gd")
 const Aparencia = preload("res://aparencia.gd")
 const VisualNpc = preload("res://visual_npc.gd")
+const VidaNpc = preload("res://vida_npc.gd") # NPCs das vilas vivos: ferreiro na bigorna, voltinhas (André 2026-11-27)
+var vida_npc
 const Criador = preload("res://criador.gd")
 const Titulos = preload("res://titulos.gd") # títulos com bônus em cima da cabeça (André 2026-11-12)
 const Trabalho = preload("res://trabalho.gd")
@@ -4623,6 +4625,8 @@ func lod_inimigos() -> void:
 			pecinhas_de_perto(n.no)
 			tl = _parte("li:pecinhas", tl)
 	tl = _parte("li:npcs", tl)
+	npcs_vivos(hp)
+	tl = _parte("li:npcs_vivos", tl)
 	anim_monstros_longe(hp)
 	tl = _parte("li:anim_monstros", tl)
 	# FPS (auditoria 2026-11-11): a lista dos monstros perto é refeita a cada 4 quadros (são centenas no mapa; um
@@ -4642,6 +4646,21 @@ func lod_inimigos() -> void:
 			e.no.process_mode = Node.PROCESS_MODE_DISABLED if longe else Node.PROCESS_MODE_INHERIT
 		if not longe:
 			inimigos_perto.append(e)
+
+# NPCs das vilas vivos (André 2026-11-27): o ferreiro bate na bigorna e para um pouco, os outros dão voltinhas curtas
+# em volta da casa. Só os que aparecem (até NPC_LONGE) entram, e só os perto do herói começam algo (vida_npc.gd VIVO);
+# herói perto ou conversa aberta: o NPC volta para o lugar fixo (o servidor confere loja e conserto de lá).
+const NPCS_VIVOS := true
+func npcs_vivos(hp: Vector3) -> void:
+	if not NPCS_VIVOS:
+		return
+	if vida_npc == null:
+		vida_npc = VidaNpc.new(self)
+	var dt := get_process_delta_time()
+	for n in npcs:
+		if n.get("longe", false) or not is_instance_valid(n.no):
+			continue
+		vida_npc.passo(n, n.no.position.distance_squared_to(hp), dt)
 
 # FPS (varredura 2026-11-12, preset Alta): monstro além da sombra (MONSTRO_ANIM_PERTO m; a sombra do Alta acaba em
 # 20 m) anima como o NPC longe: a cada 2 quadros (a cada 3 além de MONSTRO_ANIM_LONGE m), no mesmo tempo total, e fora
