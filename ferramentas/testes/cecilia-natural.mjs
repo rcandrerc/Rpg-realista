@@ -75,7 +75,9 @@ a.semIa[j.conta] = Date.now() - 1;
 ok(!cec.semIaAmiga(a, j), 'passado o tempo, volta ao normal');
 // pediu com jeito depois do não (André 2026-11-17): reconsidera uma vez; pedir seco de novo dá a mesma resposta
 {
-  a.semIa = {}; a.time = null; j.time = null; a.morto = false;
+  // fora de caçada: o horário dela segue o relógio de verdade (30 s por hora do jogo) e, entre 8h30 e 16h do jogo, ela
+  // já está indo caçar; aí "bora pro time?" vira ir junto (cacando) e topa sem sorteio. Era o que fazia o teste falhar às vezes
+  a.semIa = {}; a.time = null; j.time = null; a.morto = false; a.ia.av = null;
   const fala = () => a.ia.chatFila.at(-1)?.texto, rr = Math.random;
   const recusar = () => { a.ia.chatFila = []; a.ia.apelou = null; cec.recusarTimeAmiga(a, j, 'vontade'); a.ia.combinado = null; };
   const diz = (t, assunto) => { cec.ouvirAmiga('andre', t); cec.respostaAmiga('andre', { assunto: assunto ?? cec.assuntoAmiga(t) }); return fala(); };

@@ -1331,6 +1331,9 @@ export const PAGINA_PRECO = [0, 1000, 5000, 15000]; // André 2026-11-16 (estudo
 // decréscimo de defesa no comum"): Comum fica como hoje e cada raridade acima vale mais, então evoluir pesa. desgasteGolpes: a cada N golpes de monstro que pegam no herói, cada peça do
 // corpo perde 1 de durabilidade (PvP não conta; a morte segue tirando MORTE.desgaste).
 // zerar: marca do reset completo do robô (nível, itens, skills, história, tudo); trocar o texto zera de novo na próxima entrada.
+// '2026-11-27c' (André 2026-11-27: "toda mudança assim, mais drástica... essa mudança aí vai mudar tudo"): teste 2. Junto com as
+// contas novas abaixo, o robô passou a puxar um bicho por vez pela borda e a descansar com pouca vida, então a medição recomeça
+// do Nv 1. Mudança pequena não zera.
 // upgrade: o robô não evolui nem reforça sozinho (André 2026-11-27); quando o relatório pedir, o André diz o que muda e
 // entra aqui: v = marca nova (texto), equip = { lugar: { k, r, e } } vestido na próxima entrada do robô (uma vez por marca).
 // Teste 2 (André 2026-11-27, "pensei q já tava rodando"): pontos e nível dão menos e o set escala bem mais por raridade;

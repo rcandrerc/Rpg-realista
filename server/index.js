@@ -634,6 +634,10 @@ class SalaClareira extends Room {
     if (u.leveRc) { const rc = this.sim.leveReceitas(j), rcTxt = JSON.stringify(rc); if (rcTxt !== u.leveRcTxt) { u.leveRcTxt = rcTxt; m.rc = rc; } } // muda quando mochila ou lugar mudam
     if (u.leveMs && (u.leveMsT = (u.leveMsT || 0) + 1) % 2 === 0) { const ms = this.sim.leveMissoes(j), msTxt = JSON.stringify(ms); if (msTxt !== u.leveMsTxt) { u.leveMsTxt = msTxt; m.ms = ms; } } // a cada ~1 s
     if (u.leveFz && (u.leveFzT = (u.leveFzT || 0) + 1) % 2 === 0) { const fz = this.sim.fazendaLeve(j), fzTxt = JSON.stringify(fz); if (fzTxt !== u.leveFzTxt) { u.leveFzTxt = fzTxt; m.fz = fz; } } // a cada ~1 s
+    // o mundo de perto (cenaLeve): a cada ~3 s ou quando o herói muda de quadro; só vai se mudou
+    if ((u.leveCnT = (u.leveCnT || 0) + 1) % 6 === 0 || Math.hypot(j.x - (u.leveCnX ?? 1e9), j.z - (u.leveCnZ ?? 1e9)) > 6) {
+      u.leveCnX = j.x; u.leveCnZ = j.z; const cn = this.sim.cenaLeve(j), cnTxt = JSON.stringify(cn); if (cnTxt !== u.leveCnTxt) { u.leveCnTxt = cnTxt; m.cn = cn; }
+    }
     if (Date.now() - (u.leveMapaT || 0) > 60e3) { u.leveMapaT = Date.now(); m.mapa = this.sim.leveMapa(j); }
     c.send('leve', m);
   }
