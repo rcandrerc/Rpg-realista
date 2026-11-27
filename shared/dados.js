@@ -703,6 +703,8 @@ export const LUGAR_DO_VEIO = {
   c_i1: 'da Duna', c_i2: 'da Maré Baixa', c_i3: 'do Coral', c_i4: 'da Gaivota',
   c_a1: 'do Alvorecer', c_a2: 'da Brasa', c_a3: 'do Orvalho', c_a4: 'do Cometa', c_a5: 'da Estrela Cadente',
   c_a6: 'do Relâmpago', c_a7: 'da Bruma', c_a8: 'do Trovão', c_a9: 'do Crepúsculo',
+  // campos da Geada Nv 1-30 em volta do Juncal (CAMPOS_GEADA)
+  gcaca1: 'do Junco Seco', gcaca2: 'da Margem Fria', gcaca3: 'do Sincelo', gcaca4: 'da Neblina', gcaca5: 'do Gelo Fino', gcaca6: 'da Pedra Branca', gcaca11: 'do Inverno',
 };
 const nomeDoVeio = (tipo, lugar) => (LUGAR_DO_VEIO[lugar] ? `${NOME_VEIO[tipo]} ${LUGAR_DO_VEIO[lugar]}` : NOME_VEIO[tipo]);
 export const MINA = [
@@ -2227,6 +2229,16 @@ const CAMPOS_GEADA = [
   { id: 'gcaca11', tipo: 'golem', nivel: 28, x: 332, z: -88, chefe: 'warrok', porta: [467, 64] },
   { id: 'gcaca12', tipo: 'maw', nivel: 30, x: 300, z: 40, chefe: 'warrok', porta: [433, 73] },
 ];
+// os veios deles (regra dos campos, André 2026-11-08: "de qualquer campo de caça tem pedra e cobre por perto", até 75 m):
+// 5 de pedra e 4 de cobre, uns servem a mais de um campo; chão já plano, sem árvore, estrada, rio nem base (terreno não muda)
+const VEIOS_GEADA = [
+  ['pedra', 324, 74, 'gcaca6'], ['pedra', 380, -60, 'gcaca5'], ['pedra', 520, -78, 'gcaca1'], ['pedra', 546, 80, 'gcaca2'], ['pedra', 304, 218, 'gcaca4'],
+  ['cobre', 354, 88, 'gcaca6'], ['cobre', 408, -46, 'gcaca3'], ['cobre', 532, -10, 'gcaca1'], ['cobre', 340, -58, 'gcaca11'],
+];
+for (const [tipo, x, z, perto] of VEIOS_GEADA) {
+  const m = { id: `m_${perto}_${tipo}`, nome: nomeDoVeio(tipo, perto), tipo, x, z, r: tipo === 'pedra' ? 4.2 : 3.4, veios: 3, volta: { pedra: 240, cobre: 360 }[tipo], pequeno: true, mundo: true };
+  MINA.push(m); VEIOS.push(...veiosDaZona(m));
+}
 for (const c of CAMPOS_GEADA) CACA.push({ id: c.id, nome: `${NOME_CLAREIRA[c.tipo]} (Juncal)`, nivel: c.nivel, bicho: c.tipo, x: c.x, z: c.z, r: CLAREIRA_R, mundo: true, raca: 'geada', porta: { x: c.porta[0], z: c.porta[1] },
   n: 11, tipos: [...Array(10).fill(c.tipo), 'chefe'].map((t) => (t === 'chefe' && c.chefe) || t), passo: 0.35, rapido: 0.3, normal: 1.5, longe: 6, corpo: 2.2, ate: 0.85 });
 // enfeite das arenas (André 2026-11-11: "umas ruínas assim... só para dar uma graça, mas cuidado para não travar"):

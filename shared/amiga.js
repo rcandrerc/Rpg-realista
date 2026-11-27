@@ -1364,7 +1364,7 @@ export const Amiga = {
   // campo de caça pelo nome que ela ou ele disse (o mais forte do nome que cabe no nível dela) ou null
   campoPorNomeAmiga(a, lugar) {
     const n = normAmiga(lugar || '').replace(/^(a|o|na|no|da|do|para|pra|em) /, ''); if (n.length < 4) return null;
-    const l = this.cacas.map((x) => x.def).filter((x) => !x.boss && !x.tunel && normAmiga(x.nome).includes(n) && !zonaFechadaEm(a.prog, x.x, x.z)).sort((x, y) => (x.nivel || 1) - (y.nivel || 1));
+    const l = this.cacas.map((x) => x.def).filter((x) => !x.boss && !x.tunel && (!x.raca || x.raca === (this.AMIGA.raca || 'chama')) && normAmiga(x.nome).includes(n) && !zonaFechadaEm(a.prog, x.x, x.z)).sort((x, y) => (x.nivel || 1) - (y.nivel || 1));
     const cabe = l.filter((x) => (x.nivel || 1) <= (a.prog.nivel | 0) + NPC_VIDA.aventura.campoAcima);
     return cabe.at(-1) || l[0] || null;
   },
@@ -2609,7 +2609,7 @@ export const Amiga = {
   sairCacarAmiga(a, j, lugar) {
     const v = this.podeSairAmiga(a, j); if (!v.ok) return v;
     const n = normAmiga(lugar || '').replace(/^(a|o|na|no|da|do|para|pra) /, ''), A = NPC_VIDA.aventura;
-    const pedido = n.length >= 4 && this.cacas.map((x) => x.def).filter((x) => !x.boss && !x.tunel && normAmiga(x.nome).includes(n)).sort((x, y) => (x.nivel || 1) - (y.nivel || 1));
+    const pedido = n.length >= 4 && this.cacas.map((x) => x.def).filter((x) => !x.boss && !x.tunel && (!x.raca || x.raca === (this.AMIGA.raca || 'chama')) && normAmiga(x.nome).includes(n)).sort((x, y) => (x.nivel || 1) - (y.nivel || 1));
     // o campo pedido no nível dela (o mais forte que ela aguenta); pesado demais: vai no campo dela e avisa
     const cabe = pedido && pedido.filter((x) => (x.nivel || 1) <= (a.prog.nivel | 0) + A.campoAcima - (a.licoes?.acima || 0));
     let c = cabe?.length ? cabe[cabe.length - 1] : null, forte = null;
