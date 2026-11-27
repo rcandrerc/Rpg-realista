@@ -12,7 +12,9 @@ import { LUGARES, TITULOS, BUILD_PADRAO, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DI
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax, ATRIBUTOS, xpProximo } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
 import { liberado, missaoAtual } from './historia.js';
-import { noLago } from './relevo.js';
+import { noLago, relevo } from './relevo.js';
+import { ESTRADAS_MUNDO } from './mundo.js';
+import { VILAS_MUNDO } from './dados.js';
 import { aguaRegador, pertoDeAgua, distRet, crescerPlanta, retPeca, semParede } from './simulacao.js'; // fazenda e cama (etapa 6); só usadas na hora, depois que tudo carregou
 import { PESCA, PLANTAS, HORTA, LOTE, fasePlanta } from './dados.js';
 import { horaDoJogo, ehNoite } from './progresso.js';
@@ -38,6 +40,8 @@ export const LEVE = {
   reto: 30, // m do monstro: o Atacar deixa a estrada e vai reto até ele
   encosta: 2, // m do monstro: o Atacar para aqui (alcance do golpe é 2,3 m)
   spotVe: 40, // m: spot de pesca que aparece sem o Radar (a água borbulhando, como no jogo); com o Radar ligado, qualquer um
+  cena: 40, // m: meia largura do mundo de perto (cenaLeve): chão, estradas, árvores, pedras, casas e veios
+  cenaPasso: 2, // m por quadradinho do chão da cena
   montaDe: 25, // m de caminho: daqui pra cima o "Ir para" sobe no lobo sozinho (como no jogo)
 };
 // quem a página mostra como lugar no mapa (as janelas do jogo de cada um)
@@ -433,6 +437,53 @@ export const Leve = {
       hora: `${String(Math.floor(hr)).padStart(2, '0')}:${String(Math.floor((hr % 1) * 6) * 10).padStart(2, '0')}`, noite: ehNoite(hr) ? 1 : 0,
       cons: Object.entries(CONSTRUCOES).map(([k, C]) => [k, C.nome, C.w, C.d, custo(C), pode(C) ? 1 : 0]),
     };
+  },
+  // o mundo de perto (André 2026-11-27: "um 2D bem próximo... como se eu estivesse dentro do jogo"): o chão em volta do
+  // herói (grama, areia, pedra, água e a luz das encostas), as estradas na largura de verdade, árvores, pedras, casas,
+  // paredes das bases, peças dos terrenos e veios. Vai só quando muda (server/index.js); a página desenha em escala.
+  cenaLeve(j) {
+    const R = LEVE.cena, P = LEVE.cenaPasso, cx = Math.round(j.x / 8) * 8, cz = Math.round(j.z / 8) * 8, x0 = cx - R, z0 = cz - R, n = (2 * R) / P;
+    const dentro = (x, z, m = 0) => x > x0 - m && x < x0 + 2 * R + m && z > z0 - m && z < z0 + 2 * R + m;
+    // chão: t = tipo por quadradinho (g grama, a areia, r pedra, w água rasa, W funda), l = luz da encosta (0 a 9)
+    const N = n + 2, h = new Float32Array(N * N), ag = new Array(N * N);
+    for (let b = 0; b < N; b++) for (let a = 0; a < N; a++) { const x = x0 + (a - 0.5) * P, z = z0 + (b - 0.5) * P, L = noLago(x, z); ag[b * N + a] = L; h[b * N + a] = L ? 0 : relevo(x, z); }
+    let t = '', l = '';
+    for (let b = 1; b <= n; b++) for (let a = 1; a <= n; a++) {
+      const k = b * N + a, L = ag[k];
+      if (L) { t += L.fundo > 1 ? 'W' : 'w'; l += '5'; continue; }
+      const gx = (h[k + 1] - h[k - 1]) / (2 * P), gz = (h[k + N] - h[k - N]) / (2 * P), incl = Math.hypot(gx, gz);
+      const beira = ag[k + 1] || ag[k - 1] || ag[k + N] || ag[k - N];
+      t += incl > 0.75 ? 'r' : beira && (beira.lago?.mar || beira.mar) && h[k] < 1.5 ? 'a' : 'g';
+      l += String(Math.max(0, Math.min(9, Math.round((0.95 - (gx + gz) * 0.4 - 0.68) / 0.52 * 9))));
+    }
+    // estradas: [largura, pedra (1) ou terra (0), x, z, x, z...] só o pedaço que passa aqui
+    const e = [], linha = (pts, lg, pedra) => {
+      let cur = null;
+      for (let k = 0; k < pts.length; k++) {
+        const [x, z] = pts[k], perto = dentro(x, z, 12) || (k > 0 && dentro((x + pts[k - 1][0]) / 2, (z + pts[k - 1][1]) / 2, 12));
+        if (perto) { if (!cur) { cur = [lg, pedra]; if (k > 0) cur.push(r1(pts[k - 1][0]), r1(pts[k - 1][1])); e.push(cur); } cur.push(r1(x), r1(z)); }
+        else if (cur) { cur.push(r1(x), r1(z)); cur = null; }
+      }
+    };
+    for (const c of this.mapa.vila?.caminhos || []) linha(c.pontos, c.largura || 2.2, 0);
+    for (const E of ESTRADAS_MUNDO) if (E.curva) linha(E.curva, String(E.id).startsWith('t_') ? 2.2 : 4, 0);
+    for (const V of VILAS_MUNDO || []) if (V.cidade) for (const r of V.ruas || []) linha(r, 3, 1);
+    const pr = this.mapa.vila?.praca;
+    // árvores [x, z, tamanho], veios [x, z, raio, tipo, vazio], soltos [x, z, tipo]
+    const ar = [], ve = [], so = [];
+    for (const o of this.coletaveis.values()) {
+      if (!dentro(o.x, o.z, 3)) continue;
+      if (o.tipo === 'arvore') ar.push([r1(o.x), r1(o.z), r1(o.r / 0.32)]);
+      else if (o.solto) so.push([r1(o.x), r1(o.z), o.tipo]);
+      else ve.push([r1(o.x), r1(o.z), r1(o.r), o.tipo, this.veioVazio?.(o.id, j) ? 1 : 0]);
+    }
+    // pedras, ruínas e troncos (círculos sólidos) e casas, paredes e peças (retângulos girados [x, z, cos, sen, meia larg., meia fundura, tipo])
+    const pe = [], ca = [], r2 = (v) => Math.round(v * 100) / 100;
+    for (const o of [...this.mapa.obstaculos, ...this.obstaculosRocha, ...(this.mapa.cenario?.solidos || [])]) if (dentro(o.x, o.z, 3) && !o.gente) pe.push([r1(o.x), r1(o.z), r1(o.r)]);
+    for (const c of this.casas) if (dentro(c.x, c.z, 8)) ca.push([r1(c.x), r1(c.z), r2(c.cos), r2(c.sin), r1(c.hw - 0.35), r1(c.hd - 0.35), 0]);
+    for (const o of this.solidosBase || []) if (dentro(o.x, o.z, 6)) ca.push([r1(o.x), r1(o.z), r2(o.cos), r2(o.sen), r1(o.hw), r1(o.hd), 1]);
+    for (const L of this.lotes.values()) for (const o of L.pecas) if (dentro(o.x, o.z, 4)) { const [a, b, c, d] = retPeca(o); ca.push([r1((a + c) / 2), r1((b + d) / 2), 1, 0, r1((c - a) / 2), r1((d - b) / 2), 2]); }
+    return { x0, z0, p: P, n, t, l, e, ...(pr && dentro(pr.x, pr.z, pr.r) ? { pr: [pr.x, pr.z, pr.r] } : {}), ar, ve, so, pe, ca };
   },
   fotoLeve(j) {
     const R = j.leveRota;
