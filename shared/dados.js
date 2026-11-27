@@ -245,6 +245,14 @@ export const COMBATE_INIMIGO = {
   contraDur: 1.5, contraK: 1.5, voaMorte: 1.4,
 };
 
+// Chave das missões (André 2026-11-27: "vou remover todas as missões... vou ter que refazer essas missões todas com
+// uma pegada diferente"; depois voltam opcionais, com XP e prêmio, e os bots também fazem). false = desligada: nada é
+// apagado (HISTORIA, DIARIAS, GUILDA, Escolta e o Aldo continuam aqui e o progresso salvo de cada conta fica). Com a
+// história desligada a névoa abre cada região e recurso (pesca, lobo, forja...) no nível da missão que abria
+// (historia.js liberado); quem já tinha feito a missão continua com tudo aberto. Os bots não procuram missão
+// (missaoAtual = null) e o tempo livre volta para o grind. Para religar: troque para true.
+export const MISSOES_LIGA = { historia: false, diarias: false, guilda: false, escolta: false, aldo: false };
+
 // Missões que os NPCs dão. horda = qual bando conta (TIPOS_INIMIGO[..].horda). {faltam} vira o número.
 export const MISSOES = {
   bando: {

@@ -16,7 +16,7 @@ const MARGEM := Vector2(176, 70) # distância do canto de cima à direita: o men
 # André 2026-11-06: o martelo da construção sai de baixo (confundia com as skills) e vem para cá, do lado da mochila:
 # aceso no meu terreno, escuro fora dele
 # André 2026-11-11: "o menu de missões vai para aquela action bar" (antes era uma aba do menu do personagem)
-const ITENS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["missoes", "Missões", "topo_missoes"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["pvp", "PvP", "topo_pvp"], ["cla", "Clã", "topo_cla"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
+const ITENS_TODOS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["missoes", "Missões", "topo_missoes"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["pvp", "PvP", "topo_pvp"], ["cla", "Clã", "topo_cla"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
 const WIKI_URL := "https://rcandrerc.github.io/Rpg-realista/wiki/" # client/public/wiki/index.html no site
 # André 2026-11-16: o ícone Conta saiu da barra ("menos poluído"); Trocar de conta, Sair da conta e Apagar personagem
 # ficam iguais, na aba Conta de Configurações (montar_config). abrir("conta") continua valendo e cai nessa aba.
@@ -41,6 +41,8 @@ var aberta := "" # "multi", "config" ou "creditos" ("" = fechada); a conta é um
 var aba_config := "ajustes" # Configurações: "ajustes" (som, câmera, gráficos...) ou "conta"
 var _atualizar_t := 0.0
 var _confirmar_apagar := false # Conta > Apagar personagem: segunda tela pedindo confirmação
+# missões desligadas (André 2026-11-27, MISSOES_LIGA em shared/dados.js, habilidades.json historia.liga): o ícone some
+var ITENS: Array = ITENS_TODOS
 var _confirmar_reset := "" # só a conta do André: "partida" ou "missoes" pedindo o segundo toque
 var _apagando := false
 # configurações
@@ -63,6 +65,9 @@ func _ready() -> void:
 	raiz.set_anchors_preset(Control.PRESET_FULL_RECT)
 	raiz.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(raiz)
+	var hi = m.P.dados.get("historia") if m and m.P else null
+	if hi is Dictionary and hi.get("liga", true) == false:
+		ITENS = ITENS_TODOS.filter(func(it): return it[0] != "missoes")
 	var n := ITENS.size()
 	lugar = Control.new()
 	lugar.mouse_filter = Control.MOUSE_FILTER_IGNORE

@@ -1,6 +1,7 @@
 // Lobo só depois da missão do Bento (André 2026-11-11, pela segunda vez: "até eu fazer a missão, vou a pé").
 // Trava as duas pontas para não voltar: o servidor não deixa montar e o app (Godot) não mostra o botão nem chama o
 // lobo no "Ir para", nem com a conexão caída. Uso: node ferramentas/testes/lobo-missao.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { readFileSync } from 'node:fs';
 import { Simulacao, MAPA_CLAREIRA, HISTORIA } from '../../shared/index.js';
 import { liberado } from '../../shared/historia.js';

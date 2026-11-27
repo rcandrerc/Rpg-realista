@@ -7,7 +7,7 @@ import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, 
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
 import { Transporte, carrinhoNovo, topoCarrinho, lugarDoVeiculo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
-import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo, IA_CONVERSA, LIDERES_CLA, COMBATE_TESTE } from './dados.js';
+import { MISSOES_LIGA, PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo, IA_CONVERSA, LIDERES_CLA, COMBATE_TESTE } from './dados.js';
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito, npcApareceu } from './historia.js'; // progressão (André 2026-11-10)
 import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS, VISAO } from './dados.js'; // bosses de mundo (André 2026-11-11)
@@ -1179,6 +1179,7 @@ export class Simulacao {
   historia(j, ev, d = {}) {
     if (ev === 'matar' && j?.bot) j.mortesProd = (j.mortesProd | 0) + 1; // produção do recruta por hora (MORAL.prod, shared/cla.js)
     if (ev !== 'diaria' && ev !== 'diaria_vista') { this.contarDiaria(j, ev, d); this.contarGuilda(j, ev, d); } // diárias e contratos da Guilda contam pelo mesmo funil
+    if (!MISSOES_LIGA.historia) return; // missões desligadas (André 2026-11-27): a etapa aceita antes fica parada no save
     const p = j?.prog, h = p?.hist; if (!h?.ac || j.bot) return;
     const M = HISTORIA[h.p], E = M && etapasDe(M)[h.e]; if (!E) return;
     // colheu antes da etapa "Colha" (a horta da missão fica pronta ao plantar, e dá para colher já na etapa de regar):
@@ -3991,6 +3992,7 @@ export class Simulacao {
       if (n > 0) this.evento({ t: 'cura', alvo: j.id, n });
       return diga('Pronto, novinho em folha. Vá com cuidado lá fora.');
     }
+    if (npc.funcao === 'missao' && !MISSOES_LIGA.aldo) return diga('Por ora não tenho serviço pra ninguém. Vá caçar e volte mais forte.'); // missões desligadas (André 2026-11-27)
     if (npc.funcao === 'missao') {
       const M = MISSOES[npc.missao], m = j.missoes[npc.missao];
       if (!m) { j.missoes[npc.missao] = { n: 0, entregue: false }; this.evento({ t: 'aviso', para: j.id, texto: 'Missão nova: ' + M.nome }); return diga(M.pedido); }
