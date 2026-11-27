@@ -495,8 +495,9 @@ export class Simulacao {
     j.conta = conta != null ? 'c' + conta : 'n:' + j.nome; // dono do lote (sem contas: o nome)
     j.prog = progressoValido(progresso);
     // combate de teste (COMBATE_TESTE, André 2026-11-27): só o robô de testes. Na primeira entrada com a marca nova ele
-    // zera tudo (nível, itens, ouro, skills, história) e começa do Nv 1
-    if (combateTeste) { if (j.prog.ctz !== COMBATE_TESTE.zerar) { j.prog = progressoValido(null); j.prog.ctz = COMBATE_TESTE.zerar; j.progSujo = true; } j.prog.ct = 1; } else delete j.prog.ct;
+    // zera tudo (nível, itens, ouro, skills) e começa do Nv 1, com a história dada como feita (sem névoa, só grind) e
+    // todos os totens (ele não sabe barco nem navio). André: 'não tem mais trava da névoa... é só grind'
+    if (combateTeste) { if (j.prog.ctz !== COMBATE_TESTE.zerar) { j.prog = progressoValido(null); j.prog.ctz = COMBATE_TESTE.zerar; j.prog.hist = { ...histNova(), p: HISTORIA.length }; j.prog.totens = TOTENS.lista.map((t) => t.id); j.progSujo = true; } j.prog.ct = 1; } else delete j.prog.ct;
     if (j.prog.modo === 'Magia') j.modo = 'Magia'; // entra com a arma da última vez (André 2026-11-24)
     if (testador && CONTA_TESTE.paginas) liberarPaginas(j.prog, MOCHILA_PAGINAS); // conta de teste do André: as 4 páginas da mochila liberadas
     else if (testador && j.prog.devPag !== CONTA_TESTE.devolver) { devolverPaginas(j.prog); j.prog.devPag = CONTA_TESTE.devolver; } // André 2026-11-11: compra como todo mundo

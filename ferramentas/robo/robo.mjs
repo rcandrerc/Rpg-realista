@@ -22,7 +22,8 @@ import { listaVenda as listaVendaDe, POCOES, campoPerigoso, listaMudou } from '.
 import { terraDoCampo, terraEm, totemDaTerra, outraTerraParaCacar } from './robo-escolhas.mjs'; // viajar de terra (ronda 2026-11-25)
 import { pecasParaConsertar } from './robo-escolhas.mjs'; // consertar o equipamento (ronda 2026-11-26)
 import { VOLTA_VILA } from '../../shared/index.js'; // casinha (ronda 2026-11-25)
-import { liberado, zonaFechadaEm } from '../../shared/historia.js';
+import { liberado, zonaFechadaEm, motivoLibera } from '../../shared/historia.js';
+import { CATALISADOR, RECEITA_ESTACAO } from '../../shared/dados.js'; // evoluir na bigorna/bancada (combate de teste)
 
 // ---------- opções ----------
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
@@ -173,6 +174,8 @@ function lerEvento(e) {
     const cs = /consertou (\d+) peças? por (\d+) de ouro/.exec(String(e.texto || '')); // ronda 2026-11-26
     if (cs) { const C = (R.consertos ||= { vezes: 0, pecas: 0, ouro: 0 }); C.vezes++; C.pecas += +cs[1]; C.ouro += +cs[2]; log('consertou', cs[1], 'peças por', cs[2], 'de ouro'); }
     else if (/^O conserto custa|^Conserte com/.test(String(e.texto || ''))) consertoPausa = Date.now() + 10 * 60e3;
+  } else if (e.t === 'fabricando' && COMBATE) { fabricandoAte = Date.now() + ((e.dur || 2) * (e.n || 1) + 1) * 1000;
+  } else if (e.t === 'evoluiu' && COMBATE) { (R.combate.evolucoes ||= []).push({ nv: prog?.nivel | 0, min: Math.round((Date.now() - R.inicio) / 60e3), nome: e.nome, ok: !!e.ok }); log('evoluir:', e.ok ? 'evoluiu' : 'falhou', e.nome); evoPlano = null; vestirT = 0;
   } else if (e.t === 'reforco' && COMBATE) { const C = R.combate.reforco; if (e.erro) reforcoPausa = Date.now() + 10 * 60e3; else { C.tentativas++; if (e.ok) C.ok++; C.ouro += e.custo | 0; log('reforço', e.nome, e.de, '->', e.e, e.ok ? 'subiu' : 'falhou', e.custo, 'de ouro'); }
   } else if (e.t === 'coletou') { R.coletas++; if (!e.cargas) coletando = 0; }
   else if (e.t === 'vila' && e.id === sala?.sessionId) { // totem ou casinha: o servidor leva o herói para outro lugar
@@ -395,6 +398,7 @@ const tem = (k) => (prog?.mochila || []).some((o) => o && o.k === k);
 // ronda 2026-11-19: poção fica só a pilha maior de cada uma (ferramentas/robo/robo-escolhas.mjs listaVenda)
 function protegido(o) {
   if (!o || o.cad) return true;
+  if (COMBATE && (ehEquip(o.k) || ITENS[o.k]?.catalisador || MATS_EVO.has(o.k))) return true; // combate de teste: peça vira catalisador, material fica para evoluir
   if (FERRAMENTAS_FAZENDA[o.k] || ITENS[o.k]?.usar?.veiculo) return true;
   return !!hi?.k && o.k === hi.k;
 }
@@ -428,6 +432,83 @@ function pontosLivres(agora) {
   if (!prog || !(prog.pontos > 0) || agora - pontosT < 3000) return false;
   pontosT = agora; const n = prog.pontos | 0, f = Math.ceil(n / 2);
   acao('atributos', { for: f, ...(n - f ? { vit: n - f } : {}) }); prog.pontos = 0; return true;
+}
+// ---------- evoluir (robô do combate de teste, André 2026-11-27: "a cada quantos níveis precisa evoluir"): como um
+// jogador faria. 1) Peça sobrando na mochila (pior que a do corpo) é destruída: vira catalisador (Comum dá barra de cobre).
+// 2) Para a peça do corpo de menor raridade: catalisador + material (CATALISADOR.usa). Falta catalisador: 10 do de baixo
+// na alquimista (sintese). Falta material: compra no leilão do Otávio o anúncio mais barato (casa, jogador ou bot), sem
+// mexer na reserva do conserto. 3) Tudo na mochila: vai à bigorna/bancada mais perto, tira a peça, evolui e veste de novo.
+// Anota cada evolução (R.combate.evolucoes) e o que faltou (R.combate.falta) ----------
+const MATS_EVO = new Set(Object.values(CATALISADOR.usa).flat().flatMap((u) => Object.keys(u)));
+let evoT = 0, evoPlano = null, destruirT = 0, fabricandoAte = 0; // fabricandoAte: a barrinha de destruir/evoluir do servidor
+const temQtd = (k) => (prog?.mochila || []).reduce((s, o) => s + (o && o.k === k && !o.h ? o.n || 1 : 0), 0);
+const reservaOuro = () => 1500 + 30 * (prog?.nivel | 0);
+function destruirSobra(agora) {
+  if (agora - destruirT < 4000 || agora < fabricandoAte) return false;
+  const m = prog.mochila, i = m.findIndex((o) => o && !o.cad && ehEquip(o.k) && !(ITENS[o.k].lugar in prog.equip && notaPeca(o) > notaPeca(prog.equip[ITENS[o.k].lugar])));
+  if (i < 0) return false;
+  destruirT = agora; R.combate.destruidas = (R.combate.destruidas || 0) + 1; acao('item', { acao: 'destruir', i }); return true;
+}
+function faltaEvo(k, n) { const F = (R.combate.falta ||= {}); F[k] = Math.max(F[k] || 0, n); }
+function planoEvoluir() {
+  for (const [l, it] of Object.entries(prog.equip).filter(([, o]) => o && ehEquip(o.k)).sort((a, b) => a[1].r - b[1].r)) {
+    const Rc = geo.receitaEvoluir(it); if (!Rc) continue;
+    if (motivoLibera(prog, 'evoluir', Rc.r) || motivoLibera(prog, 'forja')) continue;
+    const faltam = Object.entries(Rc.usa).filter(([k, n]) => temQtd(k) < n).map(([k, n]) => [k, n - temQtd(k)]);
+    return { l, k: it.k, r: it.r, Rc, faltam };
+  }
+  return null;
+}
+function evoluirEquip(agora) {
+  if (!COMBATE || !prog?.equip || eu.vida < eu.vidaMax * 0.9) return false;
+  if (destruirSobra(agora)) return true;
+  if (!evoPlano) {
+    if (agora - evoT < 60e3) return false;
+    evoT = agora;
+    const P = planoEvoluir(); if (!P) return false;
+    const cat = P.faltam.find(([k]) => ITENS[k]?.catalisador);
+    if (cat) { // catalisador: alquimista junta 10 do de baixo
+      const D = ITENS[cat[0]], C = CATALISADOR.sintese.custo[D.cr], de = C && CATALISADOR[D.catalisador][D.cr - 2];
+      if (C && de && temQtd(de) >= C.n && (prog.ouro | 0) - C.ouro >= reservaOuro()) evoPlano = { fase: 'sintese', k: cat[0], ate: agora + 6 * 60e3 };
+      else { faltaEvo(cat[0], cat[1]); return false; }
+    } else if (P.faltam.length) {
+      const [k, n] = P.faltam[0]; evoPlano = { fase: 'leilao', k, n, ate: agora + 6 * 60e3, P };
+    } else evoPlano = { fase: 'estacao', P, ate: agora + 6 * 60e3 };
+    log('evoluir:', evoPlano.fase, evoPlano.k || `${evoPlano.P.k} ${evoPlano.P.r} -> ${evoPlano.P.r + 1}`);
+  }
+  const E = evoPlano;
+  if (agora > E.ate) { problema(`Evoluir: não terminou a fase ${E.fase} em 6 min`); evoPlano = null; return false; }
+  if (E.fase === 'sintese') {
+    const npc = npcDe(CATALISADOR.sintese.npc); if (!npc) { evoPlano = null; return false; }
+    if (!irPara(npc.x, npc.z, 3)) return true;
+    parar(); if (agora - falarT < 3000) return true; falarT = agora;
+    acao('item', { acao: 'sintetizar', k: E.k, n: 1 }); evoPlano = null; evoT = agora - 50e3; return true;
+  }
+  if (E.fase === 'leilao') {
+    const npc = MAPA_CLAREIRA.npcs.find((n) => n.funcao === 'leilao'); if (!npc) { evoPlano = null; return false; }
+    if (!irPara(npc.x, npc.z, 2.5)) return true;
+    parar(); if (agora - falarT < 3000) return true; falarT = agora;
+    if (!E.visto) { leilaoInfo = null; E.visto = true; acao('leilao', { acao: 'ver', busca: { ks: [E.k], ordem: 'barato' } }); return true; }
+    if (!leilaoInfo) return true;
+    const sobra = (prog.ouro | 0) - reservaOuro();
+    const a = (leilaoInfo.lista || []).filter((x) => x.item?.k === E.k && x.preco <= sobra).sort((x, y) => x.preco / (x.item.n || 1) - y.preco / (y.item.n || 1))[0];
+    leilaoInfo = null;
+    if (!a) { faltaEvo(E.k, E.n); evoPlano = null; return false; }
+    acao('leilao', { acao: 'comprar', id: a.id }); R.combate.leilao = R.combate.leilao || { compras: 0, ouro: 0 }; R.combate.leilao.compras++; R.combate.leilao.ouro += a.preco;
+    log('evoluir: comprou', a.item.n || 1, E.k, 'por', a.preco); evoPlano = null; evoT = agora - 55e3; return true;
+  }
+  // estação: bigorna (arma) ou bancada (armadura), a aberta mais perto
+  const k = RECEITA_ESTACAO(E.P.Rc);
+  if (!E.est) E.est = (MAPA_CLAREIRA.estacoes || []).filter((o) => o.k === k && !zonaFechadaEm(prog, o.x, o.z)).sort((a, b) => d2(eu, a) - d2(eu, b))[0];
+  if (!E.est) { problema(`Evoluir: nenhuma ${k} aberta`); evoPlano = null; return false; }
+  if (!irPara(E.est.x, E.est.z, 2)) return true;
+  parar(); if (agora - falarT < 3000 || agora < fabricandoAte) return true; falarT = agora;
+  const it = prog.equip[E.P.l];
+  if (it && it.k === E.P.k && it.r === E.P.r) { acao('item', { acao: 'tirar', lugar: E.P.l }); return true; } // vai para a mochila
+  const i = prog.mochila.findIndex((o) => o && o.k === E.P.k && o.r === E.P.r);
+  if (i < 0 || E.mandou) { evoPlano = null; return false; }
+  E.mandou = true; E.ate = agora + 30e3;
+  acao('item', { acao: 'evoluir', i }); return true;
 }
 // ---------- reforçar (robô do combate de teste): com ouro sobrando, reforça a peça do corpo de menor +, como o bot faz
 // (amiga.js reforcoAmiga): guarda 1.500 + o conserto, só tenta o + que o atributo deixa usar e se tem o Tecido ----------
@@ -727,7 +808,7 @@ async function main() {
     if (agora - relT > 10 * 60e3) { relT = agora; mandarRelatorio(); }
     if (!sala || !eu.pronto) continue;
     if (agora - pingT > 2000) { pingT = agora; mandar('ping', Math.round(performance.now())); } // número pequeno, como o app (Date.now() vira inteiro de 64 bits)
-    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !consertar(agora) && !pontosLivres(agora) && !reforcarEquip(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora, true); else missao(agora); } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
+    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !consertar(agora) && !pontosLivres(agora) && !evoluirEquip(agora) && !reforcarEquip(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora, true); else missao(agora); } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
     const andou = andar(dt);
     mandar('pos', { x: +eu.x.toFixed(3), y: +eu.y.toFixed(3), z: +eu.z.toFixed(3), ry: +eu.ry.toFixed(3), anim: andou ? 'correr' : 'parado', c: corrSeq });
     if (andou) correcoesSeguidas = Math.max(0, correcoesSeguidas - 0.02);

@@ -30,6 +30,10 @@ const sim = new Simulacao(MAPA_CLAREIRA);
 sim.adicionarJogador('r', 'Robô', 'cabelo_m', { progresso: { nivel: 50, ouro: 9999 }, robo: true, combateTeste: true });
 const r = sim.jogadores.get('r');
 assert.equal(r.prog.nivel, 1); assert.equal(r.prog.ct, 1); assert.equal(r.prog.ctz, COMBATE_TESTE.zerar);
+// sem névoa (história feita) e com todos os totens: só grind, sem barco
+const { CACA, TOTENS } = await import('../../shared/dados.js'); const { zonaFechadaEm } = await import('../../shared/historia.js');
+assert.ok(CACA.every((c) => !zonaFechadaEm(progressoValido(r.prog), c.x, c.z)), 'nenhum campo na névoa');
+assert.equal(progressoValido(r.prog).totens.length, TOTENS.lista.length);
 const salvo = progressoValido({ ...r.prog, nivel: 30 });
 sim.adicionarJogador('r2', 'Robô 2', 'cabelo_m', { progresso: salvo, robo: true, combateTeste: true });
 assert.equal(sim.jogadores.get('r2').prog.nivel, 30, 'não zera de novo');
