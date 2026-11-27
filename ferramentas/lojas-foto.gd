@@ -46,12 +46,10 @@ func _initialize() -> void:
 		m.online.esconder_login()
 	if m.get("dia") != null:
 		m.dia.ajustar(10.0)
-	# a loja da comerciante: Juncal, Pouso da Serra e Rio Claro (Dália); a Rua do Mercado do Rio Claro
-	await diante("1-juncal", 546.0, 50.0, PI, 8.5, 0.6, 0.02, 0.6, 240)
-	await diante("2-juncal-balcao", 546.0, 50.0, PI, 3.6, 0.6, 0.12, -0.35)
-	await diante("3-pouso", 10.06, -267.5, -2.0944, 8.5, 0.6, 0.02, -0.6, 240)
-	await diante("4-rio-dalia", -225.0, 78.0, 2.513, 7.0, 0.6, 0.02, -0.35, 240)
-	await diante("5-rio-mercado", -200.0, 80.5, 0.0, 2.5, 4.5, 0.08, 0.35, 200)
-	await diante("6-rio-peixe-perto", -200.0, 80.5, 0.0, 2.2, 1.8, 0.05, -0.2)
-	await diante("7-rio-rua", -200.0, 85.0, 0.0, 0.0, 15.0, 0.3, 1.3)
+	# toldo e estandartes sem tapar o vendedor (André 2026-11-27): de frente, câmera de jogo atrás do herói
+	await diante("1-juncal-frente", 546.0, 50.0, PI, 2.6, 3.8, 0.22, 0.0, 240)
+	await diante("2-pouso-frente", 10.06, -267.5, -2.0944, 2.6, 3.8, 0.22, -0.2, 240)
+	await diante("3-rio-dalia-frente", -225.0, 78.0, 2.513, 2.6, 3.8, 0.22, 0.1, 240)
+	await diante("4-mercado-frente", -200.0, 80.5, 0.0, 2.6, 3.8, 0.22, 0.0, 200)
+	await diante("5-mercado-frutas", -214.0, 80.5, 0.0, 2.6, 3.8, 0.22, -0.2, 200)
 	quit()
