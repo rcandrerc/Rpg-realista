@@ -94,6 +94,14 @@ function beiraDoSpot(j, sp) {
   return b;
 }
 export const Leve = {
+  // o monstro escolhido no mapa (Atacar), se ainda vivo e a até 22 m (o alcance do maisPerto): os golpes viram para ele,
+  // como o botão Trocar alvo do jogo. André 2026-11-27: "mostrar qual mob que eu tô atacando"
+  alvoLeve(j) {
+    if (!j.leveMira) return null;
+    const e = this.inimigos.find((o) => o.id === j.leveMira);
+    if (!e || e.morto || Math.hypot(e.x - j.x, e.z - j.z) > 22) { j.leveMira = null; return null; }
+    return e;
+  },
   // a página tocou no mapa: o herói vai até lá pela estrada
   leveIr(id, m) {
     const j = this.jogadores.get(id); if (!j || !j.leve || j.criando) return;
@@ -113,7 +121,7 @@ export const Leve = {
     if (j.pesca) this.pararPesca(j, null);
     j.leveRota = { pontos: r.pontos, i: 0, t: 0, ux: j.x, uz: j.z, presas: 0, nome: typeof m.nome === 'string' ? m.nome.slice(0, 40) : '' };
     // Atacar (André 2026-11-25: "combate... sem automático"): só anda até o monstro e para do lado; cada golpe é um toque
-    if (typeof m.alvo === 'string') j.leveRota.alvo = m.alvo;
+    if (typeof m.alvo === 'string') { j.leveRota.alvo = m.alvo; j.leveMira = m.alvo; } // leveMira: os golpes viram para ele (alvoLeve), como o Trocar alvo do jogo
     // como o "Ir para" do mapa do jogo (rota.gd, André 2026-11-09: "sempre que eu usar o autopath já entra na montaria"):
     // viagem de verdade sobe no lobo sozinho, só quando o jogo deixaria (montar: sem pack, fora de combate, lobo liberado).
     // Desceu do lobo no meio do caminho: segue a pé até o próximo destino.
@@ -440,11 +448,12 @@ export const Leve = {
       if (m.length >= LEVE.max) break;
     }
     return {
-      eu: [r1(j.x), r1(j.z), Math.round(j.vida), Math.round(j.vidaMax), Math.round(j.mana), Math.round(j.manaMax), j.morto ? 1 : 0, j.prog.ouro | 0, j.prog.nivel | 0, j.prog.pack ? 1 : 0, j.montado ? 1 : 0, Math.floor(Math.min(vigorAgora(j.prog.vigor), vigorMax(j.prog))), vigorMax(j.prog)], // vigor (André 2026-11-25: "adiciona a barra de vigor"): agora e máximo; montado: o lobo (botão Montar, a mesma mensagem e regra do jogo)
+      eu: [r1(j.x), r1(j.z), Math.round(j.vida), Math.round(j.vidaMax), Math.round(j.mana), Math.round(j.manaMax), j.morto ? 1 : 0, j.prog.ouro | 0, j.prog.nivel | 0, j.prog.pack ? 1 : 0, j.montado ? 1 : 0, Math.floor(Math.min(vigorAgora(j.prog.vigor), vigorMax(j.prog))), vigorMax(j.prog), Math.round((j.ry || 0) * 100) / 100], // vigor (André 2026-11-25: "adiciona a barra de vigor"): agora e máximo; montado: o lobo (botão Montar, a mesma mensagem e regra do jogo)
       ...(R ? { r: [Math.round(falta), Math.round(falta / (v || 1))] } : {}),
       g, m, hb: this.habLeve(j), c: this.coletaLeve(j), ...(j.coleta ? { co: [j.coleta.no, COLETA[this.coletaveis.get(j.coleta.no)?.tipo]?.nome || ''] } : {}),
       ...(j.pesca ? { pe: [j.pesca.st, j.pesca.st === 'briga' ? Math.round(j.pesca.prog * 100) : 0] } : {}), // pescando (etapa 6): o estado e a barra da briga
       ...((() => { const l = this.spotsLeve(j); return l.length ? { sp: Math.round(l[0][1]), ss: l.slice(0, 12).map(([v]) => [r1(v.x), r1(v.z)]) } : {}; })()), // metros até o spot de pesca à vista; ss: os spots no mapa (à vista ou com o Radar, como no jogo)
+      ...((() => { const a = this.alvoLeve(j) || this.maisPerto(j); return a && a.id && m.some((o) => o[4] === a.id) ? { al: a.id } : {}; })()), // al: o monstro que o próximo golpe pega (André 2026-11-27: círculo vermelho nele)
       ...(this.emCombate(j) ? { lu: 1 } : {}), // em luta (bateu ou apanhou nos últimos ESTAMINA.combate s): o cartão de baixo vira "Em luta" (André 2026-11-26)
     };
   },
