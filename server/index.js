@@ -870,6 +870,8 @@ function guardarLentidao(c, e, sala) {
     for (const k of RESUMO_CAMPOS) if (Number.isFinite(e[k])) r[k] = e[k];
     r.montado = e.montado === true;
     if (typeof e.versao === 'string' && e.versao.length < 16) r.versao = e.versao;
+    // personagens desenhados (lentidao.gd _resumo): [NPCs à vista, outros corpos à vista, monstros perto, degrau corpos]
+    if (Array.isArray(e.pers) && e.pers.length <= 6 && e.pers.every(Number.isFinite)) r.pers = e.pers.map((v) => Math.round(v));
     aparelhoLentidao(e, r);
     resumos.push(r);
     if (resumos.length > RESUMO_MAX) resumos.splice(0, resumos.length - RESUMO_MAX);

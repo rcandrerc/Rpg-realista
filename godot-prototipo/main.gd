@@ -1362,6 +1362,57 @@ static func npc_simples(no: Node, simples: bool) -> void:
 					mi.set_surface_override_material(i, mi.get_meta("contorno_%d" % i)[0])
 					mi.remove_meta("contorno_%d" % i)
 
+# Contorno da roupa, da arma e do cabelo (Luísa, Note 10 Lite, 2026-11-27: 14 a 16 FPS no último degrau do Auto, ~825
+# chamadas de desenho por quadro na Clareira). O "sem contorno" do personagem simples (npc_simples) só trocava o contorno
+# do corpo; a roupa vestida, a arma e algumas peças desenham o contorno como segundo passe do material (next_pass): cada
+# um é mais uma chamada de desenho, ~10 a 14 por personagem. Nos degraus mínimos da Baixa (grafico.gd corpos >= 1) o
+# personagem simples usa uma cópia do material sem esse passe; de perto, ou saindo dos degraus mínimos, volta o de antes.
+# A cópia divide shader e texturas com o original (nenhum shader novo para montar). Herói nunca passa por aqui.
+static var _sem_passe := {} # material com contorno -> cópia sem o passe
+static func _copia_sem_passe(mt: Material) -> Material:
+	var c: Material = _sem_passe.get(mt)
+	if c == null:
+		if _sem_passe.size() > 600: # roupas trocadas deixam cópias velhas: começa de novo
+			_sem_passe.clear()
+		c = mt.duplicate()
+		c.next_pass = null
+		_sem_passe[mt] = c
+	return c
+
+static func sem_contornos(no: Node, tirar: bool) -> void:
+	if no == null or not is_instance_valid(no):
+		return
+	for mi: MeshInstance3D in no.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null:
+			continue
+		if tirar:
+			var ov := mi.material_override
+			if ov != null:
+				if ov.next_pass != null and ov != _mat_nada:
+					var c := _copia_sem_passe(ov)
+					mi.set_meta("sem_passe_ov", [ov, c])
+					mi.material_override = c
+				continue
+			for i in mi.mesh.get_surface_count():
+				var mt := mi.get_active_material(i)
+				if mt != null and mt.next_pass != null and mt != _mat_nada:
+					var c := _copia_sem_passe(mt)
+					mi.set_meta("sem_passe_%d" % i, [mi.get_surface_override_material(i), c]) # [null] = o da malha
+					mi.set_surface_override_material(i, c)
+		else:
+			if mi.has_meta("sem_passe_ov"):
+				var par: Array = mi.get_meta("sem_passe_ov")
+				if mi.material_override == par[1]: # a roupa não foi trocada enquanto estava sem contorno
+					mi.material_override = par[0]
+				mi.remove_meta("sem_passe_ov")
+			for i in mi.mesh.get_surface_count():
+				var k := "sem_passe_%d" % i
+				if mi.has_meta(k):
+					var par: Array = mi.get_meta(k)
+					if mi.get_surface_override_material(i) == par[1]:
+						mi.set_surface_override_material(i, par[0])
+					mi.remove_meta(k)
+
 # Pecinhas do corpo (olho, cílio, brilho, fivela, rebite: menos de PECINHA_TRIS triângulos) só são desenhadas até
 # PECINHA_LONGE m da câmera (alcance de visão do Godot). De longe elas viram 1 ou 2 pontos na tela, mas cada uma é uma
 # chamada de desenho a mais: ~40 por NPC (André 2026-11-11: liso em celular mediano). O herói não passa por aqui.
@@ -4552,6 +4603,32 @@ func npcs_das_vilas(dt: float) -> void:
 # monstro longe (outra clareira): a animação para (o corpo já não é desenhado: visibility_range_end em criar_inimigo).
 # Online ele continua andando pelo que o servidor manda; sem internet ele não pensa (atualizar_inimigos)
 const NPC_TROCAS_QUADRO := 2
+const NPC_MAX_MINIMO := [0, 8, 5] # quantos NPCs aparecem nos degraus mínimos da Baixa (0 = sem limite)
+const NPC_LISTA_Q := 15
+var _cps_npc := 0
+var _npcs_deixados := {} # NPCs que podem aparecer agora (nó -> true), só nos degraus mínimos
+
+# os k NPCs mais perto (até "ate" m), para os degraus mínimos
+func _npcs_mais_perto(hp: Vector3, k: int, ate: float) -> Dictionary:
+	var l := []
+	var lim := (ate + 5.0) * (ate + 5.0)
+	for n in npcs:
+		if is_instance_valid(n.no):
+			var d2: float = n.no.position.distance_squared_to(hp)
+			if d2 <= lim:
+				if _npcs_deixados.has(n.no):
+					d2 *= 0.6 # quem já está na tela leva vantagem: dois NPCs à mesma distância não ficam trocando
+				if conversa != null and conversa.npc == n:
+					d2 = 0.0 # o NPC da conversa aberta nunca some
+				l.append([d2, n.no])
+	l.sort_custom(func(a, b): return a[0] < b[0])
+	var r := {}
+	for i in mini(k, l.size()):
+		r[l[i][1]] = true
+	if r.is_empty():
+		r[null] = true # lista feita (vazia): não refaz todo quadro
+	return r
+
 const NPC_MOSTRAR_QUADRO := 1 # registros de 25/11 (Poco X7): cada NPC que aparece custa uns 10 ms (li:npc_mostrar)
 func lod_inimigos() -> void:
 	if heroi == null:
@@ -4573,9 +4650,22 @@ func lod_inimigos() -> void:
 	var npc_longe: float = [NPC_LONGE, 30.0, 22.0][clampi(cps, 0, 2)]
 	var npc_det: float = NPC_DETALHE if cps == 0 else 0.0
 	var npc_det_sai: float = NPC_DETALHE_SAI if cps == 0 else 0.0
+	# o Auto entrou ou saiu dos degraus mínimos: os NPCs que já estavam simples tiram (ou voltam) o contorno da roupa
+	if (cps >= 1) != (_cps_npc >= 1):
+		for n in npcs:
+			if n.get("simples", false):
+				sem_contornos(n.no, cps >= 1)
+	_cps_npc = cps
+	# degraus mínimos (Luísa, 2026-11-27): só os NPC_MAX_MINIMO[cps] NPCs mais perto aparecem (a Clareira tem uns 8 a
+	# 12 à vista, ~40 chamadas de desenho cada). A lista é refeita a cada NPC_LISTA_Q quadros.
+	var npc_max: int = NPC_MAX_MINIMO[clampi(cps, 0, 2)]
+	if npc_max > 0 and (Engine.get_process_frames() % NPC_LISTA_Q == 0 or _npcs_deixados.is_empty()):
+		_npcs_deixados = _npcs_mais_perto(hp, npc_max, npc_longe)
 	for n in npcs:
 		var dn: float = n.no.position.distance_squared_to(hp)
 		var longe_n: bool = dn > (npc_longe + 5.0) * (npc_longe + 5.0) if n.get("longe", false) else dn > npc_longe * npc_longe
+		if npc_max > 0 and not longe_n and not _npcs_deixados.has(n.no):
+			longe_n = true
 		# personagens mais leves (2026-11-23, registros do Poco X7: li:npcs 16 a 37 ms no pior quadro do minuto, entrando
 		# na vila): no máximo NPC_MOSTRAR_QUADRO NPCs aparecem ou somem por quadro (mostrar liga sombra, malhas e animação
 		# de uma vez); os outros ficam para os quadros seguintes, a 45 m ninguém nota
@@ -4595,7 +4685,11 @@ func lod_inimigos() -> void:
 		if meio_n != n.get("simples", false) and trocas_detalhe < NPC_TROCAS_QUADRO:
 			trocas_detalhe += 1
 			n.simples = meio_n
+			if not meio_n:
+				sem_contornos(n.no, false)
 			npc_simples(n.no, meio_n)
+			if meio_n and cps >= 1:
+				sem_contornos(n.no, true)
 			if not n.has("anim_p"):
 				n.anim_p = n.no.find_child("AnimationPlayer", true, false)
 				n.esq_p = esqueleto(n.no)
