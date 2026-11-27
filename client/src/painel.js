@@ -953,6 +953,9 @@ function eventoLeve(e) {
   else if (['time', 'duelo', 'pvp', 'troca', 'amigos', 'amigo'].includes(e.t)) socialEvento(e); // etapa 5
   else if (e.t === 'pesca' && e.st === 'fisgou') { try { navigator.vibrate?.(180); } catch { /* sem vibrar */ } } // o "!" da boia (etapa 6)
   else if (e.t === 'colheu') aviso(`Colheu ${e.n} ${e.nome}`);
+  else if (e.t === 'forno') { if (e.abrir || document.querySelector('.janelaLeve.forno')) { leve.forno = e; janelaForno(); } }
+  else if (e.t === 'jantarInfo') { leve.jantar = { ...(leve.jantar || {}), info: e }; if (document.querySelector('.janelaLeve.jantar')) janelaJantar(); }
+  else if (e.t === 'jantarSentar') { if (leve.jantar) leve.jantar.sent = !e.sai; if (document.querySelector('.janelaLeve.jantar')) janelaJantar(); }
   else if (e.t === 'dormiu') aviso('Dormiu até de manhã: vida e mana cheias');
   else if (e.t === 'regador' && e.texto) aviso(e.texto);
   else if (e.t === 'diaria_ir' && e.alvo) irLeve(e.alvo); // Ir da diária ou do contrato: o servidor diz o lugar aberto mais perto
@@ -1376,6 +1379,104 @@ function janelaLugar(l, nomeL) {
   const f = el('button', 'acao cinza', 'Fechar'); f.onclick = fechar; bts.append(f); corpo.push(bts);
   const j = janelaLeve(corpo); j.classList.add('peca'); j.onclick = (e) => { if (e.target === j) fechar(); };
   document.body.append(j);
+}
+// a janela da fornalha e do fogão (construcao.gd painel_forno): combustível, material, 2º material (aço), saída; pôr da
+// mochila e tirar. Mensagens e regras do jogo (forno: abrir/por/tirar); a barra do fogo e do trabalho vêm do servidor
+function janelaForno() {
+  const F = leve.forno; if (!F || !F.it) return;
+  const velha = document.querySelector('.janelaLeve.forno'), rolou = velha?.querySelector('.caixa')?.scrollTop || 0; if (velha) velha.remove();
+  const fg = F.tipo === 'fogao', fechar = () => document.querySelector('.janelaLeve.forno')?.remove();
+  const corpo = [el('div', 'nome', fg ? '🍲 Fogão' : '🔥 Fornalha')];
+  const pct = (a, b) => (b > 0 ? Math.max(0, Math.min(100, Math.round((a / b) * 100))) : 0);
+  const barra = (rot, v, cor) => { const d = el('div', 'faz', rot), b = el('div', 'progColeta'), i = el('i'); i.style.width = v + '%'; if (cor) i.style.background = cor; b.append(i); return [d, b]; };
+  corpo.push(...barra(`Fogo${F.fogoK ? ' · ' + F.fogoK : ''}: ${Math.ceil(F.fogo || 0)} s`, pct(F.fogo, F.fogoMax), '#e8823a'));
+  corpo.push(...barra(F.faz ? `${F.anda ? 'Fazendo' : 'Parado'} · ${F.faz}${F.dur ? ` (${F.dur} s cada)` : ''}` : 'Ponha material para começar', pct(F.prog, F.dur)));
+  if (F.precisa) { const a = el('div', null, `Precisa de fogo de ${F.precisa}`); a.style.color = '#f5675a'; corpo.push(a); }
+  if (F.pede2) { const a = el('div', null, `Falta ${F.pede2[1]} ${F.pede2[0]} no 2º material`); a.style.color = '#f5675a'; corpo.push(a); }
+  const lugares = [['comb', 'Combustível'], ['ent', fg ? 'Panela' : 'Material'], ...(fg ? [] : [['ent2', '2º material']]), ['sai', 'Pronto']];
+  for (const [l, rot] of lugares) {
+    const o = F[l], r = el('div', 'recLeve'), x = el('div', 'n');
+    x.append(el('b', null, rot), el('small', null, o ? `${o[2]} x${o[1]}` : 'vazio'));
+    r.append(x);
+    if (o) { const u = el('button', 'on', l === 'sai' ? 'Pegar' : 'Tirar'); u.onclick = () => mandar('forno', { acao: 'tirar', p: F.p, lugar: l }); r.append(u); }
+    corpo.push(r);
+  }
+  if (F.it.length) corpo.push(el('div', 'faz', 'DA MOCHILA'));
+  for (const [i, , n, nome, ls] of F.it) {
+    const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, `${nome} x${n}`)); r.append(x);
+    for (const l of ls) { const u = el('button', 'on', l === 'comb' ? 'Queimar' : l === 'ent2' ? '2º' : 'Pôr'); u.onclick = () => mandar('forno', { acao: 'por', p: F.p, lugar: l, i, n }); r.append(u); }
+    corpo.push(r);
+  }
+  if (fg) { // o prato vai para a panela: os ingredientes saem da mochila (FOGAO.receitas)
+    corpo.push(el('div', 'faz', 'PRATOS'));
+    for (const [faz, nome, pode, ing, nv] of F.pr || []) {
+      const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, nome), el('small', null, `${ing} · Cozinheiro Nv ${nv}`)); r.append(x);
+      const u = el('button', 'on', pode > 0 ? `Pôr ${pode}` : 'Falta'); u.disabled = !(pode > 0); u.onclick = () => mandar('forno', { acao: 'por', p: F.p, lugar: 'ent', r: faz, n: pode }); r.append(u); corpo.push(r);
+    }
+  }
+  const bts = el('div', 'bts'), f = el('button', 'acao cinza', 'Fechar'); f.onclick = fechar; bts.append(f); corpo.push(bts);
+  const j = janelaLeve(corpo); j.classList.add('forno'); j.onclick = (e) => { if (e.target === j) fechar(); };
+  const cx = j.querySelector('.caixa'); cx.style.maxHeight = '86vh'; cx.style.overflowY = 'auto'; cx.style.textAlign = 'left';
+  document.body.append(j); cx.scrollTop = rolou;
+  // o fogo e o trabalho andam: enquanto a janela está aberta, pede de novo a cada 2 s (como a do jogo, que conta sozinha)
+  if (!leve.fornoTm) leve.fornoTm = setInterval(() => { if (!document.querySelector('.janelaLeve.forno') || !leve.sala) { clearInterval(leve.fornoTm); leve.fornoTm = null; return; } mandar('forno', { acao: 'abrir', p: leve.forno.p }); }, 2000);
+}
+// a janela do jantar do clã (jantar.gd _montar): escolher quem vem, Chamar, comida na mesa, Servir, sentar na cabeceira
+function janelaJantar() {
+  const J = leve.jantar || (leve.jantar = {}), I = J.info;
+  J.esc ||= new Set();
+  const velha = document.querySelector('.janelaLeve.jantar'); if (velha) velha.remove();
+  const fechar = () => { document.querySelector('.janelaLeve.jantar')?.remove(); J.aberto = false; };
+  const rede = (sub, extra) => mandar('cla', { acao: 'jantar', sub, ...(extra || {}) });
+  const corpo = [el('div', 'nome', '🍖 Jantar do clã')];
+  if (!I) corpo.push(el('div', 'faz', 'Carregando...'));
+  else {
+    const fase = I.fase || '', ms = I.m || [];
+    const vem = ms.filter((r) => r.vem).length, sent = ms.filter((r) => r.sent).length;
+    for (const id of [...J.esc]) if (!ms.some((r) => r.id === id && r.on && !r.vem)) J.esc.delete(id);
+    const msg = !I.base ? 'Funde a base do clã: a Mesa do Clã fica nela.' : !I.tem ? 'A Mesa do Clã está na mochila: ponha na base (martelo, Móveis).'
+      : fase === 'comendo' ? `Servido! Fique perto da mesa até o fim (${Math.ceil((I.falta || 0) / 60)} min) para a moral subir +${I.moral}.`
+      : I.feito ? 'O jantar de hoje já foi. Amanhã tem mais.'
+      : fase === 'chamando' ? `${vem - sent} a caminho, ${sent} sentado${sent === 1 ? '' : 's'}. Ponha um prato por recruta sentado e sirva.`
+      : `Escolha quem vem (até ${I.max}) e toque em Chamar. Com você perto, a moral de cada um sobe +${I.moral}. Uma vez por dia.`;
+    const m = el('div', null, msg); m.style.color = fase ? '#f0d28a' : ''; corpo.push(m);
+    if (I.tem) {
+      const fq = el('div', 'bts'); fq.style.flexWrap = 'wrap';
+      for (const r of ms) {
+        const marca = r.vem || J.esc.has(r.id);
+        let t = String(r.nome).split(' ')[0]; if (r.vem) t += r.sent ? ' · sentado' : ' · vindo'; else if (!r.on) t += ' · fora';
+        const b = el('button', 'acao' + (marca ? '' : ' cinza'), t); b.style.flex = '0 0 auto'; b.style.minHeight = '40px';
+        b.disabled = !r.on || r.vem || fase === 'comendo' || !!I.feito;
+        b.onclick = () => { if (J.esc.has(r.id)) J.esc.delete(r.id); else if (J.esc.size < I.max) J.esc.add(r.id); janelaJantar(); };
+        fq.append(b);
+      }
+      if (!ms.length) corpo.push(el('div', 'faz', 'Sem recrutas: contrate no Recrutador.')); else corpo.push(fq);
+      const lb = el('div', 'bts');
+      if (fase !== 'comendo' && !I.feito) { const c = el('button', 'acao', 'Chamar'); c.disabled = !J.esc.size; c.onclick = () => { rede('chamar', { ids: [...J.esc] }); J.esc.clear(); }; lb.append(c); }
+      if (fase === 'chamando') { const c = el('button', 'acao cinza', 'Cancelar'); c.onclick = () => rede('cancelar'); lb.append(c); }
+      if (lb.childNodes.length) corpo.push(lb);
+      if (fase) {
+        const com = I.comida || [], pratos = com.reduce((a, o) => a + o[1], 0);
+        corpo.push(el('div', 'faz', `COMIDA NA MESA · ${pratos}/${Math.max(sent, 1)} pratos${I.perto || fase === 'comendo' ? '' : ' (chegue perto da mesa para pôr)'}`));
+        com.forEach(([, n, nome], s) => { const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, `${nome} x${n}`)); r.append(x); if (fase === 'chamando') { const u = el('button', 'on', 'Tirar'); u.onclick = () => rede('tirarComida', { s }); r.append(u); } corpo.push(r); });
+        if (fase === 'chamando') {
+          corpo.push(el('div', 'faz', 'MOCHILA: toque numa comida para pôr na mesa'));
+          if (!(I.cm || []).length) corpo.push(el('div', 'faz', 'Sem comida na mochila: cozinhe no fogão ou pesque.'));
+          for (const [i, , n, nome] of I.cm || []) { const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, `${nome} x${n}`)); r.append(x); const u = el('button', 'on', 'Pôr'); u.disabled = !I.perto; u.onclick = () => rede('comida', { i, n: Math.max(1, vem - pratos) }); r.append(u); corpo.push(r); }
+        }
+      }
+      const la = el('div', 'bts');
+      if (fase === 'chamando') { const c = el('button', 'acao', 'Servir'); c.disabled = !sent || !I.perto; c.onclick = () => rede('servir'); la.append(c); }
+      if (fase && I.perto) { const c = el('button', 'acao cinza', J.sent ? 'Levantar' : 'Sentar na cabeceira'); c.onclick = () => rede(J.sent ? 'levantar' : 'sentar'); la.append(c); }
+      if (la.childNodes.length) corpo.push(la);
+    }
+  }
+  const bts = el('div', 'bts'), f = el('button', 'acao cinza', 'Fechar'); f.onclick = fechar; bts.append(f); corpo.push(bts);
+  const j = janelaLeve(corpo); j.classList.add('jantar'); j.onclick = (e) => { if (e.target === j) fechar(); };
+  const cx = j.querySelector('.caixa'); cx.style.maxHeight = '86vh'; cx.style.overflowY = 'auto';
+  document.body.append(j);
+  // quem chegou e sentou muda sozinho: enquanto aberta, pede o estado de novo a cada 3 s
+  if (!J.tm) J.tm = setInterval(() => { if (!document.querySelector('.janelaLeve.jantar') || !leve.sala) { clearInterval(J.tm); J.tm = null; return; } rede('info'); }, 3000);
 }
 // a janelinha da peça: nome, o que dá, o que você usa no mesmo lugar (para comparar) e os botões que valem
 function janelaPeca({ it, eq, nomeL }) {
@@ -1933,37 +2034,47 @@ function abrirMapaGeral(abre, quieto) {
 // dele, apertando minerar, apertando mexer no fogão"): a ação do que está perto; tocar faz (minerar, pescar) ou abre a janela
 const NPC_ICONE = { loja: 'loja', compra: 'loja', leilao: 'negociar', pack: 'negociar', ferreiro: 'cs_bigorna', habilidades: 'cs_bigorna', alquimia: 'falar' };
 function balaoLeve(P, morto) {
-  const F = leve.f; let b = $('balaoLeve');
+  const F = leve.f;
   const volta = leve.volta && (F.c || []).find((o) => o[0] === leve.volta.no);
   const col = !F.co && (volta || P.veio || (P.col || []).find((o) => o[2] <= 4));
-  let acao = null; // [ícone, reserva, texto, fazer]
-  if (morto || emLuta(morto) || mapaGeral || F.pe) acao = null;
-  else if (col) { const pf = col[3] || '', [re, verbo] = COLETA_VERBO[pf] || COLETA_VERBO['']; acao = [pf === 'len' ? 'pf_len' : pf === 'min' ? 'pf_min' : 'falar', re, `${volta ? 'Voltar a ' + verbo.toLowerCase() : verbo} ${col[1]}`, () => { leve.volta = null; mandar('leveColetar', { no: col[0] }); }]; }
-  else if (P.npc) acao = [NPC_ICONE[P.npc.f] || 'falar', '💬', LUGAR_NOME[P.npc.f] ? `${LUGAR_NOME[P.npc.f]} · ${P.npc.n.split(',')[0]}` : `Falar com ${P.npc.n.split(',')[0]}`, () => abrirPainelLeve('perto')];
-  else if (P.bau) acao = ['cs_bau', '📦', P.bau.cla ? 'Baú do Clã' : 'Baú', () => abrirPainelLeve('perto')];
-  else if (P.totem) acao = ['selo', '🗿', 'Totem', () => abrirMapaTotem(P.totem)]; // abre o mapa dos totens, como o Falar do jogo
-  else if (P.car || P.chao?.length) acao = ['negociar', '📦', P.car ? 'Carrinho' : 'Pack no chão', () => abrirPainelLeve('perto')];
-  else if (F.sp != null) acao = ['pescar', '🎣', `Pescar${F.sp > 4 ? ` · ${F.sp} m` : ''}`, () => mandar('levePescar')]; // spot à vista: vai até a beira e lança (etapa 6)
-  else if (F.ag) acao = ['pescar', '🎣', 'Pescar', () => mandar('levePescar')]; // na beira com a vara, como o botão do jogo (sem spot o servidor avisa)
-  if (F.vc === 'b' && !morto) acao = ['it:barquinho', '⛵', 'Descer do barquinho', () => mandar('veiculo', { acao: 'descer' })]; // no barquinho: o botão do jogo vira Descer
-  // o barquinho (na mochila, perto de água funda): um 2º balão em cima do primeiro, o "Usar barquinho" do botão do jogo
-  let b2 = $('balaoLeve2');
-  if (F.bq && !morto && !mapaGeral && !emLuta(morto) && painelLeve !== 'perto') {
-    if (!b2) { b2 = el('button', 'balaoLeve'); b2.id = 'balaoLeve2'; b2.append(iconeIt('barquinho', '⛵'), el('span', null, 'Usar barquinho')); b2.onclick = () => mandar('veiculo', { acao: 'colocar', k: 'barquinho' }); }
-    if (!b2.isConnected) $('jogarAba').append(b2);
-  } else if (b2) b2.remove();
-  if (!acao || painelLeve === 'perto') { if (b) b.remove(); posicionarBalao(); return; }
-  const ch = acao[2];
-  if (!b || b._ch !== ch) {
-    if (!b) { b = el('button', 'balaoLeve'); b.id = 'balaoLeve'; }
-    limpar(b); b._ch = ch; b.append(acao[0].startsWith('it:') ? iconeIt(acao[0].slice(3), acao[1]) : iconeJogo(acao[0], acao[1]), el('span', null, ch)); b.onclick = acao[3];
+  // como no jogo cada coisa perto tem o seu botão: aqui a 1ª vira o balão e a 2ª (ou o barquinho) o balão de cima
+  const L = []; // [ícone, reserva, texto, fazer]
+  if (!(morto || emLuta(morto) || mapaGeral || F.pe)) {
+    if (col) { const pf = col[3] || '', [re, verbo] = COLETA_VERBO[pf] || COLETA_VERBO['']; L.push([pf === 'len' ? 'pf_len' : pf === 'min' ? 'pf_min' : 'falar', re, `${volta ? 'Voltar a ' + verbo.toLowerCase() : verbo} ${col[1]}`, () => { leve.volta = null; mandar('leveColetar', { no: col[0] }); }]); }
+    if (P.npc) L.push([NPC_ICONE[P.npc.f] || 'falar', '💬', LUGAR_NOME[P.npc.f] ? `${LUGAR_NOME[P.npc.f]} · ${P.npc.n.split(',')[0]}` : `Falar com ${P.npc.n.split(',')[0]}`, () => abrirPainelLeve('perto')]);
+    if (P.bau) L.push(['cs_bau', '📦', P.bau.cla ? 'Baú do Clã' : 'Baú', () => abrirPainelLeve('perto')]);
+    if (P.totem) L.push(['selo', '🗿', 'Totem', () => abrirMapaTotem(P.totem)]); // abre o mapa dos totens, como o Falar do jogo
+    if (P.car || P.chao?.length) L.push(['negociar', '📦', P.car ? 'Carrinho' : 'Pack no chão', () => abrirPainelLeve('perto')]);
+    // os botões de lugar do jogo (servidor pertoLeve): bancada/bigorna = Criar, fornalha/fogão, Mesa do Clã, cama, selo, regador
+    if (F.ex?.e) L.push([F.ex.e[0] === 'bigorna' ? 'pf_fer' : 'pf_alf', '🔨', `Criar · ${F.ex.e[1]}`, () => abrirPainelLeve('criar')]);
+    if (F.ex?.f) L.push(['cs_fornalha', '🔥', F.ex.f[2], () => { leve.forno = { p: F.ex.f[0], tipo: F.ex.f[1] }; mandar('forno', { acao: 'abrir', p: F.ex.f[0] }); }]);
+    if (F.ex?.me) L.push(['jantar', '🍖', 'Mesa do Clã', () => { mandar('cla', { acao: 'jantar', sub: 'info' }); janelaJantar(); }]);
+    if (F.ex?.cm) L.push(['cs_cama', '🛏️', 'Dormir', () => mandar('dormir')]);
+    if (F.ex?.sl) L.push(['selo', '🔮', 'Usar passe no selo', () => mandar('item', { acao: 'usar_passe' })]); // caverna.gd usar_passe
+    if (F.ex?.en) L.push(['cs_regar', '💧', 'Encher regador', () => mandar('regador')]);
+    if (F.sp != null) L.push(['pescar', '🎣', `Pescar${F.sp > 4 ? ` · ${F.sp} m` : ''}`, () => mandar('levePescar')]); // spot à vista: vai até a beira e lança (etapa 6)
+    else if (F.ag) L.push(['pescar', '🎣', 'Pescar', () => mandar('levePescar')]); // na beira com a vara, como o botão do jogo (sem spot o servidor avisa)
   }
-  if (!b.isConnected) $('jogarAba').append(b);
+  if (F.vc === 'b' && !morto) L.unshift(['it:barquinho', '⛵', 'Descer do barquinho', () => mandar('veiculo', { acao: 'descer' })]); // no barquinho: o botão do jogo vira Descer
+  // até 3 balões empilhados em cima da bolinha (a forja da vila tem Tomás, bigorna e forninho juntos, como os 3 botões do
+  // jogo); o "Usar barquinho" (na mochila, perto de água funda) entra no 2º lugar
+  if (F.bq && !morto && !mapaGeral && !emLuta(morto)) L.splice(Math.min(1, L.length), 0, ['it:barquinho', '⛵', 'Usar barquinho', () => mandar('veiculo', { acao: 'colocar', k: 'barquinho' })]);
+  BALOES.forEach((id, n) => {
+    const acao = painelLeve === 'perto' ? null : L[n]; let b = $(id);
+    if (!acao) { if (b) b.remove(); return; }
+    if (!b || b._ch !== acao[2]) {
+      if (!b) { b = el('button', 'balaoLeve'); b.id = id; }
+      limpar(b); b._ch = acao[2]; b.append(acao[0].startsWith('it:') ? iconeIt(acao[0].slice(3), acao[1]) : iconeJogo(acao[0], acao[1]), el('span', null, acao[2]));
+    }
+    b.onclick = acao[3]; // a cada foto: o que o toque faz segue o lugar de agora
+    if (!b.isConnected) $('jogarAba').append(b);
+  });
   posicionarBalao();
 }
-function posicionarBalao() { // em cima da bolinha (desenharMapa guarda onde ela está na tela); o 2º (barquinho) em cima do 1º
+const BALOES = ['balaoLeve', 'balaoLeve2', 'balaoLeve3'];
+function posicionarBalao() { // em cima da bolinha (desenharMapa guarda onde ela está na tela); os outros empilhados em cima do 1º
   const e = leve.euTela; if (!e) return; let y = e[1] - 76;
-  for (const id of ['balaoLeve', 'balaoLeve2']) {
+  for (const id of BALOES) {
     const b = $(id); if (!b || !b.isConnected) continue;
     b.style.left = Math.round(Math.max(6, Math.min(e[0] - 26, innerWidth - b.offsetWidth - 6))) + 'px'; b.style.top = Math.round(Math.max(150, y)) + 'px'; y -= 56;
   }

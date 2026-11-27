@@ -6,7 +6,7 @@
 // pago de sempre. Loja, leilão e baú usam as mesmas mensagens do jogo (item, leilao, bau), com as mesmas regras de
 // distância. Para o celular fraco: a cada LEVE.envio s vai uma foto pequena só do que está perto (fotoLeve).
 import { planejarRota, terraId } from './rota.js';
-import { TUNEL } from './caverna.js';
+import { TUNEL, CAVERNA, noTunel } from './caverna.js';
 import { LUGARES_MUNDO } from './mundo.js';
 import { LUGARES, TITULOS, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO, ESTAMINA } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax, ATRIBUTOS, xpProximo } from './progresso.js';
@@ -20,7 +20,8 @@ import { PESCA, PLANTAS, HORTA, LOTE, fasePlanta } from './dados.js';
 import { horaDoJogo, ehNoite, HABS, BARRAS, cabeNaBarra, ANDAR_ATIRANDO, calcularStatus, reforcoK, reforcoMax, durab, custoConserto, pecasGastas, comDesconto, consertoGratis } from './progresso.js';
 import { npcApareceu } from './historia.js';
 import { CATALISADOR } from './dados.js';
-import { MORTE } from './dados.js';
+import { MORTE, CAVERNA_DUNGEON, JANTAR, FORNALHA, FOGAO } from './dados.js';
+import { comidaJantar } from './jantar.js';
 
 export const LEVE = {
   envio: 0.5, // s entre as fotos para a página
@@ -421,6 +422,20 @@ export const Leve = {
     // troca (etapa 5): os itens com nome e cor (a página não tem a tabela de itens)
     if (e.t === 'troca' && e.fase === 'estado') { const of = (o) => ({ ouro: o.ouro, tranca: o.tranca ? 1 : 0, ok: o.ok ? 1 : 0, itens: o.itens.map((x) => ({ ...(x.i != null ? { i: x.i } : {}), n: x.n, k: x.it?.k, nome: x.it ? nomeItem(x.it) : '?', c: x.it ? corDe(x.it) : null })) }); return { t: 'troca', fase: 'estado', com: e.com, nome: e.nome, eu: of(e.eu), ele: of(e.ele) }; }
     if (e.t === 'pvp' && e.fase === 'info') { const { loja, ...r } = e; return r; } // a loja de Insígnias fica no jogo
+    // fornalha e fogão (a janela do jogo, construcao.gd painel_forno): os lugares com nome e o que da mochila pode ir em cada um
+    if (e.t === 'forno') {
+      const j = this.jogadores.get(e.para), mo = j?.prog.mochila || [], C = e.tipo === 'fogao' ? FOGAO : FORNALHA, fg = e.tipo === 'fogao';
+      const sl = (o) => (o ? [o.k, o.n, ITENS[o.k]?.nome || o.k] : null), nm = (k) => ITENS[k]?.nome || k || '';
+      const it = [];
+      mo.forEach((o, i) => { if (!o || o.h) return; const l = []; if (C.combustivel[o.k]) l.push('comb'); if (!fg && C.receitas[o.k]) l.push('ent'); if (!fg && Object.values(C.receitas).some((q) => q.ent2?.k === o.k)) l.push('ent2'); if (l.length) it.push([i, o.k, o.n || 1, nomeItem(o), l]); });
+      const pr = fg ? Object.values(C.receitas).map((R) => [R.faz, nm(R.faz), Math.min(...Object.entries(R.ing).map(([k, q]) => Math.floor(contar(mo, k) / q))), Object.entries(R.ing).map(([k, q]) => `${q} ${nm(k)}`).join(' + '), R.nivel, R.dur]) : null;
+      return { t: 'forno', p: e.p, tipo: e.tipo, ...(e.abrir ? { abrir: 1 } : {}), comb: sl(e.comb), ent: sl(e.ent), ent2: sl(e.ent2), sai: sl(e.sai), fogo: e.fogo, fogoMax: e.fogoMax, fogoK: nm(e.fogoK), prog: e.prog, dur: e.dur, faz: nm(e.faz), ...(e.pede2 ? { pede2: [nm(e.pede2.k), e.pede2.n] } : {}), anda: e.anda ? 1 : 0, ...(e.precisa ? { precisa: nm(e.precisa) } : {}), it, ...(pr ? { pr } : {}) };
+    }
+    // a janela do jantar (jantar.gd): a comida com nome e a da mochila que pode ir para a mesa
+    if (e.t === 'jantarInfo') {
+      const j = this.jogadores.get(e.para), mo = j?.prog.mochila || [];
+      return { ...e, comida: (e.comida || []).map((o) => [o.k, o.n, ITENS[o.k]?.nome || o.k]), cm: mo.map((o, i) => (o && comidaJantar(o.k) ? [i, o.k, o.n || 1, nomeItem(o)] : null)).filter(Boolean) };
+    }
     if (e.t === 'bau') return { t: 'bau', cla: e.cla ? 1 : 0, l: (e.itens || []).length, it: listaLeve(e.itens), ...(e.p ? { p: e.p, nome: e.nome || '' } : {}) }; // p/nome: cada baú tem o seu estoque (2026-11-27)
     return e;
   },
@@ -561,6 +576,29 @@ export const Leve = {
     this.leveIr(id, { x: b.x, z: b.z, nome: 'Spot de pesca' });
     if (j.leveRota) j.leveRota.spot = sp.id;
   },
+  // os botões de lugar do jogo (construcao.gd _botoes_estacao, caverna.gd _botao_do_selo, jantar.gd), com as mesmas
+  // contas de perto que o servidor usa para aceitar: e = mesa de criar (bancada/bigorna, abre o Criar); f = fornalha ou fogão
+  // [id, tipo, nome] (abre a janela do forno); cm = minha cama perto (Dormir); en = encher o regador; me = Mesa do Clã;
+  // sl = o selo da caverna (usar o passe). André 2026-11-27: "Quero tudo idêntico"
+  pertoLeve(j) {
+    if (j.morto || j.veiculo || j.pesca) return null;
+    const o = {}, d = LOTE.estacaoDist + 0.6, perto = (p) => Math.hypot(p.x - j.x, p.z - j.z) <= d;
+    const meu = this.loteDe?.(j), lotes = [...this.lotes.values()];
+    for (const E of this.mapa.estacoes || []) if (perto(E)) { if (E.k === 'fornalha') o.f ||= [E.id, 'fornalha', E.nome]; else if (E.k === 'bancada' || E.k === 'bigorna') o.e ||= [E.k, E.nome]; }
+    if (!o.e && this.forjaBasePerto?.(j)) o.e = ['bigorna', 'Forja do clã'];
+    if (!o.f) { const F = this.fornalhaBasePerto?.(j); if (F) o.f = [F.id, 'fornalha', F.nome]; }
+    for (const L of lotes) for (const p of L.pecas) {
+      if (!perto(p) || !semParede(lotes, j, p)) continue;
+      if (!o.e && (p.k === 'bancada' || p.k === 'bigorna')) o.e = [p.k, CONSTRUCOES[p.k]?.nome || p.k];
+      if (L === meu && !o.f && (p.k === 'fornalha' || p.k === 'fogao')) o.f = [p.id, p.k, CONSTRUCOES[p.k]?.nome || p.k];
+      if (L === meu && p.k === 'cama') o.cm = 1;
+    }
+    if (contar(j.prog.mochila, 'regador') > 0 && aguaRegador(j.prog) < HORTA.agua && pertoDeAgua(j.x, j.z)) o.en = 1;
+    const B = JANTAR.ligado && this.baseDe?.(j), M = B && this.mesaBase?.(B);
+    if (M && Math.hypot(M.x - j.x, M.z - j.z) <= JANTAR.perto) o.me = 1;
+    if (!j.caverna) { const c = noTunel(TUNEL, j.x, j.z); if (c && c.s <= CAVERNA.porta + 0.3 && c.s >= CAVERNA.porta - (CAVERNA_DUNGEON.portaPerto || 4)) o.sl = 1; }
+    return Object.keys(o).length ? o : null;
+  },
   // ---------- fazenda, base e cama (etapa 6): o terreno/base do jogador numa grade; as ações são as do jogo (horta,
   // construir, desmontar, regador, dormir), com as mesmas regras (perto do terreno, vigor, ferramentas)
   fazendaLeve(j) {
@@ -667,6 +705,7 @@ export const Leve = {
       // jogo: ag = com a vara e água a até 4,4 m (pesca.gd: o botão Pescar); bq = barquinho na mochila e água funda a até 4 m
       // (transporte.gd _estado_botao); vc 'b' = no barquinho (o botão vira Descer)
       ...(j.veiculo === 'barquinho' ? { vc: 'b' } : (() => { const o = {}; if (!j.pesca && !j.veiculo && contar(j.prog.mochila, 'vara') > 0 && acharPonto(j, (a, b) => fundoAgua(a, b) > 0.05, 4.4)) o.ag = 1; if (!j.veiculo && contar(j.prog.mochila, 'barquinho') > 0 && acharPonto(j, (a, b) => fundoAgua(a, b) >= VEICULOS.barquinho.fundo, 4)) o.bq = 1; return o; })()),
+      ...((() => { const x = this.pertoLeve(j); return x ? { ex: x } : {}; })()), // os botões de lugar do jogo (pertoLeve)
       ...(this.emCombate(j) ? { lu: 1, as: j.acaoSeq | 0 } : {}), // as: conta os golpes do herói (a página desenha o corte quando muda) // em luta (bateu ou apanhou nos últimos ESTAMINA.combate s): o cartão de baixo vira "Em luta" (André 2026-11-26)
     };
   },
