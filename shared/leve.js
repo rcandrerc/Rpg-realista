@@ -8,16 +8,16 @@
 import { planejarRota, terraId } from './rota.js';
 import { TUNEL } from './caverna.js';
 import { LUGARES_MUNDO } from './mundo.js';
-import { LUGARES, TITULOS, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
+import { LUGARES, TITULOS, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO, ESTAMINA } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax, ATRIBUTOS, xpProximo } from './progresso.js';
-import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
+import { precoPack, mercadoK, custoPack, capacidadeCarrinho, acharPonto, fundoAgua } from './transporte.js';
 import { liberado, missaoAtual } from './historia.js';
-import { noLago, relevo } from './relevo.js';
+import { noLago, relevo, AGUA } from './relevo.js';
 import { ESTRADAS_MUNDO } from './mundo.js';
 import { VILAS_MUNDO } from './dados.js';
 import { aguaRegador, pertoDeAgua, distRet, crescerPlanta, retPeca, semParede } from './simulacao.js'; // fazenda e cama (etapa 6); só usadas na hora, depois que tudo carregou
 import { PESCA, PLANTAS, HORTA, LOTE, fasePlanta } from './dados.js';
-import { horaDoJogo, ehNoite, HABS, BARRAS, cabeNaBarra } from './progresso.js';
+import { horaDoJogo, ehNoite, HABS, BARRAS, cabeNaBarra, ANDAR_ATIRANDO } from './progresso.js';
 
 export const LEVE = {
   envio: 0.5, // s entre as fotos para a página
@@ -182,7 +182,9 @@ export const Leve = {
     const j = this.jogadores.get(id); if (!j || !j.leve || !HABS[k]) return;
     this.leveParar(id, null);
     const e = this.alvoLeve(j) || this.maisPerto(j, 30), d = j.leveJoy ? [j.leveJoy.mx, j.leveJoy.mz] : [Math.sin(j.ry || 0), Math.cos(j.ry || 0)];
+    const seq = j.acaoSeq;
     this.usarHabQ(id, { id: k, dx: d[0], dz: d[1], ...(e && Number.isInteger(e.v) ? { v: e.v, b: true } : {}) });
+    if (HABS[k].tipo === 'basicoMagia' && j.acao && j.acaoSeq !== seq) j.acao.livre = true; // o tiro do cajado anda junto (passoLeve)
   },
   leveParar(id, texto = 'Parou') {
     const j = this.jogadores.get(id); if (!j) return;
@@ -191,7 +193,27 @@ export const Leve = {
     if (tinha) this.evento({ t: 'leveRota', para: id, pontos: [], ...(texto ? { texto } : {}) });
   },
   // um passo do herói do modo leve (antes do passoJogador): vira o "joystick" que leva ao próximo ponto do caminho
+  // na água (André 2026-11-27: "dá pra andar de montaria na água super rápido; encostou na água já desmonta e começa a
+  // nadar"): encostou na água (mais de 0,2 m no corpo), desce do lobo; anda devagar como o na_agua do jogo (andar.gd) e,
+  // boiando, na braçada (AGUA.nado, mais lento sem fôlego). Só no leve: o jogo 3D é do irmão do André
   passoLeve(j, dt) {
+    this.passoLeve0(j, dt);
+    // tiro do cajado andando (varredura das skills, André 2026-11-27: "não consigo usar o ataque básico e andar ao mesmo
+    // tempo"): no jogo o tiro básico do cajado é livre (main.gd acao.livre) e o herói anda a ANDAR_ATIRANDO; o passoJogador
+    // para tudo enquanto trava, então o leve dá esse passo aqui, sem virar (ele segue olhando o alvo)
+    if (j.trava > 0 && j.acao?.livre && j.leveJoy && !j.morto && !j.canal && !j.arrancada) {
+      const e = j.entrada, v = (e.correr ? HEROI.correr : HEROI.andar) * ANDAR_ATIRANDO;
+      if (Math.hypot(e.mx, e.mz) > 0.15) this.mover(j, e.mx * v * dt, e.mz * v * dt);
+    }
+    if (j.veiculo || j.morto || !noLago(j.x, j.z)) return;
+    const a = AGUA.nivel - this.terreno.altura(j.x, j.z, j.y); if (!(a > 0.2)) return;
+    if (j.montado) { j.montado = null; this.evento({ t: 'aviso', para: j.id, texto: 'Você desceu do lobo na água' }); }
+    const e = j.entrada; if (!e || e === j._entAgua || Math.hypot(e.mx, e.mz) < 0.15) return; // já ajustada neste passo
+    const base = e.correr ? HEROI.correr : HEROI.andar, boia = a >= AGUA.peito - 0.12;
+    const k = boia ? Math.min(1, (AGUA.nado * (j.semFolego ? ESTAMINA.nadoCansado : 1)) / base) : AGUA.raso + (AGUA.lento - AGUA.raso) * Math.min(1, Math.max(0, (a - 0.2) / 0.8));
+    j.entrada = j._entAgua = { mx: e.mx * k, mz: e.mz * k, correr: e.correr && !boia };
+  },
+  passoLeve0(j, dt) {
     if (j.leveJoy) { // joystick: anda na direção do dedo até soltar
       const J = j.leveJoy;
       if (j.morto || this.tempo - J.t > LEVE.joySolto) { j.leveJoy = null; j.entrada = { mx: 0, mz: 0, correr: false }; return; }
@@ -317,6 +339,10 @@ export const Leve = {
     else if (e.t === 'proj') { const v = e.vel || 16, n = Math.hypot(e.dx, e.dz) || 1; f = ['p', r1(e.x), r1(e.z), r1((e.dx / n) * v), r1((e.dz / n) * v), r1(e.vida || 2.2), e.cor ?? 0xffaa44, e.id]; }
     else if (e.t === 'projFim') f = ['x', r1(e.x), r1(e.z), e.id, r1(e.explosao || 0)]; // fim do projétil e.id (a página para a bolinha ali)
     else if (e.t === 'esquiva') { const o = pos(e.id); if (o) f = ['e', r1(o.x), r1(o.z)]; }
+    // efeitos simples de cada skill (André 2026-11-27: "qd usar raio sair um raio... efeito a todas as skills, sem exagero")
+    else if (e.t === 'cadeia') f = ['r', r1(e.x), r1(e.z), r1(e.x0), r1(e.z0)]; // Raio em Cadeia: o risco de um bicho ao outro
+    else if (e.t === 'teleporte') f = ['t', r1(e.x), r1(e.z), r1(e.x0), r1(e.z0)]; // Salto Arcano: some num ponto, aparece no outro
+    else if (e.t === 'escudo') { const o = pos(e.id); if (o) f = ['a', r1(o.x), r1(o.z), 1.3, 'escudo']; } // Escudo Arcano: bolha azul
     return f && Math.hypot(f[1] - j.x, f[2] - j.z) <= LEVE.fxR ? f : null;
   },
   leveEvento(e) {
@@ -389,8 +415,11 @@ export const Leve = {
     const p = j.prog, merc = mercador(p.prof?.mer).venda + (bonusTitulo(p).venda || 0), r = [];
     (p.mochila || []).forEach((o, i) => {
       if (!o || !ITENS[o.k]) return;
-      const I = ITENS[o.k], tipo = I.lugar ? 'e' : (I.usar && !I.usar.veiculo) || o.k === 'tomo' ? 'u' : '';
-      r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o), precoVenda(o, merc), o.cad ? 1 : 0, tipo, I.lugar || '', textoPeca(o)]);
+      // carrinho (André 2026-11-27: "tocar no carrinho na bag e abrir pra sumonar ou desmontar"): o mesmo botão do jogo
+      // (menu.gd): "Colocar no chão" ou, no mundo, "Guardar carrinho"; navio só "Guardar navio" quando está na água. [10] = rótulo
+      const vb = o.k === 'carrinho' ? (this.carrinhoFora(j) ? 'Guardar carrinho' : 'Colocar no chão') : o.k === 'navio' && this.navioFora(j) ? 'Guardar navio' : '';
+      const I = ITENS[o.k], tipo = I.lugar ? 'e' : (I.usar && !I.usar.veiculo) || o.k === 'tomo' || vb ? 'u' : '';
+      r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o), precoVenda(o, merc), o.cad ? 1 : 0, tipo, I.lugar || '', textoPeca(o), ...(vb ? [vb] : [])]);
     });
     const eq = LUGARES.filter((l) => p.equip?.[l] && ITENS[p.equip[l].k]).map((l) => { const o = p.equip[l]; return [l, o.k, nomeItem(o), corDe(o), textoPeca(o)]; });
     return { l: (p.mochila || []).length, it: r, eq };
@@ -549,7 +578,7 @@ export const Leve = {
     const m = [];
     for (const e of this.inimigos) {
       if (e.morto || Math.hypot(e.x - j.x, e.z - j.z) > LEVE.bichos) continue;
-      m.push([r1(e.x), r1(e.z), e.nivel | 0, Math.round((e.vida / (e.vidaMax || 1)) * 100), e.id, e.nome || '']);
+      m.push([r1(e.x), r1(e.z), e.nivel | 0, Math.round((e.vida / (e.vidaMax || 1)) * 100), e.id, e.nome || '', e.parado > this.tempo ? (e.ef === 'congelado' ? 'g' : 'a') : e.lento?.ate > this.tempo ? 'l' : 0]); // [6] g congelado (branco), a atordoado, l lento
       if (m.length >= LEVE.max) break;
     }
     return {
@@ -560,6 +589,10 @@ export const Leve = {
       ...((() => { const l = this.spotsLeve(j); return l.length ? { sp: Math.round(l[0][1]), ss: l.slice(0, 12).map(([v]) => [r1(v.x), r1(v.z)]) } : {}; })()), // metros até o spot de pesca à vista; ss: os spots no mapa (à vista ou com o Radar, como no jogo)
       ...((() => { const a = this.alvoLeve(j) || this.maisPerto(j); return a && a.id && m.some((o) => o[4] === a.id) ? { al: a.id } : {}; })()), // al: o monstro que o próximo golpe pega (André 2026-11-27: círculo vermelho nele)
       ...((() => { const b = this.bfLeve(this.bfJogador(j)), a = this.alvoLeve(j), ba = a && !a.morto && this.bfInimigo ? this.bfLeve(this.bfInimigo(a)) : []; return { ...(b.length ? { bf: b } : {}), ...(ba.length ? { ba } : {}) }; })()), // buffs e debuffs (André 2026-11-27: "ícones de buff" iguais ao jogo, buffs.gd): os meus e os do alvo
+      // perto da água (André 2026-11-27: "aparecer opção de pescar e usar o barquinho se eu tiver na bag"), as mesmas contas do
+      // jogo: ag = com a vara e água a até 4,4 m (pesca.gd: o botão Pescar); bq = barquinho na mochila e água funda a até 4 m
+      // (transporte.gd _estado_botao); vc 'b' = no barquinho (o botão vira Descer)
+      ...(j.veiculo === 'barquinho' ? { vc: 'b' } : (() => { const o = {}; if (!j.pesca && !j.veiculo && contar(j.prog.mochila, 'vara') > 0 && acharPonto(j, (a, b) => fundoAgua(a, b) > 0.05, 4.4)) o.ag = 1; if (!j.veiculo && contar(j.prog.mochila, 'barquinho') > 0 && acharPonto(j, (a, b) => fundoAgua(a, b) >= VEICULOS.barquinho.fundo, 4)) o.bq = 1; return o; })()),
       ...(this.emCombate(j) ? { lu: 1, as: j.acaoSeq | 0 } : {}), // as: conta os golpes do herói (a página desenha o corte quando muda) // em luta (bateu ou apanhou nos últimos ESTAMINA.combate s): o cartão de baixo vira "Em luta" (André 2026-11-26)
     };
   },

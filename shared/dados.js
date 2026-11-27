@@ -1353,14 +1353,20 @@ export const PAGINA_PRECO = [0, 1000, 5000, 15000]; // André 2026-11-16 (estudo
 // '2026-11-27c' (André 2026-11-27: "toda mudança assim, mais drástica... essa mudança aí vai mudar tudo"): teste 2. Junto com as
 // contas novas abaixo, o robô passou a puxar um bicho por vez pela borda e a descansar com pouca vida, então a medição recomeça
 // do Nv 1. Mudança pequena não zera.
+// '2026-11-27d' (André 2026-11-27, "Reseta"): teste 3. Do Nv 1 com o set Comum +0 de novo, já com o conserto de graça só
+// do robô (consertoGratis) e a Rara do chefe e do Warrok do campo em 25% para todos (DROPS raridadeCampo). As contas do
+// teste 2 e o puxar pela borda continuam iguais.
 // upgrade: o robô não evolui nem reforça sozinho (André 2026-11-27); quando o relatório pedir, o André diz o que muda e
 // entra aqui: v = marca nova (texto), equip = { lugar: { k, r, e } } vestido na próxima entrada do robô (uma vez por marca).
 // Teste 2 (André 2026-11-27, "pensei q já tava rodando"): pontos e nível dão menos e o set escala bem mais por raridade;
 // drop da Rara bem menor. nivel = dano a mais por nível; atr = dano a mais por ponto de Força/Int; mana/vit/forVida/nivelVida =
 // mana por Int, vida por Vit, vida por Força, vida por nível. armadura = quanto vale o dano da arma, a vida e a defesa das
 // peças (Comum..Mítica). O drop menor da Rara vale para todos (DROPS).
+// consertoGratis (André 2026-11-27, "deixa o reparo dele somente dele free pra gente avaliar o resto gasto de gold deixa pra
+// vermos depois"): o Tomás conserta o equipamento do robô de graça (consertarTudo/consertarPecas em shared/progresso.js). No
+// teste 2 o ouro acabou no Nv 33 e 6 das 8 peças ficaram quebradas; jogadores, bots e recrutas seguem pagando. Não zera.
 export const COMBATE_TESTE = { base: 64, ref: 128, arma: 2.5, armadura: [0.5, 1, 1.6, 2.2, 3], nivel: 0.06, atr: 0.05, mana: 5, vit: 6, forVida: 2, nivelVida: 5,
-  desgasteGolpes: 150, zerar: '2026-11-27c',
+  desgasteGolpes: 150, zerar: '2026-11-27d', consertoGratis: true,
   // 2026-11-27: herói novo começa com o set Comum +0 (EQUIP_INICIAL); o robô, já zerado pelado, ganha o mesmo set uma vez
   upgrade: { v: 'set-comum-2026-11-27', equip: { cabeca: { k: 'chapeu', r: 0 }, corpo: { k: 'peitoral', r: 0 }, pernas: { k: 'calca', r: 0 }, capa: { k: 'capa', r: 0 },
     pes: { k: 'botas', r: 0 }, acessorio: { k: 'colar', r: 0 }, espada: { k: 'espada', r: 0 }, cajado: { k: 'cajado', r: 0 } } } };
@@ -1584,14 +1590,19 @@ export const DROP_NIVEL = { livre: 5, degrau: 5, chances: [1, 0.7, 0.4, 0.25], v
 // monstro só solta peça Comum ou Rara. Épico, Lendário e Mítico saem só da criação (RARIDADE_CRIAR).
 // André 2026-11-27 ("set completo raro em 20-30 min... pode baixar já para todos"): Rara do bicho comum 15% -> 2% da peça
 // (1,5% -> 0,2% por bicho) e do líder 40% -> 10% (14% -> 3,5%); chefe segue garantido. Antes: [0.85, 0.15] e [0.6, 0.4].
+// André 2026-11-27 ("cortar para todos os jogadores pra 25%"; "os bosses principais... só spawnam de 6 em 6 hrs, eles eu
+// acho q pode até deixar garantido"): o chefe e o Warrok que nascem a toda hora no campo de caça (e no covil) dão a peça
+// Rara em 25% das vezes, e Comum no resto (raridadeCampo; antes 100% Rara). No robô, 63 das 65 Raras do teste 2 vieram
+// deles. Seguem com a Rara garantida (raridade) os que nascem pouco: chefe da história e elite da Guilda (hc), sala da
+// caverna e emboscada da Escolta do Clã. O boss de mundo (4 a 6 h) tem o drop dele (dropBoss) e também segue garantido.
 const DROP_COMUM = { ouro: [3, 7], pocao: 0.12, mana: 0.1, equip: 0.1, tomo: 0.01, raridade: [0.98, 0.02, 0, 0, 0] };
 export const DROPS = {
   // fragmento: material do passe da caverna (2026-11-06), cai de todos os monstros de caça
   puglin: { ...DROP_COMUM, mat: { couro: [0.45, 1], fragmento: [0.08, 1], carne: [0.3, 1] } }, lobo: { ...DROP_COMUM, ouro: [3, 8], mat: { couro: [0.6, 1], fragmento: [0.08, 1], carne: [0.5, 1] } }, imp: { ...DROP_COMUM, ouro: [4, 9], mat: { tecido: [0.45, 1], fragmento: [0.08, 1] } }, sombrio: DROP_COMUM,
   lider: { ouro: [12, 20], pocao: 0.3, mana: 0.25, equip: 0.35, tomo: 0.08, raridade: [0.9, 0.1, 0, 0, 0] },
-  chefe: { ouro: [35, 55], pocao: 0.5, mana: 0.4, equip: 1, tomo: 0.3, raridade: [0, 1, 0, 0, 0], mat: { couro: [1, 3], tecido: [1, 3], cristal: [0.5, 1], fragmento: [0.5, 1] } },
+  chefe: { ouro: [35, 55], pocao: 0.5, mana: 0.4, equip: 1, tomo: 0.3, raridade: [0, 1, 0, 0, 0], raridadeCampo: [0.75, 0.25, 0, 0, 0], mat: { couro: [1, 3], tecido: [1, 3], cristal: [0.5, 1], fragmento: [0.5, 1] } },
   golem: { ...DROP_COMUM, ouro: [5, 10], mat: { cristal: [0.25, 1], fragmento: [0.1, 1] } }, maw: { ...DROP_COMUM, ouro: [5, 11], mat: { couro: [0.6, 1], fragmento: [0.1, 1], carne: [0.4, 1] } },
-  warrok: { ouro: [45, 70], pocao: 0.6, mana: 0.5, equip: 1, tomo: 0.35, raridade: [0, 1, 0, 0, 0], mat: { couro: [2, 3], tecido: [1, 3], cristal: [0.7, 2], fragmento: [1, 2] } },
+  warrok: { ouro: [45, 70], pocao: 0.6, mana: 0.5, equip: 1, tomo: 0.35, raridade: [0, 1, 0, 0, 0], raridadeCampo: [0.75, 0.25, 0, 0, 0], mat: { couro: [2, 3], tecido: [1, 3], cristal: [0.7, 2], fragmento: [1, 2] } },
 };
 
 // ---------- Bosses de mundo (André 2026-11-11) ----------
