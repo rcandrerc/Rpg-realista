@@ -3113,6 +3113,9 @@ func _tentar(qual: String) -> bool:
 			elif P.prog.get("pack") is Dictionary: # pack nas costas: só o carrinho leva (André 2026-11-18; o servidor também nega)
 				hud.aviso("Com pack nas costas não dá pra montar. Use o carrinho!")
 				hud.negar("montar")
+			elif mov.na_agua() < 1.0: # na água não monta (André 2026-11-27: desce ao encostar na água)
+				hud.aviso("Na água não dá pra montar")
+				hud.negar("montar")
 			elif mov.esc != null or not mov.chao or not acao.is_empty() or mov.arrancada != null:
 				hud.negar("montar")
 			else:
@@ -4307,6 +4310,10 @@ func atualizar_heroi(dt: float) -> void:
 		livre = false
 	th = _parte("h:acao", th)
 	mov.passo(dt, dir.x, dir.z, forca >= 0.85, livre and h.lunge == null, h.vel_k * boss_mundo.lento())
+	# encostou na água montado (André 2026-11-27): desce do lobo sozinho e segue a pé/nadando, devagar como na água
+	if montaria != null and mov.na_agua() < 1.0:
+		montar_lobo(false)
+		hud.aviso("Você desceu do lobo na água")
 	th = _parte("h:mov", th)
 	_dir_joy = Vector2(dir.x, dir.z) if forca > 0.15 else Vector2.ZERO
 	_forca_joy = forca

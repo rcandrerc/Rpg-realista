@@ -857,7 +857,7 @@ func _agua_a_frente() -> bool:
 func _pode_montar() -> bool:
 	if m.mov == null or m.mov.esc != null or not m.mov.chao or m.mov.arrancada != null or not m.mov.veiculo.is_empty():
 		return false
-	if not m.acao.is_empty() or m._nadando or m._saindo_agua > 0.0 or m.h.morto > 0.0:
+	if not m.acao.is_empty() or m._nadando or m._saindo_agua > 0.0 or m.h.morto > 0.0 or m.mov.na_agua() < 1.0:
 		return false
 	if m.nevoa and not m.nevoa.liberado("lobo", true): # lobo ainda não amansado (missão): o "Ir para" vai a pé
 		return false
