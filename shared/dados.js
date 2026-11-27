@@ -1576,14 +1576,19 @@ export const DROP_NIVEL = { livre: 5, degrau: 5, chances: [1, 0.7, 0.4, 0.25], v
 // monstro só solta peça Comum ou Rara. Épico, Lendário e Mítico saem só da criação (RARIDADE_CRIAR).
 // André 2026-11-27 ("set completo raro em 20-30 min... pode baixar já para todos"): Rara do bicho comum 15% -> 2% da peça
 // (1,5% -> 0,2% por bicho) e do líder 40% -> 10% (14% -> 3,5%); chefe segue garantido. Antes: [0.85, 0.15] e [0.6, 0.4].
+// André 2026-11-27 ("cortar para todos os jogadores pra 25%"; "os bosses principais... só spawnam de 6 em 6 hrs, eles eu
+// acho q pode até deixar garantido"): o chefe e o Warrok que nascem a toda hora no campo de caça (e no covil) dão a peça
+// Rara em 25% das vezes, e Comum no resto (raridadeCampo; antes 100% Rara). No robô, 63 das 65 Raras do teste 2 vieram
+// deles. Seguem com a Rara garantida (raridade) os que nascem pouco: chefe da história e elite da Guilda (hc), sala da
+// caverna e emboscada da Escolta do Clã. O boss de mundo (4 a 6 h) tem o drop dele (dropBoss) e também segue garantido.
 const DROP_COMUM = { ouro: [3, 7], pocao: 0.12, mana: 0.1, equip: 0.1, tomo: 0.01, raridade: [0.98, 0.02, 0, 0, 0] };
 export const DROPS = {
   // fragmento: material do passe da caverna (2026-11-06), cai de todos os monstros de caça
   puglin: { ...DROP_COMUM, mat: { couro: [0.45, 1], fragmento: [0.08, 1], carne: [0.3, 1] } }, lobo: { ...DROP_COMUM, ouro: [3, 8], mat: { couro: [0.6, 1], fragmento: [0.08, 1], carne: [0.5, 1] } }, imp: { ...DROP_COMUM, ouro: [4, 9], mat: { tecido: [0.45, 1], fragmento: [0.08, 1] } }, sombrio: DROP_COMUM,
   lider: { ouro: [12, 20], pocao: 0.3, mana: 0.25, equip: 0.35, tomo: 0.08, raridade: [0.9, 0.1, 0, 0, 0] },
-  chefe: { ouro: [35, 55], pocao: 0.5, mana: 0.4, equip: 1, tomo: 0.3, raridade: [0, 1, 0, 0, 0], mat: { couro: [1, 3], tecido: [1, 3], cristal: [0.5, 1], fragmento: [0.5, 1] } },
+  chefe: { ouro: [35, 55], pocao: 0.5, mana: 0.4, equip: 1, tomo: 0.3, raridade: [0, 1, 0, 0, 0], raridadeCampo: [0.75, 0.25, 0, 0, 0], mat: { couro: [1, 3], tecido: [1, 3], cristal: [0.5, 1], fragmento: [0.5, 1] } },
   golem: { ...DROP_COMUM, ouro: [5, 10], mat: { cristal: [0.25, 1], fragmento: [0.1, 1] } }, maw: { ...DROP_COMUM, ouro: [5, 11], mat: { couro: [0.6, 1], fragmento: [0.1, 1], carne: [0.4, 1] } },
-  warrok: { ouro: [45, 70], pocao: 0.6, mana: 0.5, equip: 1, tomo: 0.35, raridade: [0, 1, 0, 0, 0], mat: { couro: [2, 3], tecido: [1, 3], cristal: [0.7, 2], fragmento: [1, 2] } },
+  warrok: { ouro: [45, 70], pocao: 0.6, mana: 0.5, equip: 1, tomo: 0.35, raridade: [0, 1, 0, 0, 0], raridadeCampo: [0.75, 0.25, 0, 0, 0], mat: { couro: [2, 3], tecido: [1, 3], cristal: [0.7, 2], fragmento: [1, 2] } },
 };
 
 // ---------- Bosses de mundo (André 2026-11-11) ----------
