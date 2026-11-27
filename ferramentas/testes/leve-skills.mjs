@@ -22,3 +22,10 @@ const pe = s.personagemLeve(a);
 ok(pe.ba?.espada?.length === 6 && pe.ba?.cajado?.length === 6 && !pe.bd, 'Golpes mostram as barras do jogo (6 + 6)');
 const fora = pe.hs.find((h) => (h[2] === 'espada' || h[2] === 'geral') && !pe.ba.espada.includes(h[0]) && h[4] <= 63);
 if (fora) { const lista = [...pe.ba.espada]; lista[0] = fora[0]; s.definirBarra('A', { barra: 'espada', lista }); ok(s.personagemLeve(a).ba.espada[0] === fora[0] && s.habLeve(a).e.some((o) => o[0] === fora[0]), `trocar golpe no leve muda a barra do jogo (${fora[1]})`); }
+// buffs e debuffs no leve (como o buffs.gd do jogo): os meus e os do alvo, com os segundos que faltam
+a.escudo = { ate: s.tempo + 8, n: 50 }; const al = s.inimigos.find((e) => !e.morto) || vivos[0]; al.morto = false; al.vuln = { ate: s.tempo + 4, k: 0.06 }; al.x = a.x + 3; al.z = a.z; al.vida = al.vidaMax; a.leveAlvo = al.id; a.leveMira = al.id;
+const fl = s.fotoLeve(a), esc = fl.bf?.find((b) => b[0] === 'escudo');
+ok(esc && esc[1] > 7 && esc[1] <= 8 && esc[2] === 50, `escudo no leve com o tempo que falta (${JSON.stringify(fl.bf)})`);
+ok(fl.ba?.some((b) => b[0] === 'vuln'), `o alvo mostra o Quebrado (${JSON.stringify(fl.ba)})`);
+a.prog.buff = { k: 'carne_assada', ate: Date.now() + 60000 }; const co = s.fotoLeve(a).bf.find((b) => b[0] === 'co');
+ok(co && co[2] === 'Carne assada' && /dano/.test(co[3]) && co[1] > 50, `comida com nome e o que dá (${JSON.stringify(co)})`);
