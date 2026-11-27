@@ -3,7 +3,7 @@
 // (só raridade, níveis somam). O CONJUNTO antigo não vale mais.
 import '../../shared/index.js'; // carrega na ordem certa (ciclo progresso/simulacao/cla: 'Amiga' before initialization)
 import assert from 'node:assert/strict';
-import { bonusEquip, conjuntoAtivo, calcularStatus, progressoNovo } from '../../shared/progresso.js';
+import { bonusEquip, conjuntoAtivo, calcularStatus, progressoNovo, equipNovo } from '../../shared/progresso.js';
 
 const quase = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} != ${b}`);
 const mit = (k, e = 0) => ({ k, r: 4, ...(e ? { e } : {}) });
@@ -23,5 +23,8 @@ assert.deepEqual(conjuntoAtivo([7, 6, 2, 2, 2]).map((x) => [x.t, x.r]), [[2, 4],
 // quebrada não conta
 const q = bonusEquip({ ...tudo, cabeca: { k: 'chapeu', r: 4, e: 40, d: 0 } });
 quase(q.danoCritico, 12 * 9 + 48, 'capacete quebrado não dá dano crítico');
-assert.equal(calcularStatus(progressoNovo()).danoCritico, 0);
+assert.equal(calcularStatus({ ...progressoNovo(), equip: equipNovo() }).danoCritico, 0, 'pelado: sem dano crítico');
+// herói novo começa com o set Comum +0 (André 2026-11-27): 8 peças Comuns, sem reforço
+const ini = progressoNovo().equip;
+assert.equal(Object.values(ini).filter((it) => it && it.r === 0 && !it.e).length, 8, 'set Comum +0 inteiro');
 console.log('critico-equip: ok');
