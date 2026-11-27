@@ -16,7 +16,7 @@ const MARGEM := Vector2(176, 70) # distância do canto de cima à direita: o men
 # André 2026-11-06: o martelo da construção sai de baixo (confundia com as skills) e vem para cá, do lado da mochila:
 # aceso no meu terreno, escuro fora dele
 # André 2026-11-11: "o menu de missões vai para aquela action bar" (antes era uma aba do menu do personagem)
-const ITENS_TODOS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["missoes", "Missões", "topo_missoes"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["pvp", "PvP", "topo_pvp"], ["cla", "Clã", "topo_cla"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
+const ITENS := [["mochila", "Mochila", "topo_mochila"], ["construir", "Construir", "construir"], ["missoes", "Missões", "topo_missoes"], ["multi", "Multijogador", "topo_multi"], ["chat", "Chat", "topo_chat"], ["pvp", "PvP", "topo_pvp"], ["cla", "Clã", "topo_cla"], ["config", "Configurações", "topo_config"], ["vila", "Voltar para a vila", "topo_vila"]]
 const WIKI_URL := "https://rcandrerc.github.io/Rpg-realista/wiki/" # client/public/wiki/index.html no site
 # André 2026-11-16: o ícone Conta saiu da barra ("menos poluído"); Trocar de conta, Sair da conta e Apagar personagem
 # ficam iguais, na aba Conta de Configurações (montar_config). abrir("conta") continua valendo e cai nessa aba.
@@ -42,7 +42,7 @@ var aba_config := "ajustes" # Configurações: "ajustes" (som, câmera, gráfico
 var _atualizar_t := 0.0
 var _confirmar_apagar := false # Conta > Apagar personagem: segunda tela pedindo confirmação
 # missões desligadas (André 2026-11-27, MISSOES_LIGA em shared/dados.js, habilidades.json historia.liga): o ícone some
-var ITENS: Array = ITENS_TODOS
+var itens_vis: Array = ITENS
 var _confirmar_reset := "" # só a conta do André: "partida" ou "missoes" pedindo o segundo toque
 var _apagando := false
 # configurações
@@ -67,8 +67,8 @@ func _ready() -> void:
 	add_child(raiz)
 	var hi = m.P.dados.get("historia") if m and m.P else null
 	if hi is Dictionary and hi.get("liga", true) == false:
-		ITENS = ITENS_TODOS.filter(func(it): return it[0] != "missoes")
-	var n := ITENS.size()
+		itens_vis = ITENS.filter(func(it): return it[0] != "missoes")
+	var n := itens_vis.size()
 	lugar = Control.new()
 	lugar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lugar.anchor_left = 1.0
@@ -84,9 +84,9 @@ func _ready() -> void:
 	itens.pivot_offset = Vector2(itens.size.x, TAM * 0.5) # encolhe para o lado da seta
 	lugar.add_child(itens)
 	for i in n:
-		var b := _icone(ITENS[i][2], ITENS[i][1])
+		var b := _icone(itens_vis[i][2], itens_vis[i][1])
 		b.position = Vector2(i * (TAM + ESPACO), 0)
-		var k: String = ITENS[i][0]
+		var k: String = itens_vis[i][0]
 		b.set_meta("guia", "topo:" + k) # guia das missões (guia.gd): este ícone pisca quando é o próximo toque
 		if k == "vila":
 			b.pressed.connect(func(): m.volta.pedir())
@@ -270,7 +270,7 @@ func _mexer_itens(v: bool) -> void:
 # a HUD pergunta: este toque é do menu do topo? (aí não vira joystick nem câmera)
 # modo de editar a interface (editar_hud.gd): a barra de ícones muda de lugar e de tamanho junto com a seta
 func posicionar(d: Vector2, s: float) -> void:
-	var n := ITENS.size()
+	var n := itens_vis.size()
 	lugar.offset_right = -(MARGEM.x + TAM + ESPACO) + d.x
 	lugar.offset_left = lugar.offset_right - (TAM * n + ESPACO * (n - 1))
 	lugar.offset_top = MARGEM.y + d.y
