@@ -204,6 +204,19 @@ export const Leve = {
     if (j.vila) this.cancelarVila(j, null);
     j.leveJoy = { mx, mz, correr: f > 0.6, t: this.tempo };
   },
+  // Trocar alvo (o botão do jogo, 2026-11-23): escolhe o monstro que os golpes pegam, sem andar nem parar o golpe
+  leveMirar(id, alvo) {
+    const j = this.jogadores.get(id); if (!j || !j.leve) return;
+    const e = typeof alvo === 'string' ? this.inimigos.find((o) => o.id === alvo && !o.morto && Math.hypot(o.x - j.x, o.z - j.z) <= 22) : null;
+    j.leveMira = e ? e.id : null;
+  },
+  // Disparada (o botão do jogo, main.gd ligar_disparada): liga a corrida; sem fôlego ou com pack nas costas não liga
+  leveDisparada(id, on) {
+    const j = this.jogadores.get(id); if (!j || !j.leve) return;
+    if (on && !j.montado && j.semFolego) return this.evento({ t: 'aviso', para: id, texto: 'Sem fôlego!' });
+    if (on && !j.montado && j.prog.pack) return this.evento({ t: 'aviso', para: id, texto: 'Com pack nas costas não dá pra correr' });
+    j.leveDisp = !!on;
+  },
   // golpe do leve (habLeve): a mesma msg 'habQ' do jogo, mirando no monstro escolhido (Atacar ou o círculo vermelho, como o
   // botão Trocar alvo do jogo) e, nas de direção (Salto Arcano), para onde o joystick ou a frente apontam
   leveHab(id, k) {
@@ -245,7 +258,19 @@ export const Leve = {
     if (j.leveJoy) { // joystick: anda na direção do dedo até soltar
       const J = j.leveJoy;
       if (j.morto || this.tempo - J.t > LEVE.joySolto) { j.leveJoy = null; j.entrada = { mx: 0, mz: 0, correr: false }; return; }
-      j.entrada = { mx: J.mx, mz: J.mz, correr: J.correr && !j.semFolego && !j.veiculo }; return;
+      // a velocidade do joystick do jogo (andar.gd vel_joystick): até a metade anda (55% a 100% do andar), daí até o fim
+      // vai ao trote (sem gastar estamina); correr de verdade só com a Disparada ligada (gasta estamina, como no jogo).
+      // Montado, no carrinho ou no barco quem decide a velocidade é a montaria/veículo (passoJogador)
+      const f = Math.hypot(J.mx, J.mz) || 1, dx = J.mx / f, dz = J.mz / f;
+      if (j.montado || j.veiculo) { j.entrada = { mx: dx, mz: dz, correr: !j.veiculo }; return; }
+      const disp = !!j.leveDisp && !j.semFolego && !j.prog.pack && f >= 0.3;
+      const ss = (t) => t * t * (3 - 2 * t), trote = HEROI.correr * ESTAMINA.trote;
+      const v = disp ? HEROI.correr : f < 0.5 ? HEROI.andar * (0.55 + 0.45 * (f - 0.15) / 0.35) : HEROI.andar + (trote - HEROI.andar) * ss(Math.min(1, Math.max(0, (f - 0.5) / 0.4)));
+      const corre = v > HEROI.andar * 1.2, base = corre ? HEROI.correr : HEROI.andar;
+      j.entrada = { mx: dx * (v / base), mz: dz * (v / base), correr: corre };
+      if (disp && !j.morto && !(j.trava > 0)) this.correndo(j, dt); // a Disparada gasta estamina como a corrida do jogo
+      if (j.leveDisp && (j.semFolego || j.prog.pack)) { j.leveDisp = false; this.evento({ t: 'aviso', para: j.id, texto: j.prog.pack ? 'Com pack nas costas não dá pra correr' : 'Sem fôlego!' }); }
+      return;
     }
     const R = j.leveRota; if (!R) return;
     if (j.morto) return this.leveParar(j.id, null);
@@ -635,7 +660,8 @@ export const Leve = {
       ...(j.pesca ? { pe: [j.pesca.st, j.pesca.st === 'briga' ? Math.round(j.pesca.prog * 100) : 0] } : {}), // pescando (etapa 6): o estado e a barra da briga
       ...((() => { const l = this.spotsLeve(j); return l.length ? { sp: Math.round(l[0][1]), ss: l.slice(0, 12).map(([v]) => [r1(v.x), r1(v.z)]) } : {}; })()), // metros até o spot de pesca à vista; ss: os spots no mapa (à vista ou com o Radar, como no jogo)
       ...((() => { const a = this.alvoLeve(j) || this.maisPerto(j); return a && a.id && m.some((o) => o[4] === a.id) ? { al: a.id } : {}; })()),
-      ...((() => { const H = this.histInfo(j); return H?.npc ? { hn: H.npc, hm: H.nome } : {}; })()), // o NPC da missão principal agora: a janela dele ganha o botão "Missão: …" (conversa.gd _quer_missao) // al: o monstro que o próximo golpe pega (André 2026-11-27: círculo vermelho nele)
+      ...((() => { const H = this.histInfo(j); return H?.npc ? { hn: H.npc, hm: H.nome } : {}; })()),
+      ...(j.leveDisp ? { ds: 1 } : {}), ...(j.sta < j.staMax ? { sa: [Math.floor(j.sta), Math.round(j.staMax), j.semFolego ? 1 : 0] } : {}), // Disparada ligada; estamina (só quando gastou), como a barrinha do jogo // o NPC da missão principal agora: a janela dele ganha o botão "Missão: …" (conversa.gd _quer_missao) // al: o monstro que o próximo golpe pega (André 2026-11-27: círculo vermelho nele)
       ...((() => { const b = this.bfLeve(this.bfJogador(j)), a = this.alvoLeve(j), ba = a && !a.morto && this.bfInimigo ? this.bfLeve(this.bfInimigo(a)) : []; return { ...(b.length ? { bf: b } : {}), ...(ba.length ? { ba } : {}) }; })()), // buffs e debuffs (André 2026-11-27: "ícones de buff" iguais ao jogo, buffs.gd): os meus e os do alvo
       // perto da água (André 2026-11-27: "aparecer opção de pescar e usar o barquinho se eu tiver na bag"), as mesmas contas do
       // jogo: ag = com a vara e água a até 4,4 m (pesca.gd: o botão Pescar); bq = barquinho na mochila e água funda a até 4 m

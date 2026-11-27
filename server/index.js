@@ -227,6 +227,8 @@ class SalaClareira extends Room {
     this.ouvir('leveColetar', (c, m) => { if (c.userData?.leve && m && typeof m.no === 'string' && m.no.length < 8) this.sim.leveColetar(c.sessionId, { no: m.no, parar: m.parar === true }); }); // Minerar/Cortar/Pegar no modo leve
     this.ouvir('leveIr', (c, m) => { if (c.userData?.leve && m && typeof m === 'object') this.sim.leveIr(c.sessionId, { x: m.x, z: m.z, nome: m.nome, ...(typeof m.alvo === 'string' && /^e\d{1,9}$/.test(m.alvo) ? { alvo: m.alvo } : {}) }); });
     this.ouvir('leveHab', (c, k) => { if (c.userData?.leve && typeof k === 'string' && k.length < 32) this.sim.leveHab(c.sessionId, k); }); // golpes do leve = as skills do jogo (habQ)
+    this.ouvir('leveMirar', (c, id) => { if (c.userData?.leve && (id == null || (typeof id === 'string' && id.length < 16))) this.sim.leveMirar(c.sessionId, id); }); // Trocar alvo do jogo
+    this.ouvir('leveDisparada', (c, on) => { if (c.userData?.leve) this.sim.leveDisparada(c.sessionId, on === true); }); // botão Disparada do jogo
     this.ouvir('leveMover', (c, m) => { if (c.userData?.leve && m && typeof m === 'object') this.sim.leveMover(c.sessionId, { mx: m.mx, mz: m.mz }); });
     this.ouvir('leveParar', (c) => { if (c.userData?.leve) this.sim.leveParar(c.sessionId); });
     this.ouvir('leveFazenda', (c, m) => { if (c.userData?.leve) { c.userData.leveFz = m?.ver !== false; c.userData.leveFzTxt = ''; } }); // aba Fazenda do jogo leve (etapa 6): só com a aba aberta

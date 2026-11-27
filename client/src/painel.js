@@ -995,8 +995,8 @@ function tocarMapaLeve(e) {
   // combate (André 2026-11-25): tocar num monstro (ponto laranja) abre o quadrinho com o nome e o Atacar; não anda sozinho
   let bicho = null, mb = 18 * k;
   for (const [mx, mz, nv, , id, nome] of leve.f.m || []) { const d = Math.hypot(mx - x, mz - z); if (d < mb) { mb = d; bicho = { id, nome: nome || 'Monstro', nv }; } }
-  if (bicho) { leve.mira = bicho; leve.sujo = true; desenharJogar(); return; }
-  if (leve.mira) { leve.mira = null; leve.sujo = true; }
+  if (bicho) { leve.mira = bicho; mandar('leveMirar', bicho.id); leve.sujo = true; desenharJogar(); return; } // tocar no bicho também mira os golpes nele (como o Trocar alvo)
+  if (leve.mira) { leve.mira = null; mandar('leveMirar', null); leve.sujo = true; }
   for (const L of leve.mapa ? [...leve.mapa.npcs, ...leve.mapa.totens] : []) { const d = Math.hypot(L.x - x, L.z - z); if (d < melhor) { melhor = d; alvo = { x: L.x, z: L.z, nome: L.n.split(',')[0] }; } }
   if (mapaGeral) { marcarLugar({ ...alvo, nome: alvo.nome || 'Ponto marcado' }, false); return; } // mapa geral (como o do jogo): tocar marca; o Ir para leva
   irLeve(alvo);
@@ -1567,7 +1567,7 @@ function desenharJogar() {
     st.onclick = (e) => { if (!e.target.closest('button')) irAba('personagem'); };
   }
   limpar(st);
-  const vm = el('div', 'vm'); vm.append(barra('Vida', hp, hpM, 'var(--hp)'), barra('Mana', mn, mnM, '#3d7fd0')); if (vgM) vm.append(barra('Vigor', vg, vgM, '#6fbf5a')); for (const d of vm.children) d.style.flex = '1'; st.append(vm);
+  const vm = el('div', 'vm'); vm.append(barra('Vida', hp, hpM, 'var(--hp)'), barra('Mana', mn, mnM, '#3d7fd0')); if (vgM) vm.append(barra('Vigor', vg, vgM, '#6fbf5a')); if (leve.f.sa) vm.append(barra(leve.f.sa[2] ? 'Sem fôlego' : 'Estamina', leve.f.sa[0], leve.f.sa[1], leve.f.sa[2] ? '#d0603a' : '#e0c040')); for (const d of vm.children) d.style.flex = '1'; st.append(vm); // estamina só quando gastou (corrida, rolada)
   // 1 (André 2026-11-25): o quadro de cima só com a conta num relance e uma frase do que está acontecendo; Montar, Recall,
   // Sair e Ajuda viraram os botões redondos à direita (desenhados junto com a barra de baixo)
   const moIt = leve.mo?.it || [], moL = leve.mo?.l || 0, conta = el('div', 'conta');
@@ -1699,7 +1699,7 @@ function lutaLeve(raiz, morto, mana) {
     limpar(a);
     const l = el('div', 'linha'), d = Math.round(Math.hypot(alvo[0] - F.eu[0], alvo[1] - F.eu[1]));
     l.append(el('b', null, `${leve.mira.nome} · Nv ${alvo[2]}`), el('small', null, `${d} m`));
-    const x = el('button', 'fecha', '✕'); x.onclick = () => { leve.mira = null; a.remove(); }; l.append(x);
+    const x = el('button', 'fecha', '✕'); x.onclick = () => { leve.mira = null; mandar('leveMirar', null); a.remove(); }; l.append(x);
     const b = el('div', 'barra'), i = el('b'); i.style.width = alvo[3] + '%'; i.style.background = '#d9362b'; b.append(i);
     a.append(l, b);
     if (d > 2.5 && !(leve.f.r && leve.rotaNome === leve.mira.nome)) {
@@ -1754,10 +1754,23 @@ function lutaLeve(raiz, morto, mana) {
       b.onclick = () => { if (!b.classList.contains('espera')) mandar(k); }; h.append(b);
     }
     // o lobo (o botão Montar do jogo, a mesma mensagem 'montar'), ao lado das poções como na HUD do jogo
+    // Disparada (o botão do jogo): liga a corrida, que gasta estamina; sem ela o joystick vai no máximo ao trote, como no jogo
+    // Trocar alvo (o botão do jogo): o próximo monstro por perto, do mais perto ao mais longe, vira o alvo dos golpes
+    const ta = el('button', 'troca'); ta.title = 'Trocar alvo'; lugar(ta, 120, 410, 22); ta.append(iconeJogo('trocar_alvo', '🎯'), el('span', null, 'Trocar alvo'));
+    ta.onclick = () => {
+      const F2 = leve.f, M = (F2?.m || []).map((o) => [o, Math.hypot(o[0] - F2.eu[0], o[1] - F2.eu[1])]).filter(([, d]) => d <= 22).sort((x, y) => x[1] - y[1]).map(([o]) => o);
+      if (!M.length) return aviso('Nenhum monstro por perto');
+      const i = M.findIndex((o) => o[4] === (leve.mira?.id || F2.al)), o = M[(i + 1) % M.length];
+      leve.mira = { id: o[4], nome: o[5] || 'Monstro', nv: o[2] }; mandar('leveMirar', o[4]); leve.sujo = true; desenharJogar();
+    };
+    h.append(ta);
+    const dp = el('button', 'disp'); dp.title = 'Disparada'; lugar(dp, 55, 421, 25); dp.append(iconeJogo('disparada', '🏃'), el('span', null, 'Disparada'));
+    dp.onclick = () => mandar('leveDisparada', !leve.f?.ds); h.append(dp);
     const lb = el('button', 'lobo'); lb.title = 'Lobo'; lugar(lb, 55, 470, 25); lb.append(iconeJogo('lobo', '🐺'), el('span', null, 'Lobo')); lb.onclick = () => mandar('montar'); h.append(lb);
     // sem botão Fugir (André 2026-11-25: "pra fugir eu clico no mapa"): tocar no mapa anda, mesmo no meio da luta
   }
-  { const lb = h.querySelector('.lobo'); lb.classList.toggle('on', !!F.eu[10]); lb.hidden = leve.pk?.car?.onde === 2; } // montado acende; dirigindo o carrinho some
+  { const lb = h.querySelector('.lobo'); lb.classList.toggle('on', !!F.eu[10]); lb.hidden = leve.pk?.car?.onde === 2; }
+  { const dp = h.querySelector('.disp'); dp.classList.toggle('on', !!F.ds); dp.hidden = !!F.eu[10] || leve.pk?.car?.onde === 2; } // montado acende; dirigindo o carrinho some
   for (const [i, , cd, mn] of todas) {
     const b = h.querySelector(`[data-i="${i}"]`); if (!b) continue;
     const sem = mn > mana; b.classList.toggle('espera', cd > 0 || sem); b._sem = sem; recarga(b, cd);
