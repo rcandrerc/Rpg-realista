@@ -813,6 +813,7 @@ function desenharMapa() {
   }
   if (jogando && leve.mapa && span <= 600) { // os lugares com janela e os totens
     for (const L of [...leve.mapa.npcs, ...leve.mapa.totens.map((t) => ({ ...t, f: 'totem' }))]) {
+      if (L.x0) continue; // NPC sem quadradinho no mapa (dica, cura, instrutor…): só a janela de perto
       const [a, b] = P(L.x, L.z); if (a < -20 || b < -20 || a > W + 20 || b > H + 20) continue;
       const r = Math.max(4, W / 110);
       g.fillStyle = LUGAR_COR[L.f] || '#e9c46a'; g.strokeStyle = 'rgba(12,10,8,.9)'; g.lineWidth = Math.max(1.5, W / 400);
@@ -1159,6 +1160,80 @@ function cartaoTotem(t) {
 const metros = (o) => { const d = Math.round(dEu(o)); return d >= 1000 ? `${(d / 1000).toFixed(1)} km` : `${d} m`; };
 const bt = (txt, fazer, cinza) => { const b = el('button', 'acao' + (cinza ? ' cinza' : ''), txt); b.onclick = () => { b.disabled = true; setTimeout(() => { b.disabled = false; }, 800); fazer(); }; return b; };
 const temMo = (k) => (leve.mo?.it || []).reduce((s, o) => s + (o[1] === k ? o[2] : 0), 0);
+// a janela do NPC como a do jogo (conversa.gd): o nome, o que ele falou por último e um botão para cada ação dele (ACOES),
+// "Missão: …" quando a história quer falar com ele, Conversar e Até logo. Cada botão faz o mesmo que no jogo.
+const ACOES_NPC = { comprar: '🛒 Comprar', vender: '💰 Vender itens', consertar: '🔨 Consertar', habilidades: '⚔️ Habilidades', missao: '📜 Missão', cura: '💚 Curar', resetar: '↩️ Resetar build',
+  passe: '🎫 Fazer passe da caverna', pack: '📦 Packs (fazer e entregar)', alquimia: '⚗️ Sintetizar catalisador', leilao: '⚖️ Leilão (comprar e vender)', guilda: '📋 Contratos da Guilda', recrutar: '🪖 Recrutar soldados' };
+const npcFala = {}; // id -> o que ele disse por último (a fala aparece dentro da janela, como no jogo)
+function cartaoNpc(npc) {
+  const V = leve.npcVista?.id === npc.id ? leve.npcVista.v : '', ver = (v) => { leve.npcVista = v ? { id: npc.id, v } : null; leve.sel = null; leve.sujo = true; desenharJogar(); };
+  if (V === 'leilao') return cartaoLeilao();
+  if (V === 'pack' || (npc.f === 'pack' && !V)) return cartaoPackNpc(npc);
+  if (V === 'comprar' || V === 'vender') { const c = cartaoLoja({ ...npc, f: V === 'comprar' ? 'loja' : 'compra', v: V === 'vender' ? 1 : 0 }); c.prepend(voltarNpc(ver)); return c; }
+  const c = el('div', 'card'), nome = npc.n.split(',')[0];
+  c.append(el('div', 'nome', npc.n));
+  if (V === 'consertar') return cartaoConserto(c, ver);
+  if (V === 'passe') return cartaoPasse(c, npc, ver);
+  if (V === 'alquimia') return cartaoAlquimia(c, npc, ver);
+  if (npcFala[npc.id]) c.append(el('div', 'dica', npcFala[npc.id]));
+  const g = el('div', 'atalhos'), op = (t, f) => { const b = el('button', null, t); b.onclick = f; g.append(b); };
+  if (leve.f?.hn === npc.id) op(`📜 Missão: ${leve.f.hm || ''}`, () => mandar('falar', { npc: npc.id, missao: true }));
+  for (const a of npc.a || []) {
+    if (a === 'missao' && leve.f?.hn === npc.id) continue;
+    const ct = leve.mo?.ct;
+    const t = a === 'consertar' ? (ct != null ? `🔨 Consertar · ${num(ct)} ouro` : '🔨 Consertar (tudo inteiro)') : ACOES_NPC[a];
+    op(t, () => {
+      if (a === 'comprar' || a === 'vender' || a === 'pack' || a === 'passe' || a === 'alquimia') return ver(a);
+      if (a === 'leilao') { mandar('leilao', { acao: 'ver' }); return ver('leilao'); }
+      if (a === 'consertar') { if (leve.mo?.cs?.length) return ver('consertar'); npcFala[npc.id] = 'Seu equipamento está inteiro. Volte quando ele apanhar lá fora.'; leve.sujo = true; return desenharJogar(); }
+      if (a === 'habilidades') return irAba('personagem');
+      if (a === 'guilda' || a === 'recrutar') return irAba(a === 'guilda' ? 'missoes' : 'cla');
+      mandar('falar', { npc: npc.id }); // missão, cura, resetar: o servidor responde (fala)
+    });
+  }
+  op('💬 Conversar', () => mandar('falar', { npc: npc.id, conversa: true }));
+  op('👋 Até logo', () => { delete npcFala[npc.id]; abrirPainelLeve(''); });
+  c.append(g);
+  return c;
+}
+function voltarNpc(ver) { const b = el('button', 'txt', '‹ Voltar'); b.onclick = () => ver(''); return b; }
+// conserto (a janela do conserto do jogo): Consertar tudo ou só a peça que quiser, cada uma inteira; msg 'item' consertar
+function cartaoConserto(c, ver) {
+  const cs = leve.mo?.cs || [], ct = leve.mo?.ct || 0, ouro = leve.f?.eu?.[7] | 0;
+  c.append(voltarNpc(ver));
+  if (!cs.length) { c.append(el('div', 'dica', 'Seu equipamento está inteiro. Volte quando ele apanhar lá fora.')); return c; }
+  c.append(el('div', 'faz', 'Peças gastas · toque para consertar só ela'));
+  for (const [t, k, nome, du, custo] of cs) {
+    const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, nome), el('small', null, du <= 0 ? 'QUEBRADA' : `Durabilidade ${du}/100 · ${t === 'l' ? 'vestida' : 'na mochila'}`));
+    const b = el('button', 'on', `${num(custo)} ouro`); b.disabled = custo > ouro; b.onclick = () => mandar('item', { acao: 'consertar', lista: [t === 'l' ? { lugar: k } : { i: k }] });
+    r.append(x, b); c.append(r);
+  }
+  const d = el('div', 'bts'), b = el('button', 'acao', `Consertar tudo · ${num(ct)} ouro`); b.disabled = ct > ouro; b.onclick = () => mandar('item', { acao: 'consertar' }); d.append(b); c.append(d);
+  return c;
+}
+// Gaspar: o material do passe com tem/precisa (vermelho quando falta) e Fazer passe (msg 'item' fazer_passe)
+function cartaoPasse(c, npc, ver) {
+  c.append(voltarNpc(ver), el('div', 'dica', 'Ninguém passa do selo sem passe. Traga isto e eu faço um. Cada passe abre o selo uma vez.'));
+  let falta = false;
+  for (const [k, nome, q] of npc.ps || []) { const tem = contarMochila(k), r = el('div', 'faz', `${nome}: ${num(tem)}/${q}`); r.style.color = tem >= q ? '#7fdc6a' : '#f5675a'; if (tem < q) falta = true; c.append(r); }
+  const d = el('div', 'bts'), b = el('button', 'acao', 'Fazer passe'); b.onclick = () => { if (falta) { npcFala[npc.id] = 'Ainda falta o que está em vermelho. Os monstros carregam isso, é só caçar.'; return ver(''); } mandar('item', { acao: 'fazer_passe' }); ver(''); }; d.append(b); c.append(d);
+  return c;
+}
+// Mirela: cada catalisador que ela faz, com quanto custa e quanto você tem; 1 ou o máximo (msg 'item' sintetizar)
+function cartaoAlquimia(c, npc, ver) {
+  c.append(voltarNpc(ver), el('div', 'dica', 'Traga catalisadores fracos e ouro, que eu faço um mais forte. Até o Lendário.'));
+  const ouro = leve.f?.eu?.[7] | 0;
+  for (const [k, nome, de, deNome, n, preco] of npc.al || []) {
+    const tem = contarMochila(de), max = Math.min(20, Math.floor(tem / n), Math.floor(ouro / preco));
+    const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, nome), el('small', null, `${n} ${deNome} (tem ${num(tem)}) + ${num(preco)} ouro`));
+    const b1 = el('button', max >= 1 ? 'on' : null, 'Fazer 1'); b1.disabled = max < 1; b1.onclick = () => mandar('item', { acao: 'sintetizar', k, n: 1 });
+    r.append(x, b1);
+    if (max > 1) { const bm = el('button', 'on', `Fazer ${max}`); bm.onclick = () => mandar('item', { acao: 'sintetizar', k, n: max }); r.append(bm); }
+    c.append(r);
+  }
+  return c;
+}
+const contarMochila = (k) => (leve.mo?.it || []).reduce((t, o) => t + (o[1] === k ? o[2] : 0), 0);
 function cartaoPackNpc(npc) {
   const c = el('div', 'card'), K = leve.pk || {}, car = K.car;
   c.append(el('div', 'nome', `${npc.n.split(',')[0]} · ${npc.pk || 'Pack'}`));
@@ -1538,10 +1613,7 @@ function desenharJogar() {
     f.append(cab);
     if (painelLeve === 'perto') {
       if (P.npc) {
-        if (P.npc.f === 'leilao') f.append(cartaoLeilao());
-        else if (P.npc.f === 'pack') f.append(cartaoPackNpc(P.npc));
-        else if (P.npc.f === 'loja' || P.npc.v) f.append(cartaoLoja(P.npc));
-        else { const c = el('div', 'card'); c.append(el('div', 'nome', P.npc.n.split(',')[0]), el('div', 'faz', `${LUGAR_NOME[P.npc.f] || ''}: por enquanto só no jogo.`)); f.append(c); }
+        f.append(cartaoNpc(P.npc));
       }
       if (P.bau) f.append(cartaoBauLeve(P.bau));
       if (P.totem) f.append(cartaoTotem(P.totem));
@@ -2031,6 +2103,14 @@ addEventListener('scroll', () => { if (aba === 'mochila') mochilaRolou = scrollY
 // ---------- aba Missões (etapa 3, André 2026-11-26): História, Diárias, Guilda e Escolta do Clã, cada uma com o botão para
 // ir até onde se faz. Mesmas mensagens do jogo ('falar' com missão, 'diaria', 'guilda', 'cla' missao); o servidor confere.
 function falaLeve(e) {
+  if (e.id) { npcFala[e.id] = e.texto || ''; leve.sujo = true; }
+  if (e.abrir === 'resetar') { // o instrutor diz o preço e pergunta (como o jogo: confirmar = msg 'resetar')
+    const sim = el('button', 'acao', `Resetar por ${num(e.custo | 0)} de ouro`), nao = el('button', 'acao cinza', 'Agora não');
+    const j = janelaLeve([el('div', 'nome', e.npc || 'Instrutor'), el('div', 'dica', e.texto || ''), sim, nao]); j.classList.add('fala');
+    const fechar = () => j.remove(); sim.onclick = () => { mandar('resetar'); fechar(); }; nao.onclick = fechar; j.onclick = (ev) => { if (ev.target === j) fechar(); };
+    document.querySelectorAll('.janelaLeve.fala').forEach((o) => o.remove()); document.body.append(j); return;
+  }
+  if (e.id && painelLeve === 'perto' && pertoAgora().npc?.id === e.id) return desenharJogar(); // a janela do NPC está aberta: a fala aparece nela
   const ok = el('button', 'acao', 'Ok');
   const j = janelaLeve([el('div', 'nome', e.npc || 'NPC'), el('div', 'dica', e.texto || '')]); j.classList.add('fala');
   const fechar = () => j.remove(); ok.onclick = fechar; j.onclick = (ev) => { if (ev.target === j) fechar(); };

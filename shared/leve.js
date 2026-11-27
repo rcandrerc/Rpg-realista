@@ -17,7 +17,9 @@ import { ESTRADAS_MUNDO } from './mundo.js';
 import { VILAS_MUNDO } from './dados.js';
 import { aguaRegador, pertoDeAgua, distRet, crescerPlanta, retPeca, semParede } from './simulacao.js'; // fazenda e cama (etapa 6); só usadas na hora, depois que tudo carregou
 import { PESCA, PLANTAS, HORTA, LOTE, fasePlanta } from './dados.js';
-import { horaDoJogo, ehNoite, HABS, BARRAS, cabeNaBarra, ANDAR_ATIRANDO, calcularStatus, reforcoK, reforcoMax, durab, custoConserto } from './progresso.js';
+import { horaDoJogo, ehNoite, HABS, BARRAS, cabeNaBarra, ANDAR_ATIRANDO, calcularStatus, reforcoK, reforcoMax, durab, custoConserto, pecasGastas, comDesconto, consertoGratis } from './progresso.js';
+import { npcApareceu } from './historia.js';
+import { CATALISADOR } from './dados.js';
 import { MORTE } from './dados.js';
 
 export const LEVE = {
@@ -50,6 +52,13 @@ export const LEVE = {
 };
 // quem a página mostra como lugar no mapa (as janelas do jogo de cada um)
 const FUNCOES = new Set(['loja', 'leilao', 'pack', 'ferreiro', 'habilidades', 'alquimia']);
+const ACOES_NPC = new Set(['comprar', 'vender', 'consertar', 'habilidades', 'missao', 'cura', 'resetar', 'passe', 'pack', 'alquimia', 'leilao', 'guilda', 'recrutar']);
+// Mirela (conversa.gd _lista_alquimia): cada catalisador que ela faz [k, nome, de (k), nome de, quantos, ouro, raridade]
+function sintesesLeve() {
+  const S = CATALISADOR.sintese, r = [];
+  for (const t of ['armadura', 'arma']) CATALISADOR[t].forEach((k, i) => { const C = S.custo[i + 1]; if (i >= 1 && i + 1 <= S.ate && C && ITENS[k]) { const de = CATALISADOR[t][i - 1]; r.push([k, ITENS[k].nome, de, ITENS[de]?.nome || de, C.n, C.ouro, i + 1]); } });
+  return r;
+}
 const cor = (n) => '#' + (n >>> 0).toString(16).padStart(6, '0');
 const r1 = (n) => Math.round(n * 10) / 10;
 // a cor do item: a da raridade (equipamento) ou a do próprio item (alma, semente)
@@ -303,8 +312,14 @@ export const Leve = {
   // o que não muda (ou muda pouco): os lugares com janela, os totens, a loja e os baús. Vai ao entrar e de tempos em tempos
   leveMapa(j) {
     const p = j.prog, dsc = new Set(p.totens || []);
-    const npcs = (this.mapa.npcs || []).filter((n) => FUNCOES.has(n.funcao) || (n.acoes || []).includes('vender'))
-      .map((n) => ({ n: n.nome, f: FUNCOES.has(n.funcao) ? n.funcao : 'compra', x: r1(n.x), z: r1(n.z), ...((n.acoes || []).includes('vender') ? { v: 1 } : {}),
+    // todos os NPCs, como no jogo (André 2026-11-27: "quero tudo idêntico"): id e as ações da janela dele (conversa.gd
+    // ACOES). Os que antes não tinham janela no leve (dica, cura, missão, passe, instrutor, recrutador, guilda) vêm com
+    // x: 1 (o mapa não desenha o quadradinho deles, para não encher). Quem só aparece depois de uma missão segue a regra do falar
+    const ve = (n) => (!n.depois || npcApareceu(p, n.depois)) && (!n.ate || !npcApareceu(p, n.ate));
+    const npcs = (this.mapa.npcs || []).filter(ve)
+      .map((n) => ({ n: n.nome, id: n.id, a: (n.acoes || []).filter((a) => ACOES_NPC.has(a)), f: FUNCOES.has(n.funcao) ? n.funcao : (n.acoes || []).includes('vender') ? 'compra' : n.funcao || 'dica', ...(FUNCOES.has(n.funcao) || (n.acoes || []).includes('vender') ? {} : { x0: 1 }), x: r1(n.x), z: r1(n.z), ...((n.acoes || []).includes('vender') ? { v: 1 } : {}),
+        ...(n.funcao === 'passe' && this.dungeon?.def?.passe ? { ps: Object.entries(this.dungeon.def.passe).map(([k, q]) => [k, ITENS[k]?.nome || k, q]) } : {}), // Gaspar: o material do passe (tem/precisa na página)
+        ...(n.id === CATALISADOR.sintese.npc ? { al: sintesesLeve() } : {}), // Mirela: o que ela sintetiza
         // mercador de pack (PR 2 do modo leve): o id, o pack que ele faz e o material (a página mostra tenho/preciso)
         ...(n.funcao === 'pack' && PACKS[n.merch] ? { id: n.id, pk: PACKS[n.merch].nome, custo: Object.entries(custoPack(n.merch, p.prof?.mer)).map(([k, q]) => [k, ITENS[k]?.nome || k, q]) } : {}) }));
     const totens = TOTENS.lista.map((t) => ({ id: t.id, n: t.nome, x: r1(t.x), z: r1(t.z), d: dsc.has(t.id) ? 1 : 0, taxa: taxaTotem(t) }));
@@ -377,7 +392,7 @@ export const Leve = {
     // coleta (André 2026-11-26): o painel mostra "Minerando…", a barra até a próxima batida e quanto já pegou
     if (e.t === 'coleta') return { t: 'coleta', no: e.no, dur: e.dur, prof: e.prof || '' };
     if (e.t === 'coletou') return { t: 'coletou', no: e.no, itens: (e.itens || []).map((o) => ({ nome: o.nome, n: o.n })), cargas: e.cargas };
-    if (e.t === 'fala') return { t: 'fala', npc: (this.mapa.npcs || []).find((n) => n.id === e.npc)?.nome?.split(',')[0] || '', texto: e.texto }; // o que o NPC disse (missão)
+    if (e.t === 'fala') return { t: 'fala', npc: (this.mapa.npcs || []).find((n) => n.id === e.npc)?.nome?.split(',')[0] || '', id: e.npc, texto: e.texto, ...(e.abrir ? { abrir: e.abrir } : {}), ...(e.custo != null ? { custo: e.custo } : {}) }; // o que o NPC disse; abrir/custo: o instrutor pergunta se reseta
     // troca (etapa 5): os itens com nome e cor (a página não tem a tabela de itens)
     if (e.t === 'troca' && e.fase === 'estado') { const of = (o) => ({ ouro: o.ouro, tranca: o.tranca ? 1 : 0, ok: o.ok ? 1 : 0, itens: o.itens.map((x) => ({ ...(x.i != null ? { i: x.i } : {}), n: x.n, k: x.it?.k, nome: x.it ? nomeItem(x.it) : '?', c: x.it ? corDe(x.it) : null })) }); return { t: 'troca', fase: 'estado', com: e.com, nome: e.nome, eu: of(e.eu), ele: of(e.ele) }; }
     if (e.t === 'pvp' && e.fase === 'info') { const { loja, ...r } = e; return r; } // a loja de Insígnias fica no jogo
@@ -441,7 +456,11 @@ export const Leve = {
       r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o), precoVenda(o, merc), o.cad ? 1 : 0, tipo, I.lugar || '', textoPeca(o), vb || '', ...(tipo === 'e' ? [compararPeca(o, p.equip?.[I.lugar])] : [])]); // [11] peça: comparada com a vestida (como a janela do medalhão)
     });
     const eq = LUGARES.filter((l) => p.equip?.[l] && ITENS[p.equip[l].k]).map((l) => { const o = p.equip[l]; return [l, o.k, nomeItem(o), corDe(o), textoPeca(o), durab(o), MORTE.durMax, o.e | 0, reforcoMax(o), custoConserto(o)]; }); // [5..9] durabilidade, máx, reforço, reforço máx, conserto
-    return { l: (p.mochila || []).length, it: r, eq };
+    // conserto (Tomás e os ferreiros, a janela do conserto do jogo): as peças gastas, no corpo (l) ou na mochila (i), com o
+    // preço de cada uma; cs.t = tudo junto (com o desconto da Guilda, como o servidor cobra)
+    const dc = this.vantagensDe?.(j)?.conserto || 0, gr = consertoGratis(p);
+    const cs = pecasGastas(p).map((x) => { const o = x.onde === 'equip' ? p.equip[x.l] : p.mochila[x.i]; return [x.onde === 'equip' ? 'l' : 'i', x.onde === 'equip' ? x.l : x.i, nomeItem(o), durab(o), gr ? 0 : comDesconto(x.custo, dc)]; });
+    return { l: (p.mochila || []).length, it: r, eq, cs, ...(cs.length ? { ct: gr ? 0 : comDesconto(pecasGastas(p).reduce((t, x) => t + x.custo, 0), dc) } : {}) };
   },
   // Criar (André 2026-11-25): as MESMAS receitas e regras do jogo (RECEITAS, motivoReceita, `criar`); aqui só se lista.
   // [receita, nome, [[k, nome, qtd]], estação, nome da estação, perto dela (1/0), motivo (sem contar a estação), segundos]
@@ -615,7 +634,8 @@ export const Leve = {
       g, m, hb: this.habLeve(j), c: this.coletaLeve(j), ...(j.coleta ? { co: [j.coleta.no, COLETA[this.coletaveis.get(j.coleta.no)?.tipo]?.nome || ''] } : {}),
       ...(j.pesca ? { pe: [j.pesca.st, j.pesca.st === 'briga' ? Math.round(j.pesca.prog * 100) : 0] } : {}), // pescando (etapa 6): o estado e a barra da briga
       ...((() => { const l = this.spotsLeve(j); return l.length ? { sp: Math.round(l[0][1]), ss: l.slice(0, 12).map(([v]) => [r1(v.x), r1(v.z)]) } : {}; })()), // metros até o spot de pesca à vista; ss: os spots no mapa (à vista ou com o Radar, como no jogo)
-      ...((() => { const a = this.alvoLeve(j) || this.maisPerto(j); return a && a.id && m.some((o) => o[4] === a.id) ? { al: a.id } : {}; })()), // al: o monstro que o próximo golpe pega (André 2026-11-27: círculo vermelho nele)
+      ...((() => { const a = this.alvoLeve(j) || this.maisPerto(j); return a && a.id && m.some((o) => o[4] === a.id) ? { al: a.id } : {}; })()),
+      ...((() => { const H = this.histInfo(j); return H?.npc ? { hn: H.npc, hm: H.nome } : {}; })()), // o NPC da missão principal agora: a janela dele ganha o botão "Missão: …" (conversa.gd _quer_missao) // al: o monstro que o próximo golpe pega (André 2026-11-27: círculo vermelho nele)
       ...((() => { const b = this.bfLeve(this.bfJogador(j)), a = this.alvoLeve(j), ba = a && !a.morto && this.bfInimigo ? this.bfLeve(this.bfInimigo(a)) : []; return { ...(b.length ? { bf: b } : {}), ...(ba.length ? { ba } : {}) }; })()), // buffs e debuffs (André 2026-11-27: "ícones de buff" iguais ao jogo, buffs.gd): os meus e os do alvo
       // perto da água (André 2026-11-27: "aparecer opção de pescar e usar o barquinho se eu tiver na bag"), as mesmas contas do
       // jogo: ag = com a vara e água a até 4,4 m (pesca.gd: o botão Pescar); bq = barquinho na mochila e água funda a até 4 m
