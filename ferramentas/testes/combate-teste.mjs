@@ -9,8 +9,11 @@ import { COMBATE_TESTE } from '../../shared/dados.js';
 const atr = { for: 3, vit: 3, int: 127, des: 3 };
 const set = (r, e) => Object.fromEntries(['cabeca:chapeu', 'corpo:peitoral', 'pernas:calca', 'capa:capa', 'pes:botas', 'acessorio:colar', 'cajado:cajado'].map((x) => { const [l, k] = x.split(':'); return [l, { k, r, ...(e ? { e } : {}) }]; }));
 const st = (eq, ct) => calcularStatus({ atr, nivel: 63, equip: eq, ...(ct ? { ct: 1 } : {}) });
-// pelado: metade do dano de hoje
-assert.ok(Math.abs(st({}, true).danoMagico / st({}).danoMagico - COMBATE_TESTE.base / COMBATE_TESTE.ref) < 0.02);
+// teste 2: pelado bem mais fraco que hoje (nível e pontos dão menos e a arma multiplica); Rara +0 abaixo de metade
+assert.ok(st({}, true).danoMagico < 0.4 * st({}).danoMagico, 'pelado: bem mais fraco');
+assert.ok(st(set(1, 0), true).danoMagico < 0.5 * st(set(1, 0)).danoMagico, 'Rara +0: menos da metade de hoje');
+assert.ok(st(set(0, 0), true).defesa < st(set(0, 0)).defesa, 'Comum: defesa menor que hoje');
+assert.ok(st(set(3, 12), true).danoMagico > 1.3 * st(set(3, 12)).danoMagico, 'Lendária +12: bem mais forte que hoje');
 // Épica +10: perto de hoje (10%)
 const e10 = set(2, 10);
 assert.ok(Math.abs(st(e10, true).danoMagico / st(e10).danoMagico - 1) < 0.1, 'Épica +10 ~ hoje');

@@ -83,21 +83,21 @@ export function calcularStatus(p, passivas = {}) {
   const a = p.atr, n = p.nivel, eq = bonusEquip(p.equip, a, p.ct ? COMBATE_TESTE.armadura : null), ti = bonusTitulo(p); // ti: título em uso (TITULOS)
   const co = bonusComida(p); // co: buff da comida (André 2026-11-24)
   const bq = p.banq?.ate > Date.now() ? JANTAR.buff.dano : 0; // Banquete do clã: o líder que sentou no jantar (André 2026-11-25); soma com a comida
-  const nivelK = 1 + 0.08 * (n - 1);
+  const nivelK = 1 + (p.ct ? COMBATE_TESTE.nivel : 0.08) * (n - 1);
   // combate de teste (COMBATE_TESTE, só a conta do André com o botão ligado): arma multiplica, armadura x2
   const CT = p.ct ? COMBATE_TESTE : null;
   const multCT = (armaDano) => (CT.base + CT.arma * armaDano) / CT.ref;
   const def = (a.for + (passivas.pele_pedra ? 3 : 0) + eq.defesa) * (1 + (ti.defesa || 0) + (co.defesa || 0));
   return {
-    vidaMax: Math.round((84 + 8 * a.vit + 4 * a.for + 6 * (n - 1) + eq.vida) * (1 + (ti.vida || 0))),
-    manaMax: Math.round((82 + 6 * a.int + 2 * (n - 1) + eq.mana) * (passivas.mente_arcana ? 1.1 : 1)),
+    vidaMax: Math.round((84 + (CT ? CT.vit : 8) * a.vit + (CT ? CT.forVida : 4) * a.for + (CT ? CT.nivelVida : 6) * (n - 1) + eq.vida) * (1 + (ti.vida || 0))),
+    manaMax: Math.round((82 + (CT ? CT.mana : 6) * a.int + 2 * (n - 1) + eq.mana) * (passivas.mente_arcana ? 1.1 : 1)),
     // fora de combate (REGEN em shared/dados.js, números do Quimera); em luta a Simulacao aplica vidaCombate/manaCombate
     regenMana: (REGEN.mana + REGEN.manaNivel * n + REGEN.manaInt * a.int + (passivas.mente_arcana ? REGEN.manaMente : 0)) * (1 + eq.regenManaK + (co.regenMana || 0)),
     regenVida: REGEN.vida + REGEN.vidaNivel * n + REGEN.vidaVit * a.vit,
     defesa: def,
     reducao: def / (def + 24), // fração do dano que a defesa segura
-    danoFisico: (CT ? 10 * nivelK * (1 + 0.06 * (a.for - 3)) * multCT(eq.danoFisico) : 10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
-    danoMagico: (CT ? 10 * nivelK * (1 + 0.06 * (a.int - 3)) * multCT(eq.danoMagico) : 10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
+    danoFisico: (CT ? 10 * nivelK * (1 + CT.atr * (a.for - 3)) * multCT(eq.danoFisico) : 10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
+    danoMagico: (CT ? 10 * nivelK * (1 + CT.atr * (a.int - 3)) * multCT(eq.danoMagico) : 10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
     critico: Math.min(1, 0.0455 + 0.0015 * a.des + (passivas.sorte_arcana ? 0.02 : 0) + eq.critico + (ti.critico || 0) + (co.critico || 0)),
     danoCritico: eq.danoCritico, // somado no golpe crítico (o dobro + este número), André 2026-11-17
     recarga: Math.min(0.4, 0.0133 * a.des), // fração a menos no tempo de recarga
@@ -197,8 +197,8 @@ export function bonusEquip(equip = {}, atr = null, armaduraK = null) {
     const it = equip?.[l]; if (!it || !ITENS[it.k] || quebrado(it)) continue; // quebrada: sem bônus até consertar
     if (atr && !reforcoOk(it, atr)) continue; // como no Quimera: reforçada além do seu atributo não dá bônus
     const rk = reforcoK(it);
-    const ak = armaduraK ? armaduraK[it.r] ?? 1 : 1;
-    for (const [c, v] of Object.entries(ITENS[it.k].st)) b[c] += v[it.r] * (c === 'critico' || c === 'danoCritico' ? rk.critico : rk.st) * (c === 'vida' || c === 'defesa' ? ak : 1);
+    const ak = armaduraK ? armaduraK[it.r] ?? 1 : 1; // combate de teste: vida, defesa e dano da arma pela raridade
+    for (const [c, v] of Object.entries(ITENS[it.k].st)) b[c] += v[it.r] * (c === 'critico' || c === 'danoCritico' ? rk.critico : rk.st) * (c === 'vida' || c === 'defesa' || c === 'danoFisico' || c === 'danoMagico' ? ak : 1);
   }
   const n = pecasDoConjunto(equip || {});
   // o CONJUNTO antigo (vida/mana, dano, área...) não vale mais (André 2026-11-17, remoção aprovada: "remove os bônus

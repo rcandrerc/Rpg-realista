@@ -1325,7 +1325,12 @@ export const PAGINA_PRECO = [0, 1000, 5000, 15000]; // André 2026-11-16 (estudo
 // zerar: marca do reset completo do robô (nível, itens, skills, história, tudo); trocar o texto zera de novo na próxima entrada.
 // upgrade: o robô não evolui nem reforça sozinho (André 2026-11-27); quando o relatório pedir, o André diz o que muda e
 // entra aqui: v = marca nova (texto), equip = { lugar: { k, r, e } } vestido na próxima entrada do robô (uma vez por marca).
-export const COMBATE_TESTE = { base: 64, ref: 128, arma: 1.8, armadura: [1, 1.5, 2, 2.5, 3], desgasteGolpes: 150, zerar: '2026-11-27',
+// Teste 2 (André 2026-11-27, "pensei q já tava rodando"): pontos e nível dão menos e o set escala bem mais por raridade;
+// drop da Rara bem menor. nivel = dano a mais por nível; atr = dano a mais por ponto de Força/Int; mana/vit/forVida/nivelVida =
+// mana por Int, vida por Vit, vida por Força, vida por nível. armadura = quanto vale o dano da arma, a vida e a defesa das
+// peças (Comum..Mítica). O drop menor da Rara vale para todos (DROPS).
+export const COMBATE_TESTE = { base: 64, ref: 128, arma: 2.5, armadura: [0.5, 1, 1.6, 2.2, 3], nivel: 0.06, atr: 0.05, mana: 5, vit: 6, forVida: 2, nivelVida: 5,
+  desgasteGolpes: 150, zerar: '2026-11-27c',
   // 2026-11-27: herói novo começa com o set Comum +0 (EQUIP_INICIAL); o robô, já zerado pelado, ganha o mesmo set uma vez
   upgrade: { v: 'set-comum-2026-11-27', equip: { cabeca: { k: 'chapeu', r: 0 }, corpo: { k: 'peitoral', r: 0 }, pernas: { k: 'calca', r: 0 }, capa: { k: 'capa', r: 0 },
     pes: { k: 'botas', r: 0 }, acessorio: { k: 'colar', r: 0 }, espada: { k: 'espada', r: 0 }, cajado: { k: 'cajado', r: 0 } } } };
@@ -1547,11 +1552,13 @@ export const DROP_NIVEL = { livre: 5, degrau: 5, chances: [1, 0.7, 0.4, 0.25], v
 // mat: materiais para o alfaiate { item: [chance, quantos] }
 // André 2026-11-06 (remoção aprovada: "só devia dropar armadura comum e rara; épico, lendário e mítico só craftando"):
 // monstro só solta peça Comum ou Rara. Épico, Lendário e Mítico saem só da criação (RARIDADE_CRIAR).
-const DROP_COMUM = { ouro: [3, 7], pocao: 0.12, mana: 0.1, equip: 0.1, tomo: 0.01, raridade: [0.85, 0.15, 0, 0, 0] };
+// André 2026-11-27 ("set completo raro em 20-30 min... pode baixar já para todos"): Rara do bicho comum 15% -> 2% da peça
+// (1,5% -> 0,2% por bicho) e do líder 40% -> 10% (14% -> 3,5%); chefe segue garantido. Antes: [0.85, 0.15] e [0.6, 0.4].
+const DROP_COMUM = { ouro: [3, 7], pocao: 0.12, mana: 0.1, equip: 0.1, tomo: 0.01, raridade: [0.98, 0.02, 0, 0, 0] };
 export const DROPS = {
   // fragmento: material do passe da caverna (2026-11-06), cai de todos os monstros de caça
   puglin: { ...DROP_COMUM, mat: { couro: [0.45, 1], fragmento: [0.08, 1], carne: [0.3, 1] } }, lobo: { ...DROP_COMUM, ouro: [3, 8], mat: { couro: [0.6, 1], fragmento: [0.08, 1], carne: [0.5, 1] } }, imp: { ...DROP_COMUM, ouro: [4, 9], mat: { tecido: [0.45, 1], fragmento: [0.08, 1] } }, sombrio: DROP_COMUM,
-  lider: { ouro: [12, 20], pocao: 0.3, mana: 0.25, equip: 0.35, tomo: 0.08, raridade: [0.6, 0.4, 0, 0, 0] },
+  lider: { ouro: [12, 20], pocao: 0.3, mana: 0.25, equip: 0.35, tomo: 0.08, raridade: [0.9, 0.1, 0, 0, 0] },
   chefe: { ouro: [35, 55], pocao: 0.5, mana: 0.4, equip: 1, tomo: 0.3, raridade: [0, 1, 0, 0, 0], mat: { couro: [1, 3], tecido: [1, 3], cristal: [0.5, 1], fragmento: [0.5, 1] } },
   golem: { ...DROP_COMUM, ouro: [5, 10], mat: { cristal: [0.25, 1], fragmento: [0.1, 1] } }, maw: { ...DROP_COMUM, ouro: [5, 11], mat: { couro: [0.6, 1], fragmento: [0.1, 1], carne: [0.4, 1] } },
   warrok: { ouro: [45, 70], pocao: 0.6, mana: 0.5, equip: 1, tomo: 0.35, raridade: [0, 1, 0, 0, 0], mat: { couro: [2, 3], tecido: [1, 3], cristal: [0.7, 2], fragmento: [1, 2] } },
