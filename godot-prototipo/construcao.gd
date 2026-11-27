@@ -432,18 +432,39 @@ func _de_pedra(raiz: Node3D) -> Node3D:
 # Palete de packs (André 2026-11-23: "como se fosse pallets para botar os packs em cima"): 1,6 x 1,2 m e 0,16 m de alto,
 # três vigas embaixo (com os blocos) e as tábuas de cima com frestas, na madeira das outras peças. A marca pintada no
 # chão em volta (a "área marcada" do armazém) contorna o grupo de paletes encostados (_marca_paletes). Os 5 packs ficam em cima (transporte.gd, PALETE.alto).
+# Madeira velha (André 2026-11-27: "aspecto mais de madeira mesmo com marcas de tempo, envelhecidos"): textura própria
+# palete_velho_512.jpg (ferramentas/palete/madeira-velha.py) com 8 tábuas em colunas; cada tábua do palete pega uma
+# coluna inteira (_mat_palete), com pregos enferrujados em cima das 3 vigas, rachas, borda gasta e pontas sujas.
 func _modelo_palete() -> Node3D:
 	var r := Node3D.new()
-	var madeira := _mat_tex("medieval_wood", Color("8a6a48"), 1.0)
-	var escura := _mat_tex("medieval_wood", Color("5e4430"), 1.0)
-	for z in [-0.5, 0.0, 0.5]: # vigas de baixo, de ponta a ponta
-		_caixa(r, Vector3(1.6, 0.04, 0.12), Vector3(0, 0.02, z), escura)
+	var escura := _mat_palete(7, 0.12, 1.6, Color("a89078"))
+	for z in [-0.5, 0.0, 0.5]: # vigas de baixo, de ponta a ponta (deitadas no x: o veio corre no comprido)
+		_caixa(r, Vector3(0.12, 0.04, 1.6), Vector3(0, 0.02, z), escura, Vector3(0, PI / 2, 0))
 		for x in [-0.72, 0.0, 0.72]: # blocos
-			_caixa(r, Vector3(0.14, 0.08, 0.14), Vector3(x, 0.08, z), escura)
+			_caixa(r, Vector3(0.14, 0.08, 0.14), Vector3(x, 0.08, z), _mat_palete((int(x * 10) + int(z * 10) + 20) % 7, 0.14, 1.6, Color("9a8068")))
 	for i in 7: # tábuas de cima, com fresta
 		var x := -0.69 + i * 0.23
-		_caixa(r, Vector3(0.19, 0.035, 1.2), Vector3(x, 0.1425, 0), madeira, Vector3(0, 0, 0.004 * (i % 3 - 1)))
-	return r # a marca pintada no chão é do grupo todo (_marca_paletes): encostados viram uma área só
+		_caixa(r, Vector3(0.19, 0.035, 1.2), Vector3(x, 0.1425, 0), _mat_palete(i, 0.19, 1.2, Color("fff4e8")), Vector3(0, 0, 0.004 * (i % 3 - 1)))
+	return r
+
+# uma tábua da textura do palete (coluna 0..7) esticada na caixa de largura larg e comprimento comp (no z da caixa):
+# triplanar no espaço da própria caixa, então a coluna cai certinha na tábua, sem emenda; as pontas da textura (sujas,
+# com os pregos) ficam nas pontas da tábua. Material guardado: todos os paletes dividem os mesmos 15.
+func _mat_palete(coluna: int, larg: float, comp: float, cor: Color) -> StandardMaterial3D:
+	var k := "palete%d_%s_%s_%s" % [coluna, larg, comp, cor.to_html()]
+	if _mats.has(k):
+		return _mats[k]
+	var mt := StandardMaterial3D.new()
+	mt.albedo_texture = load("res://construcao3d/palete_velho_512.jpg")
+	mt.albedo_color = cor
+	mt.uv1_triplanar = true
+	mt.uv1_scale = Vector3(0.125 / larg, 2.0, 1.0 / comp)
+	mt.uv1_offset = Vector3((coluna + 0.5) * 0.125, 0.0, 0.5)
+	mt.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	mt.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	mt.roughness = 1.0
+	_mats[k] = mt
+	return mt # a marca pintada no chão é do grupo todo (_marca_paletes): encostados viram uma área só
 
 # Mesa do Clã (André 2026-11-25: "aumentar aquela mesa ali do clã... bastante, pra que dê um clã inteiro"; "3 de um lado,
 # 3 do outro e a cabeceira"): tampo de tábuas grossas de 3,6 x 1,1 m em cavaletes, um banco comprido de cada lado (3
