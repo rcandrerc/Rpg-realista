@@ -1677,6 +1677,14 @@ function desenharJogar() {
   for (const [l, alvo] of [[leve.f.bf, 0], [leve.f.ba, 1]]) if (l?.length) st.append(linhaBuffs(l, alvo)); // buffs e debuffs, como o buffs.gd do jogo
   const extras = [pack && '📦 pack nas costas', montado && '🐺 no lobo', leve.pk?.car?.onde === 2 && '🛒 no carrinho'].filter(Boolean);
   if (extras.length) st.append(el('div', 'faz', extras.join(' · ')));
+  // a missão da vez embaixo do quadro do herói (missao_ativa.gd): tocar abre Missões; o Ir leva até onde se faz
+  const mv = leve.f.mv;
+  if (mv) {
+    const d = el('div', 'missaoLeve'), tx = el('div', 'tx'); tx.append(el('b', null, mv[0]), el('small', mv[2] ? 'pronto' : null, mv[1]));
+    d.append(tx); d.onclick = (e) => { e.stopPropagation(); irAba('missoes'); };
+    if (mv[3] != null) { const ir = el('button', null, 'Ir'); ir.onclick = (e) => { e.stopPropagation(); irLeve({ x: mv[3], z: mv[4] + (mv[5] && mv[5] !== 'a missão' ? 1.5 : 0), nome: mv[5] }); }; d.append(ir); }
+    st.append(d);
+  }
   const P = pertoAgora();
   cartaoAcao(raiz, P, morto, mn);
   const chave = [P.npc?.n, P.bau && 'b' + P.bau.cla + (P.bau.p || ''), P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(','), montado ? 'm' : '', P.veio?.[0] || '', P.col.map((o) => o[0]).join(','), leve.f.co?.[0] || ''].join('|');

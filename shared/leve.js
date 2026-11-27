@@ -11,7 +11,7 @@ import { LUGARES_MUNDO } from './mundo.js';
 import { LUGARES, TITULOS, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO, ESTAMINA } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax, ATRIBUTOS, xpProximo } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho, acharPonto, fundoAgua } from './transporte.js';
-import { liberado, missaoAtual } from './historia.js';
+import { liberado, missaoAtual, totalMissao } from './historia.js';
 import { noLago, relevo, AGUA } from './relevo.js';
 import { ESTRADAS_MUNDO } from './mundo.js';
 import { VILAS_MUNDO } from './dados.js';
@@ -576,6 +576,15 @@ export const Leve = {
     this.leveIr(id, { x: b.x, z: b.z, nome: 'Spot de pesca' });
     if (j.leveRota) j.leveRota.spot = sp.id;
   },
+  // a barra da missão da vez (missao_ativa.gd textos/alvo): [linha de cima, linha de baixo, pronto, x, z, nome do lugar]
+  missaoVezLeve(j) {
+    const H = this.histInfo(j), M = missaoAtual(j.prog); if (!H || !M) return null;
+    const quem = (this.mapa.npcs || []).find((n) => n.id === M.npc)?.nome?.split(',')[0] || M.npc, tot = totalMissao(M);
+    const l1 = M.cap > 0 ? `Cap. ${M.cap} · ${M.nome}` : `Missão: ${M.nome}`;
+    const l2 = H.e >= 0 ? `${tot > 1 ? `Parte ${H.e + 1}/${tot} · ` : ''}${H.txt || ''}` : (j.prog.nivel | 0) < (M.nv | 0) ? `Libera no Nv ${M.nv} (${quem})` : `Fale com ${quem}`;
+    const a = H.alvo, ok = (j.prog.nivel | 0) >= (M.nv | 0) && a && Number.isFinite(a.x);
+    return [l1, l2, /Pront|Volte/.test(l2) ? 1 : 0, ...(ok ? [r1(a.x), r1(a.z), a.nome || 'a missão'] : [])];
+  },
   // os botões de lugar do jogo (construcao.gd _botoes_estacao, caverna.gd _botao_do_selo, jantar.gd), com as mesmas
   // contas de perto que o servidor usa para aceitar: e = mesa de criar (bancada/bigorna, abre o Criar); f = fornalha ou fogão
   // [id, tipo, nome] (abre a janela do forno); cm = minha cama perto (Dormir); en = encher o regador; me = Mesa do Clã;
@@ -705,6 +714,7 @@ export const Leve = {
       // jogo: ag = com a vara e água a até 4,4 m (pesca.gd: o botão Pescar); bq = barquinho na mochila e água funda a até 4 m
       // (transporte.gd _estado_botao); vc 'b' = no barquinho (o botão vira Descer)
       ...(j.veiculo === 'barquinho' ? { vc: 'b' } : (() => { const o = {}; if (!j.pesca && !j.veiculo && contar(j.prog.mochila, 'vara') > 0 && acharPonto(j, (a, b) => fundoAgua(a, b) > 0.05, 4.4)) o.ag = 1; if (!j.veiculo && contar(j.prog.mochila, 'barquinho') > 0 && acharPonto(j, (a, b) => fundoAgua(a, b) >= VEICULOS.barquinho.fundo, 4)) o.bq = 1; return o; })()),
+      ...((() => { const x = this.missaoVezLeve(j); return x ? { mv: x } : {}; })()), // a barra da missão da vez com o Ir (missao_ativa.gd)
       ...((() => { const x = this.pertoLeve(j); return x ? { ex: x } : {}; })()), // os botões de lugar do jogo (pertoLeve)
       ...(this.emCombate(j) ? { lu: 1, as: j.acaoSeq | 0 } : {}), // as: conta os golpes do herói (a página desenha o corte quando muda) // em luta (bateu ou apanhou nos últimos ESTAMINA.combate s): o cartão de baixo vira "Em luta" (André 2026-11-26)
     };

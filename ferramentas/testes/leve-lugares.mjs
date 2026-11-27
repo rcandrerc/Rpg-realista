@@ -36,3 +36,7 @@ const src = (await import('node:fs')).readFileSync(new URL('../../server/index.j
 ok(/acao === 'jantar' \? \{ sub:/.test(src), 'servidor: a mensagem cla do jantar leva sub/ids/i/n/s');
 ok(src.includes("'forno', 'jantarInfo'"), 'servidor: forno e jantarInfo vão para o leve');
 void P;
+// a barra da missão da vez (missao_ativa.gd): texto e o Ir até onde se faz
+const b = s.adicionarJogador('B', 'Bia', undefined, { conta: 2 }); b.criando = false; b.leve = true; s.passo(1 / 20);
+const mv = s.fotoLeve(b).mv;
+ok(mv && /^Cap\. 1/.test(mv[0]) && mv[1] && Number.isFinite(mv[3]), `missão da vez com o Ir (${JSON.stringify(mv)})`);
