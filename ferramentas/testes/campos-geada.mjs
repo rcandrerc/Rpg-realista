@@ -28,3 +28,13 @@ ok(eg.length && eg.every((c) => c.raca === 'geada'), `Geada Nv 6 caça perto do 
 ok(ec.length && ec.every((c) => !c.raca), `Chama Nv 6 não vai aos campos da Geada (${ec.map((c) => c.id).join(', ')})`);
 const cd = s.campoDoDrop(geada.amiga, 'couro');
 ok(!cd || cd.raca === 'geada' || cd.nivel > 30, `material da ordem: Geada vai ao campo da Geada (${cd?.id})`);
+// sem trilha: a rota do Juncal entra pela porta do campo (antes o ponto da rede mais perto era de outro ramo e dava a volta
+// pela Estrada do Norte, quase 2 km); e bot Nv 40+ da Geada não desce para eles
+{
+  const { planejarRota } = await import('../../shared/rota.js');
+  const longe = G.filter((c) => { const r = planejarRota(MAPA_CLAREIRA, J, c); return !(r.metros < Math.hypot(c.x - J.x, c.z - J.z) * 1.4 + 40); });
+  ok(!longe.length, `rota do Juncal a cada campo sem volta grande (${longe.map((c) => c.id).join(', ') || 'todos'})`);
+  geada.amiga.prog.nivel = 45;
+  const alto = escolhas(geada);
+  ok(alto.every((c) => !c.raca), `Geada Nv 45 continua nos campos de sempre (${alto.map((c) => c.id).join(', ')})`);
+}

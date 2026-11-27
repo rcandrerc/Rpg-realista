@@ -659,8 +659,9 @@ export const Amiga = {
     const A = NPC_VIDA.aventura, n = j.prog.nivel | 0;
     // André 2026-11-16: Cecília e Dario só caçam onde a história deles já abriu (como o jogador)
     // campo de uma raça (os da Geada Nv 1-30 em volta do Juncal, raca 'geada'): bot da outra raça não vai caçar lá
+    // e só para quem ainda é do nível dele (até 10 acima do campo): Nv 40+ da Geada continua nos campos de sempre
     const raca = this.AMIGA.raca || 'chama';
-    const ok = this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (!c.raca || c.raca === raca) && (c.nivel || 1) <= n + A.campoAcima - (j.licoes?.acima || 0) && !(fora && fora.has(c.id)) && !(j.tarefas && zonaFechadaEm(j.prog, c.x, c.z)));
+    const ok = this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (!c.raca || (c.raca === raca && (c.nivel || 1) >= n - 10)) && (c.nivel || 1) <= n + A.campoAcima - (j.licoes?.acima || 0) && !(fora && fora.has(c.id)) && !(j.tarefas && zonaFechadaEm(j.prog, c.x, c.z)));
     ok.sort((a, b) => (b.nivel || 1) - (a.nivel || 1) || Math.hypot(a.x - j.x, a.z - j.z) - Math.hypot(b.x - j.x, b.z - j.z));
     // a Geada caça perto de casa (os campos do leste, em volta do Juncal); sem campo do nível por lá, vale o de sempre
     if (this.AMIGA.lar) { const C = this.AMIGA.lar, l = ok.filter((c) => Math.hypot(c.x - C.x, c.z - C.z) < 360); if (l.length) ok.splice(0, ok.length, ...l); }
