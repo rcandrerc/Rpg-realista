@@ -658,6 +658,9 @@ function suave(k, x, z) {
 }
 // efeitos da luta (fxLeve no servidor; André 2026-11-27: "não precisa ser bonito, só mostrar o que está acontecendo")
 const FX = [];
+const COR_EF = { g: '#f4fbff', a: '#ffe14a', l: '#9fd8ff' }; // bicho congelado, atordoado, lento (foto [6])
+// cor do círculo de cada skill de área (o fx do servidor): gelo azul-claro, fogo laranja, lâmina branca, terra marrom, escudo azul
+const COR_AREA = { meteoro: '255,120,30', anel: '120,230,120', vortice: '160,130,255', nova_gelo: '190,235,255', anel_chamas: '255,110,30', bola_fogo: '255,140,40', giro: '240,240,240', corte_duplo: '240,240,240', golpe_esmagador: '200,150,90', pisao_sismico: '200,150,90', escudo: '110,170,255' };
 function fxChegou(l) {
   const t = performance.now();
   for (const f of l) {
@@ -680,7 +683,7 @@ function desenharFx(g, P, W, hx, hz) {
   for (let i = FX.length - 1; i >= 0; i--) {
     const o = FX[i], f = o.f, idade = (t - o.t) / 1000;
     if (idade < 0) continue; // impacto de projétil: espera a bolinha chegar
-    const vida = f[0] === 'p' ? o.vida : f[0] === 'a' ? (f[4] === 'meteoro' ? 1.2 : 0.7) : f[0] === 'i' ? 0.35 : f[0] === 's' ? 0.28 : 1.0;
+    const vida = f[0] === 'p' ? o.vida : f[0] === 'a' ? (f[4] === 'meteoro' ? 1.2 : f[4] === 'escudo' ? 1.0 : 0.7) : f[0] === 'i' || f[0] === 'r' ? 0.35 : f[0] === 's' ? 0.28 : f[0] === 't' ? 0.5 : 1.0;
     if (idade > vida) { FX.splice(i, 1); continue; }
     const k = idade / vida; g.save();
     if (f[0] === 'd' || f[0] === 'c' || f[0] === 'e') { // número do dano (vermelho em mim, amarelo crítico), cura verde, esquiva
@@ -690,9 +693,19 @@ function desenharFx(g, P, W, hx, hz) {
       g.fillStyle = f[0] === 'c' ? '#7dff7a' : f[0] === 'e' ? '#e8e8e8' : f[5] ? '#ff4a3a' : f[4] ? '#ffd23a' : '#ffffff';
       g.strokeText(txt, a, y); g.fillText(txt, a, y);
     } else if (f[0] === 'a') { // área (meteoro, explosão, anel, vórtice): o círculo de quanto pega
-      const [a, b] = P(f[1], f[2]), r = f[3] * pxm, cor = f[4] === 'meteoro' ? '255,120,30' : f[4] === 'anel' ? '120,230,120' : f[4] === 'vortice' ? '160,130,255' : '255,180,60';
+      const [a, b] = P(f[1], f[2]), r = f[3] * pxm, cor = COR_AREA[f[4]] || '255,180,60';
       g.globalAlpha = 1 - k; g.fillStyle = `rgba(${cor},.28)`; g.strokeStyle = `rgba(${cor},.95)`; g.lineWidth = Math.max(2, W / 150);
       g.beginPath(); g.arc(a, b, r * (f[4] === 'vortice' ? 1 - k * 0.5 : 0.6 + 0.4 * Math.min(1, k * 3)), 0, 6.283); g.fill(); g.stroke();
+    } else if (f[0] === 'r') { // Raio em Cadeia: um risco em zigue-zague de quem soltou até o bicho
+      const [a0, b0] = P(f[3], f[4]), [a1, b1] = P(f[1], f[2]), n = 6, dx = a1 - a0, dy = b1 - b0, L = Math.hypot(dx, dy) || 1;
+      g.globalAlpha = 1 - k; g.strokeStyle = '#fff6a0'; g.shadowColor = '#7fd0ff'; g.shadowBlur = 8; g.lineWidth = Math.max(2, W / 170); g.lineJoin = 'round';
+      g.beginPath(); g.moveTo(a0, b0);
+      for (let q = 1; q < n; q++) { const s2 = (q % 2 ? 1 : -1) * pxm * 0.35; g.lineTo(a0 + (dx * q) / n - (dy / L) * s2, b0 + (dy * q) / n + (dx / L) * s2); }
+      g.lineTo(a1, b1); g.stroke();
+    } else if (f[0] === 't') { // Salto Arcano: um anel some onde estava e outro abre onde chegou
+      const [a0, b0] = P(f[3], f[4]), [a1, b1] = P(f[1], f[2]); g.globalAlpha = 1 - k; g.strokeStyle = '#b9a6ff'; g.lineWidth = Math.max(2, W / 170);
+      g.beginPath(); g.arc(a0, b0, pxm * 0.8 * (1 - k), 0, 6.283); g.stroke(); g.beginPath(); g.arc(a1, b1, pxm * (0.3 + k), 0, 6.283); g.stroke();
+      g.setLineDash([W / 120, W / 160]); g.globalAlpha = 0.5 * (1 - k); g.beginPath(); g.moveTo(a0, b0); g.lineTo(a1, b1); g.stroke();
     } else if (f[0] === 'i') { const [a, b] = P(f[1], f[2]); g.globalAlpha = 1 - k; g.strokeStyle = '#ffe08a'; g.lineWidth = Math.max(2, W / 170); g.beginPath(); g.arc(a, b, pxm * (0.4 + k * 0.9), 0, 6.283); g.stroke(); }
     else if (f[0] === 'p') { // projétil: a bolinha voando na cor da skill
       const [a, b] = P(f[1] + f[3] * idade, f[2] + f[4] * idade), c = '#' + (f[6] | 0).toString(16).padStart(6, '0'), [a0, b0] = P(f[1] + f[3] * Math.max(0, idade - 0.08), f[2] + f[4] * Math.max(0, idade - 0.08));
@@ -723,7 +736,7 @@ function desenharMapa() {
   for (const m of info.m || []) if (m.on && Number.isFinite(m.x) && !vistos.has(m.nome)) pts.push({ x: m.x, z: m.z, cor: jogando ? COR_LEVE.meu : '#f2b84b', nome: m.nome, r: 6 });
   if (jogando) {
     for (const [nome, x0, z0, geada, bot, nv, morto, id] of leve.f.g) { const [x, z] = suave('g' + id, x0, z0); pts.push({ x, z, cor: morto ? COR_LEVE.morto : geada ? COR_LEVE.inimigo : meus.has(nome) ? COR_LEVE.meu : COR_LEVE.aliado, nome: `${nome} ${nv}`, r: geada ? 6 : meus.has(nome) ? 5 : bot ? 4 : 5, m: 0.35 }); }
-    for (const [x0, z0, nv, , id] of leve.f.m) { const [x, z] = suave('m' + id, x0, z0); pts.push({ x, z, cor: COR_LEVE.bicho, nome: `Nv ${nv}`, r: 3.5, m: 0.5 }); }
+    for (const [x0, z0, nv, , id, , ef] of leve.f.m) { const [x, z] = suave('m' + id, x0, z0); pts.push({ x, z, cor: COR_EF[ef] || COR_LEVE.bicho, nome: `Nv ${nv}`, r: 3.5, m: 0.5 }); } // congelado fica branco, atordoado amarelo, lento azul-claro
     const car = leve.pk?.car; if (car?.onde === 1) pts.push({ x: car.x, z: car.z, cor: '#b07a46', nome: 'Carrinho', r: 5, losango: true });
     for (const [, , , x, z] of leve.pk?.ch || []) pts.push({ x, z, cor: '#d9a56a', nome: 'Pack', r: 3 });
     pts.push({ x: hx, z: hz, cor: COR_LEVE.eu, nome: 'Você', r: 7, eu: true, m: 0.35 });
