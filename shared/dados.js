@@ -1345,6 +1345,9 @@ export const PAGINA_PRECO = [0, 1000, 5000, 15000]; // André 2026-11-16 (estudo
 // '2026-11-27c' (André 2026-11-27: "toda mudança assim, mais drástica... essa mudança aí vai mudar tudo"): teste 2. Junto com as
 // contas novas abaixo, o robô passou a puxar um bicho por vez pela borda e a descansar com pouca vida, então a medição recomeça
 // do Nv 1. Mudança pequena não zera.
+// '2026-11-27d' (André 2026-11-27, "Reseta"): teste 3. Do Nv 1 com o set Comum +0 de novo, já com o conserto de graça só
+// do robô (consertoGratis) e a Rara do chefe e do Warrok do campo em 25% para todos (DROPS raridadeCampo). As contas do
+// teste 2 e o puxar pela borda continuam iguais.
 // upgrade: o robô não evolui nem reforça sozinho (André 2026-11-27); quando o relatório pedir, o André diz o que muda e
 // entra aqui: v = marca nova (texto), equip = { lugar: { k, r, e } } vestido na próxima entrada do robô (uma vez por marca).
 // Teste 2 (André 2026-11-27, "pensei q já tava rodando"): pontos e nível dão menos e o set escala bem mais por raridade;
@@ -1355,7 +1358,7 @@ export const PAGINA_PRECO = [0, 1000, 5000, 15000]; // André 2026-11-16 (estudo
 // vermos depois"): o Tomás conserta o equipamento do robô de graça (consertarTudo/consertarPecas em shared/progresso.js). No
 // teste 2 o ouro acabou no Nv 33 e 6 das 8 peças ficaram quebradas; jogadores, bots e recrutas seguem pagando. Não zera.
 export const COMBATE_TESTE = { base: 64, ref: 128, arma: 2.5, armadura: [0.5, 1, 1.6, 2.2, 3], nivel: 0.06, atr: 0.05, mana: 5, vit: 6, forVida: 2, nivelVida: 5,
-  desgasteGolpes: 150, zerar: '2026-11-27c', consertoGratis: true,
+  desgasteGolpes: 150, zerar: '2026-11-27d', consertoGratis: true,
   // 2026-11-27: herói novo começa com o set Comum +0 (EQUIP_INICIAL); o robô, já zerado pelado, ganha o mesmo set uma vez
   upgrade: { v: 'set-comum-2026-11-27', equip: { cabeca: { k: 'chapeu', r: 0 }, corpo: { k: 'peitoral', r: 0 }, pernas: { k: 'calca', r: 0 }, capa: { k: 'capa', r: 0 },
     pes: { k: 'botas', r: 0 }, acessorio: { k: 'colar', r: 0 }, espada: { k: 'espada', r: 0 }, cajado: { k: 'cajado', r: 0 } } } };
