@@ -8,3 +8,4 @@ export { Leilao, LEILAO, TIPOS_LEILAO, anuncioParaApp } from './leilao.js';
 export { QUADRADOS_PLANTIO, areaPlantio, lugarNoQuadrado, tempoArvore, faseArvore } from './plantio.js'; // árvores plantadas (2026-11-16)
 export { CAIXA, lancarCaixa, resumoCaixa, diaCaixa, faixaCaixa } from './economia.js'; // livro-caixa da economia (2026-11-16)
 export { LEVE } from './leve.js'; // modo leve pelo painel do clã (2026-11-25)
+export { moralAgora } from './cla.js'; // a moral de agora dos recrutas: o diag da ronda (/npcs.json, server/index.js)

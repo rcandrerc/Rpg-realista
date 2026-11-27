@@ -243,23 +243,40 @@ body.leveTela #jogarAba.tela .hud{left:6px;top:50px;width:164px;max-width:none;m
 body.leveTela #jogarAba.tela .hud .vm{display:grid;gap:1px}body.leveTela #jogarAba.tela .hud .vm>div{min-width:0}
 body.leveTela #jogarAba.tela .hud .vm .rot{font-size:.66rem;line-height:1.15}
 body.leveTela #jogarAba.tela .hud .conta{font-size:.72rem;white-space:nowrap}
-body.mapaGeral .habLeve.arco,body.mapaGeral .balaoLeve{display:none}
+body.mapaGeral .habLeve.arco,body.mapaGeral .balaoLeve,body.mapaGeral .joyLeve{display:none}
+.joyLeve{position:absolute;left:14px;bottom:22px;width:112px;height:112px;border-radius:50%;background:radial-gradient(circle,rgba(26,22,18,.25),rgba(26,22,18,.55));border:2px solid rgba(184,145,90,.75);z-index:4;touch-action:none;display:grid;place-items:center}
+.joyLeve i{width:52px;height:52px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e9d3a6,#9a7646);border:2px solid #4a3418;box-shadow:0 3px 8px rgba(0,0,0,.55);pointer-events:none}
+.joyLeve.on{border-color:#ffd36b}
 body.leveTela.mapaGeral #jogarAba.tela .folha{max-height:50%}
 .miniJogo{position:absolute;right:8px;top:50px;width:92px;height:92px;border-radius:50%;border:2px solid #b8915a;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.6);cursor:pointer;background:#1a3e66}
 body.mapaGeral .miniJogo{display:none}
+body.leveTela.mapaGeral #jogarAba.tela .hud,body.leveTela.mapaGeral #jogarCartao{display:none}
+body.leveTela.mapaGeral #jogarAba.tela .folha.listaMapaF{left:auto;right:6px;top:98px;bottom:6px;width:min(58%,330px);max-height:none;background:rgba(18,14,9,.92);border:1px solid rgba(201,163,90,.7);border-radius:14px;align-content:start}
+.listaMapa{display:grid;gap:4px}
+.listaMapa .sec{display:flex;justify-content:space-between;align-items:center;padding:6px 9px;background:rgba(33,25,12,.92);border:1px solid rgba(201,163,90,.4);border-radius:9px;color:#c9a35a;font:700 .9rem system-ui;text-align:left}
+.listaMapa .sec.on{background:rgba(51,38,18,.95);border-color:rgba(201,163,90,.8)}
+.listaMapa .sec small{background:rgba(0,0,0,.35);border-radius:9px;padding:0 7px;color:#ffebbf;font-size:.72rem}
+.listaMapa .linha{display:flex;justify-content:space-between;gap:6px;padding:5px 8px;background:transparent;border:1px solid transparent;border-radius:7px;color:#f4ead6;font:.82rem system-ui;text-align:left}
+.listaMapa .linha small{color:#c8b48a;white-space:nowrap}
+.listaMapa .linha.esc{background:rgba(82,59,23,.95);border-color:#c9a35a}.listaMapa .linha.esc small{color:#ffd36b;font-weight:800}
+.listaMapa .busca{padding:6px 8px;font-size:.85rem}
+.listaMapa .faz{font-size:.72rem;opacity:.65;padding:4px 2px}
+.botaoLista{position:absolute;left:8px;top:52px;z-index:13;padding:7px 12px;border-radius:10px;background:rgba(26,20,12,.92);border:1px solid #c9a35a;color:#f2d79a;font:700 .85rem system-ui}
+.irMarcado{position:absolute;left:8px;bottom:14px;z-index:13;display:grid;padding:8px 16px;border-radius:12px;background:#7a5420;border:2px solid #ffd36b;color:#fff3d0;font:800 1.05rem system-ui;text-align:left;max-width:40%}
+.irMarcado small{font:600 .72rem system-ui;color:#ffe3a6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fechaMapa{right:8px;top:50px;width:40px;height:40px;border-radius:50%;border:1.5px solid #b8915a;background:rgba(26,22,18,.94);color:var(--ink);font:800 1.1rem system-ui;z-index:9;cursor:pointer}
-body.leveTela #jogarAba.tela .zoom{display:none}body.leveTela.mapaGeral #jogarAba.tela .zoom{display:grid;top:100px;bottom:auto}
+body.leveTela #jogarAba.tela .zoom{display:none}body.leveTela.mapaGeral #jogarAba.tela .zoom{display:grid;top:100px;bottom:auto;left:8px;right:auto}
 body.leveTela #jogarCartao{left:6px;right:6px;top:148px;z-index:5;padding:6px 10px}
 body.leveTela #jogarAba.tela .alvoLeve,body.leveTela #jogarAba.tela .geadaLeve{left:50%;transform:translateX(-50%);top:206px;width:min(240px,70%);margin:0;z-index:5}
 body.leveTela #jogarAba.tela .folha{left:6px;right:6px;bottom:6px;max-height:62%;margin:0;z-index:12}
 body.leveTela #jogarAba.tela>#jogarChat{bottom:6px;z-index:12}
-.habLeve.arco{right:0;bottom:0;width:360px;height:300px;margin:0;display:block;pointer-events:none;z-index:4}
-.habLeve.arco button{position:absolute;min-height:0;padding:0;border-radius:50%;border:2px solid #b8915a;background:rgba(26,22,18,.92);display:grid;place-items:center;pointer-events:auto}
+.habLeve.arco{left:0;right:0;bottom:0;width:auto;height:500px;margin:0;display:block;pointer-events:none;z-index:4}
+.habLeve.arco button{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;position:absolute;min-height:0;padding:0;border-radius:50%;border:2px solid #b8915a;background:rgba(26,22,18,.92);display:grid;place-items:center;pointer-events:auto}
 .habLeve.arco button span{display:none}
 .habLeve.arco button i{display:grid;place-items:center;font-size:1.2rem;width:100%;height:100%}
 .habLeve.arco button i img{width:58%;height:58%;margin:0}
 .habLeve.arco button.grande{background:rgba(84,41,31,.96);grid-column:auto}.habLeve.arco button.grande i img{width:56%;height:56%}
-.habLeve.arco button.cura{background:rgba(31,77,51,.96)}.habLeve.arco button.troca{background:rgba(84,61,31,.96)}
+.habLeve.arco button.cura{background:rgba(31,77,51,.96)}.habLeve.arco button.mg{background:rgba(30,26,52,.92);border-color:#8f7fd0}.habLeve.arco button.mov{background:rgba(40,50,58,.92)}.habLeve.arco button.troca{background:rgba(84,61,31,.96)}
 .habLeve.arco button.pv{background:rgba(77,26,23,.95)}.habLeve.arco button.pm{background:rgba(23,36,77,.95)}
 .habLeve.arco button.pv span,.habLeve.arco button.pm span{display:block;position:absolute;right:-4px;bottom:-4px;font:700 .62rem system-ui;background:#000;border-radius:7px;padding:0 4px;color:#fff}
 .habLeve.arco button.pv i img,.habLeve.arco button.pm i img{width:72%;height:72%}
