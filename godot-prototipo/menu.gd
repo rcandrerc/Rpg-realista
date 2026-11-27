@@ -2541,14 +2541,18 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		var lm := HBoxContainer.new()
 		lm.add_theme_constant_override("separation", 8)
 		var selo := PanelContainer.new()
-		var tx := rotulo("", 12, TEXTO)
+		var tx := rotulo("", 11, TEXTO)
+		tx.set_meta("inteiro", true) # _quebrar_linhas não quebra: "Mochila 129/160" numa linha só
 		selo.add_child(tx)
+		selo.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		lm.add_child(selo)
 		vivo["mo"] = [selo, tx]
 		_pintar_mochila(vivo, r)
 		if on and int(r.get("morto", 0)) == 0:
 			var rid_e := str(r.id)
-			lm.add_child(botao("Esvaziar", func(): rede("cla", {"acao": "esvaziar", "id": rid_e}), 12, true))
+			var be := botao("Esvaziar", func(): rede("cla", {"acao": "esvaziar", "id": rid_e}), 11, true)
+			be.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			lm.add_child(be)
 		v.add_child(lm)
 	if on and d.has("hpM"):
 		for b in [["HP", "hp", "hpM", Color(0.8, 0.25, 0.22)], ["Mana", "mp", "mpM", Color(0.3, 0.5, 0.9)], ["Vigor", "vg", "vgM", Color(0.85, 0.7, 0.25)]]:
@@ -2823,6 +2827,8 @@ var _cla_timer := false
 func _quebrar_linhas(no: Node) -> void:
 	for c in no.get_children():
 		if c is Label:
+			if c.has_meta("inteiro"):
+				continue
 			if no is HBoxContainer and not (c.size_flags_horizontal & Control.SIZE_EXPAND): # rótulo curto da fileira (HP, Nv): fica inteiro
 				continue
 			c.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
