@@ -40,7 +40,9 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Jogar no servidor de verdade
-        run: node ferramentas/robo/robo.mjs --minutos "${{ github.event.inputs.minutos || '350' }}"
+        # André 2026-11-27: o robô foi zerado e só grinda (--cacar) no combate de teste (COMBATE_TESTE), do Nv 1 ao 100,
+        # medindo tempo por nível, mortes e reforço (--combate). Segue achando travamentos. Voltar ao de antes: tirar os dois.
+        run: node ferramentas/robo/robo.mjs --combate --cacar --minutos "${{ github.event.inputs.minutos || '350' }}"
       - name: Guardar o relatório
         if: always()
         uses: actions/upload-artifact@v4

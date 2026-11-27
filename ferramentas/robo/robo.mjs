@@ -15,14 +15,16 @@ import { Client } from 'colyseus.js';
 // shared/index.js PRIMEIRO: os módulos do shared se importam em círculo (cla.js -> amiga.js -> simulacao.js); entrando
 // por progresso.js o robô caía em 9 s com "Cannot access 'Amiga' before initialization" (desde 2026-11-22)
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS, FERRAMENTAS_FAZENDA, MONTARIAS, HEROI, CURA, COLETA_DISTANCIA, HABS, TIPOS_INIMIGO, ITENS, ehEquip, TOTENS, LEILAO } from '../../shared/index.js';
-import { xpProximo, reforcoOk } from '../../shared/progresso.js';
+import { xpProximo, reforcoOk, reforcoMax, reforcoPrecisa, atributoDoReforco, custoReforco, materialReforco, contar } from '../../shared/progresso.js';
 import { noLago } from '../../shared/relevo.js';
 import { planejarRota } from '../../shared/rota.js';
 import { listaVenda as listaVendaDe, POCOES, campoPerigoso, listaMudou } from './robo-escolhas.mjs';
 import { terraDoCampo, terraEm, totemDaTerra, outraTerraParaCacar } from './robo-escolhas.mjs'; // viajar de terra (ronda 2026-11-25)
 import { pecasParaConsertar } from './robo-escolhas.mjs'; // consertar o equipamento (ronda 2026-11-26)
 import { VOLTA_VILA } from '../../shared/index.js'; // casinha (ronda 2026-11-25)
-import { liberado, zonaFechadaEm } from '../../shared/historia.js';
+import { liberado, zonaFechadaEm, motivoLibera } from '../../shared/historia.js';
+import { CATALISADOR, RECEITA_ESTACAO } from '../../shared/dados.js'; // evoluir na bigorna/bancada (combate de teste)
+import { taxaTotem } from '../../shared/dados.js'; // o preço da viagem de totem (ronda 2026-11-27: sem ouro, vai pela casinha)
 
 // ---------- opções ----------
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
@@ -30,12 +32,20 @@ const SERVIDOR = arg('servidor', process.env.ROBO_SERVIDOR || 'wss://163-176-80-
 const HTTP = SERVIDOR.replace(/^ws/, 'http');
 const MINUTOS = Number(arg('minutos', 350));
 const TESTE = arg('teste', '');
-const TURNO = arg('turno', process.env.GITHUB_RUN_ID ? `gh-${process.env.GITHUB_RUN_ID}` : `local-${Date.now()}`);
+const TURNO = arg('turno', (process.argv.includes('--combate') ? 'combate-' : '') + (process.env.GITHUB_RUN_ID ? `gh-${process.env.GITHUB_RUN_ID}` : `local-${Date.now()}`));
 const ARQ = arg('relatorio', 'robo-relatorio.json');
 const FIM = Date.now() + MINUTOS * 60e3;
 const TICK = 50; // ms: 20 posições por segundo, como o app
 // --cacar (André 2026-11-17: "velocidade e dificuldade"): só caça no campo do nível, sem missão; mede XP por minuto
 const SO_CACAR = process.argv.includes('--cacar');
+// --combate (André 2026-11-27): o robô de testes zerado (Nv 1 ao 100) no combate de teste (COMBATE_TESTE em shared/dados.js:
+// arma multiplica o dano, armadura x2, golpe de monstro gasta o equipamento; o servidor liga só na conta dele). Reforça
+// sozinho e anota por nível: tempo, mortes, ouro, equipamento (R.combate). Segue achando travamentos.
+const COMBATE = process.argv.includes('--combate');
+// --upgrade: ele mesmo evolui e reforça. André 2026-11-27: DESLIGADO ("deixa ele sem evoluir e sem fazer reforço... quando
+// começar a morrer com frequência ou ficar muito lento, me passa no relatório e a gente faz o upgrade manualmente"):
+// o upgrade manual entra pelo servidor (COMBATE_TESTE.upgrade). O robô só avisa (R.combate.alerta).
+const UPGRADE = COMBATE && process.argv.includes('--upgrade');
 const CAMPO = arg('campo', '') ? (([x, z]) => ({ x: Number(x), z: Number(z), nome: 'campo fixo' }))(arg('campo', '').split(',')) : null; // --campo x,z: caça só ali
 const TRAVA_MIN = Number(arg('trava', 15)); // min na mesma etapa (sem andar nada) = travou
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -58,6 +68,33 @@ const R = {
   // dificuldade (André 2026-11-17): quanto leva para matar, poções e curas, a menor vida e o XP ganho por minuto
   luta: { matarMs: {}, pocoes: 0, curas: 0, menorVida: 1, xp: 0, xpMin: 0 }, resposta: {}, servidor: {}, avisos: {}, problemas: [], erros: 0,
 };
+// combate de teste: uma linha por nível que subiu neste turno ({ nv, min do turno, mortes e ouro até ali, equipamento
+// 'lugar raridade+reforço durabilidade') e os reforços (tentativas, deu certo, ouro)
+if (COMBATE) R.combate = { niveis: [], reforco: { tentativas: 0, ok: 0, ouro: 0 }, drops: {}, vestiu: [] };
+// alerta para o relatório (André: "quando começar a morrer com frequência ou ficar muito lento"): 6+ mortes na última
+// hora, ou o último nível levou mais que o dobro da média dos 3 de antes. Fica a última hora em que valeu.
+const mortesT = [];
+function alertaCombate() {
+  const L = R.combate.niveis, agora = Date.now(), min = Math.round((agora - R.inicio) / 60e3), mh = mortesT.filter((t) => agora - t < 3600e3).length;
+  const ult = L.length ? min - L[L.length - 1].min : null, ant = L.slice(-4).map((x, i, a) => (i ? x.min - a[i - 1].min : null)).filter((x) => x != null);
+  const media = ant.length ? ant.reduce((a, b) => a + b, 0) / ant.length : null;
+  const motivo = mh >= 6 ? `${mh} mortes na última hora` : ult != null && media && ult > 2 * media && ult > 20 ? `nível ${prog.nivel} levou ${ult} min (média ${Math.round(media)})` : '';
+  if (motivo) { R.combate.alerta = { nv: prog.nivel, min, motivo, eq: fotoEquip(prog.equip) }; problema(`Combate de teste: precisa de upgrade? ${motivo}`); }
+}
+// por nível (thread do robô, André: "qual o mob que ele grindou e o nível do mob... quantos minutos ele parou, quantos
+// grindou real"): cur junta o nível de agora; t = minutos por estado { caca, anda, morto, para, fora } (a soma fecha com o
+// tempo do nível); R.combate.t = o mesmo somado no turno
+const tNovo = () => ({ caca: 0, anda: 0, morto: 0, para: 0, fora: 0 });
+let cur = { mobs: {}, xp: 0, abates: 0, t: tNovo(), campos: {}, drops: {} }, estadoT = Date.now();
+if (COMBATE) R.combate.t = tNovo();
+function contarEstado(estado, campo) {
+  const agora = Date.now(), m = Math.min(5, (agora - estadoT) / 60e3); estadoT = agora;
+  if (!COMBATE || !(m > 0)) return;
+  cur.t[estado] += m; R.combate.t[estado] += m;
+  if (estado === 'caca' && campo) cur.campos[campo] = (cur.campos[campo] || 0) + m;
+}
+const r1 = (t) => Object.fromEntries(Object.entries(t).map(([k, v]) => [k, Math.round(v * 10) / 10]));
+const fotoEquip = (eq) => Object.entries(eq || {}).filter(([, o]) => o).map(([l, o]) => `${l} ${'CREÉLM'[o.r | 0] || '?'}+${o.e | 0} ${o.d ?? 100}%`).join(' · ');
 const pings = [], respostas = [], matar = [], atacouT = new Map();
 const problema = (txt) => { if (!R.problemas.includes(txt)) { R.problemas.push(txt); log('ACHADO', txt); } if (R.problemas.length > 60) R.problemas.shift(); };
 const pct = (l, q) => { if (!l.length) return null; const s = [...l].sort((a, b) => a - b); return Math.round(s[Math.min(s.length - 1, Math.floor(q * s.length))]); };
@@ -70,6 +107,11 @@ function fecharNumeros() {
   R.avisos = Object.fromEntries(Object.entries(R.avisos).sort((a, b) => b[1] - a[1]).slice(0, 12));
 }
 async function mandarRelatorio() {
+  if (COMBATE) { // o nível em andamento (o turno pode acabar no meio): a ronda junta com o começo do turno seguinte
+    const cp = Object.entries(cur.campos).sort((a, b) => b[1] - a[1])[0]?.[0] || '', [cn, cv] = cp.split(' Nv ');
+    R.combate.atual = { nv: prog?.nivel | 0, campo: { nome: cn || '', nv: Number(cv) || 0 }, mobs: cur.mobs, xp: cur.xp, abates: cur.abates, t: r1(cur.t), drops: cur.drops };
+    R.combate.t = r1(R.combate.t);
+  }
   fecharNumeros();
   try { fs.writeFileSync(ARQ, JSON.stringify(R, null, 1)); } catch { /* sem disco: segue */ }
   if (!sessao) return;
@@ -123,14 +165,14 @@ function lerFoto(txt) {
     const morreu = !eu.morto && j.morto;
     Object.assign(eu, { vida: j.vida, vidaMax: j.vidaMax, mana: j.mana, morto: !!j.morto, montado: j.montado || null });
     if (!eu.pronto || j.morto) { eu.x = j.x; eu.y = j.y; eu.z = j.z; eu.pronto = true; } // morto: o servidor leva para a vila
-    if (morreu) { R.mortes++; rota = null; if (campoCaca) { mortesCampo.push({ t: Date.now(), campo: campoCaca.nome }); if (mortesCampo.length > 20) mortesCampo.shift(); } }
+    if (morreu) { R.mortes++; rota = null; if (COMBATE) { mortesT.push(Date.now()); if (mortesT.length > 50) mortesT.shift(); alertaCombate(); } if (campoCaca) { mortesCampo.push({ t: Date.now(), campo: campoCaca.nome }); if (mortesCampo.length > 20) mortesCampo.shift(); } }
     if (j.vidaMax > 0 && !j.morto) R.luta.menorVida = Math.min(R.luta.menorVida, Math.round(j.vida / j.vidaMax * 100) / 100);
   }
   const vistos = new Set();
   for (const e of F.inimigos || []) {
     vistos.add(e.id);
     const a = inimigos.get(e.id);
-    if (a && !a.morto && e.morto && atacados.has(e.id)) { R.abates++; atacados.delete(e.id); (R.luta.nvMobs ||= {})[a.nivel || e.nivel || 0] = (R.luta.nvMobs[a.nivel || e.nivel || 0] || 0) + 1; const t0 = atacouT.get(e.id); if (t0) { matar.push(performance.now() - t0); atacouT.delete(e.id); if (matar.length > 5000) matar.shift(); } }
+    if (a && !a.morto && e.morto && atacados.has(e.id)) { R.abates++; atacados.delete(e.id); if (COMBATE) { const km = `${a.nome || e.nome || a.tipo || '?'} Nv ${a.nivel || e.nivel || 0}`; cur.mobs[km] = (cur.mobs[km] || 0) + 1; cur.abates++; } (R.luta.nvMobs ||= {})[a.nivel || e.nivel || 0] = (R.luta.nvMobs[a.nivel || e.nivel || 0] || 0) + 1; const t0 = atacouT.get(e.id); if (t0) { matar.push(performance.now() - t0); atacouT.delete(e.id); if (matar.length > 5000) matar.shift(); } }
     inimigos.set(e.id, a ? Object.assign(a, e) : e);
   }
   for (const k of inimigos.keys()) if (!vistos.has(k)) inimigos.delete(k);
@@ -141,9 +183,21 @@ function lerEvento(e) {
   if (e.para && esperaResposta && ['fala', 'aviso', 'prog', 'coletou', 'fabricando', 'compra'].includes(e.t)) { const ms = performance.now() - esperaResposta; if (ms < 5000) respostas.push(ms); if (respostas.length > 5000) respostas.shift(); esperaResposta = 0; }
   if (e.t === 'prog') {
     const antes = prog?.hist;
-    if (prog && e.prog) { let g = 0; for (let n = prog.nivel; n < e.prog.nivel; n++) g += xpProximo(n); g += (e.prog.xp | 0) - (prog.xp | 0); if (g > 0) R.luta.xp += g; }
+    if (prog && e.prog) { let g = 0; for (let n = prog.nivel; n < e.prog.nivel; n++) g += xpProximo(n); g += (e.prog.xp | 0) - (prog.xp | 0); if (g > 0) { R.luta.xp += g; cur.xp += g; } }
     prog = e.prog; hi = e.hi || null; if ('di' in e) di = e.di || null;
+    // ronda 2026-11-27: o merge do #992 reiniciou o servidor e zerou a conta no meio do turno (Nv 78 -> 1). O robô seguiu
+    // indo para o campo Nv 78 da Aurora, pelado, morreu 6 vezes no caminho e caiu na Ilha com 20 de ouro. Morte nunca tira
+    // nível (penalidadeMorte): nível menor = conta zerada
+    if (R.nivel.ate != null && prog.nivel < R.nivel.ate) contaZerada(R.nivel.ate);
     if (R.nivel.de == null) R.nivel.de = prog.nivel;
+    if (COMBATE && R.nivel.ate != null && prog.nivel > R.nivel.ate) alertaCombate();
+    if (COMBATE && R.nivel.ate != null && prog.nivel > R.nivel.ate) {
+      const cp = Object.entries(cur.campos).sort((a, b) => b[1] - a[1])[0]?.[0] || '', [cn, cv] = cp.split(' Nv ');
+      R.combate.niveis.push({ nv: prog.nivel, min: Math.round((Date.now() - R.inicio) / 60e3), mortes: R.mortes, ouro: prog.ouro | 0, atr: prog.atr, eq: fotoEquip(prog.equip),
+        campo: { nome: cn || '', nv: Number(cv) || 0 }, mobs: cur.mobs, xp: cur.xp, abates: cur.abates, t: r1(cur.t), drops: cur.drops });
+      if (R.combate.niveis.length > 120) R.combate.niveis.shift();
+      cur = { mobs: {}, xp: 0, abates: 0, t: tNovo(), campos: {}, drops: {} };
+    }
     R.nivel.ate = prog.nivel;
     const h = prog.hist;
     // ronda 2026-11-24: lista de missões do servidor diferente da do robô (merge no meio do turno; robo-escolhas.mjs
@@ -164,9 +218,14 @@ function lerEvento(e) {
     const cs = /consertou (\d+) peças? por (\d+) de ouro/.exec(String(e.texto || '')); // ronda 2026-11-26
     if (cs) { const C = (R.consertos ||= { vezes: 0, pecas: 0, ouro: 0 }); C.vezes++; C.pecas += +cs[1]; C.ouro += +cs[2]; log('consertou', cs[1], 'peças por', cs[2], 'de ouro'); }
     else if (/^O conserto custa|^Conserte com/.test(String(e.texto || ''))) consertoPausa = Date.now() + 10 * 60e3;
+  } else if (e.t === 'drop' && COMBATE) { // peças que caem por raridade (André: "em 20 30 minutos já temos set completo raro")
+    for (const it of e.itens || []) if (it.r >= 0) { const k = 'CREÉLM'[it.r] || '?'; R.combate.drops[k] = (R.combate.drops[k] || 0) + 1; cur.drops[k] = (cur.drops[k] || 0) + 1; }
+  } else if (e.t === 'fabricando' && COMBATE) { fabricandoAte = Date.now() + ((e.dur || 2) * (e.n || 1) + 1) * 1000;
+  } else if (e.t === 'evoluiu' && COMBATE) { (R.combate.evolucoes ||= []).push({ nv: prog?.nivel | 0, min: Math.round((Date.now() - R.inicio) / 60e3), nome: e.nome, ok: !!e.ok }); log('evoluir:', e.ok ? 'evoluiu' : 'falhou', e.nome); evoPlano = null; vestirT = 0;
+  } else if (e.t === 'reforco' && COMBATE) { const C = R.combate.reforco; if (e.erro) reforcoPausa = Date.now() + 10 * 60e3; else { C.tentativas++; if (e.ok) C.ok++; C.ouro += e.custo | 0; log('reforço', e.nome, e.de, '->', e.e, e.ok ? 'subiu' : 'falhou', e.custo, 'de ouro'); }
   } else if (e.t === 'coletou') { R.coletas++; if (!e.cargas) coletando = 0; }
   else if (e.t === 'vila' && e.id === sala?.sessionId) { // totem ou casinha: o servidor leva o herói para outro lugar
-    if (e.fase === 'chegou') { eu.x = e.x; eu.y = e.y; eu.z = e.z; parar(); viajandoAte = 0; correcoesSeguidas = 0; R.viagens = (R.viagens || 0) + 1; } // lugar novo: as correções de antes (na névoa) não contam
+    if (e.fase === 'chegou') { eu.x = e.x; eu.y = e.y; eu.z = e.z; parar(); viajandoAte = 0; casinhaDesde = 0; correcoesSeguidas = 0; R.viagens = (R.viagens || 0) + 1; } // lugar novo: as correções de antes (na névoa) não contam
     else if (e.fase === 'cancela') viajandoAte = 0;
   } else if (e.t === 'leilao') leilaoInfo = e;
   else if (e.t === 'pesca') { pescaT = Date.now(); pescaSt = e.st === 'fim' || e.st === 'pegou' ? '' : e.st; if (e.st === 'pegou') { R.peixes = (R.peixes || 0) + 1; falarT = Date.now(); } if (e.st === 'fim') falarT = Date.now(); }
@@ -260,6 +319,7 @@ function lutar(e, agora) {
 // jogador), vai ao totem mais perto aqui, pede a viagem e espera o canal (TOTENS.canal s parado). true = está viajando.
 // Viagem que não dá certo em 6 min (ouro, névoa, totem longe) vira achado e essa terra fica de fora por 30 min.
 let viagem = null; const terraFalhou = new Map(); // terra -> até quando não tenta de novo
+const TERRA_VILA = terraEm(CACA, MAPA_CLAREIRA.nascimento.x, MAPA_CLAREIRA.nascimento.z); // para onde a casinha leva (sem base de clã)
 function totemAqui() { // o totem aberto mais perto na terra em que ele está (para sair; não precisa ser visitado)
   const minha = terraEm(CACA, eu.x, eu.z);
   return TOTENS.lista.filter((t) => terraEm(CACA, t.x, t.z) === minha && !(prog && zonaFechadaEm(prog, t.x, t.z))).sort((a, b) => d2(eu, a) - d2(eu, b))[0] || null;
@@ -267,11 +327,14 @@ function totemAqui() { // o totem aberto mais perto na terra em que ele está (p
 // Ronda 2026-11-25: o "zerar" do fim da história (missaoTeste) deixa o robô onde está, e lá (Aurora, Ilha, fundo de Vael)
 // tudo volta para a névoa: o servidor recusa todo passo dele, nem até o totem. Como o jogador, usa a casinha (volta para a
 // vila: VOLTA_VILA.canal s parado, recarga de VOLTA_VILA.cd s). true = está voltando.
-let casinhaT = 0;
+let casinhaT = 0, casinhaDesde = 0, casinhaPausa = 0;
 function presoNaNevoa() { return !!(prog && zonaFechadaEm(prog, eu.x, eu.z)); }
 function casinha(agora, motivo) {
-  if ((prog?.vilaAte || 0) > Date.now()) return false; // recarga
+  if ((prog?.vilaAte || 0) > Date.now() || agora < casinhaPausa) return false; // recarga (ou não deu há pouco)
   if (agora < viajandoAte) return true; // canalizando
+  // ronda 2026-11-27: pediu e não chegou em 3 min (o servidor recusa calado pulando ou nadando): anota e deixa quem chamou seguir
+  if (!casinhaDesde || agora - casinhaT > 30e3) casinhaDesde = agora; // pedido novo (o de antes foi largado)
+  if (agora - casinhaDesde > 3 * 60e3) { problema(`Casinha não levou para a vila em 3 min (${motivo})${ultimoAviso ? `, último aviso: ${ultimoAviso}` : ''}`); casinhaDesde = 0; casinhaPausa = agora + 10 * 60e3; return false; }
   const bicho = alvoPerto(5); if (bicho) { lutar(bicho, agora); return true; } // apanhando: o canal cancela com dano
   parar();
   if (agora - casinhaT < 4000) return true;
@@ -295,6 +358,10 @@ function viajarParaTerra(terra, agora, motivo, perto) {
     problema(`Viagem de totem para a terra ${terra} (${motivo}) não deu certo em 6 min${ultimoAviso ? `, último aviso: ${ultimoAviso}` : ''}`);
     viagem = null; return false;
   }
+  // ronda 2026-11-27: zerado, ele caiu na Ilha com 20 de ouro (o totem da Clareira custa 50) e passou o turno andando contra
+  // o mar. Para a terra da vila a casinha é de graça: vai por ela quando o ouro não paga o totem (em recarga, tenta o totem;
+  // os 6 min acima valem para os dois)
+  if ((prog.ouro | 0) < taxaTotem(para) && terra === TERRA_VILA && casinha(agora, `${motivo}, sem ouro para o totem`)) return true;
   if (agora < viajandoAte) return true; // canalizando no totem
   const bicho = alvoPerto(5); if (bicho) { lutar(bicho, agora); return true; } // apanhando no caminho: o canal cancela com dano
   if (!irPara(de.x, de.z, 3)) return true;
@@ -306,7 +373,7 @@ function viajarParaTerra(terra, agora, motivo, perto) {
 }
 
 // ---------- caçar (sem missão para o nível dele, ou esperando) ----------
-let campoCaca = null, campoT = 0;
+let campoCaca = null, campoT = 0, campoNv = 0; // campoNv: o nível dele quando escolheu o campo
 const camposRuins = new Set(); let campoXp = -2, campoXpT = 0; // campos onde não ganhou XP neste turno
 const mortesCampo = []; // onde e quando morreu caçando (campoPerigoso: 3 mortes em 10 min no mesmo campo, troca)
 // ronda 2026-11-26: o campo trocado por morte volta a valer depois de 30 min. Antes ficava de fora o turno todo: na noite de
@@ -314,6 +381,46 @@ const mortesCampo = []; // onde e quando morreu caçando (campoPerigoso: 3 morte
 const perigosoAte = new Map(); const PERIGOSO_MIN = 30;
 let cacaViagem = null; const faltaAvisada = new Set(); // a terra para onde vai caçar; terras sem totem já anotadas no turno
 let cacaPonto = null; // o ponto sorteado no campo (fixo até chegar ou trocar de campo)
+// ronda 2026-11-27: a conta foi zerada no meio do turno (combate de teste, COMBATE_TESTE.zerar). Campo, viagem e terras
+// recusadas eram do nível de antes: esquece tudo. O grind do teste conta daqui (R.combate.zerou: minuto do turno, nível de
+// antes e de agora, mortes até ali); o que ele juntou antes (mortes, conserto, avisos de upgrade) não vale para o teste
+function contaZerada(de) {
+  log(`a conta foi zerada no meio do turno (Nv ${de} -> ${prog.nivel}): esquece campo e viagem e conta o grind do zero`);
+  campoCaca = null; campoT = 0; cacaViagem = null; cacaPonto = null; viagem = null; parar();
+  camposRuins.clear(); terraFalhou.clear(); perigosoAte.clear(); faltaAvisada.clear(); mortesCampo.length = 0;
+  if (!COMBATE) return;
+  R.combate.zerou = { min: Math.round((Date.now() - R.inicio) / 60e3), de, nv: prog.nivel, mortes: R.mortes };
+  Object.assign(R.combate, { niveis: [], reforco: { tentativas: 0, ok: 0, ouro: 0 }, drops: {}, vestiu: [], t: tNovo() });
+  delete R.combate.alerta; delete R.consertos;
+  R.problemas = R.problemas.filter((p) => !p.startsWith('Combate de teste:'));
+  cur = { mobs: {}, xp: 0, abates: 0, t: tNovo(), campos: {}, drops: {} }; mortesT.length = 0;
+}
+// combate de teste (André 2026-11-27: "ele sempre grinde no nível do mob que ele é... peguei ele nível 50 grindando em mob
+// nível 1"): o campo de nível mais alto que não passa do dele, em qualquer terra (vai de totem), sem fugir do campo onde morre
+// (as mortes são o que a gente mede). Só o campo sem XP há 10 min (caminho travado) fica de fora. Escolhe de novo quando sobe
+// de nível e a cada 20 min. true = está indo para outra terra (totem ou casinha) e quem chamou para por aqui
+function campoCombate(agora, podeViajar) {
+  const nv = prog?.nivel || 1;
+  if (campoCaca && campoNv === nv && agora - campoT <= 20 * 60e3) return false;
+  if (camposRuins.size >= 6) camposRuins.clear(); // nenhum serviu: tenta todos de novo
+  const terra = terraDoCampo, minha = terraEm(CACA, eu.x, eu.z);
+  const livre = (c) => !c.boss && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && !(prog && zonaFechadaEm(prog, c.x, c.z));
+  const cand = CACA.filter(livre), ate = cand.filter((c) => (c.nivel || 1) <= nv);
+  const melhor = (ate.length ? ate : cand).sort((a, b) => (ate.length ? (b.nivel || 1) - (a.nivel || 1) : (a.nivel || 1) - (b.nivel || 1)) || d2(eu, a) - d2(eu, b))[0]; // o de nível mais alto que não passa do dele
+  if (!melhor) return false;
+  const escolher = (c) => { campoCaca = c; campoT = agora; campoNv = nv; perigosoAte.clear(); R.caca = { terra: minha, campo: c.nome, nivel: c.nivel || 1, totens: prog?.totens || [] }; };
+  if (terra(melhor) === minha) { escolher(melhor); return false; }
+  if (podeViajar && !((terraFalhou.get(terra(melhor)) || 0) > agora)) { cacaViagem = { terra: terra(melhor), campo: melhor }; log(`campo do nível (Nv ${melhor.nivel}) em outra terra: vai de totem`, melhor.nome); return true; }
+  // o totem para lá não deu (ouro): caça no mais forte daqui até o nível dele e tenta de novo em 20 min
+  const aqui = ate.filter((c) => terra(c) === minha).sort((a, b) => (b.nivel || 1) - (a.nivel || 1) || d2(eu, a) - d2(eu, b))[0];
+  if (aqui) { escolher(aqui); return false; }
+  // ronda 2026-11-27: Nv 1 na Ilha, o totem não deu e aqui não tem campo até o nível dele. O jeito de antes escolhia o campo
+  // Nv 1 de Vael e ele passou o turno andando contra o mar: volta pela casinha (de graça, leva à vila) ou espera a recarga
+  campoCaca = null;
+  R.caca = { terra: minha, vai: TERRA_VILA, campo: melhor.nome, nivel: melhor.nivel || 1, casinha: true, totens: prog?.totens || [] };
+  if (casinha(agora, `nenhum campo até o Nv ${nv} em ${minha}`)) return true;
+  parar(); return false; // recarga: espera parado (briga só com o que encostar)
+}
 // podeViajar: só quando ele caça para subir de nível (sem missão do nível, --cacar); caçando no meio de uma etapa ele
 // fica na terra dele (senão ia e voltava entre a terra da etapa e a do campo)
 function cacar(agora, podeViajar = false) {
@@ -322,10 +429,19 @@ function cacar(agora, podeViajar = false) {
     else if (viajarParaTerra(cacaViagem.terra, agora, `caçar no ${cacaViagem.campo.nome}`, cacaViagem.campo)) return;
     else { if (terraEm(CACA, eu.x, eu.z) === cacaViagem.terra) { campoCaca = null; campoT = 0; } cacaViagem = null; }
   }
+  // ronda 2026-11-27: no combate de teste o campo do nível é escolhido ANTES de brigar. Escolhendo depois, num campo cheio
+  // sempre tinha bicho encostado e ele não saía: no teste local ficou do Nv 5 ao 7 matando Puglin Nv 1
+  if (COMBATE && !CAMPO && campoCombate(agora, podeViajar)) return;
   // ronda 2026-11-17: com raio de 40 m em volta dele, o robô ficava na vila matando Puglin Nv 1 (renasce sempre) e nunca
   // chegava ao campo do nível. Agora: só o que está no campo, ou o que encosta nele (até 5 m) no caminho
   let e = alvoPerto(campoCaca ? 40 : 18);
   if (e && campoCaca && d2(e, campoCaca) > 40 && d2(eu, e) > 5) e = null;
+  // ronda 2026-11-27 (combate de teste): fora da terra dele (Nv 1 na Ilha, esperando a casinha) não puxa briga com bicho
+  // 10+ níveis acima: só com o que já encostou. As mortes do teste são as do campo do nível dele
+  if (e && COMBATE && (e.nivel || 1) > (prog?.nivel || 1) + 10 && d2(eu, e) > 5) e = null;
+  // e bicho mais fraco que o do campo dele, encostado no caminho, não segura o robô: ele segue para o campo (com menos de
+  // metade da vida, briga). Senão o Puglin Nv 1 do campo velho não deixava ele sair
+  if (e && COMBATE && !CAMPO && campoCaca && d2(e, campoCaca) > 40 && (e.nivel || 1) < (campoCaca.nivel || 1) && eu.vida > eu.vidaMax * 0.5) e = null;
   if (e) return lutar(e, agora);
   if (CAMPO) campoCaca = CAMPO;
   // ronda 2026-11-18: no Nv 53 (c14) passou 45 min sem XP; o campo Nv 52 fica na Ilha do Meio (sem barco não chega).
@@ -335,9 +451,9 @@ function cacar(agora, podeViajar = false) {
     else if (agora - campoXpT > 10 * 60e3) { camposRuins.add(campoCaca.nome); log('campo sem XP há 10 min, troca:', campoCaca.nome); campoCaca = null; campoXpT = agora; }
   }
   // ronda 2026-11-24: 175 mortes na guerra numa noite voltando sempre ao mesmo campo. Morreu 3 vezes em 10 min nele: troca
-  if (campoCaca && !CAMPO && campoPerigoso(mortesCampo, campoCaca.nome, agora)) { perigosoAte.set(campoCaca.nome, agora + PERIGOSO_MIN * 60e3); log(`morreu 3 vezes em 10 min no campo, troca por ${PERIGOSO_MIN} min:`, campoCaca.nome); campoCaca = null; mortesCampo.length = 0; }
+  if (campoCaca && !CAMPO && !COMBATE && campoPerigoso(mortesCampo, campoCaca.nome, agora)) { perigosoAte.set(campoCaca.nome, agora + PERIGOSO_MIN * 60e3); log(`morreu 3 vezes em 10 min no campo, troca por ${PERIGOSO_MIN} min:`, campoCaca.nome); campoCaca = null; mortesCampo.length = 0; }
   if (CAMPO) { /* fixo */ }
-  else if (!campoCaca || agora - campoT > 20 * 60e3) {
+  else if (!COMBATE && (!campoCaca || agora - campoT > 20 * 60e3)) { // o combate de teste escolhe em campoCombate
     const nv = prog?.nivel || 1;
     if (camposRuins.size >= 6) camposRuins.clear(); // nenhum serviu: tenta todos de novo
     // ronda 2026-11-17: no Nv 47 (h11) o robô passou 2 turnos sem XP indo para o campo Nv 42, que está na névoa, e para o
@@ -369,10 +485,11 @@ function cacar(agora, podeViajar = false) {
       || CACA.filter((c) => !c.boss && !/^Covil/.test(c.nome || '') && terra(c) === minha && (c.nivel || 1) <= nv).sort((a, b) => (b.nivel || 1) - (a.nivel || 1))[0] || CACA[0];
     if ((campoCaca.nivel || 1) < nv - 15) log('sem campo do nível na terra dele, caça no mais forte que alcança:', campoCaca.nome, 'Nv', campoCaca.nivel);
     R.caca = { ...(R.caca?.falta && R.caca.terra === minha ? { falta: R.caca.falta } : {}), terra: minha, campo: campoCaca.nome, nivel: campoCaca.nivel || 1, totens: prog?.totens || [] };
-    campoT = agora;
+    campoT = agora; campoNv = nv;
   }
   // ronda 2026-11-25: o ponto no campo é sorteado uma vez (até chegar ou trocar de campo). Sorteado a cada passo, a rota
   // era refeita 20 vezes por segundo e, na Aurora, um ponto repetido da estrada puxava o robô de volta: 5 min parado
+  if (!campoCaca) return; // combate de teste esperando a recarga da casinha
   if (!cacaPonto || cacaPonto.campo !== campoCaca) cacaPonto = { campo: campoCaca, x: campoCaca.x + (Math.random() - 0.5) * 6, z: campoCaca.z + (Math.random() - 0.5) * 6 };
   if (irPara(cacaPonto.x, cacaPonto.z, 4)) { parar(); cacaPonto = null; }
 }
@@ -385,6 +502,7 @@ const tem = (k) => (prog?.mochila || []).some((o) => o && o.k === k);
 // ronda 2026-11-19: poção fica só a pilha maior de cada uma (ferramentas/robo/robo-escolhas.mjs listaVenda)
 function protegido(o) {
   if (!o || o.cad) return true;
+  if (UPGRADE && (ehEquip(o.k) || ITENS[o.k]?.catalisador || MATS_EVO.has(o.k))) return true; // combate de teste: peça vira catalisador, material fica para evoluir
   if (FERRAMENTAS_FAZENDA[o.k] || ITENS[o.k]?.usar?.veiculo) return true;
   return !!hi?.k && o.k === hi.k;
 }
@@ -408,9 +526,106 @@ function vestir(agora) {
   for (let i = 0; i < prog.mochila.length; i++) {
     const o = prog.mochila[i]; if (!o || !ehEquip(o.k) || !reforcoOk(o, prog.atr)) continue;
     const l = ITENS[o.k]?.lugar; if (!l || !(l in prog.equip)) continue;
-    if (notaPeca(o) > notaPeca(prog.equip[l])) { vestirT = agora; R.vestiu = (R.vestiu || 0) + 1; acao('item', { acao: 'equipar', i }); return true; }
+    if (notaPeca(o) > notaPeca(prog.equip[l])) { vestirT = agora; R.vestiu = (R.vestiu || 0) + 1; if (COMBATE && R.combate.vestiu.length < 200) R.combate.vestiu.push({ min: Math.round((agora - R.inicio) / 60e3), nv: prog.nivel | 0, lugar: l, r: o.r | 0 }); acao('item', { acao: 'equipar', i }); return true; }
   }
   return false;
+}
+// pontos de atributo no modo só caça (--cacar não passa pela missão, que é onde ele distribuía): metade Força, metade Vitalidade
+let pontosT = 0;
+function pontosLivres(agora) {
+  if (!prog || !(prog.pontos > 0) || agora - pontosT < 3000) return false;
+  pontosT = agora; const n = prog.pontos | 0, f = Math.ceil(n / 2);
+  acao('atributos', { for: f, ...(n - f ? { vit: n - f } : {}) }); prog.pontos = 0; return true;
+}
+// ---------- evoluir (robô do combate de teste, André 2026-11-27: "a cada quantos níveis precisa evoluir"): como um
+// jogador faria. 1) Peça sobrando na mochila (pior que a do corpo) é destruída: vira catalisador (Comum dá barra de cobre).
+// 2) Para a peça do corpo de menor raridade: catalisador + material (CATALISADOR.usa). Falta catalisador: 10 do de baixo
+// na alquimista (sintese). Falta material: compra no leilão do Otávio o anúncio mais barato (casa, jogador ou bot), sem
+// mexer na reserva do conserto. 3) Tudo na mochila: vai à bigorna/bancada mais perto, tira a peça, evolui e veste de novo.
+// Anota cada evolução (R.combate.evolucoes) e o que faltou (R.combate.falta) ----------
+const MATS_EVO = new Set(Object.values(CATALISADOR.usa).flat().flatMap((u) => Object.keys(u)));
+let evoT = 0, evoPlano = null, destruirT = 0, fabricandoAte = 0; // fabricandoAte: a barrinha de destruir/evoluir do servidor
+const temQtd = (k) => (prog?.mochila || []).reduce((s, o) => s + (o && o.k === k && !o.h ? o.n || 1 : 0), 0);
+const reservaOuro = () => 1500 + 30 * (prog?.nivel | 0);
+function destruirSobra(agora) {
+  if (agora - destruirT < 4000 || agora < fabricandoAte) return false;
+  const m = prog.mochila, i = m.findIndex((o) => o && !o.cad && ehEquip(o.k) && !(ITENS[o.k].lugar in prog.equip && notaPeca(o) > notaPeca(prog.equip[ITENS[o.k].lugar])));
+  if (i < 0) return false;
+  destruirT = agora; R.combate.destruidas = (R.combate.destruidas || 0) + 1; acao('item', { acao: 'destruir', i }); return true;
+}
+function faltaEvo(k, n) { const F = (R.combate.falta ||= {}); F[k] = Math.max(F[k] || 0, n); }
+function planoEvoluir() {
+  for (const [l, it] of Object.entries(prog.equip).filter(([, o]) => o && ehEquip(o.k)).sort((a, b) => a[1].r - b[1].r)) {
+    const Rc = geo.receitaEvoluir(it); if (!Rc) continue;
+    if (motivoLibera(prog, 'evoluir', Rc.r) || motivoLibera(prog, 'forja')) continue;
+    const faltam = Object.entries(Rc.usa).filter(([k, n]) => temQtd(k) < n).map(([k, n]) => [k, n - temQtd(k)]);
+    return { l, k: it.k, r: it.r, Rc, faltam };
+  }
+  return null;
+}
+function evoluirEquip(agora) {
+  if (!UPGRADE || !prog?.equip || eu.vida < eu.vidaMax * 0.9) return false;
+  if (destruirSobra(agora)) return true;
+  if (!evoPlano) {
+    if (agora - evoT < 60e3) return false;
+    evoT = agora;
+    const P = planoEvoluir(); if (!P) return false;
+    const cat = P.faltam.find(([k]) => ITENS[k]?.catalisador);
+    if (cat) { // catalisador: alquimista junta 10 do de baixo
+      const D = ITENS[cat[0]], C = CATALISADOR.sintese.custo[D.cr], de = C && CATALISADOR[D.catalisador][D.cr - 2];
+      if (C && de && temQtd(de) >= C.n && (prog.ouro | 0) - C.ouro >= reservaOuro()) evoPlano = { fase: 'sintese', k: cat[0], ate: agora + 6 * 60e3 };
+      else { faltaEvo(cat[0], cat[1]); return false; }
+    } else if (P.faltam.length) {
+      const [k, n] = P.faltam[0]; evoPlano = { fase: 'leilao', k, n, ate: agora + 6 * 60e3, P };
+    } else evoPlano = { fase: 'estacao', P, ate: agora + 6 * 60e3 };
+    log('evoluir:', evoPlano.fase, evoPlano.k || `${evoPlano.P.k} ${evoPlano.P.r} -> ${evoPlano.P.r + 1}`);
+  }
+  const E = evoPlano;
+  if (agora > E.ate) { problema(`Evoluir: não terminou a fase ${E.fase} em 6 min`); evoPlano = null; return false; }
+  if (E.fase === 'sintese') {
+    const npc = npcDe(CATALISADOR.sintese.npc); if (!npc) { evoPlano = null; return false; }
+    if (!irPara(npc.x, npc.z, 3)) return true;
+    parar(); if (agora - falarT < 3000) return true; falarT = agora;
+    acao('item', { acao: 'sintetizar', k: E.k, n: 1 }); evoPlano = null; evoT = agora - 50e3; return true;
+  }
+  if (E.fase === 'leilao') {
+    const npc = MAPA_CLAREIRA.npcs.find((n) => n.funcao === 'leilao'); if (!npc) { evoPlano = null; return false; }
+    if (!irPara(npc.x, npc.z, 2.5)) return true;
+    parar(); if (agora - falarT < 3000) return true; falarT = agora;
+    if (!E.visto) { leilaoInfo = null; E.visto = true; acao('leilao', { acao: 'ver', busca: { ks: [E.k], ordem: 'barato' } }); return true; }
+    if (!leilaoInfo) return true;
+    const sobra = (prog.ouro | 0) - reservaOuro();
+    const a = (leilaoInfo.lista || []).filter((x) => x.item?.k === E.k && x.preco <= sobra).sort((x, y) => x.preco / (x.item.n || 1) - y.preco / (y.item.n || 1))[0];
+    leilaoInfo = null;
+    if (!a) { faltaEvo(E.k, E.n); evoPlano = null; return false; }
+    acao('leilao', { acao: 'comprar', id: a.id }); R.combate.leilao = R.combate.leilao || { compras: 0, ouro: 0 }; R.combate.leilao.compras++; R.combate.leilao.ouro += a.preco;
+    log('evoluir: comprou', a.item.n || 1, E.k, 'por', a.preco); evoPlano = null; evoT = agora - 55e3; return true;
+  }
+  // estação: bigorna (arma) ou bancada (armadura), a aberta mais perto
+  const k = RECEITA_ESTACAO(E.P.Rc);
+  if (!E.est) E.est = (MAPA_CLAREIRA.estacoes || []).filter((o) => o.k === k && !zonaFechadaEm(prog, o.x, o.z)).sort((a, b) => d2(eu, a) - d2(eu, b))[0];
+  if (!E.est) { problema(`Evoluir: nenhuma ${k} aberta`); evoPlano = null; return false; }
+  if (!irPara(E.est.x, E.est.z, 2)) return true;
+  parar(); if (agora - falarT < 3000 || agora < fabricandoAte) return true; falarT = agora;
+  const it = prog.equip[E.P.l];
+  if (it && it.k === E.P.k && it.r === E.P.r) { acao('item', { acao: 'tirar', lugar: E.P.l }); return true; } // vai para a mochila
+  const i = prog.mochila.findIndex((o) => o && o.k === E.P.k && o.r === E.P.r);
+  if (i < 0 || E.mandou) { evoPlano = null; return false; }
+  E.mandou = true; E.ate = agora + 30e3;
+  acao('item', { acao: 'evoluir', i }); return true;
+}
+// ---------- reforçar (robô do combate de teste): com ouro sobrando, reforça a peça do corpo de menor +, como o bot faz
+// (amiga.js reforcoAmiga): guarda 1.500 + o conserto, só tenta o + que o atributo deixa usar e se tem o Tecido ----------
+let reforcoT = 0, reforcoPausa = 0;
+function reforcarEquip(agora) {
+  if (!UPGRADE || !prog?.equip || agora - reforcoT < 3000 || agora < reforcoPausa || eu.vida < eu.vidaMax * 0.9) return false;
+  const pecas = Object.entries(prog.equip).filter(([, o]) => o && ehEquip(o.k) && (o.e | 0) < reforcoMax(o) && (o.d ?? 100) > 0)
+    .filter(([, o]) => { const pr = reforcoPrecisa(o, (o.e | 0) + 1); if (atributoDoReforco(prog.atr, pr.k) < pr.n) return false; const m = materialReforco(o); return !m || contar(prog.mochila, m.k) >= m.n; })
+    .sort((a, b) => (a[1].e | 0) - (b[1].e | 0));
+  if (!pecas.length) return false;
+  const [lugar, o] = pecas[0];
+  if ((prog.ouro | 0) - custoReforco(o) < 1500 + 30 * (prog.nivel | 0)) return false;
+  reforcoT = agora; acao('item', { acao: 'reforcar', lugar }); return true;
 }
 function vender(agora) {
   const m = prog?.mochila; if (!m) return false;
@@ -695,9 +910,11 @@ async function main() {
     const agora = Date.now();
     if (agora - saudeT > 60e3) { saudeT = agora; lerSaude(); }
     if (agora - relT > 10 * 60e3) { relT = agora; mandarRelatorio(); }
-    if (!sala || !eu.pronto) continue;
+    if (!sala || !eu.pronto) { contarEstado('fora'); continue; }
     if (agora - pingT > 2000) { pingT = agora; mandar('ping', Math.round(performance.now())); } // número pequeno, como o app (Date.now() vira inteiro de 64 bits)
-    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !consertar(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora, true); else missao(agora); } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
+    let estado = eu.morto ? 'morto' : 'para';
+    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !consertar(agora) && !pontosLivres(agora) && !evoluirEquip(agora) && !reforcarEquip(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora, true); else missao(agora); estado = campoCaca && !cacaViagem && d2(eu, campoCaca) < 40 && eu.vida > eu.vidaMax * 0.5 ? 'caca' : 'anda'; } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
+    contarEstado(estado, campoCaca ? `${campoCaca.nome} Nv ${campoCaca.nivel || 1}` : '');
     const andou = andar(dt);
     mandar('pos', { x: +eu.x.toFixed(3), y: +eu.y.toFixed(3), z: +eu.z.toFixed(3), ry: +eu.ry.toFixed(3), anim: andou ? 'correr' : 'parado', c: corrSeq });
     if (andou) correcoesSeguidas = Math.max(0, correcoesSeguidas - 0.02);
