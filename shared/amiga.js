@@ -658,7 +658,9 @@ export const Amiga = {
   campoAmiga(j, fora = null) {
     const A = NPC_VIDA.aventura, n = j.prog.nivel | 0;
     // André 2026-11-16: Cecília e Dario só caçam onde a história deles já abriu (como o jogador)
-    const ok = this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (c.nivel || 1) <= n + A.campoAcima - (j.licoes?.acima || 0) && !(fora && fora.has(c.id)) && !(j.tarefas && zonaFechadaEm(j.prog, c.x, c.z)));
+    // campo de uma raça (os da Geada Nv 1-30 em volta do Juncal, raca 'geada'): bot da outra raça não vai caçar lá
+    const raca = this.AMIGA.raca || 'chama';
+    const ok = this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (!c.raca || c.raca === raca) && (c.nivel || 1) <= n + A.campoAcima - (j.licoes?.acima || 0) && !(fora && fora.has(c.id)) && !(j.tarefas && zonaFechadaEm(j.prog, c.x, c.z)));
     ok.sort((a, b) => (b.nivel || 1) - (a.nivel || 1) || Math.hypot(a.x - j.x, a.z - j.z) - Math.hypot(b.x - j.x, b.z - j.z));
     // a Geada caça perto de casa (os campos do leste, em volta do Juncal); sem campo do nível por lá, vale o de sempre
     if (this.AMIGA.lar) { const C = this.AMIGA.lar, l = ok.filter((c) => Math.hypot(c.x - C.x, c.z - C.z) < 360); if (l.length) ok.splice(0, ok.length, ...l); }
@@ -2155,7 +2157,7 @@ export const Amiga = {
     const guarda = { c: av.c, coleta: av.coleta, noTipo: av.noTipo, dur: av.dur || Math.max(0, (av.ate || 0) - this.tempo) };
     if (falta('couro') > 0) {
       const teto = (j.prog.nivel | 0) + A.campoAcima - (j.licoes?.acima || 0);
-      const l = this.cacas.map((x) => x.def).filter((c) => !c.boss && !c.tunel && terraId(c.x, c.z) === t0 && (c.nivel || 1) <= teto && (c.tipos || [c.bicho]).some((t) => DROPS[t]?.mat?.couro)).sort((x, y) => (y.nivel || 1) - (x.nivel || 1));
+      const l = this.cacas.map((x) => x.def).filter((c) => !c.boss && !c.tunel && (!c.raca || c.raca === (this.AMIGA.raca || 'chama')) && terraId(c.x, c.z) === t0 && (c.nivel || 1) <= teto && (c.tipos || [c.bicho]).some((t) => DROPS[t]?.mat?.couro)).sort((x, y) => (y.nivel || 1) - (x.nivel || 1));
       if (l[0]) { const D = (A.cacar[1]) * 2; Object.assign(av, { barcoK: 'couro', volta: guarda, c: l[0], coleta: null, noTipo: null, fase: 'ir', ate: this.tempo + D, dur: D }); j.ia.viagem = null; return true; }
     } else if (falta('lenha') > 0 && vigorAgora(j.prog.vigor) < 1) { // cortar lenha gasta vigor: sem vigor, pede ao líder no privado
       const L = (this.AMIGA.recruta || this.fixoClaNpc?.(this)) && this.corpoLiderDe?.(this);
@@ -2328,7 +2330,7 @@ export const Amiga = {
   saberAmiga(a, j) {
     // André 2026-11-17 ("e se o lugar não tiver sido destravado por mim?"): só entra campo aberto na história de quem vai
     const aberto = (c, ...ps) => ps.every((p) => !zonaFechadaEm(p, c.x, c.z));
-    const campos = (n, ...ps) => this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (c.nivel || 1) <= n + 2 && aberto(c, ...ps))
+    const campos = (n, ...ps) => this.cacas.map((c) => c.def).filter((c) => !c.boss && !c.tunel && (!c.raca || c.raca === (this.AMIGA.raca || 'chama')) && (c.nivel || 1) <= n + 2 && aberto(c, ...ps))
       .sort((x, y) => (y.nivel || 1) - (x.nivel || 1)).slice(0, 3)
       .map((c) => `${c.nome} (nível ${c.nivel || 1}, ${Math.round(Math.hypot(c.x - a.x, c.z - a.z))} m de você)`).join('; ');
     const preco = (k, nv = j.prog.nivel) => precoLoja(LOJA.find((o) => o.k === k && !o.r), nv) || ITENS[k]?.preco; // sobe com o nível de quem compra (economia 2026-11-16)

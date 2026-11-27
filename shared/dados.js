@@ -2205,6 +2205,28 @@ for (const A of ARENAS_BOSS) {
     visual: { esc: B.esc, cor: B.cor, nome: B.nome, tinta: B.tinta ?? 0.55 }, n: 1 + (B.invoca?.length || 0), tipos: [B.tipo, ...(B.invoca || [])],
     passo: 1, rapido: 1, normal: 1, longe: 0, corpo: 6, ate: 0.15 });
 }
+// Campos da Geada Nv 1 a 30 (André 2026-11-27: "os geadas começam no lado do mapa que já é nível alto... deviam ter
+// alguns mobs que acompanhassem o nível ali da progressão do início, pelo menos até o nível 30. Depois do 30 todo mundo
+// grinda nos mesmos spots"; mapa aprovado: /mnt/project-files/geada-spots/). A mesma escada da Chama (CLAREIRAS: níveis
+// e bichos), a oeste do Juncal: o Nv 1 a ~80 m dele e o nível sobe indo para a divisa. Cada um num chão quase plano
+// já existente, sem árvore, pedra, veio, estrada, trilha, rio, totem nem base de clã bot dentro (a 50 m+ um do outro):
+// o terreno NÃO muda (nada de aplainar nem abrir trilha). raca: 'geada' = bot da Chama não vem caçar aqui (campoAmiga).
+const CAMPOS_GEADA = [
+  { id: 'gcaca1', tipo: 'puglin', nivel: 1, x: 536, z: -36 },
+  { id: 'gcaca2', tipo: 'imp', nivel: 3, x: 556, z: 124 },
+  { id: 'gcaca3', tipo: 'lobo', nivel: 5, x: 472, z: -56 },
+  { id: 'gcaca4', tipo: 'puglin', nivel: 5, x: 376, z: 220 },
+  { id: 'gcaca5', tipo: 'imp', nivel: 10, x: 424, z: -4 },
+  { id: 'gcaca6', tipo: 'lobo', nivel: 10, x: 384, z: 100 },
+  { id: 'gcaca7', tipo: 'puglin', nivel: 15, x: 384, z: -104 },
+  { id: 'gcaca8', tipo: 'imp', nivel: 15, x: 328, z: 144 },
+  { id: 'gcaca9', tipo: 'lobo', nivel: 20, x: 348, z: -20 },
+  { id: 'gcaca10', tipo: 'imp', nivel: 25, x: 332, z: 92 },
+  { id: 'gcaca11', tipo: 'golem', nivel: 28, x: 332, z: -88, chefe: 'warrok' },
+  { id: 'gcaca12', tipo: 'maw', nivel: 30, x: 300, z: 40, chefe: 'warrok' },
+];
+for (const c of CAMPOS_GEADA) CACA.push({ id: c.id, nome: `${NOME_CLAREIRA[c.tipo]} (Juncal)`, nivel: c.nivel, bicho: c.tipo, x: c.x, z: c.z, r: CLAREIRA_R, mundo: true, raca: 'geada',
+  n: 11, tipos: [...Array(10).fill(c.tipo), 'chefe'].map((t) => (t === 'chefe' && c.chefe) || t), passo: 0.35, rapido: 0.3, normal: 1.5, longe: 6, corpo: 2.2, ate: 0.85 });
 // enfeite das arenas (André 2026-11-11: "umas ruínas assim... só para dar uma graça, mas cuidado para não travar"):
 // um portal em ruínas do lado de longe da estrada e dois pilares quebrados, todos FORA da arena (o boss nunca passa da
 // borda e quem está ali já foi largado por ele), então não dá para se esconder atrás nem prender o boss.
