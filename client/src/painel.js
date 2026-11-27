@@ -1467,7 +1467,9 @@ function lutaLeve(raiz, morto, mana) {
   const perto = F.hb && !morto; // tela do jogo (André 2026-11-27: "embaixo sempre vai ficar aparecendo as skills"): sempre, no arco do jogo
   if (!perto) { if (h) h.remove(); golpesEl = null; habChave = ''; return; }
   // as skills são as do jogo (habQ, André 2026-11-27): bs = o básico da arma na mão, e = barra da espada, c = barra do cajado
-  const todas = [F.hb.bs, ...(F.hb.e || []), ...(F.hb.c || []), ...F.hb.l].filter(Boolean);
+  const hq = leve.mapa?.hq || {}, cheia = (o) => o && [o[0], hq[o[0]]?.[0] || o[0], o[1], o[2], hq[o[0]]?.[1] || 'basico']; // [id, recarga, mana] + nome e ícone do leveMapa
+  const bs = cheia(F.hb.bs), be = (F.hb.e || []).map(cheia), bc = (F.hb.c || []).map(cheia);
+  const todas = [bs, ...be, ...bc, ...F.hb.l].filter(Boolean);
   const chave = todas.map((o) => o[0] + o[1] + (o[4] || '')).join('|') + F.hb.mg;
   if (!h || chave !== habChave) {
     if (h) h.remove();
@@ -1477,10 +1479,10 @@ function lutaLeve(raiz, morto, mana) {
     // mago"): a barra da espada no arco de dentro e a do cajado no de fora; rolada e flash junto do joystick
     const S = 0.7, lugar = (b, x, y, r) => { const d = Math.round(r * S * 2.36); b.style.width = b.style.height = d + 'px'; b.style.right = Math.round(x * S + 10 - d / 2) + 'px'; b.style.bottom = Math.round(y * S + 8 - d / 2) + 'px'; };
     const botao = ([id, nome, , , ic], cls) => { const b = el('button', cls); b.dataset.i = id; b.title = nome; b.append(iconeHab(ic, ICONE_HAB[nome] || '✨'), el('span', null, nome), el('b', 'cd')); h.append(b); return b; };
-    if (F.hb.bs) { const b = botao(F.hb.bs, 'grande'); lugar(b, 80, 158, 56); segurarBasico(b, F.hb.bs[0]); } // segurar = bate sem parar, como no jogo
+    if (bs) { const b = botao(bs, 'grande'); lugar(b, 80, 158, 56); segurarBasico(b, bs[0]); } // segurar = bate sem parar, como no jogo
     for (const o of F.hb.l) { const b = botao(o, o[0] === 9 ? 'cura' : ''); if (o[0] === 9) lugar(b, 80, 58, 31); b.onclick = () => { if (!b.classList.contains('espera')) mandar('habilidade', o[0]); }; }
-    (F.hb.e || []).forEach((o, k) => { const b = botao(o, ''), ang = (88 - 27.8 * k) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 150, 158 + Math.sin(ang) * 150, 30); b.onclick = () => { if (!b.classList.contains('espera')) mandar('leveHab', o[0]); }; });
-    (F.hb.c || []).forEach((o, k) => { const b = botao(o, 'mg'), ang = (88 - 15 * k) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 228, 158 + Math.sin(ang) * 228, 25); b.onclick = () => { if (!b.classList.contains('espera')) mandar('leveHab', o[0]); }; });
+    be.forEach((o, k) => { const b = botao(o, ''), ang = (88 - 27.8 * k) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 150, 158 + Math.sin(ang) * 150, 30); b.onclick = () => { if (!b.classList.contains('espera')) mandar('leveHab', o[0]); }; });
+    bc.forEach((o, k) => { const b = botao(o, 'mg'), ang = (88 - 15 * k) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 228, 158 + Math.sin(ang) * 228, 25); b.onclick = () => { if (!b.classList.contains('espera')) mandar('leveHab', o[0]); }; });
     const tr = el('button', 'troca'); tr.title = F.hb.mg ? 'Usar espada' : 'Usar magia'; lugar(tr, 55, 665, 25); tr.append(iconeHab('troca', '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
     tr.onclick = () => mandar('modo', F.hb.mg ? 'Espada' : 'Magia'); h.append(tr);
     // poções (André 2026-11-26): mesmas da mochila e mesma recarga do jogo (o servidor confere); 2026-11-27 numa coluna na

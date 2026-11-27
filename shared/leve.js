@@ -274,7 +274,8 @@ export const Leve = {
     // as clareiras de caça [x, z, nível, bicho, boss] e as zonas de mineração [x, z, tipo]
     const cc = CACA.filter((c) => !c.tunel && Number.isFinite(c.x)).map((c) => [r1(c.x), r1(c.z), c.nivel | 0, c.bicho || '', c.boss ? 1 : 0]);
     const mn = (this.mapa.mina || []).map((o) => [r1(o.x), r1(o.z), o.tipo || '']);
-    return { npcs, totens, loja, baus, lug: this.leveLugares(j), cc, mn };
+    const hq = Object.fromEntries(Object.entries(HABS).map(([k, H]) => [k, [H.nome, H.icone || (H.arvore === 'cajado' ? 'magia' : 'basico')]])); // nome e ícone das skills do jogo (habLeve)
+    return { npcs, totens, loja, baus, lug: this.leveLugares(j), cc, mn, hq };
   },
   // a lista "Lugares" do mapa (André 2026-11-25: "menu igual do jogo real com todos os NPCs, recursos, mercadores, e
   // sanfonado, que pudesse clicar ir para"): as mesmas seções do mapa do jogo (minimapa.gd SECOES). [seção, nome, x, z].
@@ -558,9 +559,9 @@ export const Leve = {
   habLeve(j) {
     // 2026-11-27 (André: "uso o meteoro e os bichos continuam lá... no jogo normal evaporo"): o leve usava as skills antigas
     // (msg 'habilidade', dano fixo pequeno); o jogo usa as do Quimera (msg 'habQ': HABS, barras da espada e do cajado, dano
-    // pelo status e pelo nível da skill). Agora são as MESMAS do jogo: [id, nome, recarga s, mana, ícone] por barra.
+    // pelo status e pelo nível da skill). Agora são as MESMAS do jogo: [id, recarga s, mana] por barra.
     const mg = j.modo === 'Magia', l = [], um = (i, chave, h) => { if (h) l.push([i, h.nome, Math.max(0, Math.ceil((j.cds[chave] || 0) - this.tempo)), h.mana || 0, chave]); };
-    const q = (id) => { const H = HABS[id]; return H && (H.libera || 1) <= (j.prog.nivel | 0) ? [id, H.nome, Math.max(0, Math.ceil(((j.cds[id] || 0) - this.tempo) * 10) / 10), H.mana || 0, H.icone || (H.arvore === 'cajado' ? 'magia' : 'basico')] : null; };
+    const q = (id) => { const H = HABS[id]; return H && (H.libera || 1) <= (j.prog.nivel | 0) ? [id, Math.max(0, Math.ceil(((j.cds[id] || 0) - this.tempo) * 10) / 10), H.mana || 0] : null; }; // nome e ícone vão uma vez só no leveMapa (hq): a foto fica pequena
     const bs = q(mg ? 'cajado_basico' : 'espada_basico');
     const visto = new Set(), barra = (b) => (j.prog.barras?.[b] || []).filter((id) => id && !visto.has(id) && visto.add(id)).map(q).filter(Boolean);
     const [e, c] = BARRAS.map(barra);
