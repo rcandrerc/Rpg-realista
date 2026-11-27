@@ -80,13 +80,12 @@ export const golpeHeroiNivel = (nv, nh, N) => {
 
 // Números do herói a partir do nível, dos atributos e do equipamento (nível 1 com tudo em 3 e sem nada = vida 120, mana 100, dano 10)
 export function calcularStatus(p, passivas = {}) {
-  const a = p.atr, n = p.nivel, eq = bonusEquip(p.equip, a), ti = bonusTitulo(p); // ti: título em uso (TITULOS)
+  const a = p.atr, n = p.nivel, eq = bonusEquip(p.equip, a, p.ct ? COMBATE_TESTE.armadura : null), ti = bonusTitulo(p); // ti: título em uso (TITULOS)
   const co = bonusComida(p); // co: buff da comida (André 2026-11-24)
   const bq = p.banq?.ate > Date.now() ? JANTAR.buff.dano : 0; // Banquete do clã: o líder que sentou no jantar (André 2026-11-25); soma com a comida
   const nivelK = 1 + 0.08 * (n - 1);
   // combate de teste (COMBATE_TESTE, só a conta do André com o botão ligado): arma multiplica, armadura x2
   const CT = p.ct ? COMBATE_TESTE : null;
-  if (CT) { eq.vida *= CT.armadura; eq.defesa *= CT.armadura; }
   const multCT = (armaDano) => (CT.base + CT.arma * armaDano) / CT.ref;
   const def = (a.for + (passivas.pele_pedra ? 3 : 0) + eq.defesa) * (1 + (ti.defesa || 0) + (co.defesa || 0));
   return {
@@ -191,13 +190,15 @@ export function pecasDoConjunto(equip = {}) {
   return RARIDADES.map((_, i) => lugares.filter((x) => x >= i).length);
 }
 // Soma das peças e do bônus de conjunto (o melhor de 2, 3 e 6 peças)
-export function bonusEquip(equip = {}, atr = null) {
+// armaduraK (combate de teste, COMBATE_TESTE.armadura): vida e defesa de cada peça vezes armaduraK[raridade]
+export function bonusEquip(equip = {}, atr = null, armaduraK = null) {
   const b = { vida: 0, mana: 0, defesa: 0, critico: 0, danoCritico: 0, danoFisico: 0, danoMagico: 0, danoK: 0, areaK: 0, regenManaK: 0 };
   for (const l of LUGARES) {
     const it = equip?.[l]; if (!it || !ITENS[it.k] || quebrado(it)) continue; // quebrada: sem bônus até consertar
     if (atr && !reforcoOk(it, atr)) continue; // como no Quimera: reforçada além do seu atributo não dá bônus
     const rk = reforcoK(it);
-    for (const [c, v] of Object.entries(ITENS[it.k].st)) b[c] += v[it.r] * (c === 'critico' || c === 'danoCritico' ? rk.critico : rk.st);
+    const ak = armaduraK ? armaduraK[it.r] ?? 1 : 1;
+    for (const [c, v] of Object.entries(ITENS[it.k].st)) b[c] += v[it.r] * (c === 'critico' || c === 'danoCritico' ? rk.critico : rk.st) * (c === 'vida' || c === 'defesa' ? ak : 1);
   }
   const n = pecasDoConjunto(equip || {});
   // o CONJUNTO antigo (vida/mana, dano, área...) não vale mais (André 2026-11-17, remoção aprovada: "remove os bônus
