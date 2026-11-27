@@ -37,6 +37,6 @@ ok(/acao === 'jantar' \? \{ sub:/.test(src), 'servidor: a mensagem cla do jantar
 ok(src.includes("'forno', 'jantarInfo'"), 'servidor: forno e jantarInfo vão para o leve');
 void P;
 // a barra da missão da vez (missao_ativa.gd): texto e o Ir até onde se faz
-const b = s.adicionarJogador('B', 'Bia', undefined, { conta: 2 }); b.criando = false; b.leve = true; s.passo(1 / 20);
+const b = s.adicionarJogador('B', 'Bia', undefined, { conta: 2 }); b.criando = false; b.leve = true; b.prog.hist = { v: 2, p: 0, ac: false, e: 0, n: 0, m: 0 }; s.passo(1 / 20);
 const mv = s.fotoLeve(b).mv;
 ok(mv && /^Cap\. 1/.test(mv[0]) && mv[1] && Number.isFinite(mv[3]), `missão da vez com o Ir (${JSON.stringify(mv)})`);
