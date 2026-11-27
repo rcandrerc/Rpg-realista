@@ -2,12 +2,12 @@
 // O cliente também consegue rodá-la sozinho (modo solo) quando não há servidor.
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
-import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, moverQtd, pilhasIguais, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos, fatorDropNivel } from './progresso.js';
+import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, moverQtd, pilhasIguais, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos, fatorDropNivel, desgasteGolpe } from './progresso.js';
 import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, curaDe, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, totemMaisPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado, patenteDe, pontosGuerra } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
 import { Transporte, carrinhoNovo, topoCarrinho, lugarDoVeiculo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
-import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo, IA_CONVERSA, LIDERES_CLA } from './dados.js';
+import { PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo, IA_CONVERSA, LIDERES_CLA, COMBATE_TESTE } from './dados.js';
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
 import { zonaFechadaEm, textoNevoa, nomeLibera, liberado, motivoLibera, missaoAtual, liberaNoNivel, histNova, etapasDe, etapaAtual, casaEtapa, totalEtapa, capituloDe, primeiraDoCap, ultimaDoCap, capFeito, npcApareceu } from './historia.js'; // progressão (André 2026-11-10)
 import { BOSSES_MUNDO, COMBATE_BOSS, DROP_BOSS, VISAO } from './dados.js'; // bosses de mundo (André 2026-11-11)
@@ -485,7 +485,7 @@ export class Simulacao {
   }
   // opcoes.podeCriar: personagem ainda não foi criado (o criador abre uma vez só); opcoes.aparencia: a que já foi criada
   // opcoes.progresso: nível, atributos e skills guardados na conta (shared/progresso.js)
-  adicionarJogador(id, nome, visual, { podeCriar = false, aparencia = null, progresso = null, testador = false, conta = null, robo = false } = {}) {
+  adicionarJogador(id, nome, visual, { podeCriar = false, aparencia = null, progresso = null, testador = false, conta = null, robo = false, combateTeste = false } = {}) {
     const n = this.mapa.nascimento;
     const j = this.novoCorpo({ id, tipo: 'jogador', nome: nome || 'Andarilho', x: n.x + (Math.random() - 0.5) * 3, z: n.z + (Math.random() - 0.5) * 3,
       vida: HEROI.vida, vidaMax: HEROI.vida, mana: HEROI.mana, build: [...BUILD_PADRAO], cds: {}, entrada: { mx: 0, mz: 0, correr: false },
@@ -494,6 +494,10 @@ export class Simulacao {
     if (aparencia) j.aparencia = aparenciaValida(aparencia);
     j.conta = conta != null ? 'c' + conta : 'n:' + j.nome; // dono do lote (sem contas: o nome)
     j.prog = progressoValido(progresso);
+    // combate de teste (COMBATE_TESTE, André 2026-11-27): só o robô de testes. Na primeira entrada com a marca nova ele
+    // zera tudo (nível, itens, ouro, skills) e começa do Nv 1, com a história dada como feita (sem névoa, só grind) e
+    // todos os totens (ele não sabe barco nem navio). André: 'não tem mais trava da névoa... é só grind'
+    if (combateTeste) { if (j.prog.ctz !== COMBATE_TESTE.zerar) { j.prog = progressoValido(null); j.prog.ctz = COMBATE_TESTE.zerar; j.prog.hist = { ...histNova(), p: HISTORIA.length }; j.prog.totens = TOTENS.lista.map((t) => t.id); j.progSujo = true; } j.prog.ct = 1; const U = COMBATE_TESTE.upgrade; if (U?.v && j.prog.ctu !== U.v) { for (const [l, it] of Object.entries(U.equip || {})) { const v = itemValido(it); if (v && LUGARES.includes(l) && ITENS[v.k].lugar === l) j.prog.equip[l] = v; } j.prog.ctu = U.v; j.progSujo = true; } } else delete j.prog.ct; // upgrade manual (COMBATE_TESTE.upgrade)
     if (j.prog.modo === 'Magia') j.modo = 'Magia'; // entra com a arma da última vez (André 2026-11-24)
     if (testador && CONTA_TESTE.paginas) liberarPaginas(j.prog, MOCHILA_PAGINAS); // conta de teste do André: as 4 páginas da mochila liberadas
     else if (testador && j.prog.devPag !== CONTA_TESTE.devolver) { devolverPaginas(j.prog); j.prog.devPag = CONTA_TESTE.devolver; } // André 2026-11-11: compra como todo mundo
@@ -4167,6 +4171,10 @@ export class Simulacao {
     if (alvo.defesa > 0) n *= 1 - alvo.defesa;
     n = Math.max(1, Math.round(n));
     if (nvM) n = Math.max(1, Math.min(n, Math.round(alvo.vidaMax * tetoMonstroNivel(nvM, alvo.prog?.nivel, de.tipo === 'chefe' || !!TIPOS_INIMIGO[de.tipo]?.chefe || !!de.bm, NIVEL_INIMIGO))));
+    if (nvM && alvo.prog?.ct && !alvo.bot) { // combate de teste (COMBATE_TESTE): golpe de monstro gasta o equipamento aos poucos
+      const q = desgasteGolpe(alvo.prog);
+      if (q) { this.aplicarStatus(alvo); this.avisarProg(alvo); if (q.length) this.evento({ t: 'aviso', para: alvo.id, texto: `Quebrou: ${q.join(', ')}. Leve ao Tomás para consertar.` }); }
+    }
     if (alvo.escudo && alvo.escudo.ate > this.tempo) { // Escudo Arcano segura primeiro
       const seg = Math.min(alvo.escudo.n, n); alvo.escudo.n -= seg; n -= seg;
       if (alvo.escudo.n <= 0) { alvo.escudo = null; this.evento({ t: 'escudo', id: alvo.id, n: 0, dur: 0 }); }
