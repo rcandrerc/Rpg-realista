@@ -25,6 +25,7 @@ import { VOLTA_VILA } from '../../shared/index.js'; // casinha (ronda 2026-11-25
 import { liberado, zonaFechadaEm, motivoLibera } from '../../shared/historia.js';
 import { CATALISADOR, RECEITA_ESTACAO } from '../../shared/dados.js'; // evoluir na bigorna/bancada (combate de teste)
 import { taxaTotem } from '../../shared/dados.js'; // o preço da viagem de totem (ronda 2026-11-27: sem ouro, vai pela casinha)
+import { dentroDoMapa } from '../../shared/mapa.js'; // puxar pela borda: o ponto de puxar precisa dar para pisar (2026-11-27)
 
 // ---------- opções ----------
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
@@ -70,7 +71,7 @@ const R = {
 };
 // combate de teste: uma linha por nível que subiu neste turno ({ nv, min do turno, mortes e ouro até ali, equipamento
 // 'lugar raridade+reforço durabilidade') e os reforços (tentativas, deu certo, ouro)
-if (COMBATE) R.combate = { niveis: [], reforco: { tentativas: 0, ok: 0, ouro: 0 }, drops: {}, vestiu: [] };
+if (COMBATE) R.combate = { niveis: [], reforco: { tentativas: 0, ok: 0, ouro: 0 }, drops: {}, vestiu: [], puxadas: { n: 0, juntos: 0, falhou: 0 }, descansos: { n: 0, seg: 0, interrompidos: 0 } }; // puxadas/descansos: puxar pela borda (2026-11-27)
 // alerta para o relatório (André: "quando começar a morrer com frequência ou ficar muito lento"): 6+ mortes na última
 // hora, ou o último nível levou mais que o dobro da média dos 3 de antes. Fica a última hora em que valeu.
 const mortesT = [];
@@ -84,9 +85,9 @@ function alertaCombate() {
   if (motivo) { R.combate.alerta = { nv: prog.nivel, min, motivo, eq: fotoEquip(prog.equip) }; R.problemas = R.problemas.filter((p) => !p.startsWith('Combate de teste: precisa de upgrade?')); problema(`Combate de teste: precisa de upgrade? Nv ${prog.nivel}, ${motivo}`); }
 }
 // por nível (thread do robô, André: "qual o mob que ele grindou e o nível do mob... quantos minutos ele parou, quantos
-// grindou real"): cur junta o nível de agora; t = minutos por estado { caca, anda, morto, para, fora } (a soma fecha com o
+// grindou real"): cur junta o nível de agora; t = minutos por estado { caca, anda, morto, para, fora, desc } (a soma fecha com o
 // tempo do nível); R.combate.t = o mesmo somado no turno
-const tNovo = () => ({ caca: 0, anda: 0, morto: 0, para: 0, fora: 0 });
+const tNovo = () => ({ caca: 0, anda: 0, morto: 0, para: 0, fora: 0, desc: 0 }); // desc: descansando para recuperar a vida (puxar pela borda, 2026-11-27)
 let cur = { mobs: {}, xp: 0, abates: 0, t: tNovo(), campos: {}, drops: {} }, estadoT = Date.now();
 if (COMBATE) R.combate.t = tNovo();
 function contarEstado(estado, campo) {
@@ -272,9 +273,10 @@ function irPara(x, z, perto = 1.5) {
 }
 let bloqueio = '', reto = false;
 function andar(dt) {
+  const k = velK; velK = 1; // velK: o combate de teste recua devagar depois de puxar (passoBorda)
   if (coletando && Date.now() - coletando > 25000) coletando = 0; // a coleta acabou sem aviso (etapa pulada, veio esgotado): volta a andar
   if (!rota?.length || eu.morto || coletando) return false;
-  let resta = velocidade() * dt;
+  let resta = velocidade() * dt * k;
   while (resta > 0 && rota.length) {
     const p = rota[0], d = d2(eu, p);
     const final = rota.length === 1, para = final ? Math.max(0, destino.perto * 0.6) : 0;
@@ -303,8 +305,8 @@ function alvoPerto(raio = 30, treino = false, serve = null) { // serve(e): só o
   }
   return b;
 }
-function lutar(e, agora) {
-  if (d2(eu, e) > 1.8) { irPara(e.x, e.z, 1.4); return; }
+function lutar(e, agora, alcance = 1.8, borda = false) { // alcance: o golpe pega até 2,3 m; borda: puxando pela borda (não avança para dentro do campo)
+  if (d2(eu, e) > alcance) { irPara(e.x, e.z, 1.4); return; }
   parar();
   eu.ry = Math.atan2(e.x - eu.x, e.z - eu.z);
   atacados.add(e.id); if (!atacouT.has(e.id)) atacouT.set(e.id, performance.now());
@@ -312,7 +314,7 @@ function lutar(e, agora) {
   // 2026-11-16: morreu 40 vezes num turno (perdeu milhares de ouro no Pedra-Viva) sem tomar poção nenhuma
   if (eu.vida < eu.vidaMax * 0.35 && agora - pocaoT > 6000) { const i = (prog?.mochila || []).findIndex((o) => o && o.k === 'pocao'); if (i >= 0) { pocaoT = agora; R.luta.pocoes++; acao('item', { acao: 'usar', i }); return; } }
   if (agora - skillT > 1500 && prog?.barras?.espada) {
-    const l = prog.barras.espada.filter((k) => k && (HABS[k]?.libera || 0) <= (prog.nivel || 1) && !(eu.mana < (HABS[k]?.mana || 0))); if (l.length) { skillT = agora; mandar('habQ', l[Math.floor(Math.random() * l.length)]); return; }
+    const l = prog.barras.espada.filter((k) => k && (HABS[k]?.libera || 0) <= (prog.nivel || 1) && !(eu.mana < (HABS[k]?.mana || 0)) && !(borda && HABS[k]?.dash)); if (l.length) { skillT = agora; mandar('habQ', l[Math.floor(Math.random() * l.length)]); return; }
   }
   if (agora - golpeT > 450) { golpeT = agora; mandar('habQ', 'espada_basico'); }
 }
@@ -393,7 +395,8 @@ function contaZerada(de) {
   camposRuins.clear(); terraFalhou.clear(); perigosoAte.clear(); faltaAvisada.clear(); mortesCampo.length = 0;
   if (!COMBATE) return;
   R.combate.zerou = { min: Math.round((Date.now() - R.inicio) / 60e3), de, nv: prog.nivel, mortes: R.mortes };
-  Object.assign(R.combate, { niveis: [], reforco: { tentativas: 0, ok: 0, ouro: 0 }, drops: {}, vestiu: [], t: tNovo() });
+  Object.assign(R.combate, { niveis: [], reforco: { tentativas: 0, ok: 0, ouro: 0 }, drops: {}, vestiu: [], t: tNovo(), puxadas: { n: 0, juntos: 0, falhou: 0 }, descansos: { n: 0, seg: 0, interrompidos: 0 } });
+  puxa = null; descansando = false; descansoP = null; naBorda = false; bordaCampo = null; naoPuxa.clear();
   delete R.combate.alerta; delete R.consertos;
   R.problemas = R.problemas.filter((p) => !p.startsWith('Combate de teste:'));
   cur = { mobs: {}, xp: 0, abates: 0, t: tNovo(), campos: {}, drops: {} }; mortesT.length = 0;
@@ -424,6 +427,132 @@ function campoCombate(agora, podeViajar) {
   if (casinha(agora, `nenhum campo até o Nv ${nv} em ${minha}`)) return true;
   parar(); return false; // recarga: espera parado (briga só com o que encostar)
 }
+// ---------- combate de teste: puxar pela borda e descansar (André 2026-11-27: "ensina sim", com o robô zerado de novo) ----------
+// Bicho sem alvo vem no herói mais perto a até 14 m (simulacao.js passoInimigo: maisPerto(b, 14)) e todos batem juntos
+// (aoMesmoTempo 99). Entrando no meio do campo, os 11 vinham de uma vez: Nv 21-30 morrendo ~30 vezes por hora. Agora faz
+// como o jogador: chega pela borda e puxa um bicho por vez. Os bichos ficam parados em casa, então dá para ver antes por
+// onde ir: anda reto até o primeiro ponto em que um bicho fica a 13,2 m, e só vai se esse primeiro for um bicho do nível
+// do campo e o segundo mais perto ficar a 14,6 m ou mais (só um vem). Lá, dá uns passos para trás devagar (o bicho segue
+// e a briga fica longe dos outros) e espera ele chegar. Sem nada vindo e com menos de metade da vida, sai uns metros para
+// fora e descansa até 90%. Não foge de briga começada (as mortes são o que o teste mede)
+const DEPURA = !!process.env.ROBO_DEPURA; // conta cada puxão no log (teste local)
+const PARA = 13.2, LIVRE = 14.6, VEM = 13.5; // VEM: a menos disso o bicho já está vindo (ele para a 13,2 m do puxado)
+let puxa = null, descansando = false, descansoT = 0, descansoP = null, velK = 1; // velK: andar devagar (o recuo do puxão)
+const naoPuxa = new Map(); // id -> até quando (não deu para puxar)
+let naBorda = false, bordaCampo = null; // perto do campo: entra a r + 14 m do centro e sai a r + 20 m (sem ir e vir na divisa)
+const pisavel = (p, m = 0.8) => dentroDoMapa(MAPA_CLAREIRA, p.x, p.z, m);
+// anda reto de eu até a: o primeiro ponto em que algum bicho fica a menos de PARA (null = ninguém no caminho todo)
+function primeiroNoCaminho(a, lista) {
+  const n = Math.max(1, Math.ceil(d2(eu, a) / 0.25));
+  for (let i = 0; i <= n; i++) {
+    const p = { x: eu.x + (a.x - eu.x) * i / n, z: eu.z + (a.z - eu.z) * i / n };
+    let d1 = 1e9, o1 = null, dSeg = 1e9;
+    for (const o of lista) { const d = d2(p, o); if (d < d1) { dSeg = d1; d1 = d; o1 = o; } else if (d < dSeg) dSeg = d; }
+    if (d1 < PARA) return { p, o: o1, folga: dSeg, i, n };
+    if (i % 8 === 4 && !pisavel(p, 0.3)) return null; // o caminho sai do chão do mapa (mata fechada)
+  }
+  return null;
+}
+// mira pontos a 12,9 m do bicho, começando pelo lado em que o robô está e abrindo de 15 em 15 graus. O ponto de parar
+// fica a minDc m do centro ou mais: no teste local ele ia puxando cada vez mais para dentro (do 20,7 m ao 6,4 m do centro)
+// e lá todo bicho que renasce (1,5 s depois de cada morte, em qualquer canto do campo) já vinha nele
+function planoPuxar(m, lista, c, minDc) {
+  const a0 = Math.atan2(eu.z - m.z, eu.x - m.x); let melhor = null;
+  for (let k = 0; k <= 6; k++) for (const s of k ? [1, -1] : [1]) {
+    const a = a0 + s * k * Math.PI / 12, alvo = { x: m.x + Math.cos(a) * 12.9, z: m.z + Math.sin(a) * 12.9 };
+    const r = primeiroNoCaminho(alvo, lista);
+    if (!r || r.o !== m || d2(r.p, c) < minDc || !pisavel(r.p)) continue;
+    if (!melhor || r.folga > melhor.folga) melhor = r;
+    if (r.folga >= LIVRE) return melhor;
+  }
+  return melhor;
+}
+function irReto(x, z, perto = 0.8) { // perto do campo: reto (as árvores só desviam), sem refazer a rota a cada passo
+  if (Math.hypot(eu.x - x, eu.z - z) <= perto) { parar(); return true; } // chegou: fica parado (não "corre" no lugar)
+  if (!destino || Math.hypot(destino.x - x, destino.z - z) > 0.5 || destino.perto !== perto || !rota?.length) { destino = { x, z, perto }; rota = [{ x, z }]; }
+  return false;
+}
+function fimDescanso(agora, interrompido = false) { // conta o tempo descansando (R.combate.descansos)
+  if (!descansando) return;
+  descansando = false; descansoP = null; R.combate.descansos.seg += Math.round((agora - descansoT) / 1000); if (interrompido) R.combate.descansos.interrompidos++;
+}
+function curarParado(agora) { // a cura (skill 9) acelera o descanso, como o jogador faz
+  if (eu.vida < eu.vidaMax * 0.9 && eu.mana >= CURA.mana && agora - curaT > CURA.cd * 1000) { curaT = agora; R.luta.curas++; mandar('habilidade', 9); }
+}
+// true = cuidou deste passo (briga, espera, puxa ou descansa); false = ainda longe do campo (anda até ele pela rota)
+function passoBorda(agora, c) {
+  if (bordaCampo !== c) { bordaCampo = c; naBorda = false; puxa = null; }
+  const R0 = c.r || 12;
+  naBorda = d2(eu, c) <= R0 + (naBorda ? 20 : 14);
+  if (!naBorda) { fimDescanso(agora); puxa = null; return false; }
+  const lista = []; for (const o of inimigos.values()) if (!o.morto && !NOMES_TREINO.has(o.nome) && !NOMES_BOSS.has(o.nome)) lista.push(o);
+  // 1) o que já vem nele (a menos de 13,5 m): briga com o mais perto. Espera ele chegar (ir para cima leva ao meio do campo);
+  // logo depois de puxar, recua devagar pelo caminho por onde veio
+  let e = null, md = 1e9;
+  for (const o of lista) { const d = d2(eu, o); if (d < VEM && d < md) { md = d; e = o; } }
+  if (e) {
+    fimDescanso(agora, true);
+    if (!puxa?.vem || puxa.vem !== e.id) {
+      puxa = { campo: c, vem: e.id, desde: agora, recuo: puxa?.recuo && puxa.alvo === e.id ? puxa.recuo : null };
+      if (DEPURA) log(`vem ${e.nome} Nv ${e.nivel} a ${md.toFixed(1)} m; vindo: ${lista.filter((o) => d2(eu, o) < VEM).length}, vida ${Math.round(eu.vida / eu.vidaMax * 100)}%, ele a ${d2(eu, c).toFixed(1)} m do centro${puxa.recuo ? ' (recua)' : ''}`);
+    }
+    if (md <= 2.2) puxa.perto = agora;
+    // ir até onde o bicho está não chega a 14,6 m de outro (que ainda não vem): aí vai atrás e usa todas as skills, até o dash
+    const seguro = lista.every((o) => o === e || d2(eu, o) < VEM || d2(o, e) >= LIVRE);
+    if (seguro && md <= 5 && puxa.perto) { lutar(e, agora, 2.2); return true; }
+    // senão, longe do golpe: espera ele voltar (empurrado pelo golpe, ele volta sozinho; ir atrás leva para o meio do campo)
+    if (md > 2.2 && agora - Math.max(puxa.desde, puxa.perto || 0) < 6000) {
+      if (eu.vida < eu.vidaMax * 0.4) curarParado(agora);
+      if (puxa.recuo && md > 4 && !irReto(puxa.recuo.x, puxa.recuo.z, 0.5)) { velK = 0.35; return true; }
+      parar(); eu.ry = Math.atan2(e.x - eu.x, e.z - eu.z); return true;
+    }
+    lutar(e, agora, 2.2, !seguro); return true; // chegou (ou não veio em 6 s: vai nele)
+  }
+  if (puxa?.vem) puxa = null;
+  // 2) nada vindo: com menos de metade da vida, sai uns metros para fora do campo e descansa até 90%
+  if (descansando || eu.vida < eu.vidaMax * 0.5) {
+    if (!descansando) {
+      descansando = true; descansoT = agora; R.combate.descansos.n++; if (DEPURA) log(`descansa com ${Math.round(eu.vida / eu.vidaMax * 100)}% da vida`);
+      const dx = eu.x - c.x, dz = eu.z - c.z, L = Math.hypot(dx, dz) || 1, p = { x: eu.x + dx / L * 5, z: eu.z + dz / L * 5 };
+      descansoP = pisavel(p, 1) && lista.every((o) => d2(p, o) > d2(eu, o)) ? p : null;
+    }
+    if (eu.vida >= eu.vidaMax * 0.9) fimDescanso(agora);
+    else { if (!descansoP || irReto(descansoP.x, descansoP.z)) { descansoP = null; parar(); } curarParado(agora); return true; }
+  }
+  // 3) puxa um: o bicho do nível do campo (até o dele) mais perto que dá para puxar sozinho
+  for (const [k, ate] of naoPuxa) if (ate < agora) naoPuxa.delete(k);
+  if (puxa?.alvo) {
+    const m = inimigos.get(puxa.alvo);
+    if (m && !m.morto && agora - puxa.desde < 15000) { irReto(puxa.x, puxa.z, 0.4); return true; }
+    if (m && !m.morto) { naoPuxa.set(m.id, agora + 60e3); R.combate.puxadas.falhou++; }
+    puxa = null;
+  }
+  const nvC = c.nivel || 1, nvMax = Math.max(prog?.nivel || 1, nvC);
+  const cands = lista.filter((m) => (m.nivel || 1) >= nvC && (m.nivel || 1) <= nvMax && d2(m, c) <= R0 + 3 && !naoPuxa.has(m.id))
+    .sort((a, b) => d2(eu, a) - d2(eu, b)).slice(0, 6);
+  // dentro do campo sem nada vindo (o campo em volta dele morreu): volta para a borda antes de puxar de novo
+  const dc = d2(eu, c);
+  if (dc < R0 + 6) {
+    const k = (R0 + 7) / (dc || 1), fora = { x: c.x + (eu.x - c.x) * k, z: c.z + (eu.z - c.z) * k };
+    if (dc > 0.5 && pisavel(fora, 1) && !primeiroNoCaminho(fora, lista)) { irReto(fora.x, fora.z); return true; }
+  }
+  let melhor = null;
+  for (const minDc of [R0 + 6, R0 + 3, R0]) { // da borda de fora; sem ninguém para puxar de lá, um pouco mais para dentro
+    for (const m of cands) { const r = planoPuxar(m, lista, c, minDc); if (r && (!melhor || r.folga > melhor.folga)) melhor = { ...r, m }; if (melhor?.folga >= LIVRE) break; }
+    if (melhor) break;
+  }
+  if (!melhor) { // ninguém para puxar daqui: chega mais perto pela rota (o caminho reto saía do mapa) ou espera o campo renascer
+    if (cands.length && dc > R0 + 8) { irPara(c.x, c.z, R0 + 6); return true; }
+    parar(); return true;
+  }
+  const volta = { x: eu.x - melhor.p.x, z: eu.z - melhor.p.z }, L = Math.hypot(volta.x, volta.z);
+  const recuo = L > 0.5 ? { x: melhor.p.x + volta.x / L * Math.min(3, L), z: melhor.p.z + volta.z / L * Math.min(3, L) } : null;
+  puxa = { campo: c, alvo: melhor.m.id, x: melhor.p.x, z: melhor.p.z, desde: agora, recuo };
+  R.combate.puxadas.n++; if (melhor.folga < LIVRE) R.combate.puxadas.juntos++;
+  if (DEPURA) log(`puxa ${melhor.m.nome} Nv ${melhor.m.nivel} a ${d2(eu, melhor.m).toFixed(1)} m, o 2º fica a ${melhor.folga.toFixed(1)} m`);
+  irReto(melhor.p.x, melhor.p.z, 0.4); return true;
+}
+
 // podeViajar: só quando ele caça para subir de nível (sem missão do nível, --cacar); caçando no meio de uma etapa ele
 // fica na terra dele (senão ia e voltava entre a terra da etapa e a do campo)
 function cacar(agora, podeViajar = false) {
@@ -439,17 +568,17 @@ function cacar(agora, podeViajar = false) {
   // chegava ao campo do nível. Agora: só o que está no campo, ou o que encosta nele (até 5 m) no caminho
   let e;
   if (COMBATE && !CAMPO && campoCaca) {
+    // campo onde ficou 10 min sem ganhar XP (caminho travado, nenhum bicho para puxar): fica de fora neste turno
+    if ((prog?.xp ?? -1) !== campoXp) { campoXp = prog?.xp ?? -1; campoXpT = agora; }
+    else if (agora - campoXpT > 10 * 60e3) { camposRuins.add(campoCaca.nome); log('campo sem XP há 10 min, troca:', campoCaca.nome); campoCaca = null; campoXpT = agora; puxa = null; fimDescanso(agora); return; }
+    // perto do campo: puxa pela borda, briga e descansa (passoBorda)
+    if (passoBorda(agora, campoCaca)) return;
     // ronda 2026-11-27, 2º turno: a Clareira dos Lobos Nv 20 fica a 36 m da dos Puglins Nv 15 e, com "o que estiver a 40 m
-    // do campo", ele matou 121 Puglins Nv 15 nos Nv 20 e 21 (André: "sempre grinde no nível do mob que ele é"). Agora só
-    // puxa bicho do nível do campo até o dele. O que encosta (5 m) ele enfrenta se for do nível do campo ou mais forte,
-    // e qualquer um com menos de metade da vida. O mais fraco encostado não segura (senão o Puglin Nv 1 do campo velho
-    // não deixava ele sair)
-    const nvC = campoCaca.nivel || 1, nvMax = Math.max(prog?.nivel || 1, nvC);
-    e = alvoPerto(40, false, (m) => {
-      const n = m.nivel || 1;
-      if (n >= nvC && n <= nvMax && d2(m, campoCaca) <= 40) return true;
-      return d2(eu, m) <= 5 && (n >= nvC || eu.vida <= eu.vidaMax * 0.5);
-    });
+    // do campo", ele matou 121 Puglins Nv 15 nos Nv 20 e 21 (André: "sempre grinde no nível do mob que ele é"). No caminho
+    // até o campo ele só enfrenta o que encosta (5 m) se for do nível do campo ou mais forte, e qualquer um com menos de
+    // metade da vida. O mais fraco encostado não segura (senão o Puglin Nv 1 do campo velho não deixava ele sair)
+    const nvC = campoCaca.nivel || 1;
+    e = alvoPerto(5, false, (m) => (m.nivel || 1) >= nvC || eu.vida <= eu.vidaMax * 0.5);
   } else {
     e = alvoPerto(campoCaca ? 40 : 18);
     if (e && campoCaca && d2(e, campoCaca) > 40 && d2(eu, e) > 5) e = null;
@@ -461,7 +590,7 @@ function cacar(agora, podeViajar = false) {
   if (CAMPO) campoCaca = CAMPO;
   // ronda 2026-11-18: no Nv 53 (c14) passou 45 min sem XP; o campo Nv 52 fica na Ilha do Meio (sem barco não chega).
   // Campo onde ficou 10 min sem ganhar XP (no caminho ou lá) fica de fora neste turno e ele escolhe outro
-  if (campoCaca && !CAMPO) {
+  if (campoCaca && !CAMPO && !COMBATE) { // o combate de teste confere lá em cima
     if ((prog?.xp ?? -1) !== campoXp) { campoXp = prog?.xp ?? -1; campoXpT = agora; }
     else if (agora - campoXpT > 10 * 60e3) { camposRuins.add(campoCaca.nome); log('campo sem XP há 10 min, troca:', campoCaca.nome); campoCaca = null; campoXpT = agora; }
   }
@@ -928,7 +1057,7 @@ async function main() {
     if (!sala || !eu.pronto) { contarEstado('fora'); continue; }
     if (agora - pingT > 2000) { pingT = agora; mandar('ping', Math.round(performance.now())); } // número pequeno, como o app (Date.now() vira inteiro de 64 bits)
     let estado = eu.morto ? 'morto' : 'para';
-    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !consertar(agora) && !pontosLivres(agora) && !evoluirEquip(agora) && !reforcarEquip(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora, true); else missao(agora); estado = campoCaca && !cacaViagem && d2(eu, campoCaca) < 40 && eu.vida > eu.vidaMax * 0.5 ? 'caca' : 'anda'; } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
+    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !consertar(agora) && !pontosLivres(agora) && !evoluirEquip(agora) && !reforcarEquip(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora, true); else missao(agora); estado = COMBATE && descansando && campoCaca ? 'desc' : campoCaca && !cacaViagem && d2(eu, campoCaca) < 40 && (COMBATE || eu.vida > eu.vidaMax * 0.5) ? 'caca' : 'anda'; } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
     contarEstado(estado, campoCaca ? `${campoCaca.nome} Nv ${campoCaca.nivel || 1}` : '');
     const andou = andar(dt);
     mandar('pos', { x: +eu.x.toFixed(3), y: +eu.y.toFixed(3), z: +eu.z.toFixed(3), ry: +eu.ry.toFixed(3), anim: andou ? 'correr' : 'parado', c: corrSeq });
