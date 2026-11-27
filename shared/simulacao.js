@@ -3,7 +3,7 @@
 import { Terreno, rampasTelhado } from './terreno.js';
 import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, moverQtd, pilhasIguais, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos, fatorDropNivel, desgasteGolpe } from './progresso.js';
-import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, curaDe, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, PESCA, NOME, TOTENS, taxaTotem, totemPerto, totemMaisPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado, patenteDe, pontosGuerra } from './dados.js';
+import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, curaDe, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, tamanhoBauCla, PESCA, NOME, TOTENS, taxaTotem, totemPerto, totemMaisPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado, patenteDe, pontosGuerra } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
 import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
 import { Transporte, carrinhoNovo, topoCarrinho, lugarDoVeiculo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
@@ -42,6 +42,46 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const FALAR_JANELA = 4.8; // m: toque num botão da janela do NPC (o app fecha a janela a 4,5 m; folga da rede)
 const angDif = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const r2 = (n) => Math.round(n * 100) / 100;
+// ---------- baús independentes (André 2026-11-27: "eu quero que cada baú seja autônomo, independente") ----------
+// Antes todos os baús do dono mostravam o mesmo estoque (L.bau, L.bauNv). Agora L.baus[id da peça] = { nv, it, nome }.
+// O estoque de antes fica no baú mais antigo (menor número da peça) com o tamanho já comprado; nada sai de dentro.
+// O que não cabe (devolução da casa antiga) continua em L.bau e entra quando abrir espaço no baú mais antigo.
+// Baú melhorado desmontado: o tamanho fica guardado (L.bausNv) e o próximo baú construído nasce com ele.
+export const BAU_NOME_MAX = 18;
+export const nomeBauValido = (t) => String(t ?? '').replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, BAU_NOME_MAX);
+const numPeca = (id) => +String(id).replace(/\D/g, '') || 0;
+export function arrumarBaus(L) {
+  if (!L) return;
+  L.baus ||= {};
+  const pecas = (L.pecas || []).filter((o) => o.k === 'bau').sort((a, b) => numPeca(a.id) - numPeca(b.id));
+  for (const id of Object.keys(L.baus)) if (!pecas.some((o) => o.id === id)) { // peça que sumiu sem o desmontar: nada se perde
+    const B = L.baus[id]; delete L.baus[id];
+    if (B.nv > 0) (L.bausNv ||= []).push(B.nv);
+    const it = (B.it || []).filter(Boolean); if (it.length) L.bau = [...(L.bau || []).filter(Boolean), ...it];
+  }
+  for (const o of pecas) if (!L.baus[o.id]) {
+    let nv = 0;
+    if (L.bausNv?.length) { const i = L.bausNv.indexOf(Math.max(...L.bausNv)); nv = L.bausNv.splice(i, 1)[0]; if (!L.bausNv.length) delete L.bausNv; }
+    L.baus[o.id] = { nv, it: Array(bauLugares(nv)).fill(null) };
+  }
+  const B = pecas.length ? L.baus[pecas[0].id] : null;
+  if (!B) return;
+  if (L.bauNv > 0) { // o tamanho comprado no baú único vai para o mais antigo
+    B.nv = Math.max(B.nv | 0, Math.min(BAU.niveis.length - 1, L.bauNv | 0));
+    if (B.it.length < bauLugares(B.nv)) B.it = [...B.it, ...Array(bauLugares(B.nv) - B.it.length).fill(null)];
+    L.bauNv = 0;
+  }
+  if (Array.isArray(L.bau)) { // na mesma ordem de antes: o 1º lugar continua o 1º
+    const resto = [];
+    L.bau.forEach((o, i) => { if (!o) return; if (i < B.it.length && !B.it[i]) B.it[i] = { ...o }; else if (!guardar(B.it, { ...o })) resto.push(o); });
+    L.bau = resto.length ? resto : null;
+  }
+}
+export function nomesBaus(L) {
+  let n = null;
+  for (const [id, B] of Object.entries(L?.baus || {})) if (B.nome) (n ||= {})[id] = B.nome;
+  return n;
+}
 // quanto falta para voltar, curto (André 2026-11-16: a árvore volta em 24 h; "volta em 86312 s" não dava para ler)
 const quantoFalta = (s) => (s < 120 ? `${Math.ceil(s)} s` : s < 5400 ? `${Math.ceil(s / 60)} min` : `${Math.round(s / 3600)} h`);
 const ehArma = (k) => ['espada', 'cajado'].includes(ITENS[k]?.lugar); // catalisador de arma (Runa) ou de armadura (Selo)
@@ -3269,9 +3309,11 @@ export class Simulacao {
     for (const t of Object.values(L.horta)) crescerPlanta(t, agora);
     const { x0, z0, x1, z1 } = L.def;
     return { lote: L.def.id, ret: [x0, z0, x1, z1], dono: L.dono ? L.nomeDono : null, pecas: L.pecas.map((p) => [p.id, p.k, p.x, p.z, p.r]),
+      ...(nomesBaus(L) ? { bn: nomesBaus(L) } : {}), // nomes dos baús (André 2026-11-27): o app escreve em cima, só de perto
       fogo: this.fornalhasLigadas(L, agora), horta: Object.entries(L.horta).map(([c, t]) => t.mf ? [c, t.c, r2(t.g), t.w, t.u, t.mi, t.mf] : [c, t.c, r2(t.g), t.w, t.u]), agora,
       ...(this.areaBase?.(L) ? { area: this.areaBaseApp(L) } : {}) };
   }
+  arrumarBausLote(L) { arrumarBaus(L); }
   avisarLote(L) {
     this.lotesMudados.add(L.def.id);
     this.evento({ t: 'lote', ...this.dadosLote(L) });
@@ -3305,7 +3347,17 @@ export class Simulacao {
       L.prox = Math.max(1, d.prox | 0, ...L.pecas.map((p) => (+String(p.id).slice(1) || 0) + 1));
       L.bauNv = Math.max(0, Math.min(BAU.niveis.length - 1, d.bauNv | 0)); // baú melhorado (André 2026-11-07): 0 = 40, 1 = 60, 2 = 80
       L.bau = Array.isArray(d.bau) ? Array.from({ length: bauLugares(L.bauNv) }, (_, i) => (d.bau[i] ? itemValido(d.bau[i]) || null : null)) : null;
-      L.bauCla = Array.isArray(d.bauCla) ? Array.from({ length: CLA.bauCla }, (_, i) => (d.bauCla[i] ? itemValido(d.bauCla[i]) || null : null)) : null; // Baú do Clã (shared/cla.js)
+      // cada baú com o seu estoque (André 2026-11-27): { id da peça: { nv, it, nome } }. L.bau/L.bauNv = o baú único de antes
+      // (e o que volta de uma devolução): arrumarBaus põe no baú mais antigo, sem tirar nada de dentro
+      L.baus = {};
+      for (const [pid, b] of Object.entries(d.baus && typeof d.baus === 'object' ? d.baus : {})) {
+        if (!b || typeof b !== 'object') continue;
+        const nv = Math.max(0, Math.min(BAU.niveis.length - 1, b.nv | 0)), it = Array.isArray(b.it) ? b.it : [];
+        L.baus[String(pid)] = { nv, it: Array.from({ length: Math.max(bauLugares(nv), it.length) }, (_, i) => (it[i] ? itemValido(it[i]) || null : null)), ...(nomeBauValido(b.nome) ? { nome: nomeBauValido(b.nome) } : {}) };
+      }
+      if (Array.isArray(d.bausNv)) L.bausNv = d.bausNv.map((n) => Math.max(0, Math.min(BAU.niveis.length - 1, n | 0))).filter((n) => n > 0).slice(0, 50);
+      arrumarBaus(L);
+      L.bauCla = Array.isArray(d.bauCla) ? Array.from({ length: tamanhoBauCla(d.bauCla.length) }, (_, i) => (d.bauCla[i] ? itemValido(d.bauCla[i]) || null : null)) : null; // Baú do Clã (shared/cla.js)
       // fornalhas (2026-11-07): o que está dentro de cada uma, pelo id da peça
       L.fornos = {};
       for (const [pid, f] of Object.entries(d.fornos && typeof d.fornos === 'object' ? d.fornos : {})) L.fornos[String(pid)] = fornoValido(f);
@@ -3335,7 +3387,7 @@ export class Simulacao {
     const l = [...this.lotesMudados].filter((id) => this.lotes.has(id)).map((id) => {
       const L = this.lotes.get(id);
       const { x0, z0, x1, z1 } = L.def;
-      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox, bau: L.bau || null, bauNv: L.bauNv || 0, ...(L.bauCla ? { bauCla: L.bauCla } : {}), fornos: L.fornos || {}, ...(L.amiga ? { amiga: L.amiga } : {}), ...(L.def.baseK ? { base: L.def.baseK } : {}) } };
+      return { id, dono: L.dono, nome: L.nomeDono, dados: { ret: { x0, z0, x1, z1 }, pecas: L.pecas.map(({ id: i, k, x, z, r }) => ({ id: i, k, x, z, r })), horta: L.horta, prox: L.prox, bau: L.bau || null, bauNv: L.bauNv || 0, baus: L.baus || {}, ...(L.bausNv?.length ? { bausNv: L.bausNv } : {}), ...(L.bauCla ? { bauCla: L.bauCla } : {}), fornos: L.fornos || {}, ...(L.amiga ? { amiga: L.amiga } : {}), ...(L.def.baseK ? { base: L.def.baseK } : {}) } };
     });
     // terrenos vendidos de volta para o jogo: a linha fica sem dono (o chão volta a ser livre)
     for (const id of this.lotesSoltos) l.push({ id, dono: null, nome: '', dados: {} });
@@ -3435,6 +3487,7 @@ export class Simulacao {
     tirar(j.prog.mochila, 'obra_' + m.k, 1);
     L.prox++;
     L.pecas.push(p);
+    if (p.k === 'bau') arrumarBaus(L); // baú novo: o próprio estoque (e o tamanho de um baú melhorado que foi desmontado)
     this.refazerSolidosLotes();
     this.evento({ t: 'construiu', para: id, k: p.k, px: x, pz: z });
     this.historia(j, 'construir', { k: CONSTRUCOES[p.k]?.como || p.k }); // parede de pedra conta como parede (missões)
@@ -3451,6 +3504,7 @@ export class Simulacao {
     if (!this.loteParaMexer(j, p.x, p.z, aviso)) return;
     const dep = motivoDesmontar(L, p); if (dep) return aviso(dep);
     if (p.k === 'bau' && L.pecas.filter((o) => o.k === 'bau').length === 1 && (L.bau || []).some(Boolean)) return aviso('Esvazie o baú antes de desmontar o último');
+    if (p.k === 'bau' && (L.baus?.[p.id]?.it || []).some(Boolean)) return aviso('Esvazie este baú antes de desmontar');
     if (p.k === 'mesa_cla' && L.def.baseK && this.jantares?.has(L.def.baseK)) return aviso('Termine o jantar antes de desmontar a mesa'); // jantar do clã (shared/jantar.js)
     if (p.k === 'palete' && this.packsNoPalete?.(p.id).length) return aviso('Tire os packs de cima do palete antes de desmontar'); // André 2026-11-23
     if ((p.k === 'fornalha' || p.k === 'fogao') && L.fornos && L.fornos[p.id]) {
@@ -3462,6 +3516,10 @@ export class Simulacao {
     if (!guardar(prova, { k: 'obra_' + p.k, n: 1 })) return aviso('Mochila cheia: a peça não cabe');
     j.prog.mochila = prova;
     L.pecas.splice(i, 1);
+    if (p.k === 'bau' && L.baus?.[p.id]) { // o tamanho comprado não some: o próximo baú que você construir nasce com ele
+      if (L.baus[p.id].nv > 0) (L.bausNv ||= []).push(L.baus[p.id].nv);
+      delete L.baus[p.id];
+    }
     this.refazerSolidosLotes();
     aviso(`${CONSTRUCOES[p.k].nome}: voltou para a mochila`);
     this.avisarLote(L);
@@ -3679,7 +3737,8 @@ export class Simulacao {
     if (item !== m.k) this.historia(j, 'criar', { k: item }); // etapa "Crie 3 paredes" pede obra_parede (nunca contava)
     this.avisarProg(j);
   }
-  // Baú (como no Quimera: todos os baús do dono guardam as mesmas coisas). m = { acao: 'abrir' | 'guardar' | 'tirar' | 'organizar', i }
+  // Baú: cada baú tem o seu estoque (André 2026-11-27; antes todos guardavam as mesmas coisas, como no Quimera).
+  // m = { acao: 'abrir' | 'guardar' | 'tirar' | 'organizar' | 'melhorar' | 'nome', i, p: id da peça, nome }
   // guardar: a pilha do lugar i da mochila vai para o baú; tirar: a pilha do lugar i do baú volta para a mochila.
   // m.n (André 2026-11-17): quantos da pilha passam (Tudo ou um número); sem n passa a pilha inteira
   bau(id, m) {
@@ -3688,9 +3747,18 @@ export class Simulacao {
     const L = this.loteDe(j); if (!L) return;
     if (m.cla && m.acao === 'recolher') return this.recolherBauBase(j, aviso); // o baú da porta do salão vai para a mochila (shared/base.js)
     if (m.cla) return this.bauCla(j, L, m, aviso); // Baú do Clã (shared/cla.js)
-    if (!L.pecas.some((o) => o.k === 'bau' && dist(o, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, o))) return aviso('Chegue perto do seu baú');
-    if (!Array.isArray(L.bau)) L.bau = Array(bauLugares(L.bauNv)).fill(null);
+    // qual baú: o que o app pediu (m.p) ou, sem ele (jogo leve, app antigo), o mais perto
+    const perto = (o) => o.k === 'bau' && dist(o, j) <= LOTE.estacaoDist + 0.6 && semParede(this.lotes.values(), j, o);
+    const peca = (m.p && L.pecas.find((o) => o.id === String(m.p) && perto(o))) || L.pecas.filter(perto).sort((a, b) => dist(a, j) - dist(b, j))[0];
+    if (!peca) return aviso('Chegue perto do seu baú');
+    arrumarBaus(L);
+    const B = L.baus[peca.id];
     const p = j.prog, i = m.i | 0;
+    if (m.acao === 'nome') { // renomear (André 2026-11-27: "para eu poder organizar por material"); vazio volta a "Baú"
+      const n = nomeBauValido(m.nome);
+      if (n) B.nome = n; else delete B.nome;
+      this.avisarLote(L);
+    }
     if (m.acao === 'guardar') {
       const o = p.mochila[i]; if (!o && !Array.isArray(m.lista)) return;
       // o.h do Tomo é a habilidade dele, não lugar rápido (André 2026-11-07: Tomo não entrava no baú)
@@ -3698,33 +3766,34 @@ export class Simulacao {
       // André 2026-11-25: n maior que a pilha puxa das pilhas iguais; lista = várias pilhas inteiras (os botões de tipo)
       let foi = 0;
       for (const x of Array.isArray(m.lista) ? [...new Set(m.lista.slice(0, 400))].filter((x) => Number.isInteger(x) && p.mochila[x] && !(p.mochila[x].h && p.mochila[x].k !== 'tomo')) : [i]) {
-        const r = moverQtd(p.mochila, L.bau, x, Array.isArray(m.lista) ? undefined : m.n); if (!r) break;
-        p.mochila = r.de; L.bau = r.para; foi += r.n;
+        const r = moverQtd(p.mochila, B.it, x, Array.isArray(m.lista) ? undefined : m.n); if (!r) break;
+        p.mochila = r.de; B.it = r.para; foi += r.n;
       }
       if (!foi) return aviso('O baú está cheio');
     } else if (m.acao === 'tirar') {
       let foi = 0;
-      for (const x of Array.isArray(m.lista) ? [...new Set(m.lista.slice(0, 400))].filter((x) => Number.isInteger(x) && L.bau[x]) : [i]) {
-        const r = moverQtd(L.bau, p.mochila, x, Array.isArray(m.lista) ? undefined : m.n); if (!r) break;
-        L.bau = r.de; p.mochila = r.para; foi += r.n;
+      for (const x of Array.isArray(m.lista) ? [...new Set(m.lista.slice(0, 400))].filter((x) => Number.isInteger(x) && B.it[x]) : [i]) {
+        const r = moverQtd(B.it, p.mochila, x, Array.isArray(m.lista) ? undefined : m.n); if (!r) break;
+        B.it = r.de; p.mochila = r.para; foi += r.n;
       }
       if (!foi) return aviso('Mochila cheia');
     } else if (m.acao === 'organizar') { // botão Organizar do baú (André 2026-11-07), igual ao da mochila
-      L.bau = organizar(L.bau);
+      B.it = organizar(B.it);
     } else if (m.acao === 'melhorar') { // André 2026-11-07: 40 → 60 → 80 lugares, os itens ficam dentro
-      const nv = (L.bauNv | 0) + 1, custo = BAU.melhorar[nv];
+      const nv = (B.nv | 0) + 1, custo = BAU.melhorar[nv];
       if (!custo) return aviso('O baú já está no tamanho máximo');
       const falta = Object.entries(custo).filter(([k, n]) => (k === 'ouro' ? p.ouro : contar(p.mochila, k)) < n).map(([k, n]) => `${n} ${k === 'ouro' ? 'de ouro' : nomeItem({ k })}`);
       if (falta.length) return aviso(`Para melhorar o baú falta: ${falta.join(', ')}`);
       for (const [k, n] of Object.entries(custo)) if (k === 'ouro') { p.ouro -= n; this.caixa(j, 'bau', -n); } else tirar(p.mochila, k, n);
-      L.bauNv = nv;
-      L.bau = [...L.bau, ...Array(Math.max(0, bauLugares(nv) - L.bau.length)).fill(null)];
-      aviso(`Baú melhorado: agora tem ${L.bau.length} lugares`);
-    } else if (m.acao !== 'abrir') return;
-    this.lotesMudados.add(L.def.id);
-    const prox = BAU.melhorar[(L.bauNv | 0) + 1] || null; // o que custa o próximo tamanho (null = já é o maior)
-    this.evento({ t: 'bau', para: id, itens: L.bau, abrir: m.acao === 'abrir', slots: L.bau.length, prox, proxSlots: prox ? bauLugares((L.bauNv | 0) + 1) : 0 });
-    if (m.acao !== 'abrir') this.avisarProg(j);
+      B.nv = nv;
+      B.it = [...B.it, ...Array(Math.max(0, bauLugares(nv) - B.it.length)).fill(null)];
+      aviso(`Baú melhorado: agora tem ${B.it.length} lugares`);
+    } else if (m.acao !== 'abrir' && m.acao !== 'nome') return;
+    if (m.acao !== 'nome') this.lotesMudados.add(L.def.id);
+    const prox = BAU.melhorar[(B.nv | 0) + 1] || null; // o que custa o próximo tamanho (null = já é o maior)
+    this.evento({ t: 'bau', para: id, itens: B.it, abrir: m.acao === 'abrir', slots: B.it.length, prox, proxSlots: prox ? bauLugares((B.nv | 0) + 1) : 0, p: peca.id, nome: B.nome || '',
+      ...(prox ? { px: { ouro: prox.ouro | 0, temOuro: p.ouro | 0, itens: Object.entries(prox).filter(([k]) => k !== 'ouro').map(([k, n]) => ({ k, n, tem: contar(p.mochila, k) })) } } : {}) }); // px: ícones tenho/preciso
+    if (m.acao !== 'abrir' && m.acao !== 'nome') this.avisarProg(j);
   }
   // Dormir na cama do meu terreno (igual ao Quimera, André 2026-11-07): só à noite no relógio da conta (19h às 5h) e sem
   // monstro a menos de CAMA.perigo m. Pula para as 6h30 (só para quem dormiu: o relógio é da conta) com vida, mana e

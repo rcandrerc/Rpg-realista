@@ -270,7 +270,7 @@ export const Leve = {
     const loja = LOJA.map((o, i) => ({ i, k: o.k, n: ITENS[o.k]?.nome || o.k, preco: this.precoCompra(j, o) }));
     const baus = [];
     const L = this.loteDe?.(j);
-    if (L) for (const o of L.pecas || []) if (o.k === 'bau' || o.k === 'bau_cla') baus.push({ cla: o.k === 'bau_cla' ? 1 : 0, x: r1(o.x), z: r1(o.z) });
+    if (L) for (const o of L.pecas || []) if (o.k === 'bau' || o.k === 'bau_cla') baus.push({ cla: o.k === 'bau_cla' ? 1 : 0, x: r1(o.x), z: r1(o.z), ...(o.k === 'bau' ? { p: o.id, ...(L.baus?.[o.id]?.nome ? { nome: L.baus[o.id].nome } : {}) } : {}) });
     const bb = this.bauBase?.(this.baseDe?.(j)); if (bb) baus.push({ cla: 1, x: r1(bb.x), z: r1(bb.z) });
     // no mapa, como o minimapa do jogo (minimapa.gd, André 2026-11-26: "todos os recursos, spots aparecendo no próprio mapa"):
     // as clareiras de caça [x, z, nível, bicho, boss] e as zonas de mineração [x, z, tipo]
@@ -336,7 +336,7 @@ export const Leve = {
     // troca (etapa 5): os itens com nome e cor (a página não tem a tabela de itens)
     if (e.t === 'troca' && e.fase === 'estado') { const of = (o) => ({ ouro: o.ouro, tranca: o.tranca ? 1 : 0, ok: o.ok ? 1 : 0, itens: o.itens.map((x) => ({ ...(x.i != null ? { i: x.i } : {}), n: x.n, k: x.it?.k, nome: x.it ? nomeItem(x.it) : '?', c: x.it ? corDe(x.it) : null })) }); return { t: 'troca', fase: 'estado', com: e.com, nome: e.nome, eu: of(e.eu), ele: of(e.ele) }; }
     if (e.t === 'pvp' && e.fase === 'info') { const { loja, ...r } = e; return r; } // a loja de Insígnias fica no jogo
-    if (e.t === 'bau') return { t: 'bau', cla: e.cla ? 1 : 0, l: (e.itens || []).length, it: listaLeve(e.itens) };
+    if (e.t === 'bau') return { t: 'bau', cla: e.cla ? 1 : 0, l: (e.itens || []).length, it: listaLeve(e.itens), ...(e.p ? { p: e.p, nome: e.nome || '' } : {}) }; // p/nome: cada baú tem o seu estoque (2026-11-27)
     return e;
   },
   // quanto o mercador n paga pelo pack pk agora (a mesma conta do Transporte.pack 'entregar'); 0 = ele não compra
