@@ -518,6 +518,105 @@ $('mapaCentro').onclick = () => { if (vista && aba === 'jogar') guardarZoom(vist
 const COR_BICHO = { puglin: '#b98cff', imp: '#ff8f45', lobo: '#a9d6ff', chefe: '#ff4a4a', golem: '#ff7a1a', maw: '#9cff5a', warrok: '#ffcc40' };
 const NOME_BICHO = { puglin: 'Puglins', imp: 'Imps', lobo: 'Lobos', golem: 'Golens', maw: 'Maws' };
 const COR_MINA = { cobre: '#d9822b', pedra: '#a39d92', ferro: '#8fa3bd', cristal: '#9a7cff' };
+// ---------- o mundo de perto (André 2026-11-27: "um 2D bem próximo... como se eu estivesse dentro do jogo"; "quando eu
+// aproximo demais, fica muito distorcido com esse mapa gigante"). O servidor manda a cena em volta do herói (cenaLeve em
+// shared/leve.js); a página pinta uma vez num quadro (CENA_K px por metro) e só cola ele a cada desenho.
+const CENA_K = 14;
+const textura = (() => { // grama: pontinhos e fios curtos, uma vez só
+  const c = document.createElement('canvas'), T = c.width = c.height = 192, g = c.getContext('2d');
+  let s = 7; const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  g.fillStyle = '#808080'; g.fillRect(0, 0, T, T);
+  for (let i = 0; i < 2600; i++) { const v = 90 + rnd() * 90 | 0; g.fillStyle = `rgba(${v},${v},${v},.55)`; g.fillRect(rnd() * T, rnd() * T, 1 + rnd() * 2, 1 + rnd() * 2); }
+  g.lineCap = 'round';
+  for (let i = 0; i < 700; i++) { const x = rnd() * T, y = rnd() * T, v = rnd() < 0.5 ? 60 : 190; g.strokeStyle = `rgba(${v},${v},${v},.45)`; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 4, y - 2 - rnd() * 4); g.stroke(); }
+  return c;
+})();
+const CHAO_COR = { g: [92, 136, 70], a: [212, 194, 148], r: [128, 120, 106], w: [86, 160, 182], W: [34, 82, 124] };
+const semente = (x, z) => { let s = (Math.abs(Math.round(x * 73 + z * 191)) % 2147483646) + 1; return () => ((s = (s * 16807) % 2147483647) / 2147483647); };
+function assarCena(cn) {
+  const K = CENA_K, M = cn.n * cn.p, T = Math.round(M * K), c = document.createElement('canvas'); c.width = c.height = T;
+  const g = c.getContext('2d'), Q = (x, z) => [(x - cn.x0) * K, (z - cn.z0) * K];
+  // chão: um pixel por quadradinho, esticado e alisado (as bordas da água e da areia viram degradê)
+  const pq = document.createElement('canvas'); pq.width = pq.height = cn.n; const pg = pq.getContext('2d'), im = pg.createImageData(cn.n, cn.n);
+  const ma = document.createElement('canvas'); ma.width = ma.height = cn.n; const mg = ma.getContext('2d'), mi = mg.createImageData(cn.n, cn.n);
+  for (let i = 0; i < cn.n * cn.n; i++) {
+    const t = cn.t[i], cor = CHAO_COR[t] || CHAO_COR.g, luz = t === 'w' || t === 'W' ? 1 : 0.68 + (+cn.l[i] / 9) * 0.52;
+    im.data.set([cor[0] * luz, cor[1] * luz, cor[2] * luz, 255], i * 4);
+    mi.data.set([0, 0, 0, t === 'w' || t === 'W' ? 255 : 0], i * 4);
+  }
+  pg.putImageData(im, 0, 0); mg.putImageData(mi, 0, 0);
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(pq, 0, 0, T, T);
+  { // a textura da grama por cima (fora da água)
+    const tx = document.createElement('canvas'); tx.width = tx.height = T; const tg = tx.getContext('2d');
+    tg.fillStyle = tg.createPattern(textura, 'repeat'); tg.fillRect(0, 0, T, T);
+    tg.globalCompositeOperation = 'destination-out'; tg.imageSmoothingEnabled = true; tg.drawImage(ma, 0, 0, T, T);
+    g.save(); g.globalCompositeOperation = 'overlay'; g.globalAlpha = 0.55; g.drawImage(tx, 0, 0); g.restore();
+    // brilho da água: a beira mais clara
+    g.save(); g.globalCompositeOperation = 'source-atop'; g.globalAlpha = 0.18; g.filter = 'blur(6px)'; g.drawImage(ma, 0, 0, T, T); g.restore();
+  }
+  // estradas: a borda escura, a terra batida e o meio gasto
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  const tracar = (l) => { g.beginPath(); for (let k = 2; k < l.length; k += 2) { const [a, b] = Q(l[k], l[k + 1]); if (k === 2) g.moveTo(a, b); else g.lineTo(a, b); } };
+  for (const l of cn.e) { tracar(l); g.strokeStyle = l[1] ? 'rgba(80,76,70,.55)' : 'rgba(78,58,34,.5)'; g.lineWidth = (l[0] + 0.7) * K; g.stroke(); }
+  for (const l of cn.e) { tracar(l); g.strokeStyle = l[1] ? '#c9c3b6' : '#b4935f'; g.lineWidth = l[0] * K; g.stroke(); }
+  for (const l of cn.e) { tracar(l); g.strokeStyle = l[1] ? 'rgba(255,255,255,.12)' : 'rgba(236,210,160,.28)'; g.lineWidth = l[0] * K * 0.42; g.stroke(); }
+  if (cn.pr) { const [a, b] = Q(cn.pr[0], cn.pr[1]), r = cn.pr[2] * K; g.fillStyle = '#bdb4a0'; g.beginPath(); g.arc(a, b, r, 0, 6.283); g.fill(); g.strokeStyle = 'rgba(70,62,50,.6)'; g.lineWidth = K * 0.3; g.stroke(); g.strokeStyle = 'rgba(70,62,50,.25)'; g.lineWidth = K * 0.08; for (let q = 0.35; q < 1; q += 0.22) { g.beginPath(); g.arc(a, b, r * q, 0, 6.283); g.stroke(); } }
+  { // pedregulhos e gravetos soltos
+    for (const [x, z, tipo] of cn.so) { const [a, b] = Q(x, z), rn = semente(x, z);
+      if (tipo === 'galho') { g.strokeStyle = '#6b4a2a'; g.lineWidth = K * 0.12; const an = rn() * 6.28; g.beginPath(); g.moveTo(a - Math.cos(an) * K * 0.5, b - Math.sin(an) * K * 0.5); g.lineTo(a + Math.cos(an) * K * 0.5, b + Math.sin(an) * K * 0.5); g.stroke(); }
+      else { g.fillStyle = '#9a958c'; g.beginPath(); g.ellipse(a, b, K * 0.28, K * 0.2, rn() * 3, 0, 6.283); g.fill(); } }
+  }
+  const sombra = (a, b, rx, ry) => { g.fillStyle = 'rgba(10,16,8,.28)'; g.beginPath(); g.ellipse(a + rx * 0.35, b + ry * 0.45, rx, ry, 0, 0, 6.283); g.fill(); };
+  const pedra = (x, z, r, cor1, cor2) => { // uma pedra irregular, clara em cima à esquerda
+    const [a, b] = Q(x, z), R = r * K, rn = semente(x, z), n = 7;
+    sombra(a, b, R * 1.05, R * 0.9);
+    g.beginPath(); for (let k = 0; k < n; k++) { const an = (k / n) * 6.283, q = R * (0.8 + rn() * 0.3); const p = [a + Math.cos(an) * q, b + Math.sin(an) * q]; if (k) g.lineTo(...p); else g.moveTo(...p); } g.closePath();
+    const gr = g.createRadialGradient(a - R * 0.35, b - R * 0.4, R * 0.1, a, b, R * 1.1); gr.addColorStop(0, cor1); gr.addColorStop(1, cor2); g.fillStyle = gr; g.fill();
+    g.strokeStyle = 'rgba(30,26,20,.55)'; g.lineWidth = Math.max(1, K * 0.06); g.stroke();
+  };
+  for (const [x, z, r] of cn.pe) pedra(x, z, Math.max(0.35, r), '#a8a196', '#5e594f');
+  for (const [x, z, r, tipo, vazio] of cn.ve) {
+    if (vazio) { const [a, b] = Q(x, z), rn = semente(x, z); g.fillStyle = '#7c766b'; for (let k = 0; k < 5; k++) { g.beginPath(); g.arc(a + (rn() - 0.5) * r * K, b + (rn() - 0.5) * r * K, K * 0.15, 0, 6.283); g.fill(); } continue; }
+    pedra(x, z, Math.max(0.6, r), '#9b958a', '#57524a');
+    const [a, b] = Q(x, z), rn = semente(x + 1, z), cor = COR_MINA[tipo] || '#d9822b';
+    for (let k = 0; k < 5; k++) { const px = a + (rn() - 0.5) * r * K, pz = b + (rn() - 0.5) * r * K, s = K * (0.12 + rn() * 0.12); g.fillStyle = cor; g.beginPath(); g.moveTo(px, pz - s * 1.6); g.lineTo(px + s, pz); g.lineTo(px, pz + s); g.lineTo(px - s, pz); g.closePath(); g.fill(); g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(px - s * 0.3, pz - s, s * 0.4, s * 0.5); }
+  }
+  // casas (telhado de duas águas), paredes das bases e peças dos terrenos: retângulos girados como no jogo
+  for (const [x, z, co, se, hw, hd, tipo] of cn.ca) {
+    const [a, b] = Q(x, z); g.save(); g.translate(a, b); g.transform(co, -se, se, co, 0, 0);
+    const w = hw * K, d = hd * K;
+    g.fillStyle = 'rgba(10,16,8,.3)'; g.fillRect(-w + K * 0.5, -d + K * 0.7, w * 2, d * 2);
+    if (tipo === 0) { // telhado: a cumeeira no lado comprido, uma água no sol e a outra na sombra
+      const lx = w >= d, cor = '#9a5236';
+      g.fillStyle = '#5a4030'; g.fillRect(-w - K * 0.25, -d - K * 0.25, w * 2 + K * 0.5, d * 2 + K * 0.5);
+      if (lx) { g.fillStyle = '#b5663f'; g.fillRect(-w, -d, w * 2, d); g.fillStyle = cor; g.fillRect(-w, 0, w * 2, d); }
+      else { g.fillStyle = '#b5663f'; g.fillRect(-w, -d, w, d * 2); g.fillStyle = cor; g.fillRect(0, -d, w, d * 2); }
+      g.strokeStyle = 'rgba(60,30,18,.35)'; g.lineWidth = Math.max(1, K * 0.06);
+      for (let q = (lx ? -d : -w) + K * 0.45; q < (lx ? d : w); q += K * 0.45) { g.beginPath(); if (lx) { g.moveTo(-w, q); g.lineTo(w, q); } else { g.moveTo(q, -d); g.lineTo(q, d); } g.stroke(); }
+      g.strokeStyle = '#e0a070'; g.lineWidth = K * 0.16; g.beginPath(); if (lx) { g.moveTo(-w, 0); g.lineTo(w, 0); } else { g.moveTo(0, -d); g.lineTo(0, d); } g.stroke();
+    } else {
+      g.fillStyle = tipo === 1 ? '#8a6a46' : '#a07c52'; g.fillRect(-w, -d, w * 2, d * 2);
+      g.strokeStyle = 'rgba(40,26,14,.6)'; g.lineWidth = Math.max(1, K * 0.07); g.strokeRect(-w, -d, w * 2, d * 2);
+      g.strokeStyle = 'rgba(40,26,14,.25)'; for (let q = -w + K * 0.4; q < w; q += K * 0.4) { g.beginPath(); g.moveTo(q, -d); g.lineTo(q, d); g.stroke(); }
+    }
+    g.restore();
+  }
+  // árvores: sombra, copa em bolotas com luz de cima à esquerda
+  for (const [x, z, s] of cn.ar) {
+    const [a, b] = Q(x, z), R = Math.max(1.2, 1.7 * s) * K, rn = semente(x, z);
+    sombra(a, b, R, R * 0.8);
+    const tons = rn() < 0.5 ? ['#2c5426', '#3f7433', '#5c9445'] : ['#2f4f22', '#46702f', '#6a9a48'];
+    for (let k = 0; k < 6; k++) {
+      const an = rn() * 6.28, q = R * 0.35 * rn(), rr = R * (0.45 + rn() * 0.25), px = a + Math.cos(an) * q, pz = b + Math.sin(an) * q;
+      const gr = g.createRadialGradient(px - rr * 0.35, pz - rr * 0.4, rr * 0.1, px, pz, rr); gr.addColorStop(0, tons[2]); gr.addColorStop(0.6, tons[1]); gr.addColorStop(1, tons[0]);
+      g.fillStyle = gr; g.beginPath(); g.arc(px, pz, rr, 0, 6.283); g.fill();
+    }
+  }
+  // a borda esfumada, para casar com o mapa de longe quando o zoom abre
+  g.globalCompositeOperation = 'destination-in'; const bd = T * 0.08;
+  for (const [x0, y0, x1, y1] of [[0, 0, bd, 0], [T, 0, T - bd, 0], [0, 0, 0, bd], [0, T, 0, T - bd]]) { const gr = g.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = gr; g.fillRect(0, 0, T, T); }
+  return c;
+}
 function desenharMapa() {
   // Jogar (André 2026-11-25: "tem q rolar muito"): o mapa ocupa a tela toda, então pode ser mais alto que largo; span = metros na largura
   const cv = $('mapa'), dpr = Math.min(2, devicePixelRatio || 1), lado = Math.round(cv.clientWidth * dpr) || 600, alto = Math.round(cv.clientHeight * dpr) || lado;
@@ -532,7 +631,7 @@ function desenharMapa() {
   const meus = new Set((info?.m || []).map((m) => m.nome)), vistos = new Set(jogando ? leve.f.g.map((o) => o[0]) : []);
   for (const m of info.m || []) if (m.on && Number.isFinite(m.x) && !vistos.has(m.nome)) pts.push({ x: m.x, z: m.z, cor: jogando ? COR_LEVE.meu : '#f2b84b', nome: m.nome, r: 6 });
   if (jogando) {
-    for (const [nome, x, z, geada, bot, nv, morto] of leve.f.g) pts.push({ x, z, cor: morto ? COR_LEVE.morto : geada ? COR_LEVE.inimigo : meus.has(nome) ? COR_LEVE.meu : COR_LEVE.aliado, nome: `${nome} ${nv}`, r: geada ? 6 : meus.has(nome) ? 5 : bot ? 4 : 5 });
+    for (const [nome, x, z, geada, bot, nv, morto] of leve.f.g) pts.push({ x, z, cor: morto ? COR_LEVE.morto : geada ? COR_LEVE.inimigo : meus.has(nome) ? COR_LEVE.meu : COR_LEVE.aliado, nome: `${nome} ${nv}`, r: geada ? 6 : meus.has(nome) ? 5 : bot ? 4 : 5, m: 0.35 });
     for (const [x, z, nv] of leve.f.m) pts.push({ x, z, cor: COR_LEVE.bicho, nome: `Nv ${nv}`, r: 3.5, m: 0.5 });
     const car = leve.pk?.car; if (car?.onde === 1) pts.push({ x: car.x, z: car.z, cor: '#b07a46', nome: 'Carrinho', r: 5, losango: true });
     for (const [, , , x, z] of leve.pk?.ch || []) pts.push({ x, z, cor: '#d9a56a', nome: 'Pack', r: 3 });
@@ -556,6 +655,8 @@ function desenharMapa() {
     g.imageSmoothingEnabled = true; g.drawImage(fundoMapa, a, b, MUNDO.w * k, MUNDO.h * k);
   }
   if (vilaMapa) { const [a, b] = P(VILA.x0, VILA.z0); g.drawImage(vilaMapa, a, b, (VILA.tam / span) * W, (VILA.tam / span) * W); }
+  const perto = jogando && !mapaGeral && leve.cnImg && span <= 120; // o mundo de perto por cima (assarCena)
+  if (perto) { const cn = leve.cn, [a, b] = P(cn.x0, cn.z0), lg = ((cn.n * cn.p) / span) * W; g.drawImage(leve.cnImg, a, b, lg, lg); }
   const fonte = Math.round(W / 40);
   g.font = `600 ${fonte}px system-ui,sans-serif`; g.textAlign = 'center'; g.lineJoin = 'round';
   const escrever = (txt, a, b, cor) => { g.lineWidth = Math.max(3, fonte / 4); g.strokeStyle = 'rgba(12,10,8,.85)'; g.strokeText(txt, a, b); g.fillStyle = cor; g.fillText(txt, a, b); };
@@ -587,6 +688,7 @@ function desenharMapa() {
     const fora = (a, b) => a < -30 || b < -30 || a > W + 30 || b > H + 30, rr = Math.max(7, W / 55);
     for (const [x, z, tipo] of leve.mapa.mn || []) {
       const [a, b] = P(x, z); if (fora(a, b)) continue; const r = rr * 0.75;
+      if (perto) { if (span <= 250) marcas.push([`Veio de ${tipo}`, a, b - rr]); continue; } // de perto a pedra já está desenhada
       g.fillStyle = COR_MINA[tipo] || '#d9822b'; g.strokeStyle = 'rgba(12,10,8,.9)'; g.lineWidth = Math.max(1.5, W / 400);
       g.beginPath(); g.moveTo(a, b - r * 1.2); g.lineTo(a + r, b); g.lineTo(a, b + r * 1.2); g.lineTo(a - r, b); g.closePath(); g.fill(); g.stroke();
       if (span <= 250) marcas.push([`Veio de ${tipo}`, a, b - r * 1.2 - 4]);
@@ -675,7 +777,7 @@ function ligarLeve(s) {
   if (aba === 'missoes' || aba === 'personagem') s.send('leveMissoes', { ver: true });
   if (aba === 'fazenda') s.send('leveFazenda', { ver: true });
   s.onMessage('leve', (d) => {
-    leve.f = d.f; if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa; if (d.ms) { leve.ms = d.ms; if (aba === 'missoes') desenharMissoes(); if (aba === 'personagem') desenharPersonagem(); }
+    leve.f = d.f; if (d.cn) { leve.cn = d.cn; leve.cnImg = assarCena(d.cn); } if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa; if (d.ms) { leve.ms = d.ms; if (aba === 'missoes') desenharMissoes(); if (aba === 'personagem') desenharPersonagem(); }
     if (d.fz) { leve.fz = d.fz; if (aba === 'fazenda') desenharFazenda(); }
     for (const e of d.ev || []) eventoLeve(e);
     // apanhou minerando (André 2026-11-26: "quando chega o combate... tá meio confuso"): o servidor para a coleta (igual ao
@@ -689,7 +791,7 @@ function ligarLeve(s) {
   s.onMessage('*', () => {}); // o resto que o servidor manda a todo jogador: não serve aqui
   s.onLeave(async (codigo) => {
     const token = s.reconnectionToken;
-    leve.sala = null; leve.rc = null; leve.f = null; leve.rota = null; leve.leilao = null; leve.bau = null; leve.sel = null; leve.sujo = true;
+    leve.sala = null; leve.rc = null; leve.f = null; leve.cn = null; leve.cnImg = null; leve.rota = null; leve.leilao = null; leve.bau = null; leve.sel = null; leve.sujo = true;
     if (codigo === 4001) aviso('Seu herói entrou pelo jogo: o modo leve saiu.');
     else if (!leve.saindo && codigo !== 4003) { // queda de internet: tenta voltar no mesmo herói
       try { ligarLeve(await cliente.reconnect(token)); return; } catch { aviso('O modo leve caiu. Toque em Entrar no mundo.'); }
