@@ -27,6 +27,7 @@ import { Diarias } from './diarias.js'; // missões diárias (André 2026-11-16)
 import { Cla } from './cla.js'; // clã e recrutas (André 2026-11-22)
 import { Base } from './base.js'; // base do clã (André 2026-11-22)
 import { Jantar } from './jantar.js'; // jantar do clã na Mesa do Clã (André 2026-11-25)
+import { TimeClas } from './time-clas.js'; // time entre líderes de clã (André 2026-11-27)
 import { MissaoCla } from './missao-cla.js'; // Missão do Clã em grupo (André 2026-11-23)
 import { Guilda } from './guilda.js'; // Guilda dos Aventureiros (André 2026-11-18)
 import { Duelo } from './duelo.js'; // duelo entre jogadores e com a Cecília/Dario (André 2026-11-17)
@@ -1002,7 +1003,7 @@ export class Simulacao {
     let n = 0; const cb = j.combos[chave] || { n: 0, ate: 0 };
     if (h.combo) { n = this.tempo < cb.ate ? (cb.n + 1) % h.combo.length : 0; h = { ...h, ...h.combo[n] }; }
     h = { ...h, chave };
-    const alvo = this.maisPerto(j);
+    const alvo = (j.leve && this.alvoLeve?.(j)) || this.maisPerto(j); // jogo leve: o monstro escolhido no mapa (shared/leve.js alvoLeve)
     if (alvo && !h.salto) this.virarPara(j, alvo);
     const d = this.tocar(j, h.anim, h.ts || 1, h.segurar || 0);
     if (h.combo) j.combos[chave] = { n, ate: this.tempo + d + 0.35 };
@@ -2624,7 +2625,7 @@ export class Simulacao {
       const msg = { canal: 'time', c: j.conta, nome: j.nome, texto, hora: Date.now(), membros: this.contasDoTime(j.time) };
       if (this.aoChatAmiga) this.aoChatAmiga(msg); else this.receberChat(msg);
       for (const k of j.time.membros) { const o = k !== j.id && this.jogadores.get(k); if (!o) continue;
-        const npc = this.amigoIaDe(o); if (npc) npc.comandoAmiga(id, c);
+        const npc = this.amigoIaDe(o); if (npc) { if (!(npc.AMIGA.recruta || npc.AMIGA.clanpc) || this.grupoTime(o) === this.grupoTime(j)) npc.comandoAmiga(id, c); } // bot de outro clã do time obedece só ao líder dele (André 2026-11-27)
         else if (!o.bot) this.evento({ t: 'comando', para: o.id, de: j.id, nome: j.nome, c, texto: (C.lista.find((x) => x.id === c) || {}).t || c }); }
       return;
     }
@@ -2635,6 +2636,7 @@ export class Simulacao {
     const msg = { canal: 'time', c: j.conta, nome: j.nome, texto, hora: Date.now(), membros: this.contasDoTime(j.time) };
     if (this.aoChatAmiga) this.aoChatAmiga(msg); else this.receberChat(msg);
     const npc = this.amigoIaDe(o);
+    if (npc && (npc.AMIGA.recruta || npc.AMIGA.clanpc) && this.grupoTime(o) !== this.grupoTime(j)) return this.evento({ t: 'aviso', para: id, texto: `${String(o.nome).split(/[ ,]/)[0]} obedece só ao líder do clã dele` }); // time de vários clãs (André 2026-11-27)
     if (npc) { npc.ouvirAmiga?.(id, texto); npc.comandoAmiga(id, c); return; }
     if (!o.bot) this.evento({ t: 'comando', para: o.id, de: j.id, nome: j.nome, c, texto: (C.lista.find((x) => x.id === c) || {}).t || c });
   }
@@ -2643,7 +2645,7 @@ export class Simulacao {
   ordemPackTime(id, m) {
     const j = this.jogadores.get(id), de = String(m?.de || ''), pra = String(m?.pra || ''), para = String(m?.para || '');
     if (!j || j.bot || !j.time) return;
-    const alvos = j.time.membros.filter((k) => k !== j.id && (para === '*' || k === para)).map((k) => this.jogadores.get(k)).filter((o) => o?.bot);
+    const alvos = j.time.membros.filter((k) => k !== j.id && (para === '*' || k === para)).map((k) => this.jogadores.get(k)).filter((o) => { if (!o?.bot) return false; const A = this.amigoIaDe(o)?.AMIGA; return !(A?.recruta || A?.clanpc) || this.grupoTime(o) === this.grupoTime(j); }); // recruta de outro clã não obedece (André 2026-11-27)
     let n = 0;
     for (const o of alvos) { const ctx = this.amigoIaDe(o); if (ctx?.ordemPackAmiga?.(id, de, pra)) n++; }
     if (!n) return this.evento({ t: 'aviso', para: id, texto: 'Ninguém do time pode fazer isso agora' });
@@ -2678,19 +2680,23 @@ export class Simulacao {
     if (m.acao === 'aceitar') {
       const p = j.conviteTime; if (!p || p.de !== o.id || p.ate < this.tempo) return aviso('O convite para o time já expirou');
       j.conviteTime = null;
-      if (j.time) return aviso('Saia do seu time antes de entrar em outro');
+      // André 2026-11-27: líder com o time só do clã dele (ele + recrutas) entra levando todos (um grupo por clã)
+      if (j.time && !this.timeSoDoCla(j)) return aviso('Saia do seu time antes de entrar em outro');
+      if (j.time && j.time === o.time) return;
       let T = o.time;
+      const erro = this.cabeNoTime(T, this.grupoTime(j), j.time ? j.time.membros.length : 1); if (erro) return aviso(erro);
       if (!T) { T = { lider: o.id, membros: [o.id] }; o.time = T; (this.times ||= new Set()).add(T); }
-      if (T.membros.length >= TIME.max) return aviso(`O time já tem ${TIME.max} pessoas`);
-      T.membros.push(j.id); j.time = T;
+      const levou = j.time ? j.time.membros.length - 1 : 0;
+      if (this.levarClaParaTime(j, T)) return;
+      if (levou) aviso(`${j.nome} entrou com ${levou} do clã`, o.id);
       for (const k of T.membros) aviso(k === j.id ? `Você entrou no time de ${this.jogadores.get(T.lider)?.nome || o.nome}` : `${j.nome} entrou no time`, k);
       return this.mudouTime(T);
     }
     if (m.acao !== 'convidar') return;
     if (!j.amigos.has(o.conta)) return aviso(`Só dá para chamar amigo para o time. Adicione ${o.nome} como amigo primeiro`);
     if (o.time && o.time === j.time) return aviso(`${o.nome} já está no seu time`);
-    if (o.time) return aviso(`${o.nome} já está em outro time`);
-    if (j.time && j.time.membros.length >= TIME.max) return aviso(`O time já tem ${TIME.max} pessoas`);
+    if (o.time && !this.timeSoDoCla(o)) return aviso(`${o.nome} já está em outro time`); // com os recrutas dele, entra levando todos (André 2026-11-27)
+    { const erro = j.time && this.cabeNoTime(j.time, this.grupoTime(o), o.time ? o.time.membros.length : 1); if (erro) return aviso(erro); }
     if ((j.timeConviteT || -99) > this.tempo - TIME.entreConvites) return aviso('Espere um pouquinho para chamar de novo');
     j.timeConviteT = this.tempo;
     o.conviteTime = { de: j.id, ate: this.tempo + TIME.convite };
@@ -2707,6 +2713,7 @@ export class Simulacao {
   }
   sairDoTime(j, texto) {
     const T = j.time; if (!T) return;
+    if (this.sairComOCla(j, texto)) return this.enviarAmigosDe([j]); // time de vários clãs: os recrutas dele saem junto (André 2026-11-27)
     j.time = null;
     T.membros = T.membros.filter((k) => k !== j.id);
     this.evento({ t: 'time', para: j.id, fase: 'fim' });
@@ -2728,10 +2735,16 @@ export class Simulacao {
   }
   // vida, mana e onde está cada um do time (a HUD mostra as barras dos amigos e o minimapa os pontos)
   enviarTime(T) {
-    const membros = T.membros.map((k) => this.jogadores.get(k)).filter(Boolean).map((o) => ({
+    const um = (o, g, esc) => ({
       id: o.id, nome: o.nome, nivel: o.prog.nivel, vida: Math.max(0, Math.round(o.vida)), vidaMax: o.vidaMax, mana: Math.round(o.mana), manaMax: o.manaMax,
-      x: r2(o.x), z: r2(o.z), morto: !!o.morto, ...(o.bot ? { bot: 1 } : {}) })); // bot: o app mostra "Time todo" e o Pack (André 2026-11-23)
-    for (const k of T.membros) this.evento({ t: 'time', para: k, fase: 'estado', lider: T.lider, membros });
+      x: r2(o.x), z: r2(o.z), morto: !!o.morto, ...(o.bot ? { bot: 1 } : {}), g, ...(esc ? { esc: 1 } : {}) }); // bot: o app mostra "Time todo" e o Pack (André 2026-11-23)
+    // grupos por clã (André 2026-11-27): g = quem lidera o membro; com mais de um grupo vai a lista dos grupos (nome do
+    // líder e do clã) e a escolta do líder bot (os recrutas dele que protegem ele, esc)
+    const membros = [];
+    for (const k of T.membros) { const o = this.jogadores.get(k); if (!o) continue; const g = this.grupoTime(o); membros.push(um(o, g)); if (o.bot && g === 'b:' + this.amigoIaDe?.(o)?.AMIGA.id) for (const a of this.escoltaTime(o)) membros.push(um(a, g, true)); }
+    const gs = [...new Set(membros.map((t) => t.g))];
+    const grupos = gs.length > 1 ? gs.map((g) => ({ g, ...this.nomeGrupoTime(g, T) })) : undefined;
+    for (const k of T.membros) this.evento({ t: 'time', para: k, fase: 'estado', lider: T.lider, membros, ...(grupos ? { grupos } : {}) });
   }
   passoTimes(dt) {
     if (!this.times?.size) return;
@@ -4306,7 +4319,7 @@ export class Simulacao {
         const xp = Math.round(xpDoInimigo(c.tipo, c.nivel, j.prog.nivel, NIVEL_INIMIGO) * (c.sp?.caverna ? this.dungeon?.def?.forte?.xp || 1 : 1) * (c.bm ? BOSSES_MUNDO[c.bm].xp : 1));
         const nerf = n > 1 ? fatorXpTime(j.prog.nivel, maiorDoTime.get(g)) : 1; // muito abaixo do mais alto do time: menos XP (TIME_XP)
         const xpT = 1 + (bonusTitulo(j.prog).xp || 0) + this.bonusCla(j); // título em uso e nível do clã: + XP dos monstros
-        this.ganharXP(j, Math.round((n > 1 ? Math.round(xp * (1 + TIME.bonus * (n - 1)) * nerf) : xp) * xpT)); this.soltarDrops(c, j);
+        this.ganharXP(j, Math.round((n > 1 ? Math.round(xp * (1 + TIME.bonus * Math.min(TIME.bonusMax ?? Infinity, n - 1)) * nerf) : xp) * xpT)); this.soltarDrops(c, j);
         this.titulosDaVitoria(j, c); // títulos (André 2026-11-12): conta o monstro, boss de mundo e chefe da história
         this.contarHistoria(j, c); // missão principal (André 2026-11-10)
       }
@@ -4333,7 +4346,7 @@ export class Simulacao {
     const alvoDe = (j) => { const f = !j.time && j.bot && j.ia?.funcao; return f?.k === 'proteger' && typeof f.p === 'string' && !['lider', 'carrinho', 'mercante'].includes(f.p) ? f.p : null; };
     const prot = new Set();
     for (const j of ganham) { const p = alvoDe(j); if (p) prot.add(p); }
-    return (j) => j.time || (alvoDe(j) ? 'protege:' + alvoDe(j) : !j.time && j.bot && prot.has(this.idRecrutaXp(j)) ? 'protege:' + this.idRecrutaXp(j) : null);
+    return (j) => j.time || this.timeDaEscolta(j) || (alvoDe(j) ? 'protege:' + alvoDe(j) : !j.time && j.bot && prot.has(this.idRecrutaXp(j)) ? 'protege:' + this.idRecrutaXp(j) : null);
   }
   idRecrutaXp(j) { return this.amigosIa?.find((x) => x.amiga === j)?.AMIGA.id || null; }
   evento(e) { if (this.ator && e.de === undefined && e.t !== 'aviso' && e.t !== 'fala') e.de = this.ator.id; this.eventos.push(e); }
@@ -5150,6 +5163,7 @@ Object.assign(Simulacao.prototype, Leve); // modo leve pelo painel do clã (Andr
 Object.assign(Simulacao.prototype, MissaoCla); // Missão do Clã em grupo (André 2026-11-23, shared/missao-cla.js)
 Object.assign(Simulacao.prototype, Base); // base do clã (André 2026-11-22, shared/base.js)
 Object.assign(Simulacao.prototype, Jantar); // jantar do clã (André 2026-11-25, shared/jantar.js)
+Object.assign(Simulacao.prototype, TimeClas); // time entre líderes de clã, um grupo por clã (André 2026-11-27, shared/time-clas.js)
 Object.assign(Simulacao.prototype, Guilda); // Guilda dos Aventureiros: contratos e ranks F a SS (André 2026-11-18)
 Object.assign(Simulacao.prototype, Economia); // livro-caixa da economia (André 2026-11-16)
 Object.assign(Simulacao.prototype, Duelo); // duelo (André 2026-11-17)

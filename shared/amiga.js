@@ -292,12 +292,17 @@ export const Amiga = {
     // ele se ofereceu para a missão dela (André 2026-11-21, "eu poder me oferecer pra ajudar"): ela chama ele para o time
     // dela durante a ajuda, como era antes desta regra
     const MJ = this.amiga?.ia?.missaoJunto; if (j && MJ?.id === j.id && !(this.tempo > MJ.ate)) return '';
-    const m = this.motivoSoldadoAmiga(); return m === 'ocupada' ? '' : m;
+    const m = this.motivoSoldadoAmiga(); if (m === 'ocupada') return '';
+    // André 2026-11-27 ("dar time pros líderes de clã da mesma raça ... o Dário, se ele tiver afim"): o líder de clã bot
+    // topa pela regra de liderTopaTimeAmiga (shared/time-clas.js); os membros dele seguem fora (vêm com ele, escolta)
+    if (m === 'lider') return this.liderTopaTimeAmiga(j);
+    return m;
   },
   // André 2026-11-25 ("era mais fácil só remover o botão de convite do Dario"; a aliança da Chama vem depois): líder de
   // clã bot não mostra convite para o time (botão no cartão, Time na lista de amigos, "Entra no meu time?"). Quem pedir
   // pelo chat ouve a recusa de foraDoTimeAmiga
-  semTimeAmiga() { return !!NPC_SOLDADO.ligado && this.motivoSoldadoAmiga() === 'lider'; },
+  // André 2026-11-27: com TIME.liderBot o botão volta (o líder decide pela regra; a recusa diz o motivo)
+  semTimeAmiga() { return !!NPC_SOLDADO.ligado && !TIME.liderBot && this.motivoSoldadoAmiga() === 'lider'; },
   // líder de clã bot (Dario, Gael, Kael, Varek), membro de clã bot (recruta dele ou membro fixo) ou outro
   motivoSoldadoAmiga() { const C = this.claBotAmiga(); return !C ? 'ocupada' : C.lider === this.AMIGA.id ? 'lider' : 'cla'; },
   // o clã bot de quem fala: o que ele lidera, o do recruta (clanpc) ou o dos membros fixos (fora do clã depois do reset: nenhum)
@@ -315,7 +320,10 @@ export const Amiga = {
   // o aviso do botão Time (o botão não fala no chat, André 2026-11-13) com o motivo; na etapa de time da história, diz o que fazer
   avisoForaDoTimeAmiga(motivo, j) {
     const n = this.AMIGA.nome, C = this.claBotAmiga();
-    const t = motivo === 'lider' && C ? `${n} é líder do clã ${C.n} e não entra no time de ninguém`
+    const t = motivo === 'semCla' && C ? `${n} só faz time com líder de clã. Funda o seu clã primeiro`
+      : motivo === 'base' && C ? `${n} está defendendo a base do clã ${C.n} agora. Chame daqui a pouco`
+      : motivo === 'outraRaca' ? `${n} não faz time com a outra raça`
+      : motivo === 'lider' && C ? `${n} é líder do clã ${C.n} e não entra no time de ninguém`
       : motivo === 'cla' && C ? `${n} é do clã ${C.n} e só anda com o clã ${this.AMIGA.genero === 'm' ? 'dele' : 'dela'}` : `${n} recusou o convite para o time`;
     return j && !j.bot && j.prog && etapaAtual(j.prog)?.ev === 'time' ? `${t}. Para a missão, chame um recruta seu ou um amigo` : t;
   },
@@ -1293,7 +1301,7 @@ export const Amiga = {
   vontadeAmiga(a, dono) {
     // soldado obedece só ao líder do clã dele (André 2026-11-22). Clã bot (Guarda da Chama, Lobos da Geada) é neutro ou
     // inimigo: não entra no time de jogador nenhum. O motivo é o de verdade (André 2026-11-25): líder de clã, membro de clã
-    if (NPC_SOLDADO.ligado) return this.AMIGA.recruta && !this.AMIGA.clanpc && dono?.conta === this.AMIGA.lider ? { p: 1, motivo: 'vontade' } : { p: 0, motivo: this.motivoSoldadoAmiga() };
+    if (NPC_SOLDADO.ligado) { const ms = this.motivoSoldadoAmiga(); if (ms === 'lider' && !this.liderTopaTimeAmiga(dono)) return { p: 1, motivo: 'vontade' }; return this.AMIGA.recruta && !this.AMIGA.clanpc && dono?.conta === this.AMIGA.lider ? { p: 1, motivo: 'vontade' } : { p: 0, motivo: ms }; } // líder de clã bot que topa (André 2026-11-27)
     const R = this.AMIGA.time, A = this.AMIGA, contra = [];
     // André 2026-11-16: amizade até 4 = base (60%), de 4 a 10 sobe até 100%; cada 5 níveis ACIMA de quem chama tira 5%
     const amz = this.amizadeAmiga(dono), b = A.amizadeBase ?? 4, topo = A.amizade?.max || 10;
@@ -1333,7 +1341,8 @@ export const Amiga = {
     if (!F || n < (this.AMIGA.acimaFala ?? 5)) return false;
     this.dizerAmiga(sorteia(F).replace('{n}', n), false, j.id); return true;
   },
-  timeCheioAmiga(j) { return !!(j.time && j.time.membros.length >= TIME.max); },
+  // cheio para o grupo de quem entra (André 2026-11-27: TIME.max por clã): recruta conta no grupo do líder dele
+  timeCheioAmiga(j) { return !!(j.time && this.cabeNoTime(j.time, this.amiga ? this.grupoTime(this.amiga) : this.grupoTime(j))); },
   // o campo c ainda está fechado na história de j? texto curto com a missão que abre, ou '' (aberto)
   fechadoParaAmiga(j, c) {
     const Z = c && !j.bot && zonaFechadaEm(j.prog, c.x, c.z); if (!Z) return '';
@@ -1384,7 +1393,7 @@ export const Amiga = {
     const fora = !(a.time && a.time === j.time) && this.foraDoTimeAmiga(j); if (fora) return aviso(this.avisoForaDoTimeAmiga(fora, j)); // convite de antes da regra (André 2026-11-25)
     if (!(a.time && a.time === j.time)) {
       if (!this.trocarDonoAmiga(id)) return aviso(this.comOutroAmiga());
-      if (!this.entrarTimeAmiga(a, j)) return aviso(`O time já tem ${TIME.max} pessoas`);
+      if (!this.entrarTimeAmiga(a, j)) return aviso(this.cabeNoTime(j.time, this.grupoTime(a)) || `O time já tem ${TIME.max} pessoas`);
     }
     const ia = a.ia, plano = this.AMIGA.atividades[ia.plano] ? ia.plano : null;
     ia.chamado = null; ia.vir = null; ia.plano = null;
@@ -1411,7 +1420,7 @@ export const Amiga = {
     if (!this.podeAmiga(id)) return aviso(`${nome} não pode entrar no seu time agora`);
     if (a.time && a.time === j.time) return aviso(`${nome} já está no seu time`);
     if (a.time) return aviso(`${nome} já está em outro time`);
-    if (this.timeCheioAmiga(j)) return aviso(`O time já tem ${TIME.max} pessoas`);
+    if (this.timeCheioAmiga(j)) return aviso(this.cabeNoTime(j.time, this.grupoTime(a)) || `O time já tem ${TIME.max} pessoas`);
     const fora = this.foraDoTimeAmiga(j); if (fora) return aviso(this.avisoForaDoTimeAmiga(fora, j));
     if (!this.trocarDonoAmiga(id)) return aviso(`${nome} está com outra pessoa agora`);
     const ia = a.ia, recusa = () => aviso(`${nome} recusou o convite para o time`);
@@ -1421,7 +1430,7 @@ export const Amiga = {
     if (!topou && (ia.recusaAte || 0) > this.tempo) return recusa();
     const dv = this.decisaoTimeAmiga(a, j);
     if (!topou && !dv.aceita) { this.recusarTimeAmiga(a, j, dv.motivo); return recusa(); }
-    if (!this.entrarTimeAmiga(a, j)) return aviso(`O time já tem ${TIME.max} pessoas`);
+    if (!this.entrarTimeAmiga(a, j)) return aviso(this.cabeNoTime(j.time, this.grupoTime(a)) || `O time já tem ${TIME.max} pessoas`);
     this.falaNivelBaixoAmiga(a, j);
     const plano = this.AMIGA.atividades[ia.plano] ? ia.plano : null;
     ia.chamado = null; ia.vir = null; ia.plano = null;
@@ -1648,7 +1657,7 @@ export const Amiga = {
   entrarTimeAmiga(a, dono) {
     let T = dono.time;
     if (!T) { T = { lider: dono.id, membros: [dono.id] }; dono.time = T; (this.times ||= new Set()).add(T); }
-    if (T.membros.length >= TIME.max) return false;
+    if (this.cabeNoTime(T, this.grupoTime(a))) return false; // TIME.max por clã (André 2026-11-27)
     T.membros.push(a.id); a.time = T;
     for (const k of T.membros) if (k !== a.id) this.evento({ t: 'aviso', para: k, texto: `${this.AMIGA.nome} entrou no time` });
     Object.assign(a.ia, { fase: 'seguir', chegou: null, preso: 0, noTime: true, av: null, viagem: null });
@@ -2290,7 +2299,7 @@ export const Amiga = {
       humor: (() => { // o que ela decidiu sobre caçar/time agora (decisaoTimeAmiga); o mesmo sorteio vale quando ele chamar
         if (a.time && a.time === j.time) return null;
         const fora = this.foraDoTimeAmiga(j); // soldado de outro líder: a IA sabe que nunca entra e o motivo (André 2026-11-25)
-        if (fora) return { aceita: false, motivo: fora, sempre: true, cla: this.claBotAmiga()?.n || null };
+        if (fora) return { aceita: false, motivo: fora, sempre: fora !== 'base', min: 5, cla: this.claBotAmiga()?.n || null }; // base atacada: só agora (André 2026-11-27)
         const topou = this.combinouAmiga(a) || (a.ia.chamado?.quer === 'time' && a.ia.chamado.ate > this.tempo);
         if (topou) return { aceita: true, combinado: true };
         const h = this.decisaoTimeAmiga(a, j, true);

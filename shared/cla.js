@@ -11,7 +11,7 @@
 // Estado na conta: prog.cla = { n: nome, c: ms (fundado), cofre: ouro, sem: ms (próxima cobrança), m: [membros],
 //   log: [{ t, txt, v }] }. Membro: { id, nome, g, ap, jeito, gosto, tier, nv0, nv, desde, dev: ms (devendo desde) }.
 // O save de cada recruta (nível, bolsa, peças) fica na tabela mundo como o dos aventureiros ('npc:' + id).
-import { FORNALHA, ARVORES_PLANTIO, PLANTIO, naBaseCla, VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS, DESPENSA, BASES_FRIAS, MORAL, PESCA, CASA_OBRA } from './dados.js';
+import { TIME, FORNALHA, ARVORES_PLANTIO, PLANTIO, naBaseCla, VOLTA_VILA, LIDERES_CLA, CLA, ENCOMENDA, FERRAMENTAS_FAZENDA, PROFISSOES, VIGOR, COLETA, PLANTAS, HORTA, ITENS, LOJA, fasePlanta, defRecruta, nomeValido, CLAS_NPC, CLAS_NPC_REGRAS, CLAS_NPC_ORDENS, LEILAO_BOT, vagasClaNpc, fixosNpc, almaDe, defRecrutaNpc, FICHA_RECRUTA, sortearLuta, fichaLuta, fichaInfo, AMIGOS_VIRTUAIS, RIVAIS, RACAS, DROPS, NPC_VIDA, NIVEL_INIMIGO, AMIGOS, DESPENSA, BASES_FRIAS, MORAL, PESCA, CASA_OBRA } from './dados.js';
 import { contextoDeAmigo, pecaDaCasa, mesmaPeca } from './amiga.js';
 import { profNivel, guardar, guardarQueCabe, moverQtd, profBonus, bonusTituloProf, xpProximo, xpDoInimigo, contar, tirar, organizar, progressoValido, liberarPaginas, calcularStatus, passivasDe } from './progresso.js';
 import { fundoAgua } from './transporte.js';
@@ -1852,6 +1852,7 @@ export const Cla = {
       // o líder olha o clã e reparte as ordens pelo que falta (CLAS_NPC_ORDENS); quem mudou de ordem larga o que fazia
       const trocou = new Set();
       const cansou = ctxs.some((x) => doM(x)?.fn?.k === 'grind' && this.grindSobraBot(x, x.amiga) <= 0); // acabou a caça do dia: nova ordem já
+      if (!!L.time !== !!L._comTime) { L._comTime = !!L.time; E.ordensT = 0; } // entrou/saiu do time de outro líder (André 2026-11-27): reparte já
       if (CLAS_NPC_ORDENS.ligado && (cansou || !(agora < (E.ordensT || 0)))) { E.ordensT = agora + CLAS_NPC_ORDENS.cada * 1000; for (const id of this.ordensLiderNpc(C, E, L, ctxs, temLote)) trocou.add(id); if (trocou.size) mudou = true; if (this.exigirRecursosNpc(C, E, L, ctxs)) mudou = true; }
       if (E.visto && !E.foraFeito) {
         E.foraFeito = true;
@@ -2057,11 +2058,12 @@ export const Cla = {
     for (const [r, fr] of Object.entries(this.faltaDespensaNpc(C, E, rnd))) falta[r] = Math.max(falta[r] || 0, fr); // comida e lenha (DESPENSA)
     let fazenda = false, arvores = false, protege = 0;
     const passeio = this.passeioNpc(C);
+    let escolta = L.time ? TIME.max - 1 : 0; // no time de outro líder (André 2026-11-27): até TIME.max - 1 recrutas vêm junto protegendo
     for (const m of [...E.m, ...this.membrosFixosNpc(C, E)]) {
       const x = ctxs.find((o) => o.AMIGA.id === m.id), a = x?.amiga; if (!a || a.morto) continue;
       if (this.descansoNpc(E, m, rnd)) { if (m.fn?.k !== 'livre') { m.fn = { k: 'livre' }; mudou.push(m.id); } continue; } // moral (MORAL.bots)
       // moral nova (MORAL.passeio): na hora do passeio, todo mundo sai junto com o líder (perto dele a moral sobe)
-      if (passeio) { if (m.fn?.k !== 'proteger' || m.fn.p !== 'lider') { m.fn = { k: 'proteger', p: 'lider' }; mudou.push(m.id); } continue; }
+      if (passeio || (escolta > 0 && E.m.includes(m) && escolta--)) { if (m.fn?.k !== 'proteger' || m.fn.p !== 'lider') { m.fn = { k: 'proteger', p: 'lider' }; mudou.push(m.id); } continue; }
       const cota = this.grindSobraBot(x, a) > 0, fraco = (a.prog.nivel | 0) <= nvL - O.abaixo, vigor = vigorDe(a.prog.vigor) >= 1;
       const op = [];
       if (cota) op.push([{ k: 'grind' }, (fraco ? 1 : 0.35) * P.grind]);
