@@ -21,6 +21,8 @@ import { horaDoJogo, ehNoite, HABS, BARRAS, cabeNaBarra } from './progresso.js';
 
 export const LEVE = {
   envio: 0.5, // s entre as fotos para a página
+  envioJoy: 0.25, // s entre as fotos com o joystick na mão (André 2026-11-27: "movimentação travada")
+  fxR: 40, // m: efeitos da luta perto do herói que vão para a página (fxLeve)
   chega: 1.3, // m do destino: chegou
   meio: 2.5, // m de um ponto do caminho: passa para o próximo
   olhar: 2, // s entre as conferidas de "preso"
@@ -301,6 +303,22 @@ export const Leve = {
     return L;
   },
   // os avisos que a página usa, mais leves e já com o nome de cada item (a página não carrega a tabela de itens)
+  // efeitos da luta para o leve (André 2026-11-27: "mostrar as skills acertando os bichos... não precisa ser bonito"):
+  // os mesmos eventos que o jogo 3D desenha, num formato curto, só os perto do herói (LEVE.fxR m).
+  // ['d', x, z, dano, crit (1), em mim (1)] · ['c', x, z, cura] · ['a', x, z, raio, tipo] (área: explosão, meteoro, anel,
+  // vórtice) · ['i', x, z] (impacto, raio) · ['p', x, z, vx, vz, s, cor, id] (projétil: velocidade m/s e vida s) ·
+  // ['x', x, z, id, explosão] (fim do projétil) · ['e', x, z] (esquiva)
+  fxLeve(j, e) {
+    const pos = (id) => this.jogadores.get(id) || this.inimigos.find((o) => o.id === id), r1 = (v) => Math.round(v * 10) / 10;
+    let f = null;
+    if (e.t === 'dano' || e.t === 'cura') { const o = pos(e.alvo); if (o && !(e.n === 0 && !e.escudo)) f = e.t === 'dano' ? ['d', r1(o.x), r1(o.z), e.n | 0, e.crit ? 1 : 0, o === j ? 1 : 0] : ['c', r1(o.x), r1(o.z), e.n | 0]; }
+    else if (e.t === 'explosao' || e.t === 'anel' || e.t === 'vortice' || e.t === 'meteoro') f = ['a', r1(e.x), r1(e.z), r1(e.r || 2), e.t === 'meteoro' ? 'meteoro' : e.t === 'explosao' ? (e.fx || 'explosao') : e.t];
+    else if (e.t === 'impacto' || e.t === 'raio') f = ['i', r1(e.x), r1(e.z)];
+    else if (e.t === 'proj') { const v = e.vel || 16, n = Math.hypot(e.dx, e.dz) || 1; f = ['p', r1(e.x), r1(e.z), r1((e.dx / n) * v), r1((e.dz / n) * v), r1(e.vida || 2.2), e.cor ?? 0xffaa44, e.id]; }
+    else if (e.t === 'projFim') f = ['x', r1(e.x), r1(e.z), e.id, r1(e.explosao || 0)]; // fim do projétil e.id (a página para a bolinha ali)
+    else if (e.t === 'esquiva') { const o = pos(e.id); if (o) f = ['e', r1(o.x), r1(o.z)]; }
+    return f && Math.hypot(f[1] - j.x, f[2] - j.z) <= LEVE.fxR ? f : null;
+  },
   leveEvento(e) {
     if (e.t === 'leilao') {
       const um = (a) => ({ id: a.id, k: a.item.k, n: a.item.n || 1, nome: nomeItem(a.item), c: corDe(a.item), preco: a.preco, ...(a.casa ? { casa: 1 } : { v: a.vendedor, ate: a.ate }) });
@@ -542,7 +560,7 @@ export const Leve = {
       ...((() => { const l = this.spotsLeve(j); return l.length ? { sp: Math.round(l[0][1]), ss: l.slice(0, 12).map(([v]) => [r1(v.x), r1(v.z)]) } : {}; })()), // metros até o spot de pesca à vista; ss: os spots no mapa (à vista ou com o Radar, como no jogo)
       ...((() => { const a = this.alvoLeve(j) || this.maisPerto(j); return a && a.id && m.some((o) => o[4] === a.id) ? { al: a.id } : {}; })()), // al: o monstro que o próximo golpe pega (André 2026-11-27: círculo vermelho nele)
       ...((() => { const b = this.bfLeve(this.bfJogador(j)), a = this.alvoLeve(j), ba = a && !a.morto && this.bfInimigo ? this.bfLeve(this.bfInimigo(a)) : []; return { ...(b.length ? { bf: b } : {}), ...(ba.length ? { ba } : {}) }; })()), // buffs e debuffs (André 2026-11-27: "ícones de buff" iguais ao jogo, buffs.gd): os meus e os do alvo
-      ...(this.emCombate(j) ? { lu: 1 } : {}), // em luta (bateu ou apanhou nos últimos ESTAMINA.combate s): o cartão de baixo vira "Em luta" (André 2026-11-26)
+      ...(this.emCombate(j) ? { lu: 1, as: j.acaoSeq | 0 } : {}), // as: conta os golpes do herói (a página desenha o corte quando muda) // em luta (bateu ou apanhou nos últimos ESTAMINA.combate s): o cartão de baixo vira "Em luta" (André 2026-11-26)
     };
   },
   // buffs e debuffs da foto do jogo (bfJogador/bfInimigo: [código, fim, valor, extra]) com o fim virado em segundos que

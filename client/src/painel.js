@@ -646,6 +646,67 @@ function assarCena(cn) {
   for (const [x0, y0, x1, y1] of [[0, 0, bd, 0], [T, 0, T - bd, 0], [0, 0, 0, bd], [0, T, 0, T - bd]]) { const gr = g.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = gr; g.fillRect(0, 0, T, T); }
   return c;
 }
+// movimento liso (André 2026-11-27: "parece FPS baixo"): a foto chega a cada 0,5 s (0,25 s com o joystick); entre uma e
+// outra o herói, os bichos e a gente deslizam do lugar desenhado até o novo, a ~30 quadros por segundo (animarLeve)
+const SUAVE = new Map(); let suaveDur = 500, animLeve = 0, animUlt = 0;
+function suave(k, x, z) {
+  const t = performance.now(); let o = SUAVE.get(k);
+  const em = (q) => { const f = Math.min(1, (t - q.t) / suaveDur); return [q.ax + (q.bx - q.ax) * f, q.az + (q.bz - q.az) * f]; };
+  if (!o) { o = { ax: x, az: z, bx: x, bz: z, t }; SUAVE.set(k, o); }
+  else if (o.bx !== x || o.bz !== z) { const [cx, cz] = em(o), longe = Math.hypot(x - cx, z - cz) > 15; o.ax = longe ? x : cx; o.az = longe ? z : cz; o.bx = x; o.bz = z; o.t = t; }
+  o.v = t; return em(o);
+}
+// efeitos da luta (fxLeve no servidor; André 2026-11-27: "não precisa ser bonito, só mostrar o que está acontecendo")
+const FX = [];
+function fxChegou(l) {
+  const t = performance.now();
+  for (const f of l) {
+    if (f[0] === 'x') { const p = FX.find((o) => o.f[0] === 'p' && o.f[7] === f[3]); if (p) { const [, x, z, vx, vz] = p.f, v = Math.hypot(vx, vz) || 1; p.vida = Math.min(p.vida, Math.hypot(f[1] - x, f[2] - z) / v); FX.push({ f: f[4] ? ['a', f[1], f[2], f[4], 'explosao'] : ['i', f[1], f[2]], t: p.t + p.vida * 1000 }); continue; } FX.push({ f: ['i', f[1], f[2]], t }); continue; }
+    FX.push({ f, t, vida: f[0] === 'p' ? Math.min(f[5], 2.5) : 0 });
+  }
+  if (FX.length > 80) FX.splice(0, FX.length - 80);
+}
+function animarLeve() {
+  if (!mundoVisivel() || !leve.f) { animLeve = 0; return; }
+  const t = performance.now();
+  if (t - animUlt >= 32) { animUlt = t; desenharMapa(); }
+  let mexe = FX.length > 0 || naLuta();
+  if (!mexe) for (const o of SUAVE.values()) if (t - o.t < suaveDur + 40) { mexe = true; break; }
+  if (mexe) requestAnimationFrame(animarLeve); else animLeve = 0;
+}
+const animarJa = () => { if (!animLeve) { animLeve = 1; requestAnimationFrame(animarLeve); } };
+function desenharFx(g, P, W, hx, hz) {
+  const t = performance.now(), pxm = Math.abs(P(hx + 1, hz)[0] - P(hx, hz)[0]) || 1, fonte = Math.max(12, W / 26);
+  for (let i = FX.length - 1; i >= 0; i--) {
+    const o = FX[i], f = o.f, idade = (t - o.t) / 1000;
+    if (idade < 0) continue; // impacto de projétil: espera a bolinha chegar
+    const vida = f[0] === 'p' ? o.vida : f[0] === 'a' ? (f[4] === 'meteoro' ? 1.2 : 0.7) : f[0] === 'i' ? 0.35 : f[0] === 's' ? 0.28 : 1.0;
+    if (idade > vida) { FX.splice(i, 1); continue; }
+    const k = idade / vida; g.save();
+    if (f[0] === 'd' || f[0] === 'c' || f[0] === 'e') { // número do dano (vermelho em mim, amarelo crítico), cura verde, esquiva
+      const [a, b] = P(f[1], f[2]); g.globalAlpha = 1 - k * k; g.textAlign = 'center'; g.lineWidth = Math.max(3, W / 160); g.strokeStyle = 'rgba(0,0,0,.85)';
+      g.font = `800 ${Math.round(fonte * (f[4] ? 1.35 : 1))}px system-ui,sans-serif`;
+      const txt = f[0] === 'd' ? (f[3] ? String(f[3]) : 'bloqueou') : f[0] === 'c' ? `+${f[3]}` : 'esquivou', y = b - pxm * (1.2 + k * 1.6);
+      g.fillStyle = f[0] === 'c' ? '#7dff7a' : f[0] === 'e' ? '#e8e8e8' : f[5] ? '#ff4a3a' : f[4] ? '#ffd23a' : '#ffffff';
+      g.strokeText(txt, a, y); g.fillText(txt, a, y);
+    } else if (f[0] === 'a') { // área (meteoro, explosão, anel, vórtice): o círculo de quanto pega
+      const [a, b] = P(f[1], f[2]), r = f[3] * pxm, cor = f[4] === 'meteoro' ? '255,120,30' : f[4] === 'anel' ? '120,230,120' : f[4] === 'vortice' ? '160,130,255' : '255,180,60';
+      g.globalAlpha = 1 - k; g.fillStyle = `rgba(${cor},.28)`; g.strokeStyle = `rgba(${cor},.95)`; g.lineWidth = Math.max(2, W / 150);
+      g.beginPath(); g.arc(a, b, r * (f[4] === 'vortice' ? 1 - k * 0.5 : 0.6 + 0.4 * Math.min(1, k * 3)), 0, 6.283); g.fill(); g.stroke();
+    } else if (f[0] === 'i') { const [a, b] = P(f[1], f[2]); g.globalAlpha = 1 - k; g.strokeStyle = '#ffe08a'; g.lineWidth = Math.max(2, W / 170); g.beginPath(); g.arc(a, b, pxm * (0.4 + k * 0.9), 0, 6.283); g.stroke(); }
+    else if (f[0] === 'p') { // projétil: a bolinha voando na cor da skill
+      const [a, b] = P(f[1] + f[3] * idade, f[2] + f[4] * idade), c = '#' + (f[6] | 0).toString(16).padStart(6, '0'), [a0, b0] = P(f[1] + f[3] * Math.max(0, idade - 0.08), f[2] + f[4] * Math.max(0, idade - 0.08));
+      g.strokeStyle = c; g.globalAlpha = 0.6; g.lineWidth = pxm * 0.35; g.lineCap = 'round'; g.beginPath(); g.moveTo(a0, b0); g.lineTo(a, b); g.stroke();
+      g.globalAlpha = 1; g.fillStyle = c; g.strokeStyle = '#fff'; g.lineWidth = Math.max(1, W / 400); g.beginPath(); g.arc(a, b, Math.max(3, pxm * 0.3), 0, 6.283); g.fill(); g.stroke();
+    } else if (f[0] === 's') { // o corte da espada na frente do herói (alcance do básico, 3,2 m)
+      const [a, b] = P(hx, hz), r = 3.2 * pxm, ang = Math.atan2(Math.cos(f[1]), Math.sin(f[1])), ab = 1.1, dir = f[2] ? -1 : 1; // golpes alternam o lado do corte
+      g.globalAlpha = 0.85 * (1 - k); g.fillStyle = 'rgba(255,255,255,.35)'; g.strokeStyle = '#fff'; g.lineWidth = Math.max(2, W / 140);
+      g.beginPath(); g.moveTo(a, b); g.arc(a, b, r, ang - ab, ang + ab); g.closePath(); g.fill();
+      g.beginPath(); g.arc(a, b, r, dir > 0 ? ang - ab : ang + ab - 2 * ab * Math.min(1, k * 2.5), dir > 0 ? ang - ab + 2 * ab * Math.min(1, k * 2.5) : ang + ab); g.stroke();
+    }
+    g.restore();
+  }
+}
 function desenharMapa() {
   // Jogar (André 2026-11-25: "tem q rolar muito"): o mapa ocupa a tela toda, então pode ser mais alto que largo; span = metros na largura
   const cv = $('mapa'), dpr = Math.min(2, devicePixelRatio || 1), lado = Math.round(cv.clientWidth * dpr) || 600, alto = Math.round(cv.clientHeight * dpr) || lado;
@@ -653,6 +714,7 @@ function desenharMapa() {
   const g = cv.getContext('2d'), W = cv.width, H = cv.height;
   const pts = [];
   const jogando = mundoVisivel() && leve.f;
+  const [hx, hz] = jogando ? suave('eu', leve.f.eu[0], leve.f.eu[1]) : [0, 0]; // o herói deslizando entre as fotos
   // modo leve: cores pela relação com você (André 2026-11-25: "eu com meus bots verdinho... os geadas vermelhos... fica
   // parecendo que os geadas são meus amigos"): você e seus recrutas verdes, Geada vermelho, outros da Chama azuis,
   // monstros laranja. Fora do modo leve o mapa do clã segue como era (recrutas dourados)
@@ -660,16 +722,16 @@ function desenharMapa() {
   const meus = new Set((info?.m || []).map((m) => m.nome)), vistos = new Set(jogando ? leve.f.g.map((o) => o[0]) : []);
   for (const m of info.m || []) if (m.on && Number.isFinite(m.x) && !vistos.has(m.nome)) pts.push({ x: m.x, z: m.z, cor: jogando ? COR_LEVE.meu : '#f2b84b', nome: m.nome, r: 6 });
   if (jogando) {
-    for (const [nome, x, z, geada, bot, nv, morto] of leve.f.g) pts.push({ x, z, cor: morto ? COR_LEVE.morto : geada ? COR_LEVE.inimigo : meus.has(nome) ? COR_LEVE.meu : COR_LEVE.aliado, nome: `${nome} ${nv}`, r: geada ? 6 : meus.has(nome) ? 5 : bot ? 4 : 5, m: 0.35 });
-    for (const [x, z, nv] of leve.f.m) pts.push({ x, z, cor: COR_LEVE.bicho, nome: `Nv ${nv}`, r: 3.5, m: 0.5 });
+    for (const [nome, x0, z0, geada, bot, nv, morto, id] of leve.f.g) { const [x, z] = suave('g' + id, x0, z0); pts.push({ x, z, cor: morto ? COR_LEVE.morto : geada ? COR_LEVE.inimigo : meus.has(nome) ? COR_LEVE.meu : COR_LEVE.aliado, nome: `${nome} ${nv}`, r: geada ? 6 : meus.has(nome) ? 5 : bot ? 4 : 5, m: 0.35 }); }
+    for (const [x0, z0, nv, , id] of leve.f.m) { const [x, z] = suave('m' + id, x0, z0); pts.push({ x, z, cor: COR_LEVE.bicho, nome: `Nv ${nv}`, r: 3.5, m: 0.5 }); }
     const car = leve.pk?.car; if (car?.onde === 1) pts.push({ x: car.x, z: car.z, cor: '#b07a46', nome: 'Carrinho', r: 5, losango: true });
     for (const [, , , x, z] of leve.pk?.ch || []) pts.push({ x, z, cor: '#d9a56a', nome: 'Pack', r: 3 });
-    pts.push({ x: leve.f.eu[0], z: leve.f.eu[1], cor: COR_LEVE.eu, nome: 'Você', r: 7, eu: true, m: 0.35 });
+    pts.push({ x: hx, z: hz, cor: COR_LEVE.eu, nome: 'Você', r: 7, eu: true, m: 0.35 });
   } else if (info.eu) pts.push({ x: info.eu.x, z: info.eu.z, cor: '#ffffff', nome: 'Você', r: 6 });
   const bots = ler('painelBots') === '1';
   if (bots) for (const C of info.clas || []) if (Number.isFinite(C.x)) pts.push({ x: C.x, z: C.z, cor: C.inimigo ? '#ff3b30' : C.raca === 'Geada' ? '#6fb3e6' : '#e0663a', nome: C.lider, r: 5, losango: true });
   $('mapaBots').checked = bots;
-  if (!vista && jogando) quadro = limitar({ cx: leve.f.eu[0], cz: leve.f.eu[1], span: spanAgora() }); // Jogar: segue o herói (na luta, mais perto)
+  if (!vista && jogando) quadro = limitar({ cx: hx, cz: hz, span: spanAgora() }); // Jogar: segue o herói (na luta, mais perto)
   else if (!vista) { // ajusta sozinho a quem está no mundo
     const base = pts.length ? pts : [{ x: 0, z: 0 }];
     const x0 = Math.min(...base.map((p) => p.x)), x1 = Math.max(...base.map((p) => p.x)), z0 = Math.min(...base.map((p) => p.z)), z1 = Math.max(...base.map((p) => p.z));
@@ -709,7 +771,7 @@ function desenharMapa() {
   }
   if (jogando && leve.rota?.length) { // o caminho que falta, tracejado
     g.save(); g.strokeStyle = '#ffd36b'; g.lineWidth = Math.max(2.5, W / 160); g.setLineDash([W / 70, W / 90]); g.beginPath();
-    const [a0, b0] = P(leve.f.eu[0], leve.f.eu[1]); g.moveTo(a0, b0);
+    const [a0, b0] = P(hx, hz); g.moveTo(a0, b0);
     for (const [x, z] of leve.rota.slice(leve.rotaI)) { const [a, b] = P(x, z); g.lineTo(a, b); }
     g.stroke(); g.restore();
   }
@@ -757,9 +819,9 @@ function desenharMapa() {
     marcas.push([p.nome, a, b - r - 5]);
   }
   if (jogando && leve.f) { // o alvo e a frente do herói (André 2026-11-27: "no modo leve eu sou uma bola... não sei onde é minha frente... nem para onde eu estou batendo")
-    const F = leve.f, [ea, eb] = P(F.eu[0], F.eu[1]), re = Math.max(7, (0.35 / span) * 600) * (W / 600), al = F.al && (F.m || []).find((o) => o[4] === F.al);
+    const F = leve.f, [ea, eb] = P(hx, hz), re = Math.max(7, (0.35 / span) * 600) * (W / 600), al = F.al && (F.m || []).find((o) => o[4] === F.al);
     if (al && naLuta()) { // o monstro que o próximo golpe pega: círculo vermelho aceso em volta dele e um traço até ele
-      const [a, b] = P(al[0], al[1]), r = Math.max(W / 40, Math.abs(P(al[0] + 1.1, al[1])[0] - a)), pulso = 0.75 + 0.25 * Math.sin(Date.now() / 160);
+      const [ax, az] = suave('m' + al[4], al[0], al[1]), [a, b] = P(ax, az), r = Math.max(W / 40, Math.abs(P(ax + 1.1, az)[0] - a)), pulso = 0.75 + 0.25 * Math.sin(Date.now() / 160);
       g.save(); g.strokeStyle = 'rgba(255,60,50,.45)'; g.lineWidth = Math.max(2, W / 250); g.setLineDash([W / 80, W / 110]); g.beginPath(); g.moveTo(ea, eb); g.lineTo(a, b); g.stroke(); g.setLineDash([]);
       g.shadowColor = '#ff2a1f'; g.shadowBlur = W / 30; g.strokeStyle = `rgba(255,48,36,${pulso})`; g.lineWidth = Math.max(3, W / 110); g.beginPath(); g.arc(a, b, r, 0, 6.283); g.stroke();
       g.shadowBlur = 0; g.strokeStyle = '#ffd0c8'; g.lineWidth = Math.max(1, W / 500); g.beginPath(); g.arc(a, b, r, 0, 6.283); g.stroke(); g.restore();
@@ -770,6 +832,7 @@ function desenharMapa() {
       g.beginPath(); g.moveTo(ea + sx * L, eb + sz * L); g.lineTo(ea + sx * t0 + px * B, eb + sz * t0 + pz * B); g.lineTo(ea + sx * t0 - px * B, eb + sz * t0 - pz * B); g.closePath(); g.fill(); g.stroke(); g.restore();
     }
   }
+  if (jogando && !mapaGeral && FX.length) desenharFx(g, P, W, hx, hz);
   if (jogando && mapaGeral && lugarSel) { // o lugar marcado na lista (ou no toque), como o do mapa do jogo: anel dourado
     const [a, b] = P(lugarSel.x, lugarSel.z), r = Math.max(10, W / 30);
     g.save(); g.strokeStyle = '#ffd36b'; g.lineWidth = Math.max(3, W / 160); g.shadowColor = '#000'; g.shadowBlur = 6; g.beginPath(); g.arc(a, b, r, 0, 6.283); g.stroke();
@@ -787,7 +850,7 @@ function desenharMapa() {
   g.fillStyle = 'rgba(12,10,8,.7)'; g.fillRect(fonte * 0.6, y - fonte * 1.4, px + fonte * 1.2, fonte * 2);
   g.fillStyle = '#efe7d6'; g.fillRect(fonte * 1.2, y, px, Math.max(2, W / 300));
   g.font = `${Math.round(fonte * 0.8)}px system-ui,sans-serif`; g.textAlign = 'left'; g.fillText(`${m} m`, fonte * 1.2, y - fonte * 0.3);
-  if (jogando) { const [a, b] = P(leve.f.eu[0], leve.f.eu[1]), r = cv.getBoundingClientRect(), t = $('jogarAba').getBoundingClientRect(); leve.euTela = [r.left - t.left + a * r.width / W, r.top - t.top + b * r.height / H]; posicionarBalao(); desenharMini(); }
+  if (jogando) { const [a, b] = P(hx, hz), r = cv.getBoundingClientRect(), t = $('jogarAba').getBoundingClientRect(); leve.euTela = [r.left - t.left + a * r.width / W, r.top - t.top + b * r.height / H]; posicionarBalao(); desenharMini(); }
 }
 
 // ---------- Jogar: o modo leve (André 2026-11-25: "logar no jogo... só um mapa, eu clico e vai... ir na action house,
@@ -812,6 +875,9 @@ function ligarLeve(s) {
   if (aba === 'missoes' || aba === 'personagem') s.send('leveMissoes', { ver: true });
   if (aba === 'fazenda') s.send('leveFazenda', { ver: true });
   s.onMessage('leve', (d) => {
+    { const t = performance.now(); if (leve.tF) suaveDur = Math.max(150, Math.min(700, t - leve.tF)); leve.tF = t; } // o deslize dura o tempo entre as fotos
+    if (d.fx) fxChegou(d.fx);
+    if (d.f?.as != null && leve.f?.as != null && d.f.as !== leve.f.as && !d.f.hb?.mg) FX.push({ f: ['s', d.f.eu[13] || 0, d.f.as % 2], t: performance.now() }); // o herói golpeou de espada: o corte
     leve.f = d.f; if (d.cn) { leve.cn = d.cn; leve.cnImg = assarCena(d.cn); } if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa; if (d.ms) { leve.ms = d.ms; if (aba === 'missoes') desenharMissoes(); if (aba === 'personagem') desenharPersonagem(); }
     if (d.fz) { leve.fz = d.fz; if (aba === 'fazenda') desenharFazenda(); }
     for (const e of d.ev || []) eventoLeve(e);
@@ -819,7 +885,8 @@ function ligarLeve(s) {
     // jogo 3D); a página guarda o veio para o botão "Voltar a minerar" quando a luta acabar
     const coAntes = leve.coAntes; leve.coAntes = d.f?.co ? { no: d.f.co[0], nome: d.f.co[1], prof: leve.col?.no === d.f.co[0] ? leve.col.prof : '' } : null;
     if (d.f?.co) leve.volta = null; else if (coAntes && d.f?.lu) leve.volta = coAntes;
-    if (mundoVisivel()) { desenharMapa(); desenharJogar(); } else if (aba === 'mochila' && leve.sujo) desenharMochila();
+    if (mundoVisivel()) { desenharMapa(); desenharJogar(); animarJa(); } else if (aba === 'mochila' && leve.sujo) desenharMochila();
+    if (SUAVE.size > 300) { const t = performance.now(); for (const [k, o] of SUAVE) if (t - o.v > 5000) SUAVE.delete(k); }
   });
   s.onMessage('leveMapa', (d) => { leve.mapa = d; leve.sujo = true; });
   s.onMessage('leveErro', (t) => { aviso(t); leve.saindo = true; s.leave(); });
