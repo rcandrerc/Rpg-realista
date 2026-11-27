@@ -444,5 +444,5 @@ function publica(c) {
   try { aparencia = c.aparencia ? aparenciaValida(JSON.parse(c.aparencia)) : null; } catch { /* inválida: usa a padrão */ }
   let progresso = null;
   try { progresso = c.progresso ? progressoValido(JSON.parse(c.progresso)) : null; } catch { /* inválido: começa do nível 1 */ }
-  return { id: c.id, nome: c.nome, visual: c.visual, aparencia, build: buildValida(build) ? build : null, progresso, testador: testador(c.email), ia: !!c.ia_chave, ...(String(c.google).startsWith('robo:') ? { robo: true } : {}) };
+  return { id: c.id, nome: c.nome, visual: c.visual, aparencia, build: buildValida(build) ? build : null, progresso, testador: testador(c.email), ia: !!c.ia_chave, ...(String(c.google).startsWith('robo:') ? { robo: true } : {}), ...(c.google === ROBO.google ? { combateTeste: true } : {}) }; // o robô de testes joga no combate de teste (André 2026-11-27)
 }

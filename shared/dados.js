@@ -1314,6 +1314,19 @@ export const PAGINA_PRECO = [0, 1000, 5000, 15000]; // André 2026-11-16 (estudo
 // Nada some: itens das páginas 2-4 vão para os lugares vazios da página 1; se não couberem, fica a página que precisar.
 // missoes: botões "Voltar 1 missão" e "Zerar missões" na aba Missões, só na conta do André (André 2026-11-14: "só pra mim
 // e temporário"). Para tirar: missoes: false (o servidor recusa e o app esconde os botões).
+// Combate de teste (André 2026-11-27): só na conta do robô de testes (servidor: publica -> combateTeste), por uma semana;
+// ninguém mais muda até novo OK:
+// ideia do Old School RuneScape, onde o equipamento MULTIPLICA o dano (golpe máximo x (bônus + 64) / 64). Aqui:
+// dano = dano de nível e atributo x (base + arma x bonus da arma) / ref. Pelado = base/ref (metade); Épica +10 ~ igual a
+// hoje; Lendária/Mítica com + alto passam de hoje. As skills usam esse dano, então caem e sobem junto (tabela delas igual).
+// armadura: vida e defesa de cada peça vezes isto, pela raridade (André 2026-11-27: "a armadura também podia ter um
+// decréscimo de defesa no comum"): Comum fica como hoje e cada raridade acima vale mais, então evoluir pesa. desgasteGolpes: a cada N golpes de monstro que pegam no herói, cada peça do
+// corpo perde 1 de durabilidade (PvP não conta; a morte segue tirando MORTE.desgaste).
+// zerar: marca do reset completo do robô (nível, itens, skills, história, tudo); trocar o texto zera de novo na próxima entrada.
+// upgrade: o robô não evolui nem reforça sozinho (André 2026-11-27); quando o relatório pedir, o André diz o que muda e
+// entra aqui: v = marca nova (texto), equip = { lugar: { k, r, e } } vestido na próxima entrada do robô (uma vez por marca).
+export const COMBATE_TESTE = { base: 64, ref: 128, arma: 1.8, armadura: [1, 1.5, 2, 2.5, 3], desgasteGolpes: 150, zerar: '2026-11-27',
+  upgrade: { v: '', equip: {} } };
 export const CONTA_TESTE = { nivel: false, paginas: false, devolver: '2026-11-11', missoes: true };
 // st: o que a peça soma no herói (vida, mana, defesa, critico, danoFisico, danoMagico), por raridade
 // André 2026-11-17: um atributo a mais por peça (capacete e botas: dano crítico em número; arma: chance de crítico;
