@@ -8,11 +8,11 @@
 import { planejarRota, terraId } from './rota.js';
 import { TUNEL } from './caverna.js';
 import { LUGARES_MUNDO } from './mundo.js';
-import { LUGARES, TITULOS, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
+import { LUGARES, TITULOS, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO, ESTAMINA } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax, ATRIBUTOS, xpProximo } from './progresso.js';
-import { precoPack, mercadoK, custoPack, capacidadeCarrinho } from './transporte.js';
+import { precoPack, mercadoK, custoPack, capacidadeCarrinho, acharPonto, fundoAgua } from './transporte.js';
 import { liberado, missaoAtual } from './historia.js';
-import { noLago, relevo } from './relevo.js';
+import { noLago, relevo, AGUA } from './relevo.js';
 import { ESTRADAS_MUNDO } from './mundo.js';
 import { VILAS_MUNDO } from './dados.js';
 import { aguaRegador, pertoDeAgua, distRet, crescerPlanta, retPeca, semParede } from './simulacao.js'; // fazenda e cama (etapa 6); só usadas na hora, depois que tudo carregou
@@ -191,7 +191,20 @@ export const Leve = {
     if (tinha) this.evento({ t: 'leveRota', para: id, pontos: [], ...(texto ? { texto } : {}) });
   },
   // um passo do herói do modo leve (antes do passoJogador): vira o "joystick" que leva ao próximo ponto do caminho
+  // na água (André 2026-11-27: "dá pra andar de montaria na água super rápido; encostou na água já desmonta e começa a
+  // nadar"): encostou na água (mais de 0,2 m no corpo), desce do lobo; anda devagar como o na_agua do jogo (andar.gd) e,
+  // boiando, na braçada (AGUA.nado, mais lento sem fôlego). Só no leve: o jogo 3D é do irmão do André
   passoLeve(j, dt) {
+    this.passoLeve0(j, dt);
+    if (j.veiculo || j.morto || !noLago(j.x, j.z)) return;
+    const a = AGUA.nivel - this.terreno.altura(j.x, j.z, j.y); if (!(a > 0.2)) return;
+    if (j.montado) { j.montado = null; this.evento({ t: 'aviso', para: j.id, texto: 'Você desceu do lobo na água' }); }
+    const e = j.entrada; if (!e || e === j._entAgua || Math.hypot(e.mx, e.mz) < 0.15) return; // já ajustada neste passo
+    const base = e.correr ? HEROI.correr : HEROI.andar, boia = a >= AGUA.peito - 0.12;
+    const k = boia ? Math.min(1, (AGUA.nado * (j.semFolego ? ESTAMINA.nadoCansado : 1)) / base) : AGUA.raso + (AGUA.lento - AGUA.raso) * Math.min(1, Math.max(0, (a - 0.2) / 0.8));
+    j.entrada = j._entAgua = { mx: e.mx * k, mz: e.mz * k, correr: e.correr && !boia };
+  },
+  passoLeve0(j, dt) {
     if (j.leveJoy) { // joystick: anda na direção do dedo até soltar
       const J = j.leveJoy;
       if (j.morto || this.tempo - J.t > LEVE.joySolto) { j.leveJoy = null; j.entrada = { mx: 0, mz: 0, correr: false }; return; }
@@ -563,6 +576,10 @@ export const Leve = {
       ...((() => { const l = this.spotsLeve(j); return l.length ? { sp: Math.round(l[0][1]), ss: l.slice(0, 12).map(([v]) => [r1(v.x), r1(v.z)]) } : {}; })()), // metros até o spot de pesca à vista; ss: os spots no mapa (à vista ou com o Radar, como no jogo)
       ...((() => { const a = this.alvoLeve(j) || this.maisPerto(j); return a && a.id && m.some((o) => o[4] === a.id) ? { al: a.id } : {}; })()), // al: o monstro que o próximo golpe pega (André 2026-11-27: círculo vermelho nele)
       ...((() => { const b = this.bfLeve(this.bfJogador(j)), a = this.alvoLeve(j), ba = a && !a.morto && this.bfInimigo ? this.bfLeve(this.bfInimigo(a)) : []; return { ...(b.length ? { bf: b } : {}), ...(ba.length ? { ba } : {}) }; })()), // buffs e debuffs (André 2026-11-27: "ícones de buff" iguais ao jogo, buffs.gd): os meus e os do alvo
+      // perto da água (André 2026-11-27: "aparecer opção de pescar e usar o barquinho se eu tiver na bag"), as mesmas contas do
+      // jogo: ag = com a vara e água a até 4,4 m (pesca.gd: o botão Pescar); bq = barquinho na mochila e água funda a até 4 m
+      // (transporte.gd _estado_botao); vc 'b' = no barquinho (o botão vira Descer)
+      ...(j.veiculo === 'barquinho' ? { vc: 'b' } : (() => { const o = {}; if (!j.pesca && !j.veiculo && contar(j.prog.mochila, 'vara') > 0 && acharPonto(j, (a, b) => fundoAgua(a, b) > 0.05, 4.4)) o.ag = 1; if (!j.veiculo && contar(j.prog.mochila, 'barquinho') > 0 && acharPonto(j, (a, b) => fundoAgua(a, b) >= VEICULOS.barquinho.fundo, 4)) o.bq = 1; return o; })()),
       ...(this.emCombate(j) ? { lu: 1, as: j.acaoSeq | 0 } : {}), // as: conta os golpes do herói (a página desenha o corte quando muda) // em luta (bateu ou apanhou nos últimos ESTAMINA.combate s): o cartão de baixo vira "Em luta" (André 2026-11-26)
     };
   },

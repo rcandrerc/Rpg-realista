@@ -536,7 +536,7 @@ $('mapaCentro').onclick = () => { if (vista && aba === 'jogar') guardarZoom(vist
     desenharMapa();
   });
   const soltar = (e) => {
-    if (e.type === 'pointerup' && toque && dedos.size === 1 && Math.hypot(e.clientX - toque.x, e.clientY - toque.y) < 10 && mundoVisivel()) { vista = toque.v; tocarMapaLeve(e); vista = null; } // andou: o mapa volta a seguir o herói (no zoom de seguir)
+    if (e.type === 'pointerup' && toque && dedos.size === 1 && Math.hypot(e.clientX - toque.x, e.clientY - toque.y) < 10 && mundoVisivel()) { vista = toque.v; tocarMapaLeve(e); if (!mapaTotem) vista = null; } // andou: o mapa volta a seguir o herói (no zoom de seguir)
     toque = null; dedos.delete(e.pointerId); comecar();
   };
   cv.addEventListener('pointerup', soltar); cv.addEventListener('pointercancel', soltar);
@@ -670,7 +670,7 @@ function animarLeve() {
   if (!mundoVisivel() || !leve.f) { animLeve = 0; return; }
   const t = performance.now();
   if (t - animUlt >= 32) { animUlt = t; desenharMapa(); }
-  let mexe = FX.length > 0 || naLuta();
+  let mexe = FX.length > 0 || naLuta() || !!mapaTotem;
   if (!mexe) for (const o of SUAVE.values()) if (t - o.t < suaveDur + 40) { mexe = true; break; }
   if (mexe) requestAnimationFrame(animarLeve); else animLeve = 0;
 }
@@ -775,7 +775,7 @@ function desenharMapa() {
     for (const [x, z] of leve.rota.slice(leve.rotaI)) { const [a, b] = P(x, z); g.lineTo(a, b); }
     g.stroke(); g.restore();
   }
-  if (jogando && leve.mapa) { // caçadas, minas e spots de pesca, como o minimapa do jogo (André 2026-11-26)
+  if (jogando && leve.mapa && !mapaTotem) { // (no mapa do totem só os totens, como no jogo) caçadas, minas e spots de pesca, como o minimapa do jogo (André 2026-11-26)
     const fora = (a, b) => a < -30 || b < -30 || a > W + 30 || b > H + 30, rr = Math.max(7, W / 55);
     for (const [x, z, tipo] of leve.mapa.mn || []) {
       const [a, b] = P(x, z); if (fora(a, b)) continue; const r = rr * 0.75;
@@ -833,6 +833,22 @@ function desenharMapa() {
     }
   }
   if (jogando && !mapaGeral && FX.length) desenharFx(g, P, W, hx, hz);
+  if (jogando && mapaTotem && leve.mapa) { // mapa do totem (minimapa.gd _desenhar_totens): aceso e pulsando = dá para ir,
+    // apagado = visite a pé, dourado = você está aqui / o escolhido; embaixo do nome, a taxa (vermelha sem ouro)
+    const ouro = leve.f.eu[7] | 0, pulso = 0.5 + 0.5 * Math.sin(performance.now() / 330), u = W / 380, fs = Math.round(13 * u);
+    for (const t of leve.mapa.totens) {
+      const [a, b] = P(t.x, t.z), aqui = t.id === mapaTotem.id, esc = t.id === totemSel; g.save();
+      if (t.d && !aqui) { g.fillStyle = `rgba(90,216,255,${0.12 + pulso * 0.1})`; g.beginPath(); g.arc(a, b, (20 + pulso * 5) * u, 0, 6.283); g.fill(); }
+      if (esc || aqui) { g.strokeStyle = '#ffd36b'; g.lineWidth = 2.5 * u; g.beginPath(); g.arc(a, b, 20 * u, 0, 6.283); g.stroke(); }
+      const r = 11 * u; g.fillStyle = t.d ? '#5ad8ff' : '#6a737d'; g.strokeStyle = 'rgba(12,10,8,.95)'; g.lineWidth = 1.5 * u;
+      g.beginPath(); g.moveTo(a, b - r * 1.3); g.lineTo(a + r, b); g.lineTo(a, b + r * 1.3); g.lineTo(a - r, b); g.closePath(); g.fill(); g.stroke();
+      g.textAlign = 'center'; g.lineWidth = 3.5 * u; g.strokeStyle = 'rgba(0,0,0,.85)';
+      g.font = `700 ${fs}px system-ui,sans-serif`; g.fillStyle = t.d ? '#fff5e0' : '#c7ccd4'; g.strokeText(t.n, a, b - 24 * u); g.fillText(t.n, a, b - 24 * u);
+      const sub = aqui ? 'Você está aqui' : t.d ? `${t.taxa} de ouro` : 'visite a pé';
+      g.font = `600 ${Math.round(fs * 0.85)}px system-ui,sans-serif`; g.fillStyle = aqui ? '#ffd36b' : !t.d ? '#b8bec7' : t.taxa > ouro ? '#ff9e8c' : '#9fe6ff';
+      g.strokeText(sub, a, b + 30 * u); g.fillText(sub, a, b + 30 * u); g.restore();
+    }
+  }
   if (jogando && mapaGeral && lugarSel) { // o lugar marcado na lista (ou no toque), como o do mapa do jogo: anel dourado
     const [a, b] = P(lugarSel.x, lugarSel.z), r = Math.max(10, W / 30);
     g.save(); g.strokeStyle = '#ffd36b'; g.lineWidth = Math.max(3, W / 160); g.shadowColor = '#000'; g.shadowBlur = 6; g.beginPath(); g.arc(a, b, r, 0, 6.283); g.stroke();
@@ -878,6 +894,7 @@ function ligarLeve(s) {
     { const t = performance.now(); if (leve.tF) suaveDur = Math.max(150, Math.min(700, t - leve.tF)); leve.tF = t; } // o deslize dura o tempo entre as fotos
     if (d.fx) fxChegou(d.fx);
     if (d.f?.as != null && leve.f?.as != null && d.f.as !== leve.f.as && !d.f.hb?.mg) FX.push({ f: ['s', d.f.eu[13] || 0, d.f.as % 2], t: performance.now() }); // o herói golpeou de espada: o corte
+    leve.parado = !!(leve.f && d.f && leve.f.eu[0] === d.f.eu[0] && leve.f.eu[1] === d.f.eu[1]); // o herói não andou desde a foto de antes
     leve.f = d.f; if (d.cn) { leve.cn = d.cn; leve.cnImg = assarCena(d.cn); } if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa; if (d.ms) { leve.ms = d.ms; if (aba === 'missoes') desenharMissoes(); if (aba === 'personagem') desenharPersonagem(); }
     if (d.fz) { leve.fz = d.fz; if (aba === 'fazenda') desenharFazenda(); }
     for (const e of d.ev || []) eventoLeve(e);
@@ -953,6 +970,13 @@ function tocarMapaLeve(e) {
   if (!leve.sala || !leve.f || !quadro) return;
   const cv = $('mapa'), R = cv.getBoundingClientRect(), k = quadro.span / R.width;
   const x = quadro.cx - quadro.span / 2 + (e.clientX - R.left) * k, z = quadro.cz - (quadro.span * R.height / R.width) / 2 + (e.clientY - R.top) * k;
+  if (mapaTotem) { // mapa do totem: só os totens respondem (até 30 px); o mesmo de novo viaja, como no jogo
+    let t = null, m = 30 * k; for (const o of leve.mapa?.totens || []) { const d = Math.hypot(o.x - x, o.z - z); if (d < m) { m = d; t = o; } }
+    if (!t || t.id === mapaTotem.id || !t.d) { totemSel = null; if (t && !t.d) aviso('Esse eu ainda não conheço. Vá até lá a pé uma vez e as runas guardam o caminho.'); }
+    else if (t.id === totemSel) return viajarTotem();
+    else totemSel = t.id;
+    leve.sujo = true; desenharJogar(); desenharMapa(); return;
+  }
   let alvo = { x, z, nome: '' }, melhor = 14 * k; // 14 px
   // combate (André 2026-11-25): tocar num monstro (ponto laranja) abre o quadrinho com o nome e o Atacar; não anda sozinho
   let bicho = null, mb = 18 * k;
@@ -1438,6 +1462,12 @@ function desenharJogar() {
   // tela do jogo (André 2026-11-27: "aparece o botão de ação no mapa, como no jogo... balãozinho"): chegar perto não abre
   // mais nada sozinho; o balão junto da bolinha (balaoLeve) mostra a ação e o toque nele abre ou faz
   balaoLeve(P, morto);
+  // chegou a pé perto de um totem e parou: o mapa dos totens abre sozinho uma vez (André 2026-11-27); entrar no mundo,
+  // renascer ou chegar de teleporte nele não abre
+  if (!leve.mapa) { /* sem a lista dos lugares ainda: espera */ }
+  else if (!P.totem || morto) leve.totemVisto = morto ? 'morto' : null;
+  else if (leve.totemVisto === undefined || leve.totemVisto === 'morto' || P.totem.id === leve.totemChegada) { leve.totemVisto = P.totem.id; leve.totemChegada = null; }
+  else if (leve.totemVisto !== P.totem.id && leve.parado && !mapaGeral && !joyC?.classList.contains('on')) { leve.totemVisto = P.totem.id; abrirMapaTotem(P.totem); return; }
   if (chave === jogarChave && !leve.sujo && raiz.contains(st)) return;
   if (document.activeElement?.tagName === 'INPUT' && raiz.contains(document.activeElement) && chave === jogarChave) return; // digitando: não refaz
   if (chave !== jogarChave) { leve.sel = null; if (!P.npc || P.npc.f !== 'leilao') leve.leilao = null; if (!P.bau) leve.bau = null; }
@@ -1496,7 +1526,11 @@ function desenharJogar() {
   // Lobo, Base, Time e Chat (os antigos botões redondos) ficam nela e junto dos golpes
   barraTopo(); raiz.append(miniEl()); if (!leve.f?.eu?.[6]) raiz.append(joyEl());
   if (mapaGeral) { const x = el('button', 'fechaMapa', '✕'); x.setAttribute('aria-label', 'Fechar o mapa'); x.onclick = () => abrirMapaGeral(false); raiz.append(x); }
-  if (mapaGeral) { // como no jogo: o botão Lugares abre e fecha a lista; o marcado ganha o "Ir para ›" embaixo do mapa
+  if (mapaTotem) { // o título do mapa do totem e o Teleportar do escolhido (minimapa.gd _desenhar_totens)
+    const tt = el('div', 'totemTopo'); tt.append(el('b', null, `Totem de teleporte · ${mapaTotem.n}`), el('small', null, `Você tem ${num(leve.f?.eu[7] | 0)} de ouro. Toque num totem aceso para viajar.`)); raiz.append(tt);
+    const o = totemSel && leve.mapa.totens.find((t) => t.id === totemSel);
+    if (o) { const ir = el('button', 'irMarcado'); ir.append(el('small', null, `${o.n} · ${o.taxa} de ouro`), document.createTextNode('Teleportar ›')); ir.onclick = viajarTotem; raiz.append(ir); }
+  } else if (mapaGeral) { // como no jogo: o botão Lugares abre e fecha a lista; o marcado ganha o "Ir para ›" embaixo do mapa
     const lb = el('button', 'botaoLista', listaMapaAberta ? 'Esconder lista' : 'Lugares'); lb.onclick = () => { listaMapaAberta = !listaMapaAberta; painelLeve = 'lugares'; leve.sujo = true; desenharJogar(); }; raiz.append(lb);
     if (lugarSel) { const ir = el('button', 'irMarcado'); ir.append(el('small', null, lugarSel.nome), document.createTextNode('Ir para ›')); ir.onclick = irMarcado; raiz.append(ir); }
   }
@@ -1524,6 +1558,7 @@ const ICONE_HAB = { Golpe: '⚔️', Disparo: '🔮', Cura: '💚' };
 // os mesmos símbolos dos botões do jogo (André 2026-11-27: "coloca igual do jogo pra quem já joga já nem pensa"): os .svg de
 // godot-prototipo/icones copiados em client/public/painel-icones/hab; o básico da espada é 'basico' e o da magia 'magia'
 const ICONE_JOGO = { basico: 'basico', magia: 'magia', cura: 'cura', pisao: 'onda', escudo: 'barreira' }; // pisão e escudo não têm SVG próprio: os parecidos
+function iconeIt(k, reserva) { const i = el('i'), im = el('img'); im.alt = ''; im.src = `painel-icones/${k}.png`; im.onerror = () => { im.remove(); i.textContent = reserva; }; i.append(im); return i; } // o ícone do item (it_barquinho do jogo)
 function iconeJogo(nome, reserva) { // client/public/painel-icones/jogo: os .svg/.png da HUD do jogo (godot-prototipo/icones)
   const i = el('i'), im = el('img'); im.alt = ''; im.src = `painel-icones/jogo/${nome}${/^(pf_|pescar|cs_bau$)/.test(nome) ? '.png' : '.svg'}`; im.onerror = () => { im.remove(); i.textContent = reserva; }; i.append(im); return i;
 }
@@ -1737,9 +1772,26 @@ function desenharMini() {
   g.restore();
 }
 // o mapa geral (aberto pelo minimapa): o mapa grande com o zoom de andar e o Ir para embaixo; tocar num lugar vai e fecha
+// o mapa do totem (André 2026-11-27: "qd me aproximo do totem quero q abra o mapa com os totens e eu navego pra escolher
+// pra onde quero ir, clicando no totem, igual no jogo real"; minimapa.gd abrir_totem): o mapa geral com todos os totens à
+// vista, grandes; tocar num aceso marca, tocar de novo (ou no Teleportar) viaja pela msg 'totem' do jogo (taxa no servidor)
+let mapaTotem = null, totemSel = null;
+function abrirMapaTotem(t) {
+  if (!leve.mapa?.totens?.length) return;
+  abrirMapaGeral(true, true); mapaTotem = t; totemSel = null; painelLeve = '';
+  const L = leve.mapa.totens, cv = $('mapa'), asp = (cv.clientHeight || 1) / (cv.clientWidth || 1);
+  const x0 = Math.min(...L.map((o) => o.x)), x1 = Math.max(...L.map((o) => o.x)), z0 = Math.min(...L.map((o) => o.z)), z1 = Math.max(...L.map((o) => o.z));
+  vista = limitar({ cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, span: Math.max(x1 - x0, (z1 - z0) / Math.max(0.3, asp * 0.8)) * 1.3 + 120 });
+  leve.sujo = true; desenharJogar(); desenharMapa(); animarJa();
+}
+function viajarTotem() {
+  const o = leve.mapa?.totens?.find((t) => t.id === totemSel); if (!o) return;
+  if ((leve.f?.eu[7] | 0) < o.taxa) return aviso(`A viagem até ${o.n} custa ${o.taxa} de ouro. Você tem ${leve.f?.eu[7] | 0}.`); // a mesma frase do jogo (totem.gd ir)
+  leve.totemChegada = o.id; mandar('totem', { para: o.id }); abrirMapaGeral(false); // chegando lá, o mapa não abre de novo sozinho
+}
 function abrirMapaGeral(abre, quieto) {
   if (mapaGeral === abre) return;
-  mapaGeral = abre; vista = null; lugarSel = null; document.body.classList.toggle('mapaGeral', abre);
+  mapaGeral = abre; vista = null; lugarSel = null; mapaTotem = null; totemSel = null; document.body.classList.toggle('mapaGeral', abre);
   if (abre && aba !== 'jogar') irAba('jogar');
   if (abre) painelLeve = 'lugares'; else if (painelLeve === 'lugares') painelLeve = '';
   if (quieto) return;
@@ -1757,21 +1809,32 @@ function balaoLeve(P, morto) {
   else if (col) { const pf = col[3] || '', [re, verbo] = COLETA_VERBO[pf] || COLETA_VERBO['']; acao = [pf === 'len' ? 'pf_len' : pf === 'min' ? 'pf_min' : 'falar', re, `${volta ? 'Voltar a ' + verbo.toLowerCase() : verbo} ${col[1]}`, () => { leve.volta = null; mandar('leveColetar', { no: col[0] }); }]; }
   else if (P.npc) acao = [NPC_ICONE[P.npc.f] || 'falar', '💬', LUGAR_NOME[P.npc.f] ? `${LUGAR_NOME[P.npc.f]} · ${P.npc.n.split(',')[0]}` : `Falar com ${P.npc.n.split(',')[0]}`, () => abrirPainelLeve('perto')];
   else if (P.bau) acao = ['cs_bau', '📦', P.bau.cla ? 'Baú do Clã' : 'Baú', () => abrirPainelLeve('perto')];
-  else if (P.totem) acao = ['selo', '🗿', 'Totem', () => abrirPainelLeve('perto')];
+  else if (P.totem) acao = ['selo', '🗿', 'Totem', () => abrirMapaTotem(P.totem)]; // abre o mapa dos totens, como o Falar do jogo
   else if (P.car || P.chao?.length) acao = ['negociar', '📦', P.car ? 'Carrinho' : 'Pack no chão', () => abrirPainelLeve('perto')];
   else if (F.sp != null) acao = ['pescar', '🎣', `Pescar${F.sp > 4 ? ` · ${F.sp} m` : ''}`, () => mandar('levePescar')]; // spot à vista: vai até a beira e lança (etapa 6)
-  if (!acao || painelLeve === 'perto') { if (b) b.remove(); return; }
+  else if (F.ag) acao = ['pescar', '🎣', 'Pescar', () => mandar('levePescar')]; // na beira com a vara, como o botão do jogo (sem spot o servidor avisa)
+  if (F.vc === 'b' && !morto) acao = ['it:barquinho', '⛵', 'Descer do barquinho', () => mandar('veiculo', { acao: 'descer' })]; // no barquinho: o botão do jogo vira Descer
+  // o barquinho (na mochila, perto de água funda): um 2º balão em cima do primeiro, o "Usar barquinho" do botão do jogo
+  let b2 = $('balaoLeve2');
+  if (F.bq && !morto && !mapaGeral && !emLuta(morto) && painelLeve !== 'perto') {
+    if (!b2) { b2 = el('button', 'balaoLeve'); b2.id = 'balaoLeve2'; b2.append(iconeIt('barquinho', '⛵'), el('span', null, 'Usar barquinho')); b2.onclick = () => mandar('veiculo', { acao: 'colocar', k: 'barquinho' }); }
+    if (!b2.isConnected) $('jogarAba').append(b2);
+  } else if (b2) b2.remove();
+  if (!acao || painelLeve === 'perto') { if (b) b.remove(); posicionarBalao(); return; }
   const ch = acao[2];
   if (!b || b._ch !== ch) {
     if (!b) { b = el('button', 'balaoLeve'); b.id = 'balaoLeve'; }
-    limpar(b); b._ch = ch; b.append(iconeJogo(acao[0], acao[1]), el('span', null, ch)); b.onclick = acao[3];
+    limpar(b); b._ch = ch; b.append(acao[0].startsWith('it:') ? iconeIt(acao[0].slice(3), acao[1]) : iconeJogo(acao[0], acao[1]), el('span', null, ch)); b.onclick = acao[3];
   }
   if (!b.isConnected) $('jogarAba').append(b);
   posicionarBalao();
 }
-function posicionarBalao() { // em cima da bolinha (desenharMapa guarda onde ela está na tela)
-  const b = $('balaoLeve'), e = leve.euTela; if (!b || !e) return;
-  b.style.left = Math.round(Math.max(6, Math.min(e[0] - 26, innerWidth - b.offsetWidth - 6))) + 'px'; b.style.top = Math.round(Math.max(150, e[1] - 76)) + 'px';
+function posicionarBalao() { // em cima da bolinha (desenharMapa guarda onde ela está na tela); o 2º (barquinho) em cima do 1º
+  const e = leve.euTela; if (!e) return; let y = e[1] - 76;
+  for (const id of ['balaoLeve', 'balaoLeve2']) {
+    const b = $(id); if (!b || !b.isConnected) continue;
+    b.style.left = Math.round(Math.max(6, Math.min(e[0] - 26, innerWidth - b.offsetWidth - 6))) + 'px'; b.style.top = Math.round(Math.max(150, y)) + 'px'; y -= 56;
+  }
 }
 function cartaoAcao(raiz, P, morto, mana) {
   const F = leve.f, R = F.r, luta = emLuta(morto);
