@@ -4,9 +4,10 @@ extends RefCounted
 # lojas, o conserto e as missões continuam contando da casa do NPC (o lugar fixo de shared/dados.js). Por isso:
 # - o herói chegou perto (PERTO m) ou abriu a conversa: o NPC volta para a casa dele e fica ali, virado como sempre;
 # - só quem está a até VIVO m do herói trabalha ou passeia; mais longe ele termina de voltar para casa e fica parado;
-# - ferreiro (Tomás e os das mini vilas com martelo): vai até a bigorna da ferraria, bate umas vezes e para um pouco;
+# - a martelada na bigorna saiu (André 2026-11-27: "animação do ferreiro e bigorna não estão bem feias, põe só
+#   voltinhas neles também"): os ferreiros passeiam como os outros, dentro e em volta da ferraria;
 # - quem fica atrás de balcão ou banca (lojas, leilão, Guilda, mercadores de pack) não sai do lugar, só se espreguiça;
-# - os outros dão voltinhas de até PASSEIO m em volta da casa e param um pouco em cada ponto.
+# - os outros (ferreiros também) dão voltinhas de até PASSEIO m em volta da casa e param um pouco em cada ponto.
 # Custo: só anda a posição e troca a animação; o NPC longe continua com a animação espaçada do main.gd (lod_inimigos).
 
 const VIVO := 25.0 # m do herói: mais longe que isso o NPC não começa nada novo
@@ -16,16 +17,8 @@ const PASSEIO := 2.4 # m em volta da casa
 const VEL := 1.15 # m/s andando à toa
 const VEL_VOLTA := 1.6 # m/s voltando para casa porque o herói chegou
 const PASSO_ANDAR := 1.9 # m/s que a animação "andar" anda (online.gd PASSO_HUMANO)
-const BIGORNA_MAX := 3.6 # m da casa do ferreiro até a bigorna dele
-const NA_BIGORNA := 0.95 # m do centro da bigorna até onde ele fica em pé para bater
-const GOLPE := 1.15 # s de cada martelada
 const PARADOS := ["loja", "leilao", "guilda", "pack", "mural", "totem"]
 const ESPREGUICAR := ["parada_esticar_bracos", "parada_esticar_pescoco", "parada_bracos", "parada_calma"]
-# tempos dentro da animação "descendente" (os mesmos da picareta em trabalho.gd): pronto, erguido, na bigorna
-const G_PRONTO := 0.40
-const G_ALTO := 0.58
-const G_BATE_T := 0.667
-const G_BATE := 0.55 # fração da martelada em que o martelo encosta na bigorna
 
 var m # main.gd
 
@@ -70,8 +63,6 @@ func passo(n: Dictionary, dn: float, dt: float) -> void:
 			_espreguicar(v, dt)
 		return
 	match v.tipo:
-		"ferreiro":
-			_ferreiro(n, v, dt)
 		"passeio":
 			_passeio(n, v, dt)
 		_:
@@ -88,38 +79,9 @@ func _comecar(n: Dictionary) -> void:
 	if v.an == null or funcao in ["mural", "totem"]:
 		v.tipo = "nada"
 		return
-	if (str(n.id) == "ferreiro" or info.get("oficio", false)) and (v.an as AnimationPlayer).has_animation("descendente"):
-		var b = _bigorna_perto(no.position)
-		if b != null:
-			var bp: Vector3 = b
-			var d := Vector3(no.position.x - bp.x, 0, no.position.z - bp.z)
-			if d.length() < 0.01:
-				d = Vector3(0, 0, 1)
-			var lugar: Vector3 = bp + d.normalized() * NA_BIGORNA
-			lugar.y = _chao(lugar.x, lugar.z, no.position.y)
-			v.tipo = "ferreiro"
-			v.bigorna = bp
-			v.lugar = lugar
-			v.ry_bigorna = atan2(bp.x - lugar.x, bp.z - lugar.z)
-			v.t = randf_range(0.5, 3.0)
-			return
-	if funcao in PARADOS or funcao == "ferreiro" or onde.begins_with("banca") or onde.begins_with("peca") or onde.begins_with("comercio"):
+	if funcao in PARADOS or onde.begins_with("banca") or onde.begins_with("peca") or onde.begins_with("comercio"):
 		return # atrás do balcão, da banca ou na ferraria sem martelo: só se espreguiça
 	v.tipo = "passeio"
-
-# a bigorna pública da ferraria mais perto da casa do ferreiro (shared/dados.js ESTACOES_PUBLICAS, mundo.estacoes)
-func _bigorna_perto(p: Vector3):
-	var melhor = null
-	var md := BIGORNA_MAX
-	for e in m.mundo.get("estacoes", []):
-		if str(e.get("k", "")) != "bigorna":
-			continue
-		var d := Vector2(float(e.x) - p.x, float(e.z) - p.z).length()
-		if d < md:
-			md = d
-			var y: float = _chao(float(e.x), float(e.z), p.y)
-			melhor = Vector3(float(e.x), y, float(e.z))
-	return melhor
 
 # chão embaixo do NPC: dentro da ferraria ou da Casa do Comércio é o piso, não o telhado (altura com a altura de agora)
 func _chao(x: float, z: float, y: float) -> float:
@@ -184,94 +146,6 @@ func _parado(n: Dictionary, v: Dictionary, dt: float) -> void:
 	n.no.rotation.y = lerp_angle(n.no.rotation.y, float(v.ry_casa), minf(1.0, dt * 3.0))
 	_ry0(n)
 	_espreguicar(v, dt)
-
-# ---------- ferreiro: vai até a bigorna, bate 3 a 6 vezes, para um pouco; às vezes volta para a casa e descansa ----------
-func _ferreiro(n: Dictionary, v: Dictionary, dt: float) -> void:
-	var no: Node3D = n.no
-	match v.est:
-		"casa", "voltando", "falando":
-			v.t = float(v.t) - dt
-			if v.est != "casa":
-				v.est = "casa"
-				_anim(v, "parada", 0.3)
-			_espreguicar(v, dt)
-			if v.t <= 0.0:
-				v.est = "indo"
-		"indo":
-			if _andar_ate(n, v, v.lugar, VEL, dt):
-				v.est = "pausa"
-				v.t = 0.6
-				_anim(v, "parada", 0.25)
-		"pausa":
-			no.rotation.y = lerp_angle(no.rotation.y, float(v.ry_bigorna), minf(1.0, dt * 5.0))
-			_ry0(n)
-			v.t = float(v.t) - dt
-			if v.t <= 0.0:
-				if v.get("vezes", 0) >= 3 and randf() < 0.35: # cansou: volta para a casa e descansa um pouco
-					v.vezes = 0
-					v.est = "descansar"
-				else:
-					v.est = "batendo"
-					v.golpes = randi_range(3, 6)
-					v.g = 0.0
-					v.bateu = false
-					v.vezes = int(v.get("vezes", 0)) + 1
-					v.fase = -1
-		"descansar":
-			if _andar_ate(n, v, v.casa, VEL, dt):
-				v.est = "casa"
-				v.t = randf_range(5.0, 9.0)
-				_anim(v, "parada", 0.3)
-		"batendo":
-			no.rotation.y = lerp_angle(no.rotation.y, float(v.ry_bigorna), minf(1.0, dt * 5.0))
-			_ry0(n)
-			v.g = float(v.g) + dt
-			var f: float = clampf(v.g / GOLPE, 0.0, 1.0)
-			var an: AnimationPlayer = v.an
-			# a martelada procura o tempo dentro da animação (como a picareta do herói em trabalho.gd); longe do herói o
-			# main.gd anda a animação só a cada 2 ou 3 quadros (anim_espacada), então o advance(0) aplica o tempo na hora
-			if v.fase < 0:
-				v.fase = 0
-				an.speed_scale = 1.0
-				if an.current_animation != "descendente":
-					an.play("descendente", 0.15, 0.0)
-			an.seek(_tempo_golpe(f), true)
-			if an.callback_mode_process == AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL:
-				an.advance(0.0)
-			if not v.bateu and f >= G_BATE:
-				v.bateu = true
-				_martelada(v)
-			if f >= 1.0:
-				v.golpes = int(v.golpes) - 1
-				v.g = 0.0
-				v.bateu = false
-				v.fase = -1
-				if v.golpes <= 0:
-					v.est = "pausa"
-					v.t = randf_range(2.5, 5.5) # para um pouco: olha a peça, respira
-					_anim(v, "parada", 0.35)
-					v.esp = randf_range(0.3, 1.5) # e às vezes se espreguiça na pausa
-
-func _tempo_golpe(f: float) -> float:
-	if f < 0.45: # ergue o martelo devagar
-		return lerp(G_PRONTO, G_ALTO, smoothstep(0.0, 1.0, f / 0.45))
-	if f < G_BATE: # desce rápido
-		var k: float = (f - 0.45) / (G_BATE - 0.45)
-		return lerp(G_ALTO, G_BATE_T, k * k)
-	if f < 0.72: # na bigorna
-		return G_BATE_T
-	return lerp(G_BATE_T, G_PRONTO, smoothstep(0.0, 1.0, (f - 0.72) / 0.28))
-
-# faíscas e o tinido do ferro na bigorna (só de perto: o efeito e o som custam)
-func _martelada(v: Dictionary) -> void:
-	var b: Vector3 = v.bigorna
-	var p := Vector3(b.x, b.y + 0.04, b.z) # b.y já é o tampo da bigorna (terreno.gd tampos)
-	if m.heroi and m.heroi.position.distance_squared_to(p) > 18.0 * 18.0:
-		return
-	if m.fx:
-		m.fx.surto(p.x, p.y, p.z, 7, "fff0b0", "ff8a2a", 2.6, 0.045)
-	if m.sons:
-		m.sons.tocar("minerar", -9.0, 0.1, p, 1.35)
 
 # ---------- passeio: voltinhas curtas em volta da casa, com paradas ----------
 func _passeio(n: Dictionary, v: Dictionary, dt: float) -> void:

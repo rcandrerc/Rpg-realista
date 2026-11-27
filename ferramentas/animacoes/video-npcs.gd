@@ -1,10 +1,10 @@
 extends SceneTree
-# Vídeo dos NPCs vivos (André 2026-11-27, vida_npc.gd): o ferreiro na bigorna e os NPCs dando voltinhas, com a câmera
+# Vídeo dos NPCs vivos (André 2026-11-27, vida_npc.gd): os NPCs dando voltinhas (ferreiros também), com a câmera
 # parada olhando. No fim (CHEGA=1) o herói chega perto e o NPC volta para o lugar dele (onde se fala e se compra).
 # Uso (da raiz do repositório):
 #   CENA=ferraria xvfb-run -a godot --path godot-prototipo --rendering-driver opengl3 --render-thread safe \
 #     --write-movie /tmp/ferraria.avi --fixed-fps 30 -s ../ferramentas/animacoes/video-npcs.gd
-# CENA = ferraria (Tomás) | praca (Aldo, Irmã Lúcia, Mirela) | vila (ferreiro de uma mini vila: NPC=v_galdino).
+# CENA = ferraria (Tomás) | praca (Aldo, Irmã Lúcia, Mirela) | vila (NPC de uma mini vila: NPC=v_galdino).
 # SEG = segundos gravados (padrão 30).
 var m
 
