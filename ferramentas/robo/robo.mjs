@@ -69,7 +69,7 @@ const R = {
 };
 // combate de teste: uma linha por nível que subiu neste turno ({ nv, min do turno, mortes e ouro até ali, equipamento
 // 'lugar raridade+reforço durabilidade') e os reforços (tentativas, deu certo, ouro)
-if (COMBATE) R.combate = { niveis: [], reforco: { tentativas: 0, ok: 0, ouro: 0 } };
+if (COMBATE) R.combate = { niveis: [], reforco: { tentativas: 0, ok: 0, ouro: 0 }, drops: {}, vestiu: [] };
 // alerta para o relatório (André: "quando começar a morrer com frequência ou ficar muito lento"): 6+ mortes na última
 // hora, ou o último nível levou mais que o dobro da média dos 3 de antes. Fica a última hora em que valeu.
 const mortesT = [];
@@ -80,6 +80,19 @@ function alertaCombate() {
   const motivo = mh >= 6 ? `${mh} mortes na última hora` : ult != null && media && ult > 2 * media && ult > 20 ? `nível ${prog.nivel} levou ${ult} min (média ${Math.round(media)})` : '';
   if (motivo) { R.combate.alerta = { nv: prog.nivel, min, motivo, eq: fotoEquip(prog.equip) }; problema(`Combate de teste: precisa de upgrade? ${motivo}`); }
 }
+// por nível (thread do robô, André: "qual o mob que ele grindou e o nível do mob... quantos minutos ele parou, quantos
+// grindou real"): cur junta o nível de agora; t = minutos por estado { caca, anda, morto, para, fora } (a soma fecha com o
+// tempo do nível); R.combate.t = o mesmo somado no turno
+const tNovo = () => ({ caca: 0, anda: 0, morto: 0, para: 0, fora: 0 });
+let cur = { mobs: {}, xp: 0, abates: 0, t: tNovo(), campos: {}, drops: {} }, estadoT = Date.now();
+if (COMBATE) R.combate.t = tNovo();
+function contarEstado(estado, campo) {
+  const agora = Date.now(), m = Math.min(5, (agora - estadoT) / 60e3); estadoT = agora;
+  if (!COMBATE || !(m > 0)) return;
+  cur.t[estado] += m; R.combate.t[estado] += m;
+  if (estado === 'caca' && campo) cur.campos[campo] = (cur.campos[campo] || 0) + m;
+}
+const r1 = (t) => Object.fromEntries(Object.entries(t).map(([k, v]) => [k, Math.round(v * 10) / 10]));
 const fotoEquip = (eq) => Object.entries(eq || {}).filter(([, o]) => o).map(([l, o]) => `${l} ${'CREÉLM'[o.r | 0] || '?'}+${o.e | 0} ${o.d ?? 100}%`).join(' · ');
 const pings = [], respostas = [], matar = [], atacouT = new Map();
 const problema = (txt) => { if (!R.problemas.includes(txt)) { R.problemas.push(txt); log('ACHADO', txt); } if (R.problemas.length > 60) R.problemas.shift(); };
@@ -93,6 +106,11 @@ function fecharNumeros() {
   R.avisos = Object.fromEntries(Object.entries(R.avisos).sort((a, b) => b[1] - a[1]).slice(0, 12));
 }
 async function mandarRelatorio() {
+  if (COMBATE) { // o nível em andamento (o turno pode acabar no meio): a ronda junta com o começo do turno seguinte
+    const cp = Object.entries(cur.campos).sort((a, b) => b[1] - a[1])[0]?.[0] || '', [cn, cv] = cp.split(' Nv ');
+    R.combate.atual = { nv: prog?.nivel | 0, campo: { nome: cn || '', nv: Number(cv) || 0 }, mobs: cur.mobs, xp: cur.xp, abates: cur.abates, t: r1(cur.t), drops: cur.drops };
+    R.combate.t = r1(R.combate.t);
+  }
   fecharNumeros();
   try { fs.writeFileSync(ARQ, JSON.stringify(R, null, 1)); } catch { /* sem disco: segue */ }
   if (!sessao) return;
@@ -153,7 +171,7 @@ function lerFoto(txt) {
   for (const e of F.inimigos || []) {
     vistos.add(e.id);
     const a = inimigos.get(e.id);
-    if (a && !a.morto && e.morto && atacados.has(e.id)) { R.abates++; atacados.delete(e.id); (R.luta.nvMobs ||= {})[a.nivel || e.nivel || 0] = (R.luta.nvMobs[a.nivel || e.nivel || 0] || 0) + 1; const t0 = atacouT.get(e.id); if (t0) { matar.push(performance.now() - t0); atacouT.delete(e.id); if (matar.length > 5000) matar.shift(); } }
+    if (a && !a.morto && e.morto && atacados.has(e.id)) { R.abates++; atacados.delete(e.id); if (COMBATE) { const km = `${a.nome || e.nome || a.tipo || '?'} Nv ${a.nivel || e.nivel || 0}`; cur.mobs[km] = (cur.mobs[km] || 0) + 1; cur.abates++; } (R.luta.nvMobs ||= {})[a.nivel || e.nivel || 0] = (R.luta.nvMobs[a.nivel || e.nivel || 0] || 0) + 1; const t0 = atacouT.get(e.id); if (t0) { matar.push(performance.now() - t0); atacouT.delete(e.id); if (matar.length > 5000) matar.shift(); } }
     inimigos.set(e.id, a ? Object.assign(a, e) : e);
   }
   for (const k of inimigos.keys()) if (!vistos.has(k)) inimigos.delete(k);
@@ -164,11 +182,17 @@ function lerEvento(e) {
   if (e.para && esperaResposta && ['fala', 'aviso', 'prog', 'coletou', 'fabricando', 'compra'].includes(e.t)) { const ms = performance.now() - esperaResposta; if (ms < 5000) respostas.push(ms); if (respostas.length > 5000) respostas.shift(); esperaResposta = 0; }
   if (e.t === 'prog') {
     const antes = prog?.hist;
-    if (prog && e.prog) { let g = 0; for (let n = prog.nivel; n < e.prog.nivel; n++) g += xpProximo(n); g += (e.prog.xp | 0) - (prog.xp | 0); if (g > 0) R.luta.xp += g; }
+    if (prog && e.prog) { let g = 0; for (let n = prog.nivel; n < e.prog.nivel; n++) g += xpProximo(n); g += (e.prog.xp | 0) - (prog.xp | 0); if (g > 0) { R.luta.xp += g; cur.xp += g; } }
     prog = e.prog; hi = e.hi || null; if ('di' in e) di = e.di || null;
     if (R.nivel.de == null) R.nivel.de = prog.nivel;
     if (COMBATE && R.nivel.ate != null && prog.nivel > R.nivel.ate) alertaCombate();
-    if (COMBATE && R.nivel.ate != null && prog.nivel > R.nivel.ate) R.combate.niveis.push({ nv: prog.nivel, min: Math.round((Date.now() - R.inicio) / 60e3), mortes: R.mortes, ouro: prog.ouro | 0, atr: prog.atr, eq: fotoEquip(prog.equip) });
+    if (COMBATE && R.nivel.ate != null && prog.nivel > R.nivel.ate) {
+      const cp = Object.entries(cur.campos).sort((a, b) => b[1] - a[1])[0]?.[0] || '', [cn, cv] = cp.split(' Nv ');
+      R.combate.niveis.push({ nv: prog.nivel, min: Math.round((Date.now() - R.inicio) / 60e3), mortes: R.mortes, ouro: prog.ouro | 0, atr: prog.atr, eq: fotoEquip(prog.equip),
+        campo: { nome: cn || '', nv: Number(cv) || 0 }, mobs: cur.mobs, xp: cur.xp, abates: cur.abates, t: r1(cur.t), drops: cur.drops });
+      if (R.combate.niveis.length > 120) R.combate.niveis.shift();
+      cur = { mobs: {}, xp: 0, abates: 0, t: tNovo(), campos: {}, drops: {} };
+    }
     R.nivel.ate = prog.nivel;
     const h = prog.hist;
     // ronda 2026-11-24: lista de missões do servidor diferente da do robô (merge no meio do turno; robo-escolhas.mjs
@@ -189,6 +213,8 @@ function lerEvento(e) {
     const cs = /consertou (\d+) peças? por (\d+) de ouro/.exec(String(e.texto || '')); // ronda 2026-11-26
     if (cs) { const C = (R.consertos ||= { vezes: 0, pecas: 0, ouro: 0 }); C.vezes++; C.pecas += +cs[1]; C.ouro += +cs[2]; log('consertou', cs[1], 'peças por', cs[2], 'de ouro'); }
     else if (/^O conserto custa|^Conserte com/.test(String(e.texto || ''))) consertoPausa = Date.now() + 10 * 60e3;
+  } else if (e.t === 'drop' && COMBATE) { // peças que caem por raridade (André: "em 20 30 minutos já temos set completo raro")
+    for (const it of e.itens || []) if (it.r >= 0) { const k = 'CREÉLM'[it.r] || '?'; R.combate.drops[k] = (R.combate.drops[k] || 0) + 1; cur.drops[k] = (cur.drops[k] || 0) + 1; }
   } else if (e.t === 'fabricando' && COMBATE) { fabricandoAte = Date.now() + ((e.dur || 2) * (e.n || 1) + 1) * 1000;
   } else if (e.t === 'evoluiu' && COMBATE) { (R.combate.evolucoes ||= []).push({ nv: prog?.nivel | 0, min: Math.round((Date.now() - R.inicio) / 60e3), nome: e.nome, ok: !!e.ok }); log('evoluir:', e.ok ? 'evoluiu' : 'falhou', e.nome); evoPlano = null; vestirT = 0;
   } else if (e.t === 'reforco' && COMBATE) { const C = R.combate.reforco; if (e.erro) reforcoPausa = Date.now() + 10 * 60e3; else { C.tentativas++; if (e.ok) C.ok++; C.ouro += e.custo | 0; log('reforço', e.nome, e.de, '->', e.e, e.ok ? 'subiu' : 'falhou', e.custo, 'de ouro'); }
@@ -363,7 +389,7 @@ function cacar(agora, podeViajar = false) {
     else if (agora - campoXpT > 10 * 60e3) { camposRuins.add(campoCaca.nome); log('campo sem XP há 10 min, troca:', campoCaca.nome); campoCaca = null; campoXpT = agora; }
   }
   // ronda 2026-11-24: 175 mortes na guerra numa noite voltando sempre ao mesmo campo. Morreu 3 vezes em 10 min nele: troca
-  if (campoCaca && !CAMPO && campoPerigoso(mortesCampo, campoCaca.nome, agora)) { perigosoAte.set(campoCaca.nome, agora + PERIGOSO_MIN * 60e3); log(`morreu 3 vezes em 10 min no campo, troca por ${PERIGOSO_MIN} min:`, campoCaca.nome); campoCaca = null; mortesCampo.length = 0; }
+  if (campoCaca && !CAMPO && !COMBATE && campoPerigoso(mortesCampo, campoCaca.nome, agora)) { perigosoAte.set(campoCaca.nome, agora + PERIGOSO_MIN * 60e3); log(`morreu 3 vezes em 10 min no campo, troca por ${PERIGOSO_MIN} min:`, campoCaca.nome); campoCaca = null; mortesCampo.length = 0; }
   if (CAMPO) { /* fixo */ }
   else if (!campoCaca || agora - campoT > 20 * 60e3) {
     const nv = prog?.nivel || 1;
@@ -374,6 +400,22 @@ function cacar(agora, podeViajar = false) {
     // está (Clareira/Vael, Ilha do Meio, Aurora: sem barco ele não atravessa o mar) e nunca mais o CACA[0] (Nv 1) de
     // reserva: sem campo na faixa, vai ao mais forte que alcança na terra dele
     const terra = terraDoCampo, minha = terraEm(CACA, eu.x, eu.z);
+    // combate de teste (André 2026-11-27: "ele sempre grinde no nível do mob que ele é... peguei ele nível 50 grindando
+    // em mob nível 1"): o campo de nível mais alto que não passa do dele, em qualquer terra (vai de totem), e sem fugir do campo onde
+    // morre: as mortes são o que a gente mede. Só o campo sem XP há 10 min (caminho travado) fica de fora.
+    if (COMBATE && !CAMPO) {
+      const livre = (c) => !c.boss && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && !(prog && zonaFechadaEm(prog, c.x, c.z));
+      const cand = CACA.filter(livre), ate = cand.filter((c) => (c.nivel || 1) <= nv);
+      const melhor = (ate.length ? ate : cand).sort((a, b) => (ate.length ? (b.nivel || 1) - (a.nivel || 1) : (a.nivel || 1) - (b.nivel || 1)) || d2(eu, a) - d2(eu, b))[0]; // o de nível mais alto que não passa do dele
+      if (melhor) {
+        if (terra(melhor) !== minha && podeViajar && !((terraFalhou.get(terra(melhor)) || 0) > agora)) { cacaViagem = { terra: terra(melhor), campo: melhor }; log(`campo do nível (Nv ${melhor.nivel}) em outra terra: vai de totem`, melhor.nome); return; }
+        if (terra(melhor) === minha) {
+          campoCaca = melhor; campoT = agora; perigosoAte.clear();
+          R.caca = { terra: minha, campo: melhor.nome, nivel: melhor.nivel || 1, totens: prog?.totens || [] };
+          return;
+        }
+      }
+    }
     const aberto = (c) => !c.boss && (c.nivel || 1) <= nv && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && !((perigosoAte.get(c.nome) || 0) > agora) && !(prog && zonaFechadaEm(prog, c.x, c.z));
     const ok = (c) => aberto(c) && terra(c) === minha;
     const bons = CACA.filter((c) => ok(c) && (c.nivel || 1) >= nv - 6).sort((a, b) => d2(eu, a) - d2(eu, b));
@@ -437,7 +479,7 @@ function vestir(agora) {
   for (let i = 0; i < prog.mochila.length; i++) {
     const o = prog.mochila[i]; if (!o || !ehEquip(o.k) || !reforcoOk(o, prog.atr)) continue;
     const l = ITENS[o.k]?.lugar; if (!l || !(l in prog.equip)) continue;
-    if (notaPeca(o) > notaPeca(prog.equip[l])) { vestirT = agora; R.vestiu = (R.vestiu || 0) + 1; acao('item', { acao: 'equipar', i }); return true; }
+    if (notaPeca(o) > notaPeca(prog.equip[l])) { vestirT = agora; R.vestiu = (R.vestiu || 0) + 1; if (COMBATE && R.combate.vestiu.length < 200) R.combate.vestiu.push({ min: Math.round((agora - R.inicio) / 60e3), nv: prog.nivel | 0, lugar: l, r: o.r | 0 }); acao('item', { acao: 'equipar', i }); return true; }
   }
   return false;
 }
@@ -821,9 +863,11 @@ async function main() {
     const agora = Date.now();
     if (agora - saudeT > 60e3) { saudeT = agora; lerSaude(); }
     if (agora - relT > 10 * 60e3) { relT = agora; mandarRelatorio(); }
-    if (!sala || !eu.pronto) continue;
+    if (!sala || !eu.pronto) { contarEstado('fora'); continue; }
     if (agora - pingT > 2000) { pingT = agora; mandar('ping', Math.round(performance.now())); } // número pequeno, como o app (Date.now() vira inteiro de 64 bits)
-    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !consertar(agora) && !pontosLivres(agora) && !evoluirEquip(agora) && !reforcarEquip(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora, true); else missao(agora); } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
+    let estado = eu.morto ? 'morto' : 'para';
+    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !consertar(agora) && !pontosLivres(agora) && !evoluirEquip(agora) && !reforcarEquip(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora, true); else missao(agora); estado = campoCaca && !cacaViagem && d2(eu, campoCaca) < 40 && eu.vida > eu.vidaMax * 0.5 ? 'caca' : 'anda'; } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
+    contarEstado(estado, campoCaca ? `${campoCaca.nome} Nv ${campoCaca.nivel || 1}` : '');
     const andou = andar(dt);
     mandar('pos', { x: +eu.x.toFixed(3), y: +eu.y.toFixed(3), z: +eu.z.toFixed(3), ry: +eu.ry.toFixed(3), anim: andou ? 'correr' : 'parado', c: corrSeq });
     if (andou) correcoesSeguidas = Math.max(0, correcoesSeguidas - 0.02);
