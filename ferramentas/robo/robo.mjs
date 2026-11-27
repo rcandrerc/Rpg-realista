@@ -24,6 +24,7 @@ import { pecasParaConsertar } from './robo-escolhas.mjs'; // consertar o equipam
 import { VOLTA_VILA } from '../../shared/index.js'; // casinha (ronda 2026-11-25)
 import { liberado, zonaFechadaEm, motivoLibera } from '../../shared/historia.js';
 import { CATALISADOR, RECEITA_ESTACAO } from '../../shared/dados.js'; // evoluir na bigorna/bancada (combate de teste)
+import { taxaTotem } from '../../shared/dados.js'; // o preço da viagem de totem (ronda 2026-11-27: sem ouro, vai pela casinha)
 
 // ---------- opções ----------
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
@@ -184,6 +185,10 @@ function lerEvento(e) {
     const antes = prog?.hist;
     if (prog && e.prog) { let g = 0; for (let n = prog.nivel; n < e.prog.nivel; n++) g += xpProximo(n); g += (e.prog.xp | 0) - (prog.xp | 0); if (g > 0) { R.luta.xp += g; cur.xp += g; } }
     prog = e.prog; hi = e.hi || null; if ('di' in e) di = e.di || null;
+    // ronda 2026-11-27: o merge do #992 reiniciou o servidor e zerou a conta no meio do turno (Nv 78 -> 1). O robô seguiu
+    // indo para o campo Nv 78 da Aurora, pelado, morreu 6 vezes no caminho e caiu na Ilha com 20 de ouro. Morte nunca tira
+    // nível (penalidadeMorte): nível menor = conta zerada
+    if (R.nivel.ate != null && prog.nivel < R.nivel.ate) contaZerada(R.nivel.ate);
     if (R.nivel.de == null) R.nivel.de = prog.nivel;
     if (COMBATE && R.nivel.ate != null && prog.nivel > R.nivel.ate) alertaCombate();
     if (COMBATE && R.nivel.ate != null && prog.nivel > R.nivel.ate) {
@@ -220,7 +225,7 @@ function lerEvento(e) {
   } else if (e.t === 'reforco' && COMBATE) { const C = R.combate.reforco; if (e.erro) reforcoPausa = Date.now() + 10 * 60e3; else { C.tentativas++; if (e.ok) C.ok++; C.ouro += e.custo | 0; log('reforço', e.nome, e.de, '->', e.e, e.ok ? 'subiu' : 'falhou', e.custo, 'de ouro'); }
   } else if (e.t === 'coletou') { R.coletas++; if (!e.cargas) coletando = 0; }
   else if (e.t === 'vila' && e.id === sala?.sessionId) { // totem ou casinha: o servidor leva o herói para outro lugar
-    if (e.fase === 'chegou') { eu.x = e.x; eu.y = e.y; eu.z = e.z; parar(); viajandoAte = 0; correcoesSeguidas = 0; R.viagens = (R.viagens || 0) + 1; } // lugar novo: as correções de antes (na névoa) não contam
+    if (e.fase === 'chegou') { eu.x = e.x; eu.y = e.y; eu.z = e.z; parar(); viajandoAte = 0; casinhaDesde = 0; correcoesSeguidas = 0; R.viagens = (R.viagens || 0) + 1; } // lugar novo: as correções de antes (na névoa) não contam
     else if (e.fase === 'cancela') viajandoAte = 0;
   } else if (e.t === 'leilao') leilaoInfo = e;
   else if (e.t === 'pesca') { pescaT = Date.now(); pescaSt = e.st === 'fim' || e.st === 'pegou' ? '' : e.st; if (e.st === 'pegou') { R.peixes = (R.peixes || 0) + 1; falarT = Date.now(); } if (e.st === 'fim') falarT = Date.now(); }
@@ -314,6 +319,7 @@ function lutar(e, agora) {
 // jogador), vai ao totem mais perto aqui, pede a viagem e espera o canal (TOTENS.canal s parado). true = está viajando.
 // Viagem que não dá certo em 6 min (ouro, névoa, totem longe) vira achado e essa terra fica de fora por 30 min.
 let viagem = null; const terraFalhou = new Map(); // terra -> até quando não tenta de novo
+const TERRA_VILA = terraEm(CACA, MAPA_CLAREIRA.nascimento.x, MAPA_CLAREIRA.nascimento.z); // para onde a casinha leva (sem base de clã)
 function totemAqui() { // o totem aberto mais perto na terra em que ele está (para sair; não precisa ser visitado)
   const minha = terraEm(CACA, eu.x, eu.z);
   return TOTENS.lista.filter((t) => terraEm(CACA, t.x, t.z) === minha && !(prog && zonaFechadaEm(prog, t.x, t.z))).sort((a, b) => d2(eu, a) - d2(eu, b))[0] || null;
@@ -321,11 +327,14 @@ function totemAqui() { // o totem aberto mais perto na terra em que ele está (p
 // Ronda 2026-11-25: o "zerar" do fim da história (missaoTeste) deixa o robô onde está, e lá (Aurora, Ilha, fundo de Vael)
 // tudo volta para a névoa: o servidor recusa todo passo dele, nem até o totem. Como o jogador, usa a casinha (volta para a
 // vila: VOLTA_VILA.canal s parado, recarga de VOLTA_VILA.cd s). true = está voltando.
-let casinhaT = 0;
+let casinhaT = 0, casinhaDesde = 0, casinhaPausa = 0;
 function presoNaNevoa() { return !!(prog && zonaFechadaEm(prog, eu.x, eu.z)); }
 function casinha(agora, motivo) {
-  if ((prog?.vilaAte || 0) > Date.now()) return false; // recarga
+  if ((prog?.vilaAte || 0) > Date.now() || agora < casinhaPausa) return false; // recarga (ou não deu há pouco)
   if (agora < viajandoAte) return true; // canalizando
+  // ronda 2026-11-27: pediu e não chegou em 3 min (o servidor recusa calado pulando ou nadando): anota e deixa quem chamou seguir
+  if (!casinhaDesde || agora - casinhaT > 30e3) casinhaDesde = agora; // pedido novo (o de antes foi largado)
+  if (agora - casinhaDesde > 3 * 60e3) { problema(`Casinha não levou para a vila em 3 min (${motivo})${ultimoAviso ? `, último aviso: ${ultimoAviso}` : ''}`); casinhaDesde = 0; casinhaPausa = agora + 10 * 60e3; return false; }
   const bicho = alvoPerto(5); if (bicho) { lutar(bicho, agora); return true; } // apanhando: o canal cancela com dano
   parar();
   if (agora - casinhaT < 4000) return true;
@@ -349,6 +358,10 @@ function viajarParaTerra(terra, agora, motivo, perto) {
     problema(`Viagem de totem para a terra ${terra} (${motivo}) não deu certo em 6 min${ultimoAviso ? `, último aviso: ${ultimoAviso}` : ''}`);
     viagem = null; return false;
   }
+  // ronda 2026-11-27: zerado, ele caiu na Ilha com 20 de ouro (o totem da Clareira custa 50) e passou o turno andando contra
+  // o mar. Para a terra da vila a casinha é de graça: vai por ela quando o ouro não paga o totem (em recarga, tenta o totem;
+  // os 6 min acima valem para os dois)
+  if ((prog.ouro | 0) < taxaTotem(para) && terra === TERRA_VILA && casinha(agora, `${motivo}, sem ouro para o totem`)) return true;
   if (agora < viajandoAte) return true; // canalizando no totem
   const bicho = alvoPerto(5); if (bicho) { lutar(bicho, agora); return true; } // apanhando no caminho: o canal cancela com dano
   if (!irPara(de.x, de.z, 3)) return true;
@@ -360,7 +373,7 @@ function viajarParaTerra(terra, agora, motivo, perto) {
 }
 
 // ---------- caçar (sem missão para o nível dele, ou esperando) ----------
-let campoCaca = null, campoT = 0;
+let campoCaca = null, campoT = 0, campoNv = 0; // campoNv: o nível dele quando escolheu o campo
 const camposRuins = new Set(); let campoXp = -2, campoXpT = 0; // campos onde não ganhou XP neste turno
 const mortesCampo = []; // onde e quando morreu caçando (campoPerigoso: 3 mortes em 10 min no mesmo campo, troca)
 // ronda 2026-11-26: o campo trocado por morte volta a valer depois de 30 min. Antes ficava de fora o turno todo: na noite de
@@ -368,6 +381,46 @@ const mortesCampo = []; // onde e quando morreu caçando (campoPerigoso: 3 morte
 const perigosoAte = new Map(); const PERIGOSO_MIN = 30;
 let cacaViagem = null; const faltaAvisada = new Set(); // a terra para onde vai caçar; terras sem totem já anotadas no turno
 let cacaPonto = null; // o ponto sorteado no campo (fixo até chegar ou trocar de campo)
+// ronda 2026-11-27: a conta foi zerada no meio do turno (combate de teste, COMBATE_TESTE.zerar). Campo, viagem e terras
+// recusadas eram do nível de antes: esquece tudo. O grind do teste conta daqui (R.combate.zerou: minuto do turno, nível de
+// antes e de agora, mortes até ali); o que ele juntou antes (mortes, conserto, avisos de upgrade) não vale para o teste
+function contaZerada(de) {
+  log(`a conta foi zerada no meio do turno (Nv ${de} -> ${prog.nivel}): esquece campo e viagem e conta o grind do zero`);
+  campoCaca = null; campoT = 0; cacaViagem = null; cacaPonto = null; viagem = null; parar();
+  camposRuins.clear(); terraFalhou.clear(); perigosoAte.clear(); faltaAvisada.clear(); mortesCampo.length = 0;
+  if (!COMBATE) return;
+  R.combate.zerou = { min: Math.round((Date.now() - R.inicio) / 60e3), de, nv: prog.nivel, mortes: R.mortes };
+  Object.assign(R.combate, { niveis: [], reforco: { tentativas: 0, ok: 0, ouro: 0 }, drops: {}, vestiu: [], t: tNovo() });
+  delete R.combate.alerta; delete R.consertos;
+  R.problemas = R.problemas.filter((p) => !p.startsWith('Combate de teste:'));
+  cur = { mobs: {}, xp: 0, abates: 0, t: tNovo(), campos: {}, drops: {} }; mortesT.length = 0;
+}
+// combate de teste (André 2026-11-27: "ele sempre grinde no nível do mob que ele é... peguei ele nível 50 grindando em mob
+// nível 1"): o campo de nível mais alto que não passa do dele, em qualquer terra (vai de totem), sem fugir do campo onde morre
+// (as mortes são o que a gente mede). Só o campo sem XP há 10 min (caminho travado) fica de fora. Escolhe de novo quando sobe
+// de nível e a cada 20 min. true = está indo para outra terra (totem ou casinha) e quem chamou para por aqui
+function campoCombate(agora, podeViajar) {
+  const nv = prog?.nivel || 1;
+  if (campoCaca && campoNv === nv && agora - campoT <= 20 * 60e3) return false;
+  if (camposRuins.size >= 6) camposRuins.clear(); // nenhum serviu: tenta todos de novo
+  const terra = terraDoCampo, minha = terraEm(CACA, eu.x, eu.z);
+  const livre = (c) => !c.boss && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && !(prog && zonaFechadaEm(prog, c.x, c.z));
+  const cand = CACA.filter(livre), ate = cand.filter((c) => (c.nivel || 1) <= nv);
+  const melhor = (ate.length ? ate : cand).sort((a, b) => (ate.length ? (b.nivel || 1) - (a.nivel || 1) : (a.nivel || 1) - (b.nivel || 1)) || d2(eu, a) - d2(eu, b))[0]; // o de nível mais alto que não passa do dele
+  if (!melhor) return false;
+  const escolher = (c) => { campoCaca = c; campoT = agora; campoNv = nv; perigosoAte.clear(); R.caca = { terra: minha, campo: c.nome, nivel: c.nivel || 1, totens: prog?.totens || [] }; };
+  if (terra(melhor) === minha) { escolher(melhor); return false; }
+  if (podeViajar && !((terraFalhou.get(terra(melhor)) || 0) > agora)) { cacaViagem = { terra: terra(melhor), campo: melhor }; log(`campo do nível (Nv ${melhor.nivel}) em outra terra: vai de totem`, melhor.nome); return true; }
+  // o totem para lá não deu (ouro): caça no mais forte daqui até o nível dele e tenta de novo em 20 min
+  const aqui = ate.filter((c) => terra(c) === minha).sort((a, b) => (b.nivel || 1) - (a.nivel || 1) || d2(eu, a) - d2(eu, b))[0];
+  if (aqui) { escolher(aqui); return false; }
+  // ronda 2026-11-27: Nv 1 na Ilha, o totem não deu e aqui não tem campo até o nível dele. O jeito de antes escolhia o campo
+  // Nv 1 de Vael e ele passou o turno andando contra o mar: volta pela casinha (de graça, leva à vila) ou espera a recarga
+  campoCaca = null;
+  R.caca = { terra: minha, vai: TERRA_VILA, campo: melhor.nome, nivel: melhor.nivel || 1, casinha: true, totens: prog?.totens || [] };
+  if (casinha(agora, `nenhum campo até o Nv ${nv} em ${minha}`)) return true;
+  parar(); return false; // recarga: espera parado (briga só com o que encostar)
+}
 // podeViajar: só quando ele caça para subir de nível (sem missão do nível, --cacar); caçando no meio de uma etapa ele
 // fica na terra dele (senão ia e voltava entre a terra da etapa e a do campo)
 function cacar(agora, podeViajar = false) {
@@ -376,10 +429,19 @@ function cacar(agora, podeViajar = false) {
     else if (viajarParaTerra(cacaViagem.terra, agora, `caçar no ${cacaViagem.campo.nome}`, cacaViagem.campo)) return;
     else { if (terraEm(CACA, eu.x, eu.z) === cacaViagem.terra) { campoCaca = null; campoT = 0; } cacaViagem = null; }
   }
+  // ronda 2026-11-27: no combate de teste o campo do nível é escolhido ANTES de brigar. Escolhendo depois, num campo cheio
+  // sempre tinha bicho encostado e ele não saía: no teste local ficou do Nv 5 ao 7 matando Puglin Nv 1
+  if (COMBATE && !CAMPO && campoCombate(agora, podeViajar)) return;
   // ronda 2026-11-17: com raio de 40 m em volta dele, o robô ficava na vila matando Puglin Nv 1 (renasce sempre) e nunca
   // chegava ao campo do nível. Agora: só o que está no campo, ou o que encosta nele (até 5 m) no caminho
   let e = alvoPerto(campoCaca ? 40 : 18);
   if (e && campoCaca && d2(e, campoCaca) > 40 && d2(eu, e) > 5) e = null;
+  // ronda 2026-11-27 (combate de teste): fora da terra dele (Nv 1 na Ilha, esperando a casinha) não puxa briga com bicho
+  // 10+ níveis acima: só com o que já encostou. As mortes do teste são as do campo do nível dele
+  if (e && COMBATE && (e.nivel || 1) > (prog?.nivel || 1) + 10 && d2(eu, e) > 5) e = null;
+  // e bicho mais fraco que o do campo dele, encostado no caminho, não segura o robô: ele segue para o campo (com menos de
+  // metade da vida, briga). Senão o Puglin Nv 1 do campo velho não deixava ele sair
+  if (e && COMBATE && !CAMPO && campoCaca && d2(e, campoCaca) > 40 && (e.nivel || 1) < (campoCaca.nivel || 1) && eu.vida > eu.vidaMax * 0.5) e = null;
   if (e) return lutar(e, agora);
   if (CAMPO) campoCaca = CAMPO;
   // ronda 2026-11-18: no Nv 53 (c14) passou 45 min sem XP; o campo Nv 52 fica na Ilha do Meio (sem barco não chega).
@@ -391,7 +453,7 @@ function cacar(agora, podeViajar = false) {
   // ronda 2026-11-24: 175 mortes na guerra numa noite voltando sempre ao mesmo campo. Morreu 3 vezes em 10 min nele: troca
   if (campoCaca && !CAMPO && !COMBATE && campoPerigoso(mortesCampo, campoCaca.nome, agora)) { perigosoAte.set(campoCaca.nome, agora + PERIGOSO_MIN * 60e3); log(`morreu 3 vezes em 10 min no campo, troca por ${PERIGOSO_MIN} min:`, campoCaca.nome); campoCaca = null; mortesCampo.length = 0; }
   if (CAMPO) { /* fixo */ }
-  else if (!campoCaca || agora - campoT > 20 * 60e3) {
+  else if (!COMBATE && (!campoCaca || agora - campoT > 20 * 60e3)) { // o combate de teste escolhe em campoCombate
     const nv = prog?.nivel || 1;
     if (camposRuins.size >= 6) camposRuins.clear(); // nenhum serviu: tenta todos de novo
     // ronda 2026-11-17: no Nv 47 (h11) o robô passou 2 turnos sem XP indo para o campo Nv 42, que está na névoa, e para o
@@ -400,22 +462,6 @@ function cacar(agora, podeViajar = false) {
     // está (Clareira/Vael, Ilha do Meio, Aurora: sem barco ele não atravessa o mar) e nunca mais o CACA[0] (Nv 1) de
     // reserva: sem campo na faixa, vai ao mais forte que alcança na terra dele
     const terra = terraDoCampo, minha = terraEm(CACA, eu.x, eu.z);
-    // combate de teste (André 2026-11-27: "ele sempre grinde no nível do mob que ele é... peguei ele nível 50 grindando
-    // em mob nível 1"): o campo de nível mais alto que não passa do dele, em qualquer terra (vai de totem), e sem fugir do campo onde
-    // morre: as mortes são o que a gente mede. Só o campo sem XP há 10 min (caminho travado) fica de fora.
-    if (COMBATE && !CAMPO) {
-      const livre = (c) => !c.boss && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && !(prog && zonaFechadaEm(prog, c.x, c.z));
-      const cand = CACA.filter(livre), ate = cand.filter((c) => (c.nivel || 1) <= nv);
-      const melhor = (ate.length ? ate : cand).sort((a, b) => (ate.length ? (b.nivel || 1) - (a.nivel || 1) : (a.nivel || 1) - (b.nivel || 1)) || d2(eu, a) - d2(eu, b))[0]; // o de nível mais alto que não passa do dele
-      if (melhor) {
-        if (terra(melhor) !== minha && podeViajar && !((terraFalhou.get(terra(melhor)) || 0) > agora)) { cacaViagem = { terra: terra(melhor), campo: melhor }; log(`campo do nível (Nv ${melhor.nivel}) em outra terra: vai de totem`, melhor.nome); return; }
-        if (terra(melhor) === minha) {
-          campoCaca = melhor; campoT = agora; perigosoAte.clear();
-          R.caca = { terra: minha, campo: melhor.nome, nivel: melhor.nivel || 1, totens: prog?.totens || [] };
-          return;
-        }
-      }
-    }
     const aberto = (c) => !c.boss && (c.nivel || 1) <= nv && !/^Covil/.test(c.nome || '') && !camposRuins.has(c.nome) && !((perigosoAte.get(c.nome) || 0) > agora) && !(prog && zonaFechadaEm(prog, c.x, c.z));
     const ok = (c) => aberto(c) && terra(c) === minha;
     const bons = CACA.filter((c) => ok(c) && (c.nivel || 1) >= nv - 6).sort((a, b) => d2(eu, a) - d2(eu, b));
@@ -439,10 +485,11 @@ function cacar(agora, podeViajar = false) {
       || CACA.filter((c) => !c.boss && !/^Covil/.test(c.nome || '') && terra(c) === minha && (c.nivel || 1) <= nv).sort((a, b) => (b.nivel || 1) - (a.nivel || 1))[0] || CACA[0];
     if ((campoCaca.nivel || 1) < nv - 15) log('sem campo do nível na terra dele, caça no mais forte que alcança:', campoCaca.nome, 'Nv', campoCaca.nivel);
     R.caca = { ...(R.caca?.falta && R.caca.terra === minha ? { falta: R.caca.falta } : {}), terra: minha, campo: campoCaca.nome, nivel: campoCaca.nivel || 1, totens: prog?.totens || [] };
-    campoT = agora;
+    campoT = agora; campoNv = nv;
   }
   // ronda 2026-11-25: o ponto no campo é sorteado uma vez (até chegar ou trocar de campo). Sorteado a cada passo, a rota
   // era refeita 20 vezes por segundo e, na Aurora, um ponto repetido da estrada puxava o robô de volta: 5 min parado
+  if (!campoCaca) return; // combate de teste esperando a recarga da casinha
   if (!cacaPonto || cacaPonto.campo !== campoCaca) cacaPonto = { campo: campoCaca, x: campoCaca.x + (Math.random() - 0.5) * 6, z: campoCaca.z + (Math.random() - 0.5) * 6 };
   if (irPara(cacaPonto.x, cacaPonto.z, 4)) { parar(); cacaPonto = null; }
 }
