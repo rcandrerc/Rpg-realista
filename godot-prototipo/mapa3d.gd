@@ -81,7 +81,7 @@ var b_tp := Rect2() # "Teleportar" do totem escolhido
 var totens_ao_ficar_pronto := false # encostou no totem com a maquete ainda montando
 # André 2026-11-17: "opção para eu tirar a neblina... e botasse de volta para eu ver o que estava liberado". Só o
 # desenho do mapa: o mundo continua fechado do mesmo jeito (o servidor decide) e o minimapa segue com a névoa.
-var nevoa_no_mapa := true
+var nevoa_no_mapa := false # sem névoa no mapa (André 2026-11-27, remoção aprovada)
 var lista_aberta := true # lista de Lugares na direita (como no 2D); o botão no alto esconde
 # áreas de plantio (camada do filtro do mapa, André 2026-11-16): pinheirinhos em fileiras (antes quadradinhos amarelos)
 var _quads_plantio := {} # lido na linha principal antes de montar no fundo
@@ -1719,7 +1719,7 @@ func _botoes(c: Control, tam: Vector2, lw := 0.0, tm := false) -> void:
 		b_lista = Rect2(Vector2(tam.x - 300.0, 6.0), Vector2(108, 36))
 		_botao(c, b_lista, "Esconder lista" if lista_aberta else "Lugares", 15 if lista_aberta else 17)
 	b_nevoa = Rect2()
-	if not tm and pronto and m.get("nevoa") != null: # tira e põe a névoa das regiões fechadas
+	if false and not tm and pronto and m.get("nevoa") != null: # (botão desligado: mapa sem névoa) tira e põe a névoa das regiões fechadas
 		b_nevoa = Rect2(Vector2(tam.x - 420.0, 6.0), Vector2(112, 36))
 		_botao(c, b_nevoa, "Tirar névoa" if nevoa_no_mapa else "Pôr névoa", 15)
 	var cz := Vector2((tam.x - lw) * 0.5, tam.y - 34.0)
