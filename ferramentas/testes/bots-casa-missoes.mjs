@@ -3,6 +3,7 @@
 // bot fazem a história e as diárias no modo livre, e todo bot com lote na base do clã constrói a casa com cama e baú nele.
 // Uso: node ferramentas/testes/bots-casa-missoes.mjs
 import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
+import './_relogio-fixo.mjs';
 import { Simulacao, MAPA_CLAREIRA, CLA, CLAS_NPC, NPC_VIDA, HISTORIA } from '../../shared/index.js';
 import { acharLugarBase } from '../../shared/base.js';
 import { sortearRecruta } from '../../shared/cla.js';
