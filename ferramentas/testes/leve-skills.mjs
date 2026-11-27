@@ -17,3 +17,8 @@ ok(hb.e.some((o) => o[0] === 'giro') && hb.c.some((o) => o[0] === 'meteoro'), `a
 s.leveHab('A', 'meteoro'); for (let t = 0; t < 80; t++) s.passo(1 / 20);
 ok(vivos.every((e) => e.morto), 'o Meteoro do herói Nv 63 mata os bichos Nv 1 da área, como no jogo');
 ok(a.modo === 'Magia' && s.habLeve(a).bs[0] === 'cajado_basico', 'usar magia troca o básico para o do cajado');
+// Personagem > Golpes do leve = as barras do jogo (prog.barras, msg 'barra'), não a build antiga
+const pe = s.personagemLeve(a);
+ok(pe.ba?.espada?.length === 6 && pe.ba?.cajado?.length === 6 && !pe.bd, 'Golpes mostram as barras do jogo (6 + 6)');
+const fora = pe.hs.find((h) => (h[2] === 'espada' || h[2] === 'geral') && !pe.ba.espada.includes(h[0]) && h[4] <= 63);
+if (fora) { const lista = [...pe.ba.espada]; lista[0] = fora[0]; s.definirBarra('A', { barra: 'espada', lista }); ok(s.personagemLeve(a).ba.espada[0] === fora[0] && s.habLeve(a).e.some((o) => o[0] === fora[0]), `trocar golpe no leve muda a barra do jogo (${fora[1]})`); }
