@@ -26,6 +26,7 @@ export const LEVE = {
   olhar: 2, // s entre as conferidas de "preso"
   preso: 0.8, // m: andou menos que isso em LEVE.olhar s = preso
   desiste: 4, // conferidas presas seguidas: para e avisa
+  desvio: 0.6, // s de passo de lado a cada conferida presa (o dobro na segunda, ...)
   quase: 4, // m do destino: preso aqui conta como chegou (NPC, totem e baú ocupam o lugar exato)
   gente: 60, // m: jogadores e bots que aparecem
   bichos: 40, // m: monstros que aparecem
@@ -206,7 +207,9 @@ export const Leve = {
     while (R.i <= ult && Math.hypot(P[R.i].x - j.x, P[R.i].z - j.z) < (R.i === ult ? LEVE.chega : LEVE.meio)) R.i++;
     if (R.i > ult) return this.leveChegou(j);
     const a = P[R.i], dx = a.x - j.x, dz = a.z - j.z, d = Math.hypot(dx, dz) || 1;
-    j.entrada = { mx: dx / d, mz: dz / d, correr: !j.semFolego && !j.veiculo }; // com pack: a corrida vira x0,5 (PACK_REGRAS.costas), como no jogo (2,7 m/s)
+    j.entrada = { mx: dx / d, mz: dz / d, correr: !j.semFolego && !j.veiculo };
+    // preso de frente (balcão, árvore, pedra no meio da estrada): uns passos de lado, como o jogador faz no joystick
+    if (R.desvio > this.tempo) { const k = R.lado || 1; j.entrada = { mx: (dx / d) * 0.35 - k * (dz / d), mz: (dz / d) * 0.35 + k * (dx / d), correr: j.entrada.correr }; } // com pack: a corrida vira x0,5 (PACK_REGRAS.costas), como no jogo (2,7 m/s)
     R.t += dt;
     if (R.t >= LEVE.olhar) { // preso (pedra, árvore, gente na frente)?
       const andou = Math.hypot(j.x - R.ux, j.z - R.uz);
@@ -216,6 +219,7 @@ export const Leve = {
       if (Math.hypot(fim.x - j.x, fim.z - j.z) < LEVE.quase) return this.leveChegou(j);
       if (++R.presas >= LEVE.desiste) return this.leveParar(j.id, 'Caminho bloqueado: toque em outro lugar');
       if (R.i < ult) R.i++; // tenta o ponto seguinte (contorna)
+      R.lado = R.presas % 2 ? 1 : -1; R.desvio = this.tempo + LEVE.desvio * R.presas; // um lado, depois o outro, cada vez mais
     }
   },
   leveChegou(j) {

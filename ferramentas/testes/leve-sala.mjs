@@ -68,6 +68,10 @@ try {
   const compra = s.mapa.npcs.filter((q) => (q.v || q.f === 'loja') && dd(q) < 120).sort((p, q) => dd(q) - dd(p))[0];
   console.log('  destino', compra.n, Math.round(dd(compra)), 'm');
   {
+    // o herói nasce até 1,5 m para cada lado do nascimento: às vezes a menos de 4 m do Tomás (ferreiro, que compra).
+    // Aí o teste dá uns passos para longe dele antes (senão vende de verdade e o resto do teste erra a conta)
+    const perto = () => s.mapa.npcs.find((q) => (q.v || q.f === 'loja') && Math.hypot(q.x - eu(s)[0], q.z - eu(s)[1]) < 6);
+    for (let i = 0; i < 3 && perto(); i++) { const q = perto(), [x, z] = eu(s), d = Math.hypot(x - q.x, z - q.z) || 1; s.send('leveIr', { x: x + (x - q.x) / d * 5, z: z + (z - q.z) / d * 5 }); await esperar(3000); }
     s.send('item', { acao: 'vender', i: 0, n: 2 });
     await esperar(900);
     ok(avisos(s).some((t) => /Venda com/.test(t)) && eu(s)[7] === 100, 'longe da loja: não vende');
