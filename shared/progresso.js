@@ -703,6 +703,7 @@ export function progressoValido(p) {
   { const f = fichaJogadorValida(p.fic); if (f) n.fic = f; } // ficha do jogador, opcional (André 2026-11-23, FICHA_RECRUTA)
   { const g = patenteValida(p.gu); if (g) n.gu = g; }
   if (typeof p.ctz === 'string' && p.ctz.length < 20) n.ctz = p.ctz;
+  if (typeof p.ctu === 'string' && p.ctu.length < 20) n.ctu = p.ctu; // último upgrade manual do robô (COMBATE_TESTE.upgrade)
   if (p.ct === 1) { n.ct = 1; if (Number.isInteger(p.ctg) && p.ctg > 0) n.ctg = Math.min(p.ctg, 100000); } // combate de teste (COMBATE_TESTE): ligado e golpes contados para o desgaste // Patente de Guerra (André 2026-11-26, shared/patente.js)
   { const a = pvpValido(p.pvp); if (a) n.pvp = a; } // Arena PvP (André 2026-11-21, shared/arena.js): Insígnias e placar
   if (Number.isFinite(p.rgCd) && p.rgCd > 0) n.rgCd = Math.round(p.rgCd); // Pó de rastreio: quando a recarga acaba (ms, hora de verdade)

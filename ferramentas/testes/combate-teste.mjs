@@ -40,3 +40,9 @@ assert.equal(sim.jogadores.get('r2').prog.nivel, 30, 'não zera de novo');
 sim.adicionarJogador('g', 'Gente', 'cabelo_m', { progresso: { nivel: 50, ct: 1 } });
 assert.equal(sim.jogadores.get('g').prog.nivel, 50); assert.equal(sim.jogadores.get('g').prog.ct, undefined, 'jogador comum nunca liga');
 console.log('combate-teste: ok');
+// upgrade manual (COMBATE_TESTE.upgrade): veste uma vez por marca
+COMBATE_TESTE.upgrade = { v: 't1', equip: { corpo: { k: 'peitoral', r: 2, e: 3 } } };
+sim.adicionarJogador('r3', 'Robô 3', 'cabelo_m', { progresso: salvo, robo: true, combateTeste: true });
+assert.deepEqual(sim.jogadores.get('r3').prog.equip.corpo, { k: 'peitoral', r: 2, e: 3 }); assert.equal(sim.jogadores.get('r3').prog.ctu, 't1');
+COMBATE_TESTE.upgrade = { v: '', equip: {} };
+console.log('combate-teste upgrade: ok');

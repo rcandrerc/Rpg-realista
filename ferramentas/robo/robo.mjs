@@ -41,6 +41,10 @@ const SO_CACAR = process.argv.includes('--cacar');
 // arma multiplica o dano, armadura x2, golpe de monstro gasta o equipamento; o servidor liga só na conta dele). Reforça
 // sozinho e anota por nível: tempo, mortes, ouro, equipamento (R.combate). Segue achando travamentos.
 const COMBATE = process.argv.includes('--combate');
+// --upgrade: ele mesmo evolui e reforça. André 2026-11-27: DESLIGADO ("deixa ele sem evoluir e sem fazer reforço... quando
+// começar a morrer com frequência ou ficar muito lento, me passa no relatório e a gente faz o upgrade manualmente"):
+// o upgrade manual entra pelo servidor (COMBATE_TESTE.upgrade). O robô só avisa (R.combate.alerta).
+const UPGRADE = COMBATE && process.argv.includes('--upgrade');
 const CAMPO = arg('campo', '') ? (([x, z]) => ({ x: Number(x), z: Number(z), nome: 'campo fixo' }))(arg('campo', '').split(',')) : null; // --campo x,z: caça só ali
 const TRAVA_MIN = Number(arg('trava', 15)); // min na mesma etapa (sem andar nada) = travou
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -66,6 +70,16 @@ const R = {
 // combate de teste: uma linha por nível que subiu neste turno ({ nv, min do turno, mortes e ouro até ali, equipamento
 // 'lugar raridade+reforço durabilidade') e os reforços (tentativas, deu certo, ouro)
 if (COMBATE) R.combate = { niveis: [], reforco: { tentativas: 0, ok: 0, ouro: 0 } };
+// alerta para o relatório (André: "quando começar a morrer com frequência ou ficar muito lento"): 6+ mortes na última
+// hora, ou o último nível levou mais que o dobro da média dos 3 de antes. Fica a última hora em que valeu.
+const mortesT = [];
+function alertaCombate() {
+  const L = R.combate.niveis, agora = Date.now(), min = Math.round((agora - R.inicio) / 60e3), mh = mortesT.filter((t) => agora - t < 3600e3).length;
+  const ult = L.length ? min - L[L.length - 1].min : null, ant = L.slice(-4).map((x, i, a) => (i ? x.min - a[i - 1].min : null)).filter((x) => x != null);
+  const media = ant.length ? ant.reduce((a, b) => a + b, 0) / ant.length : null;
+  const motivo = mh >= 6 ? `${mh} mortes na última hora` : ult != null && media && ult > 2 * media && ult > 20 ? `nível ${prog.nivel} levou ${ult} min (média ${Math.round(media)})` : '';
+  if (motivo) { R.combate.alerta = { nv: prog.nivel, min, motivo, eq: fotoEquip(prog.equip) }; problema(`Combate de teste: precisa de upgrade? ${motivo}`); }
+}
 const fotoEquip = (eq) => Object.entries(eq || {}).filter(([, o]) => o).map(([l, o]) => `${l} ${'CREÉLM'[o.r | 0] || '?'}+${o.e | 0} ${o.d ?? 100}%`).join(' · ');
 const pings = [], respostas = [], matar = [], atacouT = new Map();
 const problema = (txt) => { if (!R.problemas.includes(txt)) { R.problemas.push(txt); log('ACHADO', txt); } if (R.problemas.length > 60) R.problemas.shift(); };
@@ -132,7 +146,7 @@ function lerFoto(txt) {
     const morreu = !eu.morto && j.morto;
     Object.assign(eu, { vida: j.vida, vidaMax: j.vidaMax, mana: j.mana, morto: !!j.morto, montado: j.montado || null });
     if (!eu.pronto || j.morto) { eu.x = j.x; eu.y = j.y; eu.z = j.z; eu.pronto = true; } // morto: o servidor leva para a vila
-    if (morreu) { R.mortes++; rota = null; if (campoCaca) { mortesCampo.push({ t: Date.now(), campo: campoCaca.nome }); if (mortesCampo.length > 20) mortesCampo.shift(); } }
+    if (morreu) { R.mortes++; rota = null; if (COMBATE) { mortesT.push(Date.now()); if (mortesT.length > 50) mortesT.shift(); alertaCombate(); } if (campoCaca) { mortesCampo.push({ t: Date.now(), campo: campoCaca.nome }); if (mortesCampo.length > 20) mortesCampo.shift(); } }
     if (j.vidaMax > 0 && !j.morto) R.luta.menorVida = Math.min(R.luta.menorVida, Math.round(j.vida / j.vidaMax * 100) / 100);
   }
   const vistos = new Set();
@@ -153,6 +167,7 @@ function lerEvento(e) {
     if (prog && e.prog) { let g = 0; for (let n = prog.nivel; n < e.prog.nivel; n++) g += xpProximo(n); g += (e.prog.xp | 0) - (prog.xp | 0); if (g > 0) R.luta.xp += g; }
     prog = e.prog; hi = e.hi || null; if ('di' in e) di = e.di || null;
     if (R.nivel.de == null) R.nivel.de = prog.nivel;
+    if (COMBATE && R.nivel.ate != null && prog.nivel > R.nivel.ate) alertaCombate();
     if (COMBATE && R.nivel.ate != null && prog.nivel > R.nivel.ate) R.combate.niveis.push({ nv: prog.nivel, min: Math.round((Date.now() - R.inicio) / 60e3), mortes: R.mortes, ouro: prog.ouro | 0, atr: prog.atr, eq: fotoEquip(prog.equip) });
     R.nivel.ate = prog.nivel;
     const h = prog.hist;
@@ -398,7 +413,7 @@ const tem = (k) => (prog?.mochila || []).some((o) => o && o.k === k);
 // ronda 2026-11-19: poção fica só a pilha maior de cada uma (ferramentas/robo/robo-escolhas.mjs listaVenda)
 function protegido(o) {
   if (!o || o.cad) return true;
-  if (COMBATE && (ehEquip(o.k) || ITENS[o.k]?.catalisador || MATS_EVO.has(o.k))) return true; // combate de teste: peça vira catalisador, material fica para evoluir
+  if (UPGRADE && (ehEquip(o.k) || ITENS[o.k]?.catalisador || MATS_EVO.has(o.k))) return true; // combate de teste: peça vira catalisador, material fica para evoluir
   if (FERRAMENTAS_FAZENDA[o.k] || ITENS[o.k]?.usar?.veiculo) return true;
   return !!hi?.k && o.k === hi.k;
 }
@@ -460,7 +475,7 @@ function planoEvoluir() {
   return null;
 }
 function evoluirEquip(agora) {
-  if (!COMBATE || !prog?.equip || eu.vida < eu.vidaMax * 0.9) return false;
+  if (!UPGRADE || !prog?.equip || eu.vida < eu.vidaMax * 0.9) return false;
   if (destruirSobra(agora)) return true;
   if (!evoPlano) {
     if (agora - evoT < 60e3) return false;
@@ -514,7 +529,7 @@ function evoluirEquip(agora) {
 // (amiga.js reforcoAmiga): guarda 1.500 + o conserto, só tenta o + que o atributo deixa usar e se tem o Tecido ----------
 let reforcoT = 0, reforcoPausa = 0;
 function reforcarEquip(agora) {
-  if (!COMBATE || !prog?.equip || agora - reforcoT < 3000 || agora < reforcoPausa || eu.vida < eu.vidaMax * 0.9) return false;
+  if (!UPGRADE || !prog?.equip || agora - reforcoT < 3000 || agora < reforcoPausa || eu.vida < eu.vidaMax * 0.9) return false;
   const pecas = Object.entries(prog.equip).filter(([, o]) => o && ehEquip(o.k) && (o.e | 0) < reforcoMax(o) && (o.d ?? 100) > 0)
     .filter(([, o]) => { const pr = reforcoPrecisa(o, (o.e | 0) + 1); if (atributoDoReforco(prog.atr, pr.k) < pr.n) return false; const m = materialReforco(o); return !m || contar(prog.mochila, m.k) >= m.n; })
     .sort((a, b) => (a[1].e | 0) - (b[1].e | 0));

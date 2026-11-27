@@ -1323,7 +1323,10 @@ export const PAGINA_PRECO = [0, 1000, 5000, 15000]; // André 2026-11-16 (estudo
 // decréscimo de defesa no comum"): Comum fica como hoje e cada raridade acima vale mais, então evoluir pesa. desgasteGolpes: a cada N golpes de monstro que pegam no herói, cada peça do
 // corpo perde 1 de durabilidade (PvP não conta; a morte segue tirando MORTE.desgaste).
 // zerar: marca do reset completo do robô (nível, itens, skills, história, tudo); trocar o texto zera de novo na próxima entrada.
-export const COMBATE_TESTE = { base: 64, ref: 128, arma: 1.8, armadura: [1, 1.5, 2, 2.5, 3], desgasteGolpes: 150, zerar: '2026-11-27' };
+// upgrade: o robô não evolui nem reforça sozinho (André 2026-11-27); quando o relatório pedir, o André diz o que muda e
+// entra aqui: v = marca nova (texto), equip = { lugar: { k, r, e } } vestido na próxima entrada do robô (uma vez por marca).
+export const COMBATE_TESTE = { base: 64, ref: 128, arma: 1.8, armadura: [1, 1.5, 2, 2.5, 3], desgasteGolpes: 150, zerar: '2026-11-27',
+  upgrade: { v: '', equip: {} } };
 export const CONTA_TESTE = { nivel: false, paginas: false, devolver: '2026-11-11', missoes: true };
 // st: o que a peça soma no herói (vida, mana, defesa, critico, danoFisico, danoMagico), por raridade
 // André 2026-11-17: um atributo a mais por peça (capacete e botas: dano crítico em número; arma: chance de crítico;
