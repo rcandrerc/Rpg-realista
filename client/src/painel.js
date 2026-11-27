@@ -32,6 +32,35 @@ const http = () => endereco().replace(/^ws/, 'http');
 
 function estado(txt, tipo = '') { const e = $('estado'); e.className = 'estado ' + tipo; e.lastElementChild.textContent = txt; }
 let avisoT = 0;
+// buffs e debuffs (André 2026-11-27, igual ao buffs.gd do jogo): ícone redondo pequeno, borda verde (bom), dourada (clã) ou
+// vermelha (ruim) que vai encolhendo com o tempo que falta; tocar diz o que faz e quanto falta. O servidor manda
+// [código, segundos que faltam (-1 = enquanto durar), valor, extra] (bfLeve em shared/leve.js)
+const BF_ICONE = { cla: '🛡️', mesa: '🍲', banq: '🍖', co: '🍲', escudo: '🔰', atordoa: '💫', congela: '❄️', derruba: '⤵️', lento: '⏳', vuln: '💔', sangra: '🩸', veneno: '🧪', queima: '🔥' };
+const bfTotal = new Map();
+const pctBf = (x) => `${Math.round(Math.abs(+x || 0) * 100)}%`;
+function textoBuff([k, , v, x]) {
+  const pilha = +v > 1 ? ` (x${v | 0})` : '';
+  return ({ cla: [`Clã Nv ${v}`, `+${pctBf(x)} de XP e ouro dos monstros`], mesa: +v > 0 ? ['Bem alimentado', `+${pctBf(v)} de dano e XP`] : [+v > -0.2 ? 'Com fome' : 'Faminto', `-${pctBf(v)} de dano e XP`],
+    banq: ['Banquete do clã', `+${pctBf(v)} de dano e XP`], co: [v, x || ''], escudo: ['Escudo', `Absorve ${v | 0} de dano`], atordoa: ['Atordoado', 'Não anda nem ataca'],
+    congela: ['Congelado', 'Não anda nem ataca'], derruba: ['Derrubado', 'No chão: não anda nem ataca'], lento: ['Lento', `-${pctBf(v)} de velocidade`], vuln: ['Quebrado', `Leva +${pctBf(v)} de dano`],
+    sangra: ['Sangrando', 'Perde vida a cada segundo' + pilha], veneno: ['Envenenado', 'Perde vida a cada segundo' + pilha], queima: ['Queimando', 'Perde vida a cada segundo' + pilha] })[k] || [k, ''];
+}
+function linhaBuffs(l, alvo) {
+  const d = el('div', 'bfLeve'), agora = Date.now() / 1000;
+  if (alvo) d.append(el('small', null, 'Alvo:'));
+  for (const b of l) {
+    const [k, falta, v] = b, bom = ['cla', 'co', 'escudo', 'banq'].includes(k) || (k === 'mesa' && +v > 0);
+    const ch = `${k}|${Math.round(agora + falta)}`; if (falta > 0 && !bfTotal.has(ch)) { if (bfTotal.size > 200) bfTotal.clear(); bfTotal.set(ch, falta); }
+    const frac = falta > 0 ? Math.max(0, Math.min(1, falta / (bfTotal.get(ch) || falta))) : 1, cor = k === 'cla' ? '#f9c252' : bom ? '#8cdb6b' : '#f5523d';
+    const i = el('button', 'bf'); i.style.background = `conic-gradient(${cor} ${Math.round(frac * 360)}deg, ${cor}44 0)`;
+    const mio = el('span'); if (k === 'co') { const im = el('img'); im.alt = ''; im.src = `painel-icones/${b[4]}.png`; im.onerror = () => { im.remove(); mio.textContent = BF_ICONE.co; }; mio.append(im); } else mio.textContent = BF_ICONE[k] || '✨';
+    if (['sangra', 'veneno', 'queima'].includes(k) && +v > 1) i.append(el('b', null, String(v | 0)));
+    i.prepend(mio);
+    i.onclick = (e) => { e.stopPropagation(); const [t, o] = textoBuff(b); aviso(`${alvo ? 'Alvo: ' : ''}${t}${o ? ` · ${o}` : ''}${falta > 0 ? ` · ${falta >= 60 ? `${Math.floor(falta / 60)}:${String(Math.floor(falta % 60)).padStart(2, '0')}` : `${Math.ceil(falta)} s`}` : ''}`); };
+    d.append(i);
+  }
+  return d;
+}
 function aviso(txt) { const a = $('aviso'); a.textContent = txt; a.hidden = false; const hud = document.body.classList.contains('leveTela') && $('jogarStatus'); a.style.top = hud ? Math.round(hud.getBoundingClientRect().bottom + 8) + 'px' : ''; clearTimeout(avisoT); avisoT = setTimeout(() => { a.hidden = true; }, 4000); } // jogo leve: o aviso fica logo abaixo do quadro de cima, em cima do mapa (André 2026-11-26)
 
 // ---------- login (o mesmo do site do jogo: sessão guardada no aparelho, login com Google) ----------
@@ -413,10 +442,10 @@ function desenharCla() {
   t.append(opcaoAvisos());
   raiz.append(t);
   if (info.sobe) raiz.append(cartaoSobe(info.sobe));
-  if (info.com?.length) { // com os recrutas, ainda vão para o Baú do Clã + Entregar tudo (André 2026-11-26), igual ao jogo
-    const c = el('div', 'card'), l = el('div', 'linha'), b = el('button', 'acao', 'Entregar tudo no Baú');
-    b.onclick = () => { b.disabled = true; setTimeout(() => { b.disabled = false; }, 1500); pedir({ acao: 'entregar', id: '*' }); };
-    l.append(el('div', 'nome', 'Com os recrutas (vão para o Baú do Clã)'), b); c.append(l);
+  if (info.com?.length) { // com os recrutas, ainda vão para o Baú do Clã, igual ao jogo (o botão geral "Entregar tudo no Baú"
+    // saiu, remoção aprovada pelo André 2026-11-27: fica o Entregar/Esvaziar de cada recruta)
+    const c = el('div', 'card'), l = el('div', 'linha');
+    l.append(el('div', 'nome', 'Com os recrutas (vão para o Baú do Clã)')); c.append(l);
     const f = el('div', 'icones'); for (const it of info.com) f.append(iconeQtd(it)); c.append(f); raiz.append(c);
   }
   if ('bau' in info) raiz.append(cartaoBau(info.bau, info.bauCheio, info.bauLug));
@@ -1330,6 +1359,7 @@ function desenharJogar() {
   const moIt = leve.mo?.it || [], moL = leve.mo?.l || 0, conta = el('div', 'conta');
   conta.append(document.createTextNode(`Nv ${nv} · 💰 ${num(ouro)} · `), el('span', moL && moIt.length >= moL ? 'cheia' : '', `🎒 ${moIt.length}/${moL}`));
   st.append(conta);
+  for (const [l, alvo] of [[leve.f.bf, 0], [leve.f.ba, 1]]) if (l?.length) st.append(linhaBuffs(l, alvo)); // buffs e debuffs, como o buffs.gd do jogo
   const extras = [pack && '📦 pack nas costas', montado && '🐺 no lobo', leve.pk?.car?.onde === 2 && '🛒 no carrinho'].filter(Boolean);
   if (extras.length) st.append(el('div', 'faz', extras.join(' · ')));
   const P = pertoAgora();
@@ -1469,21 +1499,23 @@ function lutaLeve(raiz, morto, mana) {
   // as skills são as do jogo (habQ, André 2026-11-27): bs = o básico da arma na mão, e = barra da espada, c = barra do cajado
   const hq = leve.mapa?.hq || {}, cheia = (o) => o && [o[0], hq[o[0]]?.[0] || o[0], o[1], o[2], hq[o[0]]?.[1] || 'basico']; // [id, recarga, mana] + nome e ícone do leveMapa
   const bs = cheia(F.hb.bs), be = (F.hb.e || []).map(cheia), bc = (F.hb.c || []).map(cheia);
-  const todas = [bs, ...be, ...bc, ...F.hb.l].filter(Boolean);
+  // só a barra da arma na mão, igual ao jogo (André 2026-11-27: "quero igual no jogo também", com o Trocar)
+  const barra = F.hb.mg ? bc : be;
+  const todas = [bs, ...barra, ...F.hb.l].filter(Boolean);
   const chave = todas.map((o) => o[0] + o[1] + (o[4] || '')).join('|') + F.hb.mg;
   if (!h || chave !== habChave) {
     if (h) h.remove();
     h = el('div', 'habLeve arco'); habChave = chave; golpesEl = h;
     // tela do jogo (André 2026-11-27: "igualzinho o jogo"): o arco da HUD do jogo (hud.gd, contado do canto de baixo à
     // direita): golpe grande no canto e a cura embaixo dele. Depois ("pode pôr todas as skills, tanto do guerreiro quanto do
-    // mago"): a barra da espada no arco de dentro e a do cajado no de fora; rolada e flash junto do joystick
+    // mago"): as duas barras; depois (27/11) só a da arma na mão, com o Trocar; rolada e flash junto do joystick
     const S = 0.7, lugar = (b, x, y, r) => { const d = Math.round(r * S * 2.36); b.style.width = b.style.height = d + 'px'; b.style.right = Math.round(x * S + 10 - d / 2) + 'px'; b.style.bottom = Math.round(y * S + 8 - d / 2) + 'px'; };
     const botao = ([id, nome, , , ic], cls) => { const b = el('button', cls); b.dataset.i = id; b.title = nome; b.append(iconeHab(ic, ICONE_HAB[nome] || '✨'), el('span', null, nome), el('b', 'cd')); h.append(b); return b; };
     if (bs) { const b = botao(bs, 'grande'); lugar(b, 80, 158, 56); segurarBasico(b, bs[0]); } // segurar = bate sem parar, como no jogo
     for (const o of F.hb.l) { const b = botao(o, o[0] === 9 ? 'cura' : ''); if (o[0] === 9) lugar(b, 80, 58, 31); b.onclick = () => { if (!b.classList.contains('espera')) mandar('habilidade', o[0]); }; }
-    be.forEach((o, k) => { const b = botao(o, ''), ang = (88 - 27.8 * k) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 150, 158 + Math.sin(ang) * 150, 30); b.onclick = () => { if (!b.classList.contains('espera')) mandar('leveHab', o[0]); }; });
-    bc.forEach((o, k) => { const b = botao(o, 'mg'), ang = (88 - 15 * k) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 228, 158 + Math.sin(ang) * 228, 25); b.onclick = () => { if (!b.classList.contains('espera')) mandar('leveHab', o[0]); }; });
-    const tr = el('button', 'troca'); tr.title = F.hb.mg ? 'Usar espada' : 'Usar magia'; lugar(tr, 55, 665, 25); tr.append(iconeHab('troca', '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
+    // um arco só, mais junto do golpe que no jogo (André 2026-11-27: "mais juntas da skill base"; hud.gd usa raio 172)
+    barra.forEach((o, k) => { const b = botao(o, F.hb.mg ? 'mg' : ''), ang = (100 - 26 * k) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 140, 158 + Math.sin(ang) * 140, 27); b.onclick = () => { if (!b.classList.contains('espera')) mandar('leveHab', o[0]); }; });
+    const tr = el('button', 'troca'); tr.title = F.hb.mg ? 'Usar espada' : 'Usar magia'; lugar(tr, 55, 372, 25); tr.append(iconeHab('troca', '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
     tr.onclick = () => mandar('modo', F.hb.mg ? 'Espada' : 'Magia'); h.append(tr);
     // poções (André 2026-11-26): mesmas da mochila e mesma recarga do jogo (o servidor confere); 2026-11-27 numa coluna na
     // beira direita, acima do arco (o canto esquerdo é do joystick)
@@ -1493,9 +1525,10 @@ function lutaLeve(raiz, morto, mana) {
       b.onclick = () => { const p = (leve.f?.hb?.po || []).find((o) => o[0] === k); if (!p || p[1] < 0) return aviso(`Sem ${nome.toLowerCase()} na mochila`); if (p[3] > 0) return; mandar('item', { acao: 'usar', i: p[1] }); };
       h.append(b);
     }
-    // rolada e flash (os botões do jogo: msg 'rolar' e 'dash', na direção do joystick ou da frente), logo acima do joystick
-    for (const [k, nome, x] of [['rolar', 'Rolada', 18], ['dash', 'Flash', 80]]) {
-      const b = el('button', 'mov'); b.dataset.mv = k; b.title = nome; lugar(b, 0, 0, 27); b.style.right = 'auto'; b.style.left = x + 'px'; b.style.bottom = '146px'; b.append(iconeHab(k, k === 'rolar' ? '🌀' : '💨'), el('span', null, nome), el('b', 'cd'));
+    // rolada e flash (os botões do jogo: msg 'rolar' e 'dash', na direção do joystick ou da frente), junto das skills à direita
+    // (André 2026-11-27: do lado do joystick não dá para andar e usar ao mesmo tempo)
+    for (const [k, nome, x, y] of [['rolar', 'Rolada', 150, 362], ['dash', 'Flash', 228, 322]]) {
+      const b = el('button', 'mov'); b.dataset.mv = k; b.title = nome; lugar(b, x, y, 28); b.append(iconeHab(k, k === 'rolar' ? '🌀' : '💨'), el('span', null, nome), el('b', 'cd'));
       b.onclick = () => { if (!b.classList.contains('espera')) mandar(k); }; h.append(b);
     }
     // o lobo (o botão Montar do jogo, a mesma mensagem 'montar'), ao lado das poções como na HUD do jogo
@@ -1595,20 +1628,28 @@ let miniC = null;
 // joystick (André 2026-11-27: "coloca um joystick virtual do lado esquerdo pra mover o personagem"): a mesma entrada do
 // jogo (leveMover no servidor). Arrastar o dedo anda; até a borda corre; soltar para. Tocar no mapa continua indo até lá.
 let joyC = null;
+// joystick flutuante (André 2026-11-27: "para onde eu clicar ele ir junto"): o canto de baixo à esquerda é a área dele; o
+// toque põe a base embaixo do dedo e ela volta ao canto ao soltar
 function joyEl() {
   if (joyC) return joyC;
-  joyC = el('div', 'joyLeve'); const bola = el('i'); joyC.append(bola);
-  let dedo = null, vet = [0, 0], tm = null;
+  joyC = el('div', 'joyZona'); const base = el('div', 'joyLeve'), bola = el('i'); base.append(bola); joyC.append(base);
+  let dedo = null, vet = [0, 0], tm = null, cx = 0, cy = 0;
   const enviar = () => mandar('leveMover', { mx: vet[0], mz: vet[1] });
   const mexer = (e) => {
-    const r = joyC.getBoundingClientRect(), R = r.width / 2, dx = e.clientX - (r.left + R), dz = e.clientY - (r.top + R), d = Math.hypot(dx, dz), k = d > R * 0.8 ? (R * 0.8) / d : 1;
+    const R = base.offsetWidth / 2, dx = e.clientX - cx, dz = e.clientY - cy, d = Math.hypot(dx, dz), k = d > R * 0.8 ? (R * 0.8) / d : 1;
     bola.style.transform = `translate(${dx * k}px, ${dz * k}px)`;
     vet = [Math.round((dx * k) / (R * 0.8) * 100) / 100, Math.round((dz * k) / (R * 0.8) * 100) / 100];
   };
   // o dedo é seguido na janela (a tela do jogo se refaz e tira o joystick do lugar por um instante no meio do arrasto)
-  joyC.addEventListener('pointerdown', (e) => { e.preventDefault(); dedo = e.pointerId; joyC.classList.add('on'); mexer(e); enviar(); clearInterval(tm); tm = setInterval(enviar, 180); });
+  joyC.addEventListener('pointerdown', (e) => {
+    if (dedo !== null) return; e.preventDefault(); dedo = e.pointerId;
+    const z = joyC.getBoundingClientRect(), R = base.offsetWidth / 2;
+    cx = Math.min(Math.max(e.clientX, z.left + R), z.right - R); cy = Math.min(Math.max(e.clientY, z.top + R), z.bottom - R);
+    base.style.left = cx - z.left - R + 'px'; base.style.top = cy - z.top - R + 'px'; base.style.bottom = 'auto'; joyC.classList.add('on');
+    mexer(e); enviar(); clearInterval(tm); tm = setInterval(enviar, 180);
+  });
   addEventListener('pointermove', (e) => { if (e.pointerId === dedo) mexer(e); });
-  const soltar = (e) => { if (e.pointerId !== dedo) return; dedo = null; clearInterval(tm); vet = [0, 0]; enviar(); bola.style.transform = ''; joyC.classList.remove('on'); };
+  const soltar = (e) => { if (e.pointerId !== dedo) return; dedo = null; clearInterval(tm); vet = [0, 0]; enviar(); bola.style.transform = ''; base.style.left = base.style.top = base.style.bottom = ''; joyC.classList.remove('on'); };
   addEventListener('pointerup', soltar); addEventListener('pointercancel', soltar);
   return joyC;
 }
