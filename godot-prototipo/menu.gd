@@ -2428,15 +2428,6 @@ func montar_cla() -> void:
 	# membros (André 2026-11-22: "apareça eu no painel... nível Hp mana e vigor... determinar funções")
 	conteudo.add_child(rotulo("Membros", 17, OURO_CLARO))
 	var ms: Array = C.get("m", [])
-	if not ms.is_empty(): # Esvaziar bags (André 2026-11-26), igual ao jogo leve: andam ao Baú do Clã, guardam o que o clã usa e vendem o resto
-		var le := HBoxContainer.new()
-		le.add_theme_constant_override("separation", 8)
-		var te := rotulo("Bolsas dos recrutas: guardam no Baú do Clã o que o clã usa e vendem o resto (ferramenta, poção e semente ficam)", 12, APAGADO)
-		te.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		te.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		le.add_child(te)
-		le.add_child(botao("Esvaziar bags", func(): rede("cla", {"acao": "esvaziar", "id": "*"}), 12, true))
-		conteudo.add_child(le)
 	if C.has("eu"):
 		conteudo.add_child(_cartao_cla(C.eu, "Líder · Nv %d" % int(C.eu.get("nv", 1)), null, ms, C))
 	if ms.is_empty():
@@ -2504,10 +2495,33 @@ func montar_cla() -> void:
 			var v := int(L.get("v", 0))
 			conteudo.add_child(rotulo("%s%s" % [str(L.txt), "" if v == 0 else " (%+d)" % v], 12, VERDE_DIARIA if v > 0 else (Color(1.0, 0.7, 0.6) if v < 0 else APAGADO)))
 
+# selo "Mochila cheia" (vermelho) / "Mochila 150/160" (amarelo a 80%+, apagado antes), como no painel.html
+func _pintar_mochila(vivo: Dictionary, d: Dictionary) -> void:
+	var par = vivo.get("mo")
+	if not (par is Array) or not is_instance_valid(par[0]):
+		return
+	var mo: Array = d.get("mo", [0, 0])
+	var u := int(mo[0]) if mo.size() > 1 else 0
+	var t := int(mo[1]) if mo.size() > 1 else 0
+	var cheia := d.has("cheia") or (t > 0 and u >= t)
+	var quase := not cheia and t > 0 and u >= t * 0.8
+	var fundo := Color(0.72, 0.22, 0.18) if cheia else (Color(0.88, 0.63, 0.23) if quase else FUNDO2)
+	var borda := Color(0.85, 0.33, 0.29) if cheia else (Color(0.94, 0.72, 0.31) if quase else APAGADO.darkened(0.3))
+	var sb := caixa(fundo, borda, 1, 12)
+	sb.content_margin_left = 10
+	sb.content_margin_right = 10
+	sb.content_margin_top = 2
+	sb.content_margin_bottom = 2
+	par[0].add_theme_stylebox_override("panel", sb)
+	par[1].text = Idioma.frase("Mochila cheia") if cheia else "%s %d/%d" % [Idioma.frase("Mochila"), u, t]
+	par[1].add_theme_color_override("font_color", Color.WHITE if cheia else (Color(0.1, 0.07, 0.02) if quase else APAGADO.lightened(0.2)))
+	par[0].visible = cheia or t > 0
+
 # cartão de um membro do clã: nome, barras de HP, mana e vigor, o que está fazendo e a função (recruta)
 func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Control:
 	var card := PanelContainer.new()
-	card.add_theme_stylebox_override("panel", caixa(FUNDO2, OURO.darkened(0.35), 1, 10))
+	var cheia_m: bool = r != null and r.has("cheia") # mochila cheia: borda vermelha, como no painel.html
+	card.add_theme_stylebox_override("panel", caixa(FUNDO2, Color(0.85, 0.33, 0.29) if cheia_m else OURO.darkened(0.35), 2 if cheia_m else 1, 10))
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 4)
 	card.add_child(v)
@@ -2523,6 +2537,19 @@ func _cartao_cla(d: Dictionary, sub: String, r, ms: Array, C: Dictionary) -> Con
 		_moral_ui(topo, r, vivo)
 	topo.add_child(rotulo(sub, 12, TEXTO))
 	v.add_child(topo)
+	if r != null and (r.has("cheia") or r.has("mo")): # selo da mochila + Esvaziar desse recruta (André 2026-11-27, igual ao jogo leve)
+		var lm := HBoxContainer.new()
+		lm.add_theme_constant_override("separation", 8)
+		var selo := PanelContainer.new()
+		var tx := rotulo("", 12, TEXTO)
+		selo.add_child(tx)
+		lm.add_child(selo)
+		vivo["mo"] = [selo, tx]
+		_pintar_mochila(vivo, r)
+		if on and int(r.get("morto", 0)) == 0:
+			var rid_e := str(r.id)
+			lm.add_child(botao("Esvaziar", func(): rede("cla", {"acao": "esvaziar", "id": rid_e}), 12, true))
+		v.add_child(lm)
 	if on and d.has("hpM"):
 		for b in [["HP", "hp", "hpM", Color(0.8, 0.25, 0.22)], ["Mana", "mp", "mpM", Color(0.3, 0.5, 0.9)], ["Vigor", "vg", "vgM", Color(0.85, 0.7, 0.25)]]:
 			var lb := HBoxContainer.new()
@@ -2788,6 +2815,7 @@ func _cla_pintar_vivo() -> void:
 			vivo.ganho.add_theme_color_override("font_color", cor_ganho(d))
 			vivo.ganho.visible = vivo.ganho.text != ""
 		_moral_pintar(vivo, d)
+		_pintar_mochila(vivo, d)
 
 # com a aba Clã aberta, pede o painel de novo a cada 3 s (HP, mana e vigor andando)
 var _cla_timer := false
