@@ -1252,7 +1252,7 @@ function janelaPeca({ it, eq, nomeL }) {
       corpo.push(el('div', 'faz', agora ? `Você usa: ${agora[2]}${agora[4] ? ' · ' + agora[4] : ''}` : `${VESTE.find((v) => v[0] === lugar)?.[2] || ''}: nada vestido`));
       acao(agora ? 'Trocar' : 'Vestir', { acao: 'equipar', i });
     }
-    if (tipo === 'u') acao('Usar', { acao: 'usar', i });
+    if (tipo === 'u') acao(it[10] || 'Usar', { acao: 'usar', i }); // [10]: o rótulo do jogo (carrinho: Colocar no chão / Guardar carrinho)
     acao(cad ? '🔓 Destrancar' : '🔒 Trancar', { acao: 'cadeado', i }, true);
     corpo.push(el('div', 'faz', `${cad ? 'Trancado: não vende nem joga fora. ' : ''}Vende por ${num(preco)} de ouro na loja.`));
   }
