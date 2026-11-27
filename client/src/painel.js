@@ -175,8 +175,14 @@ function moralTag(m) {
 function cartaoMembro(m) {
   const c = el('div', 'card' + (m.on ? '' : ' fora') + (m.cheia ? ' cheio' : ''));
   const l = el('div', 'linha'), n = el('div', 'nome', m.nome);
-  n.append(el('span', 'tag', m.tier)); if (m.dev) n.append(el('span', 'tag', 'devendo')); if (m.cheia) n.append(el('span', 'tag cheio', 'Mochila cheia')); else if (m.mo) n.append(lugaresTag('Mochila', m.mo));
+  n.append(el('span', 'tag', m.tier)); if (m.dev) n.append(el('span', 'tag', 'devendo'));
   l.append(n, ...(m.re ? [moralTag(m)] : []), el('div', 'nv', `Nv ${m.nv}`)); c.append(l);
+  if (m.cheia || m.mo) { // selo da mochila + Esvaziar desse recruta (André 2026-11-27: no lugar do botão geral, no jogo e no leve)
+    const q = el('div', 'moch'), b = el('button', 'esv', 'Esvaziar');
+    q.append(m.cheia ? el('span', 'tag cheio', 'Mochila cheia') : lugaresTag('Mochila', m.mo));
+    b.onclick = () => { b.disabled = true; setTimeout(() => { b.disabled = false; }, 1500); pedir({ acao: 'esvaziar', id: m.id }); };
+    if (m.on && !m.morto) q.append(b); c.append(q);
+  }
   c.append(el('div', 'faz', m.on ? (m.morto ? 'Caído' : comHa(m.fz || '', m.fzT)) : 'Fora do mundo'));
   if (m.pt && m.fn?.k !== 'livre') { // o que rendeu a ordem: "Coletou 120 minério de ferro (+20 pela moral)"
     const nome = m.fn?.k === 'grind' ? 'monstros' : (info.recursos.find((r) => r.k === m.fn?.r)?.nome || '');
@@ -406,13 +412,6 @@ function desenharCla() {
     b.onclick = () => { b.disabled = true; setTimeout(() => { b.disabled = false; }, 1500); pedir({ acao: 'entregar', id: '*' }); };
     l.append(el('div', 'nome', 'Com os recrutas (vão para o Baú do Clã)'), b); c.append(l);
     const f = el('div', 'icones'); for (const it of info.com) f.append(iconeQtd(it)); c.append(f); raiz.append(c);
-  }
-  if (info.m?.length) { // Esvaziar bags (André 2026-11-26), igual ao jogo (menu.gd): todos andam ao Baú do Clã, guardam o que o clã usa e vendem o resto
-    const c = el('div', 'card'), l = el('div', 'linha'), b = el('button', 'acao', 'Esvaziar bags');
-    b.onclick = () => { b.disabled = true; setTimeout(() => { b.disabled = false; }, 1500); pedir({ acao: 'esvaziar', id: '*' }); };
-    l.append(el('div', 'nome', 'Bolsas dos recrutas'), b); c.append(l);
-    c.append(el('div', 'sub', 'Eles vão andando ao Baú do Clã, guardam o que o clã usa (materiais, comida, alma) e vendem o resto. Ferramenta, poção e semente ficam com eles.'));
-    raiz.append(c);
   }
   if ('bau' in info) raiz.append(cartaoBau(info.bau, info.bauCheio, info.bauLug));
   if (info.gu) raiz.append(cartaoGuerra(info.gu)); // Patente de Guerra (André 2026-11-26)
