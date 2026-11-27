@@ -628,9 +628,10 @@ class SalaClareira extends Room {
     const ev = (u.leveEv ||= []);
     for (const e of eventos) if ((e.para === c.sessionId || ((e.t === 'vila' || e.t === 'coleta') && e.id === c.sessionId)) && LEVE_EVENTOS.has(e.t)) ev.push(this.sim.leveEvento(e));
     if (ev.length > 30) ev.splice(0, ev.length - 30);
-    u.leveT = (u.leveT || 0) + TICK; if (u.leveT < LEVE.envio && !ev.some((e) => e.t !== 'aviso')) return;
+    const fx = (u.leveFx ||= []); for (const e of eventos) { const f = this.sim.fxLeve(j, e); if (f) fx.push(f); } if (fx.length > 40) fx.splice(0, fx.length - 40); // efeitos da luta perto (fxLeve)
+    u.leveT = (u.leveT || 0) + TICK; if (u.leveT < (j.leveJoy ? LEVE.envioJoy : LEVE.envio) && !ev.some((e) => e.t !== 'aviso')) return;
     u.leveT = 0;
-    const m = { f: this.sim.fotoLeve(j), ev: ev.splice(0) };
+    const m = { f: this.sim.fotoLeve(j), ev: ev.splice(0), ...(fx.length ? { fx: fx.splice(0) } : {}) };
     const mo = this.sim.mochilaLeve(j), moTxt = JSON.stringify(mo); if (moTxt !== u.leveMo) { u.leveMo = moTxt; m.mo = mo; }
     const pk = this.sim.packLeve(j), pkTxt = JSON.stringify(pk); if (pkTxt !== u.levePk) { u.levePk = pkTxt; m.pk = pk; } // packs e carrinho (PR 2)
     if (u.leveRc) { const rc = this.sim.leveReceitas(j), rcTxt = JSON.stringify(rc); if (rcTxt !== u.leveRcTxt) { u.leveRcTxt = rcTxt; m.rc = rc; } } // muda quando mochila ou lugar mudam
