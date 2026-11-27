@@ -2,7 +2,7 @@ extends SceneTree
 # Fotos da barra do time com vários clãs (André 2026-11-27: "aparecia o líder do outro clã e mais os bots dele. Eu podia
 # minimizar essa aba para aparecer só o nome da líder, ou maximizar"; o meu grupo também). No jogo de verdade, sem
 # servidor: a lista é a mesma que o evento 'time' do servidor traria (shared/simulacao.js enviarTime, grupos).
-# Uso: FOTO_SAIDA=/pasta FOTO_W=1280 FOTO_H=576 xvfb-run -a godot --path godot-prototipo --rendering-driver opengl3 -s ../ferramentas/time-lideres-foto.gd
+# Uso: FOTO_SAIDA=/pasta FOTO_W=1280 FOTO_H=576 xvfb-run -a godot --render-thread safe --path godot-prototipo --rendering-driver opengl3 -s ../ferramentas/time-lideres-foto.gd
 var m
 var saida := OS.get_environment("FOTO_SAIDA") if OS.get_environment("FOTO_SAIDA") != "" else "/tmp"
 func esperar(k: int) -> void:
