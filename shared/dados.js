@@ -1529,7 +1529,7 @@ export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate:
 // bonusMax segura o bônus de XP do time no de antes (5 pessoas = +40%), por maior que fique o time. liderBot: o líder
 // de clã bot da mesma raça (o Dario) topa quando quem chama lidera um clã, é amigo dele e a base dele não está sendo
 // atacada; os recrutas dele vêm junto protegendo (escolta: aparecem no grupo dele, até max - 1)
-Object.assign(TIME, { clas: 6, bonusMax: 4, liderBot: true });
+Object.assign(TIME, { clas: 5, bonusMax: 4, liderBot: true }); // André 2026-11-27: 5 clãs (3 na coluna da esquerda, 2 na da direita)
 // André 2026-11-11 ("ninguém ficar protegendo, puxando ninguém"): no time, quem está muito ABAIXO do mais alto que ganhou
 // o mesmo monstro ganha menos XP (jogador ou NPC). Até nerfLivre níveis de diferença: normal; depois -nerfPorNivel por nível
 // (com 5 de folga e 0,1 por nível: 10 níveis abaixo = metade, 15 ou mais = nada). Ninguém muda de nível, só o XP.

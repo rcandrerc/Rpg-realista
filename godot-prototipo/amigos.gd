@@ -22,6 +22,11 @@ var lider := ""
 var grupos: Array = []
 var _fechados := {} # g -> true (grupo minimizado; fica até sair do jogo)
 const CAB_H := 22.0 # altura do cabeçalho do grupo
+# André 2026-11-27 (desenho): com vários clãs, os 3 primeiros descem na coluna da esquerda e o 4º vai para a coluna da
+# direita; as duas colunas juntas ficam da largura do quadro do herói (vida e mana) em cima
+const COL_W := 161.0
+const COL2_X := 169.0
+const COL_CLAS := 3 # clãs na coluna da esquerda
 var _barras: Control
 var barras_d := Vector2.ZERO # modo de editar a interface (editar_hud.gd): lugar e tamanho das barras do time
 var barras_s := 1.0
@@ -54,6 +59,10 @@ var _toques: Array = [] # [Button] na mesma ordem das barras
 var _cmd: PanelContainer = null
 var _cmd_id := ""
 var _cmd_ate := 0.0
+var _cmd_x := 204.0 # ao lado do cartão tocado
+# "Só meu clã" (André 2026-11-27: "ver só eu e meu time sem quebrar o time"): esconde os outros clãs da barra
+var _so_meu := false
+var _so: Button = null
 func _ids_barras() -> Array:
 	var eu := str(m.online.meu_id) if m.online else ""
 	var ids: Array = []
@@ -78,7 +87,7 @@ func _linhas() -> Array:
 	if grupos.size() < 2:
 		for t in time:
 			if str(t.id) != eu:
-				r.append({"k": "m", "y": y, "h": 36.0, "t": t, "g": str(t.get("g", ""))})
+				r.append({"k": "m", "x": 0.0, "w": 196.0, "y": y, "h": 36.0, "t": t, "g": str(t.get("g", ""))})
 				y += 40.0
 		return r
 	var meu := _meu_grupo()
@@ -88,7 +97,15 @@ func _linhas() -> Array:
 			ordem.push_front(G)
 		else:
 			ordem.append(G)
+	var gi := 0
+	var x := 0.0
 	for G in ordem:
+		if _so_meu and str(G.get("g", "")) != meu:
+			continue # "Só meu clã": os outros somem da barra, o time continua o mesmo
+		if gi == COL_CLAS: # 4º clã em diante: coluna da direita, de cima
+			x = COL2_X
+			y = _topo()
+		gi += 1
 		var g := str(G.get("g", ""))
 		var lid := str(G.get("lid", ""))
 		var del: Array = []
@@ -96,7 +113,7 @@ func _linhas() -> Array:
 			if str(t.get("g", "")) == g:
 				del.append(t)
 		var aberto: bool = not _fechados.get(g, false)
-		r.append({"k": "cab", "y": y, "h": CAB_H, "g": g, "n": del.size(), "aberto": aberto, "nome": str(G.get("nome", "")), "cla": str(G.get("cla", "")), "eu": g == meu})
+		r.append({"k": "cab", "x": x, "w": COL_W, "y": y, "h": CAB_H, "g": g, "n": del.size(), "aberto": aberto, "nome": str(G.get("nome", "")), "cla": str(G.get("cla", "")), "eu": g == meu})
 		y += CAB_H + 3.0
 		var vis: Array = []
 		for t in del: # o líder primeiro
@@ -107,9 +124,12 @@ func _linhas() -> Array:
 				if str(t.id) != lid and str(t.id) != eu:
 					vis.append(t)
 		for t in vis:
-			r.append({"k": "m", "y": y, "h": 36.0, "t": t, "g": g})
+			r.append({"k": "m", "x": x, "w": COL_W, "y": y, "h": 36.0, "t": t, "g": g})
 			y += 40.0
 	return r
+
+func _tem_col2() -> bool:
+	return grupos.size() > COL_CLAS
 
 func _lider_do_grupo(g: String) -> String:
 	for G in grupos:
@@ -121,8 +141,10 @@ func _altura_linhas() -> float:
 	var r := _linhas()
 	if r.is_empty():
 		return 0.0
-	var u: Dictionary = r[-1]
-	return float(u.y) + float(u.h) + 4.0 - _topo()
+	var fim := 0.0
+	for u in r:
+		fim = max(fim, float(u.y) + float(u.h) + 4.0)
+	return fim - _topo()
 
 func _toque_barra(i: int) -> void:
 	var lista := _linhas()
@@ -142,6 +164,7 @@ func _toque_barra(i: int) -> void:
 	if _cmd != null and _cmd_id == str(t.id):
 		_fechar_comandos()
 		return
+	_cmd_x = float(L.x) + float(L.w) + 8.0
 	_abrir_comandos(str(t.id), str(t.get("nome", "")), float(L.y))
 
 # Pack pela barra do time (André 2026-11-23): dois toques, De e Pra. O bot anda cada trecho (shared/amiga.js
@@ -189,7 +212,7 @@ func _abrir_comandos(id: String, nome: String, i: float, modo := "", de := "") -
 				v.add_child(_botao_cmd(str(c[1]), str(c[2]), _mandar_pack.bind(id, de, str(c[0]))))
 		v.add_child(_botao_cmd("Voltar", "desfazer", _abrir_comandos.bind(id, nome, i, "de", "")))
 	_cmd.scale = Vector2(barras_s, barras_s)
-	_cmd.position = BARRAS + barras_d + Vector2(204, (0.0 if id == "*" else i)) * barras_s
+	_cmd.position = BARRAS + barras_d + Vector2((204.0 if id == "*" else _cmd_x), (0.0 if id == "*" else i)) * barras_s
 	add_child(_cmd)
 
 func _botao_cmd(texto: String, icone: String, acao: Callable) -> Button:
@@ -220,8 +243,8 @@ func _tem_bot() -> bool: # bot do meu clã (o "Time todo" e o Pack só mandam no
 	return false
 
 # o botão "Time todo" ocupa TOPO_TODO em cima das barras quando há bot no time
-func _topo() -> float:
-	return TOPO_TODO if _tem_bot() and not m.hud.esconder_combate else 0.0
+func _topo() -> float: # também com vários clãs: a linha de cima tem o botão "Só meu clã"
+	return TOPO_TODO if (_tem_bot() or grupos.size() >= 2) and not m.hud.esconder_combate else 0.0
 
 func _mandar_pack(id: String, de: String, pra: String) -> void:
 	m.rede("packTime", {"de": de, "pra": pra, "para": id})
@@ -263,8 +286,8 @@ func _arrumar_toques() -> void:
 		var b: Button = _toques[i]
 		b.visible = mostra and i < linhas.size()
 		if b.visible:
-			b.position = BARRAS + barras_d + Vector2(0, float(linhas[i].y)) * barras_s
-			b.size = Vector2(196, float(linhas[i].h)) * barras_s
+			b.position = BARRAS + barras_d + Vector2(float(linhas[i].x), float(linhas[i].y)) * barras_s
+			b.size = Vector2(float(linhas[i].w), float(linhas[i].h)) * barras_s
 	if _todo == null and topo > 0.0:
 		_todo = Button.new()
 		_todo.text = Idioma.frase("Time todo")
@@ -278,10 +301,29 @@ func _arrumar_toques() -> void:
 			else:
 				_abrir_comandos("*", "", 0))
 		add_child(_todo)
+	if _so == null and grupos.size() >= 2:
+		_so = Button.new()
+		_so.focus_mode = Control.FOCUS_NONE
+		_so.add_theme_font_size_override("font_size", 13)
+		Menu.estilo_botao(_so, false)
+		_so.add_theme_color_override("font_color", Color("ffd98a"))
+		_so.pressed.connect(func():
+			_so_meu = not _so_meu
+			_fechar_comandos()
+			_barras.queue_redraw()
+			_arrumar_toques()
+			m.sons.tocar("q_anel_1", -22.0))
+		add_child(_so)
+	if _so != null:
+		_so.visible = mostra and grupos.size() >= 2
+		_so.text = Idioma.frase("Ver todos os clãs") if _so_meu else Idioma.frase("Só meu clã")
+		_so.position = BARRAS + barras_d + Vector2(COL2_X if _tem_bot() else 0.0, 0.0) * barras_s
+		_so.size = Vector2(COL_W, TOPO_TODO - 4.0)
+		_so.scale = Vector2(barras_s, barras_s)
 	if _todo != null:
-		_todo.visible = topo > 0.0
+		_todo.visible = topo > 0.0 and _tem_bot()
 		_todo.position = BARRAS + barras_d
-		_todo.size = Vector2(196, TOPO_TODO - 4.0)
+		_todo.size = Vector2(COL_W if grupos.size() >= 2 else 196.0, TOPO_TODO - 4.0)
 		_todo.scale = Vector2(barras_s, barras_s)
 
 func _ready() -> void:
@@ -394,6 +436,7 @@ func limpar_time() -> void:
 	time = []
 	lider = ""
 	grupos = []
+	_so_meu = false
 	_barras.queue_redraw()
 
 # caiu a conexão ou saiu da sala: o servidor desfaz o time
@@ -434,8 +477,8 @@ func _desenhar_barras() -> void:
 			_cabecalho(L)
 			continue
 		var t: Dictionary = L.t
-		var p := Vector2(0, float(L.y))
-		var tam := Vector2(196, 36)
+		var p := Vector2(float(L.x), float(L.y))
+		var tam := Vector2(float(L.w), 36)
 		var morto: bool = t.get("morto", false) == true
 		# André 2026-11-11: cartão do time com as pontas mais arredondadas (cor igual)
 		_caixa(Rect2(p, tam), 10, Color(0.08, 0.07, 0.06, 0.72))
@@ -452,7 +495,7 @@ func _desenhar_barras() -> void:
 		_barra(p + Vector2(8, 29), Vector2(tam.x - 16, 4), fm, Color(0.22, 0.45, 0.85), "")
 		if m.buffs and not morto: # buffs e debuffs dele (buffs.gd): ícones pequenos do lado direito do cartão
 			var bl: Array = m.buffs.do_id(str(t.id))
-			if not bl.is_empty():
+			if not bl.is_empty() and not (grupos.size() >= 2 and float(L.x) == 0.0 and _tem_col2()): # coluna da esquerda com a da direita ao lado: sem espaço
 				var bp := p + Vector2(tam.x + 4.0, 9.0)
 				m.buffs.desenhar(_barras, "time:" + str(t.id), bl, bp, 18.0, BARRAS + barras_d + bp * barras_s, barras_s, 4)
 	_barras.draw_set_transform(Vector2.ZERO)
@@ -460,8 +503,8 @@ func _desenhar_barras() -> void:
 # cabeçalho do grupo de um clã: seta (aberto/fechado), [clã] líder e quantos são. O meu em dourado.
 func _cabecalho(L: Dictionary) -> void:
 	var f := ThemeDB.fallback_font
-	var p := Vector2(0, float(L.y))
-	var tam := Vector2(196, CAB_H)
+	var p := Vector2(float(L.x), float(L.y))
+	var tam := Vector2(float(L.w), CAB_H)
 	var cor: Color = Color("ffd98a") if L.eu else COR_TIME
 	_caixa(Rect2(p, tam), 8, Color(0.05, 0.045, 0.04, 0.8))
 	_caixa(Rect2(p, tam), 8, Color(cor, 0.55), 1)

@@ -54,4 +54,21 @@ func _initialize() -> void:
 	A._fechados = {"c:a": true, "c:f": true, "b:dario": true}
 	await esperar(20)
 	await foto("4-tudo-minimizado-so-lideres")
+	# 5 clãs (André 2026-11-27, desenho): 3 na coluna da esquerda, o 4º e o 5º na da direita
+	A.time += [membro("i", "Irmão", 28, "c:i", 0.9, false), membro("i1", "Davi Brasa", 25, "c:i", 1.0), membro("i2", "Lara Fogo", 24, "c:i", 0.6),
+		membro("x", "Maya", 30, "c:x", 1.0, false), membro("x1", "Otto Lume", 27, "c:x", 0.75)]
+	A.grupos += [{"g": "c:i", "nome": "Irmão", "cla": "Lobos de Brasa", "lid": "i"}, {"g": "c:x", "nome": "Maya", "cla": "Aurora", "lid": "x"}]
+	A._fechados = {"c:f": true, "b:dario": true}
+	await esperar(20)
+	await foto("5-cinco-clas-duas-colunas")
+	A._fechados = {"c:a": true, "c:f": true, "b:dario": true, "c:i": true, "c:x": true}
+	await esperar(20)
+	await foto("6-cinco-clas-minimizados")
+	A._fechados = {}
+	await esperar(20)
+	await foto("7-cinco-clas-tudo-aberto")
+	A._so_meu = true # botão "Só meu clã"
+	A._arrumar_toques()
+	await esperar(20)
+	await foto("8-so-meu-cla")
 	quit()
