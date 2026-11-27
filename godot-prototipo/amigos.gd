@@ -16,6 +16,12 @@ var virtuais: Array = [] # amigos virtuais (André 2026-11-09, como no Quimera):
 var maximo := 20
 var time: Array = [] # do servidor: [{id, nome, nivel, vida, vidaMax, mana, manaMax, x, z, morto}]
 var lider := ""
+# time de vários clãs (André 2026-11-27: "dar time pros líderes de clã da mesma raça ... minimizar pra aparecer só o nome
+# dos líderes"): o servidor manda g em cada membro (quem lidera ele) e, com mais de um clã, grupos [{g, nome, cla, lid}].
+# Cada grupo tem um cabeçalho que abre/fecha: fechado mostra só o líder (o meu grupo fechado: só o cabeçalho).
+var grupos: Array = []
+var _fechados := {} # g -> true (grupo minimizado; fica até sair do jogo)
+const CAB_H := 22.0 # altura do cabeçalho do grupo
 var _barras: Control
 var barras_d := Vector2.ZERO # modo de editar a interface (editar_hud.gd): lugar e tamanho das barras do time
 var barras_s := 1.0
@@ -56,15 +62,87 @@ func _ids_barras() -> Array:
 			ids.append(t)
 	return ids
 
+func _meu_grupo() -> String:
+	var eu := str(m.online.meu_id) if m.online else ""
+	for t in time:
+		if str(t.id) == eu:
+			return str(t.get("g", ""))
+	return ""
+
+# o que a barra mostra, de cima para baixo: [{k: "cab"|"m", y, h, g, t (membro), n (quantos no grupo), aberto}]. Um
+# clã só (o de sempre): só os cartões, sem cabeçalho. Vários: o meu grupo primeiro, cada um com o cabeçalho.
+func _linhas() -> Array:
+	var eu := str(m.online.meu_id) if m.online else ""
+	var r: Array = []
+	var y := _topo()
+	if grupos.size() < 2:
+		for t in time:
+			if str(t.id) != eu:
+				r.append({"k": "m", "y": y, "h": 36.0, "t": t, "g": str(t.get("g", ""))})
+				y += 40.0
+		return r
+	var meu := _meu_grupo()
+	var ordem: Array = []
+	for G in grupos:
+		if str(G.get("g", "")) == meu:
+			ordem.push_front(G)
+		else:
+			ordem.append(G)
+	for G in ordem:
+		var g := str(G.get("g", ""))
+		var lid := str(G.get("lid", ""))
+		var del: Array = []
+		for t in time:
+			if str(t.get("g", "")) == g:
+				del.append(t)
+		var aberto: bool = not _fechados.get(g, false)
+		r.append({"k": "cab", "y": y, "h": CAB_H, "g": g, "n": del.size(), "aberto": aberto, "nome": str(G.get("nome", "")), "cla": str(G.get("cla", "")), "eu": g == meu})
+		y += CAB_H + 3.0
+		var vis: Array = []
+		for t in del: # o líder primeiro
+			if str(t.id) == lid and str(t.id) != eu:
+				vis.append(t)
+		if aberto:
+			for t in del:
+				if str(t.id) != lid and str(t.id) != eu:
+					vis.append(t)
+		for t in vis:
+			r.append({"k": "m", "y": y, "h": 36.0, "t": t, "g": g})
+			y += 40.0
+	return r
+
+func _lider_do_grupo(g: String) -> String:
+	for G in grupos:
+		if str(G.get("g", "")) == g:
+			return str(G.get("lid", ""))
+	return ""
+
+func _altura_linhas() -> float:
+	var r := _linhas()
+	if r.is_empty():
+		return 0.0
+	var u: Dictionary = r[-1]
+	return float(u.y) + float(u.h) + 4.0 - _topo()
+
 func _toque_barra(i: int) -> void:
-	var lista := _ids_barras()
+	var lista := _linhas()
 	if i >= lista.size():
 		return
-	var t: Dictionary = lista[i]
+	var L: Dictionary = lista[i]
+	if L.k == "cab": # abre/fecha o grupo do clã
+		_fechados[L.g] = L.aberto
+		_fechar_comandos()
+		_barras.queue_redraw()
+		_arrumar_toques()
+		m.sons.tocar("q_anel_1", -22.0)
+		return
+	var t: Dictionary = L.t
+	if t.get("esc", 0) == 1 or (grupos.size() >= 2 and str(L.g) != _meu_grupo() and (t.get("bot", 0) == 1 or t.get("bot", false) == true) and str(t.id) != _lider_do_grupo(str(L.g))):
+		return # recruta de outro clã (ou a escolta do líder bot): obedece só ao líder dele; o líder (o Dario) recebe o pedido
 	if _cmd != null and _cmd_id == str(t.id):
 		_fechar_comandos()
 		return
-	_abrir_comandos(str(t.id), str(t.get("nome", "")), i)
+	_abrir_comandos(str(t.id), str(t.get("nome", "")), float(L.y))
 
 # Pack pela barra do time (André 2026-11-23): dois toques, De e Pra. O bot anda cada trecho (shared/amiga.js
 # passoOrdemPackAmiga); "Time todo" (id "*") manda pra todos os bots do time de uma vez.
@@ -73,7 +151,7 @@ const PACK_PRA := [["carrinho", "Carrinho", "it_carrinho"], ["mercante", "Mercan
 const TOPO_TODO := 30.0 # altura do botão "Time todo" em cima das barras
 var _todo: Button = null
 
-func _abrir_comandos(id: String, nome: String, i: int, modo := "", de := "") -> void:
+func _abrir_comandos(id: String, nome: String, i: float, modo := "", de := "") -> void: # i: altura (y) da linha na barra
 	_fechar_comandos()
 	_cmd_id = id
 	_cmd_ate = m.tempo + (12.0 if modo != "" else 5.0)
@@ -111,7 +189,7 @@ func _abrir_comandos(id: String, nome: String, i: int, modo := "", de := "") -> 
 				v.add_child(_botao_cmd(str(c[1]), str(c[2]), _mandar_pack.bind(id, de, str(c[0]))))
 		v.add_child(_botao_cmd("Voltar", "desfazer", _abrir_comandos.bind(id, nome, i, "de", "")))
 	_cmd.scale = Vector2(barras_s, barras_s)
-	_cmd.position = BARRAS + barras_d + Vector2(204, (0.0 if id == "*" else _topo() + i * 40.0)) * barras_s
+	_cmd.position = BARRAS + barras_d + Vector2(204, (0.0 if id == "*" else i)) * barras_s
 	add_child(_cmd)
 
 func _botao_cmd(texto: String, icone: String, acao: Callable) -> Button:
@@ -134,9 +212,10 @@ func _eh_bot(id: String) -> bool:
 			return t.get("bot", 0) == 1 or t.get("bot", false) == true
 	return false
 
-func _tem_bot() -> bool:
+func _tem_bot() -> bool: # bot do meu clã (o "Time todo" e o Pack só mandam nos meus)
+	var meu := _meu_grupo() if grupos.size() >= 2 else ""
 	for t in _ids_barras():
-		if t.get("bot", 0) == 1 or t.get("bot", false) == true:
+		if (t.get("bot", 0) == 1 or t.get("bot", false) == true) and t.get("esc", 0) != 1 and (meu == "" or str(t.get("g", "")) == meu):
 			return true
 	return false
 
@@ -164,10 +243,11 @@ func _arrumar_toques() -> void:
 	var ids: Array = []
 	for t in _ids_barras():
 		ids.append(str(t.id))
+	var linhas := _linhas()
 	var mostra: bool = not m.hud.esconder_combate
 	if _cmd != null and (m.tempo > _cmd_ate or not mostra or not (_cmd_id in ids or (_cmd_id == "*" and _tem_bot()))):
 		_fechar_comandos()
-	while _toques.size() < ids.size():
+	while _toques.size() < linhas.size():
 		var b := Button.new()
 		b.flat = true
 		b.focus_mode = Control.FOCUS_NONE
@@ -181,10 +261,10 @@ func _arrumar_toques() -> void:
 	var topo := _topo()
 	for i in _toques.size():
 		var b: Button = _toques[i]
-		b.visible = mostra and i < ids.size()
+		b.visible = mostra and i < linhas.size()
 		if b.visible:
-			b.position = BARRAS + barras_d + Vector2(0, topo + i * 40.0) * barras_s
-			b.size = Vector2(196, 36) * barras_s
+			b.position = BARRAS + barras_d + Vector2(0, float(linhas[i].y)) * barras_s
+			b.size = Vector2(196, float(linhas[i].h)) * barras_s
 	if _todo == null and topo > 0.0:
 		_todo = Button.new()
 		_todo.text = Idioma.frase("Time todo")
@@ -306,12 +386,14 @@ func do_servidor(ev: Dictionary) -> void:
 				"estado":
 					time = ev.get("membros", [])
 					lider = str(ev.get("lider", ""))
+					grupos = ev.get("grupos", [])
 				"fim":
 					limpar_time()
 
 func limpar_time() -> void:
 	time = []
 	lider = ""
+	grupos = []
 	_barras.queue_redraw()
 
 # caiu a conexão ou saiu da sala: o servidor desfaz o time
@@ -329,9 +411,13 @@ func linhas_barras(editando := false) -> int:
 			n += 1
 	if n == 0 and editando:
 		return 2
-	return 0 if m.hud.esconder_combate else n
+	if m.hud.esconder_combate:
+		return 0
+	return int(ceil(_altura_linhas() / 40.0)) if grupos.size() >= 2 else n
 
 func altura_barras(editando := false) -> float:
+	if grupos.size() >= 2 and not m.hud.esconder_combate: # com os cabeçalhos dos clãs (André 2026-11-27)
+		return (_altura_linhas() + (_topo() if not editando else 0.0)) * barras_s
 	return (linhas_barras(editando) * 40.0 + (_topo() if not editando else 0.0)) * barras_s
 
 # ---------- barras do time (embaixo do painel do herói) ----------
@@ -343,11 +429,12 @@ func _desenhar_barras() -> void:
 	_barras.draw_set_transform(BARRAS + barras_d, 0.0, Vector2(barras_s, barras_s))
 	if m.buffs:
 		m.buffs.limpar_prefixo("time:")
-	var y := _topo()
-	for t in time:
-		if str(t.id) == eu:
+	for L in _linhas():
+		if L.k == "cab":
+			_cabecalho(L)
 			continue
-		var p := Vector2(0, y)
+		var t: Dictionary = L.t
+		var p := Vector2(0, float(L.y))
 		var tam := Vector2(196, 36)
 		var morto: bool = t.get("morto", false) == true
 		# André 2026-11-11: cartão do time com as pontas mais arredondadas (cor igual)
@@ -368,8 +455,33 @@ func _desenhar_barras() -> void:
 			if not bl.is_empty():
 				var bp := p + Vector2(tam.x + 4.0, 9.0)
 				m.buffs.desenhar(_barras, "time:" + str(t.id), bl, bp, 18.0, BARRAS + barras_d + bp * barras_s, barras_s, 4)
-		y += tam.y + 4.0
 	_barras.draw_set_transform(Vector2.ZERO)
+
+# cabeçalho do grupo de um clã: seta (aberto/fechado), [clã] líder e quantos são. O meu em dourado.
+func _cabecalho(L: Dictionary) -> void:
+	var f := ThemeDB.fallback_font
+	var p := Vector2(0, float(L.y))
+	var tam := Vector2(196, CAB_H)
+	var cor: Color = Color("ffd98a") if L.eu else COR_TIME
+	_caixa(Rect2(p, tam), 8, Color(0.05, 0.045, 0.04, 0.8))
+	_caixa(Rect2(p, tam), 8, Color(cor, 0.55), 1)
+	# seta desenhada (a fonte do celular nem sempre tem ▾ ▸)
+	var c := p + Vector2(11, tam.y * 0.5)
+	var tri: PackedVector2Array = [c + Vector2(-4, -3), c + Vector2(4, -3), c + Vector2(0, 3)] if L.aberto else [c + Vector2(-3, -4), c + Vector2(3, 0), c + Vector2(-3, 4)]
+	_barras.draw_colored_polygon(tri, cor)
+	var nome: String = Idioma.t("Meu clã") if L.eu and str(L.cla) == "" else str(L.nome)
+	if m.tempo < esquecido_ate:
+		nome = "· · ·"
+	var tx := ("[%s] %s" % [str(L.cla), nome]) if str(L.cla) != "" else nome
+	var qt := "%d" % int(L.n)
+	var wq := f.get_string_size(qt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+	_barras.draw_string_outline(f, p + Vector2(20, 15), tx, HORIZONTAL_ALIGNMENT_LEFT, tam.x - 44 - wq, 12, 3, Color(0, 0, 0, 0.7))
+	_barras.draw_string(f, p + Vector2(20, 15), tx, HORIZONTAL_ALIGNMENT_LEFT, tam.x - 44 - wq, 12, cor)
+	# quantos são no grupo: bonequinho + número, à direita
+	var pq := p + Vector2(tam.x - 10 - wq, 15)
+	_barras.draw_circle(pq + Vector2(-9, -8), 2.6, Color(cor, 0.9))
+	_barras.draw_rect(Rect2(pq + Vector2(-12, -5), Vector2(6, 5)), Color(cor, 0.9))
+	_barras.draw_string(f, pq, qt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, cor)
 
 var _sb: StyleBoxFlat
 func _caixa(r: Rect2, raio: int, cor: Color, borda := 0) -> void:
