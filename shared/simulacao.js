@@ -4012,8 +4012,11 @@ export class Simulacao {
     if (Math.random() < d.pocao * fc) por({ k: 'pocao', n: 1 });
     if (Math.random() < d.mana * fc) por({ k: 'pocao_mana', n: 1 });
     if (Math.random() < d.equip * fv) {
+      // chefe e Warrok que nascem no campo de caça a toda hora: Rara 25% (DROPS raridadeCampo, André 2026-11-27); o chefe
+      // da história e o elite da Guilda (hc), a sala da caverna e a emboscada (sem sp.caca) seguem com a Rara garantida
+      const rar = d.raridadeCampo && c.sp?.caca != null && !c.hc ? d.raridadeCampo : d.raridade;
       let s = Math.random(), r = 0;
-      while (r < d.raridade.length - 1 && s >= d.raridade[r]) s -= d.raridade[r++];
+      while (r < rar.length - 1 && s >= rar[r]) s -= rar[r++];
       const pecas = Object.keys(ITENS).filter(ehEquip);
       por({ k: pecas[Math.floor(Math.random() * pecas.length)], r });
     }
