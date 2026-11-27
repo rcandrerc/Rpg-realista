@@ -26,3 +26,12 @@ a.x += 300; a.veiculo = null; ok(!s.fotoLeve(a).ag && !s.fotoLeve(a).bq, 'longe 
 a.x -= 300; a.veiculo = 'barquinho'; const x0 = a.x, z0 = a.z;
 s.leveMover('A', { mx: Math.sin(beira.ry), mz: Math.cos(beira.ry) }); for (let t = 0; t < 40; t++) { s.leveMover('A', { mx: Math.sin(beira.ry), mz: Math.cos(beira.ry) }); s.passo(1 / 20); }
 ok(Math.hypot(a.x - x0, a.z - z0) > 0.5, `o joystick move o barquinho (${Math.hypot(a.x - x0, a.z - z0).toFixed(1)} m)`);
+// montado no lobo entrando na água: desce sozinho e vai devagar (nadando), como pedido (André 2026-11-27)
+a.veiculo = null; a.x = beira.x; a.z = beira.z; a.y = s.terreno.altura(a.x, a.z); a.montado = 'lobo';
+const dx = Math.sin(beira.ry), dz = Math.cos(beira.ry); let t = 0;
+while (a.montado && t < 200) { s.leveMover('A', { mx: dx, mz: dz }); s.passo(1 / 20); t++; }
+ok(!a.montado && t < 200, `desceu do lobo ao entrar na água (${(t / 20).toFixed(1)} s)`);
+for (let i = 0; i < 40; i++) { s.leveMover('A', { mx: dx, mz: dz }); s.passo(1 / 20); }
+const x1 = a.x, z1 = a.z; for (let i = 0; i < 20; i++) { s.leveMover('A', { mx: dx, mz: dz }); s.passo(1 / 20); }
+const vel = Math.hypot(a.x - x1, a.z - z1);
+ok(vel > 0.3 && vel < 3.5, `na água anda devagar (${vel.toFixed(2)} m/s; o lobo galopa a mais de 8)`);

@@ -8,11 +8,11 @@
 import { planejarRota, terraId } from './rota.js';
 import { TUNEL } from './caverna.js';
 import { LUGARES_MUNDO } from './mundo.js';
-import { LUGARES, TITULOS, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO } from './dados.js';
+import { LUGARES, TITULOS, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO, ESTAMINA } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax, ATRIBUTOS, xpProximo } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho, acharPonto, fundoAgua } from './transporte.js';
 import { liberado, missaoAtual } from './historia.js';
-import { noLago, relevo } from './relevo.js';
+import { noLago, relevo, AGUA } from './relevo.js';
 import { ESTRADAS_MUNDO } from './mundo.js';
 import { VILAS_MUNDO } from './dados.js';
 import { aguaRegador, pertoDeAgua, distRet, crescerPlanta, retPeca, semParede } from './simulacao.js'; // fazenda e cama (etapa 6); só usadas na hora, depois que tudo carregou
@@ -191,7 +191,20 @@ export const Leve = {
     if (tinha) this.evento({ t: 'leveRota', para: id, pontos: [], ...(texto ? { texto } : {}) });
   },
   // um passo do herói do modo leve (antes do passoJogador): vira o "joystick" que leva ao próximo ponto do caminho
+  // na água (André 2026-11-27: "dá pra andar de montaria na água super rápido; encostou na água já desmonta e começa a
+  // nadar"): encostou na água (mais de 0,2 m no corpo), desce do lobo; anda devagar como o na_agua do jogo (andar.gd) e,
+  // boiando, na braçada (AGUA.nado, mais lento sem fôlego). Só no leve: o jogo 3D é do irmão do André
   passoLeve(j, dt) {
+    this.passoLeve0(j, dt);
+    if (j.veiculo || j.morto || !noLago(j.x, j.z)) return;
+    const a = AGUA.nivel - this.terreno.altura(j.x, j.z, j.y); if (!(a > 0.2)) return;
+    if (j.montado) { j.montado = null; this.evento({ t: 'aviso', para: j.id, texto: 'Você desceu do lobo na água' }); }
+    const e = j.entrada; if (!e || e === j._entAgua || Math.hypot(e.mx, e.mz) < 0.15) return; // já ajustada neste passo
+    const base = e.correr ? HEROI.correr : HEROI.andar, boia = a >= AGUA.peito - 0.12;
+    const k = boia ? Math.min(1, (AGUA.nado * (j.semFolego ? ESTAMINA.nadoCansado : 1)) / base) : AGUA.raso + (AGUA.lento - AGUA.raso) * Math.min(1, Math.max(0, (a - 0.2) / 0.8));
+    j.entrada = j._entAgua = { mx: e.mx * k, mz: e.mz * k, correr: e.correr && !boia };
+  },
+  passoLeve0(j, dt) {
     if (j.leveJoy) { // joystick: anda na direção do dedo até soltar
       const J = j.leveJoy;
       if (j.morto || this.tempo - J.t > LEVE.joySolto) { j.leveJoy = null; j.entrada = { mx: 0, mz: 0, correr: false }; return; }
