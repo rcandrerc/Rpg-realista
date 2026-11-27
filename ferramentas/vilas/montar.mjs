@@ -13,7 +13,7 @@ import { execFileSync } from 'node:child_process';
 import { NodeIO, Document, PropertyType } from '@gltf-transform/core';
 import { mergeDocuments, dedup, prune, join, unpartition, weld, transformMesh, simplify } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
-import { CASAS_VILA, ENFEITES_VILA, CIDADE_AURORA, RIO_CLARO } from './pecas.mjs';
+import { CASAS_VILA, ENFEITES_VILA, CIDADE_AURORA, RIO_CLARO, LOJAS } from './pecas.mjs';
 
 const FONTES = process.env.FONTES || path.resolve('../New-Game-Anime-fontes');
 const AQUI = path.dirname(new URL(import.meta.url).pathname);
@@ -65,6 +65,10 @@ const MAT_AURORA = {}; // nome do material do kit -> material da cidade
   const placa = path.join(tmpTex, 'placa.png'); // a placa: madeira escura, moldura e letras douradas (fonte DejaVu Serif, livre)
   execFileSync('python3', ['-c', `from PIL import Image, ImageDraw, ImageFont\nim=Image.new('RGB',(1024,256),(58,36,20))\nd=ImageDraw.Draw(im)\nd.rectangle([12,12,1011,243],outline=(201,162,58),width=14)\nf=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf',86)\nt='CASA DO COMÉRCIO'\nw=d.textlength(t,font=f)\nd.text(((1024-w)/2,74),t,fill=(232,195,90),font=f)\nim.save(r'${placa}')`]);
   MAT_AURORA['@placa'] = comTex('Placa_Comercio', tex('T_PlacaComercio', fs.readFileSync(placa)));
+  // a tabuleta das lojas das vilas (2026-11-27): madeira escura, moldura dourada, bolsa e pilhas de moedas, sem letra
+  const placaLoja = path.join(tmpTex, 'placa_loja.png');
+  execFileSync('python3', ['-c', `from PIL import Image, ImageDraw\nim=Image.new('RGB',(512,128),(58,36,20))\nd=ImageDraw.Draw(im)\nd.rectangle([6,6,505,121],outline=(201,162,58),width=8)\nfor x in range(30,490,40):\n  d.line([(x,16),(x,112)],fill=(66,42,24),width=3)\nd.ellipse([214,44,298,112],fill=(150,96,48),outline=(90,55,25),width=4)\nd.polygon([(236,48),(276,48),(290,22),(222,22)],fill=(150,96,48),outline=(90,55,25))\nd.rectangle([232,42,280,52],fill=(201,162,58))\nfor cx in (110,402):\n  for k in range(4):\n    y=96-k*14\n    d.ellipse([cx-30,y-10,cx+30,y+10],fill=(232,195,90),outline=(150,110,30),width=3)\nim.save(r'${placaLoja}')`]);
+  MAT_AURORA['@placa_loja'] = comTex('Placa_Loja', tex('T_PlacaLoja', fs.readFileSync(placaLoja)));
 }
 // caixa de 1 x 1 x 1 (chão em y = 0, meio em x e z) com a textura inteira em cada face (a escala da peça dá o tamanho)
 function caixa(add, mat, frente = mat) {
@@ -111,6 +115,8 @@ function gerar(nome) {
     const cor = '@' + nome.slice(8);
     caixa((m, ...v) => add(m, ...v.map(([p, t]) => [[p[0], p[1] * 0.03, p[2]], t])), cor);
     caixa((m, ...v) => add(m, ...v.map(([p, t]) => [[p[0] * 1.08, p[1] * 0.02 - 0.004, p[2] * 1.02], t])), '@ouro');
+  } else if (nome === '@placa_loja') { // placa quadrada pendurada: a pintura dos dois lados, borda de madeira
+    caixa((m, ...v) => add(m, ...v.map(([p, t]) => [[p[0], p[1] - 0.5, p[2]], t])), '@placa_loja');
   } else if (nome === '@placa') {
     caixa((m, ...v) => add(m, ...v.map(([p, t]) => [[p[0], p[1] - 0.5, p[2]], t])), '@tampo', '@placa');
   } else if (nome === '@lampiao') { // poste de rua do Rio Claro (André 2026-11-17): pé de pedra, haste de ferro, braço
@@ -187,8 +193,10 @@ async function lerPeca(nome) {
   // peça pesada (canto de pedra, caixote, carroça...): menos triângulos, com a mesma silhueta
   const tris = src.getRoot().listMeshes().reduce((a, m) => a + m.listPrimitives().reduce((q, pr) => q + (pr.getIndices()?.getCount() || 0) / 3, 0), 0);
   if (modo === 'meio') { if (tris > 300) await src.transform(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: Math.max(0.08, 300 / tris), error: 0.02 })); } // Rio Claro: enfeite, janela e grade mais leves
+  else if (modo === 'loja') { if (tris > 150) await src.transform(weld({ tolerance: 0.002 }), simplify({ simplifier: MeshoptSimplifier, ratio: Math.max(0.03, 160 / tris), error: 0.08, lockBorder: false })); } // lojas das vilas: enfeite pequeno, bem leve
   else if (modo === 'leve') await src.transform(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: /^Roof_/.test(base) ? 0.35 : 0.1, error: 0.01 })); // Aurora: canto e telhado mais leves
   else if (tris > 1200 && !/^Roof_/.test(nome)) await src.transform(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: Math.max(0.2, 700 / tris), error: 0.004 }));
+  if (process.env.TRIS_PECA) console.log('peça', nome, tris, '->', src.getRoot().listMeshes().reduce((a, m) => a + m.listPrimitives().reduce((q, pr) => q + (pr.getIndices()?.getCount() || 0) / 3, 0), 0));
   lidas.set(nome, src);
   return src;
 }
@@ -207,7 +215,7 @@ async function por(pai, nome, p = [0, 0, 0], ry = 0, s = 1) {
   }
 }
 
-for (const [nome, pecas] of Object.entries({ ...CASAS_VILA, ...ENFEITES_VILA, ...CIDADE_AURORA, ...RIO_CLARO })) {
+for (const [nome, pecas] of Object.entries({ ...CASAS_VILA, ...ENFEITES_VILA, ...CIDADE_AURORA, ...RIO_CLARO, ...LOJAS })) {
   const no = alvo.createNode(nome);
   cena.addChild(no);
   for (const [peca, p, ry, s] of pecas) await por(no, peca, p, ry, s);

@@ -19,6 +19,10 @@ const ARQUIVO := "res://vilas3d/vilas.glb"
 # vilasMundo[].cidade.acende, a mesma conta do servidor para a gente nova: nevoa.npc_apareceu). Praça e ruas de calçada
 # branca são uma malha só, feita aqui com o material do calçamento (modelo aurora_chao).
 const VE_LONGE := 320.0
+# lojas no lugar das barraquinhas (André 2026-11-27, ferramentas/vilas/pecas.mjs LOJAS): mesmo lugar, outro modelo; o
+# antigo continua no vilas.glb (sem o novo, fica a banca)
+const TROCA_LOJA := {"banca": "loja_venda", "banca_frutas": "mercado_frutas", "banca_tecidos": "mercado_tecidos",
+	"banca_peixe": "mercado_peixe", "banca_ceramica": "mercado_ceramica", "banca_temperos": "mercado_temperos"}
 const MODELOS_LONGE := ["aurora_torre", "aurora_paco", "aurora_templo", "aurora_pousada", "aurora_portao"]
 var mats_aurora := {} # nome do material (Vidro_Aurora, Cristal_Aurora, Agua_Aurora) -> [StandardMaterial3D]
 var aceso := -1 # -1 ainda não olhou, 0 apagada, 1 acesa
@@ -200,10 +204,14 @@ func _montar(V: Dictionary) -> void:
 			_por(grupos, "comercio_grande_dentro", c) # sem sombra, some de longe (enfeite)
 			salao_ts.append(Transform3D(Basis(Vector3.UP, float(c.ry)), Vector3(float(c.x), float(c.y), float(c.z))))
 	if V.get("banca") is Dictionary:
-		_por(grupos, "banca", V.banca)
-		casa["banca"] = true
+		var lj := _loja("banca")
+		_por(grupos, lj, V.banca)
+		casa[lj] = true
 	for e in V.get("enfeites", []):
-		_por(grupos, str(e.m), e)
+		var em := _loja(str(e.m))
+		_por(grupos, em, e)
+		if em != str(e.m):
+			casa[em] = true # a loja do mercador é uma casinha: faz sombra
 		if str(e.m) == "lampiao":
 			lampioes.append(Transform3D(Basis(Vector3.UP, float(e.ry)), Vector3(float(e.x), float(e.y), float(e.z))))
 		if str(e.m) == "carroca_carga":
@@ -378,6 +386,10 @@ func _acender() -> void:
 		mt.emission_enabled = luz
 		mt.emission = Color(0.2, 0.5, 0.72)
 		mt.emission_energy_multiplier = 0.6
+
+func _loja(nome: String) -> String:
+	var novo: String = TROCA_LOJA.get(nome, "")
+	return novo if novo != "" and malhas.has(novo) else nome
 
 func _por(grupos: Dictionary, nome: String, p: Dictionary) -> void:
 	if not grupos.has(nome):
