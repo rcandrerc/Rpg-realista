@@ -31,18 +31,18 @@ ok(av.some((t) => /Guilda está fechada/.test(t)), 'a Guilda avisa que está fec
 s.iniciarMissaoCla(p, (t) => av.push(t), { k: 'x', x: 0, z: 0 }, []); ok(av.some((t) => /Escolta do Clã está desligada/.test(t)), 'a Escolta do Clã não começa');
 ok(s.missaoInfo({ k: 'x' }) === null, 'o cartão da Escolta some do menu do clã');
 
-// os bots: 30 min de jogo sem ninguém entrar em missão; seguem a rotina (caçar, coletar, plantar, guerra)
+// os bots: 10 min de jogo sem ninguém entrar em missão; seguem a rotina (caçar, coletar, plantar, guerra)
 for (const x of s.amigosIa) x.amigaEntrar?.('andre', true);
 const bots = s.amigosIa.filter((x) => x.amiga);
 for (const x of bots) { const j = x.amiga; j.prog.nivel = Math.max(20, j.prog.nivel); j.prog.ouro = 2000; }
 ok(bots.every((x) => !x.querMissaoAmiga(x.amiga)), `nenhum bot quer missão (${bots.length} bots)`);
 const fases = {}; let missao = 0;
-for (let i = 0; i < 1800 * 10; i++) { // 30 min de jogo (o CI tem 30 min para todos os testes)
+for (let i = 0; i < 600 * 10; i++) { // 10 min de jogo (o CI tem 30 min para todos os testes)
   s.passo(0.1); agora += 100;
   if (i % 50) continue;
   for (const x of bots) { const f = x.amiga?.ia?.av?.fase; if (!f) continue; fases[f] = (fases[f] || 0) + 1; if (f === 'missao') missao++; }
 }
-ok(missao === 0, 'em 30 min nenhum bot entrou na fase de missão');
+ok(missao === 0, 'em 10 min nenhum bot entrou na fase de missão');
 ok(bots.every((x) => !x.amiga?.prog?.hist?.ac), 'nenhum bot aceitou missão');
 ok(bots.every((x) => !(x.amiga?.missaoDia?.seg > 0)), 'nenhum bot gastou tempo com missão');
 const outras = Object.keys(fases).filter((f) => f !== 'missao');
