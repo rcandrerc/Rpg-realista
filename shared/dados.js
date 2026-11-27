@@ -919,6 +919,23 @@ export const BAU = { slots: 40, // pilhas guardadas (todos os baús do jogador s
   // niveis[n] = lugares no nível n; melhorar[n] = o que custa para ir do nível n-1 para o n (ouro sai do bolso)
   niveis: [40, 60, 80],
   melhorar: [null, { lenha: 30, barra_ferro: 10, ouro: 500 }, { lenha: 60, barra_aco: 15, ouro: 2000 }] };
+// Melhorar o Baú do Clã (André 2026-11-27, opção A: "eu quero que tenha custo para aumentar o baú"): 60 → 90 → 120 → 160
+// → 200 lugares. Subir o clã NÃO aumenta o baú: só libera o próximo upgrade, que se paga à parte (ouro do cofre do clã;
+// material do Baú do Clã ou da mochila do líder, igual a subir o clã). melhorar[n]: ir do nível n-1 para o n; cla = nível
+// mínimo do clã. O tamanho fica no próprio baú (o comprimento da lista), nada novo no save. Clã bot: o líder melhora com
+// o ouro dele (acima da reserva) quando o baú passa de bot cheio.
+export const BAU_CLA = {
+  niveis: [60, 90, 120, 160, 200],
+  melhorar: [null,
+    { cla: 3, ouro: 1000, mat: { lenha: 100, barra_ferro: 15 } },
+    { cla: 5, ouro: 4000, mat: { lenha: 150, barra_aco: 20 } },
+    { cla: 7, ouro: 15000, mat: { lenha: 200, barra_aco: 40, cristal: 10 } },
+    { cla: 9, ouro: 40000, mat: { lenha: 250, barra_aco: 60, cristal: 20 } }],
+  bot: 0.8, // fração cheia em que o líder bot tenta melhorar
+};
+// nível do Baú do Clã pelo tamanho dele; tamanho certo de uma lista salva (nunca encolhe nem passa de 200)
+export const nivelBauCla = (n) => Math.max(0, BAU_CLA.niveis.filter((v) => v <= (n | 0)).length - 1);
+export const tamanhoBauCla = (n) => Math.min(BAU_CLA.niveis[BAU_CLA.niveis.length - 1], Math.max(BAU_CLA.niveis[0], n | 0));
 export const bauLugares = (nv) => BAU.niveis[Math.max(0, Math.min(BAU.niveis.length - 1, nv | 0))];
 // Fornalha de verdade (André 2026-11-07: "o forno tá igual uma mesa de craft"): um lugar de combustível (lenha ou carvão)
 // e um de material; ela fica queimando sozinha, mesmo com você longe ou fora do jogo, e o que fica pronto espera no

@@ -29,3 +29,8 @@ ok(esc && esc[1] > 7 && esc[1] <= 8 && esc[2] === 50, `escudo no leve com o temp
 ok(fl.ba?.some((b) => b[0] === 'vuln'), `o alvo mostra o Quebrado (${JSON.stringify(fl.ba)})`);
 a.prog.buff = { k: 'carne_assada', ate: Date.now() + 60000 }; const co = s.fotoLeve(a).bf.find((b) => b[0] === 'co');
 ok(co && co[2] === 'Carne assada' && /dano/.test(co[3]) && co[1] > 50, `comida com nome e o que dá (${JSON.stringify(co)})`);
+// efeitos da luta no leve (fxLeve): dano em cima do bicho, a área do meteoro e o projétil, só perto do herói
+const bicho = s.inimigos.find((e) => !e.morto); bicho.x = a.x + 4; bicho.z = a.z;
+const fd = s.fxLeve(a, { t: 'dano', alvo: bicho.id, n: 120, crit: true }), fm = s.fxLeve(a, { t: 'meteoro', x: a.x + 5, z: a.z, r: 6 }), fp = s.fxLeve(a, { t: 'proj', id: 7, x: a.x, z: a.z, dx: 1, dy: 0, dz: 0, vel: 18, vida: 0.9, cor: 0xff8a3a });
+ok(fd?.[0] === 'd' && fd[3] === 120 && fd[4] === 1 && fm?.[0] === 'a' && fm[4] === 'meteoro' && fm[3] === 6 && fp?.[0] === 'p' && fp[3] === 18 && fp[7] === 7, `efeitos: ${JSON.stringify([fd, fm, fp])}`);
+ok(s.fxLeve(a, { t: 'meteoro', x: a.x + 500, z: a.z, r: 6 }) === null, 'efeito longe do herói não vai');

@@ -4,6 +4,9 @@
 import { Simulacao, MAPA_CLAREIRA, contar, pilhasIguais, moverQtd } from '../../shared/index.js';
 import './_tudo-aberto.mjs';
 import './_relogio-fixo.mjs';
+// cada baú com o seu estoque (2026-11-27): o primeiro baú do lote
+const bauDe = (L) => Object.values(L.baus || {})[0]?.it;
+const nvDe = (L) => Object.values(L.baus || {})[0]?.nv | 0;
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const ev = (s) => { const e = s.eventos; s.eventos = []; return e; };
 const pil = (k) => ({ k, n: 20 });
@@ -50,15 +53,15 @@ const pil = (k) => ({ k, n: 20 });
   for (let x = 0; x < 5; x++) a.prog.mochila[x] = pil('carne');
   a.prog.mochila[5] = { k: 'lenha', n: 9 }; a.prog.mochila[6] = { k: 'espada', r: 1 };
   s.bau('A', { acao: 'guardar', i: 0, n: 70 }); ev(s);
-  ok(contar(L.bau, 'carne') === 70 && contar(a.prog.mochila, 'carne') === 30, 'baú: guardar 70 puxa de 4 pilhas');
-  const iB = L.bau.findIndex((o) => o && o.k === 'carne');
+  ok(contar(bauDe(L), 'carne') === 70 && contar(a.prog.mochila, 'carne') === 30, 'baú: guardar 70 puxa de 4 pilhas');
+  const iB = bauDe(L).findIndex((o) => o && o.k === 'carne');
   s.bau('A', { acao: 'tirar', i: iB, n: 50 }); ev(s);
-  ok(contar(L.bau, 'carne') === 20 && contar(a.prog.mochila, 'carne') === 80, 'baú: tirar 50 puxa de 3 pilhas');
+  ok(contar(bauDe(L), 'carne') === 20 && contar(a.prog.mochila, 'carne') === 80, 'baú: tirar 50 puxa de 3 pilhas');
   s.bau('A', { acao: 'guardar', lista: [5, 6] }); ev(s);
-  ok(contar(L.bau, 'lenha') === 9 && L.bau.some((o) => o && o.k === 'espada') && !a.prog.mochila[5] && !a.prog.mochila[6], 'baú: lista guarda as pilhas inteiras');
-  const li = L.bau.map((o, x) => (o ? x : -1)).filter((x) => x >= 0);
+  ok(contar(bauDe(L), 'lenha') === 9 && bauDe(L).some((o) => o && o.k === 'espada') && !a.prog.mochila[5] && !a.prog.mochila[6], 'baú: lista guarda as pilhas inteiras');
+  const li = bauDe(L).map((o, x) => (o ? x : -1)).filter((x) => x >= 0);
   s.bau('A', { acao: 'tirar', lista: li }); ev(s);
-  ok(L.bau.every((o) => !o) && contar(a.prog.mochila, 'carne') === 100, 'baú: lista tira tudo');
+  ok(bauDe(L).every((o) => !o) && contar(a.prog.mochila, 'carne') === 100, 'baú: lista tira tudo');
 }
 
 // troca

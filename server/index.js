@@ -344,7 +344,7 @@ class SalaClareira extends Room {
     this.ouvir('pack', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 16) this.sim.pack(c.sessionId, { acao: m.acao, npc: String(m.npc || '').slice(0, 24), de: String(m.de || '').slice(0, 10), i: Number.isInteger(m.i) ? m.i : 0, g: String(m.g || '').slice(0, 12) }); });
     this.ouvir('veiculo', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) this.sim.veiculo(c.sessionId, { acao: m.acao, k: String(m.k || '').slice(0, 12), x: Number(m.x), z: Number(m.z), ry: Number(m.ry) }); });
     this.ouvir('dormir', (c) => this.sim.dormir(c.sessionId)); // dormir na cama do meu terreno (dia e noite do Quimera)
-    this.ouvir('bau', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.bau(c.sessionId, { acao: m.acao, i: Number.isInteger(m.i) ? m.i : -1, n: Number.isInteger(m.n) && m.n > 0 ? Math.min(m.n, 9999) : undefined, cla: m.cla === true || m.cla === 1 }); });
+    this.ouvir('bau', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.bau(c.sessionId, { acao: m.acao, i: Number.isInteger(m.i) ? m.i : -1, p: typeof m.p === 'string' && m.p.length < 24 ? m.p : undefined, nome: typeof m.nome === 'string' ? m.nome.slice(0, 40) : undefined, lista: Array.isArray(m.lista) ? m.lista : undefined, n: Number.isInteger(m.n) && m.n > 0 ? Math.min(m.n, 9999) : undefined, cla: m.cla === true || m.cla === 1 }); });
     this.ouvir('forno', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 10) this.sim.forno(c.sessionId, { acao: m.acao, p: String(m.p || '').slice(0, 20), lugar: String(m.lugar || '').slice(0, 6), i: Number.isInteger(m.i) ? m.i : -1, r: String(m.r || '').slice(0, 20), n: Number.isInteger(m.n) ? Math.max(1, Math.min(m.n, 9999)) : undefined }); });
     // árvores plantadas (André 2026-11-16): semente da Rosa numa área de plantio ou no terreno (shared/plantio.js)
     this.ouvir('plantarArvore', (c, m) => { if (m && typeof m.s === 'string' && m.s.length < 16) this.sim.plantarArvore(c.sessionId, { s: m.s, x: Number(m.x), z: Number(m.z) }); });
@@ -628,9 +628,10 @@ class SalaClareira extends Room {
     const ev = (u.leveEv ||= []);
     for (const e of eventos) if ((e.para === c.sessionId || ((e.t === 'vila' || e.t === 'coleta') && e.id === c.sessionId)) && LEVE_EVENTOS.has(e.t)) ev.push(this.sim.leveEvento(e));
     if (ev.length > 30) ev.splice(0, ev.length - 30);
-    u.leveT = (u.leveT || 0) + TICK; if (u.leveT < LEVE.envio && !ev.some((e) => e.t !== 'aviso')) return;
+    const fx = (u.leveFx ||= []); for (const e of eventos) { const f = this.sim.fxLeve(j, e); if (f) fx.push(f); } if (fx.length > 40) fx.splice(0, fx.length - 40); // efeitos da luta perto (fxLeve)
+    u.leveT = (u.leveT || 0) + TICK; if (u.leveT < (j.leveJoy ? LEVE.envioJoy : LEVE.envio) && !ev.some((e) => e.t !== 'aviso')) return;
     u.leveT = 0;
-    const m = { f: this.sim.fotoLeve(j), ev: ev.splice(0) };
+    const m = { f: this.sim.fotoLeve(j), ev: ev.splice(0), ...(fx.length ? { fx: fx.splice(0) } : {}) };
     const mo = this.sim.mochilaLeve(j), moTxt = JSON.stringify(mo); if (moTxt !== u.leveMo) { u.leveMo = moTxt; m.mo = mo; }
     const pk = this.sim.packLeve(j), pkTxt = JSON.stringify(pk); if (pkTxt !== u.levePk) { u.levePk = pkTxt; m.pk = pk; } // packs e carrinho (PR 2)
     if (u.leveRc) { const rc = this.sim.leveReceitas(j), rcTxt = JSON.stringify(rc); if (rcTxt !== u.leveRcTxt) { u.leveRcTxt = rcTxt; m.rc = rc; } } // muda quando mochila ou lugar mudam

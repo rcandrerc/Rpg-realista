@@ -141,6 +141,8 @@ var bau_prox = null # custo do próximo tamanho ({lenha, barra_ferro, ouro...}) 
 var bau_prox_slots := 0
 var bt_melhorar: Button
 var txt_melhorar: Label
+var fila_melhorar: HBoxContainer # custo do próximo tamanho em ícones tenho/preciso (André: nada de lista de texto)
+var bau_px = null
 var rolar_bau: Array = [] # as duas listas (baú e mochila): rolam arrastando o dedo em cima dos itens
 var _bau_dentro: ScrollContainer = null
 var _bau_soma := 0.0
@@ -968,6 +970,8 @@ func do_servidor_lote(ev: Dictionary) -> void:
 			if pil: # dois pilares no mesmo canto: cada giro um tiquinho maior, para um cobrir o outro sem piscar
 				pil.scale = Vector3(1.0 + 0.012 * p.r, 1.0 + 0.003 * p.r, 1.0 + 0.012 * p.r)
 			L.raiz.add_child(p.no)
+	L.bn = ev.get("bn") if ev.get("bn") is Dictionary else {} # nomes dos baús (André 2026-11-27)
+	_rotulos_bau(L)
 	var fogos = ev.get("fogo", {}) # fornalhas que trabalham: id -> ms (relógio do servidor) até quando
 	for p in L.pecas:
 		if p.k == "fornalha":
@@ -4503,7 +4507,7 @@ func _montar_tela_criar() -> void:
 	bp.custom_minimum_size = Vector2(100, 56)
 	h.add_child(bp)
 
-# ---------- baú (Quimera: todos os seus baús guardam as mesmas 40 pilhas) ----------
+# ---------- baú (André 2026-11-27: cada baú com o seu estoque, nome e tamanho) ----------
 func _meu_bau_perto() -> bool:
 	if meu == "" or not lotes.has(meu) or m.heroi == null:
 		return false
@@ -4523,6 +4527,9 @@ func _cama_perto() -> Dictionary:
 var _bau_pedido := 0 # µs do toque em abrir o baú (o registro conta a espera pelo servidor)
 var bt_mudar_bau: Button
 var bau_cla := false # a janela aberta é a do Baú do Clã (o servidor guarda separado do particular)
+var bau_p := "" # id da peça do baú aberto (André 2026-11-27: cada baú tem o seu estoque)
+var bau_nome := "" # nome que o dono deu ao baú
+var bt_nome_bau: Button
 func abrir_bau() -> void:
 	if not m.on():
 		return
@@ -4530,6 +4537,7 @@ func abrir_bau() -> void:
 	# o baú mais perto decide: o particular ou o do clã
 	var b := _mais_perta(_pecas_minhas(["bau", "bau_cla"]))
 	bau_cla = not b.is_empty() and str(b.k) == "bau_cla"
+	bau_p = str(b.id) if not b.is_empty() and str(b.k) == "bau" else ""
 	# o Baú do Clã do salão da base (base_cla.gd), se for o mais perto
 	if m.base_cla != null and m.base_cla.bau_perto() and (b.is_empty() or m.base_cla.dist_bau() < Vector2(float(b.x) - m.heroi.position.x, float(b.z) - m.heroi.position.z).length()):
 		bau_cla = true
@@ -4539,6 +4547,8 @@ func abrir_bau() -> void:
 func _rede_bau(d: Dictionary) -> void:
 	if bau_cla:
 		d["cla"] = true
+	elif bau_p != "":
+		d["p"] = bau_p
 	m.rede("bau", d)
 
 # o servidor mandou o baú (ao abrir, ou depois de guardar ou tirar)
@@ -4548,6 +4558,10 @@ func do_bau(ev: Dictionary) -> void:
 	bau_slots = int(ev.get("slots", bau_itens.size() if bau_itens.size() > 0 else 40))
 	bau_prox = ev.get("prox") if ev.get("prox") is Dictionary else null
 	bau_prox_slots = int(ev.get("proxSlots", 0))
+	bau_px = ev.get("px") if ev.get("px") is Dictionary else null
+	if not bau_cla:
+		bau_p = str(ev.get("p", bau_p))
+		bau_nome = str(ev.get("nome", ""))
 	var t0 := Time.get_ticks_usec()
 	var abriu: bool = ev.get("abrir", false)
 	if abriu:
@@ -4617,6 +4631,10 @@ func _montar_tela_bau() -> void:
 	txt_melhorar = Menu.rotulo("", 14, Menu.APAGADO) # custo do próximo tamanho
 	txt_melhorar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	topo.add_child(txt_melhorar)
+	fila_melhorar = HBoxContainer.new()
+	fila_melhorar.add_theme_constant_override("separation", 4)
+	fila_melhorar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	topo.add_child(fila_melhorar)
 	bt_melhorar = _botao("Melhorar", melhorar_bau, false, 16)
 	bt_melhorar.custom_minimum_size = Vector2(130, 46)
 	topo.add_child(bt_melhorar)
@@ -4624,6 +4642,9 @@ func _montar_tela_bau() -> void:
 	bt_mudar_bau = _botao("Mudar de lugar", func(): _rede_bau({"acao": "recolher"}); fechar_bau(), false, 16)
 	bt_mudar_bau.custom_minimum_size = Vector2(160, 46)
 	topo.add_child(bt_mudar_bau)
+	bt_nome_bau = _botao("Nome", pedir_nome_bau, false, 16) # renomear o baú (André 2026-11-27)
+	bt_nome_bau.custom_minimum_size = Vector2(100, 46)
+	topo.add_child(bt_nome_bau)
 	var fe := _botao("Fechar", fechar_bau, false, 18)
 	fe.custom_minimum_size = Vector2(120, 46)
 	topo.add_child(fe)
@@ -4672,6 +4693,48 @@ func _montar_tela_bau() -> void:
 			grade_mochila = g
 
 # Melhorar o baú (André 2026-11-07): o servidor confere o custo, tira da mochila e aumenta os lugares (shared/simulacao.js bau)
+# André 2026-11-27: dar nome ao baú para organizar por material; o nome aparece em cima dele, só de perto
+func pedir_nome_bau() -> void:
+	var campo := LineEdit.new()
+	campo.text = bau_nome
+	campo.placeholder_text = Idioma.t("Ex.: Minérios")
+	campo.max_length = 18
+	campo.select_all_on_focus = true
+	campo.custom_minimum_size = Vector2(0, 52)
+	campo.add_theme_font_size_override("font_size", 22)
+	m.menu.confirmar(Idioma.t("Nome do baú"), Idioma.t("Vazio volta a ser só \"Baú\"."), Idioma.t("Salvar"), func(): _rede_bau({"acao": "nome", "nome": campo.text.strip_edges()}), false, "", Callable(), campo)
+
+# nome flutuando em cima de cada baú com nome. visibility_range: o motor esconde de longe (8 m) sozinho, sem conta por quadro
+const NOME_BAU_LONGE := 8.0
+func _rotulos_bau(L) -> void:
+	var bn: Dictionary = L.get("bn", {})
+	for p in L.pecas:
+		if p.k != "bau" or p.get("no") == null:
+			continue
+		var t: Label3D = p.no.get_node_or_null("nome_bau")
+		var nome := str(bn.get(p.id, ""))
+		if nome == "":
+			if t:
+				t.queue_free()
+			continue
+		if t == null:
+			t = Label3D.new()
+			t.name = "nome_bau"
+			t.font = m.fonte_nome()
+			t.font_size = 30
+			t.pixel_size = 0.0045
+			t.outline_size = 9
+			t.outline_modulate = Color(0.08, 0.06, 0.04)
+			t.modulate = Color(1.0, 0.9, 0.65)
+			t.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			t.position.y = 1.05
+			t.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			t.visibility_range_end = NOME_BAU_LONGE
+			t.visibility_range_end_margin = 0.5
+			t.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+			p.no.add_child(t)
+		t.text = nome
+
 func melhorar_bau() -> void:
 	if m.on():
 		_rede_bau({"acao": "melhorar"})
@@ -4702,15 +4765,25 @@ func _montar_bau() -> void:
 		lado[0].add_child(fila)
 
 	var cheios := 0
-	if bau_prox != null:
+	for c in fila_melhorar.get_children():
+		c.queue_free()
+	if bau_px != null: # ícones: nível do clã, ouro e cada material, com tem/precisa
+		txt_melhorar.text = Idioma.frase("Para %d:" % bau_prox_slots)
+		if bau_px.has("cla"):
+			fila_melhorar.add_child(m.menu._icone_req_cla(null, "Nv", "Nível do clã", int(bau_px.get("claNv", 1)), int(bau_px.cla)))
+		fila_melhorar.add_child(m.menu._icone_req_cla(Menu.icone_tex("it_ouro"), "", "Ouro no cofre" if bau_cla else "Ouro", int(bau_px.get("temOuro", 0)), int(bau_px.get("ouro", 0))))
+		for it in bau_px.get("itens", []):
+			fila_melhorar.add_child(m.menu.icone_material(str(it.k), int(it.tem), int(it.n)))
+	elif bau_prox != null:
 		var partes: Array = []
 		for k in bau_prox:
 			partes.append(("%d de ouro" % int(bau_prox[k])) if k == "ouro" else ("%d %s" % [int(bau_prox[k]), m.P.nome_item({"k": k})]))
 		txt_melhorar.text = Idioma.frase("Para %d lugares:\n%s" % [bau_prox_slots, ", ".join(partes)])
 	else:
-		txt_melhorar.text = "" if bau_cla else "Tamanho máximo"
+		txt_melhorar.text = "Tamanho máximo" if not bau_cla or bau_slots >= 200 else ""
 	bt_melhorar.visible = bau_prox != null
 	bt_mudar_bau.visible = bau_cla and m.base_cla != null and m.base_cla.bau_perto()
+	bt_nome_bau.visible = not bau_cla
 	for i in bau_slots:
 		var it = bau_itens[i] if i < bau_itens.size() else null
 		if it != null:
@@ -4721,7 +4794,7 @@ func _montar_bau() -> void:
 			if not _bau_arrastou: # pilha: Tudo ou quantos (menu.gd pedir_qtd, André 2026-11-17)
 				m.menu.pedir_qtd(it, m.menu.total_igual(bau_itens, i), "Tirar", func(n: int): _rede_bau({"acao": "tirar", "i": i, "n": n}))
 		grade_bau.add_child(m.menu.celula(it, false, fn if it != null else func(): pass, 56))
-	txt_bau.text = Idioma.frase("%s · %d/%d" % ["Baú do Clã" if bau_cla else "Baú", cheios, bau_slots])
+	txt_bau.text = Idioma.frase("%s · %d/%d" % ["Baú do Clã" if bau_cla else (bau_nome if bau_nome != "" else Idioma.t("Baú")), cheios, bau_slots])
 	var moch: Array = m.P.prog.get("mochila", [])
 	for i in moch.size():
 		var it = moch[i]
