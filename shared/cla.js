@@ -236,6 +236,8 @@ export const Cla = {
     for (const k of this.paineis?.keys() || []) if (k !== exceto) return true;
     return false;
   },
+  // selo da mochila do recruta (jogo e painel): cheia = sem lugar livre; mo = [ocupados, total]
+  mochilaInfo(a) { const mo = a?.prog?.mochila; return Array.isArray(mo) && mo.length ? { ...(mo.some((o) => !o) ? {} : { cheia: 1 }), mo: lugares(mo) } : {}; },
   recrutasNoMundo(j) { return (this.amigosIa || []).filter((x) => x.AMIGA.recruta && !x.AMIGA.clanpc && x.AMIGA.lider === j.conta); },
   // o que o app desenha (vai junto do progresso: "cl")
   claInfo(j) {
@@ -256,7 +258,7 @@ export const Cla = {
       eu: { nome: j.nome, nv, ...st(j, j.prog) },
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, sem: semanaDe(tierDe(m.tier), a ? a.prog.nivel | 0 : m.nv), on: a ? 1 : 0, ...(m.dev ? { dev: m.dev } : {}), g: m.g,
         ...this.moralInfo(m, c.vis, eM, a, j), // moral e produção (MORAL): seta + % e ~N/h
-        fn: m.fn || { k: 'livre' }, c: 'r:' + m.id, ...(a ? { ...st(a, a.prog), ...this.fzRecruta(a, j), ...(this.levarQtd(a) ? { lv: this.levarQtd(a) } : {}), x: Math.round(a.x), z: Math.round(a.z), bid: a.id, ...(a.time && a.time === j.time ? { time: 1 } : {}) } : {}) }; }), // x, z: "Ver no mapa"; c: conta (Mensagem), bid: o corpo (Time)
+        fn: m.fn || { k: 'livre' }, c: 'r:' + m.id, ...(a ? { ...st(a, a.prog), ...this.fzRecruta(a, j), ...(this.levarQtd(a) ? { lv: this.levarQtd(a) } : {}), x: Math.round(a.x), z: Math.round(a.z), bid: a.id, ...this.mochilaInfo(a), ...(a.time && a.time === j.time ? { time: 1 } : {}) } : {}) }; }), // x, z: "Ver no mapa"; c: conta (Mensagem), bid: o corpo (Time)
       bauCla: temBau ? bau : null, plantas: plantasFazenda(), arvores: arvoresCla(),
       veic: { carrinho: this.carrinhoFora(j, { k: 'carrinho' }) ? 1 : 0, mercante: this.navioFora(j) ? 1 : 0 }, // Proteger carrinho / mercante: apagado se não está no mundo
       funcoes: CLA.funcoes, recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })),
@@ -1156,7 +1158,7 @@ export const Cla = {
     return { n: c.n, nv: c.nv || 1, cofre: c.cofre | 0, semana: semanaCla(c), jogo: heroi ? 1 : 0, ...(!heroi && c.sem <= Date.now() ? { vencida: 1 } : {}), ...(heroi ? { eu: pos(heroi) } : {}),
       m: c.m.map((m) => { const a = vivos.get(m.id); return { id: m.id, nome: m.nome, tier: tierDe(m.tier).nome, nv: a ? a.prog.nivel | 0 : m.nv, on: a ? 1 : 0, ...(m.dev ? { dev: 1 } : {}),
         ...this.moralInfo(m, c.vis, eM, a), // moral e produção (MORAL), igual ao menu do clã do jogo
-        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), ...this.fzRecruta(a, L), ...(this.levarQtd(a) ? { lv: this.levarQtd(a) } : {}), ...pos(a), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length && !a.prog.mochila.some((o) => !o) ? { cheia: 1 } : {}), ...(Array.isArray(a.prog.mochila) && a.prog.mochila.length ? { mo: lugares(a.prog.mochila) } : {}) } : {}) }; }),
+        fn: m.fn || { k: 'livre' }, ...(a ? { ...st(a, a.prog), ...this.fzRecruta(a, L), ...(this.levarQtd(a) ? { lv: this.levarQtd(a) } : {}), ...pos(a), ...this.mochilaInfo(a) } : {}) }; }),
       log: (c.log || []).slice(-10).reverse(), funcoes: CLA.funcoes.filter((F) => heroi || F.id !== 'seguir'),
       recursos: Object.entries(RECURSOS_CLA).map(([k, R]) => ({ k, nome: R.nome })), plantas: plantasFazenda(), arvores: arvoresCla(),
       // o que pede o próximo nível do clã e o que já tem (Baú do Clã + mochila do líder), igual ao Melhorar clã do jogo
