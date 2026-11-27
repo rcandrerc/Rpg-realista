@@ -389,8 +389,11 @@ export const Leve = {
     const p = j.prog, merc = mercador(p.prof?.mer).venda + (bonusTitulo(p).venda || 0), r = [];
     (p.mochila || []).forEach((o, i) => {
       if (!o || !ITENS[o.k]) return;
-      const I = ITENS[o.k], tipo = I.lugar ? 'e' : (I.usar && !I.usar.veiculo) || o.k === 'tomo' ? 'u' : '';
-      r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o), precoVenda(o, merc), o.cad ? 1 : 0, tipo, I.lugar || '', textoPeca(o)]);
+      // carrinho (André 2026-11-27: "tocar no carrinho na bag e abrir pra sumonar ou desmontar"): o mesmo botão do jogo
+      // (menu.gd): "Colocar no chão" ou, no mundo, "Guardar carrinho"; navio só "Guardar navio" quando está na água. [10] = rótulo
+      const vb = o.k === 'carrinho' ? (this.carrinhoFora(j) ? 'Guardar carrinho' : 'Colocar no chão') : o.k === 'navio' && this.navioFora(j) ? 'Guardar navio' : '';
+      const I = ITENS[o.k], tipo = I.lugar ? 'e' : (I.usar && !I.usar.veiculo) || o.k === 'tomo' || vb ? 'u' : '';
+      r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o), precoVenda(o, merc), o.cad ? 1 : 0, tipo, I.lugar || '', textoPeca(o), ...(vb ? [vb] : [])]);
     });
     const eq = LUGARES.filter((l) => p.equip?.[l] && ITENS[p.equip[l].k]).map((l) => { const o = p.equip[l]; return [l, o.k, nomeItem(o), corDe(o), textoPeca(o)]; });
     return { l: (p.mochila || []).length, it: r, eq };
