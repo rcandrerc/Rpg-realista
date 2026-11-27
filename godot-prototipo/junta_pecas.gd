@@ -58,6 +58,8 @@ static func _juntar_com_osso(no: Node3D, esq: Skeleton3D) -> void:
 		nova.mesh = par[0]
 		nova.skin = par[1]
 		nova.material_override = lista[0].material_override
+		if lista[0].has_meta("sem_passe_ov"): # sem o contorno da roupa (main.gd sem_contornos): de perto volta o de antes
+			nova.set_meta("sem_passe_ov", lista[0].get_meta("sem_passe_ov"))
 		nova.cast_shadow = lista[0].cast_shadow
 		nova.layers = lista[0].layers
 		no.add_child(nova)
@@ -87,6 +89,8 @@ static func _juntar_presas(ba: Node) -> void:
 		nova.name = NOME
 		nova.mesh = par[0]
 		nova.material_override = lista[0].material_override
+		if lista[0].has_meta("sem_passe_ov"): # sem o contorno da roupa (main.gd sem_contornos): de perto volta o de antes
+			nova.set_meta("sem_passe_ov", lista[0].get_meta("sem_passe_ov"))
 		nova.cast_shadow = lista[0].cast_shadow
 		nova.layers = lista[0].layers
 		ba.add_child(nova)
@@ -363,6 +367,9 @@ static func _juntar_aco(esq: Skeleton3D) -> void:
 	mi.material_override = par[2]
 	# sombra e LOD como as peças estavam (NPC longe já está sem sombra: main.npc_simples guarda "sombra_perto")
 	var p0: MeshInstance3D = pecas[0][0]
+	if p0.has_meta("sem_passe_ov") and p0.get_meta("sem_passe_ov")[0] == par[2]: # sem o contorno (main.gd sem_contornos)
+		mi.set_meta("sem_passe_ov", p0.get_meta("sem_passe_ov"))
+		mi.material_override = p0.get_meta("sem_passe_ov")[1]
 	mi.cast_shadow = p0.cast_shadow
 	mi.lod_bias = p0.lod_bias
 	if p0.has_meta("sombra_perto"):

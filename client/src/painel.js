@@ -32,6 +32,35 @@ const http = () => endereco().replace(/^ws/, 'http');
 
 function estado(txt, tipo = '') { const e = $('estado'); e.className = 'estado ' + tipo; e.lastElementChild.textContent = txt; }
 let avisoT = 0;
+// buffs e debuffs (André 2026-11-27, igual ao buffs.gd do jogo): ícone redondo pequeno, borda verde (bom), dourada (clã) ou
+// vermelha (ruim) que vai encolhendo com o tempo que falta; tocar diz o que faz e quanto falta. O servidor manda
+// [código, segundos que faltam (-1 = enquanto durar), valor, extra] (bfLeve em shared/leve.js)
+const BF_ICONE = { cla: '🛡️', mesa: '🍲', banq: '🍖', co: '🍲', escudo: '🔰', atordoa: '💫', congela: '❄️', derruba: '⤵️', lento: '⏳', vuln: '💔', sangra: '🩸', veneno: '🧪', queima: '🔥' };
+const bfTotal = new Map();
+const pctBf = (x) => `${Math.round(Math.abs(+x || 0) * 100)}%`;
+function textoBuff([k, , v, x]) {
+  const pilha = +v > 1 ? ` (x${v | 0})` : '';
+  return ({ cla: [`Clã Nv ${v}`, `+${pctBf(x)} de XP e ouro dos monstros`], mesa: +v > 0 ? ['Bem alimentado', `+${pctBf(v)} de dano e XP`] : [+v > -0.2 ? 'Com fome' : 'Faminto', `-${pctBf(v)} de dano e XP`],
+    banq: ['Banquete do clã', `+${pctBf(v)} de dano e XP`], co: [v, x || ''], escudo: ['Escudo', `Absorve ${v | 0} de dano`], atordoa: ['Atordoado', 'Não anda nem ataca'],
+    congela: ['Congelado', 'Não anda nem ataca'], derruba: ['Derrubado', 'No chão: não anda nem ataca'], lento: ['Lento', `-${pctBf(v)} de velocidade`], vuln: ['Quebrado', `Leva +${pctBf(v)} de dano`],
+    sangra: ['Sangrando', 'Perde vida a cada segundo' + pilha], veneno: ['Envenenado', 'Perde vida a cada segundo' + pilha], queima: ['Queimando', 'Perde vida a cada segundo' + pilha] })[k] || [k, ''];
+}
+function linhaBuffs(l, alvo) {
+  const d = el('div', 'bfLeve'), agora = Date.now() / 1000;
+  if (alvo) d.append(el('small', null, 'Alvo:'));
+  for (const b of l) {
+    const [k, falta, v] = b, bom = ['cla', 'co', 'escudo', 'banq'].includes(k) || (k === 'mesa' && +v > 0);
+    const ch = `${k}|${Math.round(agora + falta)}`; if (falta > 0 && !bfTotal.has(ch)) { if (bfTotal.size > 200) bfTotal.clear(); bfTotal.set(ch, falta); }
+    const frac = falta > 0 ? Math.max(0, Math.min(1, falta / (bfTotal.get(ch) || falta))) : 1, cor = k === 'cla' ? '#f9c252' : bom ? '#8cdb6b' : '#f5523d';
+    const i = el('button', 'bf'); i.style.background = `conic-gradient(${cor} ${Math.round(frac * 360)}deg, ${cor}44 0)`;
+    const mio = el('span'); if (k === 'co') { const im = el('img'); im.alt = ''; im.src = `painel-icones/${b[4]}.png`; im.onerror = () => { im.remove(); mio.textContent = BF_ICONE.co; }; mio.append(im); } else mio.textContent = BF_ICONE[k] || '✨';
+    if (['sangra', 'veneno', 'queima'].includes(k) && +v > 1) i.append(el('b', null, String(v | 0)));
+    i.prepend(mio);
+    i.onclick = (e) => { e.stopPropagation(); const [t, o] = textoBuff(b); aviso(`${alvo ? 'Alvo: ' : ''}${t}${o ? ` · ${o}` : ''}${falta > 0 ? ` · ${falta >= 60 ? `${Math.floor(falta / 60)}:${String(Math.floor(falta % 60)).padStart(2, '0')}` : `${Math.ceil(falta)} s`}` : ''}`); };
+    d.append(i);
+  }
+  return d;
+}
 function aviso(txt) { const a = $('aviso'); a.textContent = txt; a.hidden = false; const hud = document.body.classList.contains('leveTela') && $('jogarStatus'); a.style.top = hud ? Math.round(hud.getBoundingClientRect().bottom + 8) + 'px' : ''; clearTimeout(avisoT); avisoT = setTimeout(() => { a.hidden = true; }, 4000); } // jogo leve: o aviso fica logo abaixo do quadro de cima, em cima do mapa (André 2026-11-26)
 
 // ---------- login (o mesmo do site do jogo: sessão guardada no aparelho, login com Google) ----------
@@ -413,10 +442,10 @@ function desenharCla() {
   t.append(opcaoAvisos());
   raiz.append(t);
   if (info.sobe) raiz.append(cartaoSobe(info.sobe));
-  if (info.com?.length) { // com os recrutas, ainda vão para o Baú do Clã + Entregar tudo (André 2026-11-26), igual ao jogo
-    const c = el('div', 'card'), l = el('div', 'linha'), b = el('button', 'acao', 'Entregar tudo no Baú');
-    b.onclick = () => { b.disabled = true; setTimeout(() => { b.disabled = false; }, 1500); pedir({ acao: 'entregar', id: '*' }); };
-    l.append(el('div', 'nome', 'Com os recrutas (vão para o Baú do Clã)'), b); c.append(l);
+  if (info.com?.length) { // com os recrutas, ainda vão para o Baú do Clã, igual ao jogo (o botão geral "Entregar tudo no Baú"
+    // saiu, remoção aprovada pelo André 2026-11-27: fica o Entregar/Esvaziar de cada recruta)
+    const c = el('div', 'card'), l = el('div', 'linha');
+    l.append(el('div', 'nome', 'Com os recrutas (vão para o Baú do Clã)')); c.append(l);
     const f = el('div', 'icones'); for (const it of info.com) f.append(iconeQtd(it)); c.append(f); raiz.append(c);
   }
   if ('bau' in info) raiz.append(cartaoBau(info.bau, info.bauCheio, info.bauLug));
@@ -617,6 +646,67 @@ function assarCena(cn) {
   for (const [x0, y0, x1, y1] of [[0, 0, bd, 0], [T, 0, T - bd, 0], [0, 0, 0, bd], [0, T, 0, T - bd]]) { const gr = g.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = gr; g.fillRect(0, 0, T, T); }
   return c;
 }
+// movimento liso (André 2026-11-27: "parece FPS baixo"): a foto chega a cada 0,5 s (0,25 s com o joystick); entre uma e
+// outra o herói, os bichos e a gente deslizam do lugar desenhado até o novo, a ~30 quadros por segundo (animarLeve)
+const SUAVE = new Map(); let suaveDur = 500, animLeve = 0, animUlt = 0;
+function suave(k, x, z) {
+  const t = performance.now(); let o = SUAVE.get(k);
+  const em = (q) => { const f = Math.min(1, (t - q.t) / suaveDur); return [q.ax + (q.bx - q.ax) * f, q.az + (q.bz - q.az) * f]; };
+  if (!o) { o = { ax: x, az: z, bx: x, bz: z, t }; SUAVE.set(k, o); }
+  else if (o.bx !== x || o.bz !== z) { const [cx, cz] = em(o), longe = Math.hypot(x - cx, z - cz) > 15; o.ax = longe ? x : cx; o.az = longe ? z : cz; o.bx = x; o.bz = z; o.t = t; }
+  o.v = t; return em(o);
+}
+// efeitos da luta (fxLeve no servidor; André 2026-11-27: "não precisa ser bonito, só mostrar o que está acontecendo")
+const FX = [];
+function fxChegou(l) {
+  const t = performance.now();
+  for (const f of l) {
+    if (f[0] === 'x') { const p = FX.find((o) => o.f[0] === 'p' && o.f[7] === f[3]); if (p) { const [, x, z, vx, vz] = p.f, v = Math.hypot(vx, vz) || 1; p.vida = Math.min(p.vida, Math.hypot(f[1] - x, f[2] - z) / v); FX.push({ f: f[4] ? ['a', f[1], f[2], f[4], 'explosao'] : ['i', f[1], f[2]], t: p.t + p.vida * 1000 }); continue; } FX.push({ f: ['i', f[1], f[2]], t }); continue; }
+    FX.push({ f, t, vida: f[0] === 'p' ? Math.min(f[5], 2.5) : 0 });
+  }
+  if (FX.length > 80) FX.splice(0, FX.length - 80);
+}
+function animarLeve() {
+  if (!mundoVisivel() || !leve.f) { animLeve = 0; return; }
+  const t = performance.now();
+  if (t - animUlt >= 32) { animUlt = t; desenharMapa(); }
+  let mexe = FX.length > 0 || naLuta();
+  if (!mexe) for (const o of SUAVE.values()) if (t - o.t < suaveDur + 40) { mexe = true; break; }
+  if (mexe) requestAnimationFrame(animarLeve); else animLeve = 0;
+}
+const animarJa = () => { if (!animLeve) { animLeve = 1; requestAnimationFrame(animarLeve); } };
+function desenharFx(g, P, W, hx, hz) {
+  const t = performance.now(), pxm = Math.abs(P(hx + 1, hz)[0] - P(hx, hz)[0]) || 1, fonte = Math.max(12, W / 26);
+  for (let i = FX.length - 1; i >= 0; i--) {
+    const o = FX[i], f = o.f, idade = (t - o.t) / 1000;
+    if (idade < 0) continue; // impacto de projétil: espera a bolinha chegar
+    const vida = f[0] === 'p' ? o.vida : f[0] === 'a' ? (f[4] === 'meteoro' ? 1.2 : 0.7) : f[0] === 'i' ? 0.35 : f[0] === 's' ? 0.28 : 1.0;
+    if (idade > vida) { FX.splice(i, 1); continue; }
+    const k = idade / vida; g.save();
+    if (f[0] === 'd' || f[0] === 'c' || f[0] === 'e') { // número do dano (vermelho em mim, amarelo crítico), cura verde, esquiva
+      const [a, b] = P(f[1], f[2]); g.globalAlpha = 1 - k * k; g.textAlign = 'center'; g.lineWidth = Math.max(3, W / 160); g.strokeStyle = 'rgba(0,0,0,.85)';
+      g.font = `800 ${Math.round(fonte * (f[4] ? 1.35 : 1))}px system-ui,sans-serif`;
+      const txt = f[0] === 'd' ? (f[3] ? String(f[3]) : 'bloqueou') : f[0] === 'c' ? `+${f[3]}` : 'esquivou', y = b - pxm * (1.2 + k * 1.6);
+      g.fillStyle = f[0] === 'c' ? '#7dff7a' : f[0] === 'e' ? '#e8e8e8' : f[5] ? '#ff4a3a' : f[4] ? '#ffd23a' : '#ffffff';
+      g.strokeText(txt, a, y); g.fillText(txt, a, y);
+    } else if (f[0] === 'a') { // área (meteoro, explosão, anel, vórtice): o círculo de quanto pega
+      const [a, b] = P(f[1], f[2]), r = f[3] * pxm, cor = f[4] === 'meteoro' ? '255,120,30' : f[4] === 'anel' ? '120,230,120' : f[4] === 'vortice' ? '160,130,255' : '255,180,60';
+      g.globalAlpha = 1 - k; g.fillStyle = `rgba(${cor},.28)`; g.strokeStyle = `rgba(${cor},.95)`; g.lineWidth = Math.max(2, W / 150);
+      g.beginPath(); g.arc(a, b, r * (f[4] === 'vortice' ? 1 - k * 0.5 : 0.6 + 0.4 * Math.min(1, k * 3)), 0, 6.283); g.fill(); g.stroke();
+    } else if (f[0] === 'i') { const [a, b] = P(f[1], f[2]); g.globalAlpha = 1 - k; g.strokeStyle = '#ffe08a'; g.lineWidth = Math.max(2, W / 170); g.beginPath(); g.arc(a, b, pxm * (0.4 + k * 0.9), 0, 6.283); g.stroke(); }
+    else if (f[0] === 'p') { // projétil: a bolinha voando na cor da skill
+      const [a, b] = P(f[1] + f[3] * idade, f[2] + f[4] * idade), c = '#' + (f[6] | 0).toString(16).padStart(6, '0'), [a0, b0] = P(f[1] + f[3] * Math.max(0, idade - 0.08), f[2] + f[4] * Math.max(0, idade - 0.08));
+      g.strokeStyle = c; g.globalAlpha = 0.6; g.lineWidth = pxm * 0.35; g.lineCap = 'round'; g.beginPath(); g.moveTo(a0, b0); g.lineTo(a, b); g.stroke();
+      g.globalAlpha = 1; g.fillStyle = c; g.strokeStyle = '#fff'; g.lineWidth = Math.max(1, W / 400); g.beginPath(); g.arc(a, b, Math.max(3, pxm * 0.3), 0, 6.283); g.fill(); g.stroke();
+    } else if (f[0] === 's') { // o corte da espada na frente do herói (alcance do básico, 3,2 m)
+      const [a, b] = P(hx, hz), r = 3.2 * pxm, ang = Math.atan2(Math.cos(f[1]), Math.sin(f[1])), ab = 1.1, dir = f[2] ? -1 : 1; // golpes alternam o lado do corte
+      g.globalAlpha = 0.85 * (1 - k); g.fillStyle = 'rgba(255,255,255,.35)'; g.strokeStyle = '#fff'; g.lineWidth = Math.max(2, W / 140);
+      g.beginPath(); g.moveTo(a, b); g.arc(a, b, r, ang - ab, ang + ab); g.closePath(); g.fill();
+      g.beginPath(); g.arc(a, b, r, dir > 0 ? ang - ab : ang + ab - 2 * ab * Math.min(1, k * 2.5), dir > 0 ? ang - ab + 2 * ab * Math.min(1, k * 2.5) : ang + ab); g.stroke();
+    }
+    g.restore();
+  }
+}
 function desenharMapa() {
   // Jogar (André 2026-11-25: "tem q rolar muito"): o mapa ocupa a tela toda, então pode ser mais alto que largo; span = metros na largura
   const cv = $('mapa'), dpr = Math.min(2, devicePixelRatio || 1), lado = Math.round(cv.clientWidth * dpr) || 600, alto = Math.round(cv.clientHeight * dpr) || lado;
@@ -624,6 +714,7 @@ function desenharMapa() {
   const g = cv.getContext('2d'), W = cv.width, H = cv.height;
   const pts = [];
   const jogando = mundoVisivel() && leve.f;
+  const [hx, hz] = jogando ? suave('eu', leve.f.eu[0], leve.f.eu[1]) : [0, 0]; // o herói deslizando entre as fotos
   // modo leve: cores pela relação com você (André 2026-11-25: "eu com meus bots verdinho... os geadas vermelhos... fica
   // parecendo que os geadas são meus amigos"): você e seus recrutas verdes, Geada vermelho, outros da Chama azuis,
   // monstros laranja. Fora do modo leve o mapa do clã segue como era (recrutas dourados)
@@ -631,16 +722,16 @@ function desenharMapa() {
   const meus = new Set((info?.m || []).map((m) => m.nome)), vistos = new Set(jogando ? leve.f.g.map((o) => o[0]) : []);
   for (const m of info.m || []) if (m.on && Number.isFinite(m.x) && !vistos.has(m.nome)) pts.push({ x: m.x, z: m.z, cor: jogando ? COR_LEVE.meu : '#f2b84b', nome: m.nome, r: 6 });
   if (jogando) {
-    for (const [nome, x, z, geada, bot, nv, morto] of leve.f.g) pts.push({ x, z, cor: morto ? COR_LEVE.morto : geada ? COR_LEVE.inimigo : meus.has(nome) ? COR_LEVE.meu : COR_LEVE.aliado, nome: `${nome} ${nv}`, r: geada ? 6 : meus.has(nome) ? 5 : bot ? 4 : 5, m: 0.35 });
-    for (const [x, z, nv] of leve.f.m) pts.push({ x, z, cor: COR_LEVE.bicho, nome: `Nv ${nv}`, r: 3.5, m: 0.5 });
+    for (const [nome, x0, z0, geada, bot, nv, morto, id] of leve.f.g) { const [x, z] = suave('g' + id, x0, z0); pts.push({ x, z, cor: morto ? COR_LEVE.morto : geada ? COR_LEVE.inimigo : meus.has(nome) ? COR_LEVE.meu : COR_LEVE.aliado, nome: `${nome} ${nv}`, r: geada ? 6 : meus.has(nome) ? 5 : bot ? 4 : 5, m: 0.35 }); }
+    for (const [x0, z0, nv, , id] of leve.f.m) { const [x, z] = suave('m' + id, x0, z0); pts.push({ x, z, cor: COR_LEVE.bicho, nome: `Nv ${nv}`, r: 3.5, m: 0.5 }); }
     const car = leve.pk?.car; if (car?.onde === 1) pts.push({ x: car.x, z: car.z, cor: '#b07a46', nome: 'Carrinho', r: 5, losango: true });
     for (const [, , , x, z] of leve.pk?.ch || []) pts.push({ x, z, cor: '#d9a56a', nome: 'Pack', r: 3 });
-    pts.push({ x: leve.f.eu[0], z: leve.f.eu[1], cor: COR_LEVE.eu, nome: 'Você', r: 7, eu: true, m: 0.35 });
+    pts.push({ x: hx, z: hz, cor: COR_LEVE.eu, nome: 'Você', r: 7, eu: true, m: 0.35 });
   } else if (info.eu) pts.push({ x: info.eu.x, z: info.eu.z, cor: '#ffffff', nome: 'Você', r: 6 });
   const bots = ler('painelBots') === '1';
   if (bots) for (const C of info.clas || []) if (Number.isFinite(C.x)) pts.push({ x: C.x, z: C.z, cor: C.inimigo ? '#ff3b30' : C.raca === 'Geada' ? '#6fb3e6' : '#e0663a', nome: C.lider, r: 5, losango: true });
   $('mapaBots').checked = bots;
-  if (!vista && jogando) quadro = limitar({ cx: leve.f.eu[0], cz: leve.f.eu[1], span: spanAgora() }); // Jogar: segue o herói (na luta, mais perto)
+  if (!vista && jogando) quadro = limitar({ cx: hx, cz: hz, span: spanAgora() }); // Jogar: segue o herói (na luta, mais perto)
   else if (!vista) { // ajusta sozinho a quem está no mundo
     const base = pts.length ? pts : [{ x: 0, z: 0 }];
     const x0 = Math.min(...base.map((p) => p.x)), x1 = Math.max(...base.map((p) => p.x)), z0 = Math.min(...base.map((p) => p.z)), z1 = Math.max(...base.map((p) => p.z));
@@ -680,7 +771,7 @@ function desenharMapa() {
   }
   if (jogando && leve.rota?.length) { // o caminho que falta, tracejado
     g.save(); g.strokeStyle = '#ffd36b'; g.lineWidth = Math.max(2.5, W / 160); g.setLineDash([W / 70, W / 90]); g.beginPath();
-    const [a0, b0] = P(leve.f.eu[0], leve.f.eu[1]); g.moveTo(a0, b0);
+    const [a0, b0] = P(hx, hz); g.moveTo(a0, b0);
     for (const [x, z] of leve.rota.slice(leve.rotaI)) { const [a, b] = P(x, z); g.lineTo(a, b); }
     g.stroke(); g.restore();
   }
@@ -728,9 +819,9 @@ function desenharMapa() {
     marcas.push([p.nome, a, b - r - 5]);
   }
   if (jogando && leve.f) { // o alvo e a frente do herói (André 2026-11-27: "no modo leve eu sou uma bola... não sei onde é minha frente... nem para onde eu estou batendo")
-    const F = leve.f, [ea, eb] = P(F.eu[0], F.eu[1]), re = Math.max(7, (0.35 / span) * 600) * (W / 600), al = F.al && (F.m || []).find((o) => o[4] === F.al);
+    const F = leve.f, [ea, eb] = P(hx, hz), re = Math.max(7, (0.35 / span) * 600) * (W / 600), al = F.al && (F.m || []).find((o) => o[4] === F.al);
     if (al && naLuta()) { // o monstro que o próximo golpe pega: círculo vermelho aceso em volta dele e um traço até ele
-      const [a, b] = P(al[0], al[1]), r = Math.max(W / 40, Math.abs(P(al[0] + 1.1, al[1])[0] - a)), pulso = 0.75 + 0.25 * Math.sin(Date.now() / 160);
+      const [ax, az] = suave('m' + al[4], al[0], al[1]), [a, b] = P(ax, az), r = Math.max(W / 40, Math.abs(P(ax + 1.1, az)[0] - a)), pulso = 0.75 + 0.25 * Math.sin(Date.now() / 160);
       g.save(); g.strokeStyle = 'rgba(255,60,50,.45)'; g.lineWidth = Math.max(2, W / 250); g.setLineDash([W / 80, W / 110]); g.beginPath(); g.moveTo(ea, eb); g.lineTo(a, b); g.stroke(); g.setLineDash([]);
       g.shadowColor = '#ff2a1f'; g.shadowBlur = W / 30; g.strokeStyle = `rgba(255,48,36,${pulso})`; g.lineWidth = Math.max(3, W / 110); g.beginPath(); g.arc(a, b, r, 0, 6.283); g.stroke();
       g.shadowBlur = 0; g.strokeStyle = '#ffd0c8'; g.lineWidth = Math.max(1, W / 500); g.beginPath(); g.arc(a, b, r, 0, 6.283); g.stroke(); g.restore();
@@ -741,6 +832,7 @@ function desenharMapa() {
       g.beginPath(); g.moveTo(ea + sx * L, eb + sz * L); g.lineTo(ea + sx * t0 + px * B, eb + sz * t0 + pz * B); g.lineTo(ea + sx * t0 - px * B, eb + sz * t0 - pz * B); g.closePath(); g.fill(); g.stroke(); g.restore();
     }
   }
+  if (jogando && !mapaGeral && FX.length) desenharFx(g, P, W, hx, hz);
   if (jogando && mapaGeral && lugarSel) { // o lugar marcado na lista (ou no toque), como o do mapa do jogo: anel dourado
     const [a, b] = P(lugarSel.x, lugarSel.z), r = Math.max(10, W / 30);
     g.save(); g.strokeStyle = '#ffd36b'; g.lineWidth = Math.max(3, W / 160); g.shadowColor = '#000'; g.shadowBlur = 6; g.beginPath(); g.arc(a, b, r, 0, 6.283); g.stroke();
@@ -758,7 +850,7 @@ function desenharMapa() {
   g.fillStyle = 'rgba(12,10,8,.7)'; g.fillRect(fonte * 0.6, y - fonte * 1.4, px + fonte * 1.2, fonte * 2);
   g.fillStyle = '#efe7d6'; g.fillRect(fonte * 1.2, y, px, Math.max(2, W / 300));
   g.font = `${Math.round(fonte * 0.8)}px system-ui,sans-serif`; g.textAlign = 'left'; g.fillText(`${m} m`, fonte * 1.2, y - fonte * 0.3);
-  if (jogando) { const [a, b] = P(leve.f.eu[0], leve.f.eu[1]), r = cv.getBoundingClientRect(), t = $('jogarAba').getBoundingClientRect(); leve.euTela = [r.left - t.left + a * r.width / W, r.top - t.top + b * r.height / H]; posicionarBalao(); desenharMini(); }
+  if (jogando) { const [a, b] = P(hx, hz), r = cv.getBoundingClientRect(), t = $('jogarAba').getBoundingClientRect(); leve.euTela = [r.left - t.left + a * r.width / W, r.top - t.top + b * r.height / H]; posicionarBalao(); desenharMini(); }
 }
 
 // ---------- Jogar: o modo leve (André 2026-11-25: "logar no jogo... só um mapa, eu clico e vai... ir na action house,
@@ -783,6 +875,9 @@ function ligarLeve(s) {
   if (aba === 'missoes' || aba === 'personagem') s.send('leveMissoes', { ver: true });
   if (aba === 'fazenda') s.send('leveFazenda', { ver: true });
   s.onMessage('leve', (d) => {
+    { const t = performance.now(); if (leve.tF) suaveDur = Math.max(150, Math.min(700, t - leve.tF)); leve.tF = t; } // o deslize dura o tempo entre as fotos
+    if (d.fx) fxChegou(d.fx);
+    if (d.f?.as != null && leve.f?.as != null && d.f.as !== leve.f.as && !d.f.hb?.mg) FX.push({ f: ['s', d.f.eu[13] || 0, d.f.as % 2], t: performance.now() }); // o herói golpeou de espada: o corte
     leve.f = d.f; if (d.cn) { leve.cn = d.cn; leve.cnImg = assarCena(d.cn); } if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa; if (d.ms) { leve.ms = d.ms; if (aba === 'missoes') desenharMissoes(); if (aba === 'personagem') desenharPersonagem(); }
     if (d.fz) { leve.fz = d.fz; if (aba === 'fazenda') desenharFazenda(); }
     for (const e of d.ev || []) eventoLeve(e);
@@ -790,7 +885,8 @@ function ligarLeve(s) {
     // jogo 3D); a página guarda o veio para o botão "Voltar a minerar" quando a luta acabar
     const coAntes = leve.coAntes; leve.coAntes = d.f?.co ? { no: d.f.co[0], nome: d.f.co[1], prof: leve.col?.no === d.f.co[0] ? leve.col.prof : '' } : null;
     if (d.f?.co) leve.volta = null; else if (coAntes && d.f?.lu) leve.volta = coAntes;
-    if (mundoVisivel()) { desenharMapa(); desenharJogar(); } else if (aba === 'mochila' && leve.sujo) desenharMochila();
+    if (mundoVisivel()) { desenharMapa(); desenharJogar(); animarJa(); } else if (aba === 'mochila' && leve.sujo) desenharMochila();
+    if (SUAVE.size > 300) { const t = performance.now(); for (const [k, o] of SUAVE) if (t - o.v > 5000) SUAVE.delete(k); }
   });
   s.onMessage('leveMapa', (d) => { leve.mapa = d; leve.sujo = true; });
   s.onMessage('leveErro', (t) => { aviso(t); leve.saindo = true; s.leave(); });
@@ -1331,6 +1427,7 @@ function desenharJogar() {
   const moIt = leve.mo?.it || [], moL = leve.mo?.l || 0, conta = el('div', 'conta');
   conta.append(document.createTextNode(`Nv ${nv} · 💰 ${num(ouro)} · `), el('span', moL && moIt.length >= moL ? 'cheia' : '', `🎒 ${moIt.length}/${moL}`));
   st.append(conta);
+  for (const [l, alvo] of [[leve.f.bf, 0], [leve.f.ba, 1]]) if (l?.length) st.append(linhaBuffs(l, alvo)); // buffs e debuffs, como o buffs.gd do jogo
   const extras = [pack && '📦 pack nas costas', montado && '🐺 no lobo', leve.pk?.car?.onde === 2 && '🛒 no carrinho'].filter(Boolean);
   if (extras.length) st.append(el('div', 'faz', extras.join(' · ')));
   const P = pertoAgora();
@@ -1470,21 +1567,23 @@ function lutaLeve(raiz, morto, mana) {
   // as skills são as do jogo (habQ, André 2026-11-27): bs = o básico da arma na mão, e = barra da espada, c = barra do cajado
   const hq = leve.mapa?.hq || {}, cheia = (o) => o && [o[0], hq[o[0]]?.[0] || o[0], o[1], o[2], hq[o[0]]?.[1] || 'basico']; // [id, recarga, mana] + nome e ícone do leveMapa
   const bs = cheia(F.hb.bs), be = (F.hb.e || []).map(cheia), bc = (F.hb.c || []).map(cheia);
-  const todas = [bs, ...be, ...bc, ...F.hb.l].filter(Boolean);
+  // só a barra da arma na mão, igual ao jogo (André 2026-11-27: "quero igual no jogo também", com o Trocar)
+  const barra = F.hb.mg ? bc : be;
+  const todas = [bs, ...barra, ...F.hb.l].filter(Boolean);
   const chave = todas.map((o) => o[0] + o[1] + (o[4] || '')).join('|') + F.hb.mg;
   if (!h || chave !== habChave) {
     if (h) h.remove();
     h = el('div', 'habLeve arco'); habChave = chave; golpesEl = h;
     // tela do jogo (André 2026-11-27: "igualzinho o jogo"): o arco da HUD do jogo (hud.gd, contado do canto de baixo à
     // direita): golpe grande no canto e a cura embaixo dele. Depois ("pode pôr todas as skills, tanto do guerreiro quanto do
-    // mago"): a barra da espada no arco de dentro e a do cajado no de fora; rolada e flash junto do joystick
+    // mago"): as duas barras; depois (27/11) só a da arma na mão, com o Trocar; rolada e flash junto do joystick
     const S = 0.7, lugar = (b, x, y, r) => { const d = Math.round(r * S * 2.36); b.style.width = b.style.height = d + 'px'; b.style.right = Math.round(x * S + 10 - d / 2) + 'px'; b.style.bottom = Math.round(y * S + 8 - d / 2) + 'px'; };
     const botao = ([id, nome, , , ic], cls) => { const b = el('button', cls); b.dataset.i = id; b.title = nome; b.append(iconeHab(ic, ICONE_HAB[nome] || '✨'), el('span', null, nome), el('b', 'cd')); h.append(b); return b; };
     if (bs) { const b = botao(bs, 'grande'); lugar(b, 80, 158, 56); segurarBasico(b, bs[0]); } // segurar = bate sem parar, como no jogo
     for (const o of F.hb.l) { const b = botao(o, o[0] === 9 ? 'cura' : ''); if (o[0] === 9) lugar(b, 80, 58, 31); b.onclick = () => { if (!b.classList.contains('espera')) mandar('habilidade', o[0]); }; }
-    be.forEach((o, k) => { const b = botao(o, ''), ang = (88 - 27.8 * k) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 150, 158 + Math.sin(ang) * 150, 30); b.onclick = () => { if (!b.classList.contains('espera')) mandar('leveHab', o[0]); }; });
-    bc.forEach((o, k) => { const b = botao(o, 'mg'), ang = (88 - 15 * k) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 228, 158 + Math.sin(ang) * 228, 25); b.onclick = () => { if (!b.classList.contains('espera')) mandar('leveHab', o[0]); }; });
-    const tr = el('button', 'troca'); tr.title = F.hb.mg ? 'Usar espada' : 'Usar magia'; lugar(tr, 55, 665, 25); tr.append(iconeHab('troca', '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
+    // um arco só, mais junto do golpe que no jogo (André 2026-11-27: "mais juntas da skill base"; hud.gd usa raio 172)
+    barra.forEach((o, k) => { const b = botao(o, F.hb.mg ? 'mg' : ''), ang = (100 - 26 * k) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 140, 158 + Math.sin(ang) * 140, 27); b.onclick = () => { if (!b.classList.contains('espera')) mandar('leveHab', o[0]); }; });
+    const tr = el('button', 'troca'); tr.title = F.hb.mg ? 'Usar espada' : 'Usar magia'; lugar(tr, 55, 372, 25); tr.append(iconeHab('troca', '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
     tr.onclick = () => mandar('modo', F.hb.mg ? 'Espada' : 'Magia'); h.append(tr);
     // poções (André 2026-11-26): mesmas da mochila e mesma recarga do jogo (o servidor confere); 2026-11-27 numa coluna na
     // beira direita, acima do arco (o canto esquerdo é do joystick)
@@ -1494,9 +1593,10 @@ function lutaLeve(raiz, morto, mana) {
       b.onclick = () => { const p = (leve.f?.hb?.po || []).find((o) => o[0] === k); if (!p || p[1] < 0) return aviso(`Sem ${nome.toLowerCase()} na mochila`); if (p[3] > 0) return; mandar('item', { acao: 'usar', i: p[1] }); };
       h.append(b);
     }
-    // rolada e flash (os botões do jogo: msg 'rolar' e 'dash', na direção do joystick ou da frente), logo acima do joystick
-    for (const [k, nome, x] of [['rolar', 'Rolada', 18], ['dash', 'Flash', 80]]) {
-      const b = el('button', 'mov'); b.dataset.mv = k; b.title = nome; lugar(b, 0, 0, 27); b.style.right = 'auto'; b.style.left = x + 'px'; b.style.bottom = '146px'; b.append(iconeHab(k, k === 'rolar' ? '🌀' : '💨'), el('span', null, nome), el('b', 'cd'));
+    // rolada e flash (os botões do jogo: msg 'rolar' e 'dash', na direção do joystick ou da frente), junto das skills à direita
+    // (André 2026-11-27: do lado do joystick não dá para andar e usar ao mesmo tempo)
+    for (const [k, nome, x, y] of [['rolar', 'Rolada', 150, 362], ['dash', 'Flash', 228, 322]]) {
+      const b = el('button', 'mov'); b.dataset.mv = k; b.title = nome; lugar(b, x, y, 28); b.append(iconeHab(k, k === 'rolar' ? '🌀' : '💨'), el('span', null, nome), el('b', 'cd'));
       b.onclick = () => { if (!b.classList.contains('espera')) mandar(k); }; h.append(b);
     }
     // o lobo (o botão Montar do jogo, a mesma mensagem 'montar'), ao lado das poções como na HUD do jogo
@@ -1596,20 +1696,28 @@ let miniC = null;
 // joystick (André 2026-11-27: "coloca um joystick virtual do lado esquerdo pra mover o personagem"): a mesma entrada do
 // jogo (leveMover no servidor). Arrastar o dedo anda; até a borda corre; soltar para. Tocar no mapa continua indo até lá.
 let joyC = null;
+// joystick flutuante (André 2026-11-27: "para onde eu clicar ele ir junto"): o canto de baixo à esquerda é a área dele; o
+// toque põe a base embaixo do dedo e ela volta ao canto ao soltar
 function joyEl() {
   if (joyC) return joyC;
-  joyC = el('div', 'joyLeve'); const bola = el('i'); joyC.append(bola);
-  let dedo = null, vet = [0, 0], tm = null;
+  joyC = el('div', 'joyZona'); const base = el('div', 'joyLeve'), bola = el('i'); base.append(bola); joyC.append(base);
+  let dedo = null, vet = [0, 0], tm = null, cx = 0, cy = 0;
   const enviar = () => mandar('leveMover', { mx: vet[0], mz: vet[1] });
   const mexer = (e) => {
-    const r = joyC.getBoundingClientRect(), R = r.width / 2, dx = e.clientX - (r.left + R), dz = e.clientY - (r.top + R), d = Math.hypot(dx, dz), k = d > R * 0.8 ? (R * 0.8) / d : 1;
+    const R = base.offsetWidth / 2, dx = e.clientX - cx, dz = e.clientY - cy, d = Math.hypot(dx, dz), k = d > R * 0.8 ? (R * 0.8) / d : 1;
     bola.style.transform = `translate(${dx * k}px, ${dz * k}px)`;
     vet = [Math.round((dx * k) / (R * 0.8) * 100) / 100, Math.round((dz * k) / (R * 0.8) * 100) / 100];
   };
   // o dedo é seguido na janela (a tela do jogo se refaz e tira o joystick do lugar por um instante no meio do arrasto)
-  joyC.addEventListener('pointerdown', (e) => { e.preventDefault(); dedo = e.pointerId; joyC.classList.add('on'); mexer(e); enviar(); clearInterval(tm); tm = setInterval(enviar, 180); });
+  joyC.addEventListener('pointerdown', (e) => {
+    if (dedo !== null) return; e.preventDefault(); dedo = e.pointerId;
+    const z = joyC.getBoundingClientRect(), R = base.offsetWidth / 2;
+    cx = Math.min(Math.max(e.clientX, z.left + R), z.right - R); cy = Math.min(Math.max(e.clientY, z.top + R), z.bottom - R);
+    base.style.left = cx - z.left - R + 'px'; base.style.top = cy - z.top - R + 'px'; base.style.bottom = 'auto'; joyC.classList.add('on');
+    mexer(e); enviar(); clearInterval(tm); tm = setInterval(enviar, 180);
+  });
   addEventListener('pointermove', (e) => { if (e.pointerId === dedo) mexer(e); });
-  const soltar = (e) => { if (e.pointerId !== dedo) return; dedo = null; clearInterval(tm); vet = [0, 0]; enviar(); bola.style.transform = ''; joyC.classList.remove('on'); };
+  const soltar = (e) => { if (e.pointerId !== dedo) return; dedo = null; clearInterval(tm); vet = [0, 0]; enviar(); bola.style.transform = ''; base.style.left = base.style.top = base.style.bottom = ''; joyC.classList.remove('on'); };
   addEventListener('pointerup', soltar); addEventListener('pointercancel', soltar);
   return joyC;
 }

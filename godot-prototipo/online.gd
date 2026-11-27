@@ -1744,6 +1744,7 @@ func _molas_de(esq: Skeleton3D) -> Array:
 				l.append(c)
 	return l
 
+var _cps_antes := 0
 func _detalhe_outros(dt: float) -> void:
 	_quadro += 1
 	_detalhe_t -= dt
@@ -1765,6 +1766,11 @@ func _detalhe_outros(dt: float) -> void:
 	# degraus mínimos da Baixa (grafico.gd corpos, André 2026-11-25: celular fraco): ninguém com detalhe cheio, menos
 	# corpos na tela e somem mais perto
 	var cps: int = m.grafico.corpos() if m.grafico else 0
+	if (cps >= 1) != (_cps_antes >= 1): # entrou ou saiu dos degraus mínimos: contorno da roupa e da arma (main.gd sem_contornos)
+		for id in outros:
+			if int(outros[id].get("lod", -1)) != 2:
+				m.sem_contornos(outros[id].no, cps >= 1)
+	_cps_antes = cps
 	var det_max: int = DETALHE_MAX if cps == 0 else 0
 	var vis_max: int = [VISIVEIS_MAX, 6, 4][clampi(cps, 0, 2)]
 	var some_longe: float = [SOME_LONGE, 30.0, 22.0][clampi(cps, 0, 2)]
@@ -1791,7 +1797,11 @@ func _aplicar_detalhe(o: Dictionary, nivel: int) -> void:
 	o.lod = nivel
 	var cheio := nivel == 2
 	if antes == -1 or (antes == 2) != cheio:
+		if cheio:
+			m.sem_contornos(o.no, false)
 		m.npc_simples(o.no, not cheio)
+		if not cheio and m.grafico and m.grafico.corpos() >= 1:
+			m.sem_contornos(o.no, true)
 		for mo in o.get("molas", []):
 			if is_instance_valid(mo):
 				mo.active = cheio
