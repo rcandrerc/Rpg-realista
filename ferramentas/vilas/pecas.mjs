@@ -297,3 +297,78 @@ export const RIO_CLARO = {
   rio_chao: [['Floor_Brick', [0, 0, 0], 0]],
 };
 for (const k of Object.keys(RIO_CLARO)) RIO_CLARO[k] = leveRio(RIO_CLARO[k]);
+
+// Lojas no lugar das barraquinhas (André 2026-11-27: "as lojas das cidades n serem mais barraquinhas... os mercadores
+// tb... algo mais imponente"). Mesmo lugar e mesmo jeito de virar (frente +z, o vendedor em z = -1,1), só o modelo muda.
+// O jogo troca o modelo pelo nome (vilas_mundo.gd TROCA_LOJA); a banca antiga continua no vilas.glb.
+// Modelo 1, loja_venda: a venda da comerciante de cada vila. Sobrado estreito de 3,6 x 2,4 m, loja aberta embaixo com
+// balcão, toldo de madeira, prateleiras e mercadoria; o andar de cima avança 0,4 m sobre a rua com mãos-francesas,
+// janelas, telhado de telha e a tabuleta da loja (bolsa e moedas, sem letra: vale nas duas línguas).
+function lojaVenda() {
+  const W = 3.6, D = 2.4, s = W / 4; // dois módulos de 2 m encolhidos para 1,8 m
+  const L = [];
+  const parede = (n, x, y, z, ry, w = s) => L.push([n, [x, y, z], ry, [w, 1, 1]]);
+  // térreo: fundo de enxaimel, lados de reboco (janela num deles), a frente aberta
+  for (const x of [-W / 4, W / 4]) { parede('Wall_Plaster_WoodGrid', x, 0, -D, PI); parede('Wall_UnevenBrick_Straight', x, ALICERCE, -D, PI); }
+  parede('Wall_Plaster_Window_Wide_Round', -W / 2, 0, -D / 2, -PI / 2, D / 2); parede('Wall_Plaster_Straight', W / 2, 0, -D / 2, PI / 2, D / 2);
+  for (const sx of [-1, 1]) { parede('Wall_UnevenBrick_Straight', sx * W / 2, ALICERCE, -D / 2, sx * PI / 2, D / 2); L.push(['Wall_UnevenBrick_Straight', [sx * W / 2 - sx * 0.1, ALICERCE, 0.05], 0, [0.12, 1, 1]]); }
+  L.push(['Wall_UnevenBrick_Straight', [0, ALICERCE - 0.05, 0.05], 0, [W / 2, 1, 1]]); // a soleira da frente (morro)
+  for (const [sx, z] of [[-1, 0], [1, 0], [-1, -D], [1, -D]]) L.push(['Corner_ExteriorWide_Wood', [sx * W / 2, 0, z], 0]);
+  for (const x of [-W / 4, W / 4]) for (const z of [-D / 4, -3 * D / 4]) L.push(['Floor_WoodDark', [x, 0.03, z], 0, [s, 1, D / 4]]);
+  // andar de cima, avançado 0,4 m
+  const F = 0.4, y = 3, D2 = D + F;
+  parede('Wall_Plaster_Window_Wide_Round', -W / 4, y, F, 0); parede('Wall_Plaster_Window_Wide_Round', W / 4, y, F, 0);
+  L.push(['Window_Wide_Round1', [-W / 4, y, F], 0, [s, 1, 1]], ['Window_Wide_Round1', [W / 4, y, F], 0, [s, 1, 1]]);
+  L.push(['WindowShutters_Wide_Round_Open', [-W / 4, y, F + 0.02], 0, [s, 1, 1]], ['WindowShutters_Wide_Round_Open', [W / 4, y, F + 0.02], 0, [s, 1, 1]]);
+  parede('Wall_Plaster_WoodGrid', -W / 4, y, -D, PI); parede('Wall_Plaster_Window_Wide_Round', W / 4, y, -D, PI);
+  parede('Wall_Plaster_WoodGrid', -W / 2, y, F - D2 / 2, -PI / 2, D2 / 2); parede('Wall_Plaster_WoodGrid', W / 2, y, F - D2 / 2, PI / 2, D2 / 2);
+  for (const [sx, z] of [[-1, F], [1, F], [-1, -D], [1, -D]]) L.push(['Corner_ExteriorWide_Wood', [sx * W / 2, y, z], 0]);
+  for (const x of [-W / 4, W / 4]) for (const z of [F - D2 / 4, F - 3 * D2 / 4]) L.push(['Floor_WoodDark', [x, y + 0.01, z], 0, [s, 1, D2 / 4]]);
+  for (const sx of [-1, 1]) L.push(['Roof_Support2', [sx * (W / 2 - 0.05), y, 0], 0, [1, 1, 0.6]]); // mãos-francesas da sacada
+  L.push(['@viga', [0, y - 0.14, F - 0.06], 0, [W + 0.1, 0.16, 0.16]]);
+  // telhado com as empenas para a rua e para o fundo
+  L.push(['Roof_RoundTiles_4x4', [0, 6, F - D2 / 2], 0, [s, 1, D2 / 4]]);
+  L.push(['Roof_Front_Brick4', [0, 6, F], 0, [s, 1, 1]], ['Roof_Front_Brick4', [0, 6, -D], PI, [s, 1, 1]]);
+  L.push(['Prop_Chimney', [1.0, 5.6, -1.6], 0]);
+  // a loja: balcão, toldo, prateleiras, mercadoria, lanternas e a placa
+  L.push(['@balcao', [0, 0, 0.05], 0, [3.0, 1.0, 0.55]]);
+  L.push(['Roof_Wooden_2x1', [-W / 4, 1.95, 0.4], 0, [s, 0.55, 0.62]], ['Roof_Wooden_2x1', [W / 4, 1.95, 0.4], 0, [s, 0.55, 0.62]]);
+  L.push(['Shelf_Simple', [-0.85, 1.55, -D + 0.05], 0], ['Shelf_Simple', [0.85, 1.55, -D + 0.05], 0], ['Shelf_Small_Bottles', [-0.85, 1.05, -D + 0.05], 0], ['Shelf_Small_Bottles', [0.85, 1.05, -D + 0.05], 0]);
+  L.push(['FarmCrate_Apple', [-1.05, 0.99, 0.05], 0.15, 0.8], ['Bag', [-0.25, 0.99, 0.08], 0.5], ['Potion_1', [0.35, 0.99, 0.12], 0], ['Potion_2', [0.55, 0.99, 0.02], 0.4], ['Coin_Pile', [1.05, 0.99, 0.05], 0.3]);
+  L.push(['Barrel', [-1.35, 0, -1.9], 0], ['Crate_Wooden', [1.25, 0, -1.85], 0.2, 0.8]);
+  L.push(['Barrel_Apples', [-W / 2 - 0.55, 0, 0.55], 0], ['FarmCrate_Carrot', [-W / 2 - 0.5, 0, -0.5], 0.4, 0.9], ['Bag', [-W / 2 - 0.45, 0, 0.0], 1.2]);
+  L.push(['Lantern_Wall', [-W / 2 + 0.05, 2.05, 0.15], 0, 0.8], ['Lantern_Wall', [W / 2 - 0.05, 2.05, 0.15], 0, 0.8]);
+  L.push(['@placa_loja', [0, 3.95, F + 0.1], 0, [W - 0.1, 1.1, 0.08]]); // a tabuleta comprida na frente do andar de cima
+  return L;
+}
+// Modelo 2, banca_mercado: a barraca do mercador vira uma loja pequena de telhado de telha: quatro esteios grossos,
+// fundo e lados de enxaimel até o meio, viga com estandarte, balcão com a mercadoria de cada um e a lanterna.
+function bancaMercado(merc) {
+  const W = 3.2, D = 2.4, z0 = -1.8; // da frente (z0 + D = 0,6) até o fundo
+  const L = [];
+  for (const [x, z] of [[-W / 2, z0 + D], [W / 2, z0 + D], [-W / 2, z0], [W / 2, z0]]) L.push(['Corner_ExteriorWide_Wood', [x, 0, z], 0]);
+  L.push(['Wall_Plaster_WoodGrid', [-W / 4, 0, z0], PI, [W / 4, 1, 1]], ['Wall_Plaster_WoodGrid', [W / 4, 0, z0], PI, [W / 4, 1, 1]]);
+  for (const sx of [-1, 1]) L.push(['Wall_Plaster_WoodGrid', [sx * W / 2, 0, z0 + D / 2], sx * PI / 2, [D / 2, 0.42, 1]]);
+  for (const x of [-W / 4, W / 4]) L.push(['Wall_UnevenBrick_Straight', [x, ALICERCE, z0], PI, [W / 4, 1, 1]]);
+  L.push(['@viga', [0, 2.75, z0 + D], 0, [W + 0.2, 0.22, 0.22]], ['@viga', [0, 2.75, z0], 0, [W + 0.2, 0.22, 0.22]]);
+  for (const sx of [-1, 1]) L.push(['@viga', [sx * W / 2, 2.75, z0 + D / 2], 0, [0.22, 0.22, D + 0.2]]);
+  L.push(['Roof_2x4_RoundTile', [0, 2.95, z0 + D / 2], PI / 2, [1.0, 0.8, 1.0]]);
+  L.push(['@balcao', [0, 0, z0 + D - 0.25], 0, [W - 0.5, 0.95, 0.6]]);
+  L.push(['Banner_1_Cloth', [-W / 4, 2.65, z0 + D + 0.14], 0, [0.9, 0.45, 1]], ['Banner_1_Cloth', [W / 4, 2.65, z0 + D + 0.14], 0, [0.9, 0.45, 1]]);
+  L.push(['Lantern_Wall', [W / 2 + 0.06, 2.0, z0 + D], PI / 2, 0.75]);
+  L.push(['Shelf_Simple', [0, 1.6, z0 + 0.05], 0, [1.6, 1, 1]]);
+  L.push(...merc);
+  return L;
+}
+const yb = 0.95; // tampo do balcão da banca
+export const LOJAS = {
+  loja_venda: lojaVenda(),
+  mercado_frutas: bancaMercado([['FarmCrate_Apple', [-0.6, yb, 0.4], 0.2], ['FarmCrate_Carrot', [0.5, yb, 0.4], -0.2], ['Barrel_Apples', [1.15, 0, -1.3], 0], ['Barrel_Apples', [-1.15, 0, -1.3], 0], ['Barrel_Apples', [W0(), 0, 0.9], 0]]),
+  mercado_tecidos: bancaMercado([['Bag', [-0.6, yb, 0.4], 0.3], ['Rope_1', [0.5, yb, 0.4], 0], ['Banner_2_Cloth', [-0.6, 2.6, -1.6], 0, [1, 0.5, 1]], ['Banner_2_Cloth', [0.6, 2.6, -1.6], 0, [1, 0.5, 1]], ['Bag', [W0(), 0, 0.9], 1]]),
+  mercado_peixe: bancaMercado([['Bucket_Wooden_1', [-0.6, yb, 0.4], 0.3], ['Bucket_Wooden_1', [0.4, yb, 0.4], 1], ['Barrel', [1.15, 0, -1.3], 0], ['Barrel', [W0(), 0, 0.9], 0]]),
+  mercado_ceramica: bancaMercado([['Vase_2', [-0.6, yb, 0.4], 0.3], ['Pot_1', [0.1, yb, 0.4], 0], ['Vase_4', [0.6, yb, 0.35], 0], ['Pot_1', [W0(), 0, 0.9], 0], ['Vase_2', [1.15, 0, -1.3], 0]]),
+  mercado_temperos: bancaMercado([['FarmCrate_Carrot', [-0.6, yb, 0.4], 0.3], ['Pouch_Large', [0.5, yb, 0.4], 0], ['Bag', [1.15, 0, -1.3], 0], ['Bag', [W0(), 0, 0.9], 1]]),
+};
+function W0() { return 2.05; } // do lado de fora, na frente do esteio da direita
+// leve: telhado "@leve" e todo enfeite "@loja" (montar.mjs: ~160 triângulos cada), sem postigo
+for (const k of Object.keys(LOJAS)) LOJAS[k] = leveRio(LOJAS[k]).map(([n, p, ry, s]) => [n.replace('@meio', '@loja'), p, ry, s]);
