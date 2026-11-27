@@ -40,6 +40,7 @@ export const LEVE = {
   reto: 30, // m do monstro: o Atacar deixa a estrada e vai reto até ele
   encosta: 2, // m do monstro: o Atacar para aqui (alcance do golpe é 2,3 m)
   spotVe: 40, // m: spot de pesca que aparece sem o Radar (a água borbulhando, como no jogo); com o Radar ligado, qualquer um
+  joySolto: 0.7, // s sem notícia do joystick: para
   cena: 40, // m: meia largura do mundo de perto (cenaLeve): chão, estradas, árvores, pedras, casas e veios
   cenaPasso: 2, // m por quadradinho do chão da cena
   montaDe: 25, // m de caminho: daqui pra cima o "Ir para" sobe no lobo sozinho (como no jogo)
@@ -158,6 +159,21 @@ export const Leve = {
     this.leveIr(id, { x: no.x, z: no.z, nome: COLETA[no.tipo]?.nome || '' });
     if (j.leveRota) j.leveRota.no = no.id;
   },
+  // joystick (André 2026-11-27: "um joystick virtual no canto esquerdo pra mover o personagem"): a mesma entrada do jogo
+  // (mx, mz até 1; empurrado até o fim corre). A página repete a cada ~0,2 s enquanto segura; sem notícia por
+  // LEVE.joySolto s, o herói para (dedo caiu, internet travou). Mexer no joystick cancela o caminho automático.
+  leveMover(id, m) {
+    const j = this.jogadores.get(id); if (!j || !j.leve || j.criando) return;
+    const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+    let mx = num(m?.mx), mz = num(m?.mz); const f = Math.hypot(mx, mz);
+    if (f < 0.15 || j.morto) { const tinha = !!j.leveJoy; j.leveJoy = null; if (tinha) j.entrada = { mx: 0, mz: 0, correr: false }; return; }
+    if (f > 1) { mx /= f; mz /= f; }
+    if (j.leveRota) this.leveParar(id, null);
+    if (j.coleta) this.pararColeta(j, null);
+    if (j.pesca) this.pararPesca(j, null);
+    if (j.vila) this.cancelarVila(j, null);
+    j.leveJoy = { mx, mz, correr: f > 0.6, t: this.tempo };
+  },
   leveParar(id, texto = 'Parou') {
     const j = this.jogadores.get(id); if (!j) return;
     const tinha = !!j.leveRota;
@@ -166,6 +182,11 @@ export const Leve = {
   },
   // um passo do herói do modo leve (antes do passoJogador): vira o "joystick" que leva ao próximo ponto do caminho
   passoLeve(j, dt) {
+    if (j.leveJoy) { // joystick: anda na direção do dedo até soltar
+      const J = j.leveJoy;
+      if (j.morto || this.tempo - J.t > LEVE.joySolto) { j.leveJoy = null; j.entrada = { mx: 0, mz: 0, correr: false }; return; }
+      j.entrada = { mx: J.mx, mz: J.mz, correr: J.correr && !j.semFolego && !j.veiculo }; return;
+    }
     const R = j.leveRota; if (!R) return;
     if (j.morto) return this.leveParar(j.id, null);
     const parado = { mx: 0, mz: 0, correr: false };

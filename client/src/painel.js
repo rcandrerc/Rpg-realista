@@ -748,7 +748,7 @@ function desenharMapa() {
     if (cabe(L.nome, a, b - 8)) escrever(L.nome, a, b - 8, '#e8dcc0');
   }
   // escala: quantos metros vale o traço
-  const m = [5, 10, 20, 50, 100, 200, 500].find((v) => (v / span) * W > W / 6) || 500, px = (m / span) * W, y = H - fonte - (jogando ? 84 * dpr : 0); // Jogar: acima das poções e do lobo
+  const m = [5, 10, 20, 50, 100, 200, 500].find((v) => (v / span) * W > W / 6) || 500, px = (m / span) * W, y = H - fonte - (jogando ? 160 * dpr : 0); // Jogar: acima do joystick
   g.fillStyle = 'rgba(12,10,8,.7)'; g.fillRect(fonte * 0.6, y - fonte * 1.4, px + fonte * 1.2, fonte * 2);
   g.fillStyle = '#efe7d6'; g.fillRect(fonte * 1.2, y, px, Math.max(2, W / 300));
   g.font = `${Math.round(fonte * 0.8)}px system-ui,sans-serif`; g.textAlign = 'left'; g.fillText(`${m} m`, fonte * 1.2, y - fonte * 0.3);
@@ -1336,7 +1336,7 @@ function desenharJogar() {
   cartaoAcao(raiz, P, morto, mn); // a tela foi refeita: o cartão e os golpes voltam
   // a barra de cima do jogo (menu_topo.gd: os mesmos ícones e a seta que recolhe) e o minimapa no canto (André 2026-11-27);
   // Lobo, Base, Time e Chat (os antigos botões redondos) ficam nela e junto dos golpes
-  barraTopo(); raiz.append(miniEl());
+  barraTopo(); raiz.append(miniEl()); if (!leve.f?.eu?.[6]) raiz.append(joyEl());
   if (mapaGeral) { const x = el('button', 'fechaMapa', '✕'); x.setAttribute('aria-label', 'Fechar o mapa'); x.onclick = () => abrirMapaGeral(false); raiz.append(x); }
   // 5: a dica da primeira vez (guardada no aparelho; o ❓ mostra de novo)
   if (dicaAberta === null) { try { dicaAberta = !localStorage.getItem('leveDica2'); } catch { dicaAberta = false; } }
@@ -1409,27 +1409,28 @@ function lutaLeve(raiz, morto, mana) {
     // tela do jogo (André 2026-11-27: "igualzinho o jogo"): o mesmo arco da HUD do jogo (hud.gd, tela deitada de 1280x576,
     // contado do canto de baixo à direita): golpe grande no canto, cura embaixo dele, as skills num arco em volta (80° a -45°),
     // o Trocar acima à esquerda e as poções e o lobo na fileira de baixo. S = a escala para o celular em pé
-    const S = 0.62, lugar = (b, x, y, r) => { const d = Math.round(r * S * 2.36); b.style.width = b.style.height = d + 'px'; b.style.right = Math.round(x * S + 10 - d / 2) + 'px'; b.style.bottom = Math.round(y * S + 8 - d / 2) + 'px'; };
+    const S = 0.7, lugar = (b, x, y, r) => { const d = Math.round(r * S * 2.36); b.style.width = b.style.height = d + 'px'; b.style.right = Math.round(x * S + 10 - d / 2) + 'px'; b.style.bottom = Math.round(y * S + 8 - d / 2) + 'px'; };
     let sk = 0;
     F.hb.l.forEach(([i, nome, , , chave], n) => {
       const b = el('button', n === 0 ? 'grande' : i === 9 ? 'cura' : ''); b.dataset.i = i; b.title = nome;
-      if (n === 0) lugar(b, 80, 158, 56); else if (i === 9) lugar(b, 80, 58, 31); else { const ang = (80 - 25 * sk++) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 172, 158 + Math.sin(ang) * 172, 33); }
+      if (n === 0) lugar(b, 80, 158, 56); else if (i === 9) lugar(b, 80, 58, 31); else { const ang = (80 - 25 * sk++) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 150, 158 + Math.sin(ang) * 150, 33); } // 2026-11-27 (André: "mais juntos pra direita e até maiores"): arco mais fechado e S maior
       b.append(iconeHab(chave, ICONE_HAB[nome] || '✨'), el('span', null, nome), el('b', 'cd'));
       if (n === 0) segurarBasico(b, i); // segurar = bate sem parar, como no jogo (André 2026-11-27)
       else b.onclick = () => { if (b.classList.contains('espera')) return; mandar('habilidade', i); };
       h.append(b);
     });
-    const tr = el('button', 'troca'); tr.title = F.hb.mg ? 'Usar espada' : 'Usar magia'; lugar(tr, 322, 250, 28); tr.append(iconeHab('troca', '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
+    const tr = el('button', 'troca'); tr.title = F.hb.mg ? 'Usar espada' : 'Usar magia'; lugar(tr, 265, 290, 28); tr.append(iconeHab('troca', '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
     tr.onclick = () => mandar('modo', F.hb.mg ? 'Espada' : 'Magia'); h.append(tr);
-    // poções (André 2026-11-26): mesmas da mochila e mesma recarga do jogo (o servidor confere)
-    for (const [k, ic, nome, x] of [['pocao', '❤️', 'Poção vida', 530], ['pocao_mana', '💙', 'Poção mana', 450]]) {
-      const b = el('button', k === 'pocao' ? 'pv' : 'pm'); lugar(b, x, 62, 25); b.title = nome; const ii = el('i'), im = el('img'); im.alt = ''; im.src = `painel-icones/${k}.png`; im.className = 'po'; im.onerror = () => { im.remove(); ii.textContent = ic; }; ii.append(im); // a poção pintada do jogo (it_pocao)
+    // poções (André 2026-11-26): mesmas da mochila e mesma recarga do jogo (o servidor confere); 2026-11-27 numa coluna na
+    // beira direita, acima do arco (o canto esquerdo é do joystick)
+    for (const [k, ic, nome, x] of [['pocao', '❤️', 'Poção vida', 460], ['pocao_mana', '💙', 'Poção mana', 525]]) {
+      const b = el('button', k === 'pocao' ? 'pv' : 'pm'); lugar(b, 55, x, 25); b.title = nome; const ii = el('i'), im = el('img'); im.alt = ''; im.src = `painel-icones/${k}.png`; im.className = 'po'; im.onerror = () => { im.remove(); ii.textContent = ic; }; ii.append(im); // a poção pintada do jogo (it_pocao)
       b.dataset.po = k; b.append(ii, el('span', null, nome), el('b', 'cd'));
       b.onclick = () => { const p = (leve.f?.hb?.po || []).find((o) => o[0] === k); if (!p || p[1] < 0) return aviso(`Sem ${nome.toLowerCase()} na mochila`); if (p[3] > 0) return; mandar('item', { acao: 'usar', i: p[1] }); };
       h.append(b);
     }
     // o lobo (o botão Montar do jogo, a mesma mensagem 'montar'), ao lado das poções como na HUD do jogo
-    const lb = el('button', 'lobo'); lb.title = 'Lobo'; lugar(lb, 370, 62, 25); lb.append(iconeJogo('lobo', '🐺'), el('span', null, 'Lobo')); lb.onclick = () => mandar('montar'); h.append(lb);
+    const lb = el('button', 'lobo'); lb.title = 'Lobo'; lugar(lb, 55, 395, 25); lb.append(iconeJogo('lobo', '🐺'), el('span', null, 'Lobo')); lb.onclick = () => mandar('montar'); h.append(lb);
     // sem botão Fugir (André 2026-11-25: "pra fugir eu clico no mapa"): tocar no mapa anda, mesmo no meio da luta
   }
   { const lb = h.querySelector('.lobo'); lb.classList.toggle('on', !!F.eu[10]); lb.hidden = leve.pk?.car?.onde === 2; } // montado acende; dirigindo o carrinho some
@@ -1513,6 +1514,26 @@ function barraTopo() {
 }
 // o minimapa no canto (como o do jogo): o mapa grande em volta do herói; tocar abre o mapa geral com o Ir para
 let miniC = null;
+// joystick (André 2026-11-27: "coloca um joystick virtual do lado esquerdo pra mover o personagem"): a mesma entrada do
+// jogo (leveMover no servidor). Arrastar o dedo anda; até a borda corre; soltar para. Tocar no mapa continua indo até lá.
+let joyC = null;
+function joyEl() {
+  if (joyC) return joyC;
+  joyC = el('div', 'joyLeve'); const bola = el('i'); joyC.append(bola);
+  let dedo = null, vet = [0, 0], tm = null;
+  const enviar = () => mandar('leveMover', { mx: vet[0], mz: vet[1] });
+  const mexer = (e) => {
+    const r = joyC.getBoundingClientRect(), R = r.width / 2, dx = e.clientX - (r.left + R), dz = e.clientY - (r.top + R), d = Math.hypot(dx, dz), k = d > R * 0.8 ? (R * 0.8) / d : 1;
+    bola.style.transform = `translate(${dx * k}px, ${dz * k}px)`;
+    vet = [Math.round((dx * k) / (R * 0.8) * 100) / 100, Math.round((dz * k) / (R * 0.8) * 100) / 100];
+  };
+  // o dedo é seguido na janela (a tela do jogo se refaz e tira o joystick do lugar por um instante no meio do arrasto)
+  joyC.addEventListener('pointerdown', (e) => { e.preventDefault(); dedo = e.pointerId; joyC.classList.add('on'); mexer(e); enviar(); clearInterval(tm); tm = setInterval(enviar, 180); });
+  addEventListener('pointermove', (e) => { if (e.pointerId === dedo) mexer(e); });
+  const soltar = (e) => { if (e.pointerId !== dedo) return; dedo = null; clearInterval(tm); vet = [0, 0]; enviar(); bola.style.transform = ''; joyC.classList.remove('on'); };
+  addEventListener('pointerup', soltar); addEventListener('pointercancel', soltar);
+  return joyC;
+}
 function miniEl() {
   if (!miniC) { miniC = el('canvas', 'miniJogo'); miniC.id = 'miniJogo'; miniC.width = miniC.height = 184; miniC.title = 'Mapa'; miniC.onclick = () => abrirMapaGeral(true); }
   return miniC;
