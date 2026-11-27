@@ -6,6 +6,7 @@ const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 
 const s = new Simulacao(MAPA_CLAREIRA);
 const j = s.adicionarJogador('A', 'Ana');
 j.prog.ouro = 200;
+for (const l of Object.keys(j.prog.equip)) j.prog.equip[l] = null; // só as duas peças do teste (herói novo vem com o set Comum)
 j.prog.equip.espada = { k: 'espada', r: 1, d: 5 };
 j.prog.equip.corpo = { k: 'peitoral', r: 0 };
 s.aplicarStatus(j, true);
