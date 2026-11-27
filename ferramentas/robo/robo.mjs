@@ -15,7 +15,7 @@ import { Client } from 'colyseus.js';
 // shared/index.js PRIMEIRO: os módulos do shared se importam em círculo (cla.js -> amiga.js -> simulacao.js); entrando
 // por progresso.js o robô caía em 9 s com "Cannot access 'Amiga' before initialization" (desde 2026-11-22)
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS, FERRAMENTAS_FAZENDA, MONTARIAS, HEROI, CURA, COLETA_DISTANCIA, HABS, TIPOS_INIMIGO, ITENS, ehEquip, TOTENS, LEILAO } from '../../shared/index.js';
-import { xpProximo, reforcoOk } from '../../shared/progresso.js';
+import { xpProximo, reforcoOk, reforcoMax, reforcoPrecisa, atributoDoReforco, custoReforco, materialReforco, contar } from '../../shared/progresso.js';
 import { noLago } from '../../shared/relevo.js';
 import { planejarRota } from '../../shared/rota.js';
 import { listaVenda as listaVendaDe, POCOES, campoPerigoso, listaMudou } from './robo-escolhas.mjs';
@@ -30,12 +30,16 @@ const SERVIDOR = arg('servidor', process.env.ROBO_SERVIDOR || 'wss://163-176-80-
 const HTTP = SERVIDOR.replace(/^ws/, 'http');
 const MINUTOS = Number(arg('minutos', 350));
 const TESTE = arg('teste', '');
-const TURNO = arg('turno', process.env.GITHUB_RUN_ID ? `gh-${process.env.GITHUB_RUN_ID}` : `local-${Date.now()}`);
+const TURNO = arg('turno', (process.argv.includes('--combate') ? 'combate-' : '') + (process.env.GITHUB_RUN_ID ? `gh-${process.env.GITHUB_RUN_ID}` : `local-${Date.now()}`));
 const ARQ = arg('relatorio', 'robo-relatorio.json');
 const FIM = Date.now() + MINUTOS * 60e3;
 const TICK = 50; // ms: 20 posições por segundo, como o app
 // --cacar (André 2026-11-17: "velocidade e dificuldade"): só caça no campo do nível, sem missão; mede XP por minuto
 const SO_CACAR = process.argv.includes('--cacar');
+// --combate (André 2026-11-27): o robô de testes zerado (Nv 1 ao 100) no combate de teste (COMBATE_TESTE em shared/dados.js:
+// arma multiplica o dano, armadura x2, golpe de monstro gasta o equipamento; o servidor liga só na conta dele). Reforça
+// sozinho e anota por nível: tempo, mortes, ouro, equipamento (R.combate). Segue achando travamentos.
+const COMBATE = process.argv.includes('--combate');
 const CAMPO = arg('campo', '') ? (([x, z]) => ({ x: Number(x), z: Number(z), nome: 'campo fixo' }))(arg('campo', '').split(',')) : null; // --campo x,z: caça só ali
 const TRAVA_MIN = Number(arg('trava', 15)); // min na mesma etapa (sem andar nada) = travou
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -58,6 +62,10 @@ const R = {
   // dificuldade (André 2026-11-17): quanto leva para matar, poções e curas, a menor vida e o XP ganho por minuto
   luta: { matarMs: {}, pocoes: 0, curas: 0, menorVida: 1, xp: 0, xpMin: 0 }, resposta: {}, servidor: {}, avisos: {}, problemas: [], erros: 0,
 };
+// combate de teste: uma linha por nível que subiu neste turno ({ nv, min do turno, mortes e ouro até ali, equipamento
+// 'lugar raridade+reforço durabilidade') e os reforços (tentativas, deu certo, ouro)
+if (COMBATE) R.combate = { niveis: [], reforco: { tentativas: 0, ok: 0, ouro: 0 } };
+const fotoEquip = (eq) => Object.entries(eq || {}).filter(([, o]) => o).map(([l, o]) => `${l} ${'CREÉLM'[o.r | 0] || '?'}+${o.e | 0} ${o.d ?? 100}%`).join(' · ');
 const pings = [], respostas = [], matar = [], atacouT = new Map();
 const problema = (txt) => { if (!R.problemas.includes(txt)) { R.problemas.push(txt); log('ACHADO', txt); } if (R.problemas.length > 60) R.problemas.shift(); };
 const pct = (l, q) => { if (!l.length) return null; const s = [...l].sort((a, b) => a - b); return Math.round(s[Math.min(s.length - 1, Math.floor(q * s.length))]); };
@@ -144,6 +152,7 @@ function lerEvento(e) {
     if (prog && e.prog) { let g = 0; for (let n = prog.nivel; n < e.prog.nivel; n++) g += xpProximo(n); g += (e.prog.xp | 0) - (prog.xp | 0); if (g > 0) R.luta.xp += g; }
     prog = e.prog; hi = e.hi || null; if ('di' in e) di = e.di || null;
     if (R.nivel.de == null) R.nivel.de = prog.nivel;
+    if (COMBATE && R.nivel.ate != null && prog.nivel > R.nivel.ate) R.combate.niveis.push({ nv: prog.nivel, min: Math.round((Date.now() - R.inicio) / 60e3), mortes: R.mortes, ouro: prog.ouro | 0, atr: prog.atr, eq: fotoEquip(prog.equip) });
     R.nivel.ate = prog.nivel;
     const h = prog.hist;
     // ronda 2026-11-24: lista de missões do servidor diferente da do robô (merge no meio do turno; robo-escolhas.mjs
@@ -164,6 +173,7 @@ function lerEvento(e) {
     const cs = /consertou (\d+) peças? por (\d+) de ouro/.exec(String(e.texto || '')); // ronda 2026-11-26
     if (cs) { const C = (R.consertos ||= { vezes: 0, pecas: 0, ouro: 0 }); C.vezes++; C.pecas += +cs[1]; C.ouro += +cs[2]; log('consertou', cs[1], 'peças por', cs[2], 'de ouro'); }
     else if (/^O conserto custa|^Conserte com/.test(String(e.texto || ''))) consertoPausa = Date.now() + 10 * 60e3;
+  } else if (e.t === 'reforco' && COMBATE) { const C = R.combate.reforco; if (e.erro) reforcoPausa = Date.now() + 10 * 60e3; else { C.tentativas++; if (e.ok) C.ok++; C.ouro += e.custo | 0; log('reforço', e.nome, e.de, '->', e.e, e.ok ? 'subiu' : 'falhou', e.custo, 'de ouro'); }
   } else if (e.t === 'coletou') { R.coletas++; if (!e.cargas) coletando = 0; }
   else if (e.t === 'vila' && e.id === sala?.sessionId) { // totem ou casinha: o servidor leva o herói para outro lugar
     if (e.fase === 'chegou') { eu.x = e.x; eu.y = e.y; eu.z = e.z; parar(); viajandoAte = 0; correcoesSeguidas = 0; R.viagens = (R.viagens || 0) + 1; } // lugar novo: as correções de antes (na névoa) não contam
@@ -411,6 +421,26 @@ function vestir(agora) {
     if (notaPeca(o) > notaPeca(prog.equip[l])) { vestirT = agora; R.vestiu = (R.vestiu || 0) + 1; acao('item', { acao: 'equipar', i }); return true; }
   }
   return false;
+}
+// pontos de atributo no modo só caça (--cacar não passa pela missão, que é onde ele distribuía): metade Força, metade Vitalidade
+let pontosT = 0;
+function pontosLivres(agora) {
+  if (!prog || !(prog.pontos > 0) || agora - pontosT < 3000) return false;
+  pontosT = agora; const n = prog.pontos | 0, f = Math.ceil(n / 2);
+  acao('atributos', { for: f, ...(n - f ? { vit: n - f } : {}) }); prog.pontos = 0; return true;
+}
+// ---------- reforçar (robô do combate de teste): com ouro sobrando, reforça a peça do corpo de menor +, como o bot faz
+// (amiga.js reforcoAmiga): guarda 1.500 + o conserto, só tenta o + que o atributo deixa usar e se tem o Tecido ----------
+let reforcoT = 0, reforcoPausa = 0;
+function reforcarEquip(agora) {
+  if (!COMBATE || !prog?.equip || agora - reforcoT < 3000 || agora < reforcoPausa || eu.vida < eu.vidaMax * 0.9) return false;
+  const pecas = Object.entries(prog.equip).filter(([, o]) => o && ehEquip(o.k) && (o.e | 0) < reforcoMax(o) && (o.d ?? 100) > 0)
+    .filter(([, o]) => { const pr = reforcoPrecisa(o, (o.e | 0) + 1); if (atributoDoReforco(prog.atr, pr.k) < pr.n) return false; const m = materialReforco(o); return !m || contar(prog.mochila, m.k) >= m.n; })
+    .sort((a, b) => (a[1].e | 0) - (b[1].e | 0));
+  if (!pecas.length) return false;
+  const [lugar, o] = pecas[0];
+  if ((prog.ouro | 0) - custoReforco(o) < 1500 + 30 * (prog.nivel | 0)) return false;
+  reforcoT = agora; acao('item', { acao: 'reforcar', lugar }); return true;
 }
 function vender(agora) {
   const m = prog?.mochila; if (!m) return false;
@@ -697,7 +727,7 @@ async function main() {
     if (agora - relT > 10 * 60e3) { relT = agora; mandarRelatorio(); }
     if (!sala || !eu.pronto) continue;
     if (agora - pingT > 2000) { pingT = agora; mandar('ping', Math.round(performance.now())); } // número pequeno, como o app (Date.now() vira inteiro de 64 bits)
-    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !consertar(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora, true); else missao(agora); } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
+    try { if (!eu.morto) { passoPesca(agora); if (!pescaSt && !vestir(agora) && !vender(agora) && !consertar(agora) && !pontosLivres(agora) && !reforcarEquip(agora) && !receberDiarias(agora)) { if (SO_CACAR) cacar(agora, true); else missao(agora); } } } catch (e) { R.erros++; problema(`Erro no robô: ${e.message}`); }
     const andou = andar(dt);
     mandar('pos', { x: +eu.x.toFixed(3), y: +eu.y.toFixed(3), z: +eu.z.toFixed(3), ry: +eu.ry.toFixed(3), anim: andou ? 'correr' : 'parado', c: corrSeq });
     if (andou) correcoesSeguidas = Math.max(0, correcoesSeguidas - 0.02);

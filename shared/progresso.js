@@ -1,7 +1,7 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
 import { fichaJogadorValida, JANTAR } from './dados.js';
-import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS, TITULOS, HISTORIA, PATENTE } from './dados.js';
+import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS, TITULOS, HISTORIA, PATENTE, COMBATE_TESTE } from './dados.js';
 import { packValido, carrinhoValido, navioValido } from './transporte.js';
 import { histNova, histValida } from './historia.js';
 import { diariasValidas } from './diarias.js'; // missões diárias (André 2026-11-16)
@@ -84,6 +84,10 @@ export function calcularStatus(p, passivas = {}) {
   const co = bonusComida(p); // co: buff da comida (André 2026-11-24)
   const bq = p.banq?.ate > Date.now() ? JANTAR.buff.dano : 0; // Banquete do clã: o líder que sentou no jantar (André 2026-11-25); soma com a comida
   const nivelK = 1 + 0.08 * (n - 1);
+  // combate de teste (COMBATE_TESTE, só a conta do André com o botão ligado): arma multiplica, armadura x2
+  const CT = p.ct ? COMBATE_TESTE : null;
+  if (CT) { eq.vida *= CT.armadura; eq.defesa *= CT.armadura; }
+  const multCT = (armaDano) => (CT.base + CT.arma * armaDano) / CT.ref;
   const def = (a.for + (passivas.pele_pedra ? 3 : 0) + eq.defesa) * (1 + (ti.defesa || 0) + (co.defesa || 0));
   return {
     vidaMax: Math.round((84 + 8 * a.vit + 4 * a.for + 6 * (n - 1) + eq.vida) * (1 + (ti.vida || 0))),
@@ -93,8 +97,8 @@ export function calcularStatus(p, passivas = {}) {
     regenVida: REGEN.vida + REGEN.vidaNivel * n + REGEN.vidaVit * a.vit,
     defesa: def,
     reducao: def / (def + 24), // fração do dano que a defesa segura
-    danoFisico: (10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
-    danoMagico: (10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
+    danoFisico: (CT ? 10 * nivelK * (1 + 0.06 * (a.for - 3)) * multCT(eq.danoFisico) : 10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
+    danoMagico: (CT ? 10 * nivelK * (1 + 0.06 * (a.int - 3)) * multCT(eq.danoMagico) : 10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
     critico: Math.min(1, 0.0455 + 0.0015 * a.des + (passivas.sorte_arcana ? 0.02 : 0) + eq.critico + (ti.critico || 0) + (co.critico || 0)),
     danoCritico: eq.danoCritico, // somado no golpe crítico (o dobro + este número), André 2026-11-17
     recarga: Math.min(0.4, 0.0133 * a.des), // fração a menos no tempo de recarga
@@ -347,6 +351,21 @@ export function nomeItem(it) {
   if (ehEquip(it.k)) return `${ITENS[it.k].nome} ${RARIDADES[it.r].nome}${it.e ? ` +${it.e}` : ''}`;
   if (it.k === 'tomo') return `${HABS[it.h].tomo} ${ROMANO[it.nv]}`;
   return ITENS[it.k].nome;
+}
+// combate de teste (COMBATE_TESTE, André 2026-11-27): conta um golpe de monstro; a cada desgasteGolpes, cada peça do corpo
+// perde 1 de durabilidade. Devolve null (ainda não gastou) ou os nomes das peças que quebraram agora (chegaram a 0).
+export function desgasteGolpe(p) {
+  if (!p?.ct) return null;
+  p.ctg = (p.ctg | 0) + 1;
+  if (p.ctg < COMBATE_TESTE.desgasteGolpes) return null;
+  p.ctg = 0;
+  const quebrou = [];
+  for (const l of LUGARES) {
+    const it = p.equip?.[l]; if (!it || !ehEquip(it.k)) continue;
+    const antes = durab(it); if (antes <= 0) continue;
+    it.d = antes - 1; if (it.d <= 0) { it.d = 0; quebrou.push(ITENS[it.k].nome); }
+  }
+  return quebrou;
 }
 // ---------- durabilidade e penalidade de morte (MORTE em shared/dados.js, André 2026-11-05) ----------
 export const durab = (it) => (it && Number.isInteger(it.d) ? it.d : MORTE.durMax);
@@ -681,7 +700,9 @@ export function progressoValido(p) {
   n.abates = int(p.abates, 0, 1e9, 0);
   { const d = placarDueloValido(p.duelos); if (d) n.duelos = d; } // placar de duelos (André 2026-11-17, shared/duelo.js)
   { const f = fichaJogadorValida(p.fic); if (f) n.fic = f; } // ficha do jogador, opcional (André 2026-11-23, FICHA_RECRUTA)
-  { const g = patenteValida(p.gu); if (g) n.gu = g; } // Patente de Guerra (André 2026-11-26, shared/patente.js)
+  { const g = patenteValida(p.gu); if (g) n.gu = g; }
+  if (typeof p.ctz === 'string' && p.ctz.length < 20) n.ctz = p.ctz;
+  if (p.ct === 1) { n.ct = 1; if (Number.isInteger(p.ctg) && p.ctg > 0) n.ctg = Math.min(p.ctg, 100000); } // combate de teste (COMBATE_TESTE): ligado e golpes contados para o desgaste // Patente de Guerra (André 2026-11-26, shared/patente.js)
   { const a = pvpValido(p.pvp); if (a) n.pvp = a; } // Arena PvP (André 2026-11-21, shared/arena.js): Insígnias e placar
   if (Number.isFinite(p.rgCd) && p.rgCd > 0) n.rgCd = Math.round(p.rgCd); // Pó de rastreio: quando a recarga acaba (ms, hora de verdade)
   if (p.rgDado === 1) n.rgDado = 1; // Pó de rastreio de presente já entregue (conta de teste do André)
