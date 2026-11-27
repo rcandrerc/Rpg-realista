@@ -15,7 +15,7 @@ import { Client } from 'colyseus.js';
 // shared/index.js PRIMEIRO: os módulos do shared se importam em círculo (cla.js -> amiga.js -> simulacao.js); entrando
 // por progresso.js o robô caía em 9 s com "Cannot access 'Amiga' before initialization" (desde 2026-11-22)
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS, FERRAMENTAS_FAZENDA, MONTARIAS, HEROI, CURA, COLETA_DISTANCIA, HABS, TIPOS_INIMIGO, ITENS, ehEquip, TOTENS, LEILAO } from '../../shared/index.js';
-import { xpProximo, reforcoOk, reforcoMax, reforcoPrecisa, atributoDoReforco, custoReforco, materialReforco, contar } from '../../shared/progresso.js';
+import { xpProximo, reforcoOk, reforcoMax, reforcoPrecisa, atributoDoReforco, custoReforco, materialReforco, contar, consertoGratis } from '../../shared/progresso.js';
 import { noLago } from '../../shared/relevo.js';
 import { planejarRota } from '../../shared/rota.js';
 import { listaVenda as listaVendaDe, POCOES, campoPerigoso, listaMudou } from './robo-escolhas.mjs';
@@ -807,7 +807,7 @@ function ferreiroPerto() {
 }
 function consertar(agora) {
   if (!prog?.equip) return false;
-  const P = pecasParaConsertar(prog.equip, prog.ouro);
+  const P = pecasParaConsertar(prog.equip, prog.ouro, consertoGratis(prog)); // robô de testes: conserto de graça (André 2026-11-27)
   R.equip = P ? { quebradas: P.quebradas, menor: P.menor, ouro: prog.ouro | 0, custo: P.custo, ficam: P.ficam } : { inteiro: true, ouro: prog.ouro | 0 };
   if (!consertoAte) {
     if (agora < consertoPausa || !P) return false;

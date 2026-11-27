@@ -384,9 +384,11 @@ export function pecasGastas(p) {
 // consertar tudo: paga e volta a durabilidade cheia. Devolve { custo, n } ou { falta } (ouro que falta) ou null (nada gasto)
 // desconto: 0..1 no total (vantagem D da Guilda, shared/guilda.js vantagensGuilda)
 export const comDesconto = (custo, desconto = 0) => (custo > 0 && desconto > 0 ? Math.max(1, Math.ceil(custo * (1 - desconto))) : custo);
+// o robô de testes conserta de graça (COMBATE_TESTE.consertoGratis, André 2026-11-27); o resto paga o preço de sempre
+export const consertoGratis = (p) => !!(p?.ct && COMBATE_TESTE.consertoGratis);
 export function consertarTudo(p, desconto = 0) {
   const lista = pecasGastas(p); if (!lista.length) return null;
-  const custo = comDesconto(lista.reduce((s, x) => s + x.custo, 0), desconto);
+  const custo = consertoGratis(p) ? 0 : comDesconto(lista.reduce((s, x) => s + x.custo, 0), desconto);
   if ((p.ouro || 0) < custo) return { falta: custo - (p.ouro || 0), custo };
   p.ouro -= custo;
   for (const x of lista) delete (x.onde === 'equip' ? p.equip[x.l] : p.mochila[x.i]).d;
@@ -403,7 +405,7 @@ export function consertarPecas(p, lista, desconto = 0) {
     if (custoConserto(it)) pecas.add(it);
   }
   if (!pecas.size) return null;
-  const custo = comDesconto([...pecas].reduce((s, it) => s + custoConserto(it), 0), desconto);
+  const custo = consertoGratis(p) ? 0 : comDesconto([...pecas].reduce((s, it) => s + custoConserto(it), 0), desconto);
   if ((p.ouro || 0) < custo) return { falta: custo - (p.ouro || 0), custo };
   p.ouro -= custo;
   for (const it of pecas) delete it.d;
