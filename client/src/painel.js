@@ -175,7 +175,11 @@ function moralTag(m) {
   const pc = el('b', null, `${m.re}%`); pc.style.color = m.cor || '';
   t.append(sv, pc);
   if (m.fm) { const f = el('img'); f.src = 'painel-icones/peixe_assado.png'; f.alt = ''; f.className = m.fm < 0 ? 'fome' : 'bem'; t.append(f); } // a comida mexe no %
-  t.onclick = () => aviso(`${m.pt ? `Pegou ${m.pt.t}${m.pt.xp ? ` (+${m.pt.xp} XP)` : ''} ${m.pt.desde ? `em ${duracao(m.pt.m)} desde a ordem` : m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`}${m.ph ? ` (~${m.ph.n} por hora)` : ' (o por hora aparece com 15 min)'} · ` : ''}Moral ${m.ml} (${m.tr > 0 ? '+' : ''}${m.tr | 0} por hora)${m.fm ? ` · ${m.fn2}: ${m.fm > 0 ? '+' : ''}${m.fm}% (comida no Baú do Clã)` : ''} · rende ${m.re}% no grind (XP, ouro e o que o bicho solta). Sobe: perto de você ou no seu time, Elogiar e Jantar (no jogo). Desce: grindando ou caçando sozinho, cada hora mais rápido. Coleta e profissão não mexem na moral.`);
+  t.onclick = () => { // mesmo texto do _moral_texto do jogo (menu.gd)
+    const sn = (v) => `${v > 0 ? '+' : ''}${v}`, p = m.pt, mn = p?.m | 0;
+    const pre = p ? `Pegou ${p.t}${p.x ? ` (${sn(p.x)} pela comida)` : ''}${p.xp > 0 ? ` · +${p.xp} XP${p.xpx ? ` (${sn(p.xpx)} pela moral)` : ''}` : ''}${p.desde ? ` · desde a ordem: ${mn < 60 ? `${mn} min` : `${Math.floor(mn / 60)} h ${mn % 60} min`}` : ''}${m.ph ? ` · ~${m.ph.n}/h` : ''} · ` : '';
+    aviso(`${pre}Moral ${m.ml} (${m.tr > 0 ? '+' : ''}${m.tr | 0} por hora)${'fm' in m ? ` · ${m.fn2}: ${sn(m.fm)}% (comida no Baú do Clã)` : ''} · rende ${m.re}% no grind (XP, ouro e o que o bicho solta). Sobe: perto de você ou no seu time, Elogiar, Jantar. Desce: grindando ou caçando sozinho, cada hora mais rápido. Coleta e profissão não mexem na moral.`);
+  };
   return t;
 }
 function cartaoMembro(m) {
@@ -190,14 +194,10 @@ function cartaoMembro(m) {
     if (m.on && !m.morto) q.append(b); c.append(q);
   }
   c.append(el('div', 'faz', m.on ? (m.morto ? 'Caído' : comHa(m.fz || '', m.fzT)) : 'Fora do mundo'));
-  if (m.pt && m.fn?.k !== 'livre') { // o que rendeu a ordem: "Coletou 120 minério de ferro (+20 pela moral)"
-    const nome = m.fn?.k === 'grind' ? 'monstros' : (info.recursos.find((r) => r.k === m.fn?.r)?.nome || '');
-    // desde: o contador da ordem (desde que você deu a ordem; zera só ao trocar a ordem, André 2026-11-26)
-    const tempo = m.pt.desde ? `em ${duracao(m.pt.m)} (desde a ordem)` : m.pt.m >= 60 ? `nas últimas ${Math.round(m.pt.m / 60)} h` : `em ${m.pt.m} min`;
-    const x = m.pt.x ? ` (${m.pt.x > 0 ? '+' : ''}${m.pt.x} pela comida)` : ''; // moral nova: a coleta só muda pela comida (André 2026-11-26)
-    const xp = m.pt.xp ? ` · +${m.pt.xp.toLocaleString('pt-BR')} XP${m.pt.xpx ? ` (${m.pt.xpx > 0 ? '+' : ''}${m.pt.xpx.toLocaleString('pt-BR')} pela moral${m.fm ? ' e comida' : ''})` : ''}` : '';
-    const sx = m.pt.xpx || m.pt.x || 0, d = el('div', 'faz ganho' + (sx < 0 ? ' menos' : sx > 0 ? ' mais' : ''), `${m.fn?.k === 'grind' ? 'Derrotou' : 'Coletou'} ${m.pt.t} ${nome}${x}${xp} ${tempo}${m.ph ? ` · ~${m.ph.n}/h` : ''}`);
-    c.append(d);
+  if (m.pt?.desde && m.fn?.k !== 'livre') { // igual ao texto_ganho do jogo (menu.gd): "Coletou 120 (+12 pela comida) · +900 XP (+90 pela moral) · desde a ordem: 3 h 20 min"
+    const sn = (v) => `${v > 0 ? '+' : ''}${v}`, mn = m.pt.m | 0;
+    const t = `${m.fn?.k === 'grind' ? `Derrotou ${m.pt.t} monstros` : `Coletou ${m.pt.t}`}${m.pt.x ? ` (${sn(m.pt.x)} pela comida)` : ''}${m.pt.xp > 0 ? ` · +${m.pt.xp} XP${m.pt.xpx ? ` (${sn(m.pt.xpx)} pela moral)` : ''}` : ''} · desde a ordem: ${mn < 60 ? `${mn} min` : `${Math.floor(mn / 60)} h ${mn % 60} min`}`;
+    const sx = m.pt.xpx || 0; c.append(el('div', 'faz ganho' + (sx < 0 ? ' menos' : sx > 0 ? ' mais' : ''), t)); // cor igual ao cor_ganho do jogo
   }
   if (m.on) { const b = el('div', 'barras'); b.append(barra('Vida', m.hp, m.hpM, 'var(--hp)'), barra('Vigor', m.vg, m.vgM, 'var(--vg)')); c.append(b); }
   // ordem: as mesmas do painel do clã no jogo
@@ -2041,15 +2041,19 @@ function desenharPersonagem() {
     }
     if (usados) { const d = el('div', 'bts'); d.append(bt('Confirmar', () => { mandar('atributos', atrPend); atrPend = {}; }), bt('Cancelar', () => { atrPend = {}; desenharPersonagem(); }, true)); c.append(d); }
   }
-  // golpes: os 8 da barra (4 de espada, 4 de magia); toque num e escolha outro do mesmo tipo
-  { const c = card('⚔️ Golpes'), nome = new Map(P.hs.map((h) => [h[0], h]));
-    for (const [tipo, ini, rot] of [[0, 0, 'Espada'], [1, 4, 'Magia']]) {
-      c.append(el('div', 'faz', rot)); const g = el('div', 'atalhos');
-      for (let i = ini; i < ini + 4; i++) { const h = nome.get(P.bd[i]); const b = el('button'); b.append(document.createTextNode(h ? h[1] : '?'), el('small', null, golpeSel === i ? 'escolha abaixo' : 'trocar')); if (golpeSel === i) b.style.borderColor = '#7fcf7f'; b.onclick = () => { golpeSel = golpeSel === i ? -1 : i; desenharPersonagem(); }; g.append(b); }
+  // golpes: as duas barras do jogo (6 da espada, 6 do cajado), como a aba Habilidades do jogo; toque num botão e escolha
+  // outra skill que cabe nessa barra (a da árvore ou geral). Troca = msg 'barra' {barra, lista}; o servidor confere (barraValida)
+  { const c = card('⚔️ Golpes'), nome = new Map(P.hs.map((h) => [h[0], h])), sel = golpeSel;
+    for (const [bk, rot] of [['espada', 'Espada'], ['cajado', 'Cajado']]) {
+      const L = P.ba?.[bk] || []; c.append(el('div', 'faz', rot)); const g = el('div', 'atalhos');
+      L.forEach((id, i) => { const h = nome.get(id), on = sel?.[0] === bk && sel[1] === i, b = el('button');
+        b.append(document.createTextNode(h ? `${h[1]} Nv ${h[5]}` : '—'), el('small', null, on ? 'escolha abaixo' : 'trocar'));
+        if (on) b.style.borderColor = '#7fcf7f'; b.onclick = () => { golpeSel = on ? -1 : [bk, i]; desenharPersonagem(); }; g.append(b); });
       c.append(g);
-      if (golpeSel >= ini && golpeSel < ini + 4) for (const [k, n, t, desc] of P.hs.filter((h) => h[2] === tipo && !P.bd.includes(h[0]))) {
-        const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, n), el('small', null, desc)); const u = el('button', 'on', 'Usar');
-        u.onclick = () => { const bd = [...P.bd]; bd[golpeSel] = k; golpeSel = -1; mandar('build', bd); P.bd = bd; desenharPersonagem(); };
+      if (sel?.[0] === bk) for (const [k, n, arv, desc, lib, nv] of P.hs.filter((h) => (h[2] === bk || h[2] === 'geral') && !L.includes(h[0]))) {
+        const r = el('div', 'recLeve'), x = el('div', 'n'), trava = lib > (P.nv | 0); x.append(el('b', null, `${n}${trava ? '' : ` · Nv ${nv}`}`), el('small', null, trava ? `Libera no nível ${lib}` : desc));
+        const u = el('button', trava ? null : 'on', 'Usar'); u.disabled = trava;
+        u.onclick = () => { const lista = [...L]; lista[sel[1]] = k; golpeSel = -1; mandar('barra', { barra: bk, lista }); P.ba[bk] = lista; desenharPersonagem(); };
         r.append(x, u); c.append(r);
       }
     }
