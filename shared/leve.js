@@ -17,7 +17,7 @@ import { ESTRADAS_MUNDO } from './mundo.js';
 import { VILAS_MUNDO } from './dados.js';
 import { aguaRegador, pertoDeAgua, distRet, crescerPlanta, retPeca, semParede } from './simulacao.js'; // fazenda e cama (etapa 6); só usadas na hora, depois que tudo carregou
 import { PESCA, PLANTAS, HORTA, LOTE, fasePlanta } from './dados.js';
-import { horaDoJogo, ehNoite } from './progresso.js';
+import { horaDoJogo, ehNoite, HABS, BARRAS } from './progresso.js';
 
 export const LEVE = {
   envio: 0.5, // s entre as fotos para a página
@@ -40,6 +40,7 @@ export const LEVE = {
   reto: 30, // m do monstro: o Atacar deixa a estrada e vai reto até ele
   encosta: 2, // m do monstro: o Atacar para aqui (alcance do golpe é 2,3 m)
   spotVe: 40, // m: spot de pesca que aparece sem o Radar (a água borbulhando, como no jogo); com o Radar ligado, qualquer um
+  joySolto: 0.7, // s sem notícia do joystick: para
   cena: 40, // m: meia largura do mundo de perto (cenaLeve): chão, estradas, árvores, pedras, casas e veios
   cenaPasso: 2, // m por quadradinho do chão da cena
   montaDe: 25, // m de caminho: daqui pra cima o "Ir para" sobe no lobo sozinho (como no jogo)
@@ -158,6 +159,29 @@ export const Leve = {
     this.leveIr(id, { x: no.x, z: no.z, nome: COLETA[no.tipo]?.nome || '' });
     if (j.leveRota) j.leveRota.no = no.id;
   },
+  // joystick (André 2026-11-27: "um joystick virtual no canto esquerdo pra mover o personagem"): a mesma entrada do jogo
+  // (mx, mz até 1; empurrado até o fim corre). A página repete a cada ~0,2 s enquanto segura; sem notícia por
+  // LEVE.joySolto s, o herói para (dedo caiu, internet travou). Mexer no joystick cancela o caminho automático.
+  leveMover(id, m) {
+    const j = this.jogadores.get(id); if (!j || !j.leve || j.criando) return;
+    const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+    let mx = num(m?.mx), mz = num(m?.mz); const f = Math.hypot(mx, mz);
+    if (f < 0.15 || j.morto) { const tinha = !!j.leveJoy; j.leveJoy = null; if (tinha) j.entrada = { mx: 0, mz: 0, correr: false }; return; }
+    if (f > 1) { mx /= f; mz /= f; }
+    if (j.leveRota) this.leveParar(id, null);
+    if (j.coleta) this.pararColeta(j, null);
+    if (j.pesca) this.pararPesca(j, null);
+    if (j.vila) this.cancelarVila(j, null);
+    j.leveJoy = { mx, mz, correr: f > 0.6, t: this.tempo };
+  },
+  // golpe do leve (habLeve): a mesma msg 'habQ' do jogo, mirando no monstro escolhido (Atacar ou o círculo vermelho, como o
+  // botão Trocar alvo do jogo) e, nas de direção (Salto Arcano), para onde o joystick ou a frente apontam
+  leveHab(id, k) {
+    const j = this.jogadores.get(id); if (!j || !j.leve || !HABS[k]) return;
+    this.leveParar(id, null);
+    const e = this.alvoLeve(j) || this.maisPerto(j, 30), d = j.leveJoy ? [j.leveJoy.mx, j.leveJoy.mz] : [Math.sin(j.ry || 0), Math.cos(j.ry || 0)];
+    this.usarHabQ(id, { id: k, dx: d[0], dz: d[1], ...(e && Number.isInteger(e.v) ? { v: e.v, b: true } : {}) });
+  },
   leveParar(id, texto = 'Parou') {
     const j = this.jogadores.get(id); if (!j) return;
     const tinha = !!j.leveRota;
@@ -166,6 +190,11 @@ export const Leve = {
   },
   // um passo do herói do modo leve (antes do passoJogador): vira o "joystick" que leva ao próximo ponto do caminho
   passoLeve(j, dt) {
+    if (j.leveJoy) { // joystick: anda na direção do dedo até soltar
+      const J = j.leveJoy;
+      if (j.morto || this.tempo - J.t > LEVE.joySolto) { j.leveJoy = null; j.entrada = { mx: 0, mz: 0, correr: false }; return; }
+      j.entrada = { mx: J.mx, mz: J.mz, correr: J.correr && !j.semFolego && !j.veiculo }; return;
+    }
     const R = j.leveRota; if (!R) return;
     if (j.morto) return this.leveParar(j.id, null);
     const parado = { mx: 0, mz: 0, correr: false };
@@ -245,7 +274,8 @@ export const Leve = {
     // as clareiras de caça [x, z, nível, bicho, boss] e as zonas de mineração [x, z, tipo]
     const cc = CACA.filter((c) => !c.tunel && Number.isFinite(c.x)).map((c) => [r1(c.x), r1(c.z), c.nivel | 0, c.bicho || '', c.boss ? 1 : 0]);
     const mn = (this.mapa.mina || []).map((o) => [r1(o.x), r1(o.z), o.tipo || '']);
-    return { npcs, totens, loja, baus, lug: this.leveLugares(j), cc, mn };
+    const hq = Object.fromEntries(Object.entries(HABS).map(([k, H]) => [k, [H.nome, H.icone || (H.arvore === 'cajado' ? 'magia' : 'basico')]])); // nome e ícone das skills do jogo (habLeve)
+    return { npcs, totens, loja, baus, lug: this.leveLugares(j), cc, mn, hq };
   },
   // a lista "Lugares" do mapa (André 2026-11-25: "menu igual do jogo real com todos os NPCs, recursos, mercadores, e
   // sanfonado, que pudesse clicar ir para"): as mesmas seções do mapa do jogo (minimapa.gd SECOES). [seção, nome, x, z].
@@ -527,15 +557,21 @@ export const Leve = {
   // Magia: disparo + 4 de magia) e a cura. [i da mensagem 'habilidade', nome, recarga que falta (s), mana]
   // [.., chave]: o ícone do jogo (godot-prototipo/icones/<chave>.svg, André 2026-11-27)
   habLeve(j) {
+    // 2026-11-27 (André: "uso o meteoro e os bichos continuam lá... no jogo normal evaporo"): o leve usava as skills antigas
+    // (msg 'habilidade', dano fixo pequeno); o jogo usa as do Quimera (msg 'habQ': HABS, barras da espada e do cajado, dano
+    // pelo status e pelo nível da skill). Agora são as MESMAS do jogo: [id, recarga s, mana] por barra.
     const mg = j.modo === 'Magia', l = [], um = (i, chave, h) => { if (h) l.push([i, h.nome, Math.max(0, Math.ceil((j.cds[chave] || 0) - this.tempo)), h.mana || 0, chave]); };
-    um(mg ? 10 : 0, mg ? 'magia' : 'basico', mg ? BASICO_MAGIA : BASICO);
-    for (let k = 0; k < ESPACOS_ESPADA; k++) { const i = (mg ? ESPACOS_ESPADA : 0) + k + 1, c = j.build?.[i - 1]; if (c) um(i, c, HABILIDADES[c]); }
+    const q = (id) => { const H = HABS[id]; return H && (H.libera || 1) <= (j.prog.nivel | 0) ? [id, Math.max(0, Math.ceil(((j.cds[id] || 0) - this.tempo) * 10) / 10), H.mana || 0] : null; }; // nome e ícone vão uma vez só no leveMapa (hq): a foto fica pequena
+    const bs = q(mg ? 'cajado_basico' : 'espada_basico');
+    const visto = new Set(), barra = (b) => (j.prog.barras?.[b] || []).filter((id) => id && !visto.has(id) && visto.add(id)).map(q).filter(Boolean);
+    const [e, c] = BARRAS.map(barra);
     um(9, 'cura', CURA);
     // poções (André 2026-11-26): [k, lugar da 1ª pilha na mochila (-1 = nenhuma), quantas ao todo, recarga s]; usa a msg 'item' do jogo
     const po = ['pocao', 'pocao_mana'].map((k) => {
       let i = -1, n = 0; (j.prog?.mochila || []).forEach((it, q) => { if (it?.k === k) { if (i < 0) i = q; n += it.n || 1; } });
       return [k, i, n, Math.max(0, Math.ceil((j.pocaoAte?.[k] || 0) - this.tempo))];
     });
-    return { mg: mg ? 1 : 0, l, po };
+    const mv = [['rolar', Math.max(0, Math.ceil(((j.cds.rolar || 0) - this.tempo) * 10) / 10)], ['dash', Math.max(0, Math.ceil(((j.cds.dash || 0) - this.tempo) * 10) / 10)]];
+    return { mg: mg ? 1 : 0, bs, e, c, l, po, mv };
   },
 };
