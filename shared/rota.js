@@ -145,7 +145,11 @@ export function planejarRota(mapa, de, ate) {
   const fim = { x: ate.x, z: ate.z };
   let pontos = [fim];
   if (Math.hypot(ate.x - de.x, ate.z - de.z) >= ROTA.perto) {
-    const R = redeDeEstradas(mapa), a = R.maisPerto(de.x, de.z), b = R.maisPerto(ate.x, ate.z);
+    // campo de caça sem trilha (os da Geada Nv 1-30, shared/dados.js CAMPOS_GEADA): sai e entra pela porta dele (o ponto
+    // da estrada de onde se vai a pé), não pelo ponto da rede mais perto, que pode ser de outro ramo
+    const porta = (p) => (mapa?.caca || []).find((c) => c.porta && Math.hypot(p.x - c.x, p.z - c.z) < c.r + 25)?.porta || p;
+    const pa = porta(de), pb = porta(ate);
+    const R = redeDeEstradas(mapa), a = R.maisPerto(pa.x, pa.z), b = R.maisPerto(pb.x, pb.z);
     const ids = a >= 0 && b >= 0 ? R.caminho(a, b) : null;
     if (ids) {
       const p = ids.map((i) => ({ x: R.xs[i], z: R.zs[i] })), dd = (q, r) => Math.hypot(q.x - r.x, q.z - r.z);
