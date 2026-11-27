@@ -79,7 +79,9 @@ function alertaCombate() {
   const ult = L.length ? min - L[L.length - 1].min : null, ant = L.slice(-4).map((x, i, a) => (i ? x.min - a[i - 1].min : null)).filter((x) => x != null);
   const media = ant.length ? ant.reduce((a, b) => a + b, 0) / ant.length : null;
   const motivo = mh >= 6 ? `${mh} mortes na última hora` : ult != null && media && ult > 2 * media && ult > 20 ? `nível ${prog.nivel} levou ${ult} min (média ${Math.round(media)})` : '';
-  if (motivo) { R.combate.alerta = { nv: prog.nivel, min, motivo, eq: fotoEquip(prog.equip) }; problema(`Combate de teste: precisa de upgrade? ${motivo}`); }
+  // um achado só, o mais novo (ronda 2026-11-27: "6 mortes", "7 mortes"... viravam um achado cada e tiravam as travadas
+  // de verdade da lista, que guarda 60)
+  if (motivo) { R.combate.alerta = { nv: prog.nivel, min, motivo, eq: fotoEquip(prog.equip) }; R.problemas = R.problemas.filter((p) => !p.startsWith('Combate de teste: precisa de upgrade?')); problema(`Combate de teste: precisa de upgrade? Nv ${prog.nivel}, ${motivo}`); }
 }
 // por nível (thread do robô, André: "qual o mob que ele grindou e o nível do mob... quantos minutos ele parou, quantos
 // grindou real"): cur junta o nível de agora; t = minutos por estado { caca, anda, morto, para, fora } (a soma fecha com o
@@ -291,11 +293,12 @@ function acao(tipo, dados) { esperaResposta = performance.now(); mandar(tipo, da
 
 // ---------- lutar ----------
 let golpeT = 0, skillT = 0, curaT = 0, pocaoT = 0;
-function alvoPerto(raio = 30, treino = false) {
+function alvoPerto(raio = 30, treino = false, serve = null) { // serve(e): só os que servem (combate de teste: o nível do campo)
   let b = null, md = raio;
   for (const e of inimigos.values()) {
     if (e.morto || NOMES_BOSS.has(e.nome)) continue; // boss de mundo é dos jogadores de verdade
     if (NOMES_TREINO.has(e.nome) !== treino) continue; // espantalho só na missão de treino; na de treino, só ele
+    if (serve && !serve(e)) continue;
     const d = d2(eu, e); if (d < md) { md = d; b = e; }
   }
   return b;
@@ -434,14 +437,26 @@ function cacar(agora, podeViajar = false) {
   if (COMBATE && !CAMPO && campoCombate(agora, podeViajar)) return;
   // ronda 2026-11-17: com raio de 40 m em volta dele, o robô ficava na vila matando Puglin Nv 1 (renasce sempre) e nunca
   // chegava ao campo do nível. Agora: só o que está no campo, ou o que encosta nele (até 5 m) no caminho
-  let e = alvoPerto(campoCaca ? 40 : 18);
-  if (e && campoCaca && d2(e, campoCaca) > 40 && d2(eu, e) > 5) e = null;
-  // ronda 2026-11-27 (combate de teste): fora da terra dele (Nv 1 na Ilha, esperando a casinha) não puxa briga com bicho
-  // 10+ níveis acima: só com o que já encostou. As mortes do teste são as do campo do nível dele
-  if (e && COMBATE && (e.nivel || 1) > (prog?.nivel || 1) + 10 && d2(eu, e) > 5) e = null;
-  // e bicho mais fraco que o do campo dele, encostado no caminho, não segura o robô: ele segue para o campo (com menos de
-  // metade da vida, briga). Senão o Puglin Nv 1 do campo velho não deixava ele sair
-  if (e && COMBATE && !CAMPO && campoCaca && d2(e, campoCaca) > 40 && (e.nivel || 1) < (campoCaca.nivel || 1) && eu.vida > eu.vidaMax * 0.5) e = null;
+  let e;
+  if (COMBATE && !CAMPO && campoCaca) {
+    // ronda 2026-11-27, 2º turno: a Clareira dos Lobos Nv 20 fica a 36 m da dos Puglins Nv 15 e, com "o que estiver a 40 m
+    // do campo", ele matou 121 Puglins Nv 15 nos Nv 20 e 21 (André: "sempre grinde no nível do mob que ele é"). Agora só
+    // puxa bicho do nível do campo até o dele. O que encosta (5 m) ele enfrenta se for do nível do campo ou mais forte,
+    // e qualquer um com menos de metade da vida. O mais fraco encostado não segura (senão o Puglin Nv 1 do campo velho
+    // não deixava ele sair)
+    const nvC = campoCaca.nivel || 1, nvMax = Math.max(prog?.nivel || 1, nvC);
+    e = alvoPerto(40, false, (m) => {
+      const n = m.nivel || 1;
+      if (n >= nvC && n <= nvMax && d2(m, campoCaca) <= 40) return true;
+      return d2(eu, m) <= 5 && (n >= nvC || eu.vida <= eu.vidaMax * 0.5);
+    });
+  } else {
+    e = alvoPerto(campoCaca ? 40 : 18);
+    if (e && campoCaca && d2(e, campoCaca) > 40 && d2(eu, e) > 5) e = null;
+    // ronda 2026-11-27 (combate de teste): fora da terra dele (Nv 1 na Ilha, esperando a casinha) não puxa briga com bicho
+    // 10+ níveis acima: só com o que já encostou. As mortes do teste são as do campo do nível dele
+    if (e && COMBATE && (e.nivel || 1) > (prog?.nivel || 1) + 10 && d2(eu, e) > 5) e = null;
+  }
   if (e) return lutar(e, agora);
   if (CAMPO) campoCaca = CAMPO;
   // ronda 2026-11-18: no Nv 53 (c14) passou 45 min sem XP; o campo Nv 52 fica na Ilha do Meio (sem barco não chega).
