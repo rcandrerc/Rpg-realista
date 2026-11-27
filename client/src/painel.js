@@ -754,7 +754,7 @@ function desenharMapa() {
     if (cabe(L.nome, a, b - 8)) escrever(L.nome, a, b - 8, '#e8dcc0');
   }
   // escala: quantos metros vale o traço
-  const m = [5, 10, 20, 50, 100, 200, 500].find((v) => (v / span) * W > W / 6) || 500, px = (m / span) * W, y = H - fonte - (jogando ? 160 * dpr : 0); // Jogar: acima do joystick
+  const m = [5, 10, 20, 50, 100, 200, 500].find((v) => (v / span) * W > W / 6) || 500, px = (m / span) * W, y = H - fonte - (jogando ? 212 * dpr : 0); // Jogar: acima do joystick, da rolada e do flash
   g.fillStyle = 'rgba(12,10,8,.7)'; g.fillRect(fonte * 0.6, y - fonte * 1.4, px + fonte * 1.2, fonte * 2);
   g.fillStyle = '#efe7d6'; g.fillRect(fonte * 1.2, y, px, Math.max(2, W / 300));
   g.font = `${Math.round(fonte * 0.8)}px system-ui,sans-serif`; g.textAlign = 'left'; g.fillText(`${m} m`, fonte * 1.2, y - fonte * 0.3);
@@ -1425,7 +1425,7 @@ const LUTA_PERTO = 14;
 const ICONE_HAB = { Golpe: '⚔️', Disparo: '🔮', Cura: '💚' };
 // os mesmos símbolos dos botões do jogo (André 2026-11-27: "coloca igual do jogo pra quem já joga já nem pensa"): os .svg de
 // godot-prototipo/icones copiados em client/public/painel-icones/hab; o básico da espada é 'basico' e o da magia 'magia'
-const ICONE_JOGO = { basico: 'basico', magia: 'magia', cura: 'cura' };
+const ICONE_JOGO = { basico: 'basico', magia: 'magia', cura: 'cura', pisao: 'onda', escudo: 'barreira' }; // pisão e escudo não têm SVG próprio: os parecidos
 function iconeJogo(nome, reserva) { // client/public/painel-icones/jogo: os .svg/.png da HUD do jogo (godot-prototipo/icones)
   const i = el('i'), im = el('img'); im.alt = ''; im.src = `painel-icones/jogo/${nome}${/^(pf_|pescar|cs_bau$)/.test(nome) ? '.png' : '.svg'}`; im.onerror = () => { im.remove(); i.textContent = reserva; }; i.append(im); return i;
 }
@@ -1466,47 +1466,42 @@ function lutaLeve(raiz, morto, mana) {
   } else if (ga) ga.remove();
   const perto = F.hb && !morto; // tela do jogo (André 2026-11-27: "embaixo sempre vai ficar aparecendo as skills"): sempre, no arco do jogo
   if (!perto) { if (h) h.remove(); golpesEl = null; habChave = ''; return; }
-  const chave = F.hb.l.map((o) => o[0] + o[1] + (o[4] || '')).join('|') + F.hb.mg;
+  // as skills são as do jogo (habQ, André 2026-11-27): bs = o básico da arma na mão, e = barra da espada, c = barra do cajado
+  const todas = [F.hb.bs, ...(F.hb.e || []), ...(F.hb.c || []), ...F.hb.l].filter(Boolean);
+  const chave = todas.map((o) => o[0] + o[1] + (o[4] || '')).join('|') + F.hb.mg;
   if (!h || chave !== habChave) {
     if (h) h.remove();
     h = el('div', 'habLeve arco'); habChave = chave; golpesEl = h;
-    // tela do jogo (André 2026-11-27: "igualzinho o jogo"): o mesmo arco da HUD do jogo (hud.gd, tela deitada de 1280x576,
-    // contado do canto de baixo à direita): golpe grande no canto, cura embaixo dele, as skills num arco em volta (80° a -45°),
-    // o Trocar acima à esquerda e as poções e o lobo na fileira de baixo. S = a escala para o celular em pé
+    // tela do jogo (André 2026-11-27: "igualzinho o jogo"): o arco da HUD do jogo (hud.gd, contado do canto de baixo à
+    // direita): golpe grande no canto e a cura embaixo dele. Depois ("pode pôr todas as skills, tanto do guerreiro quanto do
+    // mago"): a barra da espada no arco de dentro e a do cajado no de fora; rolada e flash junto do joystick
     const S = 0.7, lugar = (b, x, y, r) => { const d = Math.round(r * S * 2.36); b.style.width = b.style.height = d + 'px'; b.style.right = Math.round(x * S + 10 - d / 2) + 'px'; b.style.bottom = Math.round(y * S + 8 - d / 2) + 'px'; };
-    F.hb.l.forEach(([i, nome, , , chave], n) => {
-      const b = el('button', n === 0 ? 'grande' : i === 9 ? 'cura' : ''); b.dataset.i = i; b.title = nome;
-      // 2026-11-27 (André: "mais juntos pra direita e até maiores"; depois "pode pôr todas as skills"): as de espada (1-4) no
-      // arco de dentro, as de magia (5-8) no de fora
-      if (n === 0) lugar(b, 80, 158, 56); else if (i === 9) lugar(b, 80, 58, 31);
-      else if (i <= 4) { const ang = (80 - 25 * (i - 1)) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 150, 158 + Math.sin(ang) * 150, 33); }
-      else { const ang = (78 - 18.7 * (i - 5)) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 220, 158 + Math.sin(ang) * 220, 33); b.classList.add('mg'); }
-      b.append(iconeHab(chave, ICONE_HAB[nome] || '✨'), el('span', null, nome), el('b', 'cd'));
-      if (n === 0) segurarBasico(b, i); // segurar = bate sem parar, como no jogo (André 2026-11-27)
-      else b.onclick = () => { if (b.classList.contains('espera')) return; mandar('habilidade', i); };
-      h.append(b);
-    });
-    const tr = el('button', 'troca'); tr.title = F.hb.mg ? 'Usar espada' : 'Usar magia'; lugar(tr, 55, 590, 25); tr.append(iconeHab('troca', '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
+    const botao = ([id, nome, , , ic], cls) => { const b = el('button', cls); b.dataset.i = id; b.title = nome; b.append(iconeHab(ic, ICONE_HAB[nome] || '✨'), el('span', null, nome), el('b', 'cd')); h.append(b); return b; };
+    if (F.hb.bs) { const b = botao(F.hb.bs, 'grande'); lugar(b, 80, 158, 56); segurarBasico(b, F.hb.bs[0]); } // segurar = bate sem parar, como no jogo
+    for (const o of F.hb.l) { const b = botao(o, o[0] === 9 ? 'cura' : ''); if (o[0] === 9) lugar(b, 80, 58, 31); b.onclick = () => { if (!b.classList.contains('espera')) mandar('habilidade', o[0]); }; }
+    (F.hb.e || []).forEach((o, k) => { const b = botao(o, ''), ang = (88 - 27.8 * k) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 150, 158 + Math.sin(ang) * 150, 30); b.onclick = () => { if (!b.classList.contains('espera')) mandar('leveHab', o[0]); }; });
+    (F.hb.c || []).forEach((o, k) => { const b = botao(o, 'mg'), ang = (88 - 15 * k) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 228, 158 + Math.sin(ang) * 228, 25); b.onclick = () => { if (!b.classList.contains('espera')) mandar('leveHab', o[0]); }; });
+    const tr = el('button', 'troca'); tr.title = F.hb.mg ? 'Usar espada' : 'Usar magia'; lugar(tr, 55, 665, 25); tr.append(iconeHab('troca', '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
     tr.onclick = () => mandar('modo', F.hb.mg ? 'Espada' : 'Magia'); h.append(tr);
     // poções (André 2026-11-26): mesmas da mochila e mesma recarga do jogo (o servidor confere); 2026-11-27 numa coluna na
     // beira direita, acima do arco (o canto esquerdo é do joystick)
-    for (const [k, ic, nome, x] of [['pocao', '❤️', 'Poção vida', 460], ['pocao_mana', '💙', 'Poção mana', 525]]) {
+    for (const [k, ic, nome, x] of [['pocao', '❤️', 'Poção vida', 535], ['pocao_mana', '💙', 'Poção mana', 600]]) {
       const b = el('button', k === 'pocao' ? 'pv' : 'pm'); lugar(b, 55, x, 25); b.title = nome; const ii = el('i'), im = el('img'); im.alt = ''; im.src = `painel-icones/${k}.png`; im.className = 'po'; im.onerror = () => { im.remove(); ii.textContent = ic; }; ii.append(im); // a poção pintada do jogo (it_pocao)
       b.dataset.po = k; b.append(ii, el('span', null, nome), el('b', 'cd'));
       b.onclick = () => { const p = (leve.f?.hb?.po || []).find((o) => o[0] === k); if (!p || p[1] < 0) return aviso(`Sem ${nome.toLowerCase()} na mochila`); if (p[3] > 0) return; mandar('item', { acao: 'usar', i: p[1] }); };
       h.append(b);
     }
-    // rolada e flash (os botões do jogo: msg 'rolar' e 'dash', na direção do joystick ou da frente), embaixo, ao lado da cura
-    for (const [k, nome, x] of [['rolar', 'Rolada', 175], ['dash', 'Flash', 245]]) {
-      const b = el('button', 'mov'); b.dataset.mv = k; b.title = nome; lugar(b, x, 48, 27); b.append(iconeHab(k, k === 'rolar' ? '🌀' : '💨'), el('span', null, nome), el('b', 'cd'));
+    // rolada e flash (os botões do jogo: msg 'rolar' e 'dash', na direção do joystick ou da frente), logo acima do joystick
+    for (const [k, nome, x] of [['rolar', 'Rolada', 18], ['dash', 'Flash', 80]]) {
+      const b = el('button', 'mov'); b.dataset.mv = k; b.title = nome; lugar(b, 0, 0, 27); b.style.right = 'auto'; b.style.left = x + 'px'; b.style.bottom = '146px'; b.append(iconeHab(k, k === 'rolar' ? '🌀' : '💨'), el('span', null, nome), el('b', 'cd'));
       b.onclick = () => { if (!b.classList.contains('espera')) mandar(k); }; h.append(b);
     }
     // o lobo (o botão Montar do jogo, a mesma mensagem 'montar'), ao lado das poções como na HUD do jogo
-    const lb = el('button', 'lobo'); lb.title = 'Lobo'; lugar(lb, 55, 395, 25); lb.append(iconeJogo('lobo', '🐺'), el('span', null, 'Lobo')); lb.onclick = () => mandar('montar'); h.append(lb);
+    const lb = el('button', 'lobo'); lb.title = 'Lobo'; lugar(lb, 55, 470, 25); lb.append(iconeJogo('lobo', '🐺'), el('span', null, 'Lobo')); lb.onclick = () => mandar('montar'); h.append(lb);
     // sem botão Fugir (André 2026-11-25: "pra fugir eu clico no mapa"): tocar no mapa anda, mesmo no meio da luta
   }
   { const lb = h.querySelector('.lobo'); lb.classList.toggle('on', !!F.eu[10]); lb.hidden = leve.pk?.car?.onde === 2; } // montado acende; dirigindo o carrinho some
-  for (const [i, , cd, mn] of F.hb.l) {
+  for (const [i, , cd, mn] of todas) {
     const b = h.querySelector(`[data-i="${i}"]`); if (!b) continue;
     const sem = mn > mana; b.classList.toggle('espera', cd > 0 || sem); b._sem = sem; recarga(b, cd);
   }
@@ -1531,8 +1526,8 @@ addEventListener('pointercancel', (e) => { if (e.pointerId === basicoDedo) parar
 function segurarBasico(b, i) {
   if (basicoDedo != null) b.classList.add('segurando'); // a tela se refez com o dedo ainda no botão
   b.onpointerdown = (e) => {
-    e.preventDefault(); pararBasico(); basicoDedo = e.pointerId; b.classList.add('segurando'); mandar('habilidade', i);
-    basicoRep = setInterval(() => { if (leve.f?.eu[6] || !leve.sala) return pararBasico(); mandar('habilidade', i); }, 200);
+    e.preventDefault(); pararBasico(); basicoDedo = e.pointerId; b.classList.add('segurando'); mandar('leveHab', i);
+    basicoRep = setInterval(() => { if (leve.f?.eu[6] || !leve.sala) return pararBasico(); mandar('leveHab', leve.f?.hb?.bs?.[0] || i); }, 200);
   };
   b.oncontextmenu = (e) => e.preventDefault();
 }
