@@ -130,8 +130,12 @@ function irAba(a) {
   $('cla').hidden = aba !== 'cla'; $('bots').hidden = aba !== 'bots'; $('log').hidden = aba !== 'log';
   $('leilaoAba').hidden = aba !== 'leilao'; if (aba === 'leilao') pedirLeilao();
   $('mochilaAba').hidden = aba !== 'mochila'; $('missoesAba').hidden = aba !== 'missoes'; $('maisAba').hidden = aba !== 'mais'; $('personagemAba').hidden = aba !== 'personagem'; $('socialAba').hidden = aba !== 'social'; $('fazendaAba').hidden = aba !== 'fazenda';
-  $('jogarAba').hidden = aba !== 'jogar';
-  if (aba !== 'jogar') document.body.classList.remove('leveTela');
+  // tela do jogo (André 2026-11-27: "a mochila abre pela frente do mapa, como no jogo normal"): no mundo, Mochila, Missões,
+  // Clã, Fazenda, PvP e Mais abrem por cima do mapa; o mapa, a barra de cima e os golpes continuam ali
+  const sobre = !!leve.sala && a !== 'jogar';
+  document.body.classList.toggle('sobre', sobre); document.body.dataset.sobre = sobre ? a : '';
+  $('jogarAba').hidden = aba !== 'jogar' && !sobre;
+  if (aba !== 'jogar' && !sobre) document.body.classList.remove('leveTela');
   // a aba Mapa saiu (André 2026-11-25: "no jogar já tem o mapa... pode remover"): o mapa, os líderes bot e a legenda ficam no Jogar
   if (aba === 'jogar') { vista = null; leve.sujo = true; desenharJogar(); if (leve.sala) desenharMapa(); }
   if (aba === 'mochila') { leve.sujo = true; desenharMochila(); }
@@ -143,10 +147,12 @@ function irAba(a) {
   if (aba === 'fazenda') desenharFazenda();
   if (aba === 'social') { mandar('amigo', { acao: 'lista' }); mandar('pvp', { acao: 'info' }); desenharSocial(); }
   if (aba === 'mais') desenharMais();
+  if (leve.sala) barraTopo(); // a barra de cima acende o ícone da janela aberta
   scrollTo(0, 0);
   desenhar();
 }
 for (const b of $('abas').querySelectorAll('button')) b.onclick = () => irAba(b.dataset.aba);
+$('fechaSobre').onclick = () => irAba('jogar'); // a janela por cima do mapa (tela do jogo): o ✕ volta ao mapa
 
 function barra(rot, v, max, cor) {
   const d = el('div'); d.append(el('div', 'rot', `${rot} ${v}/${max}`));
@@ -462,15 +468,25 @@ const limitar = (v) => { v.span = Math.max(ZOOM.min, Math.min(ZOOM.max, v.span))
 let quadro = null; // a vista do último desenho (para o zoom e o arrasto partirem dela)
 // Jogar (André 2026-11-26: "o mapa ser um pouco mais próximo... quando eu aproximo e quero ir caminhando com ele, o mapa não
 // anda junto"): o mapa segue o herói em qualquer zoom; + e − (e a pinça) só mudam o zoom de seguir. Arrastar com um dedo
-// solta o mapa; tocar para andar (ou o centralizar) volta a seguir, no mesmo zoom. Padrão 70 m (era 140)
-let spanSegue = (() => { try { return Number(localStorage.getItem('leveZoom')) || 70; } catch { return 70; } })();
+// solta o mapa; tocar para andar (ou o centralizar) volta a seguir, no mesmo zoom. 2026-11-27: o zoom de andar virou o de perto
+// (spanPerto) e o do mapa geral (spanGeral), logo abaixo
 // na luta (André 2026-11-26: "o zoom no combate... me posicionar... noção da distância"): um zoom próprio, bem mais perto
 // (padrão 28 m), também mudado pelo + e −; acabou a luta, volta ao zoom de andar
 // 2026-11-27 (André: "quando eu tivesse em combate, o mapa aproximasse muito"): padrão 14 m (era 28), num lugar novo da memória
 let spanLuta = (() => { try { return Number(localStorage.getItem('leveZoomLuta2')) || 14; } catch { return 14; } })();
 const naLuta = () => !!(leve.f && (emLuta(leve.f.eu[6]) || bichoPerto()));
-const seguindo = () => !vista && aba === 'jogar' && leve.f;
-const guardarZoom = (s) => { const v = Math.max(ZOOM.min, Math.min(ZOOM.max, s)), luta = naLuta(); if (luta) spanLuta = v; else spanSegue = v; try { localStorage.setItem(luta ? 'leveZoomLuta2' : 'leveZoom', String(Math.round(v))); } catch { /* sem armazenamento */ } };
+// tela do jogo (André 2026-11-27: "um 2D bem próximo... como se eu estivesse dentro do jogo"): a tela é a vista de perto
+// (padrão 24 m); o mapa geral abre pelo minimapa (mapaGeral) com o zoom de andar e o Ir para
+let spanPerto = (() => { try { return Number(localStorage.getItem('leveZoomPerto')) || 24; } catch { return 24; } })();
+let mapaGeral = false;
+let spanGeral = (() => { try { return Number(localStorage.getItem('leveZoomGeral')) || 500; } catch { return 500; } })(); // o mapa geral começa vendo a região (500 m)
+const spanAgora = () => (mapaGeral ? spanGeral : naLuta() ? spanLuta : spanPerto);
+const seguindo = () => !vista && mundoVisivel() && leve.f;
+const guardarZoom = (s) => {
+  const v = Math.max(ZOOM.min, Math.min(ZOOM.max, s)), qual = mapaGeral ? 'leveZoomGeral' : naLuta() ? 'leveZoomLuta2' : 'leveZoomPerto';
+  if (qual === 'leveZoomGeral') spanGeral = v; else if (qual === 'leveZoomLuta2') spanLuta = v; else spanPerto = Math.min(80, v); // de perto: até 80 m (mais que isso é o mapa geral)
+  try { localStorage.setItem(qual, String(Math.round(qual === 'leveZoomPerto' ? spanPerto : v))); } catch { /* sem armazenamento */ }
+};
 const zoom = (f) => { if (!quadro) return; if (seguindo()) guardarZoom(quadro.span * f); else vista = limitar({ ...quadro, span: quadro.span * f }); desenharMapa(); };
 $('mapaMais').onclick = () => zoom(1 / 1.6);
 $('mapaMenos').onclick = () => zoom(1.6);
@@ -491,7 +507,7 @@ $('mapaCentro').onclick = () => { if (vista && aba === 'jogar') guardarZoom(vist
     desenharMapa();
   });
   const soltar = (e) => {
-    if (e.type === 'pointerup' && toque && dedos.size === 1 && Math.hypot(e.clientX - toque.x, e.clientY - toque.y) < 10 && aba === 'jogar') { vista = toque.v; tocarMapaLeve(e); vista = null; } // andou: o mapa volta a seguir o herói (no zoom de seguir)
+    if (e.type === 'pointerup' && toque && dedos.size === 1 && Math.hypot(e.clientX - toque.x, e.clientY - toque.y) < 10 && mundoVisivel()) { vista = toque.v; tocarMapaLeve(e); vista = null; } // andou: o mapa volta a seguir o herói (no zoom de seguir)
     toque = null; dedos.delete(e.pointerId); comecar();
   };
   cv.addEventListener('pointerup', soltar); cv.addEventListener('pointercancel', soltar);
@@ -508,7 +524,7 @@ function desenharMapa() {
   if (cv.width !== lado || cv.height !== alto) { cv.width = lado; cv.height = alto; }
   const g = cv.getContext('2d'), W = cv.width, H = cv.height;
   const pts = [];
-  const jogando = aba === 'jogar' && leve.f;
+  const jogando = mundoVisivel() && leve.f;
   // modo leve: cores pela relação com você (André 2026-11-25: "eu com meus bots verdinho... os geadas vermelhos... fica
   // parecendo que os geadas são meus amigos"): você e seus recrutas verdes, Geada vermelho, outros da Chama azuis,
   // monstros laranja. Fora do modo leve o mapa do clã segue como era (recrutas dourados)
@@ -525,7 +541,7 @@ function desenharMapa() {
   const bots = ler('painelBots') === '1';
   if (bots) for (const C of info.clas || []) if (Number.isFinite(C.x)) pts.push({ x: C.x, z: C.z, cor: C.inimigo ? '#ff3b30' : C.raca === 'Geada' ? '#6fb3e6' : '#e0663a', nome: C.lider, r: 5, losango: true });
   $('mapaBots').checked = bots;
-  if (!vista && jogando) quadro = limitar({ cx: leve.f.eu[0], cz: leve.f.eu[1], span: naLuta() ? spanLuta : spanSegue }); // Jogar: segue o herói (na luta, mais perto)
+  if (!vista && jogando) quadro = limitar({ cx: leve.f.eu[0], cz: leve.f.eu[1], span: spanAgora() }); // Jogar: segue o herói (na luta, mais perto)
   else if (!vista) { // ajusta sozinho a quem está no mundo
     const base = pts.length ? pts : [{ x: 0, z: 0 }];
     const x0 = Math.min(...base.map((p) => p.x)), x1 = Math.max(...base.map((p) => p.x)), z0 = Math.min(...base.map((p) => p.z)), z1 = Math.max(...base.map((p) => p.z));
@@ -630,10 +646,11 @@ function desenharMapa() {
     if (cabe(L.nome, a, b - 8)) escrever(L.nome, a, b - 8, '#e8dcc0');
   }
   // escala: quantos metros vale o traço
-  const m = [10, 20, 50, 100, 200, 500].find((v) => (v / span) * W > W / 6) || 500, px = (m / span) * W, y = H - fonte - (jogando ? 64 * dpr : 0); // Jogar: acima da barra de botões
+  const m = [5, 10, 20, 50, 100, 200, 500].find((v) => (v / span) * W > W / 6) || 500, px = (m / span) * W, y = H - fonte - (jogando ? 84 * dpr : 0); // Jogar: acima das poções e do lobo
   g.fillStyle = 'rgba(12,10,8,.7)'; g.fillRect(fonte * 0.6, y - fonte * 1.4, px + fonte * 1.2, fonte * 2);
   g.fillStyle = '#efe7d6'; g.fillRect(fonte * 1.2, y, px, Math.max(2, W / 300));
   g.font = `${Math.round(fonte * 0.8)}px system-ui,sans-serif`; g.textAlign = 'left'; g.fillText(`${m} m`, fonte * 1.2, y - fonte * 0.3);
+  if (jogando) { const [a, b] = P(leve.f.eu[0], leve.f.eu[1]), r = cv.getBoundingClientRect(), t = $('jogarAba').getBoundingClientRect(); leve.euTela = [r.left - t.left + a * r.width / W, r.top - t.top + b * r.height / H]; posicionarBalao(); desenharMini(); }
 }
 
 // ---------- Jogar: o modo leve (André 2026-11-25: "logar no jogo... só um mapa, eu clico e vai... ir na action house,
@@ -665,7 +682,7 @@ function ligarLeve(s) {
     // jogo 3D); a página guarda o veio para o botão "Voltar a minerar" quando a luta acabar
     const coAntes = leve.coAntes; leve.coAntes = d.f?.co ? { no: d.f.co[0], nome: d.f.co[1], prof: leve.col?.no === d.f.co[0] ? leve.col.prof : '' } : null;
     if (d.f?.co) leve.volta = null; else if (coAntes && d.f?.lu) leve.volta = coAntes;
-    if (aba === 'jogar') { desenharMapa(); desenharJogar(); } else if (aba === 'mochila' && leve.sujo) desenharMochila();
+    if (mundoVisivel()) { desenharMapa(); desenharJogar(); } else if (aba === 'mochila' && leve.sujo) desenharMochila();
   });
   s.onMessage('leveMapa', (d) => { leve.mapa = d; leve.sujo = true; });
   s.onMessage('leveErro', (t) => { aviso(t); leve.saindo = true; s.leave(); });
@@ -677,7 +694,7 @@ function ligarLeve(s) {
     else if (!leve.saindo && codigo !== 4003) { // queda de internet: tenta voltar no mesmo herói
       try { ligarLeve(await cliente.reconnect(token)); return; } catch { aviso('O modo leve caiu. Toque em Entrar no mundo.'); }
     }
-    desenharJogar(); if (aba === 'jogar') desenharMapa(); if (aba === 'mochila') desenharMochila();
+    desenharJogar(); if (mundoVisivel()) desenharMapa(); if (aba === 'mochila') desenharMochila();
   });
 }
 function sairLeve() { if (!leve.sala) return; leve.saindo = true; leve.sala.leave(); }
@@ -741,7 +758,7 @@ function tocarMapaLeve(e) {
   for (const L of leve.mapa ? [...leve.mapa.npcs, ...leve.mapa.totens] : []) { const d = Math.hypot(L.x - x, L.z - z); if (d < melhor) { melhor = d; alvo = { x: L.x, z: L.z, nome: L.n.split(',')[0] }; } }
   irLeve(alvo);
 }
-const irLeve = (a) => { mandar('leveIr', { x: Math.round(a.x * 10) / 10, z: Math.round(a.z * 10) / 10, nome: a.nome || undefined }); if (aba !== 'jogar') irAba('jogar'); }; // de outra aba (ex.: Criar > Ir até a bigorna): volta ao mapa para ver o herói andar
+const irLeve = (a) => { abrirMapaGeral(false, true); mandar('leveIr', { x: Math.round(a.x * 10) / 10, z: Math.round(a.z * 10) / 10, nome: a.nome || undefined }); if (aba !== 'jogar') irAba('jogar'); }; // de outra aba (ex.: Criar > Ir até a bigorna): volta ao mapa para ver o herói andar
 
 const dEu = (o) => Math.hypot(o.x - leve.f.eu[0], o.z - leve.f.eu[1]);
 const maisPerto = (lista) => lista.reduce((m, o) => (!m || dEu(o) < dEu(m) ? o : m), null);
@@ -1084,7 +1101,7 @@ function cartaoLugares(M) {
   // continuam embaixo. Ir fecha o painel para ver o mapa.
   const ir = (a) => { irLeve(a); painelLeve = ''; leve.sujo = true; desenharJogar(); };
   // recurso (veio, árvore, solto): o servidor escolhe o mais perto desse tipo que não está esgotado (André 2026-11-25)
-  const irLugar = (a) => { if (a.t) { mandar('leveIrRecurso', { t: a.t }); painelLeve = ''; leve.sujo = true; desenharJogar(); } else ir(a); };
+  const irLugar = (a) => { if (a.t) { abrirMapaGeral(false, true); mandar('leveIrRecurso', { t: a.t }); painelLeve = ''; leve.sujo = true; desenharJogar(); } else ir(a); };
   const base = M.lug.find((o) => o[0] === 'vilas' && o[1] === 'Base do clã'), nPerto = (f) => maisPerto(M.npcs.filter(f));
   const tot = maisPerto(M.totens.filter((t) => t.d)), lei = nPerto((n) => n.f === 'leilao'), loja = nPerto((n) => n.f === 'loja');
   const at = el('div', 'atalhos');
@@ -1122,9 +1139,10 @@ function cartaoLugares(M) {
 }
 
 let jogarChave = '';
+const mundoVisivel = () => aba === 'jogar' || !!leve.sala; // no mundo, a aba aberta fica por cima do mapa (irAba)
 function desenharJogar() {
-  if (aba === 'mochila') return desenharMochila(); // os cartões da Mochila e do Criar chamam este redesenho
-  const raiz = $('jogar'); if (aba !== 'jogar') return;
+  if (aba === 'mochila') { desenharMochila(); if (!leve.sala) return; } // os cartões da Mochila e do Criar chamam este redesenho
+  const raiz = $('jogar'); if (!mundoVisivel()) return;
   telaLeve(!!leve.sala);
   $('jogarChat').hidden = !leve.sala || painelLeve !== 'chat';
   if (!leve.sala) {
@@ -1158,14 +1176,15 @@ function desenharJogar() {
   const chave = [P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(','), montado ? 'm' : '', P.veio?.[0] || '', P.col.map((o) => o[0]).join(','), leve.f.co?.[0] || ''].join('|');
   // andando (André 2026-11-26: "monte de pop-up que aparece quando eu estou caminhando"): passar perto de loja, baú ou veio
   // não abre o "Aqui perto"; ele abre só quando o herói para ali (chegou de verdade)
-  if (leve.pertoPend && !leve.f.r && chave === jogarChave) { leve.pertoPend = false; if (!emLuta(morto) && (P.npc || P.bau || P.totem || P.veio)) { painelLeve = 'perto'; leve.sujo = true; } }
+  // tela do jogo (André 2026-11-27: "aparece o botão de ação no mapa, como no jogo... balãozinho"): chegar perto não abre
+  // mais nada sozinho; o balão junto da bolinha (balaoLeve) mostra a ação e o toque nele abre ou faz
+  balaoLeve(P, morto);
   if (chave === jogarChave && !leve.sujo && raiz.contains(st)) return;
   if (document.activeElement?.tagName === 'INPUT' && raiz.contains(document.activeElement) && chave === jogarChave) return; // digitando: não refaz
   if (chave !== jogarChave) { leve.sel = null; if (!P.npc || P.npc.f !== 'leilao') leve.leilao = null; if (!P.bau) leve.bau = null; }
   const algo = !!(P.npc || P.bau || P.totem), chegou = (algo && chave.split('|').slice(0, 3).join('|') !== jogarChave.split('|').slice(0, 3).join('|'))
     || (P.veio && P.veio[0] !== jogarChave.split('|')[6]); // chegou num veio: o Aqui abre com o Minerar
-  if (chegou && !emLuta(morto)) { if (leve.f.r) leve.pertoPend = true; else painelLeve = 'perto'; }
-  else if (chave !== jogarChave && !algo && !P.veio) leve.pertoPend = false;
+  if (chegou && painelLeve === 'perto') painelLeve = ''; // mudou o lugar: a janela do lugar anterior fecha (o balão mostra o novo)
   jogarChave = chave; leve.sujo = false;
   // tela do modo leve (André 2026-11-25: "tem q rolar muito... como o menu é sanfonado da pra limpar a tela"): o mapa ocupa
   // a tela; embaixo, uma barra com Perto, Mochila, Lugares e Chat. Cada botão abre um painel por cima do mapa (um por vez;
@@ -1213,29 +1232,22 @@ function desenharJogar() {
   // no cartão; Mochila e Criar na aba Mochila; Chat no botão redondo 💬
   if (cartaoEl) raiz.append(cartaoEl);
   cartaoAcao(raiz, P, morto, mn); // a tela foi refeita: o cartão e os golpes voltam
-  // os botões redondos à direita: lobo, base (recall), sair e ajuda
-  const rd = el('div', 'redondos'), red = (ic, txt, fazer, ativo) => { const b = el('button', ativo ? 'ativo' : ''); b.append(el('i', null, ic), document.createTextNode(txt)); b.onclick = fazer; rd.append(b); };
-  if (!leve.pk?.car || leve.pk.car.onde !== 2) red('🐺', montado ? 'Descer' : 'Lobo', () => mandar('montar'), montado); // a mesma mensagem do jogo ('montar')
-  red('🏠', 'Base', () => mandar('vila'), leve.rec > Date.now()); // o mesmo da casinha do jogo (Simulacao.voltarVila): canaliza e aparece no Baú do Clã
-  red('👥', 'Time', () => abrirPainelLeve(painelLeve === 'time' ? '' : 'time'), painelLeve === 'time');
-  red('💬', 'Chat', () => abrirPainelLeve(painelLeve === 'chat' ? '' : 'chat'), painelLeve === 'chat'); // Sair e Ajuda foram para a aba Mais
-  // Golpes (André 2026-11-26: "abrir e fechar essas skills a hora que eu quiser"): abre ou fecha a barra de golpes; fechada,
-  // volta sozinha quando uma luta de verdade começa
-  red('⚔️', 'Golpes', () => { golpesModo = golpesVisiveis() ? 'fechado' : 'aberto'; leve.sujo = true; desenharJogar(); }, golpesModo === 'aberto');
-  raiz.append(rd);
+  // a barra de cima do jogo (menu_topo.gd: os mesmos ícones e a seta que recolhe) e o minimapa no canto (André 2026-11-27);
+  // Lobo, Base, Time e Chat (os antigos botões redondos) ficam nela e junto dos golpes
+  barraTopo(); raiz.append(miniEl());
+  if (mapaGeral) { const x = el('button', 'fechaMapa', '✕'); x.setAttribute('aria-label', 'Fechar o mapa'); x.onclick = () => abrirMapaGeral(false); raiz.append(x); }
   // 5: a dica da primeira vez (guardada no aparelho; o ❓ mostra de novo)
-  if (dicaAberta === null) { try { dicaAberta = !localStorage.getItem('leveDica1'); } catch { dicaAberta = false; } }
+  if (dicaAberta === null) { try { dicaAberta = !localStorage.getItem('leveDica2'); } catch { dicaAberta = false; } }
   if (dicaAberta) {
     const ok = el('button', 'acao', 'Entendi');
-    ok.onclick = () => { dicaAberta = false; try { localStorage.setItem('leveDica1', '1'); } catch { /* sem armazenamento */ } leve.sujo = true; desenharJogar(); };
+    ok.onclick = () => { dicaAberta = false; try { localStorage.setItem('leveDica2', '1'); } catch { /* sem armazenamento */ } leve.sujo = true; desenharJogar(); };
     const d = el('div', 'dica');
-    for (const t of ['👆 Toque no mapa: seu herói anda até lá sozinho, pela estrada.', '🟫 O cartão embaixo do mapa diz o que você está fazendo: Parado, Andando, Minerando, Em luta ou Caído. Os botões dele são os que valem agora.',
-      '🧭 Ir para: base, totem, leilão e loja com 1 toque, ou busque pelo nome.', '📍 Chegou numa loja, baú ou totem: a janela dele abre sozinha.',
-      '🎒 Aba Mochila: o que você leva e o Criar. 🛡️ Aba Clã: seus recrutas e ordens. ☰ Mais: chat, leilão, sair.',
-      '⛏️ Apanhou minerando: a mineração para e o cartão vira Em luta. Acabou a luta: "Voltar a minerar".',
-      '🟢 Verde: você e seus recrutas · 🔴 Vermelho: Geada (inimigo) · 🔵 Azul: outros da Chama · 🟠 Laranja: monstro.', '⚔️ Toque num monstro (laranja) e em Atacar. Em luta, os golpes ficam no cartão: cada toque é um golpe. Para fugir, toque no mapa.',
-      '⛏️ Minerar ou cortar: 🧭 Ir para > Recursos. Ao chegar, toque em Minerar ou Cortar no 📍 (precisa de picareta ou machado).', '👥 Time: chame seus recrutas para andar e lutar com você.', '🐺 monta no lobo · 🏠 volta para a base do clã · 💬 chat.']) d.append(el('div', null, t));
-    const j = janelaLeve([el('div', 'nome', 'Como jogar o modo leve'), d, ok]); j.onclick = null; raiz.append(j);
+    for (const t of ['👆 Toque no chão: seu herói anda até lá.', '🗺️ Toque no minimapa (canto de cima) para abrir o mapa geral e o Ir para.',
+      '💬 Chegou perto de algo (veio, árvore, loja, baú, totem, água): aparece um balão junto de você. Toque nele.',
+      '⚔️ Os golpes ficam sempre embaixo, como no jogo. Segurar o Golpe bate sem parar. O círculo vermelho é o bicho que o golpe pega.',
+      '🎒 Em cima: mochila, construir, missões, time, chat, PvP, clã, mais e voltar para a base. A seta recolhe a barra.',
+      '🟢 Você e seus recrutas · 🔴 Geada · 🔵 outros da Chama · 🟠 monstros.']) d.append(el('div', null, t));
+    const j = janelaLeve([el('div', 'nome', 'Como jogar'), d, ok]); j.onclick = null; raiz.append(j);
   }
 }
 let dicaAberta = null;
@@ -1248,6 +1260,9 @@ const ICONE_HAB = { Golpe: '⚔️', Disparo: '🔮', Cura: '💚' };
 // os mesmos símbolos dos botões do jogo (André 2026-11-27: "coloca igual do jogo pra quem já joga já nem pensa"): os .svg de
 // godot-prototipo/icones copiados em client/public/painel-icones/hab; o básico da espada é 'basico' e o da magia 'magia'
 const ICONE_JOGO = { basico: 'basico', magia: 'magia', cura: 'cura' };
+function iconeJogo(nome, reserva) { // client/public/painel-icones/jogo: os .svg/.png da HUD do jogo (godot-prototipo/icones)
+  const i = el('i'), im = el('img'); im.alt = ''; im.src = `painel-icones/jogo/${nome}${/^(pf_|pescar|cs_bau$)/.test(nome) ? '.png' : '.svg'}`; im.onerror = () => { im.remove(); i.textContent = reserva; }; i.append(im); return i;
+}
 function iconeHab(chave, reserva) {
   const i = el('i'); if (!chave) { i.textContent = reserva; return i; }
   const im = el('img'); im.alt = ''; im.src = `painel-icones/hab/${ICONE_JOGO[chave] || chave}.svg`; im.onerror = () => { im.remove(); i.textContent = reserva; };
@@ -1274,7 +1289,7 @@ function lutaLeve(raiz, morto, mana) {
     }
   } else if (a) a.remove();
   // os botões de luta: só com monstro perto (ou alvo escolhido) e sem painel aberto por cima
-  let h = cartaoEl?.querySelector('.habLeve') || null; // os golpes moram no cartão (que pode estar fora do DOM agora)
+  let h = golpesEl; // os golpes ficam no canto de baixo, no arco do jogo (a tela pode ter sido refeita: volta abaixo)
   // Geada perto (André 2026-11-25: "e se um geada aparecer?"): aviso vermelho e os golpes aparecem (o servidor mira no mais perto, como no jogo)
   const geada = (F.g || []).filter((o) => o[3] && !o[6] && Math.hypot(o[1] - F.eu[0], o[2] - F.eu[1]) < LUTA_PERTO * 2);
   let ga = $('jogarGeada');
@@ -1283,42 +1298,50 @@ function lutaLeve(raiz, morto, mana) {
     ga.textContent = `⚠️ Geada perto: ${geada.slice(0, 2).map((o) => `${o[0]}, Nv ${o[5]}`).join(' · ')}`;
     if (!raiz.contains(ga)) raiz.insertBefore(ga, raiz.children[1] || null);
   } else if (ga) ga.remove();
-  if (F.lu && !luAntes && golpesModo === 'fechado') golpesModo = null; // a luta começou: os golpes voltam
-  luAntes = !!F.lu;
-  const perto = F.hb && !morto && golpesModo !== 'fechado' && (golpesModo === 'aberto' || emLuta(morto) || bichoPerto()); // golpes já na tela com bicho chegando (André 2026-11-26: "quando as skills aparecem... já tô morto")
-  if (!perto) { if (h) h.remove(); habChave = ''; return; }
+  const perto = F.hb && !morto; // tela do jogo (André 2026-11-27: "embaixo sempre vai ficar aparecendo as skills"): sempre, no arco do jogo
+  if (!perto) { if (h) h.remove(); golpesEl = null; habChave = ''; return; }
   const chave = F.hb.l.map((o) => o[0] + o[1] + (o[4] || '')).join('|') + F.hb.mg;
   if (!h || chave !== habChave) {
     if (h) h.remove();
-    h = el('div', 'habLeve'); habChave = chave;
+    h = el('div', 'habLeve arco'); habChave = chave; golpesEl = h;
+    // tela do jogo (André 2026-11-27: "igualzinho o jogo"): o mesmo arco da HUD do jogo (hud.gd, tela deitada de 1280x576,
+    // contado do canto de baixo à direita): golpe grande no canto, cura embaixo dele, as skills num arco em volta (80° a -45°),
+    // o Trocar acima à esquerda e as poções e o lobo na fileira de baixo. S = a escala para o celular em pé
+    const S = 0.62, lugar = (b, x, y, r) => { const d = Math.round(r * S * 2.36); b.style.width = b.style.height = d + 'px'; b.style.right = Math.round(x * S + 10 - d / 2) + 'px'; b.style.bottom = Math.round(y * S + 8 - d / 2) + 'px'; };
+    let sk = 0;
     F.hb.l.forEach(([i, nome, , , chave], n) => {
-      const b = el('button', n === 0 ? 'grande' : ''); b.dataset.i = i;
+      const b = el('button', n === 0 ? 'grande' : i === 9 ? 'cura' : ''); b.dataset.i = i; b.title = nome;
+      if (n === 0) lugar(b, 80, 158, 56); else if (i === 9) lugar(b, 80, 58, 31); else { const ang = (80 - 25 * sk++) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 172, 158 + Math.sin(ang) * 172, 33); }
       b.append(iconeHab(chave, ICONE_HAB[nome] || '✨'), el('span', null, nome), el('b', 'cd'));
       if (n === 0) segurarBasico(b, i); // segurar = bate sem parar, como no jogo (André 2026-11-27)
       else b.onclick = () => { if (b.classList.contains('espera')) return; mandar('habilidade', i); };
       h.append(b);
     });
-    const tr = el('button'); tr.append(iconeHab('troca', '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
+    const tr = el('button', 'troca'); tr.title = F.hb.mg ? 'Usar espada' : 'Usar magia'; lugar(tr, 322, 250, 28); tr.append(iconeHab('troca', '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
     tr.onclick = () => mandar('modo', F.hb.mg ? 'Espada' : 'Magia'); h.append(tr);
     // poções (André 2026-11-26): mesmas da mochila e mesma recarga do jogo (o servidor confere)
-    for (const [k, ic, nome] of [['pocao', '❤️', 'Poção vida'], ['pocao_mana', '💙', 'Poção mana']]) {
-      const b = el('button'), ii = el('i'), im = el('img'); im.alt = ''; im.src = `painel-icones/${k}.png`; im.className = 'po'; im.onerror = () => { im.remove(); ii.textContent = ic; }; ii.append(im); // a poção pintada do jogo (it_pocao)
+    for (const [k, ic, nome, x] of [['pocao', '❤️', 'Poção vida', 530], ['pocao_mana', '💙', 'Poção mana', 450]]) {
+      const b = el('button', k === 'pocao' ? 'pv' : 'pm'); lugar(b, x, 62, 25); b.title = nome; const ii = el('i'), im = el('img'); im.alt = ''; im.src = `painel-icones/${k}.png`; im.className = 'po'; im.onerror = () => { im.remove(); ii.textContent = ic; }; ii.append(im); // a poção pintada do jogo (it_pocao)
       b.dataset.po = k; b.append(ii, el('span', null, nome), el('b', 'cd'));
       b.onclick = () => { const p = (leve.f?.hb?.po || []).find((o) => o[0] === k); if (!p || p[1] < 0) return aviso(`Sem ${nome.toLowerCase()} na mochila`); if (p[3] > 0) return; mandar('item', { acao: 'usar', i: p[1] }); };
       h.append(b);
     }
+    // o lobo (o botão Montar do jogo, a mesma mensagem 'montar'), ao lado das poções como na HUD do jogo
+    const lb = el('button', 'lobo'); lb.title = 'Lobo'; lugar(lb, 370, 62, 25); lb.append(iconeJogo('lobo', '🐺'), el('span', null, 'Lobo')); lb.onclick = () => mandar('montar'); h.append(lb);
     // sem botão Fugir (André 2026-11-25: "pra fugir eu clico no mapa"): tocar no mapa anda, mesmo no meio da luta
   }
+  { const lb = h.querySelector('.lobo'); lb.classList.toggle('on', !!F.eu[10]); lb.hidden = leve.pk?.car?.onde === 2; } // montado acende; dirigindo o carrinho some
   for (const [i, , cd, mn] of F.hb.l) {
     const b = h.querySelector(`[data-i="${i}"]`); if (!b) continue;
     const sem = mn > mana; b.classList.toggle('espera', cd > 0 || sem); b._sem = sem; recarga(b, cd);
   }
   for (const [k, i, n, cd] of F.hb.po || []) {
     const b = h.querySelector(`[data-po="${k}"]`); if (!b) continue;
-    b.classList.toggle('espera', i < 0 || cd > 0); recarga(b, cd); b.querySelector('span').textContent = `${k === 'pocao' ? 'Vida' : 'Mana'} ×${n}`;
+    b.classList.toggle('espera', i < 0 || cd > 0); recarga(b, cd); b.querySelector('span').textContent = `×${n}`;
   }
-  if (cartaoEl && h.parentNode !== cartaoEl) cartaoEl.append(h);
+  if (h.parentNode !== raiz) raiz.append(h);
 }
+let golpesEl = null;
 // ataque básico (André 2026-11-27: "se eu clicar nele e ficar segurando, ele fica atacando permanente, como no jogo real?"):
 // igual ao jogo (main.gd: segurando o básico, emenda um golpe a cada 0,2 s). Tocar uma vez = um golpe. O servidor segura o
 // ritmo (recarga e combo); um toque no meio do golpe fica guardado e sai quando ele termina
@@ -1343,11 +1366,9 @@ function pintarRecarga(b, agora) {
   b.style.setProperty('--cdp', resto > 0 && b._max ? Math.min(100, resto / b._max * 100).toFixed(0) + '%' : '0%');
   if (resto <= 0 && b._ate) { b._ate = 0; if (!b._sem && !(b.dataset.po && b.classList.contains('vazia'))) b.classList.remove('espera'); }
 }
-setInterval(() => { if (aba !== 'jogar' || !cartaoEl) return; const agora = Date.now(); for (const b of cartaoEl.querySelectorAll('.habLeve button')) if (b._ate) pintarRecarga(b, agora); }, 100);
+setInterval(() => { if (!golpesEl || !golpesEl.isConnected) return; const agora = Date.now(); for (const b of golpesEl.querySelectorAll('button')) if (b._ate) pintarRecarga(b, agora); }, 100);
 // bicho a GOLPES_PERTO m ou menos: os golpes já aparecem (e o zoom de luta), antes da primeira pancada; o cartão não muda
 const GOLPES_PERTO = 12;
-let golpesModo = null, luAntes = false; // null = sozinho (luta ou bicho perto); 'aberto' / 'fechado' = o botão ⚔️ Golpes
-const golpesVisiveis = () => !!leve.f && !leve.f.eu[6] && golpesModo !== 'fechado' && (golpesModo === 'aberto' || emLuta(false) || bichoPerto());
 function bichoPerto() { const F = leve.f; return !!F && (F.m || []).some((o) => Math.hypot(o[0] - F.eu[0], o[1] - F.eu[1]) <= GOLPES_PERTO); }
 // em luta (André 2026-11-26): o servidor diz que bateu ou apanhou agora (lu), ou você escolheu um alvo, ou a Geada está
 // perto. Bicho parado perto NÃO vira luta (senão minerar ao lado de um bicho calmo some da tela): toque nele para atacar.
@@ -1360,6 +1381,88 @@ function emLuta(morto) {
 // herói faz agora, na ordem: Caído > Em luta > Minerando > Criando > Voltando para a base > Andando > Parado. Cada estado
 // só tem os botões que valem nele. Refaz só quando o estado muda (não troca o botão embaixo do dedo); o resto atualiza no lugar.
 let cartaoChave = '', lutaAntes = false, cartaoEl = null; // o cartão sai do DOM quando a tela é refeita: guardado aqui
+// ---------- tela do jogo (André 2026-11-27: prévia aprovada "tela-nova-jogo-leve-v2"): a barra de cima com os ícones do
+// jogo (menu_topo.gd ITENS) e a seta que recolhe; cada ícone abre a sua janela por cima do mapa (irAba) ou o painel
+const TOPO = [['mochila', 'Mochila', 'topo_mochila', '🎒'], ['fazenda', 'Construir', 'construir', '🔨'], ['missoes', 'Missões', 'topo_missoes', '📜'],
+  ['time', 'Time', 'topo_multi', '👥'], ['chat', 'Chat', 'topo_chat', '💬'], ['social', 'PvP', 'topo_pvp', '⚔️'], ['cla', 'Clã', 'topo_cla', '🛡️'],
+  ['mais', 'Mais', 'topo_config', '⚙️'], ['vila', 'Voltar para a base', 'topo_vila', '🏠']];
+const PAINEL_TOPO = new Set(['time', 'chat']);
+let topoRecolhido = ler('leveTopo') === '1';
+function barraTopo() {
+  let t = $('topoJogo');
+  if (!t) {
+    t = el('div', 'topoJogo'); t.id = 'topoJogo';
+    for (const [k, nome, ic, re] of TOPO) {
+      const b = el('button'); b.dataset.k = k; b.title = nome; b.setAttribute('aria-label', nome); b.append(iconeJogo(ic, re));
+      b.onclick = () => {
+        if (k === 'vila') return mandar('vila'); // a casinha do jogo: canaliza e volta para a base (Desistir no cartão)
+        if (PAINEL_TOPO.has(k)) { abrirMapaGeral(false, true); if (aba !== 'jogar') irAba('jogar'); return abrirPainelLeve(painelLeve === k ? '' : k); }
+        abrirMapaGeral(false, true); irAba(aba === k ? 'jogar' : k);
+      };
+      t.append(b);
+    }
+    const st = el('button', 'seta'); st.title = 'Recolher menu'; st.append(iconeJogo('topo_seta', '›'));
+    st.onclick = () => { topoRecolhido = !topoRecolhido; gravar('leveTopo', topoRecolhido ? '1' : null); barraTopo(); };
+    t.append(st);
+    $('jogarAba').append(t);
+  }
+  t.classList.toggle('recolhido', topoRecolhido);
+  for (const b of t.querySelectorAll('button[data-k]')) { const k = b.dataset.k; b.classList.toggle('on', k === 'vila' ? leve.rec > Date.now() : PAINEL_TOPO.has(k) ? painelLeve === k : aba === k); }
+}
+// o minimapa no canto (como o do jogo): o mapa grande em volta do herói; tocar abre o mapa geral com o Ir para
+let miniC = null;
+function miniEl() {
+  if (!miniC) { miniC = el('canvas', 'miniJogo'); miniC.id = 'miniJogo'; miniC.width = miniC.height = 184; miniC.title = 'Mapa'; miniC.onclick = () => abrirMapaGeral(true); }
+  return miniC;
+}
+function desenharMini() {
+  if (!miniC || !leve.f || !miniC.isConnected) return;
+  const g = miniC.getContext('2d'), L = miniC.width, span = 320, [x, z] = leve.f.eu, k = L / span;
+  g.save(); g.clearRect(0, 0, L, L); g.beginPath(); g.arc(L / 2, L / 2, L / 2, 0, 6.283); g.clip();
+  g.fillStyle = '#1a3e66'; g.fillRect(0, 0, L, L);
+  if (fundoMapa.complete && fundoMapa.naturalWidth) g.drawImage(fundoMapa, (MUNDO.x0 - x) * k + L / 2, (MUNDO.z0 - z) * k + L / 2, MUNDO.w * k, MUNDO.h * k);
+  if (vilaMapa) g.drawImage(vilaMapa, (VILA.x0 - x) * k + L / 2, (VILA.z0 - z) * k + L / 2, VILA.tam * k, VILA.tam * k);
+  for (const [mx, mz] of leve.f.m || []) { g.fillStyle = '#f0a030'; g.beginPath(); g.arc((mx - x) * k + L / 2, (mz - z) * k + L / 2, 4, 0, 6.283); g.fill(); }
+  g.fillStyle = '#3ddc5a'; g.strokeStyle = '#10240f'; g.lineWidth = 3; g.beginPath(); g.arc(L / 2, L / 2, 9, 0, 6.283); g.fill(); g.stroke();
+  g.restore();
+}
+// o mapa geral (aberto pelo minimapa): o mapa grande com o zoom de andar e o Ir para embaixo; tocar num lugar vai e fecha
+function abrirMapaGeral(abre, quieto) {
+  if (mapaGeral === abre) return;
+  mapaGeral = abre; vista = null; document.body.classList.toggle('mapaGeral', abre);
+  if (abre && aba !== 'jogar') irAba('jogar');
+  if (abre) painelLeve = 'lugares'; else if (painelLeve === 'lugares') painelLeve = '';
+  if (quieto) return;
+  leve.sujo = true; desenharJogar(); desenharMapa();
+}
+// o balão de ação junto da bolinha (André 2026-11-27: "como no jogo... a bolinha com o ícone com um balãozinho próximo
+// dele, apertando minerar, apertando mexer no fogão"): a ação do que está perto; tocar faz (minerar, pescar) ou abre a janela
+const NPC_ICONE = { loja: 'loja', compra: 'loja', leilao: 'negociar', pack: 'negociar', ferreiro: 'cs_bigorna', habilidades: 'cs_bigorna', alquimia: 'falar' };
+function balaoLeve(P, morto) {
+  const F = leve.f; let b = $('balaoLeve');
+  const volta = leve.volta && (F.c || []).find((o) => o[0] === leve.volta.no);
+  const col = !F.co && (volta || P.veio || (P.col || []).find((o) => o[2] <= 4));
+  let acao = null; // [ícone, reserva, texto, fazer]
+  if (morto || emLuta(morto) || mapaGeral || F.pe) acao = null;
+  else if (col) { const pf = col[3] || '', [re, verbo] = COLETA_VERBO[pf] || COLETA_VERBO['']; acao = [pf === 'len' ? 'pf_len' : pf === 'min' ? 'pf_min' : 'falar', re, `${volta ? 'Voltar a ' + verbo.toLowerCase() : verbo} ${col[1]}`, () => { leve.volta = null; mandar('leveColetar', { no: col[0] }); }]; }
+  else if (P.npc) acao = [NPC_ICONE[P.npc.f] || 'falar', '💬', LUGAR_NOME[P.npc.f] ? `${LUGAR_NOME[P.npc.f]} · ${P.npc.n.split(',')[0]}` : `Falar com ${P.npc.n.split(',')[0]}`, () => abrirPainelLeve('perto')];
+  else if (P.bau) acao = ['cs_bau', '📦', P.bau.cla ? 'Baú do Clã' : 'Baú', () => abrirPainelLeve('perto')];
+  else if (P.totem) acao = ['selo', '🗿', 'Totem', () => abrirPainelLeve('perto')];
+  else if (P.car || P.chao?.length) acao = ['negociar', '📦', P.car ? 'Carrinho' : 'Pack no chão', () => abrirPainelLeve('perto')];
+  else if (F.sp != null) acao = ['pescar', '🎣', `Pescar${F.sp > 4 ? ` · ${F.sp} m` : ''}`, () => mandar('levePescar')]; // spot à vista: vai até a beira e lança (etapa 6)
+  if (!acao || painelLeve === 'perto') { if (b) b.remove(); return; }
+  const ch = acao[2];
+  if (!b || b._ch !== ch) {
+    if (!b) { b = el('button', 'balaoLeve'); b.id = 'balaoLeve'; }
+    limpar(b); b._ch = ch; b.append(iconeJogo(acao[0], acao[1]), el('span', null, ch)); b.onclick = acao[3];
+  }
+  if (!b.isConnected) $('jogarAba').append(b);
+  posicionarBalao();
+}
+function posicionarBalao() { // em cima da bolinha (desenharMapa guarda onde ela está na tela)
+  const b = $('balaoLeve'), e = leve.euTela; if (!b || !e) return;
+  b.style.left = Math.round(Math.max(6, Math.min(e[0] - 26, innerWidth - b.offsetWidth - 6))) + 'px'; b.style.top = Math.round(Math.max(150, e[1] - 76)) + 'px';
+}
 function cartaoAcao(raiz, P, morto, mana) {
   const F = leve.f, R = F.r, luta = emLuta(morto);
   if (luta && !lutaAntes && painelLeve && painelLeve !== 'chat') { painelLeve = ''; leve.sujo = true; } // começou a luta: fecha o painel por cima e mostra os golpes
@@ -1418,7 +1521,8 @@ function cartaoAcao(raiz, P, morto, mana) {
   else if (estado === 'base') txt.textContent = `🏠 Voltando para a base… ${Math.ceil((leve.rec - Date.now()) / 1000)} s`;
   else if (estado === 'anda') txt.textContent = `🚶 ${leve.rotaNome || 'Andando'} · ${R[0]} m · ${R[1] >= 60 ? Math.floor(R[1] / 60) + ' min' : R[1] + ' s'}${extra ? ' ' + extra : ''}`;
   else txt.textContent = (aqui ? `Parado perto de: ${aqui}${extra ? ' ' + extra : ''}` : `Parado. Toque no mapa para andar.${extra ? ' ' + extra : ''}`) + (F.sp != null ? ` · 🎣 spot a ${F.sp} m` : '');
-  if (!raiz.contains(c)) raiz.insertBefore(c, raiz.querySelector('.redondos'));
+  c.hidden = estado === 'parado'; // parado: o balão e o minimapa fazem o resto (André 2026-11-27: "tela limpa")
+  if (!raiz.contains(c)) raiz.append(c);
   lutaLeve(raiz, morto, mana);
 }
 
@@ -1465,9 +1569,9 @@ function abrirPainelLeve(k) {
 function telaLeve(liga) {
   const t = $('jogarAba'); t.classList.toggle('tela', liga); document.body.classList.toggle('leveTela', liga); // o aviso sobe para o meio do mapa (André 2026-11-26)
   const h = liga ? Math.max(360, Math.floor(innerHeight - t.getBoundingClientRect().top - ($('abas').offsetHeight || 0) - 4)) + 'px' : ''; // sobra acima das 5 abas
-  if (t.style.height !== h) { t.style.height = h; if (aba === 'jogar' && info) requestAnimationFrame(() => desenharMapa()); }
+  if (t.style.height !== h) { t.style.height = h; if (mundoVisivel() && info) requestAnimationFrame(() => desenharMapa()); }
 }
-addEventListener('resize', () => { if (aba === 'jogar' && leve.sala) { telaLeve(true); desenharMapa(); } });
+addEventListener('resize', () => { if (mundoVisivel() && leve.sala) { telaLeve(true); desenharMapa(); } });
 
 function desenhar() {
   if (!info) return;
