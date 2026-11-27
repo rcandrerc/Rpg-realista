@@ -988,18 +988,19 @@ function cartaoLeilao() {
 }
 
 function cartaoBauLeve(b) {
-  const c = el('div', 'card'), B = leve.bau && leve.bau.cla === b.cla ? leve.bau : null;
-  c.append(el('div', 'nome', b.cla ? 'Baú do Clã' : 'Seu baú'));
-  if (!B) { c.append(el('div', 'faz', 'Abrindo…')); mandar('bau', { acao: 'abrir', cla: !!b.cla }); return c; }
+  // cada baú tem o seu estoque (2026-11-27): o aberto tem que ser este (b.p)
+  const c = el('div', 'card'), B = leve.bau && leve.bau.cla === b.cla && (b.cla || !b.p || leve.bau.p === b.p) ? leve.bau : null;
+  c.append(el('div', 'nome', b.cla ? 'Baú do Clã' : (B?.nome || b.nome || 'Seu baú')));
+  if (!B) { c.append(el('div', 'faz', 'Abrindo…')); mandar('bau', { acao: 'abrir', cla: !!b.cla, ...(b.p ? { p: b.p } : {}) }); return c; }
   c.append(el('div', 'faz', `Dentro (${B.it.length}/${B.l}) · toque para tirar`));
   const f = el('div', 'icones');
   for (const [i, k, n, nome, cor] of B.it) { const sel = leve.sel?.onde === 'tirar' && leve.sel.i === i; f.append(itemLeve(k, nome, cor, n, null, sel, () => { leve.sel = sel ? null : { onde: 'tirar', i, nome, n }; leve.sujo = true; desenharJogar(); })); }
   if (!B.it.length) f.append(el('div', 'faz', 'Vazio.'));
   c.append(f);
-  if (leve.sel?.onde === 'tirar') { const S = leve.sel; c.append(linhaQtd((n) => `Tirar ${n}`, S.n, (n) => mandar('bau', { acao: 'tirar', i: S.i, n, cla: !!b.cla }))); }
+  if (leve.sel?.onde === 'tirar') { const S = leve.sel; c.append(linhaQtd((n) => `Tirar ${n}`, S.n, (n) => mandar('bau', { acao: 'tirar', i: S.i, n, cla: !!b.cla, ...(b.p ? { p: b.p } : {}) }))); }
   c.append(el('div', 'faz', 'Mochila · toque para guardar'));
   c.append(gradeMochila('guardar', false));
-  if (leve.sel?.onde === 'guardar') { const S = leve.sel; c.append(linhaQtd((n) => `Guardar ${n}`, S.n, (n) => mandar('bau', { acao: 'guardar', i: S.i, n, cla: !!b.cla }))); }
+  if (leve.sel?.onde === 'guardar') { const S = leve.sel; c.append(linhaQtd((n) => `Guardar ${n}`, S.n, (n) => mandar('bau', { acao: 'guardar', i: S.i, n, cla: !!b.cla, ...(b.p ? { p: b.p } : {}) }))); }
   return c;
 }
 
@@ -1275,7 +1276,7 @@ function desenharJogar() {
   if (extras.length) st.append(el('div', 'faz', extras.join(' · ')));
   const P = pertoAgora();
   cartaoAcao(raiz, P, morto, mn);
-  const chave = [P.npc?.n, P.bau && 'b' + P.bau.cla, P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(','), montado ? 'm' : '', P.veio?.[0] || '', P.col.map((o) => o[0]).join(','), leve.f.co?.[0] || ''].join('|');
+  const chave = [P.npc?.n, P.bau && 'b' + P.bau.cla + (P.bau.p || ''), P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(','), montado ? 'm' : '', P.veio?.[0] || '', P.col.map((o) => o[0]).join(','), leve.f.co?.[0] || ''].join('|');
   // andando (André 2026-11-26: "monte de pop-up que aparece quando eu estou caminhando"): passar perto de loja, baú ou veio
   // não abre o "Aqui perto"; ele abre só quando o herói para ali (chegou de verdade)
   // tela do jogo (André 2026-11-27: "aparece o botão de ação no mapa, como no jogo... balãozinho"): chegar perto não abre
@@ -1316,7 +1317,7 @@ function desenharJogar() {
       if (!P.npc && !P.bau && !P.totem && !cg && !cc) f.append(el('div', 'vazio', 'Chegue perto de uma loja, do leilão, de um baú ou de um totem para usar.'));
       if (!P.bau && leve.mapa?.baus?.length) { // ir até o baú (e o Baú do Clã) para ver o que tem dentro: abre sozinho ao chegar
         const c = el('div', 'card');
-        for (const b of leve.mapa.baus) c.append(bt(`Ir ao ${b.cla ? 'Baú do Clã' : 'seu baú'} · ${metros(b)}`, () => irLeve({ x: b.x, z: b.z + 1.5, nome: b.cla ? 'Baú do Clã' : 'Seu baú' }), true));
+        for (const b of leve.mapa.baus) c.append(bt(`Ir ao ${b.cla ? 'Baú do Clã' : (b.nome || 'seu baú')} · ${metros(b)}`, () => irLeve({ x: b.x, z: b.z + 1.5, nome: b.cla ? 'Baú do Clã' : 'Seu baú' }), true));
         f.append(c);
       }
     } else if (painelLeve === 'mochila') { mochilaAberta = true; const c = cartaoMochila(); c.firstChild.remove(); f.append(c); }

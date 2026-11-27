@@ -565,6 +565,10 @@ export const Base = {
     if (L.bau?.some(Boolean)) D.bau = junta(D.bau, L.bau);
     if (L.bauCla?.some(Boolean)) D.bauCla = junta(D.bauCla, L.bauCla);
     if (L.bauNv) D.bauNv = Math.max(D.bauNv | 0, L.bauNv);
+    for (const B of Object.values(L.baus || {})) { // baús independentes (2026-11-27): tudo vai junto, o maior tamanho também
+      if (B.it?.some(Boolean)) D.bau = junta(D.bau, B.it);
+      if (B.nv) D.bauNv = Math.max(D.bauNv | 0, B.nv);
+    }
     D.texto = 'A sua casa antiga foi devolvida (agora a casa fica na base do clã)';
     this.lotes.delete(L.def.id); this.lotesMudados.delete(L.def.id); this.lotesSoltos.add(L.def.id);
     this.evento({ t: 'lote', lote: L.def.id, dono: null });
@@ -588,7 +592,8 @@ export const Base = {
       if (D.bauNv) L.bauNv = Math.max(L.bauNv | 0, Math.min(BAU.niveis.length - 1, D.bauNv));
       const encher = (lista, n) => { const b = Array.from({ length: n }, (_, i) => (lista?.[i] ? { ...lista[i] } : null)); return b; };
       if (D.bau) { const b = encher(L.bau, bauLugares(L.bauNv | 0)), resto = []; for (const o of D.bau) if (!guardar(b, { ...o })) resto.push(o); L.bau = b; D.bau = resto.length ? resto : null; }
-      if (D.bauCla) { const b = encher(L.bauCla, CLA.bauCla), resto = []; for (const o of D.bauCla) if (!guardar(b, { ...o })) resto.push(o); L.bauCla = b; D.bauCla = resto.length ? resto : null; }
+      this.arrumarBausLote?.(L); // vai para o baú mais antigo do lote (shared/simulacao.js arrumarBaus)
+      if (D.bauCla) { const b = encher(L.bauCla, Math.max(CLA.bauCla, L.bauCla?.length | 0)), resto = []; for (const o of D.bauCla) if (!guardar(b, { ...o })) resto.push(o); L.bauCla = b; D.bauCla = resto.length ? resto : null; }
       D.bauNv = 0; this.lotesMudados.add(L.def.id);
       msg.push('os baús no lote da base');
     }
