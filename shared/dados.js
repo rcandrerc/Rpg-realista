@@ -5,7 +5,7 @@ import { raioNaDirecao, dentroDoMapa } from './mapa.js';
 import { alturaMontanha, pertoDaAgua, beiraDosLagos, LAGOS, AGUA, MONTANHA, INGREME, usarMundo, gradeDoMundo } from './relevo.js';
 import { montarMundo, alturaMundo, terraEm, ARENAS_BOSS, ARENA_PVP, LUGARES_MUNDO, ESTRADAS_MUNDO, RIOS_MUNDO, PONTES_MUNDO, defsDasCavernas, CAVERNA_MUNDO_FORMA, CAVERNAS_MUNDO, MORRO_BOCA } from './mundo.js';
 import { CAVERNA, TUNEL, noTunel, noTuneis, pontoDoTunel, montarCaverna, registrarTunel } from './caverna.js';
-import { arrumarVila, lugarNaVila, naPeca, MODELOS_VILA, arrumarCidade, distRuas, distRet, CALCADA, COMERCIO_GRANDE, CAVALO_CARROCA, CACAMBA_CARROCA } from './vilas.js';
+import { arrumarVila, lugarNaVila, naPeca, MODELOS_VILA, arrumarCidade, distRuas, distRet, CALCADA, COMERCIO_GRANDE, CAVALO_CARROCA, CACAMBA_CARROCA, LOJA_SOLIDOS } from './vilas.js';
 export { LAGOS, AGUA, MONTANHA, INGREME, CAVERNA, TUNEL };
 export { JANTAR_FALAS, JANTAR_LACUNAS, JANTAR_LUGARES, falaJantar, totalFalasJantar, comidaNaFala } from './jantar-falas.js'; // conversas do jantar do clã (André 2026-11-25)
 
@@ -2757,6 +2757,8 @@ const MUDA_PARA_VILA = { alquimista: { vila: 'rio_claro', onde: 'peca:comercio:6
       obst.push({ x, z, r: 0.75 }, { x: cx, z: cz, r: 1.0, alto: +(e.y + 1.5).toFixed(2) }); // o cavalo entre os varais e a caçamba com a carga
     }
     if (A.banca) obst.push({ x: A.banca.x, z: A.banca.z, r: MODELOS_VILA.banca.r, alto: +(A.banca.y + MODELOS_VILA.banca.alto).toFixed(2) });
+    // as lojas novas (2026-11-27): fundo e lados fechados, sem tampo (o telhado é alto)
+    for (const P of [...(A.banca ? [{ ...A.banca, m: 'banca' }] : []), ...A.enfeites]) for (const [lx, lz, r] of LOJA_SOLIDOS[P.m] || []) { const [x, z] = naPeca(P, lx, lz); obst.push({ x: +x.toFixed(2), z: +z.toFixed(2), r }); }
     // estações públicas: bigorna e forninho na ferraria, bancada ao lado da banca (qualquer um usa, como as da Clareira)
     const F = A.casas.find((c) => c.m === 'forja');
     const est = [];

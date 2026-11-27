@@ -51,6 +51,14 @@ export const COMERCIO_GRANDE = {
     ...BALCOES_L.flatMap(([x, z0, z1, zc, sx]) => [...Array.from({ length: Math.round((z1 - z0) / 0.8) + 1 }, (_, i) => [x, z0 + i * (z1 - z0) / Math.round((z1 - z0) / 0.8), 0.45]),
       [x + sx * 0.9, zc, 0.45], [x + sx * 1.8, zc, 0.45]]), ...[3.6, 4.4].flatMap((x) => [[-x, -5.5, 0.45], [x, -5.5, 0.45]])],
 };
+// lojas no lugar das barraquinhas (André 2026-11-27; ferramentas/vilas/pecas.mjs LOJAS, vilas_mundo.gd TROCA_LOJA): o
+// lugar e o círculo de antes ficam; estes círculos (x, z, r no espaço da peça) fecham o fundo e os lados da loja nova. A
+// frente fica no balcão (o círculo de antes) e o vendedor fica lá dentro, atrás dele.
+const MERCADO_SOLIDO = [[-1.15, -1.4, 0.5], [1.15, -1.4, 0.5], [-1.2, 0.2, 0.45], [1.2, 0.2, 0.45]];
+export const LOJA_SOLIDOS = {
+  banca: [[-1.2, -2.15, 0.6], [0, -2.15, 0.6], [1.2, -2.15, 0.6], [-1.6, -1.1, 0.5], [1.6, -1.1, 0.5], [-1.6, -0.2, 0.4], [1.6, -0.2, 0.4], [-1.15, 0.05, 0.45], [1.15, 0.05, 0.45]],
+  banca_frutas: MERCADO_SOLIDO, banca_tecidos: MERCADO_SOLIDO, banca_peixe: MERCADO_SOLIDO, banca_ceramica: MERCADO_SOLIDO, banca_temperos: MERCADO_SOLIDO,
+};
 // o cavalo da carroça de carga fica entre os varais (a caçamba é o fundo da peça, z de -3,15 a -1,7; os varais vão
 // até +0,9) e olha para +z
 export const CAVALO_CARROCA = [0, 0.1];
