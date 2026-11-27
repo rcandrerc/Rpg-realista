@@ -1528,6 +1528,12 @@ export const CHAT = { max: 120, entre: 1.2, historico: 40, historicoPm: 300, can
 // hora do lançamento. O pacote do servidor que estiver esperando instala junto com esse reinício (não reinicia duas vezes).
 export const REINICIO = { horarios: [5, 14], avisos: [5, 1], aviso: 60, contagem: 10 };
 export const TIME = { max: 5, convite: 30, entreConvites: 3, perto: 40, combate: 10, bonus: 0.1, envio: 0.5 }; // pessoas, s, s, metros, s, fração, s
+// Time entre líderes de clã (André 2026-11-27: "dar time pros líderes de clã da mesma raça", a filha, o irmão, o Dario):
+// cada líder entra com os recrutas dele. max vale para CADA clã (líder + recrutas), clas = quantos clãs cabem num time;
+// bonusMax segura o bônus de XP do time no de antes (5 pessoas = +40%), por maior que fique o time. liderBot: o líder
+// de clã bot da mesma raça (o Dario) topa quando quem chama lidera um clã, é amigo dele e a base dele não está sendo
+// atacada; os recrutas dele vêm junto protegendo (escolta: aparecem no grupo dele, até max - 1)
+Object.assign(TIME, { clas: 5, bonusMax: 4, liderBot: true }); // André 2026-11-27: 5 clãs (3 na coluna da esquerda, 2 na da direita)
 // André 2026-11-11 ("ninguém ficar protegendo, puxando ninguém"): no time, quem está muito ABAIXO do mais alto que ganhou
 // o mesmo monstro ganha menos XP (jogador ou NPC). Até nerfLivre níveis de diferença: normal; depois -nerfPorNivel por nível
 // (com 5 de folga e 0,1 por nível: 10 níveis abaixo = metade, 15 ou mais = nada). Ninguém muda de nível, só o XP.
@@ -3015,6 +3021,7 @@ export const AMIGA = {
       jaFalei: 'Já te falei, daqui a pouco! Paciência, guerreiro.',
       // soldado de clã bot com quem não é o líder dele (André 2026-11-25: o Dario, "não no mesmo time"); {cla} = nome do clã
       lider: 'Sou líder do clã {cla}, não entro no time de ninguém. Meu time é o meu clã.',
+      semCla: 'Só faço time com líder de clã. Funda o seu e me chama.', base: 'Agora não, estão atacando a base do {cla}. Chama daqui a pouco.', outraRaca: 'Com a outra raça? Nunca.', // André 2026-11-27: líder de clã bot topa time com líder da mesma raça
       cla: 'Sou do clã {cla}. Só ando com o meu clã, no seu time eu não entro.',
     },
     caiu: 'Ai... essa doeu. Vou pra casa me recuperar e já volto pro time.',
@@ -3257,6 +3264,7 @@ export const DARIO = mesclarAmigo(AMIGA, {
       vontade: 'Hoje não tô no clima. Me chama mais tarde?',
       jaFalei: 'Já te falei, daqui a pouco. Paciência, guerreiro.',
       lider: 'Sou o líder do clã {cla}. Não entro no time de ninguém: meu time é o meu clã.', // André 2026-11-25
+      semCla: 'Só faço time com líder de clã. Funda o seu e me chama.', base: 'Agora não, estão atacando a base do {cla}. Chama daqui a pouco.', outraRaca: 'Com a outra raça? Nunca.', // André 2026-11-27: líder de clã bot topa time com líder da mesma raça
       cla: 'Sou do clã {cla}. Só ando com o meu clã, no seu time eu não entro.',
     },
     caiu: 'Argh... essa pegou. Vou pra casa me recuperar e já volto pro time.',
