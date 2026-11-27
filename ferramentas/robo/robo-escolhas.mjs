@@ -91,10 +91,11 @@ export function outraTerraParaCacar({ minha, campos, totens, visitados, ok, fech
 // robô nunca consertava: com 18 a 20 mortes por turno, a armadura estava quebrada e ele morria 3 vezes em 10 min até no
 // campo Nv 56 da Ilha. Com alguma peça do corpo abaixo de CONSERTA_ABAIXO, conserta com o ouro que tem: primeiro as
 // quebradas, depois as mais gastas, cada peça inteira ou nada (como consertarPecas no servidor). null = ainda não precisa.
+// gratis: o robô de testes conserta de graça (consertoGratis(prog), André 2026-11-27), então leva todas as gastas.
 export const CONSERTA_ABAIXO = 40;
-export function pecasParaConsertar(equip, ouro) {
+export function pecasParaConsertar(equip, ouro, gratis = false) {
   const gastas = Object.entries(equip || {}).filter(([, it]) => it && ehEquip(it.k) && custoConserto(it) > 0)
-    .map(([lugar, it]) => ({ lugar, d: durab(it), c: custoConserto(it) }));
+    .map(([lugar, it]) => ({ lugar, d: durab(it), c: gratis ? 0 : custoConserto(it) }));
   if (!gastas.some((x) => x.d < CONSERTA_ABAIXO)) return null;
   gastas.sort((a, b) => a.d - b.d || a.c - b.c);
   const lista = []; let custo = 0;

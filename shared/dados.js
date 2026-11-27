@@ -1351,8 +1351,11 @@ export const PAGINA_PRECO = [0, 1000, 5000, 15000]; // André 2026-11-16 (estudo
 // drop da Rara bem menor. nivel = dano a mais por nível; atr = dano a mais por ponto de Força/Int; mana/vit/forVida/nivelVida =
 // mana por Int, vida por Vit, vida por Força, vida por nível. armadura = quanto vale o dano da arma, a vida e a defesa das
 // peças (Comum..Mítica). O drop menor da Rara vale para todos (DROPS).
+// consertoGratis (André 2026-11-27, "deixa o reparo dele somente dele free pra gente avaliar o resto gasto de gold deixa pra
+// vermos depois"): o Tomás conserta o equipamento do robô de graça (consertarTudo/consertarPecas em shared/progresso.js). No
+// teste 2 o ouro acabou no Nv 33 e 6 das 8 peças ficaram quebradas; jogadores, bots e recrutas seguem pagando. Não zera.
 export const COMBATE_TESTE = { base: 64, ref: 128, arma: 2.5, armadura: [0.5, 1, 1.6, 2.2, 3], nivel: 0.06, atr: 0.05, mana: 5, vit: 6, forVida: 2, nivelVida: 5,
-  desgasteGolpes: 150, zerar: '2026-11-27c',
+  desgasteGolpes: 150, zerar: '2026-11-27c', consertoGratis: true,
   // 2026-11-27: herói novo começa com o set Comum +0 (EQUIP_INICIAL); o robô, já zerado pelado, ganha o mesmo set uma vez
   upgrade: { v: 'set-comum-2026-11-27', equip: { cabeca: { k: 'chapeu', r: 0 }, corpo: { k: 'peitoral', r: 0 }, pernas: { k: 'calca', r: 0 }, capa: { k: 'capa', r: 0 },
     pes: { k: 'botas', r: 0 }, acessorio: { k: 'colar', r: 0 }, espada: { k: 'espada', r: 0 }, cajado: { k: 'cajado', r: 0 } } } };
