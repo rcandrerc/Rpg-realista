@@ -46,3 +46,5 @@ sim.adicionarJogador('r3', 'Robô 3', 'cabelo_m', { progresso: salvo, robo: true
 assert.deepEqual(sim.jogadores.get('r3').prog.equip.corpo, { k: 'peitoral', r: 2, e: 3 }); assert.equal(sim.jogadores.get('r3').prog.ctu, 't1');
 COMBATE_TESTE.upgrade = { v: '', equip: {} };
 console.log('combate-teste upgrade: ok');
+// a marca do upgrade sobrevive ao salvar/ler (senão o robô é revestido a cada login)
+{ const U = COMBATE_TESTE.upgrade.v; assert.equal(progressoValido({ ct: 1, ctu: U, ctz: COMBATE_TESTE.zerar, nivel: 5 }).ctu, U, 'ctu fica gravado'); }

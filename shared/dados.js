@@ -1326,7 +1326,9 @@ export const PAGINA_PRECO = [0, 1000, 5000, 15000]; // André 2026-11-16 (estudo
 // upgrade: o robô não evolui nem reforça sozinho (André 2026-11-27); quando o relatório pedir, o André diz o que muda e
 // entra aqui: v = marca nova (texto), equip = { lugar: { k, r, e } } vestido na próxima entrada do robô (uma vez por marca).
 export const COMBATE_TESTE = { base: 64, ref: 128, arma: 1.8, armadura: [1, 1.5, 2, 2.5, 3], desgasteGolpes: 150, zerar: '2026-11-27',
-  upgrade: { v: '', equip: {} } };
+  // 2026-11-27: herói novo começa com o set Comum +0 (EQUIP_INICIAL); o robô, já zerado pelado, ganha o mesmo set uma vez
+  upgrade: { v: 'set-comum-2026-11-27', equip: { cabeca: { k: 'chapeu', r: 0 }, corpo: { k: 'peitoral', r: 0 }, pernas: { k: 'calca', r: 0 }, capa: { k: 'capa', r: 0 },
+    pes: { k: 'botas', r: 0 }, acessorio: { k: 'colar', r: 0 }, espada: { k: 'espada', r: 0 }, cajado: { k: 'cajado', r: 0 } } } };
 export const CONTA_TESTE = { nivel: false, paginas: false, devolver: '2026-11-11', missoes: true };
 // st: o que a peça soma no herói (vida, mana, defesa, critico, danoFisico, danoMagico), por raridade
 // André 2026-11-17: um atributo a mais por peça (capacete e botas: dano crítico em número; arma: chance de crítico;

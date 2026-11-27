@@ -508,6 +508,11 @@ export function devolverPaginas(p) {
   return precisa;
 }
 export const equipNovo = () => Object.fromEntries(LUGARES.map((l) => [l, null]));
+// Herói novo já começa vestido com o set Comum +0 (André 2026-11-27: "todos os jogadores começarem com 7 comum... fica
+// feio o jogador começando pelado lá na vila"): as 6 peças de roupa e as duas armas (todo herói tem espada E cajado).
+// Só conta nova (progressoNovo); conta que já existe fica com o que tem.
+export const EQUIP_INICIAL = { cabeca: 'chapeu', corpo: 'peitoral', pernas: 'calca', capa: 'capa', pes: 'botas', acessorio: 'colar', espada: 'espada', cajado: 'cajado' };
+export const equipInicial = () => Object.fromEntries(LUGARES.map((l) => [l, EQUIP_INICIAL[l] ? { k: EQUIP_INICIAL[l], r: 0 } : null]));
 export { ehEquip };
 
 // Habilidades: as do Quimera (armas/armas.js e index.html), com os mesmos números e o mesmo jeito de funcionar.
@@ -616,7 +621,7 @@ export function habNoNivel(id, nv) {
 export function progressoNovo() {
   // começa com umas poções e um pouco de ouro (conta antiga ganha o mesmo na primeira vez)
   const mochila = mochilaNova(); mochila[0] = { k: 'pocao', n: 3 }; mochila[1] = { k: 'pocao_mana', n: 2 };
-  return { nivel: 1, xp: 0, pontos: 0, atr: { for: 3, des: 3, int: 3, vit: 3 }, habs: {}, barras: barrasPadrao(), ouro: 20, mochila, paginas: 1, equip: equipNovo(),
+  return { nivel: 1, xp: 0, pontos: 0, atr: { for: 3, des: 3, int: 3, vit: 3 }, habs: {}, barras: barrasPadrao(), ouro: 20, mochila, paginas: 1, equip: equipInicial(),
     vigor: { v: VIGOR.max, t: Date.now() }, prof: profNovo(), semCapacete: false, hist: histNova(), tit: { tem: [], uso: '' }, abates: 0 };
 }
 export const profNovo = () => Object.fromEntries(Object.keys(PROFISSOES).map((k) => [k, 0]));
@@ -702,8 +707,8 @@ export function progressoValido(p) {
   { const d = placarDueloValido(p.duelos); if (d) n.duelos = d; } // placar de duelos (André 2026-11-17, shared/duelo.js)
   { const f = fichaJogadorValida(p.fic); if (f) n.fic = f; } // ficha do jogador, opcional (André 2026-11-23, FICHA_RECRUTA)
   { const g = patenteValida(p.gu); if (g) n.gu = g; }
-  if (typeof p.ctz === 'string' && p.ctz.length < 20) n.ctz = p.ctz;
-  if (typeof p.ctu === 'string' && p.ctu.length < 20) n.ctu = p.ctu; // último upgrade manual do robô (COMBATE_TESTE.upgrade)
+  if (typeof p.ctz === 'string' && p.ctz.length <= 40) n.ctz = p.ctz;
+  if (typeof p.ctu === 'string' && p.ctu.length <= 40) n.ctu = p.ctu; // último upgrade manual do robô (COMBATE_TESTE.upgrade)
   if (p.ct === 1) { n.ct = 1; if (Number.isInteger(p.ctg) && p.ctg > 0) n.ctg = Math.min(p.ctg, 100000); } // combate de teste (COMBATE_TESTE): ligado e golpes contados para o desgaste // Patente de Guerra (André 2026-11-26, shared/patente.js)
   { const a = pvpValido(p.pvp); if (a) n.pvp = a; } // Arena PvP (André 2026-11-21, shared/arena.js): Insígnias e placar
   if (Number.isFinite(p.rgCd) && p.rgCd > 0) n.rgCd = Math.round(p.rgCd); // Pó de rastreio: quando a recarga acaba (ms, hora de verdade)
