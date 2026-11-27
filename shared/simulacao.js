@@ -1003,7 +1003,7 @@ export class Simulacao {
     let n = 0; const cb = j.combos[chave] || { n: 0, ate: 0 };
     if (h.combo) { n = this.tempo < cb.ate ? (cb.n + 1) % h.combo.length : 0; h = { ...h, ...h.combo[n] }; }
     h = { ...h, chave };
-    const alvo = this.maisPerto(j);
+    const alvo = (j.leve && this.alvoLeve?.(j)) || this.maisPerto(j); // jogo leve: o monstro escolhido no mapa (shared/leve.js alvoLeve)
     if (alvo && !h.salto) this.virarPara(j, alvo);
     const d = this.tocar(j, h.anim, h.ts || 1, h.segurar || 0);
     if (h.combo) j.combos[chave] = { n, ate: this.tempo + d + 0.35 };

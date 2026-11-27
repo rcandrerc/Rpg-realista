@@ -207,8 +207,13 @@ button.acao.cinza{background:#26231d;border-color:var(--line)}
 .habLeve{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:auto}
 .habLeve button{position:relative;min-height:58px;border-radius:12px;border:1px solid var(--line);background:rgba(22,20,16,.94);color:var(--ink);font:600 .66rem system-ui,sans-serif;cursor:pointer;padding:2px;overflow:hidden;touch-action:manipulation}
 .habLeve button i{display:block;font-style:normal;font-size:1.35rem;line-height:1.2}
+.habLeve button i img{display:block;width:1.55rem;height:1.55rem;margin:1px auto 0}
+.habLeve button i img.po{width:1.7rem;height:1.7rem;object-fit:contain}
+.habLeve button.grande i img{width:2rem;height:2rem}
 .habLeve button span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .habLeve button.grande{grid-column:span 2;background:rgba(160,82,45,.92);border-color:var(--gold);font-size:.9rem}
+.habLeve button.grande{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.habLeve button.segurando{box-shadow:0 0 0 2px #ff6a3a inset,0 0 14px rgba(255,90,40,.6)}
 .habLeve button.espera{opacity:.45}
 .habLeve button::after{content:'';position:absolute;left:0;right:0;bottom:0;height:var(--cdp,0%);background:rgba(0,0,0,.6);pointer-events:none;transition:height .1s linear}
 .habLeve .cd{z-index:1;position:absolute;inset:0;display:grid;place-items:center;font-size:1.3rem;color:#fff;text-shadow:0 0 4px #000;pointer-events:none}
