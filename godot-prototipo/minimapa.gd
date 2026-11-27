@@ -1423,6 +1423,7 @@ func _nome_npc(id: String) -> String:
 
 # a névoa no minimapa: as regiões fechadas (André 2026-11-11), cortadas no círculo do minimapa
 func _nevoa_mini(c: Control, meio: Vector2, p: Vector3, k: float) -> void:
+	return # sem névoa no mapa (André 2026-11-27, remoção aprovada)
 	if m.nevoa == null:
 		return
 	var borda := _circulo(meio, RAIO - 2.0, 48)
@@ -1454,6 +1455,7 @@ func _contorno(Z: Dictionary, em: Callable) -> PackedVector2Array:
 
 # a névoa no mapa aberto: mancha lilás sobre cada região fechada, com o nome e o nível da missão que abre
 func _nevoa_mapa(c: Control, em: Callable) -> void:
+	return # sem névoa no mapa (André 2026-11-27, remoção aprovada)
 	if m.nevoa == null:
 		return
 	var tela := PackedVector2Array([Vector2(-50, -50), Vector2(janela.size.x + 50, -50), janela.size + Vector2(50, 50), Vector2(-50, janela.size.y + 50)])
