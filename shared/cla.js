@@ -1271,9 +1271,11 @@ export const Cla = {
   campoDoDrop(a, item) {
     if (!item) return null;
     const A = NPC_VIDA.aventura, teto = (a.prog.nivel | 0) + A.campoAcima - (a.licoes?.acima || 0);
-    const l = this.cacas.map((x) => x.def).filter((c) => !c.boss && !c.tunel && (c.tipos || [c.bicho]).some((t) => !['chefe', 'lider'].includes(t) && DROPS[t]?.mat?.[item]));
+    // campo de uma raça (raca: os da Geada Nv 1-30 em volta do Juncal) só para ela; no mesmo nível, o mais perto dele
+    const raca = a.raca || 'chama', dist = (c) => Math.hypot(c.x - a.x, c.z - a.z);
+    const l = this.cacas.map((x) => x.def).filter((c) => !c.boss && !c.tunel && (!c.raca || c.raca === raca) && (c.tipos || [c.bicho]).some((t) => !['chefe', 'lider'].includes(t) && DROPS[t]?.mat?.[item]));
     if (!l.length) return null;
-    l.sort((x, y) => (x.nivel || 1) - (y.nivel || 1));
+    l.sort((x, y) => (x.nivel || 1) - (y.nivel || 1) || dist(y) - dist(x));
     const cabe = l.filter((c) => (c.nivel || 1) <= teto);
     return cabe.length ? cabe[cabe.length - 1] : l[0];
   },

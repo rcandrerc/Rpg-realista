@@ -62,10 +62,12 @@ for (const E of ESTRADAS_MUNDO) {
 }
 
 // Parte 5: campos de caça do Nv 30 ao 100 nos lugares planos, com monstros vivos e no nível
-const novos = M.caca.filter((c) => c.mundo && !c.boss);
+// (os campos da Geada Nv 1-30 em volta do Juncal, raca 'geada', são de outra conta: ferramentas/testes/campos-geada.mjs;
+// aqui só entram na conferência dos monstros vivos no campo)
+const novos = M.caca.filter((c) => c.mundo && !c.boss && !c.raca);
 ok(novos.length >= 20 && Math.min(...novos.map((c) => c.nivel)) > 30 && Math.max(...novos.map((c) => c.nivel)) === 100, `${novos.length} campos novos, Nv ${Math.min(...novos.map((c) => c.nivel))} a 100`);
 const sim = new Simulacao(M);
-for (const c of novos) {
+for (const c of [...novos, ...M.caca.filter((o) => o.raca)]) {
   const ci = M.caca.indexOf(c), vivos = sim.cacas[ci].vagas.filter((vg) => vg.e && vg.e.vida > 0);
   const chao = vivos.every((vg) => Math.abs(vg.e.y ?? 0) < 30 && Math.hypot(vg.e.x - c.x, vg.e.z - c.z) <= c.r + 0.5);
   ok(vivos.length === c.n && chao, `${c.id} Nv ${c.nivel}: ${vivos.length} monstros dentro do campo`);
