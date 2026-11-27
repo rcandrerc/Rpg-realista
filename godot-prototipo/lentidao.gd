@@ -390,6 +390,19 @@ func _resumo(real: float) -> void:
 	e.cham = RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)
 	e.tri = roundi(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME) / 1000.0)
 	e.obj = RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)
+	# quantos personagens estão sendo desenhados (Luísa, 2026-11-27: cada um custa ~40 chamadas de desenho):
+	# [NPCs da vila à vista, corpos de outros (jogadores, bots, recrutas) à vista, monstros perto, degrau "corpos"]
+	var nv := 0
+	for n in m.npcs:
+		if not n.get("longe", false):
+			nv += 1
+	var ov := 0
+	var on0 = m.online
+	if on0 and "outros" in on0:
+		for id in on0.outros:
+			if not on0.outros[id].get("sumiu", false):
+				ov += 1
+	e.pers = [nv, ov, m.inimigos_perto.size(), g.corpos() if g else 0]
 	_comum(e)
 	var on = m.online
 	if _resumos < RESUMO_MAX and on and on.rede and on.rede.conectado:
