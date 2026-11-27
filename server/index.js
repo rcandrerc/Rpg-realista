@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
-import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, LEILAO_BOT, TIPOS_LEILAO, anuncioParaApp, nomeItem, ehEquip, RARIDADES, estadoTomo, COR_TOMO, CAIXA, lancarCaixa, resumoCaixa, LEVE } from '@rpg/shared';
+import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, LEILAO_BOT, TIPOS_LEILAO, anuncioParaApp, nomeItem, ehEquip, RARIDADES, estadoTomo, COR_TOMO, CAIXA, lancarCaixa, resumoCaixa, LEVE, moralAgora } from '@rpg/shared';
 import { Contas, verificadorGoogle, roboCel, roboCarga, ROBO } from './contas.js';
 import { Visao } from './visao.js';
 import { Push } from './push.js'; // avisos no celular do painel do clã (André 2026-11-24)
@@ -1209,6 +1209,8 @@ app.get('/npcs.json', async (req, res) => {
   }
   // os recrutas dos clãs dos jogadores (André 2026-11-24: "3 sim"): nível, caça e missão de hoje, função, se está devendo,
   // no mundo, morto ou preso. Só com o crachá da ronda (posição e clã de jogador não ficam públicos).
+  // moral e mochila (André 2026-11-27, relatório "dos recrutas"): a moral de agora (0 a 100, a mesma conta do menu do clã,
+  // só lê) e a mochila: lugares ocupados/total e quantos de cada item. Só leitura, nada muda no jogo.
   let recrutas;
   if (cracha && contas) try {
     const vivosR = new Map(), lideres = new Map();
@@ -1217,6 +1219,7 @@ app.get('/npcs.json', async (req, res) => {
       for (const j of s.sim.jogadores.values()) if (!j.bot && j.conta) lideres.set(j.conta, j);
     }
     const eq = (e) => Object.fromEntries(Object.entries(e || {}).filter(([, it]) => it?.k).map(([s2, it]) => [s2, { k: it.k, r: it.r | 0, ...(it.e ? { e: it.e } : {}) }]));
+    const moch = (l) => { if (!Array.isArray(l)) return null; const itens = {}; for (const o of l) if (o?.k) itens[o.k] = (itens[o.k] | 0) + (o.n || 1); return { lug: [l.filter(Boolean).length, l.length], itens }; };
     recrutas = contas.clasDasContas().map((K) => {
       const j = lideres.get(K.conta), c = j?.prog?.cla || K.cla;
       return { cla: c.n, nv: c.nv || 1, cofre: c.cofre | 0, online: !!j, lider: { nivel: j ? j.prog.nivel | 0 : K.nivel, ouro: j ? j.prog.ouro | 0 : K.ouro, equip: eq(j ? j.prog.equip : K.equip) },
@@ -1224,7 +1227,7 @@ app.get('/npcs.json', async (req, res) => {
           const ctx = vivosR.get(m.id), a = ctx?.amiga || contas.lerMundo('npc:' + m.id);
           return { nome: m.nome, nv: a?.prog ? a.prog.nivel | 0 : m.nv | 0, funcao: m.fn?.k || 'livre', ...(m.fn?.r ? { recurso: m.fn.r } : {}), ...(m.dev ? { devendo: m.dev } : {}),
             noMundo: !!ctx, cacaMinHoje: a?.grind?.dia === dia ? Math.round((a.grind.seg || 0) / 60) : 0, missaoMinHoje: a?.missaoDia?.dia === dia ? Math.round((a.missaoDia.seg || 0) / 60) : 0,
-            salvoHa: a?.t ? Math.round((Date.now() - a.t) / 60000) : null,
+            salvoHa: a?.t ? Math.round((Date.now() - a.t) / 60000) : null, moral: Math.round(moralAgora(m, c.vis)), mochila: moch(a?.prog?.mochila),
             ...(ctx ? { x: Math.round(ctx.amiga.x), z: Math.round(ctx.amiga.z), morto: !!ctx.amiga.morto, preso: !!ctx.amiga.ia?.viagem?.bloqueio } : {}) };
         }) };
     });
