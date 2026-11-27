@@ -908,7 +908,7 @@ function ligarLeve(s) {
     if (d.fx) fxChegou(d.fx);
     if (d.f?.as != null && leve.f?.as != null && d.f.as !== leve.f.as && !d.f.hb?.mg) FX.push({ f: ['s', d.f.eu[13] || 0, d.f.as % 2], t: performance.now() }); // o herói golpeou de espada: o corte
     leve.parado = !!(leve.f && d.f && leve.f.eu[0] === d.f.eu[0] && leve.f.eu[1] === d.f.eu[1]); // o herói não andou desde a foto de antes
-    leve.f = d.f; if (d.cn) { leve.cn = d.cn; leve.cnImg = assarCena(d.cn); } if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa; if (d.ms) { leve.ms = d.ms; if (aba === 'missoes') desenharMissoes(); if (aba === 'personagem') desenharPersonagem(); }
+    leve.f = d.f; if (d.cn) { leve.cn = d.cn; leve.cnImg = assarCena(d.cn); } if (d.mo) { leve.mo = d.mo; leve.sujo = true; if (aba === 'personagem') desenharPersonagem(); } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa; if (d.ms) { leve.ms = d.ms; if (aba === 'missoes') desenharMissoes(); if (aba === 'personagem') desenharPersonagem(); }
     if (d.fz) { leve.fz = d.fz; if (aba === 'fazenda') desenharFazenda(); }
     for (const e of d.ev || []) eventoLeve(e);
     // apanhou minerando (André 2026-11-26: "quando chega o combate... tá meio confuso"): o servidor para a coleta (igual ao
@@ -1271,6 +1271,37 @@ function cartaoMochila() {
   return c;
 }
 const VESTE = [['cabeca', '🪖', 'Cabeça'], ['corpo', '🦺', 'Corpo'], ['pernas', '👖', 'Pernas'], ['pes', '🥾', 'Pés'], ['capa', '🧣', 'Capa'], ['acessorio', '💍', 'Acessório'], ['espada', '🗡️', 'Espada'], ['cajado', '🪄', 'Cajado']];
+// a janela do lugar do corpo (como a do medalhão do jogo, menu.gd montar_janela): a peça vestida com durabilidade e
+// reforço, Tirar, o aviso (melhor peça ou não) e as peças da mochila que servem ali, melhores primeiro, com Vestir
+const VEREDITO = { m: ['Melhor', '#7fdc6a'], p: ['Pior', '#f5675a'], x: ['Melhor em parte', '#f0c050'], '': ['Igual', '#bbb'] };
+function janelaLugar(l, nomeL) {
+  const fechar = () => { const j = document.querySelector('.janelaLeve.peca'); if (j) j.remove(); };
+  fechar();
+  const atual = (leve.mo?.eq || []).find((o) => o[0] === l), moL = leve.mo?.l || 0, it = leve.mo?.it || [], cheia = moL && it.length >= moL;
+  const opcoes = it.filter((o) => o[7] === 'e' && o[8] === l).sort((a, b) => (b[11]?.[1] || 0) - (a[11]?.[1] || 0));
+  const corpo = [el('div', 'faz', nomeL.toUpperCase())], bts = el('div', 'bts');
+  if (atual) {
+    const nm = el('div', 'nome', atual[2]); if (atual[3]) nm.style.color = atual[3]; corpo.push(nm);
+    if (atual[4]) corpo.push(el('div', null, atual[4].split(' · ').join('\n'))); corpo[corpo.length - 1].style.whiteSpace = 'pre-line';
+    if (atual[5] != null) corpo.push(el('div', 'faz', atual[5] <= 0 ? `QUEBRADA · conserto ${num(atual[9])} ouro` : `Durabilidade ${atual[5]}/${atual[6]}`));
+    if (atual[8]) corpo.push(el('div', 'faz', `Reforço +${atual[7]} de ${atual[8]}`));
+    const t = el('button', 'acao cinza', 'Tirar'); t.disabled = !!cheia; t.onclick = () => { mandar('item', { acao: 'tirar', lugar: l }); fechar(); }; bts.append(t);
+  } else corpo.push(el('div', 'nome', 'Nada vestido'));
+  const melhores = opcoes.filter((o) => o[11]?.[1] > 0.0001).length;
+  const av = atual && cheia ? ['Mochila cheia: libere um lugar para tirar' + (opcoes.length ? ' (trocar funciona).' : '.'), '#f5675a']
+    : !atual ? [opcoes.length ? `Tem ${opcoes.length} peça${opcoes.length === 1 ? '' : 's'} na mochila para este lugar` : 'Nenhuma peça na mochila para este lugar', opcoes.length ? '#7fdc6a' : '#999']
+    : melhores ? [melhores === 1 ? '▲ Tem peça melhor na mochila' : `▲ Tem ${melhores} peças melhores na mochila`, '#7fdc6a'] : ['✓ É a sua melhor peça para este lugar', '#f0d28a'];
+  const a = el('div', null, av[0]); a.style.color = av[1]; corpo.push(a);
+  for (const o of opcoes) {
+    const [i, , n, nome, cor, , , , , txt, , cmp] = o, r = el('div', 'recLeve'), x = el('div', 'n'), [vd, vc] = VEREDITO[cmp?.[0] || ''];
+    const b = el('b', null, nome); if (cor) b.style.color = cor; const vv = el('small', null, atual ? `${vd}${cmp?.[2] ? ' · ' + cmp[2] : ''}` : txt); vv.style.color = atual ? vc : '';
+    x.append(b, vv); const u = el('button', 'on', atual ? 'Trocar' : 'Vestir'); u.onclick = () => { mandar('item', { acao: 'equipar', i }); fechar(); };
+    r.append(x, u); corpo.push(r);
+  }
+  const f = el('button', 'acao cinza', 'Fechar'); f.onclick = fechar; bts.append(f); corpo.push(bts);
+  const j = janelaLeve(corpo); j.classList.add('peca'); j.onclick = (e) => { if (e.target === j) fechar(); };
+  document.body.append(j);
+}
 // a janelinha da peça: nome, o que dá, o que você usa no mesmo lugar (para comparar) e os botões que valem
 function janelaPeca({ it, eq, nomeL }) {
   const fechar = () => { const j = document.querySelector('.janelaLeve.peca'); if (j) j.remove(); };
@@ -1456,7 +1487,10 @@ function desenharJogar() {
   if (leve.rota) while (leve.rotaI < leve.rota.length - 1 && Math.hypot(leve.rota[leve.rotaI][0] - x, leve.rota[leve.rotaI][1] - z) < 3) leve.rotaI++;
   // o cartão de status muda a cada foto; o resto só quando muda o que está perto (não refaz a tela embaixo do dedo)
   let st = $('jogarStatus');
-  if (!st) { st = el('div', 'card hud'); st.id = 'jogarStatus'; }
+  if (!st) { // tocar no quadro de Vida/Mana/Vigor abre o personagem (André 2026-11-27: "igual ao modo 3D": a barra de vida abre o menu do personagem)
+    st = el('div', 'card hud'); st.id = 'jogarStatus';
+    st.onclick = (e) => { if (!e.target.closest('button')) irAba('personagem'); };
+  }
   limpar(st);
   const vm = el('div', 'vm'); vm.append(barra('Vida', hp, hpM, 'var(--hp)'), barra('Mana', mn, mnM, '#3d7fd0')); if (vgM) vm.append(barra('Vigor', vg, vgM, '#6fbf5a')); for (const d of vm.children) d.style.flex = '1'; st.append(vm);
   // 1 (André 2026-11-25): o quadro de cima só com a conta num relance e uma frase do que está acontecendo; Montar, Recall,
@@ -2209,10 +2243,21 @@ function desenharPersonagem() {
   if (!leve.sala || !leve.f) return foraDoMundo(raiz, 'o personagem');
   const P = leve.ms?.pe; if (!P) { raiz.append(el('div', 'vazio', 'Abrindo…')); return; }
   const card = (tit) => { const c = el('div', 'card'); c.append(el('div', 'nome', tit)); raiz.append(c); return c; };
-  // status
+  // nível (como a aba Status do jogo: nível, XP e a barra)
   { const c = card(`🧍 Nível ${P.nv}`), b = el('div', 'barra'), i = el('b'); i.style.width = Math.min(100, (P.xp / (P.xpM || 1)) * 100) + '%'; i.style.background = 'var(--gold)'; b.append(i);
     c.append(el('div', 'faz', `XP ${num(P.xp)}/${num(P.xpM)}`), b);
-    const g = el('div', 'atalhos'); for (const [n, v] of P.st) { const d = el('button'); d.disabled = true; d.style.opacity = 1; d.append(document.createTextNode(String(v)), el('small', null, n)); g.append(d); } c.append(g);
+  }
+  // equipamento: os lugares do corpo como os medalhões em volta do boneco do jogo; tocar abre a janela do lugar
+  { const c = card('🛡️ Equipamento'), eq = new Map((leve.mo?.eq || []).map((o) => [o[0], o])), v = el('div', 'icones');
+    for (const [l, ic, nomeL] of VESTE) {
+      const o = eq.get(l), d = o ? itemLeve(o[1], o[2], o[3], 1, null, false, () => janelaLugar(l, nomeL)) : el('div', 'ico vazioEq');
+      if (!o) { const q = el('div', 'q'); q.append(el('span', 'nvb', ic)); d.append(q, el('small', null, nomeL)); d.onclick = () => janelaLugar(l, nomeL); }
+      else if (o[5] != null && o[5] < o[6]) { d.classList.toggle('gasta', o[5] <= 0); d.title = o[5] <= 0 ? 'Quebrada' : `Durabilidade ${o[5]}/${o[6]}`; }
+      const melhor = (leve.mo?.it || []).some((it) => it[7] === 'e' && it[8] === l && it[11]?.[1] > 0.0001);
+      if (melhor) d.append(el('i', 'melhorEq', '▲'));
+      v.append(d);
+    }
+    c.append(v, el('div', 'faz', 'Toque num lugar para ver a peça, comparar e trocar. ▲ = tem peça melhor na mochila.'));
   }
   // atributos: + guarda no aparelho até Confirmar (como o menu do jogo); o servidor confere os pontos
   { const usados = Object.values(atrPend).reduce((s, v) => s + v, 0), livres = P.pts - usados;
@@ -2224,6 +2269,16 @@ function desenharPersonagem() {
       c.append(r);
     }
     if (usados) { const d = el('div', 'bts'); d.append(bt('Confirmar', () => { mandar('atributos', atrPend); atrPend = {}; }), bt('Cancelar', () => { atrPend = {}; desenharPersonagem(); }, true)); c.append(d); }
+  }
+  // herói: as mesmas linhas do jogo; com pontos para confirmar, o número depois em verde (→)
+  if (P.he) { const c = card('⚔️ Herói'), g = el('div', 'heroiLeve');
+    const fmt = { Vida: (v) => String(Math.round(v)), Mana: (v) => String(Math.round(v)), Defesa: (v) => String(Math.round(v)), 'Crítico': (v) => `${Math.round(v * 1000) / 10}%`, 'Dano físico': (v) => String(Math.round(v * 10) / 10), 'Dano mágico': (v) => String(Math.round(v * 10) / 10), Recarga: (v) => `-${Math.round(v * 100)}%` };
+    for (const [n, v] of P.he) {
+      let dep = null;
+      if (Object.keys(atrPend).length && P.dp && P.ba0 && n in P.ba0) { let x = P.ba0[n]; for (const [k, q] of Object.entries(atrPend)) x += (P.dp[k]?.[n] || 0) * q; if (fmt[n](x) !== fmt[n](P.ba0[n])) dep = fmt[n](x); }
+      const r = el('div'); r.append(el('small', null, n), el('b', null, v)); if (dep) r.append(el('em', null, ` → ${dep}`)); g.append(r);
+    }
+    c.append(g);
   }
   // golpes: as duas barras do jogo (6 da espada, 6 do cajado), como a aba Habilidades do jogo; toque num botão e escolha
   // outra skill que cabe nessa barra (a da árvore ou geral). Troca = msg 'barra' {barra, lista}; o servidor confere (barraValida)

@@ -17,7 +17,8 @@ import { ESTRADAS_MUNDO } from './mundo.js';
 import { VILAS_MUNDO } from './dados.js';
 import { aguaRegador, pertoDeAgua, distRet, crescerPlanta, retPeca, semParede } from './simulacao.js'; // fazenda e cama (etapa 6); só usadas na hora, depois que tudo carregou
 import { PESCA, PLANTAS, HORTA, LOTE, fasePlanta } from './dados.js';
-import { horaDoJogo, ehNoite, HABS, BARRAS, cabeNaBarra, ANDAR_ATIRANDO } from './progresso.js';
+import { horaDoJogo, ehNoite, HABS, BARRAS, cabeNaBarra, ANDAR_ATIRANDO, calcularStatus, reforcoK, reforcoMax, durab, custoConserto } from './progresso.js';
+import { MORTE } from './dados.js';
 
 export const LEVE = {
   envio: 0.5, // s entre as fotos para a página
@@ -63,6 +64,24 @@ function textoPeca(o) {
   if (I.st && o.r != null) return Object.entries(I.st).map(([c, v]) => `${NOME_ST[c] || c} ${Math.round(((v[o.r] ?? 0) * (c.endsWith('K') ? 100 : 1)) * 10) / 10}`).join(' · ');
   const u = I.usar; if (!u) return '';
   return [u.vida && `Vida +${Math.round(u.vida * 100)}%`, u.mana && `Mana +${Math.round(u.mana * 100)}%`, u.vigor && `Vigor +${u.vigor}`].filter(Boolean).join(' · ');
+}
+
+// comparar peças como a janela do medalhão do jogo (menu.gd st_item/diferenca/nota/veredito): os números da peça com o
+// reforço, a diferença para a vestida e a nota pelos pesos do jogo (PESO_ST)
+const PESO_ST = { vida: 1 / 20, mana: 1 / 20, defesa: 1 / 5, danoFisico: 1 / 5, danoMagico: 1 / 5, critico: 1 / 0.01, danoCritico: 1 / 5, danoK: 1 / 0.05, areaK: 1 / 0.05, regenManaK: 1 / 0.05 };
+function stPeca(o) {
+  const I = o && ITENS[o.k], r = {}; if (!I?.st || o.r == null) return r;
+  const rk = reforcoK(o); for (const [c, v] of Object.entries(I.st)) r[c] = (v[o.r] ?? 0) * (c === 'critico' || c === 'danoCritico' ? rk.critico : rk.st);
+  return r;
+}
+// [veredito, nota, o que muda] veredito: m melhor, p pior, x melhor em parte, '' igual
+function compararPeca(novo, atual) {
+  const a = stPeca(atual), n = stPeca(novo), d = {};
+  for (const c of new Set([...Object.keys(n), ...Object.keys(a)])) { const v = (n[c] || 0) - (a[c] || 0); if (Math.abs(v) > 1e-5) d[c] = v; }
+  const vs = Object.values(d), ganha = vs.some((v) => v > 0), perde = vs.some((v) => v < 0);
+  const nota = Object.entries(d).reduce((t, [c, v]) => t + v * (PESO_ST[c] ?? 1), 0);
+  const txt = Object.entries(d).map(([c, v]) => `${v > 0 ? '+' : '−'}${Math.round(Math.abs(v) * (c.endsWith('K') || c === 'critico' ? 100 : 1) * 10) / 10} ${NOME_ST[c] || c}`).join(' · ');
+  return [ganha && !perde ? 'm' : perde && !ganha ? 'p' : ganha ? 'x' : '', Math.round(nota * 100) / 100, txt];
 }
 
 // a rota do jogo leve: a das estradas (planejarRota), mas saindo e entrando nas bases do clã pelo portão (saidaDaBase)
@@ -419,9 +438,9 @@ export const Leve = {
       // (menu.gd): "Colocar no chão" ou, no mundo, "Guardar carrinho"; navio só "Guardar navio" quando está na água. [10] = rótulo
       const vb = o.k === 'carrinho' ? (this.carrinhoFora(j) ? 'Guardar carrinho' : 'Colocar no chão') : o.k === 'navio' && this.navioFora(j) ? 'Guardar navio' : '';
       const I = ITENS[o.k], tipo = I.lugar ? 'e' : (I.usar && !I.usar.veiculo) || o.k === 'tomo' || vb ? 'u' : '';
-      r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o), precoVenda(o, merc), o.cad ? 1 : 0, tipo, I.lugar || '', textoPeca(o), ...(vb ? [vb] : [])]);
+      r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o), precoVenda(o, merc), o.cad ? 1 : 0, tipo, I.lugar || '', textoPeca(o), vb || '', ...(tipo === 'e' ? [compararPeca(o, p.equip?.[I.lugar])] : [])]); // [11] peça: comparada com a vestida (como a janela do medalhão)
     });
-    const eq = LUGARES.filter((l) => p.equip?.[l] && ITENS[p.equip[l].k]).map((l) => { const o = p.equip[l]; return [l, o.k, nomeItem(o), corDe(o), textoPeca(o)]; });
+    const eq = LUGARES.filter((l) => p.equip?.[l] && ITENS[p.equip[l].k]).map((l) => { const o = p.equip[l]; return [l, o.k, nomeItem(o), corDe(o), textoPeca(o), durab(o), MORTE.durMax, o.e | 0, reforcoMax(o), custoConserto(o)]; }); // [5..9] durabilidade, máx, reforço, reforço máx, conserto
     return { l: (p.mochila || []).length, it: r, eq };
   },
   // Criar (André 2026-11-25): as MESMAS receitas e regras do jogo (RECEITAS, motivoReceita, `criar`); aqui só se lista.
@@ -464,6 +483,15 @@ export const Leve = {
     return { nv: p.nivel | 0, xp: Math.floor(p.xp || 0), xpM: xpProximo(p.nivel), pts: p.pontos | 0, atr: p.atr,
       an: Object.fromEntries(Object.entries(ATRIBUTOS).map(([k, A]) => [k, [A.nome, A.desc]])),
       st: [['Vida', Math.round(j.vidaMax)], ['Mana', Math.round(j.manaMax)], ['Defesa', Math.round(st.defesa || 0)], ['Dano físico', Math.round(st.danoFisico || 0)], ['Dano mágico', Math.round(st.danoMagico || 0)], ['Crítico', pc(st.critico) + '%']],
+      // Herói (André 2026-11-27: "tudo igual ao modo 3D"): as mesmas linhas da aba Status do jogo (menu.gd montar_status)
+      he: [['Vida', `${Math.ceil(j.vida)} / ${Math.round(j.vidaMax)}`], ['Mana', `${Math.floor(j.mana)} / ${Math.round(j.manaMax)}`],
+        ['Defesa', `${Math.round(st.defesa || 0)} (-${Math.round((st.reducao || 0) * 100)}% de dano)`], ['Crítico', `${pc(st.critico)}%`],
+        ['Dano crítico', `+${Math.round(st.danoCritico || 0)}`], ['Dano físico', `${pc((st.danoFisico || 0) / 100)}`], ['Dano mágico', `${pc((st.danoMagico || 0) / 100)}`],
+        ['Recarga', `-${Math.round((st.recarga || 0) * 100)}%`], ['Regeneração', `${pc((st.regenVida || 0) / 100)} vida/s · ${pc((st.regenMana || 0) / 100)} mana/s (fora de luta)`],
+        ['Estamina', `${Math.floor(j.sta ?? 0)} / ${Math.round(j.staMax ?? st.estaminaMax ?? 0)}`], ['Vigor', `${Math.floor(Math.min(vigorAgora(p.vigor), vigorMax(p)))} / ${vigorMax(p)}`], ['Ouro', String(p.ouro | 0)]],
+      // +1 ponto em cada atributo: quanto muda (a página mostra "→ novo" em verde enquanto não confirma, como o jogo)
+      dp: Object.fromEntries(Object.keys(ATRIBUTOS).map((k) => { const s2 = calcularStatus({ ...p, atr: { ...p.atr, [k]: (p.atr?.[k] | 0) + 1 } }, j.pas); return [k, { Vida: s2.vidaMax - st.vidaMax, Mana: s2.manaMax - st.manaMax, Defesa: s2.defesa - st.defesa, 'Crítico': s2.critico - st.critico, 'Dano físico': s2.danoFisico - st.danoFisico, 'Dano mágico': s2.danoMagico - st.danoMagico, Recarga: s2.recarga - st.recarga }]; })),
+      ba0: { Vida: st.vidaMax, Mana: st.manaMax, Defesa: st.defesa, 'Crítico': st.critico, 'Dano físico': st.danoFisico, 'Dano mágico': st.danoMagico, Recarga: st.recarga },
       // golpes = as barras do jogo (André 2026-11-27: "igual ao jogo"): prog.barras e msg 'barra' {barra, lista}, como a aba Habilidades do jogo
       ba: Object.fromEntries(BARRAS.map((b) => [b, [...(p.barras?.[b] || [])]])),
       hs: Object.entries(HABS).filter(([k]) => BARRAS.some((b) => cabeNaBarra(k, b))).map(([k, H]) => [k, H.nome, H.arvore, H.desc || '', H.libera || 1, p.habs?.[k]?.nv || 1]),
