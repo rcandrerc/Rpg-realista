@@ -332,7 +332,8 @@ function lojaVenda() {
   L.push(['Prop_Chimney', [1.0, 5.6, -1.6], 0]);
   // a loja: balcão, toldo, prateleiras, mercadoria, lanternas e a placa
   L.push(['@balcao', [0, 0, 0.05], 0, [3.0, 1.0, 0.55]]);
-  L.push(['Roof_Wooden_2x1', [-W / 4, 1.95, 0.4], 0, [s, 0.55, 0.62]], ['Roof_Wooden_2x1', [W / 4, 1.95, 0.4], 0, [s, 0.55, 0.62]]);
+  // toldo alto e curto (André 2026-11-27: o de 1,95 m tapava o nome e o rosto da vendedora): embaixo do andar de cima
+  L.push(['Roof_Wooden_2x1', [-W / 4, 2.55, 0.4], 0, [s, 0.3, 0.45]], ['Roof_Wooden_2x1', [W / 4, 2.55, 0.4], 0, [s, 0.3, 0.45]]);
   L.push(['Shelf_Simple', [-0.85, 1.55, -D + 0.05], 0], ['Shelf_Simple', [0.85, 1.55, -D + 0.05], 0], ['Shelf_Small_Bottles', [-0.85, 1.05, -D + 0.05], 0], ['Shelf_Small_Bottles', [0.85, 1.05, -D + 0.05], 0]);
   L.push(['FarmCrate_Apple', [-1.05, 0.99, 0.05], 0.15, 0.8], ['Bag', [-0.25, 0.99, 0.08], 0.5], ['Potion_1', [0.35, 0.99, 0.12], 0], ['Potion_2', [0.55, 0.99, 0.02], 0.4], ['Coin_Pile', [1.05, 0.99, 0.05], 0.3]);
   L.push(['Barrel', [-1.35, 0, -1.9], 0], ['Crate_Wooden', [1.25, 0, -1.85], 0.2, 0.8]);
@@ -354,7 +355,8 @@ function bancaMercado(merc) {
   for (const sx of [-1, 1]) L.push(['@viga', [sx * W / 2, 2.75, z0 + D / 2], 0, [0.22, 0.22, D + 0.2]]);
   L.push(['Roof_2x4_RoundTile', [0, 2.95, z0 + D / 2], PI / 2, [1.0, 0.8, 1.0]]);
   L.push(['@balcao', [0, 0, z0 + D - 0.25], 0, [W - 0.5, 0.95, 0.6]]);
-  L.push(['Banner_1_Cloth', [-W / 4, 2.65, z0 + D + 0.14], 0, [0.9, 0.45, 1]], ['Banner_1_Cloth', [W / 4, 2.65, z0 + D + 0.14], 0, [0.9, 0.45, 1]]);
+  // estandartes curtos nos cantos (André 2026-11-27: nada na frente do nome e do rosto do vendedor)
+  L.push(['Banner_1_Cloth', [-W / 2 + 0.35, 2.65, z0 + D + 0.14], 0, [0.6, 0.28, 1]], ['Banner_1_Cloth', [W / 2 - 0.35, 2.65, z0 + D + 0.14], 0, [0.6, 0.28, 1]]);
   L.push(['Lantern_Wall', [W / 2 + 0.06, 2.0, z0 + D], PI / 2, 0.75]);
   L.push(['Shelf_Simple', [0, 1.6, z0 + 0.05], 0, [1.6, 1, 1]]);
   L.push(...merc);
