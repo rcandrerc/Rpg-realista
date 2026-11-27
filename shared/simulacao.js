@@ -2645,7 +2645,7 @@ export class Simulacao {
   ordemPackTime(id, m) {
     const j = this.jogadores.get(id), de = String(m?.de || ''), pra = String(m?.pra || ''), para = String(m?.para || '');
     if (!j || j.bot || !j.time) return;
-    const alvos = j.time.membros.filter((k) => k !== j.id && (para === '*' || k === para)).map((k) => this.jogadores.get(k)).filter((o) => o?.bot && this.grupoTime(o) === this.grupoTime(j)); // só os bots do clã dele (André 2026-11-27)
+    const alvos = j.time.membros.filter((k) => k !== j.id && (para === '*' || k === para)).map((k) => this.jogadores.get(k)).filter((o) => { if (!o?.bot) return false; const A = this.amigoIaDe(o)?.AMIGA; return !(A?.recruta || A?.clanpc) || this.grupoTime(o) === this.grupoTime(j); }); // recruta de outro clã não obedece (André 2026-11-27)
     let n = 0;
     for (const o of alvos) { const ctx = this.amigoIaDe(o); if (ctx?.ordemPackAmiga?.(id, de, pra)) n++; }
     if (!n) return this.evento({ t: 'aviso', para: id, texto: 'Ninguém do time pode fazer isso agora' });
