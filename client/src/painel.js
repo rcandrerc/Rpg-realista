@@ -741,6 +741,12 @@ function desenharMapa() {
       g.beginPath(); g.moveTo(ea + sx * L, eb + sz * L); g.lineTo(ea + sx * t0 + px * B, eb + sz * t0 + pz * B); g.lineTo(ea + sx * t0 - px * B, eb + sz * t0 - pz * B); g.closePath(); g.fill(); g.stroke(); g.restore();
     }
   }
+  if (jogando && mapaGeral && lugarSel) { // o lugar marcado na lista (ou no toque), como o do mapa do jogo: anel dourado
+    const [a, b] = P(lugarSel.x, lugarSel.z), r = Math.max(10, W / 30);
+    g.save(); g.strokeStyle = '#ffd36b'; g.lineWidth = Math.max(3, W / 160); g.shadowColor = '#000'; g.shadowBlur = 6; g.beginPath(); g.arc(a, b, r, 0, 6.283); g.stroke();
+    g.beginPath(); g.moveTo(a, b - r * 1.6); g.lineTo(a, b - r * 0.6); g.moveTo(a, b + r * 0.6); g.lineTo(a, b + r * 1.6); g.moveTo(a - r * 1.6, b); g.lineTo(a - r * 0.6, b); g.moveTo(a + r * 0.6, b); g.lineTo(a + r * 1.6, b); g.stroke(); g.restore();
+    marcas.unshift([lugarSel.nome, a, b - r * 1.8]);
+  }
   for (const [t, a, y] of marcas) if (cabe(t, a, y)) escrever(t, a, y, '#fff3dc');
   for (const L of jogando ? [] : info.lugares || []) {
     const [a, b] = P(L.x, L.z); if (a < 0 || b < 0 || a > W || b > H) continue;
@@ -858,6 +864,7 @@ function tocarMapaLeve(e) {
   if (bicho) { leve.mira = bicho; leve.sujo = true; desenharJogar(); return; }
   if (leve.mira) { leve.mira = null; leve.sujo = true; }
   for (const L of leve.mapa ? [...leve.mapa.npcs, ...leve.mapa.totens] : []) { const d = Math.hypot(L.x - x, L.z - z); if (d < melhor) { melhor = d; alvo = { x: L.x, z: L.z, nome: L.n.split(',')[0] }; } }
+  if (mapaGeral) { marcarLugar({ ...alvo, nome: alvo.nome || 'Ponto marcado' }, false); return; } // mapa geral (como o do jogo): tocar marca; o Ir para leva
   irLeve(alvo);
 }
 const irLeve = (a) => { abrirMapaGeral(false, true); mandar('leveIr', { x: Math.round(a.x * 10) / 10, z: Math.round(a.z * 10) / 10, nome: a.nome || undefined }); if (aba !== 'jogar') irAba('jogar'); }; // de outra aba (ex.: Criar > Ir até a bigorna): volta ao mapa para ver o herói andar
@@ -1240,6 +1247,58 @@ function cartaoLugares(M) {
   return c;
 }
 
+// o mapa geral como o do jogo (André 2026-11-27: "o menu de lugares ficasse igual ou parecido com o jogo original";
+// minimapa.gd _desenhar_lista): a lista Lugares à direita, por cima do mapa, com as seções em sanfona. Tocar num nome
+// (ou no mapa) marca o lugar e leva o mapa até ele; o "Ir para ›" (na linha ou embaixo do mapa) vai. O mesmo nome de novo vai.
+let lugarSel = null, listaMapaAberta = true;
+function marcarLugar(a, centrar = true) {
+  if (lugarSel && Math.abs(lugarSel.x - a.x) < 0.5 && Math.abs(lugarSel.z - a.z) < 0.5 && lugarSel.nome === a.nome) return irMarcado();
+  lugarSel = a; if (centrar && quadro) vista = limitar({ cx: a.x + (listaMapaAberta ? quadro.span * 0.27 : 0), cz: a.z, span: quadro.span }); // com a lista aberta, o lugar fica na parte de fora dela
+  leve.sujo = true; desenharJogar(); desenharMapa();
+}
+function irMarcado() {
+  const a = lugarSel; if (!a) return; lugarSel = null;
+  if (a.t) { abrirMapaGeral(false, true); mandar('leveIrRecurso', { t: a.t }); } else irLeve(a);
+  painelLeve = ''; leve.sujo = true; desenharJogar();
+}
+function listaMapa(M) {
+  const c = el('div', 'listaMapa');
+  const busca = el('input'), achados = el('div');
+  busca.type = 'search'; busca.className = 'busca'; busca.placeholder = '🔍 Buscar'; busca.value = buscaLug;
+  const linha = (nome, x, z, t, extra = '') => {
+    const curto = nome.split(',')[0], esc = lugarSel && lugarSel.x === x && lugarSel.z === z;
+    const b = el('button', 'linha' + (esc ? ' esc' : '')); b.append(el('span', null, nome), el('small', null, esc ? 'Ir para ›' : `${extra}${metros({ x, z })}`));
+    b.onclick = () => marcarLugar({ x, z, nome: curto.replace(/ \(mais perto\)$/, ''), t }); return b;
+  };
+  const achar = () => {
+    buscaLug = busca.value; limpar(achados); const t = semAcento(buscaLug); if (!t) return;
+    const r = M.lug.filter((o) => semAcento(o[1]).includes(t)).sort((a, b) => dEu({ x: a[2], z: a[3] }) - dEu({ x: b[2], z: b[3] })).slice(0, 12);
+    for (const [, nome, x, z, tt] of r) achados.append(linha(nome, x, z, tt));
+    if (!r.length) achados.append(el('div', 'faz', 'Nada com esse nome.'));
+  };
+  busca.oninput = achar; c.append(busca, achados); achar();
+  { // os atalhos (Minha base, totem, leilão, loja) numa seção como as outras
+    const base = M.lug.find((o) => o[0] === 'vilas' && o[1] === 'Base do clã'), nPerto = (f) => maisPerto(M.npcs.filter(f));
+    const tot = maisPerto(M.totens.filter((t) => t.d)), lei = nPerto((n) => n.f === 'leilao'), loja = nPerto((n) => n.f === 'loja');
+    const at = [['🏰 Minha base', base && [base[2], base[3], 'Base do clã']], ['🗿 Totem mais perto', tot && [tot.x, tot.z, `Totem ${tot.n}`]], ['⚖️ Leilão', lei && [lei.x, lei.z, lei.n.split(',')[0]]], ['🛒 Loja mais perto', loja && [loja.x, loja.z, loja.n.split(',')[0]]]].filter((o) => o[1]);
+    const t = el('button', 'sec'); t.append(el('span', null, `${secAberta === 'atalhos' ? '▾' : '▸'} Atalhos`), el('small', null, String(at.length)));
+    t.onclick = () => { secAberta = secAberta === 'atalhos' ? '' : 'atalhos'; leve.sujo = true; desenharJogar(); }; c.append(t);
+    if (secAberta === 'atalhos') for (const [txt, [x, z, nome]] of at) { const b = linha(txt, x, z); b.onclick = () => marcarLugar({ x, z, nome }); c.append(b); }
+  }
+  const pagaPk = new Map((leve.pk?.e || []).map((o) => [o[1], o[4] + o[5]]));
+  for (const [id, titulo] of SECOES) {
+    const L = M.lug.filter((o) => o[0] === id); if (!L.length) continue;
+    const t = el('button', 'sec' + (secAberta === id ? ' on' : '')); t.append(el('span', null, `${secAberta === id ? '▾' : '▸'} ${titulo}`), el('small', null, String(L.length)));
+    t.onclick = () => { secAberta = secAberta === id ? '' : id; leve.sujo = true; desenharJogar(); };
+    c.append(t);
+    if (secAberta !== id) continue;
+    const lista = PERTO_PRIMEIRO.has(id) ? [...L].sort((a, b) => dEu({ x: a[2], z: a[3] }) - dEu({ x: b[2], z: b[3] })) : L;
+    for (const [, nome, x, z, tt] of lista) { const curto = nome.split(',')[0], pg = id === 'mercadores' ? pagaPk.get(curto) : 0; c.append(linha(id === 'mercadores' ? curto : nome, x, z, tt, pg ? pg + ' de ouro · ' : '')); }
+  }
+  c.append(el('div', 'faz', 'Toque num título para abrir ou fechar · toque num nome ou no mapa para marcar'));
+  return c;
+}
+
 let jogarChave = '';
 const mundoVisivel = () => aba === 'jogar' || !!leve.sala; // no mundo, a aba aberta fica por cima do mapa (irAba)
 function desenharJogar() {
@@ -1298,9 +1357,9 @@ function desenharJogar() {
   for (const k of ['jogarGeada', 'jogarAlvo']) { const a = $(k); if (a) raiz.append(a); }
   if (painelLeve && painelLeve !== 'chat') {
     const f = el('div', 'folha'), cab = el('div', 'folhaCab'), x = el('button', 'fecha', '✕');
-    x.setAttribute('aria-label', 'Fechar'); x.onclick = () => abrirPainelLeve('');
+    x.setAttribute('aria-label', 'Fechar'); x.onclick = () => { if (mapaGeral && painelLeve === 'lugares') { listaMapaAberta = false; leve.sujo = true; return desenharJogar(); } abrirPainelLeve(''); };
     const it = leve.mo?.it || [];
-    cab.append(el('span', 'nome', painelLeve === 'perto' ? '📍 Aqui perto' : painelLeve === 'mochila' ? `🎒 Mochila ${it.length}/${leve.mo?.l || 0}` : painelLeve === 'criar' ? '🔨 Criar' : painelLeve === 'time' ? '👥 Meu time' : '🧭 Ir para'), x);
+    cab.append(el('span', 'nome', painelLeve === 'perto' ? '📍 Aqui perto' : painelLeve === 'mochila' ? `🎒 Mochila ${it.length}/${leve.mo?.l || 0}` : painelLeve === 'criar' ? '🔨 Criar' : painelLeve === 'time' ? '👥 Meu time' : mapaGeral ? '🧭 Lugares' : '🧭 Ir para'), x);
     f.append(cab);
     if (painelLeve === 'perto') {
       if (P.npc) {
@@ -1322,6 +1381,7 @@ function desenharJogar() {
     } else if (painelLeve === 'mochila') { mochilaAberta = true; const c = cartaoMochila(); c.firstChild.remove(); f.append(c); }
     else if (painelLeve === 'criar') { criarAberto = true; const c = cartaoCriar(); c.firstChild.remove(); f.append(c); }
     else if (painelLeve === 'time') f.append(cartaoTime());
+    else if (painelLeve === 'lugares' && leve.mapa?.lug && mapaGeral) { f.className = 'folha listaMapaF'; f.hidden = !listaMapaAberta; f.append(listaMapa(leve.mapa)); }
     else if (painelLeve === 'lugares' && leve.mapa?.lug) { lugaresAberto = true; const c = cartaoLugares(leve.mapa); c.firstChild.remove(); f.append(c); }
     raiz.append(f);
     { let y0 = null; cab.addEventListener('touchstart', (e) => { y0 = e.touches[0].clientY; }, { passive: true }); // arrastar o topo da folha para baixo fecha
@@ -1338,6 +1398,10 @@ function desenharJogar() {
   // Lobo, Base, Time e Chat (os antigos botões redondos) ficam nela e junto dos golpes
   barraTopo(); raiz.append(miniEl()); if (!leve.f?.eu?.[6]) raiz.append(joyEl());
   if (mapaGeral) { const x = el('button', 'fechaMapa', '✕'); x.setAttribute('aria-label', 'Fechar o mapa'); x.onclick = () => abrirMapaGeral(false); raiz.append(x); }
+  if (mapaGeral) { // como no jogo: o botão Lugares abre e fecha a lista; o marcado ganha o "Ir para ›" embaixo do mapa
+    const lb = el('button', 'botaoLista', listaMapaAberta ? 'Esconder lista' : 'Lugares'); lb.onclick = () => { listaMapaAberta = !listaMapaAberta; painelLeve = 'lugares'; leve.sujo = true; desenharJogar(); }; raiz.append(lb);
+    if (lugarSel) { const ir = el('button', 'irMarcado'); ir.append(el('small', null, lugarSel.nome), document.createTextNode('Ir para ›')); ir.onclick = irMarcado; raiz.append(ir); }
+  }
   // 5: a dica da primeira vez (guardada no aparelho; o ❓ mostra de novo)
   if (dicaAberta === null) { try { dicaAberta = !localStorage.getItem('leveDica2'); } catch { dicaAberta = false; } }
   if (dicaAberta) {
@@ -1410,16 +1474,19 @@ function lutaLeve(raiz, morto, mana) {
     // contado do canto de baixo à direita): golpe grande no canto, cura embaixo dele, as skills num arco em volta (80° a -45°),
     // o Trocar acima à esquerda e as poções e o lobo na fileira de baixo. S = a escala para o celular em pé
     const S = 0.7, lugar = (b, x, y, r) => { const d = Math.round(r * S * 2.36); b.style.width = b.style.height = d + 'px'; b.style.right = Math.round(x * S + 10 - d / 2) + 'px'; b.style.bottom = Math.round(y * S + 8 - d / 2) + 'px'; };
-    let sk = 0;
     F.hb.l.forEach(([i, nome, , , chave], n) => {
       const b = el('button', n === 0 ? 'grande' : i === 9 ? 'cura' : ''); b.dataset.i = i; b.title = nome;
-      if (n === 0) lugar(b, 80, 158, 56); else if (i === 9) lugar(b, 80, 58, 31); else { const ang = (80 - 25 * sk++) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 150, 158 + Math.sin(ang) * 150, 33); } // 2026-11-27 (André: "mais juntos pra direita e até maiores"): arco mais fechado e S maior
+      // 2026-11-27 (André: "mais juntos pra direita e até maiores"; depois "pode pôr todas as skills"): as de espada (1-4) no
+      // arco de dentro, as de magia (5-8) no de fora
+      if (n === 0) lugar(b, 80, 158, 56); else if (i === 9) lugar(b, 80, 58, 31);
+      else if (i <= 4) { const ang = (80 - 25 * (i - 1)) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 150, 158 + Math.sin(ang) * 150, 33); }
+      else { const ang = (78 - 18.7 * (i - 5)) * Math.PI / 180; lugar(b, 80 + Math.cos(ang) * 220, 158 + Math.sin(ang) * 220, 33); b.classList.add('mg'); }
       b.append(iconeHab(chave, ICONE_HAB[nome] || '✨'), el('span', null, nome), el('b', 'cd'));
       if (n === 0) segurarBasico(b, i); // segurar = bate sem parar, como no jogo (André 2026-11-27)
       else b.onclick = () => { if (b.classList.contains('espera')) return; mandar('habilidade', i); };
       h.append(b);
     });
-    const tr = el('button', 'troca'); tr.title = F.hb.mg ? 'Usar espada' : 'Usar magia'; lugar(tr, 265, 290, 28); tr.append(iconeHab('troca', '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
+    const tr = el('button', 'troca'); tr.title = F.hb.mg ? 'Usar espada' : 'Usar magia'; lugar(tr, 55, 590, 25); tr.append(iconeHab('troca', '🔁'), el('span', null, F.hb.mg ? 'Usar espada' : 'Usar magia')); // o Trocar do jogo
     tr.onclick = () => mandar('modo', F.hb.mg ? 'Espada' : 'Magia'); h.append(tr);
     // poções (André 2026-11-26): mesmas da mochila e mesma recarga do jogo (o servidor confere); 2026-11-27 numa coluna na
     // beira direita, acima do arco (o canto esquerdo é do joystick)
@@ -1428,6 +1495,11 @@ function lutaLeve(raiz, morto, mana) {
       b.dataset.po = k; b.append(ii, el('span', null, nome), el('b', 'cd'));
       b.onclick = () => { const p = (leve.f?.hb?.po || []).find((o) => o[0] === k); if (!p || p[1] < 0) return aviso(`Sem ${nome.toLowerCase()} na mochila`); if (p[3] > 0) return; mandar('item', { acao: 'usar', i: p[1] }); };
       h.append(b);
+    }
+    // rolada e flash (os botões do jogo: msg 'rolar' e 'dash', na direção do joystick ou da frente), embaixo, ao lado da cura
+    for (const [k, nome, x] of [['rolar', 'Rolada', 175], ['dash', 'Flash', 245]]) {
+      const b = el('button', 'mov'); b.dataset.mv = k; b.title = nome; lugar(b, x, 48, 27); b.append(iconeHab(k, k === 'rolar' ? '🌀' : '💨'), el('span', null, nome), el('b', 'cd'));
+      b.onclick = () => { if (!b.classList.contains('espera')) mandar(k); }; h.append(b);
     }
     // o lobo (o botão Montar do jogo, a mesma mensagem 'montar'), ao lado das poções como na HUD do jogo
     const lb = el('button', 'lobo'); lb.title = 'Lobo'; lugar(lb, 55, 395, 25); lb.append(iconeJogo('lobo', '🐺'), el('span', null, 'Lobo')); lb.onclick = () => mandar('montar'); h.append(lb);
@@ -1438,6 +1510,7 @@ function lutaLeve(raiz, morto, mana) {
     const b = h.querySelector(`[data-i="${i}"]`); if (!b) continue;
     const sem = mn > mana; b.classList.toggle('espera', cd > 0 || sem); b._sem = sem; recarga(b, cd);
   }
+  for (const [k, cd] of F.hb.mv || []) { const b = h.querySelector(`[data-mv="${k}"]`); if (b) { b.classList.toggle('espera', cd > 0); recarga(b, cd); } }
   for (const [k, i, n, cd] of F.hb.po || []) {
     const b = h.querySelector(`[data-po="${k}"]`); if (!b) continue;
     b.classList.toggle('espera', i < 0 || cd > 0); recarga(b, cd); b.querySelector('span').textContent = `×${n}`;
@@ -1448,11 +1521,19 @@ let golpesEl = null;
 // ataque básico (André 2026-11-27: "se eu clicar nele e ficar segurando, ele fica atacando permanente, como no jogo real?"):
 // igual ao jogo (main.gd: segurando o básico, emenda um golpe a cada 0,2 s). Tocar uma vez = um golpe. O servidor segura o
 // ritmo (recarga e combo); um toque no meio do golpe fica guardado e sai quando ele termina
+// 2026-11-27 (André: "segurando o botão de ataque básico... não tá mantendo"): a tela do jogo se refaz a cada foto e tirava
+// o botão do lugar por um instante, o que soltava a captura do dedo e parava. Agora o dedo é seguido na janela (como o
+// joystick): só para quando ESSE dedo sai da tela, ou se o herói cair
+let basicoDedo = null, basicoRep = null;
+function pararBasico() { if (basicoRep) { clearInterval(basicoRep); basicoRep = null; } basicoDedo = null; document.querySelectorAll('.habLeve button.segurando').forEach((o) => o.classList.remove('segurando')); }
+addEventListener('pointerup', (e) => { if (e.pointerId === basicoDedo) pararBasico(); });
+addEventListener('pointercancel', (e) => { if (e.pointerId === basicoDedo) pararBasico(); });
 function segurarBasico(b, i) {
-  let rep = null;
-  const parar = () => { if (rep) { clearInterval(rep); rep = null; } b.classList.remove('segurando'); };
-  b.onpointerdown = (e) => { e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch { /* sem captura */ } parar(); b.classList.add('segurando'); mandar('habilidade', i); rep = setInterval(() => { if (!b.isConnected || leve.f?.eu[6]) return parar(); mandar('habilidade', i); }, 200); };
-  b.onpointerup = b.onpointercancel = b.onlostpointercapture = parar;
+  if (basicoDedo != null) b.classList.add('segurando'); // a tela se refez com o dedo ainda no botão
+  b.onpointerdown = (e) => {
+    e.preventDefault(); pararBasico(); basicoDedo = e.pointerId; b.classList.add('segurando'); mandar('habilidade', i);
+    basicoRep = setInterval(() => { if (leve.f?.eu[6] || !leve.sala) return pararBasico(); mandar('habilidade', i); }, 200);
+  };
   b.oncontextmenu = (e) => e.preventDefault();
 }
 // recarga dos golpes (André 2026-11-26: "faltou os tempos"): o servidor manda os segundos que faltam a cada foto (0,5 s);
@@ -1552,7 +1633,7 @@ function desenharMini() {
 // o mapa geral (aberto pelo minimapa): o mapa grande com o zoom de andar e o Ir para embaixo; tocar num lugar vai e fecha
 function abrirMapaGeral(abre, quieto) {
   if (mapaGeral === abre) return;
-  mapaGeral = abre; vista = null; document.body.classList.toggle('mapaGeral', abre);
+  mapaGeral = abre; vista = null; lugarSel = null; document.body.classList.toggle('mapaGeral', abre);
   if (abre && aba !== 'jogar') irAba('jogar');
   if (abre) painelLeve = 'lugares'; else if (painelLeve === 'lugares') painelLeve = '';
   if (quieto) return;

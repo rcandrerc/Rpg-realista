@@ -550,13 +550,16 @@ export const Leve = {
   habLeve(j) {
     const mg = j.modo === 'Magia', l = [], um = (i, chave, h) => { if (h) l.push([i, h.nome, Math.max(0, Math.ceil((j.cds[chave] || 0) - this.tempo)), h.mana || 0, chave]); };
     um(mg ? 10 : 0, mg ? 'magia' : 'basico', mg ? BASICO_MAGIA : BASICO);
-    for (let k = 0; k < ESPACOS_ESPADA; k++) { const i = (mg ? ESPACOS_ESPADA : 0) + k + 1, c = j.build?.[i - 1]; if (c) um(i, c, HABILIDADES[c]); }
+    // 2026-11-27 (André: "pode pôr todas as skills... guerreiro quanto do mago, o flash e a rolada"): as 8 da build de uma
+    // vez (1-4 espada, 5-8 magia; usar uma troca o modo sozinho, como no jogo) e os movimentos em mv
+    for (let i = 1; i <= ESPACOS_ESPADA * 2; i++) { const c = j.build?.[i - 1]; if (c) um(i, c, HABILIDADES[c]); }
     um(9, 'cura', CURA);
     // poções (André 2026-11-26): [k, lugar da 1ª pilha na mochila (-1 = nenhuma), quantas ao todo, recarga s]; usa a msg 'item' do jogo
     const po = ['pocao', 'pocao_mana'].map((k) => {
       let i = -1, n = 0; (j.prog?.mochila || []).forEach((it, q) => { if (it?.k === k) { if (i < 0) i = q; n += it.n || 1; } });
       return [k, i, n, Math.max(0, Math.ceil((j.pocaoAte?.[k] || 0) - this.tempo))];
     });
-    return { mg: mg ? 1 : 0, l, po };
+    const mv = [['rolar', Math.max(0, Math.ceil(((j.cds.rolar || 0) - this.tempo) * 10) / 10)], ['dash', Math.max(0, Math.ceil(((j.cds.dash || 0) - this.tempo) * 10) / 10)]];
+    return { mg: mg ? 1 : 0, l, po, mv };
   },
 };
