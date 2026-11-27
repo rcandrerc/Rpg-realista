@@ -196,10 +196,10 @@ export async function pensarAmiga(ctx, texto, chaveJogador = '') {
 }
 // André 2026-11-13 ("acabou de me negar e duas falas depois me chama pra caçar"): a decisão de caçar/entrar no time já está
 // tomada pelo jogo (decisaoTimeAmiga) e vale por uns minutos; a IA fica sabendo e fala de acordo, sem mudar de ideia.
-const MOTIVOS = { cansada: 'está cansad{o} e com pouca vida', horta: 'a horta precisa de você agora', noite: 'é noite e você prefere não sair', perigo: '{ele} está forte demais pra você acompanhar', fraco: '{ele} está bem abaixo do seu nível e você quer upar no seu ritmo', vontade: 'não está no clima agora' };
+const MOTIVOS = { cansada: 'está cansad{o} e com pouca vida', horta: 'a horta precisa de você agora', noite: 'é noite e você prefere não sair', perigo: '{ele} está forte demais pra você acompanhar', fraco: '{ele} está bem abaixo do seu nível e você quer upar no seu ritmo', vontade: 'não está no clima agora', base: 'a base do seu clã está sendo atacada e você vai defender' };
 // André 2026-11-25 (o Dario topou o time depois de um "por favor": "não no mesmo time"): soldado de clã bot com quem não é o
 // líder dele nunca entra no time. A IA sabe o motivo de verdade e não inventa outro, nem promete o time.
-const NUNCA = { lider: 'você é líder do clã {cla}: não entra no time de ninguém, o seu time é o seu clã', cla: 'você é do clã {cla} e só anda com o seu clã' };
+const NUNCA = { lider: 'você é líder do clã {cla}: não entra no time de ninguém, o seu time é o seu clã', cla: 'você é do clã {cla} e só anda com o seu clã', semCla: 'você só faz time com outro LÍDER de clã da sua raça, e ele ainda não lidera um clã', outraRaca: 'ele é da outra raça' }; // André 2026-11-27: com líder de clã da sua raça você topa o time (cada um leva os recrutas)
 export function humorTime(ctx) {
   const h = ctx.humor; if (!h) return '';
   if (h.sempre) {

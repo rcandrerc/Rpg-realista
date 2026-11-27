@@ -4,7 +4,10 @@
 // combinado valia, e o botão Time punha o Dario no time. E o recruta de clã bot quebrava ao recusar pelo chat (as falas
 // dele são só o nome de quem ele copia na guerra).
 // Uso: node ferramentas/testes/soldado-time.mjs
-import { Simulacao, MAPA_CLAREIRA, CLAS_NPC, CLA, HISTORIA, NPC_SOLDADO } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, CLAS_NPC, CLA, HISTORIA, NPC_SOLDADO, TIME } from '../../shared/index.js';
+// André 2026-11-27 (time entre líderes de clã): a regra de antes fica atrás de TIME.liderBot = false; a nova está em
+// ferramentas/testes/time-lideres.mjs
+TIME.liderBot = false;
 import { sortearRecruta } from '../../shared/cla.js';
 import { humorTime } from '../../server/ia-amiga.js';
 import './_relogio-fixo.mjs';
