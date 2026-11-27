@@ -541,8 +541,21 @@ export const Leve = {
       ...(j.pesca ? { pe: [j.pesca.st, j.pesca.st === 'briga' ? Math.round(j.pesca.prog * 100) : 0] } : {}), // pescando (etapa 6): o estado e a barra da briga
       ...((() => { const l = this.spotsLeve(j); return l.length ? { sp: Math.round(l[0][1]), ss: l.slice(0, 12).map(([v]) => [r1(v.x), r1(v.z)]) } : {}; })()), // metros até o spot de pesca à vista; ss: os spots no mapa (à vista ou com o Radar, como no jogo)
       ...((() => { const a = this.alvoLeve(j) || this.maisPerto(j); return a && a.id && m.some((o) => o[4] === a.id) ? { al: a.id } : {}; })()), // al: o monstro que o próximo golpe pega (André 2026-11-27: círculo vermelho nele)
+      ...((() => { const b = this.bfLeve(this.bfJogador(j)), a = this.alvoLeve(j), ba = a && !a.morto && this.bfInimigo ? this.bfLeve(this.bfInimigo(a)) : []; return { ...(b.length ? { bf: b } : {}), ...(ba.length ? { ba } : {}) }; })()), // buffs e debuffs (André 2026-11-27: "ícones de buff" iguais ao jogo, buffs.gd): os meus e os do alvo
       ...(this.emCombate(j) ? { lu: 1 } : {}), // em luta (bateu ou apanhou nos últimos ESTAMINA.combate s): o cartão de baixo vira "Em luta" (André 2026-11-26)
     };
+  },
+  // buffs e debuffs da foto do jogo (bfJogador/bfInimigo: [código, fim, valor, extra]) com o fim virado em segundos que
+  // faltam (-1 = enquanto durar), que a página só conta; a comida leva o nome e o que dá (o leve não tem a lista de itens)
+  bfLeve(l) {
+    const t = this.tempo, ms = Date.now(), r = [];
+    for (const [k, fim, v, x] of l || []) {
+      const falta = !(fim > 0) ? -1 : Math.round(((k === 'co' || k === 'banq') ? (fim - ms) / 1000 : fim - t) * 10) / 10;
+      if (fim > 0 && falta <= 0) continue;
+      if (k === 'co') { const B = ITENS[v]?.buff?.b || {}; r.push([k, falta, ITENS[v]?.nome || 'Comida', Object.entries(B).map(([b, n]) => `+${Math.round(n * 100)}% ${({ dano: 'dano', defesa: 'defesa', critico: 'crítico', regenMana: 'volta da mana' })[b] || b}`).join(', '), v]); continue; }
+      r.push(x === undefined ? [k, falta, v] : [k, falta, v, x]);
+    }
+    return r;
   },
   // o que dá para coletar perto (veio, árvore, pedra e galho soltos): [no, nome, metros, profissão ('min', 'len' ou '' = mão)]
   coletaLeve(j) {
