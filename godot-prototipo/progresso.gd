@@ -841,7 +841,7 @@ func texto_item(it) -> String:
 		var st: Dictionary = dados.itens[it.k].st
 		for c in st:
 			if (c == "danoFisico" or c == "danoMagico") and dados.has("danoArma"): # arma dá % de dano (André 2026-11-28)
-				p.append("+%s%% %s" % [num(pct_arma_item(it) * 100, 0), Idioma.t("Dano da Força" if c == "danoFisico" else "Dano da Inteligência")])
+				p.append("%s +%s%%" % [Idioma.t("Bônus For" if c == "danoFisico" else "Bônus Int"), num(pct_arma_item(it) * 100, 0)])
 				continue
 			var v: float = float(st[c][int(it.r)]) * reforco_k(it, c)
 			if v > 0:
