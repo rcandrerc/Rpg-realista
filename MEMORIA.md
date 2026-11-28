@@ -13,6 +13,7 @@ Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 - 27/11: TODAS as missões desligadas (André): `MISSOES_LIGA` em dados.js (história, diárias, guilda, escolta, Aldo). Nada apagado; névoa e pesca/lobo/forja abrem no nível da missão que abria; bots sem missão seguem a rotina (bots ainda fazem as "diárias" de plantar/pescar/cortar como rotina). Religar = true. Testes das missões importam `_missoes-ligadas.mjs`; `missoes-desligadas.mjs` confere o jogo.
 ## Rotinas
 - Robô de testes: ronda diária às 9h, um relatório entre 9h e 10h, correção automática com cuidado. Não reduzir bots/recrutas (André quer 50-60 bots para medir o servidor).
+- 27/11: teste dos gêmeos (`ferramentas/robo-leve/gemeos.mjs`, Actions "Robô do modo leve" 07:17): mesmo herói pelo modo leve e pelo jogo num servidor local; cada diferença vira linha, vai junto do relatório das 9h. Só reporta: o leve é do irmão.
 ## Fluxo
 - Agentes efêmeros por cargo: ver `agentes/` e a regra no topo do `CLAUDE.md`.
 - Todo merge: PR, main mais recente, verificação verde, nada some. Testes (23/11, 110 verdes): o jeito antigo dos bots (amizade, time) importa `_amizade-antiga.mjs`; casa de bot na base via `_lote-base.mjs`; save dos bots em `npcSalvos` (tabela mundo).

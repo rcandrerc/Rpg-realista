@@ -9,6 +9,7 @@ import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
 import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, LEILAO_BOT, TIPOS_LEILAO, anuncioParaApp, nomeItem, ehEquip, RARIDADES, estadoTomo, COR_TOMO, CAIXA, lancarCaixa, resumoCaixa, LEVE, moralAgora } from '@rpg/shared';
 import { Contas, verificadorGoogle, roboCel, roboCarga, ROBO } from './contas.js';
+import { Medidor } from './medidor.js'; // medidor de grind dos jogadores (André 2026-11-28)
 import { Visao } from './visao.js';
 import { Push } from './push.js'; // avisos no celular do painel do clã (André 2026-11-24)
 import { gerarCopia, limparSobrasCopia, chaveAssinaturaCopia, CHAVE_COPIA } from './copia-contas.js';
@@ -31,6 +32,11 @@ const LIMITE = { porSeg: 90, max: 150, custo: { leveIr: 60, leveIrRecurso: 60, l
 const ROBO_NAO = new Set(['troca', 'chat', 'amigo', 'time', 'amiga', 'chaveIa', 'trocarNome', 'lote', 'construir', 'desmontar', 'nivelTeste', 'verEquip', 'duelo', 'comando', 'pvp']);
 const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0, picoPing: 0, picoPingT: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
+// medidor de grind dos jogadores (André 2026-11-28: "mapeie aí o tempo que eu vou gastar de grind em cada nível"; "Quero que
+// meça Yukimei e quero que meça Luísa"): só lê, a cada segundo, o estado do herói de cada conta de gente e soma o tempo por
+// nível (server/medidor.js). Nada muda no jogo. Os números saem só com o crachá, no /npcs.json (jogadores).
+const medidor = new Medidor(path.resolve(process.env.DADOS || 'dados', 'medidor-jogadores.json'));
+setInterval(() => { try { medidor.passo([...salas].map((s) => s.sim)); } catch (e) { console.error('Medidor: o passo falhou', e.message); } }, 1000).unref?.();
 // a conta já está jogando (ligada agora) em alguma sala, por outro aparelho (outra sessão de login: cada aparelho tem a
 // sua). O próprio aparelho com um socket velho que o servidor ainda não viu cair não conta: esse sai como sempre saiu
 const contaLigadaEmOutro = (id, sessao) => [...salas].some((s) => s.clients.some((c) => c.auth?.id === id && !c.userData?.painel && c.userData?.sessao !== sessao)); // o painel do clã não é "outro aparelho"
@@ -143,7 +149,7 @@ class SalaClareira extends Room {
     // (15 s do Colyseus). Celular fraco montando o mundo atrás da capa pode passar disso; 45 s não muda nada para quem entra rápido.
     this.setSeatReservationTime(45);
     this.sim = new Simulacao(MAPA_CLAREIRA);
-    this.sim.aoCaixa = (l) => { lancarCaixa(livroCaixa, l); caixaSujo = true; }; // livro-caixa: todas as salas no mesmo livro
+    this.sim.aoCaixa = (l) => { lancarCaixa(livroCaixa, l); caixaSujo = true; medidor.caixa(l); }; // livro-caixa: todas as salas no mesmo livro (e os abates e reforços no medidor)
     this.visao = new Visao((id) => this.sim.coletaveis.get(id)); // veios e árvores: só os de perto (onde está cada um); cada app Godot novo recebe só o que está perto do herói dele (server/visao.js)
     // Vila dos Lotes: dono, peças e horta guardados no servidor; a compra confere no banco (vale entre salas)
     if (contas) {
@@ -470,6 +476,7 @@ class SalaClareira extends Room {
 
   tickDeVerdade() {
     const eventos = this.sim.passo(TICK);
+    if (GEMEOS) guardarGemeos(this, eventos); // teste dos gêmeos (ferramentas/robo-leve): só com ROBO_TESTE, nunca na Oracle
     const foto = this.sim.foto();
     let fotoJson = null;
     let perto = null; // área de interesse: preparada uma vez por passo, só se alguém pediu
@@ -984,12 +991,37 @@ app.get('/saude/dia', (_req, res) => {
   const agora = Date.now();
   res.json({ ...resumoDia(cargaDia, agora), orcamentoMs: TICK * 1000, amostraMin: CARGA_DIA.amostraMin, lista: cargaDia.filter((c) => c.t >= agora - CARGA_DIA.mostraH * 3600e3) });
 });
+// Teste dos gêmeos (André 2026-11-27, ferramentas/robo-leve/gemeos.mjs): o mesmo herói jogado pelo modo leve e pelo
+// caminho do jogo, num servidor local de teste. Só existe com ROBO_TESTE (a máquina de quem testa; a Oracle não tem):
+// o robô lê aqui o estado dos heróis e os eventos de cada um para comparar os dois. Nada muda no jogo.
+const GEMEOS = !!process.env.ROBO_TESTE, gemeosEv = []; let gemeosSeq = 0;
+function guardarGemeos(sala, eventos) {
+  const t = sala.sim.tempo;
+  // golpe de herói sai sem 'de' (só o alvo): quem bateu neste passo é o herói com bateuEm nesse alvo agora
+  const quem = (e) => { for (const j of sala.sim.jogadores.values()) if (!j.bot && j.bateuEm?.id === e.alvo && j.bateuEm.t === t) return j.id; return undefined; };
+  for (const e0 of eventos) if (['dano', 'cura', 'aviso', 'drop', 'nivel', 'vila', 'veiculo', 'leveRota', 'dash', 'esquiva', 'totem'].includes(e0.t)) { const e = e0.t === 'dano' && e0.de === undefined ? { ...e0, de: quem(e0) } : e0; gemeosEv.push({ s: ++gemeosSeq, tempo: t, ...e }); if (gemeosEv.length > 4000) gemeosEv.shift(); }
+}
+app.get('/teste/gemeos', (req, res) => {
+  if (!GEMEOS || req.query.teste !== process.env.ROBO_TESTE) return res.status(404).end();
+  const desde = Number(req.query.desde) || 0, jogadores = [];
+  let tempo = 0, inimigos = [];
+  for (const s of salas) {
+    tempo = s.sim.tempo;
+    for (const j of s.sim.jogadores.values()) {
+      if (j.bot) continue;
+      const p = j.prog || {};
+      jogadores.push({ id: j.id, nome: j.nome, leve: !!j.leve, x: j.x, y: j.y, z: j.z, ry: j.ry, vida: j.vida, vidaMax: j.vidaMax, mana: j.mana, manaMax: j.manaMax, morto: !!j.morto, montado: j.montado || null, veiculo: j.veiculo || null, modo: j.modo, vila: j.vila ? { ...j.vila } : null, combateAte: j.combateAte, cds: { ...j.cds }, st: j.st, leveRota: j.leveRota ? { fim: j.leveRota.pontos?.[j.leveRota.pontos.length - 1], nome: j.leveRota.nome, alvo: j.leveRota.alvo ?? null } : null, prog: { nivel: p.nivel, xp: p.xp, ouro: p.ouro, mochila: p.mochila, equip: p.equip, barras: p.barras, atr: p.atr, vilaAte: p.vilaAte } });
+    }
+    inimigos = s.sim.inimigos.filter((e) => !e.morto && jogadores.some((j) => Math.hypot(e.x - j.x, e.z - j.z) < 60)).map((e) => ({ id: e.id, v: e.v, nome: e.nome, nivel: e.nivel, x: e.x, z: e.z, vida: e.vida, vidaMax: e.vidaMax, treino: !!e.treino }));
+  }
+  res.json({ tempo, jogadores, inimigos, eventos: gemeosEv.filter((e) => e.s > desde) });
+});
 app.get('/saude', (_req, res) => {
   let jogadores = 0, agora = 0; for (const s of salas) { jogadores += s.clients.length; agora += s.sim.correcoes || 0; }
   const A = saudeAnterior;
   // correcoes = "corrigir" mandados (rollback), silencioMaxMs = maior tempo sem posição de um celular, engasgos = silêncios
   // de mais de 1 s; todos da última janela fechada mais a atual (1 a 2 min)
-  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +Math.max(carga.pico, A.pico).toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes: A.correcoes + agora, silencioMaxMs: Math.max(carga.silencioMs, A.silencioMs), engasgos: A.engasgos + carga.engasgos, relogio: A.relogio, janelaS: SAUDE_JANELA / 1000, reserva: reserva.estado });
+  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +Math.max(carga.pico, A.pico).toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes: A.correcoes + agora, silencioMaxMs: Math.max(carga.silencioMs, A.silencioMs), engasgos: A.engasgos + carga.engasgos, relogio: A.relogio, janelaS: SAUDE_JANELA / 1000, reserva: reserva.estado, medidor: medidor.saude() }); // medidor: só quantas contas são medidas
 });
 // Reinício com aviso na tela (André 2026-11-12): faixa "o servidor reinicia em 1 minuto" e depois a contagem grande de
 // REINICIO.contagem s (godot-prototipo/reinicio.gd). O servidor manda {t:'reinicio', s} a cada 10 s (quem entra no meio também vê)
@@ -1003,6 +1035,7 @@ function reiniciarComAviso(motivo, segundos = REINICIO.aviso) {
     const fim = Date.now() + (alguemOnline() ? segundos * 1000 : 0);
     const sair = () => {
       for (const s of salas) { try { s.salvarProgressos(); } catch (e) { console.error('reinício: gravar falhou', e); } }
+      try { medidor.salvar(); } catch { /* o medidor grava a cada minuto e a cada nível */ }
       console.log(`Reiniciando (${motivo}) depois de ${Math.round(process.uptime() / 60)} min ligado.`);
       pronto();
       setTimeout(() => process.exit(0), 1500);
@@ -1239,7 +1272,8 @@ app.get('/npcs.json', async (req, res) => {
         }) };
     });
   } catch (e) { recrutas = { erro: e.message }; }
-  res.json({ dia, npcs: l, ...(recrutas ? { recrutas } : {}) });
+  // jogadores (André 2026-11-28): o medidor de grind, nível a nível (server/medidor.js), só com o crachá
+  res.json({ dia, npcs: l, ...(recrutas ? { recrutas } : {}), ...(cracha ? { jogadores: medidor.relatorio() } : {}) });
 });
 // Cópia cifrada das contas para fora da máquina (plano v3, frente 2; desenho aprovado pelo Presidente 19/11). Só o
 // workflow contas-copia.yml da main deste repositório (crachá OIDC do GitHub: repositório, ramo main e nome do workflow
@@ -1337,6 +1371,7 @@ process.on('unhandledRejection', (e) => console.error('promessa sem catch:', e))
 process.on('uncaughtException', (e) => {
   console.error('erro solto, gravando e saindo:', e);
   for (const s of salas) { try { s.salvarProgressos(); } catch (e2) { console.error('gravar falhou', e2); } }
+  try { medidor.salvar(); } catch { /* o medidor grava a cada minuto e a cada nível */ }
   process.exit(1);
 });
 const servidor = http.createServer(app);

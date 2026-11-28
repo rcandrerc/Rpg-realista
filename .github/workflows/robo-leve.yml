@@ -1,0 +1,58 @@
+# Teste dos gêmeos (André 2026-11-27: "um robô que jogue pela interface do jogo leve... quero avaliar todas as
+# diferenças, os bugs... as duas versões idênticas no funcionamento, uma não dê vantagem nenhuma ou prejudique"):
+# o mesmo herói jogado pelo modo leve (Chrome sem tela, tocando nos botões do painel) e pelo caminho do jogo completo,
+# num servidor de teste local. Cada diferença vira uma linha do relatório (resumo do run + artefato gemeos-relatorio).
+# Uma vez por dia, antes da ronda das 9h (o resultado vai junto do relatório das 9h). Rodar agora: Actions >
+# Robô do modo leve > Run workflow. Grátis com o repositório público; privado, só na vaga dos robôs da Oracle.
+name: Robô do modo leve
+
+on:
+  schedule:
+    - cron: '17 10 * * *' # 07:17 em Brasília
+  workflow_dispatch:
+    inputs:
+      so:
+        description: 'Só estes testes (vazio = todos). Ex.: luta,skills,barquinho'
+        default: ''
+  pull_request:
+    paths: ['ferramentas/robo-leve/**', '.github/workflows/robo-leve.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: robo-leve
+  cancel-in-progress: false
+
+jobs:
+  gemeos:
+    if: ${{ !github.event.repository.private || vars.RUNNER_ROBO != '' }}
+    runs-on: ${{ github.event.repository.private && (vars.RUNNER_ROBO || 'aethra-robo') || 'ubuntu-latest' }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Chrome sem tela
+        run: |
+          npm install --no-save playwright@1.48.2
+          npx playwright install --with-deps chromium
+      - name: Gêmeos (leve x jogo)
+        run: |
+          so="${{ github.event.inputs.so }}"
+          node ferramentas/robo-leve/gemeos.mjs --saida gemeos-relatorio --fotos ${so:+--so $so}
+      - name: Resumo
+        if: always()
+        run: cat gemeos-relatorio/gemeos.md >> $GITHUB_STEP_SUMMARY || echo "sem relatório" >> $GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gemeos-relatorio
+          path: gemeos-relatorio
+          retention-days: 14
