@@ -305,6 +305,8 @@
 "%s, +%d Dano crítico": "%s, +%d Critical damage",
 "%s · +%d Dano crítico": "%s · +%d Critical damage",
 "Dano físico": "Physical damage",
+"Dano da Força": "Strength damage",
+"Dano da Inteligência": "Intelligence damage",
 "Dano mágico": "Magic damage",
 "Recarga": "Cooldown",
 "Regeneração": "Regen",
