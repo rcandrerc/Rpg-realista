@@ -416,7 +416,7 @@
  "atributos": {
   "for": {
    "nome": "Força",
-   "desc": "+6% dano físico (espada) · +4 vida · +1 defesa"
+   "desc": "+6% dano físico (espada) até 60, depois +1% · +4 vida · +1 defesa"
   },
   "des": {
    "nome": "Destreza",
@@ -424,7 +424,7 @@
   },
   "int": {
    "nome": "Inteligência",
-   "desc": "+6% dano mágico (cajado) · +6 mana"
+   "desc": "+6% dano mágico (cajado) até 60, depois +1% · +6 mana"
   },
   "vit": {
    "nome": "Vitalidade",
@@ -26368,5 +26368,18 @@
     "nv": 20
    }
   }
+ },
+ "danoArma": {
+  "pct": [
+   0,
+   0.1,
+   0.4,
+   0.8,
+   1.2
+  ],
+  "reforco": 0.03,
+  "atr": 0.06,
+  "atrAte": 60,
+  "atrDepois": 0.01
  }
 }

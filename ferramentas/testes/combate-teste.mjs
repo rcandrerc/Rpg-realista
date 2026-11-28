@@ -9,14 +9,16 @@ import { COMBATE_TESTE } from '../../shared/dados.js';
 const atr = { for: 3, vit: 3, int: 127, des: 3 };
 const set = (r, e) => Object.fromEntries(['cabeca:chapeu', 'corpo:peitoral', 'pernas:calca', 'capa:capa', 'pes:botas', 'acessorio:colar', 'cajado:cajado'].map((x) => { const [l, k] = x.split(':'); return [l, { k, r, ...(e ? { e } : {}) }]; }));
 const st = (eq, ct) => calcularStatus({ atr, nivel: 63, equip: eq, ...(ct ? { ct: 1 } : {}) });
-// teste 2: pelado bem mais fraco que hoje (nível e pontos dão menos e a arma multiplica); Rara +0 abaixo de metade
-assert.ok(st({}, true).danoMagico < 0.4 * st({}).danoMagico, 'pelado: bem mais fraco');
-assert.ok(st(set(1, 0), true).danoMagico < 0.5 * st(set(1, 0)).danoMagico, 'Rara +0: menos da metade de hoje');
+// teste 2: pelado bem mais fraco que hoje (nível e pontos dão menos e a arma multiplica); Rara +0 bem abaixo de hoje.
+// André 2026-11-28 (DANO_ARMA): o jogo normal também ficou mais fraco depois de 60 pontos, então as margens diminuíram
+// (pelado era < 0,4 e Rara < 0,5 do normal; agora 0,56 e 0,62).
+assert.ok(st({}, true).danoMagico < 0.6 * st({}).danoMagico, 'pelado: bem mais fraco');
+assert.ok(st(set(1, 0), true).danoMagico < 0.7 * st(set(1, 0)).danoMagico, 'Rara +0: bem abaixo de hoje');
 assert.ok(st(set(0, 0), true).defesa < st(set(0, 0)).defesa, 'Comum: defesa menor que hoje');
 assert.ok(st(set(3, 12), true).danoMagico > 1.3 * st(set(3, 12)).danoMagico, 'Lendária +12: bem mais forte que hoje');
-// Épica +10: perto de hoje (10%)
+// Épica +10: perto de hoje (era 10%; com DANO_ARMA, 2026-11-28, fica 14% acima: margem 20%)
 const e10 = set(2, 10);
-assert.ok(Math.abs(st(e10, true).danoMagico / st(e10).danoMagico - 1) < 0.1, 'Épica +10 ~ hoje');
+assert.ok(Math.abs(st(e10, true).danoMagico / st(e10).danoMagico - 1) < 0.2, 'Épica +10 ~ hoje');
 // armadura x2
 assert.ok(st(e10, true).vidaMax > st(e10).vidaMax);
 // desgaste: a cada desgasteGolpes golpes, -1 em cada peça

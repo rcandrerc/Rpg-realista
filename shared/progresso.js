@@ -1,7 +1,7 @@
 // Progressão do herói (ideia do Quimera): nível e XP, atributos, habilidades que sobem de nível com o uso e 6 botões
 // escolhidos no menu do personagem. Quem guarda e decide é o servidor (Simulacao + conta); o app só mostra.
 import { fichaJogadorValida, JANTAR } from './dados.js';
-import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS, TITULOS, HISTORIA, PATENTE, COMBATE_TESTE } from './dados.js';
+import { A, HORTA, ITENS, RARIDADES, LUGARES, MOCHILA, MOCHILA_PAGINAS, CONJUNTO, CONJUNTO_CRITICO, VENDA_EQUIP, VENDA_TOMO, ROMANO, ESTAMINA, VIGOR, PROFISSOES, PROF_MAX, MERCADOR, RARIDADE_CRIAR, VOLTA_VILA, REGEN, MORTE, DIA, CAMA, REFORCO, DANO_ARMA, ORGANIZAR, TOTENS, ESTACOES_PUBLICAS, TITULOS, HISTORIA, PATENTE, COMBATE_TESTE } from './dados.js';
 import { packValido, carrinhoValido, navioValido } from './transporte.js';
 import { histNova, histValida } from './historia.js';
 import { diariasValidas } from './diarias.js'; // missões diárias (André 2026-11-16)
@@ -10,9 +10,9 @@ import { claValido } from './cla.js'; // clã e recrutas (André 2026-11-22) // 
 
 // Atributos: começam em 3; cada nível dá PONTOS_POR_NIVEL para distribuir
 export const ATRIBUTOS = {
-  for: { nome: 'Força', desc: '+6% dano físico (espada) · +4 vida · +1 defesa' },
+  for: { nome: 'Força', desc: '+6% dano físico (espada) até 60, depois +1% · +4 vida · +1 defesa' },
   des: { nome: 'Destreza', desc: '+5 estamina · +0,15% crítico · -1,3% recarga' },
-  int: { nome: 'Inteligência', desc: '+6% dano mágico (cajado) · +6 mana' },
+  int: { nome: 'Inteligência', desc: '+6% dano mágico (cajado) até 60, depois +1% · +6 mana' },
   vit: { nome: 'Vitalidade', desc: '+8 vida · regeneração' },
 };
 export const PONTOS_POR_NIVEL = 2;
@@ -78,6 +78,15 @@ export const golpeHeroiNivel = (nv, nh, N) => {
   return 1;
 };
 
+// Dano da arma em % (DANO_ARMA em shared/dados.js, André 2026-11-28): bônus do atributo (3 = nada) e % da arma vestida
+// (quebrada ou reforçada além do atributo: 0, igual aos outros bônus da peça)
+export const bonusAtrDano = (x, D = DANO_ARMA) => D.atr * Math.max(0, Math.min(x, D.atrAte) - 3) + D.atrDepois * Math.max(0, x - D.atrAte);
+export const pctArmaItem = (it, D = DANO_ARMA) => (it ? (D.pct[it.r] || 0) + D.reforco * (it.e | 0) : 0);
+export function pctArma(equip, lugar, atr) {
+  const it = equip?.[lugar];
+  if (!it || !ITENS[it.k] || quebrado(it) || (atr && !reforcoOk(it, atr))) return 0;
+  return pctArmaItem(it);
+}
 // Números do herói a partir do nível, dos atributos e do equipamento (nível 1 com tudo em 3 e sem nada = vida 120, mana 100, dano 10)
 export function calcularStatus(p, passivas = {}) {
   const a = p.atr, n = p.nivel, eq = bonusEquip(p.equip, a, p.ct ? COMBATE_TESTE.armadura : null), ti = bonusTitulo(p); // ti: título em uso (TITULOS)
@@ -96,8 +105,8 @@ export function calcularStatus(p, passivas = {}) {
     regenVida: REGEN.vida + REGEN.vidaNivel * n + REGEN.vidaVit * a.vit,
     defesa: def,
     reducao: def / (def + 24), // fração do dano que a defesa segura
-    danoFisico: (CT ? 10 * nivelK * (1 + CT.atr * (a.for - 3)) * multCT(eq.danoFisico) : 10 * nivelK * (1 + 0.06 * (a.for - 3)) + eq.danoFisico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
-    danoMagico: (CT ? 10 * nivelK * (1 + CT.atr * (a.int - 3)) * multCT(eq.danoMagico) : 10 * nivelK * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
+    danoFisico: (CT ? 10 * nivelK * (1 + CT.atr * (a.for - 3)) * multCT(eq.danoFisico) : 10 * nivelK * (1 + bonusAtrDano(a.for) * (1 + pctArma(p.equip, 'espada', a)))) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
+    danoMagico: (CT ? 10 * nivelK * (1 + CT.atr * (a.int - 3)) * multCT(eq.danoMagico) : 10 * nivelK * (1 + bonusAtrDano(a.int) * (1 + pctArma(p.equip, 'cajado', a)))) * (1 + eq.danoK + (ti.dano || 0) + (co.dano || 0) + bq),
     critico: Math.min(1, 0.0455 + 0.0015 * a.des + (passivas.sorte_arcana ? 0.02 : 0) + eq.critico + (ti.critico || 0) + (co.critico || 0)),
     danoCritico: eq.danoCritico, // somado no golpe crítico (o dobro + este número), André 2026-11-17
     recarga: Math.min(0.4, 0.0133 * a.des), // fração a menos no tempo de recarga

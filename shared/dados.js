@@ -1454,6 +1454,12 @@ export const MORTE = { ouro: 0, desgaste: 10, durMax: 100, conserto: 0.3, xp: 0.
 // - bônus: cada + soma `bonus` (40%) dos números da peça; o crítico soma `bonusCritico` (20%).
 // - atributo: de +3 em diante precisa de porNivel x (nível do reforço) de Força (espada), Inteligência (cajado) ou da
 //   maior das duas (armadura e acessório). `tempo`: segundos da barrinha da janela.
+// Dano da arma em % (André 2026-11-28, "a arma, em vez de dar stats... devia dar percentual de dano... com 0 int, a arma não
+// vai fazer diferença; se eu colocar uns pontos de int e uma arma incrível, o combo é que vai fazer tudo ficar forte"):
+// dano = 10 x nível x (1 + bônus do atributo x (1 + % da arma)). Bônus do atributo (Força com espada, Int com cajado): atr por
+// ponto até atrAte, depois atrDepois por ponto (freia quem põe tudo num atributo só). % da arma: pct pela raridade + reforco por +.
+// Vale para todos (jogador, bots, recrutas). Os números de dano da espada/cajado em ITENS ficam (o combate de teste do robô usa).
+export const DANO_ARMA = { pct: [0, 0.1, 0.4, 0.8, 1.2], reforco: 0.03, atr: 0.06, atrAte: 60, atrDepois: 0.01 };
 export const REFORCO = {
   max: [0, 10, 20, 30, 40],
   chance: [100, 80, 75, 70, 66, 62, 59, 56, 53, 50, 48, 46, 44, 42, 40, 38, 36, 34, 32, 30, 29, 28, 27, 26, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25],
