@@ -1120,7 +1120,8 @@ export class Simulacao {
       this.evento({ t: 'aviso', para: j.id, texto: `Nível ${p.nivel}! +${PONTOS_POR_NIVEL} pontos de atributo` });
       this.avisarLibera(j, nivelAntes);
       // rumores (André 2026-11-11, história v2): recado curto de um personagem ao subir, depois do capítulo dele
-      for (const C of CAPITULOS) if (C.rumores && capFeito(C.n, p.hist?.p || 0)) for (const R of C.rumores) if (R.nv > nivelAntes && R.nv <= p.nivel) this.evento({ t: 'rumor', para: j.id, quem: R.quem, texto: R.texto });
+      // missões desligadas (André 2026-11-28): os recados mandavam ir a lugares de missão ("vá até Vael..."); sem missão, nada de rumor
+      if (MISSOES_LIGA.historia) for (const C of CAPITULOS) if (C.rumores && capFeito(C.n, p.hist?.p || 0)) for (const R of C.rumores) if (R.nv > nivelAntes && R.nv <= p.nivel) this.evento({ t: 'rumor', para: j.id, quem: R.quem, texto: R.texto });
     }
     this.avisarProg(j);
   }
@@ -1130,6 +1131,8 @@ export class Simulacao {
     for (const k of Object.keys(LIBERA_NIVEL.receita)) nomes[k] = ITENS[RECEITAS[k]?.faz || k]?.nome || k;
     for (const k of Object.keys(LIBERA_NIVEL.obra)) nomes[k] = (CONSTRUCOES[k]?.nome || ITENS[k]?.nome || k);
     const novos = []; for (let nv = de + 1; nv <= p.nivel; nv++) novos.push(...liberaNoNivel(nv, nomes));
+    // missões desligadas (André 2026-11-28): a região e o recurso abrem no nível da missão que abria; avisa o que abriu
+    if (!MISSOES_LIGA.historia) for (const M of HISTORIA) if (M.nv > de && M.nv <= p.nivel && (p.hist?.p || 0) <= HISTORIA.indexOf(M)) for (const k of M.libera || []) if (nomeLibera(k) !== k) novos.push(nomeLibera(k));
     if (novos.length) this.evento({ t: 'aviso', para: j.id, texto: `Liberado: ${novos.join(', ')}` });
     const M = missaoAtual(p);
     if (M && !p.hist?.ac && M.nv > de && M.nv <= p.nivel) this.evento({ t: 'aviso', para: j.id, texto: `Missão nova: fale com ${this.nomeNpc(M.npc)} (${M.nome})` });
@@ -4361,11 +4364,13 @@ export class Simulacao {
       c.pvpDe = null; c.progSujo = true; if (pen?.ouro) this.caixa(c, 'morte', -pen.ouro);
       if (c.prog.buff) delete c.prog.buff; // morrer tira o buff da comida (André 2026-11-24)
       this.aplicarStatus(c); this.avisarProg(c);
-      const totemMorte = totemMaisPerto(c.x, c.z); // onde caiu (André 2026-11-24)
+      // André 2026-11-28: só renasce em totem de região já liberada para ele (mesmo que mais longe), senão nasceria dentro da névoa
+      const totemAberto = (t) => !!t && !zonaFechadaEm(c.prog, t.x, t.z);
+      const totemMorte = TOTENS.lista.filter(totemAberto).reduce((m, t) => (!m || Math.hypot(t.x - c.x, t.z - c.z) < Math.hypot(m.x - c.x, m.z - c.z) ? t : m), null); // onde caiu (André 2026-11-24)
       this.depois(HEROI.renascer, () => {
         // cama no terreno (como no Quimera): renasce do lado dela
         // totem de teleporte (André 2026-11-10): renasce no mais próximo de onde caiu (André 2026-11-24); o da vila deixa a cama valer
-        const T = c.bot ? TOTENS.lista.find((t) => t.id === c.prog.totem && t.id !== 'clareira') : totemMorte && totemMorte.id !== 'clareira' ? totemMorte : null; // bot (IA do shared/amiga.js) segue como antes
+        const T = c.bot ? (() => { const sv = TOTENS.lista.find((t) => t.id === c.prog.totem && t.id !== 'clareira'); return sv && !totemAberto(sv) ? totemMorte : sv; })() : totemMorte && totemMorte.id !== 'clareira' ? totemMorte : null; // bot (IA do shared/amiga.js) segue como antes
         const L = !T && this.loteDe(c), cama = L && L.pecas.find((o) => o.k === 'cama');
         const casaRaca = !T && !cama && RACAS[this.racaDe(c)]?.casa; // a Geada renasce no Juncal (Chama x Geada, André 2026-11-18)
         const n = T ? this.ladoDoTotem(T) : cama ? { x: cama.x + ((cama.r & 1) ? 0 : 1.5), z: cama.z + ((cama.r & 1) ? 1.5 : 0) } : casaRaca ? { x: casaRaca.x + 3, z: casaRaca.z + 3 } : this.mapa.nascimento;

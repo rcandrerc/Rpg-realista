@@ -30,6 +30,16 @@ P.nivel = 40; s.guilda(p.id, { acao: 'ver' });
 ok(av.some((t) => /Guilda está fechada/.test(t)), 'a Guilda avisa que está fechada');
 s.iniciarMissaoCla(p, (t) => av.push(t), { k: 'x', x: 0, z: 0 }, []); ok(av.some((t) => /Escolta do Clã está desligada/.test(t)), 'a Escolta do Clã não começa');
 ok(s.missaoInfo({ k: 'x' }) === null, 'o cartão da Escolta some do menu do clã');
+// subir de nível (André 2026-11-28: "aparece... vá até Vael"): sem recado de missão (rumor), e avisa a região que abriu
+{ const evs = []; const ev1 = s.evento; s.evento = (e) => { evs.push(e); return ev1(e); };
+  P.nivel = 37; P.xp = 0; P.hist = { v: 2, p: 37, ac: false, e: 0, n: 0, m: 0 }; // já tinha feito capítulos (recados guardados)
+  for (let i = 0; i < 5000 && P.nivel < 42; i++) s.ganharXP(p, 200);
+  ok(P.nivel === 42, `subiu do 37 para o ${P.nivel}`);
+  ok(!evs.some((e) => e.t === 'rumor'), `nenhum recado de missão ao subir (${evs.filter((e) => e.t === 'rumor').map((e) => e.texto).join(' | ')})`);
+  ok(!evs.some((e) => e.t === 'aviso' && /Missão nova|fale com/.test(e.texto)), 'nenhum aviso de missão ao subir');
+  const lib = evs.filter((e) => e.t === 'aviso' && /^Liberado:/.test(e.texto)).map((e) => e.texto).join(' | ');
+  ok(/Leste de Vael/.test(lib) && !/Norte de Vael/.test(lib), `o aviso diz a região que abriu no nível ("${lib.slice(0, 160)}")`);
+  s.evento = ev1; P.nivel = 40; P.hist = { v: 2, p: 0, ac: false, e: 0, n: 0, m: 0 }; }
 
 // os bots: 10 min de jogo sem ninguém entrar em missão; seguem a rotina (caçar, coletar, plantar, guerra)
 for (const x of s.amigosIa) x.amigaEntrar?.('andre', true);
