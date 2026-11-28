@@ -3095,7 +3095,9 @@ func _botoes_estacao(no_meu: bool, vivo: bool, livre: bool, hp: Vector3) -> void
 	# ela abria e fechava no mesmo quadro)
 	if painel_bau.visible and (not (_meu_bau_perto() or (bau_cla and m.base_cla != null and m.base_cla.bau_perto())) or not vivo or livre):
 		fechar_bau()
-	if painel_forno.visible and (minha_fornalha_perto() != forno_id or not vivo or livre):
+	# 2026-11-28: entre 3 fornalhas lado a lado a "mais perta" trocava a cada passo e a janela abria e fechava. Agora a
+	# janela só fecha quando a fornalha aberta sai do alcance (a que abriu fica; não importa qual é a mais perta)
+	if painel_forno.visible and (not _fornalha_ainda_perto(forno_id) or not vivo or livre):
 		fechar_forno()
 
 # câmera flutuante (Quimera iD): o joystick move a mira a 7 m/s na direção da câmera; a mira não sai do terreno
@@ -5020,6 +5022,21 @@ func minha_fornalha_perto() -> String:
 				dm = d
 				melhor = str(p.id)
 	return melhor
+
+# a fornalha/fogão `id` (minha ou pública) ainda está ao alcance, sem parede no meio (com folga de 0,6 m para não tremer)
+func _fornalha_ainda_perto(id: String) -> bool:
+	if id == "" or m.heroi == null:
+		return false
+	var hp: Vector3 = m.heroi.position
+	var dm := float(D.lote.estacaoDist) + 0.6
+	for p in publicas:
+		if str(p.id) == id and p.k == "fornalha":
+			return Vector2(p.x - hp.x, p.z - hp.z).length() <= dm
+	if meu != "" and lotes.has(meu):
+		for p in lotes[meu].pecas:
+			if str(p.id) == id and (p.k == "fornalha" or p.k == "fogao"):
+				return Vector2(p.x - hp.x, p.z - hp.z).length() <= dm and sem_parede(Vector2(hp.x, hp.z), Vector2(p.x, p.z))
+	return false
 
 var _forno_pedido := 0 # µs do toque em abrir a fornalha (o registro conta a espera pelo servidor)
 func abrir_forno(id := "") -> void:
