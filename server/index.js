@@ -29,7 +29,7 @@ const TICK = 1 / 20;
 const LIMITE = { porSeg: 90, max: 150, custo: { leveIr: 60, leveIrRecurso: 60, leveMapa: 30, amiga: 3, build: 20, visual: 20, aparencia: 10, mudarAparencia: 30, mudarVisual: 30, pronto: 20, barra: 10, atributo: 5, atributos: 5, item: 5, coletar: 5, criar: 5, lote: 10, construir: 5, desmontar: 5, horta: 3, plantarArvore: 3, diaria: 3, troca: 3, fabricar: 5, bau: 3, forno: 3, amigo: 3, time: 3, chat: 10, leilao: 5, lentidao: 5 } };
 // O robô de testes (ferramentas/robo/robo.mjs, André 2026-11-14) joga como um jogador, mas nunca negocia, nunca compra
 // terreno, não conversa e não convida ninguém: assim não estraga a economia nem o jogo de quem joga de verdade
-const ROBO_NAO = new Set(['troca', 'chat', 'amigo', 'time', 'amiga', 'chaveIa', 'trocarNome', 'lote', 'construir', 'desmontar', 'nivelTeste', 'verEquip', 'duelo', 'comando', 'pvp']);
+const ROBO_NAO = new Set(['troca', 'chat', 'amigo', 'time', 'amiga', 'chaveIa', 'trocarNome', 'lote', 'construir', 'desmontar', 'nivelTeste', 'skillTeste', 'verEquip', 'duelo', 'comando', 'pvp']);
 const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0, picoPing: 0, picoPingT: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
 // medidor de grind dos jogadores (André 2026-11-28: "mapeie aí o tempo que eu vou gastar de grind em cada nível"; "Quero que
@@ -366,6 +366,7 @@ class SalaClareira extends Room {
     this.ouvir('resetLideres', (c) => this.sim.resetLideres(c.sessionId)); // só a conta do André (o sim confere j.testador; LIDERES_CLA.reset)
     this.ouvir('missaoTeste', (c, m) => this.sim.missaoTeste(c.sessionId, m?.acao)); // só a conta do André (o sim confere; CONTA_TESTE.missoes)
     this.ouvir('nivelTeste', (c, m) => this.sim.nivelTeste(c.sessionId, m?.nv, m?.zerar === true)); // só a conta de teste do André (o sim confere)
+    this.ouvir('skillTeste', (c, m) => this.sim.skillTeste(c.sessionId, m?.acao)); // skills −1 / zerar: só a conta do André (o sim confere)
     this.ouvir('resetar', (c) => this.sim.resetarBuild(c.sessionId)); // Mestre Ivo: atributos de volta (paga em ouro)
     this.ouvir('rolar', (c) => this.sim.rolar(c.sessionId));
     this.ouvir('pular', (c) => this.sim.pular(c.sessionId));

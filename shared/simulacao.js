@@ -1530,9 +1530,23 @@ export class Simulacao {
     let gastos = Object.values(p.atr).reduce((s, v) => s + v - 3, 0);
     if (zerar || gastos > PONTOS_POR_NIVEL * (nv - 1)) { for (const k of Object.keys(p.atr)) p.atr[k] = 3; gastos = 0; }
     p.nivel = nv; p.xp = 0; p.pontos = PONTOS_POR_NIVEL * (nv - 1) - gastos;
+    j.progSujo = true;
     this.aplicarStatus(j, true);
     this.evento({ t: 'nivel', id: j.id, nivel: nv });
     this.evento({ t: 'aviso', para: id, texto: zerar ? `Teste: pontos zerados (nível ${nv})` : `Teste: nível ${nv}` });
+    this.avisarProg(j);
+  }
+  // Só para a conta do André (2026-11-28: "diminuir o nível das minhas skills, pode ser 1 por 1 ou só zerar"): acao 'menos'
+  // = cada skill desce 1 nível (mínimo 1) e a barra de usos zera; 'zerar' = todas no Nv 1. Tomos já usados não voltam
+  // (sobe de novo usando e com Tomo novo do 6 em diante). Nível, itens, ouro, clã ficam. Desligado: CONTA_TESTE.nivel.
+  skillTeste(id, acao) {
+    const j = this.jogadores.get(id); if (!j || j.bot || !j.testador || !CONTA_TESTE.nivel || !['menos', 'mais', 'zerar'].includes(acao)) return;
+    // 'mais' (André 2026-11-28: "diminuir e aumentar o nível e as skills"): cada skill do herói sobe 1, até o máximo dela, sem Tomo
+    if (acao === 'mais') for (const id of Object.keys(HABS)) { if (!HABS[id].tomo && !j.prog.habs[id]) continue; const s = j.prog.habs[id] ||= { nv: 1, uso: 0 }; s.nv = Math.min(HABS[id].max || SKILL_MAX, (s.nv || 1) + 1); s.uso = 0; }
+    else for (const s of Object.values(j.prog.habs || {})) { s.nv = acao === 'zerar' ? 1 : Math.max(1, (s.nv || 1) - 1); s.uso = 0; }
+    j.progSujo = true;
+    this.aplicarStatus(j, true);
+    this.evento({ t: 'aviso', para: id, texto: acao === 'zerar' ? 'Teste: skills no Nv 1' : acao === 'mais' ? 'Teste: skills +1 nível' : 'Teste: skills -1 nível' });
     this.avisarProg(j);
   }
   // Só para a conta do André (2026-11-14: "botão pra voltar uma missão ou resetar todas", temporário): acao 'voltar' =

@@ -2,7 +2,7 @@
 // criação até Mítico, nível 200 e o teste de nível só para a conta de teste.
 import { Simulacao, MAPA_CLAREIRA } from '../../shared/index.js';
 import { COMBATE_INIMIGO, DROPS, RARIDADE_CRIAR, NIVEL_INIMIGO, CONTA_TESTE, MOCHILA } from '../../shared/dados.js';
-import { NIVEL_MAX, xpProximo, reducaoContra } from '../../shared/progresso.js';
+import { NIVEL_MAX, xpProximo, reducaoContra, HABS } from '../../shared/progresso.js';
 const ok = (c, t) => { if (!c) { console.error('FALHOU', t); process.exit(1); } console.log('ok', t); };
 ok(COMBATE_INIMIGO.aoMesmoTempo >= 99, 'todos os monstros batem juntos');
 ok(Object.values(DROPS).every((d) => d.raridade.slice(2).every((x) => x === 0)), 'monstro só solta Comum ou Rara');
@@ -15,9 +15,11 @@ const s = new Simulacao(MAPA_CLAREIRA);
 s.adicionarJogador('A', 'André', null, { testador: true });
 s.adicionarJogador('B', 'Beto', null, {});
 s.nivelTeste('B', 50); ok(s.jogadores.get('B').prog.nivel === 1, 'quem não é de teste não muda o nível');
-// André 2026-11-11: "quero ser um player normal" — atalhos desligados (o código fica, CONTA_TESTE)
-ok(!CONTA_TESTE.nivel && !CONTA_TESTE.paginas, 'atalhos de teste desligados');
-s.nivelTeste('A', 20); ok(s.jogadores.get('A').prog.nivel === 1, 'conta do André não muda mais o nível');
+// André 2026-11-11: "quero ser um player normal" — páginas de graça desligadas (o código fica, CONTA_TESTE).
+// André 2026-11-28: o nível de teste voltou (descer nível e skills sem perder nada); aqui desliga para conferir a trava.
+ok(CONTA_TESTE.nivel && !CONTA_TESTE.paginas, 'nível de teste ligado, páginas de graça desligadas');
+CONTA_TESTE.nivel = false;
+s.nivelTeste('A', 20); ok(s.jogadores.get('A').prog.nivel === 1, 'desligado: conta do André não muda o nível');
 ok(s.jogadores.get('A').prog.paginas === 1, 'conta do André começa com 1 página, como todo mundo');
 { // quem já tinha as 4 de graça: volta para 1 página, itens de trás vão para a frente, nada some; só uma vez
   const mo = Array(MOCHILA * 4).fill(null); mo[0] = { k: 'pocao', n: 3 }; mo[MOCHILA * 2 + 5] = { k: 'pocao_mana', n: 2 };
@@ -37,7 +39,15 @@ s.nivelTeste('A', 20); const a = s.jogadores.get('A').prog; ok(a.nivel === 20 &&
 s.distribuirAtributos('A', { int: 30 }); s.nivelTeste('A', 5); ok(a.atr.int === 3 && a.pontos === 8, 'desceu abaixo do gasto: pontos voltam');
 s.distribuirAtributos('A', { des: 4 }); s.nivelTeste('A', 5, true); ok(a.atr.des === 3 && a.pontos === 8, 'zerar pontos de graça');
 s.nivelTeste('A', 250); ok(a.nivel === 250, 'passa do 200 (sem limite de nível)');
-CONTA_TESTE.nivel = false;
+{ // skills: -1 e zerar, só a conta do André; nível, ouro e mochila ficam
+  a.habs = { espada_basico: { nv: 4, uso: 12 }, cura_floresta: { nv: 1, uso: 3 } }; a.ouro = 4321; const mo = JSON.stringify(a.mochila);
+  s.skillTeste('A', 'menos'); ok(a.habs.espada_basico.nv === 3 && a.habs.espada_basico.uso === 0 && a.habs.cura_floresta.nv === 1, 'skills -1 (mínimo 1, barra zera)');
+  s.skillTeste('A', 'mais'); ok(a.habs.espada_basico.nv === 4 && a.habs.cura_floresta.nv === 2, 'skills +1');
+  for (let i = 0; i < 20; i++) s.skillTeste('A', 'mais'); ok(Object.entries(a.habs).every(([k, h]) => h.nv === (HABS[k].max || 10)), 'skills +1 para no máximo');
+  s.skillTeste('A', 'zerar'); ok(a.habs.espada_basico.nv === 1 && a.nivel === 250 && a.ouro === 4321 && JSON.stringify(a.mochila) === mo, 'zerar skills: Nv 1, nível/ouro/mochila ficam');
+  const b = s.jogadores.get('B').prog; b.habs = { espada_basico: { nv: 5, uso: 0 } }; s.skillTeste('B', 'zerar'); ok(b.habs.espada_basico.nv === 5, 'outra conta não mexe nas skills');
+  s.nivelTeste('A', 1); ok(a.nivel === 1 && a.ouro === 4321 && a.pontos === 0, 'Nível 1: ouro fica, pontos voltam');
+}
 // André 2026-11-09: quanto mais acima do bicho, menos XP, sem parar no piso
 import { xpNivel } from '../../shared/progresso.js';
 ok(xpNivel(110, 117, NIVEL_INIMIGO) === NIVEL_INIMIGO.xpMin && xpNivel(110, 130, NIVEL_INIMIGO) < xpNivel(110, 120, NIVEL_INIMIGO) && xpNivel(110, 120, NIVEL_INIMIGO) < xpNivel(110, 117, NIVEL_INIMIGO), 'XP cai cada vez mais acima do bicho');

@@ -62,4 +62,17 @@ ok(m2.relatorio()[0].niveis.length === 2 && m2.relatorio()[0].niveis[0].abates =
 j.prog.nivel = 1; t += 1000; m2.passo([s], t);
 r = m2.relatorio()[0];
 ok(r.nivel === 1 && r.niveis.length === 1 && r.seriesAntes?.length === 1 && r.seriesAntes[0].niveis === 1, `reset: série nova do Nv 1 (antes: ${JSON.stringify(r.seriesAntes)})`);
+// botão de teste do André (2026-11-28): descer várias vezes seguidas não empurra a série medida de verdade para fora
+{
+  const m3 = new Medidor(); let t3 = 1.9e12; const passo3 = () => { t3 += 1000; m3.passo([s], t3); };
+  j.prog.nivel = 60; passo3(); j.prog.nivel = 61; passo3(); // série de verdade com o Nv 60 fechado
+  j.prog.nivel = 50; passo3(); j.prog.nivel = 40; passo3(); j.prog.nivel = 30; passo3(); j.prog.nivel = 1; passo3();
+  let r3 = m3.relatorio()[0];
+  ok(r3.nivel === 1 && r3.seriesAntes?.length === 1 && r3.seriesAntes[0].niveis === 1, `cliques seguidos de descer: 1 série guardada (${JSON.stringify(r3.seriesAntes)})`);
+  j.prog.nivel = 2; passo3(); passo3();
+  r3 = m3.relatorio()[0];
+  ok(r3.niveis.length === 2 && r3.niveis[0].nv === 1 && !r3.niveis[0].jogando, 'depois de descer, cada nível novo é medido de novo');
+  j.prog.nivel = 1; passo3();
+  ok(m3.relatorio()[0].seriesAntes.length === 2, 'descer depois de medir um nível guarda essa série também');
+}
 fs.rmSync(pasta, { recursive: true, force: true });

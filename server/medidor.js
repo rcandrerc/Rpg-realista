@@ -74,10 +74,16 @@ export class Medidor {
     const nv = j.prog.nivel | 0, eq = fotoEquip(j.prog.equip), k = String(j.conta);
     let R = this.contas[k];
     // primeira vez, ou a conta voltou de nível (reset): uma série nova, do nível de agora
+    // André 2026-11-28 (botão de teste "−1/−10/Nível 1" no Status): descer de novo numa série que ainda não fechou nenhum
+    // nível só recomeça essa série; a série de antes (os níveis medidos de verdade) não é empurrada para fora por cliques
+    if (R?.atual && nv < R.atual.nv && R.desceu && !R.niveis.length) {
+      R.atual = novoNivel(nv, agora, eq); R.eq = eq; R.ultimo = agora; R.x = j.x; R.z = j.z; R.morto = !!j.morto; R.vivo = true; this.sujo = true;
+      return;
+    }
     if (!R || !R.atual || nv < R.atual.nv) {
       const velha = R?.atual ? { inicio: R.inicio, ate: R.ultimo, niveis: R.niveis, ups: R.ups } : null;
       R = this.contas[k] = { nome: String(j.nome || ''), inicio: agora, ultimo: agora, niveis: [], ups: [], atual: novoNivel(nv, agora, eq), eq, x: j.x, z: j.z, morto: !!j.morto, vivo: true,
-        ...(velha ? { antes: [...(R.antes || []), velha].slice(-3) } : R?.antes ? { antes: R.antes } : {}) };
+        ...(velha ? { desceu: true, antes: [...(R.antes || []), velha].slice(-3) } : R?.antes ? { antes: R.antes } : {}) };
       this.sujo = true;
       return;
     }

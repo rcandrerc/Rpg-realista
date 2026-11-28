@@ -1370,7 +1370,10 @@ export const COMBATE_TESTE = { base: 64, ref: 128, arma: 2.5, armadura: [0.5, 1,
   // 2026-11-27: herói novo começa com o set Comum +0 (EQUIP_INICIAL); o robô, já zerado pelado, ganha o mesmo set uma vez
   upgrade: { v: 'set-comum-2026-11-27', equip: { cabeca: { k: 'chapeu', r: 0 }, corpo: { k: 'peitoral', r: 0 }, pernas: { k: 'calca', r: 0 }, capa: { k: 'capa', r: 0 },
     pes: { k: 'botas', r: 0 }, acessorio: { k: 'colar', r: 0 }, espada: { k: 'espada', r: 0 }, cajado: { k: 'cajado', r: 0 } } } };
-export const CONTA_TESTE = { nivel: false, paginas: false, devolver: '2026-11-11', missoes: true };
+// nivel ligado de novo (André 2026-11-28: "pra não ficar resetando personagem dos outros... quero que você bote em mim...
+// diminuir meu nível e diminuir o nível das minhas skills, 1 por 1 ou só zerar, sem perder nada"): Status ganha "Nível 1" e
+// "Skills −1/+1"/"Zerar skills" (Simulacao.skillTeste). Só a conta dele (j.testador); clã, ouro, itens, baús e recrutas ficam.
+export const CONTA_TESTE = { nivel: true, paginas: false, devolver: '2026-11-11', missoes: true };
 // st: o que a peça soma no herói (vida, mana, defesa, critico, danoFisico, danoMagico), por raridade
 // André 2026-11-17: um atributo a mais por peça (capacete e botas: dano crítico em número; arma: chance de crítico;
 // capa: regeneração de mana; colar: dano %). Sobe com raridade e reforço (danoCritico sobe como o crítico, bonusCritico).
