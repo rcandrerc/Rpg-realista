@@ -138,6 +138,37 @@ func texto(k: String) -> String:
 		return "%s: %s. Chegue no nível %d para liberar" % ["Região fechada" if not Z.is_empty() else "Ainda fechado", Z.nome if not Z.is_empty() else str(H.get("recursos", {}).get(k, k)), int(M.nv)]
 	return "%s: %s. Conclua a missão \"%s\" (fale com %s, Nv %d) para desbloquear" % ["Região fechada" if not Z.is_empty() else "Ainda fechado", Z.nome if not Z.is_empty() else str(H.get("recursos", {}).get(k, k)), M.nome, str(M.get("npcNome", M.npc)), int(M.nv)]
 
+# o que muda as paredes: a missão entregue e, com as missões desligadas (André 2026-11-28), o nível (a região abre
+# no nível: a parede some quando chega nele, sem precisar entrar de novo)
+func _chave() -> int:
+	if H.get("liga", true) == false:
+		return feitas() * 1000 + int(m.P.prog.get("nivel", 1))
+	return feitas()
+
+# André 2026-11-28 ("quando chegar perto de uma barra de névoa, falar qual nível que precisa"): com as missões
+# desligadas, chegou a 12 m de uma região fechada = o aviso do nível dela (a mesma região no máximo a cada 20 s)
+const PERTO := 12.0
+var _perto_t: Dictionary = {} # id da zona -> quando pode avisar de novo (ms)
+func _perto() -> void:
+	if H.get("liga", true) != false or m.heroi == null:
+		return
+	var p: Vector3 = m.heroi.position
+	if fechado(p.x, p.z):
+		return
+	for i in 8:
+		var a := TAU * float(i) / 8.0
+		var Z := fechada_em(p.x + cos(a) * PERTO, p.z + sin(a) * PERTO)
+		if Z.is_empty():
+			continue
+		var id := str(Z.id)
+		var agora := Time.get_ticks_msec()
+		if agora < float(_perto_t.get(id, 0.0)):
+			return
+		_perto_t[id] = agora + 20000.0
+		_aviso_t = agora + 4000.0 # não repete o mesmo aviso se bater logo em seguida
+		m.hud.aviso(texto(id))
+		return
+
 # andar.gd: o herói bateu na névoa em (x, z). Avisa qual missão abre (no máximo a cada 4 s)
 var _aviso_t := 0.0
 func bateu(x: float, z: float) -> void:
@@ -215,7 +246,7 @@ func _montar(Z: Dictionary) -> MeshInstance3D:
 # espera (main.gd montando). André 2026-11-15: a parede montava logo depois da capa sair e dava um tranco de 150 a
 # 340 ms no Poco X7 em toda entrada no jogo.
 func pendente() -> bool:
-	return not _fila_zonas.is_empty() or (not H.is_empty() and m.heroi != null and m.terreno != null and _feito_p != feitas())
+	return not _fila_zonas.is_empty() or (not H.is_empty() and m.heroi != null and m.terreno != null and _feito_p != _chave())
 
 func _process(dt: float) -> void:
 	var t0_parte := Time.get_ticks_usec()
@@ -249,9 +280,10 @@ func _process_parte(dt: float) -> void:
 	if _t > 0.0:
 		return
 	_t = 0.5
-	if _feito_p == feitas():
+	_perto()
+	if _feito_p == _chave():
 		return
-	_feito_p = feitas() # missão entregue (ou o progresso chegou): a névoa da região liberada some, a das fechadas aparece
+	_feito_p = _chave() # missão entregue (ou o progresso chegou): a névoa da região liberada some, a das fechadas aparece
 	if m.relevo != null: # o fim da história (Entrega 5): a névoa some do céu, o ar fica mais limpo no mundo inteiro
 		m.relevo.ceu_limpo = 0.6 if tem_conta() and quem_libera.has("fim") and liberado("fim", true) else 1.0
 	for id in _malhas.keys():

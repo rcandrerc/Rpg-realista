@@ -1120,7 +1120,8 @@ export class Simulacao {
       this.evento({ t: 'aviso', para: j.id, texto: `Nível ${p.nivel}! +${PONTOS_POR_NIVEL} pontos de atributo` });
       this.avisarLibera(j, nivelAntes);
       // rumores (André 2026-11-11, história v2): recado curto de um personagem ao subir, depois do capítulo dele
-      for (const C of CAPITULOS) if (C.rumores && capFeito(C.n, p.hist?.p || 0)) for (const R of C.rumores) if (R.nv > nivelAntes && R.nv <= p.nivel) this.evento({ t: 'rumor', para: j.id, quem: R.quem, texto: R.texto });
+      // missões desligadas (André 2026-11-28): os recados mandavam ir a lugares de missão ("vá até Vael..."); sem missão, nada de rumor
+      if (MISSOES_LIGA.historia) for (const C of CAPITULOS) if (C.rumores && capFeito(C.n, p.hist?.p || 0)) for (const R of C.rumores) if (R.nv > nivelAntes && R.nv <= p.nivel) this.evento({ t: 'rumor', para: j.id, quem: R.quem, texto: R.texto });
     }
     this.avisarProg(j);
   }
@@ -1130,6 +1131,8 @@ export class Simulacao {
     for (const k of Object.keys(LIBERA_NIVEL.receita)) nomes[k] = ITENS[RECEITAS[k]?.faz || k]?.nome || k;
     for (const k of Object.keys(LIBERA_NIVEL.obra)) nomes[k] = (CONSTRUCOES[k]?.nome || ITENS[k]?.nome || k);
     const novos = []; for (let nv = de + 1; nv <= p.nivel; nv++) novos.push(...liberaNoNivel(nv, nomes));
+    // missões desligadas (André 2026-11-28): a região e o recurso abrem no nível da missão que abria; avisa o que abriu
+    if (!MISSOES_LIGA.historia) for (const M of HISTORIA) if (M.nv > de && M.nv <= p.nivel && (p.hist?.p || 0) <= HISTORIA.indexOf(M)) for (const k of M.libera || []) if (nomeLibera(k) !== k) novos.push(nomeLibera(k));
     if (novos.length) this.evento({ t: 'aviso', para: j.id, texto: `Liberado: ${novos.join(', ')}` });
     const M = missaoAtual(p);
     if (M && !p.hist?.ac && M.nv > de && M.nv <= p.nivel) this.evento({ t: 'aviso', para: j.id, texto: `Missão nova: fale com ${this.nomeNpc(M.npc)} (${M.nome})` });
