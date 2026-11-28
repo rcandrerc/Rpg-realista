@@ -6,18 +6,22 @@
 // pago de sempre. Loja, leilão e baú usam as mesmas mensagens do jogo (item, leilao, bau), com as mesmas regras de
 // distância. Para o celular fraco: a cada LEVE.envio s vai uma foto pequena só do que está perto (fotoLeve).
 import { planejarRota, terraId } from './rota.js';
-import { TUNEL } from './caverna.js';
+import { TUNEL, CAVERNA, noTunel } from './caverna.js';
 import { LUGARES_MUNDO } from './mundo.js';
 import { LUGARES, TITULOS, RECEITAS, CRIAR_OBRA, COLETA, COLETA_DISTANCIA, BASICO, BASICO_MAGIA, CURA, ESPACOS_ESPADA, tempoCriar, RECEITA_ESTACAO, CONSTRUCOES, ITENS, RARIDADES, TOTENS, LOJA, taxaTotem, HEROI, PACK_REGRAS, PACKS, VEICULOS, GUERRA, MONTARIAS, CACA, TUNEIS_MUNDO, ESTAMINA } from './dados.js';
 import { nomeItem, precoVenda, mercador, bonusTitulo, contar, vigorAgora, vigorMax, ATRIBUTOS, xpProximo } from './progresso.js';
 import { precoPack, mercadoK, custoPack, capacidadeCarrinho, acharPonto, fundoAgua } from './transporte.js';
-import { liberado, missaoAtual } from './historia.js';
+import { liberado, missaoAtual, totalMissao } from './historia.js';
 import { noLago, relevo, AGUA } from './relevo.js';
 import { ESTRADAS_MUNDO } from './mundo.js';
 import { VILAS_MUNDO } from './dados.js';
 import { aguaRegador, pertoDeAgua, distRet, crescerPlanta, retPeca, semParede } from './simulacao.js'; // fazenda e cama (etapa 6); só usadas na hora, depois que tudo carregou
 import { PESCA, PLANTAS, HORTA, LOTE, fasePlanta } from './dados.js';
-import { horaDoJogo, ehNoite, HABS, BARRAS, cabeNaBarra, ANDAR_ATIRANDO } from './progresso.js';
+import { horaDoJogo, ehNoite, HABS, BARRAS, cabeNaBarra, ANDAR_ATIRANDO, calcularStatus, reforcoK, reforcoMax, durab, custoConserto, pecasGastas, comDesconto, consertoGratis } from './progresso.js';
+import { npcApareceu } from './historia.js';
+import { CATALISADOR } from './dados.js';
+import { MORTE, CAVERNA_DUNGEON, JANTAR, FORNALHA, FOGAO } from './dados.js';
+import { comidaJantar } from './jantar.js';
 
 export const LEVE = {
   envio: 0.5, // s entre as fotos para a página
@@ -49,6 +53,13 @@ export const LEVE = {
 };
 // quem a página mostra como lugar no mapa (as janelas do jogo de cada um)
 const FUNCOES = new Set(['loja', 'leilao', 'pack', 'ferreiro', 'habilidades', 'alquimia']);
+const ACOES_NPC = new Set(['comprar', 'vender', 'consertar', 'habilidades', 'missao', 'cura', 'resetar', 'passe', 'pack', 'alquimia', 'leilao', 'guilda', 'recrutar']);
+// Mirela (conversa.gd _lista_alquimia): cada catalisador que ela faz [k, nome, de (k), nome de, quantos, ouro, raridade]
+function sintesesLeve() {
+  const S = CATALISADOR.sintese, r = [];
+  for (const t of ['armadura', 'arma']) CATALISADOR[t].forEach((k, i) => { const C = S.custo[i + 1]; if (i >= 1 && i + 1 <= S.ate && C && ITENS[k]) { const de = CATALISADOR[t][i - 1]; r.push([k, ITENS[k].nome, de, ITENS[de]?.nome || de, C.n, C.ouro, i + 1]); } });
+  return r;
+}
 const cor = (n) => '#' + (n >>> 0).toString(16).padStart(6, '0');
 const r1 = (n) => Math.round(n * 10) / 10;
 // a cor do item: a da raridade (equipamento) ou a do próprio item (alma, semente)
@@ -63,6 +74,24 @@ function textoPeca(o) {
   if (I.st && o.r != null) return Object.entries(I.st).map(([c, v]) => `${NOME_ST[c] || c} ${Math.round(((v[o.r] ?? 0) * (c.endsWith('K') ? 100 : 1)) * 10) / 10}`).join(' · ');
   const u = I.usar; if (!u) return '';
   return [u.vida && `Vida +${Math.round(u.vida * 100)}%`, u.mana && `Mana +${Math.round(u.mana * 100)}%`, u.vigor && `Vigor +${u.vigor}`].filter(Boolean).join(' · ');
+}
+
+// comparar peças como a janela do medalhão do jogo (menu.gd st_item/diferenca/nota/veredito): os números da peça com o
+// reforço, a diferença para a vestida e a nota pelos pesos do jogo (PESO_ST)
+const PESO_ST = { vida: 1 / 20, mana: 1 / 20, defesa: 1 / 5, danoFisico: 1 / 5, danoMagico: 1 / 5, critico: 1 / 0.01, danoCritico: 1 / 5, danoK: 1 / 0.05, areaK: 1 / 0.05, regenManaK: 1 / 0.05 };
+function stPeca(o) {
+  const I = o && ITENS[o.k], r = {}; if (!I?.st || o.r == null) return r;
+  const rk = reforcoK(o); for (const [c, v] of Object.entries(I.st)) r[c] = (v[o.r] ?? 0) * (c === 'critico' || c === 'danoCritico' ? rk.critico : rk.st);
+  return r;
+}
+// [veredito, nota, o que muda] veredito: m melhor, p pior, x melhor em parte, '' igual
+function compararPeca(novo, atual) {
+  const a = stPeca(atual), n = stPeca(novo), d = {};
+  for (const c of new Set([...Object.keys(n), ...Object.keys(a)])) { const v = (n[c] || 0) - (a[c] || 0); if (Math.abs(v) > 1e-5) d[c] = v; }
+  const vs = Object.values(d), ganha = vs.some((v) => v > 0), perde = vs.some((v) => v < 0);
+  const nota = Object.entries(d).reduce((t, [c, v]) => t + v * (PESO_ST[c] ?? 1), 0);
+  const txt = Object.entries(d).map(([c, v]) => `${v > 0 ? '+' : '−'}${Math.round(Math.abs(v) * (c.endsWith('K') || c === 'critico' ? 100 : 1) * 10) / 10} ${NOME_ST[c] || c}`).join(' · ');
+  return [ganha && !perde ? 'm' : perde && !ganha ? 'p' : ganha ? 'x' : '', Math.round(nota * 100) / 100, txt];
 }
 
 // a rota do jogo leve: a das estradas (planejarRota), mas saindo e entrando nas bases do clã pelo portão (saidaDaBase)
@@ -176,6 +205,19 @@ export const Leve = {
     if (j.vila) this.cancelarVila(j, null);
     j.leveJoy = { mx, mz, correr: f > 0.6, t: this.tempo };
   },
+  // Trocar alvo (o botão do jogo, 2026-11-23): escolhe o monstro que os golpes pegam, sem andar nem parar o golpe
+  leveMirar(id, alvo) {
+    const j = this.jogadores.get(id); if (!j || !j.leve) return;
+    const e = typeof alvo === 'string' ? this.inimigos.find((o) => o.id === alvo && !o.morto && Math.hypot(o.x - j.x, o.z - j.z) <= 22) : null;
+    j.leveMira = e ? e.id : null;
+  },
+  // Disparada (o botão do jogo, main.gd ligar_disparada): liga a corrida; sem fôlego ou com pack nas costas não liga
+  leveDisparada(id, on) {
+    const j = this.jogadores.get(id); if (!j || !j.leve) return;
+    if (on && !j.montado && j.semFolego) return this.evento({ t: 'aviso', para: id, texto: 'Sem fôlego!' });
+    if (on && !j.montado && j.prog.pack) return this.evento({ t: 'aviso', para: id, texto: 'Com pack nas costas não dá pra correr' });
+    j.leveDisp = !!on;
+  },
   // golpe do leve (habLeve): a mesma msg 'habQ' do jogo, mirando no monstro escolhido (Atacar ou o círculo vermelho, como o
   // botão Trocar alvo do jogo) e, nas de direção (Salto Arcano), para onde o joystick ou a frente apontam
   leveHab(id, k) {
@@ -217,7 +259,19 @@ export const Leve = {
     if (j.leveJoy) { // joystick: anda na direção do dedo até soltar
       const J = j.leveJoy;
       if (j.morto || this.tempo - J.t > LEVE.joySolto) { j.leveJoy = null; j.entrada = { mx: 0, mz: 0, correr: false }; return; }
-      j.entrada = { mx: J.mx, mz: J.mz, correr: J.correr && !j.semFolego && !j.veiculo }; return;
+      // a velocidade do joystick do jogo (andar.gd vel_joystick): até a metade anda (55% a 100% do andar), daí até o fim
+      // vai ao trote (sem gastar estamina); correr de verdade só com a Disparada ligada (gasta estamina, como no jogo).
+      // Montado, no carrinho ou no barco quem decide a velocidade é a montaria/veículo (passoJogador)
+      const f = Math.hypot(J.mx, J.mz) || 1, dx = J.mx / f, dz = J.mz / f;
+      if (j.montado || j.veiculo) { j.entrada = { mx: dx, mz: dz, correr: !j.veiculo }; return; }
+      const disp = !!j.leveDisp && !j.semFolego && !j.prog.pack && f >= 0.3;
+      const ss = (t) => t * t * (3 - 2 * t), trote = HEROI.correr * ESTAMINA.trote;
+      const v = disp ? HEROI.correr : f < 0.5 ? HEROI.andar * (0.55 + 0.45 * (f - 0.15) / 0.35) : HEROI.andar + (trote - HEROI.andar) * ss(Math.min(1, Math.max(0, (f - 0.5) / 0.4)));
+      const corre = v > HEROI.andar * 1.2, base = corre ? HEROI.correr : HEROI.andar;
+      j.entrada = { mx: dx * (v / base), mz: dz * (v / base), correr: corre };
+      if (disp && !j.morto && !(j.trava > 0)) this.correndo(j, dt); // a Disparada gasta estamina como a corrida do jogo
+      if (j.leveDisp && (j.semFolego || j.prog.pack)) { j.leveDisp = false; this.evento({ t: 'aviso', para: j.id, texto: j.prog.pack ? 'Com pack nas costas não dá pra correr' : 'Sem fôlego!' }); }
+      return;
     }
     const R = j.leveRota; if (!R) return;
     if (j.morto) return this.leveParar(j.id, null);
@@ -284,8 +338,14 @@ export const Leve = {
   // o que não muda (ou muda pouco): os lugares com janela, os totens, a loja e os baús. Vai ao entrar e de tempos em tempos
   leveMapa(j) {
     const p = j.prog, dsc = new Set(p.totens || []);
-    const npcs = (this.mapa.npcs || []).filter((n) => FUNCOES.has(n.funcao) || (n.acoes || []).includes('vender'))
-      .map((n) => ({ n: n.nome, f: FUNCOES.has(n.funcao) ? n.funcao : 'compra', x: r1(n.x), z: r1(n.z), ...((n.acoes || []).includes('vender') ? { v: 1 } : {}),
+    // todos os NPCs, como no jogo (André 2026-11-27: "quero tudo idêntico"): id e as ações da janela dele (conversa.gd
+    // ACOES). Os que antes não tinham janela no leve (dica, cura, missão, passe, instrutor, recrutador, guilda) vêm com
+    // x: 1 (o mapa não desenha o quadradinho deles, para não encher). Quem só aparece depois de uma missão segue a regra do falar
+    const ve = (n) => (!n.depois || npcApareceu(p, n.depois)) && (!n.ate || !npcApareceu(p, n.ate));
+    const npcs = (this.mapa.npcs || []).filter(ve)
+      .map((n) => ({ n: n.nome, id: n.id, a: (n.acoes || []).filter((a) => ACOES_NPC.has(a)), f: FUNCOES.has(n.funcao) ? n.funcao : (n.acoes || []).includes('vender') ? 'compra' : n.funcao || 'dica', ...(FUNCOES.has(n.funcao) || (n.acoes || []).includes('vender') ? {} : { x0: 1 }), x: r1(n.x), z: r1(n.z), ...((n.acoes || []).includes('vender') ? { v: 1 } : {}),
+        ...(n.funcao === 'passe' && this.dungeon?.def?.passe ? { ps: Object.entries(this.dungeon.def.passe).map(([k, q]) => [k, ITENS[k]?.nome || k, q]) } : {}), // Gaspar: o material do passe (tem/precisa na página)
+        ...(n.id === CATALISADOR.sintese.npc ? { al: sintesesLeve() } : {}), // Mirela: o que ela sintetiza
         // mercador de pack (PR 2 do modo leve): o id, o pack que ele faz e o material (a página mostra tenho/preciso)
         ...(n.funcao === 'pack' && PACKS[n.merch] ? { id: n.id, pk: PACKS[n.merch].nome, custo: Object.entries(custoPack(n.merch, p.prof?.mer)).map(([k, q]) => [k, ITENS[k]?.nome || k, q]) } : {}) }));
     const totens = TOTENS.lista.map((t) => ({ id: t.id, n: t.nome, x: r1(t.x), z: r1(t.z), d: dsc.has(t.id) ? 1 : 0, taxa: taxaTotem(t) }));
@@ -358,10 +418,24 @@ export const Leve = {
     // coleta (André 2026-11-26): o painel mostra "Minerando…", a barra até a próxima batida e quanto já pegou
     if (e.t === 'coleta') return { t: 'coleta', no: e.no, dur: e.dur, prof: e.prof || '' };
     if (e.t === 'coletou') return { t: 'coletou', no: e.no, itens: (e.itens || []).map((o) => ({ nome: o.nome, n: o.n })), cargas: e.cargas };
-    if (e.t === 'fala') return { t: 'fala', npc: (this.mapa.npcs || []).find((n) => n.id === e.npc)?.nome?.split(',')[0] || '', texto: e.texto }; // o que o NPC disse (missão)
+    if (e.t === 'fala') return { t: 'fala', npc: (this.mapa.npcs || []).find((n) => n.id === e.npc)?.nome?.split(',')[0] || '', id: e.npc, texto: e.texto, ...(e.abrir ? { abrir: e.abrir } : {}), ...(e.custo != null ? { custo: e.custo } : {}) }; // o que o NPC disse; abrir/custo: o instrutor pergunta se reseta
     // troca (etapa 5): os itens com nome e cor (a página não tem a tabela de itens)
     if (e.t === 'troca' && e.fase === 'estado') { const of = (o) => ({ ouro: o.ouro, tranca: o.tranca ? 1 : 0, ok: o.ok ? 1 : 0, itens: o.itens.map((x) => ({ ...(x.i != null ? { i: x.i } : {}), n: x.n, k: x.it?.k, nome: x.it ? nomeItem(x.it) : '?', c: x.it ? corDe(x.it) : null })) }); return { t: 'troca', fase: 'estado', com: e.com, nome: e.nome, eu: of(e.eu), ele: of(e.ele) }; }
     if (e.t === 'pvp' && e.fase === 'info') { const { loja, ...r } = e; return r; } // a loja de Insígnias fica no jogo
+    // fornalha e fogão (a janela do jogo, construcao.gd painel_forno): os lugares com nome e o que da mochila pode ir em cada um
+    if (e.t === 'forno') {
+      const j = this.jogadores.get(e.para), mo = j?.prog.mochila || [], C = e.tipo === 'fogao' ? FOGAO : FORNALHA, fg = e.tipo === 'fogao';
+      const sl = (o) => (o ? [o.k, o.n, ITENS[o.k]?.nome || o.k] : null), nm = (k) => ITENS[k]?.nome || k || '';
+      const it = [];
+      mo.forEach((o, i) => { if (!o || o.h) return; const l = []; if (C.combustivel[o.k]) l.push('comb'); if (!fg && C.receitas[o.k]) l.push('ent'); if (!fg && Object.values(C.receitas).some((q) => q.ent2?.k === o.k)) l.push('ent2'); if (l.length) it.push([i, o.k, o.n || 1, nomeItem(o), l]); });
+      const pr = fg ? Object.values(C.receitas).map((R) => [R.faz, nm(R.faz), Math.min(...Object.entries(R.ing).map(([k, q]) => Math.floor(contar(mo, k) / q))), Object.entries(R.ing).map(([k, q]) => `${q} ${nm(k)}`).join(' + '), R.nivel, R.dur]) : null;
+      return { t: 'forno', p: e.p, tipo: e.tipo, ...(e.abrir ? { abrir: 1 } : {}), comb: sl(e.comb), ent: sl(e.ent), ent2: sl(e.ent2), sai: sl(e.sai), fogo: e.fogo, fogoMax: e.fogoMax, fogoK: nm(e.fogoK), prog: e.prog, dur: e.dur, faz: nm(e.faz), ...(e.pede2 ? { pede2: [nm(e.pede2.k), e.pede2.n] } : {}), anda: e.anda ? 1 : 0, ...(e.precisa ? { precisa: nm(e.precisa) } : {}), it, ...(pr ? { pr } : {}) };
+    }
+    // a janela do jantar (jantar.gd): a comida com nome e a da mochila que pode ir para a mesa
+    if (e.t === 'jantarInfo') {
+      const j = this.jogadores.get(e.para), mo = j?.prog.mochila || [];
+      return { ...e, comida: (e.comida || []).map((o) => [o.k, o.n, ITENS[o.k]?.nome || o.k]), cm: mo.map((o, i) => (o && comidaJantar(o.k) ? [i, o.k, o.n || 1, nomeItem(o)] : null)).filter(Boolean) };
+    }
     if (e.t === 'bau') return { t: 'bau', cla: e.cla ? 1 : 0, l: (e.itens || []).length, it: listaLeve(e.itens), ...(e.p ? { p: e.p, nome: e.nome || '' } : {}) }; // p/nome: cada baú tem o seu estoque (2026-11-27)
     return e;
   },
@@ -419,10 +493,14 @@ export const Leve = {
       // (menu.gd): "Colocar no chão" ou, no mundo, "Guardar carrinho"; navio só "Guardar navio" quando está na água. [10] = rótulo
       const vb = o.k === 'carrinho' ? (this.carrinhoFora(j) ? 'Guardar carrinho' : 'Colocar no chão') : o.k === 'navio' && this.navioFora(j) ? 'Guardar navio' : '';
       const I = ITENS[o.k], tipo = I.lugar ? 'e' : (I.usar && !I.usar.veiculo) || o.k === 'tomo' || vb ? 'u' : '';
-      r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o), precoVenda(o, merc), o.cad ? 1 : 0, tipo, I.lugar || '', textoPeca(o), ...(vb ? [vb] : [])]);
+      r.push([i, o.k, o.n || 1, nomeItem(o), corDe(o), precoVenda(o, merc), o.cad ? 1 : 0, tipo, I.lugar || '', textoPeca(o), vb || '', ...(tipo === 'e' ? [compararPeca(o, p.equip?.[I.lugar])] : [])]); // [11] peça: comparada com a vestida (como a janela do medalhão)
     });
-    const eq = LUGARES.filter((l) => p.equip?.[l] && ITENS[p.equip[l].k]).map((l) => { const o = p.equip[l]; return [l, o.k, nomeItem(o), corDe(o), textoPeca(o)]; });
-    return { l: (p.mochila || []).length, it: r, eq };
+    const eq = LUGARES.filter((l) => p.equip?.[l] && ITENS[p.equip[l].k]).map((l) => { const o = p.equip[l]; return [l, o.k, nomeItem(o), corDe(o), textoPeca(o), durab(o), MORTE.durMax, o.e | 0, reforcoMax(o), custoConserto(o)]; }); // [5..9] durabilidade, máx, reforço, reforço máx, conserto
+    // conserto (Tomás e os ferreiros, a janela do conserto do jogo): as peças gastas, no corpo (l) ou na mochila (i), com o
+    // preço de cada uma; cs.t = tudo junto (com o desconto da Guilda, como o servidor cobra)
+    const dc = this.vantagensDe?.(j)?.conserto || 0, gr = consertoGratis(p);
+    const cs = pecasGastas(p).map((x) => { const o = x.onde === 'equip' ? p.equip[x.l] : p.mochila[x.i]; return [x.onde === 'equip' ? 'l' : 'i', x.onde === 'equip' ? x.l : x.i, nomeItem(o), durab(o), gr ? 0 : comDesconto(x.custo, dc)]; });
+    return { l: (p.mochila || []).length, it: r, eq, cs, ...(cs.length ? { ct: gr ? 0 : comDesconto(pecasGastas(p).reduce((t, x) => t + x.custo, 0), dc) } : {}) };
   },
   // Criar (André 2026-11-25): as MESMAS receitas e regras do jogo (RECEITAS, motivoReceita, `criar`); aqui só se lista.
   // [receita, nome, [[k, nome, qtd]], estação, nome da estação, perto dela (1/0), motivo (sem contar a estação), segundos]
@@ -464,6 +542,15 @@ export const Leve = {
     return { nv: p.nivel | 0, xp: Math.floor(p.xp || 0), xpM: xpProximo(p.nivel), pts: p.pontos | 0, atr: p.atr,
       an: Object.fromEntries(Object.entries(ATRIBUTOS).map(([k, A]) => [k, [A.nome, A.desc]])),
       st: [['Vida', Math.round(j.vidaMax)], ['Mana', Math.round(j.manaMax)], ['Defesa', Math.round(st.defesa || 0)], ['Dano físico', Math.round(st.danoFisico || 0)], ['Dano mágico', Math.round(st.danoMagico || 0)], ['Crítico', pc(st.critico) + '%']],
+      // Herói (André 2026-11-27: "tudo igual ao modo 3D"): as mesmas linhas da aba Status do jogo (menu.gd montar_status)
+      he: [['Vida', `${Math.ceil(j.vida)} / ${Math.round(j.vidaMax)}`], ['Mana', `${Math.floor(j.mana)} / ${Math.round(j.manaMax)}`],
+        ['Defesa', `${Math.round(st.defesa || 0)} (-${Math.round((st.reducao || 0) * 100)}% de dano)`], ['Crítico', `${pc(st.critico)}%`],
+        ['Dano crítico', `+${Math.round(st.danoCritico || 0)}`], ['Dano físico', `${pc((st.danoFisico || 0) / 100)}`], ['Dano mágico', `${pc((st.danoMagico || 0) / 100)}`],
+        ['Recarga', `-${Math.round((st.recarga || 0) * 100)}%`], ['Regeneração', `${pc((st.regenVida || 0) / 100)} vida/s · ${pc((st.regenMana || 0) / 100)} mana/s (fora de luta)`],
+        ['Estamina', `${Math.floor(j.sta ?? 0)} / ${Math.round(j.staMax ?? st.estaminaMax ?? 0)}`], ['Vigor', `${Math.floor(Math.min(vigorAgora(p.vigor), vigorMax(p)))} / ${vigorMax(p)}`], ['Ouro', String(p.ouro | 0)]],
+      // +1 ponto em cada atributo: quanto muda (a página mostra "→ novo" em verde enquanto não confirma, como o jogo)
+      dp: Object.fromEntries(Object.keys(ATRIBUTOS).map((k) => { const s2 = calcularStatus({ ...p, atr: { ...p.atr, [k]: (p.atr?.[k] | 0) + 1 } }, j.pas); return [k, { Vida: s2.vidaMax - st.vidaMax, Mana: s2.manaMax - st.manaMax, Defesa: s2.defesa - st.defesa, 'Crítico': s2.critico - st.critico, 'Dano físico': s2.danoFisico - st.danoFisico, 'Dano mágico': s2.danoMagico - st.danoMagico, Recarga: s2.recarga - st.recarga }]; })),
+      ba0: { Vida: st.vidaMax, Mana: st.manaMax, Defesa: st.defesa, 'Crítico': st.critico, 'Dano físico': st.danoFisico, 'Dano mágico': st.danoMagico, Recarga: st.recarga },
       // golpes = as barras do jogo (André 2026-11-27: "igual ao jogo"): prog.barras e msg 'barra' {barra, lista}, como a aba Habilidades do jogo
       ba: Object.fromEntries(BARRAS.map((b) => [b, [...(p.barras?.[b] || [])]])),
       hs: Object.entries(HABS).filter(([k]) => BARRAS.some((b) => cabeNaBarra(k, b))).map(([k, H]) => [k, H.nome, H.arvore, H.desc || '', H.libera || 1, p.habs?.[k]?.nv || 1]),
@@ -488,6 +575,38 @@ export const Leve = {
     const b = beiraDoSpot(j, sp); if (!b) return aviso('Não achei beira para esse spot');
     this.leveIr(id, { x: b.x, z: b.z, nome: 'Spot de pesca' });
     if (j.leveRota) j.leveRota.spot = sp.id;
+  },
+  // a barra da missão da vez (missao_ativa.gd textos/alvo): [linha de cima, linha de baixo, pronto, x, z, nome do lugar]
+  missaoVezLeve(j) {
+    const H = this.histInfo(j), M = missaoAtual(j.prog); if (!H || !M) return null;
+    const quem = (this.mapa.npcs || []).find((n) => n.id === M.npc)?.nome?.split(',')[0] || M.npc, tot = totalMissao(M);
+    const l1 = M.cap > 0 ? `Cap. ${M.cap} · ${M.nome}` : `Missão: ${M.nome}`;
+    const l2 = H.e >= 0 ? `${tot > 1 ? `Parte ${H.e + 1}/${tot} · ` : ''}${H.txt || ''}` : (j.prog.nivel | 0) < (M.nv | 0) ? `Libera no Nv ${M.nv} (${quem})` : `Fale com ${quem}`;
+    const a = H.alvo, ok = (j.prog.nivel | 0) >= (M.nv | 0) && a && Number.isFinite(a.x);
+    return [l1, l2, /Pront|Volte/.test(l2) ? 1 : 0, ...(ok ? [r1(a.x), r1(a.z), a.nome || 'a missão'] : [])];
+  },
+  // os botões de lugar do jogo (construcao.gd _botoes_estacao, caverna.gd _botao_do_selo, jantar.gd), com as mesmas
+  // contas de perto que o servidor usa para aceitar: e = mesa de criar (bancada/bigorna, abre o Criar); f = fornalha ou fogão
+  // [id, tipo, nome] (abre a janela do forno); cm = minha cama perto (Dormir); en = encher o regador; me = Mesa do Clã;
+  // sl = o selo da caverna (usar o passe). André 2026-11-27: "Quero tudo idêntico"
+  pertoLeve(j) {
+    if (j.morto || j.veiculo || j.pesca) return null;
+    const o = {}, d = LOTE.estacaoDist + 0.6, perto = (p) => Math.hypot(p.x - j.x, p.z - j.z) <= d;
+    const meu = this.loteDe?.(j), lotes = [...this.lotes.values()];
+    for (const E of this.mapa.estacoes || []) if (perto(E)) { if (E.k === 'fornalha') o.f ||= [E.id, 'fornalha', E.nome]; else if (E.k === 'bancada' || E.k === 'bigorna') o.e ||= [E.k, E.nome]; }
+    if (!o.e && this.forjaBasePerto?.(j)) o.e = ['bigorna', 'Forja do clã'];
+    if (!o.f) { const F = this.fornalhaBasePerto?.(j); if (F) o.f = [F.id, 'fornalha', F.nome]; }
+    for (const L of lotes) for (const p of L.pecas) {
+      if (!perto(p) || !semParede(lotes, j, p)) continue;
+      if (!o.e && (p.k === 'bancada' || p.k === 'bigorna')) o.e = [p.k, CONSTRUCOES[p.k]?.nome || p.k];
+      if (L === meu && !o.f && (p.k === 'fornalha' || p.k === 'fogao')) o.f = [p.id, p.k, CONSTRUCOES[p.k]?.nome || p.k];
+      if (L === meu && p.k === 'cama') o.cm = 1;
+    }
+    if (contar(j.prog.mochila, 'regador') > 0 && aguaRegador(j.prog) < HORTA.agua && pertoDeAgua(j.x, j.z)) o.en = 1;
+    const B = JANTAR.ligado && this.baseDe?.(j), M = B && this.mesaBase?.(B);
+    if (M && Math.hypot(M.x - j.x, M.z - j.z) <= JANTAR.perto) o.me = 1;
+    if (!j.caverna) { const c = noTunel(TUNEL, j.x, j.z); if (c && c.s <= CAVERNA.porta + 0.3 && c.s >= CAVERNA.porta - (CAVERNA_DUNGEON.portaPerto || 4)) o.sl = 1; }
+    return Object.keys(o).length ? o : null;
   },
   // ---------- fazenda, base e cama (etapa 6): o terreno/base do jogador numa grade; as ações são as do jogo (horta,
   // construir, desmontar, regador, dormir), com as mesmas regras (perto do terreno, vigor, ferramentas)
@@ -587,12 +706,16 @@ export const Leve = {
       g, m, hb: this.habLeve(j), c: this.coletaLeve(j), ...(j.coleta ? { co: [j.coleta.no, COLETA[this.coletaveis.get(j.coleta.no)?.tipo]?.nome || ''] } : {}),
       ...(j.pesca ? { pe: [j.pesca.st, j.pesca.st === 'briga' ? Math.round(j.pesca.prog * 100) : 0] } : {}), // pescando (etapa 6): o estado e a barra da briga
       ...((() => { const l = this.spotsLeve(j); return l.length ? { sp: Math.round(l[0][1]), ss: l.slice(0, 12).map(([v]) => [r1(v.x), r1(v.z)]) } : {}; })()), // metros até o spot de pesca à vista; ss: os spots no mapa (à vista ou com o Radar, como no jogo)
-      ...((() => { const a = this.alvoLeve(j) || this.maisPerto(j); return a && a.id && m.some((o) => o[4] === a.id) ? { al: a.id } : {}; })()), // al: o monstro que o próximo golpe pega (André 2026-11-27: círculo vermelho nele)
+      ...((() => { const a = this.alvoLeve(j) || this.maisPerto(j); return a && a.id && m.some((o) => o[4] === a.id) ? { al: a.id } : {}; })()),
+      ...((() => { const H = this.histInfo(j); return H?.npc ? { hn: H.npc, hm: H.nome } : {}; })()),
+      ...(j.leveDisp ? { ds: 1 } : {}), ...(j.sta < j.staMax ? { sa: [Math.floor(j.sta), Math.round(j.staMax), j.semFolego ? 1 : 0] } : {}), // Disparada ligada; estamina (só quando gastou), como a barrinha do jogo // o NPC da missão principal agora: a janela dele ganha o botão "Missão: …" (conversa.gd _quer_missao) // al: o monstro que o próximo golpe pega (André 2026-11-27: círculo vermelho nele)
       ...((() => { const b = this.bfLeve(this.bfJogador(j)), a = this.alvoLeve(j), ba = a && !a.morto && this.bfInimigo ? this.bfLeve(this.bfInimigo(a)) : []; return { ...(b.length ? { bf: b } : {}), ...(ba.length ? { ba } : {}) }; })()), // buffs e debuffs (André 2026-11-27: "ícones de buff" iguais ao jogo, buffs.gd): os meus e os do alvo
       // perto da água (André 2026-11-27: "aparecer opção de pescar e usar o barquinho se eu tiver na bag"), as mesmas contas do
       // jogo: ag = com a vara e água a até 4,4 m (pesca.gd: o botão Pescar); bq = barquinho na mochila e água funda a até 4 m
       // (transporte.gd _estado_botao); vc 'b' = no barquinho (o botão vira Descer)
       ...(j.veiculo === 'barquinho' ? { vc: 'b' } : (() => { const o = {}; if (!j.pesca && !j.veiculo && contar(j.prog.mochila, 'vara') > 0 && acharPonto(j, (a, b) => fundoAgua(a, b) > 0.05, 4.4)) o.ag = 1; if (!j.veiculo && contar(j.prog.mochila, 'barquinho') > 0 && acharPonto(j, (a, b) => fundoAgua(a, b) >= VEICULOS.barquinho.fundo, 4)) o.bq = 1; return o; })()),
+      ...((() => { const x = this.missaoVezLeve(j); return x ? { mv: x } : {}; })()), // a barra da missão da vez com o Ir (missao_ativa.gd)
+      ...((() => { const x = this.pertoLeve(j); return x ? { ex: x } : {}; })()), // os botões de lugar do jogo (pertoLeve)
       ...(this.emCombate(j) ? { lu: 1, as: j.acaoSeq | 0 } : {}), // as: conta os golpes do herói (a página desenha o corte quando muda) // em luta (bateu ou apanhou nos últimos ESTAMINA.combate s): o cartão de baixo vira "Em luta" (André 2026-11-26)
     };
   },

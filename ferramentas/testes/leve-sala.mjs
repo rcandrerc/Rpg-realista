@@ -41,7 +41,7 @@ const leve = async (sessao) => {
   const sala = await cliente.joinOrCreate('clareira', { sessao, leve: true });
   Object.assign(sala, { fechou: null, fotos: [], ev: [], mapa: null, mo: null, mundo: 0, erro: null, bytes: 0 });
   sala.onLeave((c) => { sala.fechou = c; });
-  sala.onMessage('leve', (d) => { sala.fotos.push(d.f); sala.ev.push(...d.ev); if (d.mo) sala.mo = d.mo; if (d.mapa) sala.mapa = d.mapa; if (d.cn) sala.cn = d.cn; sala.bytes += JSON.stringify({ ...d, cn: undefined }).length; }); // a cena de perto (cenaLeve) só vai quando muda: conta à parte
+  sala.onMessage('leve', (d) => { sala.fotos.push(d.f); sala.ev.push(...d.ev); if (d.mo) sala.mo = d.mo; if (d.mapa) sala.mapa = d.mapa; if (d.cn) sala.cn = d.cn; sala.bytes += JSON.stringify({ ...d, cn: undefined, mapa: undefined }).length; if (d.mapa) sala.mapaBytes = JSON.stringify(d.mapa).length; }); // o mapa fixo (lugares e NPCs com as ações) vai uma vez só: conta à parte // a cena de perto (cenaLeve) só vai quando muda: conta à parte
   sala.onMessage('leveMapa', (d) => { sala.mapa = d; });
   sala.onMessage('leveErro', (d) => { sala.erro = d; });
   sala.onMessage('*', (t) => { if (t === 'mundo' || t === 'mundoJ') sala.mundo++; });
@@ -59,6 +59,7 @@ try {
   ok(s.mundo === 0, 'o modo leve não recebe o mundo');
   ok(s.mo?.it?.[0]?.[1] === 'minerio_ferro' && s.mo.it[0][2] === 10 && s.mo.it[0][5] > 0, `mochila com nome e preço (${JSON.stringify(s.mo?.it?.[0])})`);
   ok(s.bytes / s.fotos.length < 4000, `foto pequena (${Math.round(s.bytes / s.fotos.length)} bytes)`);
+  ok(!s.mapaBytes || s.mapaBytes < 30000, `mapa fixo pequeno, vai uma vez (${s.mapaBytes} bytes)`);
   ok(s.cn && JSON.stringify(s.cn).length < 15000, `o mundo de perto chegou (${JSON.stringify(s.cn || {}).length} bytes)`);
   const [x0, z0] = eu(s);
 

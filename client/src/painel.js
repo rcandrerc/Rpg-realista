@@ -813,6 +813,7 @@ function desenharMapa() {
   }
   if (jogando && leve.mapa && span <= 600) { // os lugares com janela e os totens
     for (const L of [...leve.mapa.npcs, ...leve.mapa.totens.map((t) => ({ ...t, f: 'totem' }))]) {
+      if (L.x0) continue; // NPC sem quadradinho no mapa (dica, cura, instrutor…): só a janela de perto
       const [a, b] = P(L.x, L.z); if (a < -20 || b < -20 || a > W + 20 || b > H + 20) continue;
       const r = Math.max(4, W / 110);
       g.fillStyle = LUGAR_COR[L.f] || '#e9c46a'; g.strokeStyle = 'rgba(12,10,8,.9)'; g.lineWidth = Math.max(1.5, W / 400);
@@ -908,7 +909,7 @@ function ligarLeve(s) {
     if (d.fx) fxChegou(d.fx);
     if (d.f?.as != null && leve.f?.as != null && d.f.as !== leve.f.as && !d.f.hb?.mg) FX.push({ f: ['s', d.f.eu[13] || 0, d.f.as % 2], t: performance.now() }); // o herói golpeou de espada: o corte
     leve.parado = !!(leve.f && d.f && leve.f.eu[0] === d.f.eu[0] && leve.f.eu[1] === d.f.eu[1]); // o herói não andou desde a foto de antes
-    leve.f = d.f; if (d.cn) { leve.cn = d.cn; leve.cnImg = assarCena(d.cn); } if (d.mo) { leve.mo = d.mo; leve.sujo = true; } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa; if (d.ms) { leve.ms = d.ms; if (aba === 'missoes') desenharMissoes(); if (aba === 'personagem') desenharPersonagem(); }
+    leve.f = d.f; if (d.cn) { leve.cn = d.cn; leve.cnImg = assarCena(d.cn); } if (d.mo) { leve.mo = d.mo; leve.sujo = true; if (aba === 'personagem') desenharPersonagem(); } if (d.pk) { leve.pk = d.pk; leve.sujo = true; } if (d.rc) { leve.rc = d.rc; if (criarAberto) leve.sujo = true; } if (d.mapa) leve.mapa = d.mapa; if (d.ms) { leve.ms = d.ms; if (aba === 'missoes') desenharMissoes(); if (aba === 'personagem') desenharPersonagem(); }
     if (d.fz) { leve.fz = d.fz; if (aba === 'fazenda') desenharFazenda(); }
     for (const e of d.ev || []) eventoLeve(e);
     // apanhou minerando (André 2026-11-26: "quando chega o combate... tá meio confuso"): o servidor para a coleta (igual ao
@@ -952,6 +953,9 @@ function eventoLeve(e) {
   else if (['time', 'duelo', 'pvp', 'troca', 'amigos', 'amigo'].includes(e.t)) socialEvento(e); // etapa 5
   else if (e.t === 'pesca' && e.st === 'fisgou') { try { navigator.vibrate?.(180); } catch { /* sem vibrar */ } } // o "!" da boia (etapa 6)
   else if (e.t === 'colheu') aviso(`Colheu ${e.n} ${e.nome}`);
+  else if (e.t === 'forno') { if (e.abrir || document.querySelector('.janelaLeve.forno')) { leve.forno = e; janelaForno(); } }
+  else if (e.t === 'jantarInfo') { leve.jantar = { ...(leve.jantar || {}), info: e }; if (document.querySelector('.janelaLeve.jantar')) janelaJantar(); }
+  else if (e.t === 'jantarSentar') { if (leve.jantar) leve.jantar.sent = !e.sai; if (document.querySelector('.janelaLeve.jantar')) janelaJantar(); }
   else if (e.t === 'dormiu') aviso('Dormiu até de manhã: vida e mana cheias');
   else if (e.t === 'regador' && e.texto) aviso(e.texto);
   else if (e.t === 'diaria_ir' && e.alvo) irLeve(e.alvo); // Ir da diária ou do contrato: o servidor diz o lugar aberto mais perto
@@ -994,8 +998,8 @@ function tocarMapaLeve(e) {
   // combate (André 2026-11-25): tocar num monstro (ponto laranja) abre o quadrinho com o nome e o Atacar; não anda sozinho
   let bicho = null, mb = 18 * k;
   for (const [mx, mz, nv, , id, nome] of leve.f.m || []) { const d = Math.hypot(mx - x, mz - z); if (d < mb) { mb = d; bicho = { id, nome: nome || 'Monstro', nv }; } }
-  if (bicho) { leve.mira = bicho; leve.sujo = true; desenharJogar(); return; }
-  if (leve.mira) { leve.mira = null; leve.sujo = true; }
+  if (bicho) { leve.mira = bicho; mandar('leveMirar', bicho.id); leve.sujo = true; desenharJogar(); return; } // tocar no bicho também mira os golpes nele (como o Trocar alvo)
+  if (leve.mira) { leve.mira = null; mandar('leveMirar', null); leve.sujo = true; }
   for (const L of leve.mapa ? [...leve.mapa.npcs, ...leve.mapa.totens] : []) { const d = Math.hypot(L.x - x, L.z - z); if (d < melhor) { melhor = d; alvo = { x: L.x, z: L.z, nome: L.n.split(',')[0] }; } }
   if (mapaGeral) { marcarLugar({ ...alvo, nome: alvo.nome || 'Ponto marcado' }, false); return; } // mapa geral (como o do jogo): tocar marca; o Ir para leva
   irLeve(alvo);
@@ -1159,6 +1163,80 @@ function cartaoTotem(t) {
 const metros = (o) => { const d = Math.round(dEu(o)); return d >= 1000 ? `${(d / 1000).toFixed(1)} km` : `${d} m`; };
 const bt = (txt, fazer, cinza) => { const b = el('button', 'acao' + (cinza ? ' cinza' : ''), txt); b.onclick = () => { b.disabled = true; setTimeout(() => { b.disabled = false; }, 800); fazer(); }; return b; };
 const temMo = (k) => (leve.mo?.it || []).reduce((s, o) => s + (o[1] === k ? o[2] : 0), 0);
+// a janela do NPC como a do jogo (conversa.gd): o nome, o que ele falou por último e um botão para cada ação dele (ACOES),
+// "Missão: …" quando a história quer falar com ele, Conversar e Até logo. Cada botão faz o mesmo que no jogo.
+const ACOES_NPC = { comprar: '🛒 Comprar', vender: '💰 Vender itens', consertar: '🔨 Consertar', habilidades: '⚔️ Habilidades', missao: '📜 Missão', cura: '💚 Curar', resetar: '↩️ Resetar build',
+  passe: '🎫 Fazer passe da caverna', pack: '📦 Packs (fazer e entregar)', alquimia: '⚗️ Sintetizar catalisador', leilao: '⚖️ Leilão (comprar e vender)', guilda: '📋 Contratos da Guilda', recrutar: '🪖 Recrutar soldados' };
+const npcFala = {}; // id -> o que ele disse por último (a fala aparece dentro da janela, como no jogo)
+function cartaoNpc(npc) {
+  const V = leve.npcVista?.id === npc.id ? leve.npcVista.v : '', ver = (v) => { leve.npcVista = v ? { id: npc.id, v } : null; leve.sel = null; leve.sujo = true; desenharJogar(); };
+  if (V === 'leilao') return cartaoLeilao();
+  if (V === 'pack' || (npc.f === 'pack' && !V)) return cartaoPackNpc(npc);
+  if (V === 'comprar' || V === 'vender') { const c = cartaoLoja({ ...npc, f: V === 'comprar' ? 'loja' : 'compra', v: V === 'vender' ? 1 : 0 }); c.prepend(voltarNpc(ver)); return c; }
+  const c = el('div', 'card'), nome = npc.n.split(',')[0];
+  c.append(el('div', 'nome', npc.n));
+  if (V === 'consertar') return cartaoConserto(c, ver);
+  if (V === 'passe') return cartaoPasse(c, npc, ver);
+  if (V === 'alquimia') return cartaoAlquimia(c, npc, ver);
+  if (npcFala[npc.id]) c.append(el('div', 'dica', npcFala[npc.id]));
+  const g = el('div', 'atalhos'), op = (t, f) => { const b = el('button', null, t); b.onclick = f; g.append(b); };
+  if (leve.f?.hn === npc.id) op(`📜 Missão: ${leve.f.hm || ''}`, () => mandar('falar', { npc: npc.id, missao: true }));
+  for (const a of npc.a || []) {
+    if (a === 'missao' && leve.f?.hn === npc.id) continue;
+    const ct = leve.mo?.ct;
+    const t = a === 'consertar' ? (ct != null ? `🔨 Consertar · ${num(ct)} ouro` : '🔨 Consertar (tudo inteiro)') : ACOES_NPC[a];
+    op(t, () => {
+      if (a === 'comprar' || a === 'vender' || a === 'pack' || a === 'passe' || a === 'alquimia') return ver(a);
+      if (a === 'leilao') { mandar('leilao', { acao: 'ver' }); return ver('leilao'); }
+      if (a === 'consertar') { if (leve.mo?.cs?.length) return ver('consertar'); npcFala[npc.id] = 'Seu equipamento está inteiro. Volte quando ele apanhar lá fora.'; leve.sujo = true; return desenharJogar(); }
+      if (a === 'habilidades') return irAba('personagem');
+      if (a === 'guilda' || a === 'recrutar') return irAba(a === 'guilda' ? 'missoes' : 'cla');
+      mandar('falar', { npc: npc.id }); // missão, cura, resetar: o servidor responde (fala)
+    });
+  }
+  op('💬 Conversar', () => mandar('falar', { npc: npc.id, conversa: true }));
+  op('👋 Até logo', () => { delete npcFala[npc.id]; abrirPainelLeve(''); });
+  c.append(g);
+  return c;
+}
+function voltarNpc(ver) { const b = el('button', 'txt', '‹ Voltar'); b.onclick = () => ver(''); return b; }
+// conserto (a janela do conserto do jogo): Consertar tudo ou só a peça que quiser, cada uma inteira; msg 'item' consertar
+function cartaoConserto(c, ver) {
+  const cs = leve.mo?.cs || [], ct = leve.mo?.ct || 0, ouro = leve.f?.eu?.[7] | 0;
+  c.append(voltarNpc(ver));
+  if (!cs.length) { c.append(el('div', 'dica', 'Seu equipamento está inteiro. Volte quando ele apanhar lá fora.')); return c; }
+  c.append(el('div', 'faz', 'Peças gastas · toque para consertar só ela'));
+  for (const [t, k, nome, du, custo] of cs) {
+    const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, nome), el('small', null, du <= 0 ? 'QUEBRADA' : `Durabilidade ${du}/100 · ${t === 'l' ? 'vestida' : 'na mochila'}`));
+    const b = el('button', 'on', `${num(custo)} ouro`); b.disabled = custo > ouro; b.onclick = () => mandar('item', { acao: 'consertar', lista: [t === 'l' ? { lugar: k } : { i: k }] });
+    r.append(x, b); c.append(r);
+  }
+  const d = el('div', 'bts'), b = el('button', 'acao', `Consertar tudo · ${num(ct)} ouro`); b.disabled = ct > ouro; b.onclick = () => mandar('item', { acao: 'consertar' }); d.append(b); c.append(d);
+  return c;
+}
+// Gaspar: o material do passe com tem/precisa (vermelho quando falta) e Fazer passe (msg 'item' fazer_passe)
+function cartaoPasse(c, npc, ver) {
+  c.append(voltarNpc(ver), el('div', 'dica', 'Ninguém passa do selo sem passe. Traga isto e eu faço um. Cada passe abre o selo uma vez.'));
+  let falta = false;
+  for (const [k, nome, q] of npc.ps || []) { const tem = contarMochila(k), r = el('div', 'faz', `${nome}: ${num(tem)}/${q}`); r.style.color = tem >= q ? '#7fdc6a' : '#f5675a'; if (tem < q) falta = true; c.append(r); }
+  const d = el('div', 'bts'), b = el('button', 'acao', 'Fazer passe'); b.onclick = () => { if (falta) { npcFala[npc.id] = 'Ainda falta o que está em vermelho. Os monstros carregam isso, é só caçar.'; return ver(''); } mandar('item', { acao: 'fazer_passe' }); ver(''); }; d.append(b); c.append(d);
+  return c;
+}
+// Mirela: cada catalisador que ela faz, com quanto custa e quanto você tem; 1 ou o máximo (msg 'item' sintetizar)
+function cartaoAlquimia(c, npc, ver) {
+  c.append(voltarNpc(ver), el('div', 'dica', 'Traga catalisadores fracos e ouro, que eu faço um mais forte. Até o Lendário.'));
+  const ouro = leve.f?.eu?.[7] | 0;
+  for (const [k, nome, de, deNome, n, preco] of npc.al || []) {
+    const tem = contarMochila(de), max = Math.min(20, Math.floor(tem / n), Math.floor(ouro / preco));
+    const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, nome), el('small', null, `${n} ${deNome} (tem ${num(tem)}) + ${num(preco)} ouro`));
+    const b1 = el('button', max >= 1 ? 'on' : null, 'Fazer 1'); b1.disabled = max < 1; b1.onclick = () => mandar('item', { acao: 'sintetizar', k, n: 1 });
+    r.append(x, b1);
+    if (max > 1) { const bm = el('button', 'on', `Fazer ${max}`); bm.onclick = () => mandar('item', { acao: 'sintetizar', k, n: max }); r.append(bm); }
+    c.append(r);
+  }
+  return c;
+}
+const contarMochila = (k) => (leve.mo?.it || []).reduce((t, o) => t + (o[1] === k ? o[2] : 0), 0);
 function cartaoPackNpc(npc) {
   const c = el('div', 'card'), K = leve.pk || {}, car = K.car;
   c.append(el('div', 'nome', `${npc.n.split(',')[0]} · ${npc.pk || 'Pack'}`));
@@ -1271,6 +1349,135 @@ function cartaoMochila() {
   return c;
 }
 const VESTE = [['cabeca', '🪖', 'Cabeça'], ['corpo', '🦺', 'Corpo'], ['pernas', '👖', 'Pernas'], ['pes', '🥾', 'Pés'], ['capa', '🧣', 'Capa'], ['acessorio', '💍', 'Acessório'], ['espada', '🗡️', 'Espada'], ['cajado', '🪄', 'Cajado']];
+// a janela do lugar do corpo (como a do medalhão do jogo, menu.gd montar_janela): a peça vestida com durabilidade e
+// reforço, Tirar, o aviso (melhor peça ou não) e as peças da mochila que servem ali, melhores primeiro, com Vestir
+const VEREDITO = { m: ['Melhor', '#7fdc6a'], p: ['Pior', '#f5675a'], x: ['Melhor em parte', '#f0c050'], '': ['Igual', '#bbb'] };
+function janelaLugar(l, nomeL) {
+  const fechar = () => { const j = document.querySelector('.janelaLeve.peca'); if (j) j.remove(); };
+  fechar();
+  const atual = (leve.mo?.eq || []).find((o) => o[0] === l), moL = leve.mo?.l || 0, it = leve.mo?.it || [], cheia = moL && it.length >= moL;
+  const opcoes = it.filter((o) => o[7] === 'e' && o[8] === l).sort((a, b) => (b[11]?.[1] || 0) - (a[11]?.[1] || 0));
+  const corpo = [el('div', 'faz', nomeL.toUpperCase())], bts = el('div', 'bts');
+  if (atual) {
+    const nm = el('div', 'nome', atual[2]); if (atual[3]) nm.style.color = atual[3]; corpo.push(nm);
+    if (atual[4]) corpo.push(el('div', null, atual[4].split(' · ').join('\n'))); corpo[corpo.length - 1].style.whiteSpace = 'pre-line';
+    if (atual[5] != null) corpo.push(el('div', 'faz', atual[5] <= 0 ? `QUEBRADA · conserto ${num(atual[9])} ouro` : `Durabilidade ${atual[5]}/${atual[6]}`));
+    if (atual[8]) corpo.push(el('div', 'faz', `Reforço +${atual[7]} de ${atual[8]}`));
+    const t = el('button', 'acao cinza', 'Tirar'); t.disabled = !!cheia; t.onclick = () => { mandar('item', { acao: 'tirar', lugar: l }); fechar(); }; bts.append(t);
+  } else corpo.push(el('div', 'nome', 'Nada vestido'));
+  const melhores = opcoes.filter((o) => o[11]?.[1] > 0.0001).length;
+  const av = atual && cheia ? ['Mochila cheia: libere um lugar para tirar' + (opcoes.length ? ' (trocar funciona).' : '.'), '#f5675a']
+    : !atual ? [opcoes.length ? `Tem ${opcoes.length} peça${opcoes.length === 1 ? '' : 's'} na mochila para este lugar` : 'Nenhuma peça na mochila para este lugar', opcoes.length ? '#7fdc6a' : '#999']
+    : melhores ? [melhores === 1 ? '▲ Tem peça melhor na mochila' : `▲ Tem ${melhores} peças melhores na mochila`, '#7fdc6a'] : ['✓ É a sua melhor peça para este lugar', '#f0d28a'];
+  const a = el('div', null, av[0]); a.style.color = av[1]; corpo.push(a);
+  for (const o of opcoes) {
+    const [i, , n, nome, cor, , , , , txt, , cmp] = o, r = el('div', 'recLeve'), x = el('div', 'n'), [vd, vc] = VEREDITO[cmp?.[0] || ''];
+    const b = el('b', null, nome); if (cor) b.style.color = cor; const vv = el('small', null, atual ? `${vd}${cmp?.[2] ? ' · ' + cmp[2] : ''}` : txt); vv.style.color = atual ? vc : '';
+    x.append(b, vv); const u = el('button', 'on', atual ? 'Trocar' : 'Vestir'); u.onclick = () => { mandar('item', { acao: 'equipar', i }); fechar(); };
+    r.append(x, u); corpo.push(r);
+  }
+  const f = el('button', 'acao cinza', 'Fechar'); f.onclick = fechar; bts.append(f); corpo.push(bts);
+  const j = janelaLeve(corpo); j.classList.add('peca'); j.onclick = (e) => { if (e.target === j) fechar(); };
+  document.body.append(j);
+}
+// a janela da fornalha e do fogão (construcao.gd painel_forno): combustível, material, 2º material (aço), saída; pôr da
+// mochila e tirar. Mensagens e regras do jogo (forno: abrir/por/tirar); a barra do fogo e do trabalho vêm do servidor
+function janelaForno() {
+  const F = leve.forno; if (!F || !F.it) return;
+  const velha = document.querySelector('.janelaLeve.forno'), rolou = velha?.querySelector('.caixa')?.scrollTop || 0; if (velha) velha.remove();
+  const fg = F.tipo === 'fogao', fechar = () => document.querySelector('.janelaLeve.forno')?.remove();
+  const corpo = [el('div', 'nome', fg ? '🍲 Fogão' : '🔥 Fornalha')];
+  const pct = (a, b) => (b > 0 ? Math.max(0, Math.min(100, Math.round((a / b) * 100))) : 0);
+  const barra = (rot, v, cor) => { const d = el('div', 'faz', rot), b = el('div', 'progColeta'), i = el('i'); i.style.width = v + '%'; if (cor) i.style.background = cor; b.append(i); return [d, b]; };
+  corpo.push(...barra(`Fogo${F.fogoK ? ' · ' + F.fogoK : ''}: ${Math.ceil(F.fogo || 0)} s`, pct(F.fogo, F.fogoMax), '#e8823a'));
+  corpo.push(...barra(F.faz ? `${F.anda ? 'Fazendo' : 'Parado'} · ${F.faz}${F.dur ? ` (${F.dur} s cada)` : ''}` : 'Ponha material para começar', pct(F.prog, F.dur)));
+  if (F.precisa) { const a = el('div', null, `Precisa de fogo de ${F.precisa}`); a.style.color = '#f5675a'; corpo.push(a); }
+  if (F.pede2) { const a = el('div', null, `Falta ${F.pede2[1]} ${F.pede2[0]} no 2º material`); a.style.color = '#f5675a'; corpo.push(a); }
+  const lugares = [['comb', 'Combustível'], ['ent', fg ? 'Panela' : 'Material'], ...(fg ? [] : [['ent2', '2º material']]), ['sai', 'Pronto']];
+  for (const [l, rot] of lugares) {
+    const o = F[l], r = el('div', 'recLeve'), x = el('div', 'n');
+    x.append(el('b', null, rot), el('small', null, o ? `${o[2]} x${o[1]}` : 'vazio'));
+    r.append(x);
+    if (o) { const u = el('button', 'on', l === 'sai' ? 'Pegar' : 'Tirar'); u.onclick = () => mandar('forno', { acao: 'tirar', p: F.p, lugar: l }); r.append(u); }
+    corpo.push(r);
+  }
+  if (F.it.length) corpo.push(el('div', 'faz', 'DA MOCHILA'));
+  for (const [i, , n, nome, ls] of F.it) {
+    const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, `${nome} x${n}`)); r.append(x);
+    for (const l of ls) { const u = el('button', 'on', l === 'comb' ? 'Queimar' : l === 'ent2' ? '2º' : 'Pôr'); u.onclick = () => mandar('forno', { acao: 'por', p: F.p, lugar: l, i, n }); r.append(u); }
+    corpo.push(r);
+  }
+  if (fg) { // o prato vai para a panela: os ingredientes saem da mochila (FOGAO.receitas)
+    corpo.push(el('div', 'faz', 'PRATOS'));
+    for (const [faz, nome, pode, ing, nv] of F.pr || []) {
+      const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, nome), el('small', null, `${ing} · Cozinheiro Nv ${nv}`)); r.append(x);
+      const u = el('button', 'on', pode > 0 ? `Pôr ${pode}` : 'Falta'); u.disabled = !(pode > 0); u.onclick = () => mandar('forno', { acao: 'por', p: F.p, lugar: 'ent', r: faz, n: pode }); r.append(u); corpo.push(r);
+    }
+  }
+  const bts = el('div', 'bts'), f = el('button', 'acao cinza', 'Fechar'); f.onclick = fechar; bts.append(f); corpo.push(bts);
+  const j = janelaLeve(corpo); j.classList.add('forno'); j.onclick = (e) => { if (e.target === j) fechar(); };
+  const cx = j.querySelector('.caixa'); cx.style.maxHeight = '86vh'; cx.style.overflowY = 'auto'; cx.style.textAlign = 'left';
+  document.body.append(j); cx.scrollTop = rolou;
+  // o fogo e o trabalho andam: enquanto a janela está aberta, pede de novo a cada 2 s (como a do jogo, que conta sozinha)
+  if (!leve.fornoTm) leve.fornoTm = setInterval(() => { if (!document.querySelector('.janelaLeve.forno') || !leve.sala) { clearInterval(leve.fornoTm); leve.fornoTm = null; return; } mandar('forno', { acao: 'abrir', p: leve.forno.p }); }, 2000);
+}
+// a janela do jantar do clã (jantar.gd _montar): escolher quem vem, Chamar, comida na mesa, Servir, sentar na cabeceira
+function janelaJantar() {
+  const J = leve.jantar || (leve.jantar = {}), I = J.info;
+  J.esc ||= new Set();
+  const velha = document.querySelector('.janelaLeve.jantar'); if (velha) velha.remove();
+  const fechar = () => { document.querySelector('.janelaLeve.jantar')?.remove(); J.aberto = false; };
+  const rede = (sub, extra) => mandar('cla', { acao: 'jantar', sub, ...(extra || {}) });
+  const corpo = [el('div', 'nome', '🍖 Jantar do clã')];
+  if (!I) corpo.push(el('div', 'faz', 'Carregando...'));
+  else {
+    const fase = I.fase || '', ms = I.m || [];
+    const vem = ms.filter((r) => r.vem).length, sent = ms.filter((r) => r.sent).length;
+    for (const id of [...J.esc]) if (!ms.some((r) => r.id === id && r.on && !r.vem)) J.esc.delete(id);
+    const msg = !I.base ? 'Funde a base do clã: a Mesa do Clã fica nela.' : !I.tem ? 'A Mesa do Clã está na mochila: ponha na base (martelo, Móveis).'
+      : fase === 'comendo' ? `Servido! Fique perto da mesa até o fim (${Math.ceil((I.falta || 0) / 60)} min) para a moral subir +${I.moral}.`
+      : I.feito ? 'O jantar de hoje já foi. Amanhã tem mais.'
+      : fase === 'chamando' ? `${vem - sent} a caminho, ${sent} sentado${sent === 1 ? '' : 's'}. Ponha um prato por recruta sentado e sirva.`
+      : `Escolha quem vem (até ${I.max}) e toque em Chamar. Com você perto, a moral de cada um sobe +${I.moral}. Uma vez por dia.`;
+    const m = el('div', null, msg); m.style.color = fase ? '#f0d28a' : ''; corpo.push(m);
+    if (I.tem) {
+      const fq = el('div', 'bts'); fq.style.flexWrap = 'wrap';
+      for (const r of ms) {
+        const marca = r.vem || J.esc.has(r.id);
+        let t = String(r.nome).split(' ')[0]; if (r.vem) t += r.sent ? ' · sentado' : ' · vindo'; else if (!r.on) t += ' · fora';
+        const b = el('button', 'acao' + (marca ? '' : ' cinza'), t); b.style.flex = '0 0 auto'; b.style.minHeight = '40px';
+        b.disabled = !r.on || r.vem || fase === 'comendo' || !!I.feito;
+        b.onclick = () => { if (J.esc.has(r.id)) J.esc.delete(r.id); else if (J.esc.size < I.max) J.esc.add(r.id); janelaJantar(); };
+        fq.append(b);
+      }
+      if (!ms.length) corpo.push(el('div', 'faz', 'Sem recrutas: contrate no Recrutador.')); else corpo.push(fq);
+      const lb = el('div', 'bts');
+      if (fase !== 'comendo' && !I.feito) { const c = el('button', 'acao', 'Chamar'); c.disabled = !J.esc.size; c.onclick = () => { rede('chamar', { ids: [...J.esc] }); J.esc.clear(); }; lb.append(c); }
+      if (fase === 'chamando') { const c = el('button', 'acao cinza', 'Cancelar'); c.onclick = () => rede('cancelar'); lb.append(c); }
+      if (lb.childNodes.length) corpo.push(lb);
+      if (fase) {
+        const com = I.comida || [], pratos = com.reduce((a, o) => a + o[1], 0);
+        corpo.push(el('div', 'faz', `COMIDA NA MESA · ${pratos}/${Math.max(sent, 1)} pratos${I.perto || fase === 'comendo' ? '' : ' (chegue perto da mesa para pôr)'}`));
+        com.forEach(([, n, nome], s) => { const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, `${nome} x${n}`)); r.append(x); if (fase === 'chamando') { const u = el('button', 'on', 'Tirar'); u.onclick = () => rede('tirarComida', { s }); r.append(u); } corpo.push(r); });
+        if (fase === 'chamando') {
+          corpo.push(el('div', 'faz', 'MOCHILA: toque numa comida para pôr na mesa'));
+          if (!(I.cm || []).length) corpo.push(el('div', 'faz', 'Sem comida na mochila: cozinhe no fogão ou pesque.'));
+          for (const [i, , n, nome] of I.cm || []) { const r = el('div', 'recLeve'), x = el('div', 'n'); x.append(el('b', null, `${nome} x${n}`)); r.append(x); const u = el('button', 'on', 'Pôr'); u.disabled = !I.perto; u.onclick = () => rede('comida', { i, n: Math.max(1, vem - pratos) }); r.append(u); corpo.push(r); }
+        }
+      }
+      const la = el('div', 'bts');
+      if (fase === 'chamando') { const c = el('button', 'acao', 'Servir'); c.disabled = !sent || !I.perto; c.onclick = () => rede('servir'); la.append(c); }
+      if (fase && I.perto) { const c = el('button', 'acao cinza', J.sent ? 'Levantar' : 'Sentar na cabeceira'); c.onclick = () => rede(J.sent ? 'levantar' : 'sentar'); la.append(c); }
+      if (la.childNodes.length) corpo.push(la);
+    }
+  }
+  const bts = el('div', 'bts'), f = el('button', 'acao cinza', 'Fechar'); f.onclick = fechar; bts.append(f); corpo.push(bts);
+  const j = janelaLeve(corpo); j.classList.add('jantar'); j.onclick = (e) => { if (e.target === j) fechar(); };
+  const cx = j.querySelector('.caixa'); cx.style.maxHeight = '86vh'; cx.style.overflowY = 'auto';
+  document.body.append(j);
+  // quem chegou e sentou muda sozinho: enquanto aberta, pede o estado de novo a cada 3 s
+  if (!J.tm) J.tm = setInterval(() => { if (!document.querySelector('.janelaLeve.jantar') || !leve.sala) { clearInterval(J.tm); J.tm = null; return; } rede('info'); }, 3000);
+}
 // a janelinha da peça: nome, o que dá, o que você usa no mesmo lugar (para comparar) e os botões que valem
 function janelaPeca({ it, eq, nomeL }) {
   const fechar = () => { const j = document.querySelector('.janelaLeve.peca'); if (j) j.remove(); };
@@ -1456,9 +1663,12 @@ function desenharJogar() {
   if (leve.rota) while (leve.rotaI < leve.rota.length - 1 && Math.hypot(leve.rota[leve.rotaI][0] - x, leve.rota[leve.rotaI][1] - z) < 3) leve.rotaI++;
   // o cartão de status muda a cada foto; o resto só quando muda o que está perto (não refaz a tela embaixo do dedo)
   let st = $('jogarStatus');
-  if (!st) { st = el('div', 'card hud'); st.id = 'jogarStatus'; }
+  if (!st) { // tocar no quadro de Vida/Mana/Vigor abre o personagem (André 2026-11-27: "igual ao modo 3D": a barra de vida abre o menu do personagem)
+    st = el('div', 'card hud'); st.id = 'jogarStatus';
+    st.onclick = (e) => { if (!e.target.closest('button')) irAba('personagem'); };
+  }
   limpar(st);
-  const vm = el('div', 'vm'); vm.append(barra('Vida', hp, hpM, 'var(--hp)'), barra('Mana', mn, mnM, '#3d7fd0')); if (vgM) vm.append(barra('Vigor', vg, vgM, '#6fbf5a')); for (const d of vm.children) d.style.flex = '1'; st.append(vm);
+  const vm = el('div', 'vm'); vm.append(barra('Vida', hp, hpM, 'var(--hp)'), barra('Mana', mn, mnM, '#3d7fd0')); if (vgM) vm.append(barra('Vigor', vg, vgM, '#6fbf5a')); if (leve.f.sa) vm.append(barra(leve.f.sa[2] ? 'Sem fôlego' : 'Estamina', leve.f.sa[0], leve.f.sa[1], leve.f.sa[2] ? '#d0603a' : '#e0c040')); for (const d of vm.children) d.style.flex = '1'; st.append(vm); // estamina só quando gastou (corrida, rolada)
   // 1 (André 2026-11-25): o quadro de cima só com a conta num relance e uma frase do que está acontecendo; Montar, Recall,
   // Sair e Ajuda viraram os botões redondos à direita (desenhados junto com a barra de baixo)
   const moIt = leve.mo?.it || [], moL = leve.mo?.l || 0, conta = el('div', 'conta');
@@ -1467,6 +1677,14 @@ function desenharJogar() {
   for (const [l, alvo] of [[leve.f.bf, 0], [leve.f.ba, 1]]) if (l?.length) st.append(linhaBuffs(l, alvo)); // buffs e debuffs, como o buffs.gd do jogo
   const extras = [pack && '📦 pack nas costas', montado && '🐺 no lobo', leve.pk?.car?.onde === 2 && '🛒 no carrinho'].filter(Boolean);
   if (extras.length) st.append(el('div', 'faz', extras.join(' · ')));
+  // a missão da vez embaixo do quadro do herói (missao_ativa.gd): tocar abre Missões; o Ir leva até onde se faz
+  const mv = leve.f.mv;
+  if (mv) {
+    const d = el('div', 'missaoLeve'), tx = el('div', 'tx'); tx.append(el('b', null, mv[0]), el('small', mv[2] ? 'pronto' : null, mv[1]));
+    d.append(tx); d.onclick = (e) => { e.stopPropagation(); irAba('missoes'); };
+    if (mv[3] != null) { const ir = el('button', null, 'Ir'); ir.onclick = (e) => { e.stopPropagation(); irLeve({ x: mv[3], z: mv[4] + (mv[5] && mv[5] !== 'a missão' ? 1.5 : 0), nome: mv[5] }); }; d.append(ir); }
+    st.append(d);
+  }
   const P = pertoAgora();
   cartaoAcao(raiz, P, morto, mn);
   const chave = [P.npc?.n, P.bau && 'b' + P.bau.cla + (P.bau.p || ''), P.totem?.id, P.car ? 'c' : '', (P.chao || []).map((o) => o[0]).join(','), montado ? 'm' : '', P.veio?.[0] || '', P.col.map((o) => o[0]).join(','), leve.f.co?.[0] || ''].join('|');
@@ -1504,10 +1722,7 @@ function desenharJogar() {
     f.append(cab);
     if (painelLeve === 'perto') {
       if (P.npc) {
-        if (P.npc.f === 'leilao') f.append(cartaoLeilao());
-        else if (P.npc.f === 'pack') f.append(cartaoPackNpc(P.npc));
-        else if (P.npc.f === 'loja' || P.npc.v) f.append(cartaoLoja(P.npc));
-        else { const c = el('div', 'card'); c.append(el('div', 'nome', P.npc.n.split(',')[0]), el('div', 'faz', `${LUGAR_NOME[P.npc.f] || ''}: por enquanto só no jogo.`)); f.append(c); }
+        f.append(cartaoNpc(P.npc));
       }
       if (P.bau) f.append(cartaoBauLeve(P.bau));
       if (P.totem) f.append(cartaoTotem(P.totem));
@@ -1593,7 +1808,7 @@ function lutaLeve(raiz, morto, mana) {
     limpar(a);
     const l = el('div', 'linha'), d = Math.round(Math.hypot(alvo[0] - F.eu[0], alvo[1] - F.eu[1]));
     l.append(el('b', null, `${leve.mira.nome} · Nv ${alvo[2]}`), el('small', null, `${d} m`));
-    const x = el('button', 'fecha', '✕'); x.onclick = () => { leve.mira = null; a.remove(); }; l.append(x);
+    const x = el('button', 'fecha', '✕'); x.onclick = () => { leve.mira = null; mandar('leveMirar', null); a.remove(); }; l.append(x);
     const b = el('div', 'barra'), i = el('b'); i.style.width = alvo[3] + '%'; i.style.background = '#d9362b'; b.append(i);
     a.append(l, b);
     if (d > 2.5 && !(leve.f.r && leve.rotaNome === leve.mira.nome)) {
@@ -1648,10 +1863,23 @@ function lutaLeve(raiz, morto, mana) {
       b.onclick = () => { if (!b.classList.contains('espera')) mandar(k); }; h.append(b);
     }
     // o lobo (o botão Montar do jogo, a mesma mensagem 'montar'), ao lado das poções como na HUD do jogo
+    // Disparada (o botão do jogo): liga a corrida, que gasta estamina; sem ela o joystick vai no máximo ao trote, como no jogo
+    // Trocar alvo (o botão do jogo): o próximo monstro por perto, do mais perto ao mais longe, vira o alvo dos golpes
+    const ta = el('button', 'troca'); ta.title = 'Trocar alvo'; lugar(ta, 120, 410, 22); ta.append(iconeJogo('trocar_alvo', '🎯'), el('span', null, 'Trocar alvo'));
+    ta.onclick = () => {
+      const F2 = leve.f, M = (F2?.m || []).map((o) => [o, Math.hypot(o[0] - F2.eu[0], o[1] - F2.eu[1])]).filter(([, d]) => d <= 22).sort((x, y) => x[1] - y[1]).map(([o]) => o);
+      if (!M.length) return aviso('Nenhum monstro por perto');
+      const i = M.findIndex((o) => o[4] === (leve.mira?.id || F2.al)), o = M[(i + 1) % M.length];
+      leve.mira = { id: o[4], nome: o[5] || 'Monstro', nv: o[2] }; mandar('leveMirar', o[4]); leve.sujo = true; desenharJogar();
+    };
+    h.append(ta);
+    const dp = el('button', 'disp'); dp.title = 'Disparada'; lugar(dp, 55, 421, 25); dp.append(iconeJogo('disparada', '🏃'), el('span', null, 'Disparada'));
+    dp.onclick = () => mandar('leveDisparada', !leve.f?.ds); h.append(dp);
     const lb = el('button', 'lobo'); lb.title = 'Lobo'; lugar(lb, 55, 470, 25); lb.append(iconeJogo('lobo', '🐺'), el('span', null, 'Lobo')); lb.onclick = () => mandar('montar'); h.append(lb);
     // sem botão Fugir (André 2026-11-25: "pra fugir eu clico no mapa"): tocar no mapa anda, mesmo no meio da luta
   }
-  { const lb = h.querySelector('.lobo'); lb.classList.toggle('on', !!F.eu[10]); lb.hidden = leve.pk?.car?.onde === 2; } // montado acende; dirigindo o carrinho some
+  { const lb = h.querySelector('.lobo'); lb.classList.toggle('on', !!F.eu[10]); lb.hidden = leve.pk?.car?.onde === 2; }
+  { const dp = h.querySelector('.disp'); dp.classList.toggle('on', !!F.ds); dp.hidden = !!F.eu[10] || leve.pk?.car?.onde === 2; } // montado acende; dirigindo o carrinho some
   for (const [i, , cd, mn] of todas) {
     const b = h.querySelector(`[data-i="${i}"]`); if (!b) continue;
     const sem = mn > mana; b.classList.toggle('espera', cd > 0 || sem); b._sem = sem; recarga(b, cd);
@@ -1814,37 +2042,47 @@ function abrirMapaGeral(abre, quieto) {
 // dele, apertando minerar, apertando mexer no fogão"): a ação do que está perto; tocar faz (minerar, pescar) ou abre a janela
 const NPC_ICONE = { loja: 'loja', compra: 'loja', leilao: 'negociar', pack: 'negociar', ferreiro: 'cs_bigorna', habilidades: 'cs_bigorna', alquimia: 'falar' };
 function balaoLeve(P, morto) {
-  const F = leve.f; let b = $('balaoLeve');
+  const F = leve.f;
   const volta = leve.volta && (F.c || []).find((o) => o[0] === leve.volta.no);
   const col = !F.co && (volta || P.veio || (P.col || []).find((o) => o[2] <= 4));
-  let acao = null; // [ícone, reserva, texto, fazer]
-  if (morto || emLuta(morto) || mapaGeral || F.pe) acao = null;
-  else if (col) { const pf = col[3] || '', [re, verbo] = COLETA_VERBO[pf] || COLETA_VERBO['']; acao = [pf === 'len' ? 'pf_len' : pf === 'min' ? 'pf_min' : 'falar', re, `${volta ? 'Voltar a ' + verbo.toLowerCase() : verbo} ${col[1]}`, () => { leve.volta = null; mandar('leveColetar', { no: col[0] }); }]; }
-  else if (P.npc) acao = [NPC_ICONE[P.npc.f] || 'falar', '💬', LUGAR_NOME[P.npc.f] ? `${LUGAR_NOME[P.npc.f]} · ${P.npc.n.split(',')[0]}` : `Falar com ${P.npc.n.split(',')[0]}`, () => abrirPainelLeve('perto')];
-  else if (P.bau) acao = ['cs_bau', '📦', P.bau.cla ? 'Baú do Clã' : 'Baú', () => abrirPainelLeve('perto')];
-  else if (P.totem) acao = ['selo', '🗿', 'Totem', () => abrirMapaTotem(P.totem)]; // abre o mapa dos totens, como o Falar do jogo
-  else if (P.car || P.chao?.length) acao = ['negociar', '📦', P.car ? 'Carrinho' : 'Pack no chão', () => abrirPainelLeve('perto')];
-  else if (F.sp != null) acao = ['pescar', '🎣', `Pescar${F.sp > 4 ? ` · ${F.sp} m` : ''}`, () => mandar('levePescar')]; // spot à vista: vai até a beira e lança (etapa 6)
-  else if (F.ag) acao = ['pescar', '🎣', 'Pescar', () => mandar('levePescar')]; // na beira com a vara, como o botão do jogo (sem spot o servidor avisa)
-  if (F.vc === 'b' && !morto) acao = ['it:barquinho', '⛵', 'Descer do barquinho', () => mandar('veiculo', { acao: 'descer' })]; // no barquinho: o botão do jogo vira Descer
-  // o barquinho (na mochila, perto de água funda): um 2º balão em cima do primeiro, o "Usar barquinho" do botão do jogo
-  let b2 = $('balaoLeve2');
-  if (F.bq && !morto && !mapaGeral && !emLuta(morto) && painelLeve !== 'perto') {
-    if (!b2) { b2 = el('button', 'balaoLeve'); b2.id = 'balaoLeve2'; b2.append(iconeIt('barquinho', '⛵'), el('span', null, 'Usar barquinho')); b2.onclick = () => mandar('veiculo', { acao: 'colocar', k: 'barquinho' }); }
-    if (!b2.isConnected) $('jogarAba').append(b2);
-  } else if (b2) b2.remove();
-  if (!acao || painelLeve === 'perto') { if (b) b.remove(); posicionarBalao(); return; }
-  const ch = acao[2];
-  if (!b || b._ch !== ch) {
-    if (!b) { b = el('button', 'balaoLeve'); b.id = 'balaoLeve'; }
-    limpar(b); b._ch = ch; b.append(acao[0].startsWith('it:') ? iconeIt(acao[0].slice(3), acao[1]) : iconeJogo(acao[0], acao[1]), el('span', null, ch)); b.onclick = acao[3];
+  // como no jogo cada coisa perto tem o seu botão: aqui a 1ª vira o balão e a 2ª (ou o barquinho) o balão de cima
+  const L = []; // [ícone, reserva, texto, fazer]
+  if (!(morto || emLuta(morto) || mapaGeral || F.pe)) {
+    if (col) { const pf = col[3] || '', [re, verbo] = COLETA_VERBO[pf] || COLETA_VERBO['']; L.push([pf === 'len' ? 'pf_len' : pf === 'min' ? 'pf_min' : 'falar', re, `${volta ? 'Voltar a ' + verbo.toLowerCase() : verbo} ${col[1]}`, () => { leve.volta = null; mandar('leveColetar', { no: col[0] }); }]); }
+    if (P.npc) L.push([NPC_ICONE[P.npc.f] || 'falar', '💬', LUGAR_NOME[P.npc.f] ? `${LUGAR_NOME[P.npc.f]} · ${P.npc.n.split(',')[0]}` : `Falar com ${P.npc.n.split(',')[0]}`, () => abrirPainelLeve('perto')]);
+    if (P.bau) L.push(['cs_bau', '📦', P.bau.cla ? 'Baú do Clã' : 'Baú', () => abrirPainelLeve('perto')]);
+    if (P.totem) L.push(['selo', '🗿', 'Totem', () => abrirMapaTotem(P.totem)]); // abre o mapa dos totens, como o Falar do jogo
+    if (P.car || P.chao?.length) L.push(['negociar', '📦', P.car ? 'Carrinho' : 'Pack no chão', () => abrirPainelLeve('perto')]);
+    // os botões de lugar do jogo (servidor pertoLeve): bancada/bigorna = Criar, fornalha/fogão, Mesa do Clã, cama, selo, regador
+    if (F.ex?.e) L.push([F.ex.e[0] === 'bigorna' ? 'pf_fer' : 'pf_alf', '🔨', `Criar · ${F.ex.e[1]}`, () => abrirPainelLeve('criar')]);
+    if (F.ex?.f) L.push(['cs_fornalha', '🔥', F.ex.f[2], () => { leve.forno = { p: F.ex.f[0], tipo: F.ex.f[1] }; mandar('forno', { acao: 'abrir', p: F.ex.f[0] }); }]);
+    if (F.ex?.me) L.push(['jantar', '🍖', 'Mesa do Clã', () => { mandar('cla', { acao: 'jantar', sub: 'info' }); janelaJantar(); }]);
+    if (F.ex?.cm) L.push(['cs_cama', '🛏️', 'Dormir', () => mandar('dormir')]);
+    if (F.ex?.sl) L.push(['selo', '🔮', 'Usar passe no selo', () => mandar('item', { acao: 'usar_passe' })]); // caverna.gd usar_passe
+    if (F.ex?.en) L.push(['cs_regar', '💧', 'Encher regador', () => mandar('regador')]);
+    if (F.sp != null) L.push(['pescar', '🎣', `Pescar${F.sp > 4 ? ` · ${F.sp} m` : ''}`, () => mandar('levePescar')]); // spot à vista: vai até a beira e lança (etapa 6)
+    else if (F.ag) L.push(['pescar', '🎣', 'Pescar', () => mandar('levePescar')]); // na beira com a vara, como o botão do jogo (sem spot o servidor avisa)
   }
-  if (!b.isConnected) $('jogarAba').append(b);
+  if (F.vc === 'b' && !morto) L.unshift(['it:barquinho', '⛵', 'Descer do barquinho', () => mandar('veiculo', { acao: 'descer' })]); // no barquinho: o botão do jogo vira Descer
+  // até 3 balões empilhados em cima da bolinha (a forja da vila tem Tomás, bigorna e forninho juntos, como os 3 botões do
+  // jogo); o "Usar barquinho" (na mochila, perto de água funda) entra no 2º lugar
+  if (F.bq && !morto && !mapaGeral && !emLuta(morto)) L.splice(Math.min(1, L.length), 0, ['it:barquinho', '⛵', 'Usar barquinho', () => mandar('veiculo', { acao: 'colocar', k: 'barquinho' })]);
+  BALOES.forEach((id, n) => {
+    const acao = painelLeve === 'perto' ? null : L[n]; let b = $(id);
+    if (!acao) { if (b) b.remove(); return; }
+    if (!b || b._ch !== acao[2]) {
+      if (!b) { b = el('button', 'balaoLeve'); b.id = id; }
+      limpar(b); b._ch = acao[2]; b.append(acao[0].startsWith('it:') ? iconeIt(acao[0].slice(3), acao[1]) : iconeJogo(acao[0], acao[1]), el('span', null, acao[2]));
+    }
+    b.onclick = acao[3]; // a cada foto: o que o toque faz segue o lugar de agora
+    if (!b.isConnected) $('jogarAba').append(b);
+  });
   posicionarBalao();
 }
-function posicionarBalao() { // em cima da bolinha (desenharMapa guarda onde ela está na tela); o 2º (barquinho) em cima do 1º
+const BALOES = ['balaoLeve', 'balaoLeve2', 'balaoLeve3'];
+function posicionarBalao() { // em cima da bolinha (desenharMapa guarda onde ela está na tela); os outros empilhados em cima do 1º
   const e = leve.euTela; if (!e) return; let y = e[1] - 76;
-  for (const id of ['balaoLeve', 'balaoLeve2']) {
+  for (const id of BALOES) {
     const b = $(id); if (!b || !b.isConnected) continue;
     b.style.left = Math.round(Math.max(6, Math.min(e[0] - 26, innerWidth - b.offsetWidth - 6))) + 'px'; b.style.top = Math.round(Math.max(150, y)) + 'px'; y -= 56;
   }
@@ -1997,6 +2235,14 @@ addEventListener('scroll', () => { if (aba === 'mochila') mochilaRolou = scrollY
 // ---------- aba Missões (etapa 3, André 2026-11-26): História, Diárias, Guilda e Escolta do Clã, cada uma com o botão para
 // ir até onde se faz. Mesmas mensagens do jogo ('falar' com missão, 'diaria', 'guilda', 'cla' missao); o servidor confere.
 function falaLeve(e) {
+  if (e.id) { npcFala[e.id] = e.texto || ''; leve.sujo = true; }
+  if (e.abrir === 'resetar') { // o instrutor diz o preço e pergunta (como o jogo: confirmar = msg 'resetar')
+    const sim = el('button', 'acao', `Resetar por ${num(e.custo | 0)} de ouro`), nao = el('button', 'acao cinza', 'Agora não');
+    const j = janelaLeve([el('div', 'nome', e.npc || 'Instrutor'), el('div', 'dica', e.texto || ''), sim, nao]); j.classList.add('fala');
+    const fechar = () => j.remove(); sim.onclick = () => { mandar('resetar'); fechar(); }; nao.onclick = fechar; j.onclick = (ev) => { if (ev.target === j) fechar(); };
+    document.querySelectorAll('.janelaLeve.fala').forEach((o) => o.remove()); document.body.append(j); return;
+  }
+  if (e.id && painelLeve === 'perto' && pertoAgora().npc?.id === e.id) return desenharJogar(); // a janela do NPC está aberta: a fala aparece nela
   const ok = el('button', 'acao', 'Ok');
   const j = janelaLeve([el('div', 'nome', e.npc || 'NPC'), el('div', 'dica', e.texto || '')]); j.classList.add('fala');
   const fechar = () => j.remove(); ok.onclick = fechar; j.onclick = (ev) => { if (ev.target === j) fechar(); };
@@ -2209,10 +2455,21 @@ function desenharPersonagem() {
   if (!leve.sala || !leve.f) return foraDoMundo(raiz, 'o personagem');
   const P = leve.ms?.pe; if (!P) { raiz.append(el('div', 'vazio', 'Abrindo…')); return; }
   const card = (tit) => { const c = el('div', 'card'); c.append(el('div', 'nome', tit)); raiz.append(c); return c; };
-  // status
+  // nível (como a aba Status do jogo: nível, XP e a barra)
   { const c = card(`🧍 Nível ${P.nv}`), b = el('div', 'barra'), i = el('b'); i.style.width = Math.min(100, (P.xp / (P.xpM || 1)) * 100) + '%'; i.style.background = 'var(--gold)'; b.append(i);
     c.append(el('div', 'faz', `XP ${num(P.xp)}/${num(P.xpM)}`), b);
-    const g = el('div', 'atalhos'); for (const [n, v] of P.st) { const d = el('button'); d.disabled = true; d.style.opacity = 1; d.append(document.createTextNode(String(v)), el('small', null, n)); g.append(d); } c.append(g);
+  }
+  // equipamento: os lugares do corpo como os medalhões em volta do boneco do jogo; tocar abre a janela do lugar
+  { const c = card('🛡️ Equipamento'), eq = new Map((leve.mo?.eq || []).map((o) => [o[0], o])), v = el('div', 'icones');
+    for (const [l, ic, nomeL] of VESTE) {
+      const o = eq.get(l), d = o ? itemLeve(o[1], o[2], o[3], 1, null, false, () => janelaLugar(l, nomeL)) : el('div', 'ico vazioEq');
+      if (!o) { const q = el('div', 'q'); q.append(el('span', 'nvb', ic)); d.append(q, el('small', null, nomeL)); d.onclick = () => janelaLugar(l, nomeL); }
+      else if (o[5] != null && o[5] < o[6]) { d.classList.toggle('gasta', o[5] <= 0); d.title = o[5] <= 0 ? 'Quebrada' : `Durabilidade ${o[5]}/${o[6]}`; }
+      const melhor = (leve.mo?.it || []).some((it) => it[7] === 'e' && it[8] === l && it[11]?.[1] > 0.0001);
+      if (melhor) d.append(el('i', 'melhorEq', '▲'));
+      v.append(d);
+    }
+    c.append(v, el('div', 'faz', 'Toque num lugar para ver a peça, comparar e trocar. ▲ = tem peça melhor na mochila.'));
   }
   // atributos: + guarda no aparelho até Confirmar (como o menu do jogo); o servidor confere os pontos
   { const usados = Object.values(atrPend).reduce((s, v) => s + v, 0), livres = P.pts - usados;
@@ -2224,6 +2481,16 @@ function desenharPersonagem() {
       c.append(r);
     }
     if (usados) { const d = el('div', 'bts'); d.append(bt('Confirmar', () => { mandar('atributos', atrPend); atrPend = {}; }), bt('Cancelar', () => { atrPend = {}; desenharPersonagem(); }, true)); c.append(d); }
+  }
+  // herói: as mesmas linhas do jogo; com pontos para confirmar, o número depois em verde (→)
+  if (P.he) { const c = card('⚔️ Herói'), g = el('div', 'heroiLeve');
+    const fmt = { Vida: (v) => String(Math.round(v)), Mana: (v) => String(Math.round(v)), Defesa: (v) => String(Math.round(v)), 'Crítico': (v) => `${Math.round(v * 1000) / 10}%`, 'Dano físico': (v) => String(Math.round(v * 10) / 10), 'Dano mágico': (v) => String(Math.round(v * 10) / 10), Recarga: (v) => `-${Math.round(v * 100)}%` };
+    for (const [n, v] of P.he) {
+      let dep = null;
+      if (Object.keys(atrPend).length && P.dp && P.ba0 && n in P.ba0) { let x = P.ba0[n]; for (const [k, q] of Object.entries(atrPend)) x += (P.dp[k]?.[n] || 0) * q; if (fmt[n](x) !== fmt[n](P.ba0[n])) dep = fmt[n](x); }
+      const r = el('div'); r.append(el('small', null, n), el('b', null, v)); if (dep) r.append(el('em', null, ` → ${dep}`)); g.append(r);
+    }
+    c.append(g);
   }
   // golpes: as duas barras do jogo (6 da espada, 6 do cajado), como a aba Habilidades do jogo; toque num botão e escolha
   // outra skill que cabe nessa barra (a da árvore ou geral). Troca = msg 'barra' {barra, lista}; o servidor confere (barraValida)
