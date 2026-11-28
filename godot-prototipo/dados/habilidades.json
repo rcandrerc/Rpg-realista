@@ -269,10 +269,10 @@
    "alcance": 12,
    "area": 6,
    "nv": {
-    "area": 0.3
+    "area": 0.15
    },
    "queda": 1.1,
-   "pct": 3.2,
+   "pct": 2.4,
    "empurra": 1.5,
    "mana": 32,
    "cd": 10,
