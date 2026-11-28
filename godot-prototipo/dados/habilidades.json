@@ -1340,6 +1340,13 @@
    "obra": "bau_cla",
    "desc": "Um por clã, no terreno do líder. Os recrutas guardam aqui o que farmam e colhem. Toque nele para abrir. Coloque no seu terreno pelo modo construção (martelo)."
   },
+  "obra_mesa_cla": {
+   "nome": "Mesa do Clã",
+   "pilha": 20,
+   "venda": 1,
+   "obra": "mesa_cla",
+   "desc": "Uma por clã. Mesa de 8 lugares para o jantar do clã: chame os recrutas, ponha a comida e sente com eles. Coloque no seu terreno pelo modo construção (martelo)."
+  },
   "obra_cama": {
    "nome": "Cama",
    "pilha": 20,
@@ -1835,6 +1842,7 @@
   "entrePedidos": 3
  },
  "amigos": {
+  "soLideres": true,
   "max": 20,
   "pedido": 30,
   "entrePedidos": 3,
@@ -1850,7 +1858,10 @@
   "perto": 40,
   "combate": 10,
   "bonus": 0.1,
-  "envio": 0.5
+  "envio": 0.5,
+  "clas": 5,
+  "bonusMax": 4,
+  "liderBot": true
  },
  "criador": {
   "cabelo": [
@@ -2373,7 +2384,7 @@
   "solto": 0.8,
   "perto": 4,
   "folga": 1.6,
-  "mudasMax": 15,
+  "mudasMax": 10,
   "maxMundo": 6000,
   "xp": 3,
   "len": 3,
@@ -3816,6 +3827,36 @@
    "bancada": true,
    "alto": 0.69,
    "desc": "Um por clã, no terreno do líder. Os recrutas guardam aqui o que farmam e colhem. Toque nele para abrir."
+  },
+  "mesa_cla": {
+   "nome": "Mesa do Clã",
+   "tipo": "movel",
+   "aba": "moveis",
+   "w": 5.2,
+   "d": 2.6,
+   "circulos": [
+    [
+     -1.2,
+     0,
+     0.5
+    ],
+    [
+     0,
+     0,
+     0.5
+    ],
+    [
+     1.2,
+     0,
+     0.5
+    ]
+   ],
+   "custo": {
+    "lenha": 30
+   },
+   "bancada": true,
+   "alto": 0.78,
+   "desc": "Uma por clã. Mesa de 8 lugares para o jantar do clã: chame os recrutas, ponha a comida e sente com eles."
   },
   "cama": {
    "nome": "Cama",
@@ -21815,13 +21856,13 @@
     "nv": 8,
     "npc": "lider",
     "npcNome": "Aldo",
-    "nome": "Um chão seu",
+    "nome": "A base do clã",
     "libera": [],
     "liberaNaEtapa": -1,
     "total": 5,
     "etapas": [
-     "Compre um terreno nas Terras da Estrada",
-     "Crie e coloque uma bancada no terreno (martelo)",
+     "Funde o seu clã e a base (ícone Clã > Escolher o lugar da base)",
+     "Crie e coloque uma bancada no seu lote da base (martelo)",
      "Crie e coloque um fogão (pede 1 barra de ferro)",
      "Asse 2 peixes no fogão (2 lambaris cada)",
      "Leve 2 peixes assados para a Irmã Lúcia"
@@ -21876,6 +21917,23 @@
     ]
    },
    {
+    "id": "k1",
+    "cap": 5,
+    "nv": 12,
+    "npc": "recrutador",
+    "npcNome": "Sargento Bruno",
+    "nome": "Soldados da Chama",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 4,
+    "etapas": [
+     "Contrate um recruta com o Sargento Bruno (Recrutar soldados)",
+     "Chame o recruta para o time",
+     "Derrube 8 monstros nas clareiras Nv 10 com o recruta no time",
+     "Volte e fale com Sargento Bruno"
+    ]
+   },
+   {
     "id": "a15",
     "cap": 5,
     "nv": 12,
@@ -21917,19 +21975,19 @@
     "nv": 15,
     "npc": "lider",
     "npcNome": "Aldo",
-    "nome": "Uma casa que aguenta",
+    "nome": "Uma base que aguenta",
     "libera": [],
     "liberaNaEtapa": -1,
     "total": 9,
     "etapas": [
-     "Coloque 4 fundações no seu terreno",
-     "Levante 4 paredes",
-     "Coloque uma porta",
-     "Coloque uma janela",
-     "Ponha o telhado",
-     "Coloque uma cama",
+     "Ponha 4 cercas no seu lote da base",
+     "Acenda 2 tochas no lote",
      "Coloque um baú",
-     "Durma uma noite na sua cama (só à noite)",
+     "Coloque uma cama",
+     "Monte uma fornalha",
+     "Monte uma bigorna",
+     "Deixe 300 de ouro no cofre do clã (ícone Clã)",
+     "Durma uma noite na base (só à noite)",
      "Volte e fale com Aldo"
     ]
    },
@@ -21968,6 +22026,21 @@
      "Faça o Passe da Caverna com o Gaspar (fragmentos, couro e tecido)",
      "Chame alguém para o time (Cecília, Dario ou um amigo)",
      "Volte ao Gaspar com o time"
+    ]
+   },
+   {
+    "id": "k2",
+    "cap": 6,
+    "nv": 18,
+    "npc": "recrutador",
+    "npcNome": "Sargento Bruno",
+    "nome": "A primeira escolta",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 2,
+    "etapas": [
+     "Faça a Escolta do Clã (Baú do Clã > Começar a escolta)",
+     "Volte e fale com Sargento Bruno"
     ]
    },
    {
@@ -22025,6 +22098,22 @@
      "Procure os batedores no sudeste",
      "Derrube 8 Imps na clareira do sudeste",
      "Derrote o Velado Caçador",
+     "Volte e fale com Aldo"
+    ]
+   },
+   {
+    "id": "k3",
+    "cap": 7,
+    "nv": 25,
+    "npc": "lider",
+    "npcNome": "Aldo",
+    "nome": "Um clã que cresce",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 3,
+    "etapas": [
+     "Suba o clã para o Nv 2 (ícone Clã > Melhorar clã)",
+     "Contrate o segundo recruta",
      "Volte e fale com Aldo"
     ]
    },
@@ -22113,6 +22202,22 @@
      "Enfrente o homem de capa cinza na Clareira dos Golens",
      "Toque na Chave do Oeste, a pedra que brilha perto dos Maws",
      "Conte tudo ao Mestre Ivo"
+    ]
+   },
+   {
+    "id": "k4",
+    "cap": 8,
+    "nv": 30,
+    "npc": "lider",
+    "npcNome": "Aldo",
+    "nome": "O fim da Trégua",
+    "libera": [],
+    "liberaNaEtapa": -1,
+    "total": 3,
+    "etapas": [
+     "Saia da zona segura (fora de vila, totem e campos até Nv 30)",
+     "Derrube alguém da Geada",
+     "Volte e fale com Aldo"
     ]
    },
    {
@@ -22554,8 +22659,8 @@
      "Chame o Dario (ou um jogador) para o time",
      "Entre na Gruta da Serra de Aurora e abra caminho",
      "O último duelo com o Kael: com pouca vida, use o Catalisador",
-     "Segure o selo do oeste junto com o Kael",
-     "Fale com o Kael na praça de Aurora"
+     "O Kael fugiu: segure o selo do oeste com o seu time",
+     "Encare o Kael na praça de Aurora"
     ]
    },
    {
@@ -22595,8 +22700,8 @@
     "id": "e6",
     "cap": 15,
     "nv": 92,
-    "npc": "v_kael",
-    "npcNome": "Kael",
+    "npc": "v_elara",
+    "npcNome": "Guardiã Elara",
     "nome": "O Véu",
     "libera": [],
     "liberaNaEtapa": -1,
@@ -22606,7 +22711,7 @@
      "Derrote o Arauto do Véu",
      "Suba ao alto do Morro do Véu",
      "Encoste a marca nos pedaços do último selo",
-     "Volte ao Kael, em Aurora"
+     "Volte à Elara, em Aurora"
     ]
    },
    {
@@ -22973,7 +23078,7 @@
     "nv": 68,
     "ato": "Ato V · Aurora",
     "frase": "Alguém acendeu as janelas de Aurora.",
-    "diario": "Em Aurora, de noite, achei três ecos: um brinquedo, uma coroa partida e uma carta da Vesper: \"Se eu acender o Coração mais uma vez, todos voltam.\" A Cecília achou a casa da avó dela, consertamos juntos e ela me deu o Colar de Estrela. A Mirela fez o Catalisador da Memória. Na Gruta da Serra de Aurora, o Dario chamou o irmão e o catalisador fez o resto. O Kael caiu de joelhos: \"Dario?\" Foi ele que me deixou no poço. Na memória do selo, a Vesper jovem embalava uma luz pequena: \"Vou te chamar de Aethra. Como a estrela.\"",
+    "diario": "Em Aurora, de noite, achei três ecos: um brinquedo, uma coroa partida e uma carta da Vesper: \"Se eu acender o Coração mais uma vez, todos voltam.\" A Cecília achou a casa da avó dela, consertamos juntos e ela me deu o Colar de Estrela. A Mirela fez o Catalisador da Memória. Na Gruta da Serra de Aurora, o Dario chamou o irmão e o catalisador fez o resto. O Kael caiu de joelhos: \"Dario?\" Foi ele que me deixou no poço. Lembrou de tudo e mesmo assim escolheu a Geada. Fugiu, e eu e o time seguramos o selo. Na memória do selo, a Vesper jovem embalava uma luz pequena: \"Vou te chamar de Aethra. Como a estrela.\"",
     "rumores": [
      {
       "nv": 81,
@@ -22983,7 +23088,7 @@
      {
       "nv": 83,
       "quem": "Kael",
-      "texto": "O Morro do Véu guarda o último selo. Ela vai estar lá."
+      "texto": "O último selo fica no Morro do Véu. A Geada chega lá antes da Chama."
      }
     ]
    },
@@ -23003,7 +23108,7 @@
      {
       "nv": 97,
       "quem": "Dario",
-      "texto": "Eu e o Kael voltamos a treinar juntos. Ele ainda perde."
+      "texto": "O Kael mandou recado pela Kira: na guerra, não vai me poupar. Nem eu a ele."
      },
      {
       "nv": 98,
@@ -23018,7 +23123,7 @@
     "nv": 98,
     "ato": "Final · Estrela de Aethra",
     "frase": "A Névoa acaba onde começou.",
-    "diario": "Me despedi de todos e subi com o time até o Último Pouso. O Kael foi na frente. Na Gruta da Névoa derrubamos o Sentinela de Cristal e, no Coração, a Vesper: fogo, gelo e raio, depois a Névoa fazendo meus amigos esquecerem de mim. A Cecília lembrou primeiro, como prometeu. Caída, a Vesper me olhou: \"Aethra... você cresceu.\" Encostei a marca no Coração e a rachadura fechou com a minha luz. A névoa sumiu do céu. Mas o Mestre Ivo olhou além da cordilheira: a estrela não caiu sozinha. Continua...",
+    "diario": "Me despedi de todos e subi com o time até o Último Pouso. O Kael e a Geada subiram antes, atrás do Coração. Na Gruta da Névoa derrubamos o Sentinela de Cristal e, no Coração, a Vesper: fogo, gelo e raio, depois a Névoa fazendo meus amigos esquecerem de mim. A Cecília lembrou primeiro, como prometeu. Caída, a Vesper me olhou: \"Aethra... você cresceu.\" Encostei a marca no Coração e a rachadura fechou com a minha luz. A névoa sumiu do céu. Mas o Mestre Ivo olhou além da cordilheira: a estrela não caiu sozinha. Continua...",
     "rumores": []
    }
   ],
@@ -23081,6 +23186,10 @@
    "pesca": "a pescaria",
    "fim": "o céu sem Névoa"
   },
+  "liga": false,
+  "ligaDiarias": false,
+  "ligaGuilda": false,
+  "ligaEscolta": false,
   "cenas": {
    "acordar": {
     "nome": "Acordar",
@@ -24739,6 +24848,38 @@
        "Kael",
        "\"Fui eu que te deixei no poço. Ela queria você.\""
       ]
+     },
+     {
+      "d": 3.4,
+      "rel": "heroi",
+      "de": {
+       "p": [
+        0.3,
+        1.66,
+        1.1
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "para": {
+       "p": [
+        0.22,
+        1.66,
+        0.95
+       ],
+       "o": [
+        0,
+        1.6,
+        0
+       ]
+      },
+      "fala": [
+       "Kael",
+       "\"Lembrar não muda nada. Eu sou a Geada.\""
+      ]
      }
     ]
    },
@@ -24775,7 +24916,7 @@
       },
       "fala": [
        "",
-       "O Kael segura o selo junto com você."
+       "O Kael some na névoa. Você e o time seguram o selo."
       ]
      },
      {
@@ -25469,7 +25610,7 @@
     "escala": 1,
     "cor": 12107980,
     "foge": 0.25,
-    "fala": "O Catalisador da Memória brilha no peito do Kael. Ele larga a espada e cai de joelhos: \"...Dario?\"",
+    "fala": "O Catalisador da Memória brilha no peito do Kael. Ele cai de joelhos: \"...Dario?\" Depois levanta: \"Lembrar não muda nada. Eu sou a Geada.\" E some na névoa.",
     "humano": {
      "modelo": "cabelo_m",
      "roupa": "peitoral2,calca2,botas2,capa2"
@@ -25947,6 +26088,76 @@
    },
    "cond": {
     "loja": "pvp"
+   }
+  },
+  "pat1": {
+   "nome": "Soldado",
+   "r": 0,
+   "como": "Chegou a Soldado na guerra (5 abates no mês)",
+   "txt": "Patente de Guerra",
+   "b": {},
+   "cond": {
+    "pat": 1
+   }
+  },
+  "pat2": {
+   "nome": "Cabo",
+   "r": 0,
+   "como": "Chegou a Cabo na guerra (15 abates no mês)",
+   "txt": "Patente de Guerra",
+   "b": {},
+   "cond": {
+    "pat": 2
+   }
+  },
+  "pat3": {
+   "nome": "Sargento",
+   "r": 1,
+   "como": "Chegou a Sargento na guerra (30 abates no mês)",
+   "txt": "Patente de Guerra",
+   "b": {},
+   "cond": {
+    "pat": 3
+   }
+  },
+  "pat4": {
+   "nome": "Tenente",
+   "r": 1,
+   "como": "Chegou a Tenente na guerra (50 abates no mês)",
+   "txt": "Patente de Guerra",
+   "b": {},
+   "cond": {
+    "pat": 4
+   }
+  },
+  "pat5": {
+   "nome": "Capitão",
+   "r": 2,
+   "como": "Chegou a Capitão na guerra (80 abates no mês)",
+   "txt": "Patente de Guerra",
+   "b": {},
+   "cond": {
+    "pat": 5
+   }
+  },
+  "pat6": {
+   "nome": "Comandante",
+   "r": 3,
+   "como": "Chegou a Comandante na guerra (120 abates no mês)",
+   "txt": "Patente de Guerra",
+   "b": {},
+   "cond": {
+    "pat": 6
+   }
+  },
+  "pat7": {
+   "nome": "Lenda da Guerra",
+   "r": 4,
+   "como": "Chegou a Lenda na guerra (180 abates no mês)",
+   "txt": "Patente de Guerra",
+   "b": {},
+   "cond": {
+    "pat": 7
    }
   },
   "min10": {

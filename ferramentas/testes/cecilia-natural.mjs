@@ -2,6 +2,7 @@
 // reclamar de coisas, perguntar coisas pessoais"; "se eu falar que meu pai morreu... ela guarda?"; "não quero que ela fique me
 // pentelhando"; "quando a IA esgotar... ela dizer que vai descansar... só diz que tá meio ocupada". Sem rede: fetch de mentira.
 // Uso: node ferramentas/testes/cecilia-natural.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, AMIGA, DARIO, IA_CONVERSA } from '../../shared/index.js';
 IA_CONVERSA.ligada = true; // ligada no jogo de novo desde 2026-11-19
 import { register } from 'node:module';

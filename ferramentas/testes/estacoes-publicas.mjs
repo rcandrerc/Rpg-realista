@@ -1,5 +1,6 @@
 // Estações públicas da vila (André 2026-11-11: "não criar no próprio NPC"): o Tomás e a Rosa não criam mais pelo
 // jogador; ele cria na bigorna e no forninho da ferraria e na bancada ao lado da Rosa. Uso: node ferramentas/testes/estacoes-publicas.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, ESTACOES_PUBLICAS, HISTORIA, contar, guardar, progressoValido } from '../../shared/index.js';
 import { avancarForno } from '../../shared/simulacao.js';
 import './_tudo-aberto.mjs';

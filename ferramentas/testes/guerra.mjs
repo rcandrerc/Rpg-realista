@@ -1,6 +1,8 @@
 // Chama x Geada (André 2026-11-18, fase 1): a Geada (Kira, Rufo, Lis) mora no Juncal, a mesma raça não se ataca, a outra
 // raça sim fora da zona segura e acima da Trégua (Nv 30); morte de guerra não tira XP nem desgasta (2026-11-22); falas por peças com memória.
 // Uso: node ferramentas/testes/guerra.mjs
+import './_missoes-ligadas.mjs'; // o André Nv 42 fica no campo Nv 45 de uma região que a história ainda não abriu para ele: com as missões desligadas (2026-11-27) ela abre pelo nível e os monstros do campo derrubavam ele no meio do teste
+import './_relogio-fixo.mjs'; // sorte e relógio fixos: o mesmo resultado no CI e aqui (o Rufo às vezes não partia para cima a tempo)
 import { Simulacao, MAPA_CLAREIRA, GUERRA, RIVAIS, FALAS_GUERRA, TOTENS, RACAS } from '../../shared/index.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
 const s = new Simulacao(MAPA_CLAREIRA);

@@ -2,6 +2,7 @@
 // somam subindo. E +1 contrato por dia (sem XP), D conserto -10%, C 4 contratos de uma vez, B Voltar à Guilda grátis
 // 1x por hora, A trocar 1 contrato por dia, S +5% de ouro de pack, SS marca no nome. Desligadas antes de
 // GUILDA.vantagensDesde. Uso: node ferramentas/testes/guilda-vantagens.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, GUILDA, progressoValido } from '../../shared/index.js';
 import { vantagensGuilda, premioGuilda } from '../../shared/guilda.js';
 import { consertarTudo, comDesconto } from '../../shared/progresso.js';
