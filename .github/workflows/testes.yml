@@ -19,7 +19,7 @@ jobs:
     # Repositório PRIVADO: roda na Oracle (vaga de testes; sem ela, no runner dos builds), sem gastar a cota do GitHub.
     # Público: máquina do GitHub, como antes. Ver ferramentas/runner/LEIAME.md.
     runs-on: ${{ github.event.repository.private && (vars.RUNNER_TESTES || vars.RUNNER_BUILD || 'aethra-build') || 'ubuntu-latest' }}
-    timeout-minutes: 30
+    timeout-minutes: 45 # a bateria leva 19-23 min numa máquina boa; com 30 a máquina lenta cortava sem teste falhar (28/11)
     steps:
       - uses: actions/checkout@v4
         with:
