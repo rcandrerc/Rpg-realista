@@ -56,3 +56,22 @@ jobs:
           name: gemeos-relatorio
           path: gemeos-relatorio
           retention-days: 14
+  diag-testes: # TEMPORÁRIO: descobrir qual teste passa do tempo no CI deste PR (sai antes do merge)
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Testes com tempo de cada um
+        run: |
+          mkdir -p /tmp/t
+          ( sleep 1500; echo "=== 25 min: ainda rodando ==="; ps -eo pid,etimes,args | grep -v grep | grep node; for f in /tmp/t/*.log; do n=$(basename $f .log); grep -q "^$n " /tmp/t/_res 2>/dev/null || { echo "--- $n (sem fim) ---"; tail -n 15 $f; }; done ) &
+          ls ferramentas/testes/*.mjs | xargs -P 4 -I{} sh -c 'n=$(basename {} .mjs); s=$(date +%s); timeout 600 node {} > /tmp/t/$n.log 2>&1; echo "$n $? $(( $(date +%s)-s ))" >> /tmp/t/_res; echo "fim $n $(( $(date +%s)-s ))s"' || true
+          sort -k3 -n -r /tmp/t/_res | head -20
