@@ -3,7 +3,7 @@
 // golem do mesmo nível e curva de XP. Compara "hoje" com a "proposta" (3 números novos, PROPOSTA abaixo).
 // Uso: node ferramentas/balanceamento/formula.mjs [--md arquivo.md]
 import '../../shared/index.js';
-import { calcularStatus, xpProximo, xpDoInimigo, habNoNivel, reducaoContra, reforcoOk } from '../../shared/progresso.js';
+import { XP_ESCALA, calcularStatus, xpProximo, xpDoInimigo, habNoNivel, reducaoContra, reforcoOk } from '../../shared/progresso.js';
 import { statusInimigo, NIVEL_INIMIGO as N, LUGARES, ITENS, REFORCO, TIPOS_INIMIGO } from '../../shared/dados.js';
 import { writeFileSync } from 'node:fs';
 
@@ -11,7 +11,12 @@ import { writeFileSync } from 'node:fs';
 // 1) arma multiplica o dano em vez de somar: dano x (armaBase + dano da arma) / (armaBase + 5). Raro +0 = x1 (igual hoje).
 // 2) "peso do fim de jogo" P(n) = 1 + a·d + b·d², d = nível do mob - 50 (1 até o 50): só a vida do mob x P.
 //    Mesmo jeito da curva de XP (#891). Dano do mob e XP não mudam: a luta mais longa já cobra a armadura e o tempo.
-export const PROPOSTA = { armaBase: 45, a: 0.1, b: 0.0016, desde: 50 };
+// 3) curva de XP (André 2026-11-28: "até o 30 como tá, do 30 ao 40 2 a 3 min, do 40 ao 50 uns 5, depois sobe um pouco"):
+//    do 30 ao 40 cada nível pede +10% a mais (x2 no 40, fica x2 depois) e o termo do fim de jogo (#891) cai pela metade,
+//    então no Nv 100 o XP pedido fica quase igual a hoje (x10 contra x9).
+export const PROPOSTA = { armaBase: 45, a: 0.1, b: 0.0016, desde: 50, xp: { desde: 30, sobe: 0.1, teto: 10, a: 0.04, b: 0.0008 } };
+const fimXp = (n, a, b) => { const d = Math.max(0, n - 50); return 1 + a * d + b * d * d; };
+export const fatorXp = (n, P = PROPOSTA) => (1 + P.xp.sobe * Math.min(P.xp.teto, Math.max(0, n - P.xp.desde))) * fimXp(n, P.xp.a, P.xp.b) / fimXp(n, XP_ESCALA.a, XP_ESCALA.b);
 export const pesoFim = (n, P = PROPOSTA) => { const d = Math.max(0, n - P.desde); return 1 + P.a * d + P.b * d * d; };
 
 const K = { cabeca: 'chapeu', corpo: 'peitoral', pernas: 'calca', capa: 'capa', pes: 'botas', acessorio: 'colar', espada: 'espada', cajado: 'cajado' };
@@ -42,7 +47,7 @@ export function cenario(n, build, r, e, proposta) {
   const giro = dano * habNoNivel('giro', 10).pct * 2;
   const golpe = Math.min(g.dano * (1 - reducaoContra(st.defesa, n, N)), st.vidaMax * N.teto);
   const golpes = st.vidaMax / golpe, tiros = vidaMob / (magia ? faisca : dano * habNoNivel('espada_basico', 5).pct);
-  const mobs = xpProximo(n) / xpDoInimigo('golem', n, n, N);
+  const mobs = xpProximo(n) * (proposta ? fatorXp(n) : 1) / xpDoInimigo('golem', n, n, N);
   // tempo: 8 s por bicho (andar, puxar, descansar) + 0,52 s por tiro; morre se o golem te derruba antes (golpe a cada 2,6 s)
   const morre = tiros * 0.52 > golpes * TIPOS_INIMIGO.golem.intervalo;
   const seg = 8 + tiros * 0.52;
@@ -71,7 +76,14 @@ for (const prop of [false, true]) {
   out.push(tabela('Minutos por nível (estimativa, Int pura)', 'int', 'minNivel', prop), '');
   out.push(`Horas de caça do 50 ao 100 (Int pura): ${SETS.map(([r, e, nome]) => `${nome} ${Math.round(horas('int', r, e, prop, 50, 100))} h`).join(' · ')}`);
 }
+// minutos por nível no ritmo da Luiza (medidor, 31-40 = 1,5 min/nível com Raro): o modelo vezes o fator dela
+const FX = [[1, 10], [11, 20], [21, 30], [31, 40], [41, 50], [51, 60], [61, 70], [71, 80], [81, 90], [91, 100]];
+const media = (x, y, r, e, prop) => { let m = 0; for (let n = x; n <= y; n++) m += cenario(n, 'int', r, e, prop).minNivel; return m / (y - x + 1); };
+const kL = 1.5 / media(31, 40, 1, 0, false);
+out.push('\n## Minutos por nível no ritmo da Luiza (estimativa)\n', `| | ${FX.map(([x, y]) => x + '-' + y).join(' | ')} |`, `|---|${FX.map(() => '---').join('|')}|`);
+for (const [r, e, nome] of [[1, 0, 'Raro +0'], [3, 20, 'Lendário reforçado']]) for (const prop of [false, true])
+  out.push(`| ${prop ? 'Proposta' : 'Hoje'}, ${nome} | ${FX.map(([x, y]) => f1(kL * media(x, y, r, e, prop))).join(' | ')} |`);
 out.push('\n☠ = o golem do seu nível te mata antes de você matar ele (sozinho, sem poção).');
 const txt = out.join('\n');
 const i = process.argv.indexOf('--md');
-if (i > 0) writeFileSync(process.argv[i + 1], txt); else console.log(txt);
+if (i > 0) writeFileSync(process.argv[i + 1], txt); else if (import.meta.url === `file://${process.argv[1]}`) console.log(txt);
