@@ -72,9 +72,13 @@ func liberado(k: String, estrito := false) -> bool:
 		return true
 	# história v2 (shared/historia.js liberado): o recurso abre no meio da própria missão (fundir, montar, pescar)
 	var M: Dictionary = H.get("missoes", [])[i]
+	if H.get("liga", true) == false: # missões desligadas (André 2026-11-27): abre no nível da missão que abria
+		return int(m.P.prog.get("nivel", 1)) >= int(M.get("nv", 1))
 	return int(h.get("p", 0)) == i and h.get("ac", false) == true and int(M.get("liberaNaEtapa", -1)) >= 0 and int(h.get("e", 0)) >= int(M.liberaNaEtapa)
 
 func missao_atual() -> Dictionary:
+	if H.get("liga", true) == false: # missões desligadas (André 2026-11-27)
+		return {}
 	var ms: Array = H.get("missoes", [])
 	var p := feitas()
 	return ms[p] if p < ms.size() else {}

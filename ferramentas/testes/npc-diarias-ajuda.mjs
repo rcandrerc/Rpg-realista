@@ -4,6 +4,7 @@
 let agora = Date.parse('2026-11-21T13:00:00Z'); Date.now = () => agora; // 10h de Brasília, hora de sair
 // sorte com semente (mulberry32, como em _relogio-fixo.mjs): o mesmo resultado no CI e aqui. SEMENTE=n troca
 { let x = (Number(process.env.SEMENTE ?? 1) >>> 0) || 1; Math.random = () => { x = (x + 0x6d2b79f5) >>> 0; let t = x; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+await import('./_missoes-ligadas.mjs'); // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 const { Simulacao, MAPA_CLAREIRA, NPC_VIDA, DESPENSA } = await import('../../shared/index.js');
 // este teste é das diárias: a despensa do clã (DESPENSA, testada em cla-despensa.mjs) mudaria as ordens do líder bot
 DESPENSA.ligado = false;

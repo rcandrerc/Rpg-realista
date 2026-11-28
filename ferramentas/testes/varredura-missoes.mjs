@@ -2,6 +2,7 @@
 // juntar, pack, pesca, comprar...: começa de mochila vazia, segue o que a barrinha pede (juntando o que falta, sempre com
 // um Ir que não cai na névoa), vai até o lugar do Ir e faz a ação de verdade no servidor. Tem que andar.
 // Uso: node ferramentas/testes/varredura-missoes.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, RECEITAS, CONSTRUCOES, FERRAMENTAS_FAZENDA } from '../../shared/index.js';
 import { etapasDe, zonaFechadaEm } from '../../shared/historia.js';
 import { guardar, contar } from '../../shared/progresso.js';

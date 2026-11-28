@@ -1,5 +1,6 @@
 // Teste da progressão até o Nv 100 (André 2026-11-10): missões principais em ordem, zonas fechadas pela névoa, o que
 // abre por nível e conta antiga ganhando as missões até o nível dela. Uso: node ferramentas/testes/progressao.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, ZONAS, LIBERA_NIVEL, CACA, TOTENS, xpProximo } from '../../shared/index.js';
 import { progressoValido } from '../../shared/progresso.js';
 import { ZONAS_GEO, zonaFechadaEm, liberado, histPorNivel, motivoLibera, naZona } from '../../shared/historia.js';

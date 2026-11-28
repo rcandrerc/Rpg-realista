@@ -1,6 +1,7 @@
 // Cecília e Dario fazem a história e as diárias (André 2026-11-16): "Pra liberar o mapa ele tem que fazer missão,
 // igual a gente. E fazer as missões diárias também".
 // Uso: node ferramentas/testes/npc-missoes.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, DARIO, NPC_VIDA, HISTORIA, DIARIAS } from '../../shared/index.js';
 import { missaoAtual, zonaFechadaEm } from '../../shared/historia.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
