@@ -6,7 +6,8 @@ export const POCOES = ['pocao', 'pocao_mana'];
 
 // Ronda 2026-11-19: toda pilha de poção ficava guardada. Caçando Puglins o dia inteiro, as poções que caem encheram a
 // mochila de pilhas de 20: tudo protegido, nada para vender, 22 mil avisos "Mochila cheia" e nenhuma venda no turno.
-// Agora fica só a pilha maior de cada poção (a de vida é a que ele toma na luta); as outras pilhas vão para a venda.
+// Agora fica só a pilha maior de cada poção (ele toma as duas na luta: a de vida e, desde 2026-11-28, a de mana); as
+// outras pilhas vão para a venda.
 export function pocoesQueFicam(m) {
   const fica = new Set();
   for (const k of POCOES) {
@@ -31,6 +32,27 @@ export function listaVenda(m, protegido) {
     for (const [, i] of resto.slice(0, 6)) l.push(i);
   }
   return l;
+}
+
+// Poção de mana (André 2026-11-28: "Quando acaba a mana. Ele deveria. Tendo na bag, é óbvio."): até aqui ele só bebia a
+// de vida e vendia toda a de mana além da pilha maior. Na luta, com a mana sem dar nem para a Cura (ou abaixo de 10% da
+// mana cheia), bebe uma; com o bicho quase morto (30% da vida ou menos) não gasta, o golpe básico termina.
+// eu = { mana, manaMax }, alvo = { vida, vidaMax } (o bicho da luta), curaMana = CURA.mana.
+export function querPocaoMana(eu, alvo, curaMana) {
+  if (!(eu?.manaMax > 0) || eu.mana >= Math.max(curaMana || 0, eu.manaMax * 0.1)) return false;
+  return !(alvo?.vidaMax > 0) || alvo.vida > alvo.vidaMax * 0.3;
+}
+
+// De qual pilha beber a poção k: a menor sem cadeado (a maior é a que fica na venda, pocoesQueFicam); só com cadeado,
+// a menor delas. -1 = não tem.
+export function lugarPocao(m, k) {
+  let b = -1;
+  (m || []).forEach((o, i) => {
+    if (!o || o.k !== k) return;
+    const x = b >= 0 ? m[b] : null;
+    if (!x || (!!x.cad !== !!o.cad ? !o.cad : (o.n || 1) < (x.n || 1))) b = i;
+  });
+  return b;
 }
 
 // Ronda 2026-11-24: numa noite o robô morreu 175 vezes na guerra (os Lobos da Geada o pegavam caçando, ele levantava na

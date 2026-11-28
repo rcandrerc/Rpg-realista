@@ -17,6 +17,25 @@ ok(listaVenda([{ k: 'pocao', n: 3, cad: 1 }, { k: 'pocao', n: 20, cad: 1 }], pro
 const eq = Object.keys(ITENS).find((k) => ITENS[k].lugar);
 ok(listaVenda([{ k: eq, n: 1 }, { k: 'couro', n: 50 }, { k: 'couro', n: 50 }, ...Array(6).fill(null)], protegido).join() === '0,2', 'continua vendendo a peça de equipamento e a pilha repetida');
 
+// André 2026-11-28: "Quando acaba a mana. Ele deveria. Tendo na bag, é óbvio." (ele só bebia a de vida)
+import { querPocaoMana, lugarPocao } from '../robo/robo-escolhas.mjs';
+import { CURA } from '../../shared/index.js';
+const bicho = { vida: 800, vidaMax: 1000 };
+ok(querPocaoMana({ mana: 12, manaMax: 244 }, bicho, CURA.mana), `sem mana para a Cura (${CURA.mana}) na luta: bebe a de mana`);
+ok(!querPocaoMana({ mana: 60, manaMax: 244 }, bicho, CURA.mana), 'ainda com mana para a Cura e as skills: não bebe');
+ok(querPocaoMana({ mana: 30, manaMax: 400 }, bicho, CURA.mana) && !querPocaoMana({ mana: 41, manaMax: 400 }, bicho, CURA.mana), 'com mana grande, bebe abaixo de 10% da mana cheia');
+ok(!querPocaoMana({ mana: 0, manaMax: 244 }, { vida: 250, vidaMax: 1000 }, CURA.mana), 'bicho quase morto (30% da vida ou menos): não gasta poção');
+ok(!querPocaoMana({ mana: 0, manaMax: 0 }, bicho, CURA.mana), 'sem saber a mana cheia (foto antiga): não bebe');
+const mp = [{ k: 'pocao_mana', n: 20 }, { k: 'pocao', n: 2 }, { k: 'pocao_mana', n: 3 }, null, { k: 'pocao', n: 20 }];
+ok(lugarPocao(mp, 'pocao_mana') === 2 && lugarPocao(mp, 'pocao') === 1, 'bebe da pilha menor (a maior é a que fica na venda)');
+ok(lugarPocao([{ k: 'pocao_mana', n: 1, cad: 1 }, { k: 'pocao_mana', n: 9 }], 'pocao_mana') === 1, 'pilha sem cadeado antes da trancada');
+ok(lugarPocao([{ k: 'pocao_mana', n: 9, cad: 1 }, { k: 'pocao_mana', n: 4, cad: 1 }], 'pocao_mana') === 1, 'só trancada: a menor delas');
+ok(lugarPocao([{ k: 'pocao', n: 5 }, null], 'pocao_mana') === -1 && lugarPocao(null, 'pocao') === -1, 'sem a poção: -1');
+// e na venda a maior pilha de cada fica (o que ele bebe não vai embora)
+const mv = [{ k: 'pocao_mana', n: 20 }, { k: 'pocao_mana', n: 5 }, { k: 'pocao', n: 20 }, { k: 'pocao', n: 1 }, ...Array(2).fill(null)];
+const lv = listaVenda(mv, protegido);
+ok(!lv.includes(0) && !lv.includes(2) && lv.includes(1) && lv.includes(3), 'vende só as pilhas menores: fica uma pilha de vida e uma de mana');
+
 // Ronda 2026-11-24: 175 mortes na guerra numa noite, sempre voltando ao mesmo campo
 import { campoPerigoso, MORTES_TROCA } from '../robo/robo-escolhas.mjs';
 const t0 = 1_000_000, min = 60e3;

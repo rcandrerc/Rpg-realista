@@ -14,11 +14,11 @@ import fs from 'node:fs';
 import { Client } from 'colyseus.js';
 // shared/index.js PRIMEIRO: os módulos do shared se importam em círculo (cla.js -> amiga.js -> simulacao.js); entrando
 // por progresso.js o robô caía em 9 s com "Cannot access 'Amiga' before initialization" (desde 2026-11-22)
-import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS, FERRAMENTAS_FAZENDA, MONTARIAS, HEROI, CURA, COLETA_DISTANCIA, HABS, TIPOS_INIMIGO, ITENS, ehEquip, TOTENS, LEILAO } from '../../shared/index.js';
+import { Simulacao, MAPA_CLAREIRA, HISTORIA, CACA, BOSSES_MUNDO, LOJA, RECEITAS, FERRAMENTAS_FAZENDA, MONTARIAS, HEROI, CURA, COLETA_DISTANCIA, HABS, TIPOS_INIMIGO, ITENS, ehEquip, TOTENS, LEILAO, POCAO_RECARGA } from '../../shared/index.js';
 import { xpProximo, reforcoOk, reforcoMax, reforcoPrecisa, atributoDoReforco, custoReforco, materialReforco, contar, consertoGratis } from '../../shared/progresso.js';
 import { noLago } from '../../shared/relevo.js';
 import { planejarRota } from '../../shared/rota.js';
-import { listaVenda as listaVendaDe, POCOES, campoPerigoso, listaMudou } from './robo-escolhas.mjs';
+import { listaVenda as listaVendaDe, POCOES, campoPerigoso, listaMudou, querPocaoMana, lugarPocao } from './robo-escolhas.mjs';
 import { terraDoCampo, terraEm, totemDaTerra, outraTerraParaCacar } from './robo-escolhas.mjs'; // viajar de terra (ronda 2026-11-25)
 import { pecasParaConsertar } from './robo-escolhas.mjs'; // consertar o equipamento (ronda 2026-11-26)
 import { VOLTA_VILA } from '../../shared/index.js'; // casinha (ronda 2026-11-25)
@@ -67,7 +67,8 @@ const R = {
   ping: {}, quedas: 0, reinicios: 0, entradas: 0, correcoes: 0, mortes: 0, abates: 0, coletas: 0, criados: 0,
   fotos: { recebidas: 0, atrasadas: 0, pior: 0 },
   // dificuldade (André 2026-11-17): quanto leva para matar, poções e curas, a menor vida e o XP ganho por minuto
-  luta: { matarMs: {}, pocoes: 0, curas: 0, menorVida: 1, xp: 0, xpMin: 0 }, resposta: {}, servidor: {}, avisos: {}, problemas: [], erros: 0,
+  // pocoes = de vida; pocoesMana = de mana (desde 2026-11-28)
+  luta: { matarMs: {}, pocoes: 0, pocoesMana: 0, curas: 0, menorVida: 1, xp: 0, xpMin: 0 }, resposta: {}, servidor: {}, avisos: {}, problemas: [], erros: 0,
 };
 // combate de teste: uma linha por nível que subiu neste turno ({ nv, min do turno, mortes e ouro até ali, equipamento
 // 'lugar raridade+reforço durabilidade') e os reforços (tentativas, deu certo, ouro)
@@ -151,7 +152,7 @@ async function entrarConta() {
 }
 
 // ---------- o que o app sabe ----------
-const eu = { x: 0, y: 0, z: 0, ry: 0, vida: 1, vidaMax: 1, mana: 0, morto: false, montado: null, pronto: false };
+const eu = { x: 0, y: 0, z: 0, ry: 0, vida: 1, vidaMax: 1, mana: 0, manaMax: 0, morto: false, montado: null, pronto: false };
 let di = null, diariaIr = null, diariaT = 0, sementesAntes = -1; // missões diárias (André 2026-11-16): o resumo do servidor e o Ir da diária de plantar
 let prog = null, hi = null, corrSeq = 0, ultimaFoto = 0, sala = null, reinicioT = 0;
 const inimigos = new Map(); // id -> corpo (a foto com área de interesse manda só o que mudou: junta, como online.gd _juntar)
@@ -166,7 +167,7 @@ function lerFoto(txt) {
   const F = m.foto;
   for (const j of F.jogadores || []) if (j.id === sala?.sessionId) {
     const morreu = !eu.morto && j.morto;
-    Object.assign(eu, { vida: j.vida, vidaMax: j.vidaMax, mana: j.mana, morto: !!j.morto, montado: j.montado || null });
+    Object.assign(eu, { vida: j.vida, vidaMax: j.vidaMax, mana: j.mana, manaMax: j.manaMax || 0, morto: !!j.morto, montado: j.montado || null });
     if (!eu.pronto || j.morto) { eu.x = j.x; eu.y = j.y; eu.z = j.z; eu.pronto = true; } // morto: o servidor leva para a vila
     if (morreu) { R.mortes++; rota = null; if (COMBATE) { mortesT.push(Date.now()); if (mortesT.length > 50) mortesT.shift(); alertaCombate(); } if (campoCaca) { mortesCampo.push({ t: Date.now(), campo: campoCaca.nome }); if (mortesCampo.length > 20) mortesCampo.shift(); } }
     if (j.vidaMax > 0 && !j.morto) R.luta.menorVida = Math.min(R.luta.menorVida, Math.round(j.vida / j.vidaMax * 100) / 100);
@@ -294,7 +295,9 @@ function mandar(tipo, dados) { try { sala?.send(tipo, dados); } catch { /* caiu:
 function acao(tipo, dados) { esperaResposta = performance.now(); mandar(tipo, dados); }
 
 // ---------- lutar ----------
-let golpeT = 0, skillT = 0, curaT = 0, pocaoT = 0;
+// poção: o servidor só deixa outra do mesmo tipo depois de POCAO_RECARGA s (antes ele tentava a de vida a cada 6 s e
+// levava "Espere # s para outra poção de vida"); meio segundo a mais pela demora da rede
+let golpeT = 0, skillT = 0, curaT = 0, pocaoT = 0, manaT = 0; const POCAO_MS = POCAO_RECARGA * 1000 + 500;
 function alvoPerto(raio = 30, treino = false, serve = null) { // serve(e): só os que servem (combate de teste: o nível do campo)
   let b = null, md = raio;
   for (const e of inimigos.values()) {
@@ -312,7 +315,10 @@ function lutar(e, agora, alcance = 1.8, borda = false) { // alcance: o golpe peg
   atacados.add(e.id); if (!atacouT.has(e.id)) atacouT.set(e.id, performance.now());
   if (eu.vida < eu.vidaMax * 0.4 && eu.mana >= CURA.mana && agora - curaT > CURA.cd * 1000) { curaT = agora; R.luta.curas++; mandar('habilidade', 9); return; }
   // 2026-11-16: morreu 40 vezes num turno (perdeu milhares de ouro no Pedra-Viva) sem tomar poção nenhuma
-  if (eu.vida < eu.vidaMax * 0.35 && agora - pocaoT > 6000) { const i = (prog?.mochila || []).findIndex((o) => o && o.k === 'pocao'); if (i >= 0) { pocaoT = agora; R.luta.pocoes++; acao('item', { acao: 'usar', i }); return; } }
+  if (eu.vida < eu.vidaMax * 0.35 && agora - pocaoT > POCAO_MS) { const i = lugarPocao(prog?.mochila, 'pocao'); if (i >= 0) { pocaoT = agora; R.luta.pocoes++; acao('item', { acao: 'usar', i }); return; } }
+  // André 2026-11-28: "Quando acaba a mana. Ele deveria. Tendo na bag, é óbvio." Sem mana nem para a Cura, bebe a de mana
+  // (querPocaoMana e lugarPocao em ferramentas/robo/robo-escolhas.mjs)
+  if (agora - manaT > POCAO_MS && querPocaoMana(eu, e, CURA.mana)) { const i = lugarPocao(prog?.mochila, 'pocao_mana'); if (i >= 0) { manaT = agora; R.luta.pocoesMana++; acao('item', { acao: 'usar', i }); return; } }
   if (agora - skillT > 1500 && prog?.barras?.espada) {
     const l = prog.barras.espada.filter((k) => k && (HABS[k]?.libera || 0) <= (prog.nivel || 1) && !(eu.mana < (HABS[k]?.mana || 0)) && !(borda && HABS[k]?.dash)); if (l.length) { skillT = agora; mandar('habQ', l[Math.floor(Math.random() * l.length)]); return; }
   }
