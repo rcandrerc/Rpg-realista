@@ -468,6 +468,7 @@ class SalaClareira extends Room {
 
   tickDeVerdade() {
     const eventos = this.sim.passo(TICK);
+    if (GEMEOS) guardarGemeos(this, eventos); // teste dos gêmeos (ferramentas/robo-leve): só com ROBO_TESTE, nunca na Oracle
     const foto = this.sim.foto();
     let fotoJson = null;
     let perto = null; // área de interesse: preparada uma vez por passo, só se alguém pediu
@@ -981,6 +982,31 @@ setInterval(() => {
 app.get('/saude/dia', (_req, res) => {
   const agora = Date.now();
   res.json({ ...resumoDia(cargaDia, agora), orcamentoMs: TICK * 1000, amostraMin: CARGA_DIA.amostraMin, lista: cargaDia.filter((c) => c.t >= agora - CARGA_DIA.mostraH * 3600e3) });
+});
+// Teste dos gêmeos (André 2026-11-27, ferramentas/robo-leve/gemeos.mjs): o mesmo herói jogado pelo modo leve e pelo
+// caminho do jogo, num servidor local de teste. Só existe com ROBO_TESTE (a máquina de quem testa; a Oracle não tem):
+// o robô lê aqui o estado dos heróis e os eventos de cada um para comparar os dois. Nada muda no jogo.
+const GEMEOS = !!process.env.ROBO_TESTE, gemeosEv = []; let gemeosSeq = 0;
+function guardarGemeos(sala, eventos) {
+  const t = sala.sim.tempo;
+  // golpe de herói sai sem 'de' (só o alvo): quem bateu neste passo é o herói com bateuEm nesse alvo agora
+  const quem = (e) => { for (const j of sala.sim.jogadores.values()) if (!j.bot && j.bateuEm?.id === e.alvo && j.bateuEm.t === t) return j.id; return undefined; };
+  for (const e0 of eventos) if (['dano', 'cura', 'aviso', 'drop', 'nivel', 'vila', 'veiculo', 'leveRota', 'dash', 'esquiva', 'totem'].includes(e0.t)) { const e = e0.t === 'dano' && e0.de === undefined ? { ...e0, de: quem(e0) } : e0; gemeosEv.push({ s: ++gemeosSeq, tempo: t, ...e }); if (gemeosEv.length > 4000) gemeosEv.shift(); }
+}
+app.get('/teste/gemeos', (req, res) => {
+  if (!GEMEOS || req.query.teste !== process.env.ROBO_TESTE) return res.status(404).end();
+  const desde = Number(req.query.desde) || 0, jogadores = [];
+  let tempo = 0, inimigos = [];
+  for (const s of salas) {
+    tempo = s.sim.tempo;
+    for (const j of s.sim.jogadores.values()) {
+      if (j.bot) continue;
+      const p = j.prog || {};
+      jogadores.push({ id: j.id, nome: j.nome, leve: !!j.leve, x: j.x, y: j.y, z: j.z, ry: j.ry, vida: j.vida, vidaMax: j.vidaMax, mana: j.mana, manaMax: j.manaMax, morto: !!j.morto, montado: j.montado || null, veiculo: j.veiculo || null, modo: j.modo, vila: j.vila ? { ...j.vila } : null, combateAte: j.combateAte, cds: { ...j.cds }, st: j.st, leveRota: j.leveRota ? { fim: j.leveRota.pontos?.[j.leveRota.pontos.length - 1], nome: j.leveRota.nome, alvo: j.leveRota.alvo ?? null } : null, prog: { nivel: p.nivel, xp: p.xp, ouro: p.ouro, mochila: p.mochila, equip: p.equip, barras: p.barras, atr: p.atr, vilaAte: p.vilaAte } });
+    }
+    inimigos = s.sim.inimigos.filter((e) => !e.morto && jogadores.some((j) => Math.hypot(e.x - j.x, e.z - j.z) < 60)).map((e) => ({ id: e.id, v: e.v, nome: e.nome, nivel: e.nivel, x: e.x, z: e.z, vida: e.vida, vidaMax: e.vidaMax, treino: !!e.treino }));
+  }
+  res.json({ tempo, jogadores, inimigos, eventos: gemeosEv.filter((e) => e.s > desde) });
 });
 app.get('/saude', (_req, res) => {
   let jogadores = 0, agora = 0; for (const s of salas) { jogadores += s.clients.length; agora += s.sim.correcoes || 0; }

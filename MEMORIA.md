@@ -12,6 +12,7 @@ Repo público: nunca pôr senha, chave ou endereço de servidor aqui.
 ## Abortado (não retomar sem pedido): Cecília/Dário, segurança, história/missões, economia/lojas.
 ## Rotinas
 - Robô de testes: ronda diária às 9h, um relatório entre 9h e 10h, correção automática com cuidado. Não reduzir bots/recrutas (André quer 50-60 bots para medir o servidor).
+- 27/11: teste dos gêmeos (`ferramentas/robo-leve/gemeos.mjs`, Actions "Robô do modo leve" 07:17): mesmo herói pelo modo leve e pelo jogo num servidor local; cada diferença vira linha, vai junto do relatório das 9h. Só reporta: o leve é do irmão.
 ## Fluxo
 - Agentes efêmeros por cargo: ver `agentes/` e a regra no topo do `CLAUDE.md`.
 - Todo merge: PR, main mais recente, verificação verde, nada some. Testes (23/11, 110 verdes): o jeito antigo dos bots (amizade, time) importa `_amizade-antiga.mjs`; casa de bot na base via `_lote-base.mjs`; save dos bots em `npcSalvos` (tabela mundo).
