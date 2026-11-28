@@ -201,7 +201,7 @@ async function andarJoy(x, z, ms = 60e3) {
 }
 // o que fica embaixo do dedo em cada ponto da tela (o jogo: o mapa em volta do herói e o joystick respondem ao toque)
 async function testeToque() {
-  const vp = pg.viewportSize(), pontos = [['herói (centro do mapa)', vp.width / 2, vp.height / 2, 'mapa'], ['mapa, acima do herói', vp.width / 2, vp.height * 0.3, 'mapa'], ['mapa, abaixo do herói', vp.width / 2 - 40, vp.height * 0.62, 'mapa'], ['joystick (canto de baixo à esquerda)', 75, vp.height - 120, 'joystick']];
+  const vp = pg.viewportSize(), pontos = [['herói (centro do mapa)', vp.width / 2, vp.height / 2, 'mapa'], ['mapa, acima do herói', vp.width / 2, vp.height * 0.3, 'mapa'], ['mapa, abaixo do herói', vp.width / 2 + 30, vp.height * 0.62, 'mapa'], ['joystick (canto de baixo à esquerda)', 75, vp.height - 120, 'joystick']];
   const A = {}, Bv = {};
   for (const [nome, x, y, quer] of pontos) {
     const o = await pg.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e ? (e.id === 'mapa' ? 'mapa' : e.closest('.joyZona') ? 'joystick' : e.closest('button') ? 'botão ' + (e.closest('button').title || e.closest('button').textContent.trim().slice(0, 20)) : (e.className || e.tagName) + '') : 'nada'; }, [x, y]);
@@ -380,7 +380,7 @@ async function skills() {
     const q = await estado();
     const r = (j, m0) => { const ev = evDe(j.id, desde, ['dano']).filter((e) => e.de === j.id && e.alvo !== j.id); return { saiu: (j.cds[k] || 0) > q.tempo, gastouMana: Math.round(m0 - j.mana) > 0, acertos: ev.length, danoTotal: ev.reduce((a, e) => a + e.n, 0) }; };
     const av = (j) => evDe(j.id, desde, ['aviso']).map((e) => e.texto).slice(0, 2).join(' | ');
-    if (r(q.A, mA).saiu !== r(q.B, mB).saiu && !k0.endsWith('#2')) { log(`skill ${k}: saiu só num dos dois (${av(q.A)} / ${av(q.B)}), tenta de novo`); barra.splice(barra.indexOf(k0) + 1, 0, k + '#2'); continue; }
+    if ((r(q.A, mA).saiu !== r(q.B, mB).saiu || r(q.A, mA).gastouMana !== r(q.B, mB).gastouMana) && !k0.endsWith('#2')) { log(`skill ${k}: saiu só num dos dois (${av(q.A)} / ${av(q.B)}), tenta de novo`); barra.splice(barra.indexOf(k0) + 1, 0, k + '#2'); continue; }
     anotar(`Skill ${HABS[k].nome || k}`, { A: { botaoNaTela: naTela, botaoApagado: emEspera, ...r(q.A, mA) }, B: { botaoNaTela: true, botaoApagado: false, ...r(q.B, mB) }, nota: [av(q.A) && 'leve: ' + av(q.A), av(q.B) && 'jogo: ' + av(q.B)].filter(Boolean).join(' · '), ignora: ['acertos', 'danoTotal'] }); // acertos e dano dependem de quantos bichos estão em volta de cada um
   }
 }
@@ -525,7 +525,7 @@ for (const [k, fn] of passos) {
 }
 clearInterval(laçoB);
 const achados = comparar(resultados);
-const rel = { quando: new Date().toISOString(), minutos: Math.round((Date.now() - inicio) / 6e4), nivel: NIVEL, resultados, achados, errosPagina: [...new Set(errosPagina)].slice(0, 30), errosServidor: (srvLog.match(/^.*(Error|erro).*$/gm) || []).slice(0, 20) };
+const rel = { quando: new Date().toISOString(), minutos: Math.round((Date.now() - inicio) / 6e4), nivel: NIVEL, resultados, achados, errosPagina: [...new Set(errosPagina)].filter((e) => !/GSI_LOGGER|accounts\.google/.test(e)).slice(0, 30), errosServidor: (srvLog.match(/^.*(Error|erro).*$/gm) || []).filter((e) => !/caminho reserva/.test(e)).slice(0, 20) }; // o login do Google e o caminho reserva não existem no servidor de teste
 fs.writeFileSync(path.join(SAIDA, 'gemeos.json'), JSON.stringify(rel, null, 1));
 fs.writeFileSync(path.join(SAIDA, 'gemeos.md'), relatorioMd(rel));
 log(`fim: ${achados.length} diferença(s); relatório em ${SAIDA}`);

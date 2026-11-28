@@ -29,7 +29,7 @@ const NOMES = {
   golpes: 'golpes que acertaram', porSeg: 'golpes por segundo', danoMedio: 'dano médio', botaoNaTela: 'botão na tela', mirouNoMapa: 'mirou no monstro',
   saiu: 'a skill saiu', gastouMana: 'gastou mana', acertos: 'acertos', danoTotal: 'dano total', botaoApagado: 'botão apagado (espera)',
   gastou: 'poções gastas', andou: 'andou (m)', montado: 'montado', distNascimento: 'distância do nascimento (m)',
-  botaoUsarBarquinho: 'botão Usar barquinho', entrouNoBarco: 'entrou no barco', tocarNoMapaNoBarco: 'tocar no mapa dentro do barco', chegouNaBeira: 'chegou na beira',
+  botaoUsarBarquinho: 'botão Usar barquinho', entrouNoBarco: 'entrou no barco', tocarNoMapaNoBarco: 'tocar no mapa dentro do barco', chegouNaBeira: 'chegou na beira', remouComJoystick: 'remou com o joystick', quadroDoAlvo: 'quadrinho do alvo abriu', botaoAtacar: 'botão Atacar', chegouNoMonstro: 'chegou no monstro', recarga: 'entrou na recarga', curou: 'vida que subiu', quadro: 'quadro',
 };
 export function relatorioMd(rel) {
   const L = [];
