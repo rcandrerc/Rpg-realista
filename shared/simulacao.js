@@ -4339,6 +4339,10 @@ export class Simulacao {
     c.morto = true; c.dash = null; c.arrancada = null; c.esc = null;
     this.tocar(c, A.death, 1);
     c.trava = Infinity;
+    if (c.tipo === 'jogador') { // emboscada (André 2026-11-28): o atacante caiu = ele sai dela; o dono caiu = ela acaba
+      if (c.ia?.guerra?.emb) c.ia.guerra.emb = null;
+      c.embAte = 0;
+    }
     if (c.tipo === 'jogador') {
       // recruta de jogador caiu: aviso no celular do líder (painel do clã, André 2026-11-24; o servidor só manda com ele fora do jogo)
       if (c.bot && this.aoAvisoCla) { const x = this.amigoIaDe?.(c); if (x?.AMIGA.recruta && !x.AMIGA.clanpc) this.aoAvisoCla(x.AMIGA.lider, `${x.AMIGA.nome} caiu${de?.nome ? ` (${de.nome})` : ''}`); }
