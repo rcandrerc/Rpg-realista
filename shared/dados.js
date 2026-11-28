@@ -433,10 +433,20 @@ export const CACA = [
 export const NIVEL_INIMIGO = { forca: 1.8, resistencia: 1.6, defesaBase: 10, defesaNivel: 3, defesaMax: 1, vida: 0.16, dano: 0.32, xp: 0.5, ouro: 0.06, folga: 5, perde: 0.15, min: 0.1,
   danoAcima: 0.06, danoAbaixo: 0.05, danoAbaixoMin: 0.55, teto: 0.3, tetoChefe: 0.45,
   golpeFolga: 3, golpeCai: 0.06, golpeMin: 0.6, golpeSobe: 0.04, golpeMax: 1.4,
-  xpSobe: 0.15, xpMax: 1.6, xpCai: 0.2, xpMin: 0.15, xpAlemDe: 7, xpAlem: 0.9, corFacil: -3, corForte: 2 };
+  xpSobe: 0.15, xpMax: 1.6, xpCai: 0.2, xpMin: 0.15, xpAlemDe: 7, xpAlem: 0.9, corFacil: -3, corForte: 2,
+  // vida extra (André 2026-11-28): do Nv 40 a vida sobe forte para o equipamento ser necessário: no 40 já se sente, no 50
+  // mais, no 60 sem Épico "não sai do lugar"; depois do 60 continua subindo até o 100. Nv 1-39 igual. Dano, XP e
+  // habilidades não mudam. Pontos [nível, vezes a vida], reta entre eles, fixo depois do último.
+  vidaExtra: [[40, 1], [50, 2.6], [60, 5], [100, 6.5]] };
+export const vidaExtraInimigo = (nivel = 1, N = NIVEL_INIMIGO) => {
+  const p = N.vidaExtra || [], n = nivel || 1;
+  if (!p.length || n <= p[0][0]) return 1;
+  for (let i = 1; i < p.length; i++) if (n <= p[i][0]) { const [a, va] = p[i - 1], [b, vb] = p[i]; return va + (vb - va) * (n - a) / (b - a); }
+  return p[p.length - 1][1];
+};
 export const statusInimigo = (tipo, nivel = 1) => {
   const t = TIPOS_INIMIGO[tipo], k = Math.max(0, (nivel || 1) - 1);
-  return { vida: Math.round(t.vida * (NIVEL_INIMIGO.resistencia ?? 1) * (1 + NIVEL_INIMIGO.vida * k)), dano: Math.round(t.dano * (NIVEL_INIMIGO.forca ?? 1) * (1 + NIVEL_INIMIGO.dano * k)) };
+  return { vida: Math.round(t.vida * (NIVEL_INIMIGO.resistencia ?? 1) * (1 + NIVEL_INIMIGO.vida * k) * vidaExtraInimigo(nivel)), dano: Math.round(t.dano * (NIVEL_INIMIGO.forca ?? 1) * (1 + NIVEL_INIMIGO.dano * k)) };
 };
 // A mata andável: círculos de borda ondulada ao longo da estrada e em volta de cada clareira, ligados por corredores
 // (a saída do campo de fora pelo sul e as trilhas). Sem anel de pedra (direção de arte: borda de mata fechada).
