@@ -443,7 +443,7 @@ export const Leve = {
   precoEntregaLeve(j, pk, n) {
     if (!pk || Math.hypot(n.x - pk.ox, n.z - pk.oz) < PACK_REGRAS.perto) return 0;
     const p = j.prog;
-    return Math.max(1, Math.round(precoPack(pk, n, p.prof?.mer) * mercadoK(p, n.id, pk.k) * (1 + (this.vantagensDe?.(j).pack || 0)) * (pk.rb ? 1 + GUERRA.roubado : 1)));
+    return Math.max(1, Math.round(precoPack(pk, n, p.prof?.mer, bonusTitulo(p).venda || 0) * mercadoK(p, n.id, pk.k) * (1 + (this.vantagensDe?.(j).pack || 0)) * (pk.rb ? 1 + GUERRA.roubado : 1)));
   },
   // packs e carrinho como a página mostra (PR 2 do modo leve, André 2026-11-25: "mais que combate quero fazer pack"):
   // c = o pack das costas [k, nome, roubado]; car = o carrinho; e = onde entregar [id, nome, x, z, paga costas, paga carrinho];
