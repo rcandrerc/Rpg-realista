@@ -4364,11 +4364,13 @@ export class Simulacao {
       c.pvpDe = null; c.progSujo = true; if (pen?.ouro) this.caixa(c, 'morte', -pen.ouro);
       if (c.prog.buff) delete c.prog.buff; // morrer tira o buff da comida (André 2026-11-24)
       this.aplicarStatus(c); this.avisarProg(c);
-      const totemMorte = totemMaisPerto(c.x, c.z); // onde caiu (André 2026-11-24)
+      // André 2026-11-28: só renasce em totem de região já liberada para ele (mesmo que mais longe), senão nasceria dentro da névoa
+      const totemAberto = (t) => !!t && !zonaFechadaEm(c.prog, t.x, t.z);
+      const totemMorte = TOTENS.lista.filter(totemAberto).reduce((m, t) => (!m || Math.hypot(t.x - c.x, t.z - c.z) < Math.hypot(m.x - c.x, m.z - c.z) ? t : m), null); // onde caiu (André 2026-11-24)
       this.depois(HEROI.renascer, () => {
         // cama no terreno (como no Quimera): renasce do lado dela
         // totem de teleporte (André 2026-11-10): renasce no mais próximo de onde caiu (André 2026-11-24); o da vila deixa a cama valer
-        const T = c.bot ? TOTENS.lista.find((t) => t.id === c.prog.totem && t.id !== 'clareira') : totemMorte && totemMorte.id !== 'clareira' ? totemMorte : null; // bot (IA do shared/amiga.js) segue como antes
+        const T = c.bot ? (() => { const sv = TOTENS.lista.find((t) => t.id === c.prog.totem && t.id !== 'clareira'); return sv && !totemAberto(sv) ? totemMorte : sv; })() : totemMorte && totemMorte.id !== 'clareira' ? totemMorte : null; // bot (IA do shared/amiga.js) segue como antes
         const L = !T && this.loteDe(c), cama = L && L.pecas.find((o) => o.k === 'cama');
         const casaRaca = !T && !cama && RACAS[this.racaDe(c)]?.casa; // a Geada renasce no Juncal (Chama x Geada, André 2026-11-18)
         const n = T ? this.ladoDoTotem(T) : cama ? { x: cama.x + ((cama.r & 1) ? 0 : 1.5), z: cama.z + ((cama.r & 1) ? 1.5 : 0) } : casaRaca ? { x: casaRaca.x + 3, z: casaRaca.z + 3 } : this.mapa.nascimento;
