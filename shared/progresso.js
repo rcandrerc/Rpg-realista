@@ -556,8 +556,10 @@ export const HABS = {
     desc: 'Cometa de fogo no alvo (até 11 m) que explode na área.' },
   anel_chamas: { tomo: 'Livro do Círculo de Fogo', nome: 'Anel de Chamas', arvore: 'cajado', tipo: 'anel', libera: 1, anim: A.ground, at: 0.6, canal: 0.6, area: 5, nv: { area: 0.3 }, pct: 1.7, empurra: 1.45,
     mana: 22, cd: 6, icone: 'explosao', desc: 'Um pulinho e o fogo explode no chão em volta de você.' },
-  meteoro: { tomo: 'Códice da Estrela Cadente', nome: 'Meteoro', arvore: 'cajado', tipo: 'meteoro', libera: 5, anim: A.meteoroCeu, at: 0.76, canal: 1.4, alcance: 12, area: 6, nv: { area: 0.3 }, queda: 1.1, pct: 3.2,
-    // André (2026-11-02): bola gigante do Quimera que bate no chão, explode e pega todo mundo na área (6 m, +0,3 por nível)
+  meteoro: { tomo: 'Códice da Estrela Cadente', nome: 'Meteoro', arvore: 'cajado', tipo: 'meteoro', libera: 5, anim: A.meteoroCeu, at: 0.76, canal: 1.4, alcance: 12, area: 6, nv: { area: 0.15 }, queda: 1.1, pct: 2.4,
+    // André (2026-11-02): bola gigante do Quimera que bate no chão, explode e pega todo mundo na área (6 m, +0,15 por nível)
+    // André 2026-11-28 (opção A'): Meteoro estava muito acima do Giro (dano x área 433 contra 192). Dano 3,2 -> 2,4 e área
+    // +0,3 -> +0,15 por nível (7,35 m na skill 10): fica ~20% acima do Giro, porque conjura 1,4 s parado e cai 1,1 s depois.
     empurra: 1.5, mana: 32, cd: 10, icone: 'meteoros', desc: 'Marca o chão do alvo e uma rocha gigante em chamas cai ali e explode, pegando todo mundo em volta.' },
   nova_gelo: { tomo: 'Tomo do Inverno Eterno', nome: 'Nova de Gelo', arvore: 'cajado', tipo: 'gelo', libera: 8, anim: A.novaGelo, at: 0.58, canal: 0.8, area: 6, congela: 3.8, nv: { area: 0.3, congela: 0.3 },
     pct: 1.1, empurra: 0.55, mana: 28, cd: 12, icone: 'gelo', desc: 'Onda de gelo em volta que congela os inimigos.' },
