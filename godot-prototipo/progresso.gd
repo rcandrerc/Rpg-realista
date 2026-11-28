@@ -203,6 +203,25 @@ func regen() -> Dictionary:
 		return dados.regen
 	return {"vida": 1.0, "vidaNivel": 0.05, "vidaVit": 0.25, "vidaCombate": 0.0, "mana": 1.1, "manaNivel": 0.07, "manaInt": 0.05, "manaMente": 0.3, "manaCombate": 0.35}
 
+# Dano da arma em % (DANO_ARMA em shared/dados.js, André 2026-11-28); sem dados novos, a conta antiga (6% por ponto)
+func bonus_atr_dano(x: float) -> float:
+	var D: Dictionary = dados.get("danoArma", {})
+	if D.is_empty():
+		return 0.06 * (x - 3)
+	return float(D.atr) * max(0.0, min(x, float(D.atrAte)) - 3) + float(D.atrDepois) * max(0.0, x - float(D.atrAte))
+
+func pct_arma_item(it) -> float:
+	var D: Dictionary = dados.get("danoArma", {})
+	if it == null or D.is_empty():
+		return 0.0
+	return float(D.pct[int(it.r)]) + float(D.reforco) * int(it.get("e", 0))
+
+func pct_arma(lugar: String) -> float:
+	var it = prog.get("equip", {}).get(lugar)
+	if it == null or not dados.itens.has(it.k) or quebrado(it) or not reforco_ok(it):
+		return 0.0
+	return pct_arma_item(it)
+
 func calcular_status() -> Dictionary:
 	var a: Dictionary = prog.atr
 	var n: int = prog.nivel
@@ -217,8 +236,9 @@ func calcular_status() -> Dictionary:
 		"regenMana": (float(R.mana) + float(R.manaNivel) * n + float(R.manaInt) * a.int + (float(R.manaMente) if passiva("mente_arcana") else 0.0)) * (1.0 + eq.regenManaK),
 		"regenVida": float(R.vida) + float(R.vidaNivel) * n + float(R.vidaVit) * a.vit,
 		"defesa": defesa, "reducao": defesa / (defesa + 24.0),
-		"danoFisico": (10.0 * nivel_k * (1 + 0.06 * (a["for"] - 3)) + eq.danoFisico) * (1.0 + eq.danoK),
-		"danoMagico": (10.0 * nivel_k * (1 + 0.06 * (a.int - 3)) + eq.danoMagico) * (1.0 + eq.danoK),
+		# dano da arma em % (DANO_ARMA de shared/dados.js, André 2026-11-28): nível x (1 + bônus do atributo x (1 + % da arma))
+		"danoFisico": 10.0 * nivel_k * (1 + bonus_atr_dano(a["for"]) * (1 + pct_arma("espada"))) * (1.0 + eq.danoK),
+		"danoMagico": 10.0 * nivel_k * (1 + bonus_atr_dano(a.int) * (1 + pct_arma("cajado"))) * (1.0 + eq.danoK),
 		"critico": min(1.0, 0.0455 + 0.0015 * a.des + (0.02 if passiva("sorte_arcana") else 0.0) + eq.critico),
 		"danoCritico": eq.danoCritico, # somado no golpe crítico (André 2026-11-17)
 		"recarga": min(0.4, 0.0133 * a.des),
@@ -820,6 +840,9 @@ func texto_item(it) -> String:
 		var p := []
 		var st: Dictionary = dados.itens[it.k].st
 		for c in st:
+			if (c == "danoFisico" or c == "danoMagico") and dados.has("danoArma"): # arma dá % de dano (André 2026-11-28)
+				p.append("+%s%% %s" % [num(pct_arma_item(it) * 100, 0), Idioma.t("Dano da Força" if c == "danoFisico" else "Dano da Inteligência")])
+				continue
 			var v: float = float(st[c][int(it.r)]) * reforco_k(it, c)
 			if v > 0:
 				p.append(texto_st(c, v))
