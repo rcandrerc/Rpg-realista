@@ -72,8 +72,8 @@ func liberado(k: String, estrito := false) -> bool:
 		return true
 	# história v2 (shared/historia.js liberado): o recurso abre no meio da própria missão (fundir, montar, pescar)
 	var M: Dictionary = H.get("missoes", [])[i]
-	if H.get("liga", true) == false: # missões desligadas (André 2026-11-27): abre no nível da missão que abria
-		return int(m.P.prog.get("nivel", 1)) >= int(M.get("nv", 1))
+	if H.get("liga", true) == false: # missões desligadas (André 2026-11-27): mapa todo aberto (28/11), recurso no nível
+		return not zona(k).is_empty() or int(m.P.prog.get("nivel", 1)) >= int(M.get("nv", 1))
 	return int(h.get("p", 0)) == i and h.get("ac", false) == true and int(M.get("liberaNaEtapa", -1)) >= 0 and int(h.get("e", 0)) >= int(M.liberaNaEtapa)
 
 func missao_atual() -> Dictionary:
@@ -134,6 +134,8 @@ func texto(k: String) -> String:
 		return ""
 	var M: Dictionary = H.missoes[int(quem_libera[k])]
 	var Z := zona(k)
+	if H.get("liga", true) == false: # missões desligadas (André 2026-11-27): nada de "conclua a missão"
+		return "%s: %s. Libera no nível %d" % ["Região fechada" if not Z.is_empty() else "Ainda fechado", Z.nome if not Z.is_empty() else str(H.get("recursos", {}).get(k, k)), int(M.nv)]
 	return "%s: %s. Conclua a missão \"%s\" (fale com %s, Nv %d) para desbloquear" % ["Região fechada" if not Z.is_empty() else "Ainda fechado", Z.nome if not Z.is_empty() else str(H.get("recursos", {}).get(k, k)), M.nome, str(M.get("npcNome", M.npc)), int(M.nv)]
 
 # andar.gd: o herói bateu na névoa em (x, z). Avisa qual missão abre (no máximo a cada 4 s)

@@ -118,7 +118,9 @@ export const liberado = (p, k) => {
   const i = QUEM_LIBERA[k]; if (i == null) return true;
   const h = histDe(p); if (h.p > i) return true;
   const M = HISTORIA[i];
-  if (!MISSOES_LIGA.historia) return (p?.nivel || 1) >= M.nv; // missões desligadas (André 2026-11-27): abre no nível
+  // missões desligadas (André 2026-11-27): o mapa fica todo aberto (André 2026-11-28: "tu disse que tinha destravado o
+  // mapa", travado no Cais de Aurora); só os recursos (forja, lobo, pesca) abrem no nível da missão que abria
+  if (!MISSOES_LIGA.historia) return ZONA_POR_ID[k] ? true : (p?.nivel || 1) >= M.nv;
   return h.p === i && h.ac === true && M.liberaNaEtapa != null && (h.e || 0) >= M.liberaNaEtapa;
 };
 // a missão atual (a próxima a fazer) ou null (todas feitas)
