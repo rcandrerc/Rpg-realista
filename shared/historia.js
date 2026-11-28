@@ -118,9 +118,7 @@ export const liberado = (p, k) => {
   const i = QUEM_LIBERA[k]; if (i == null) return true;
   const h = histDe(p); if (h.p > i) return true;
   const M = HISTORIA[i];
-  // missões desligadas (André 2026-11-27): o mapa fica todo aberto (André 2026-11-28: "tu disse que tinha destravado o
-  // mapa", travado no Cais de Aurora); só os recursos (forja, lobo, pesca) abrem no nível da missão que abria
-  if (!MISSOES_LIGA.historia) return ZONA_POR_ID[k] ? true : (p?.nivel || 1) >= M.nv;
+  if (!MISSOES_LIGA.historia) return (p?.nivel || 1) >= M.nv; // missões desligadas (André 2026-11-27): abre no nível
   return h.p === i && h.ac === true && M.liberaNaEtapa != null && (h.e || 0) >= M.liberaNaEtapa;
 };
 // a missão atual (a próxima a fazer) ou null (todas feitas)
@@ -167,7 +165,8 @@ export const nomeNpcHistoria = (id) => (MAPA_CLAREIRA.npcs.find((n) => n.id === 
 export function textoNevoa(p, k) {
   const i = QUEM_LIBERA[k], M = HISTORIA[i]; if (!M) return '';
   const nome = ZONA_POR_ID[k]?.nome || RECURSOS_HISTORIA[k] || k;
-  if (!MISSOES_LIGA.historia) return `${ZONA_POR_ID[k] ? 'Região fechada' : 'Ainda fechado'}: ${nome}. Libera no nível ${M.nv}`;
+  // sem missões (André 2026-11-28: "tinha que aparecer... chegue no nível 80 pra liberar")
+  if (!MISSOES_LIGA.historia) return `${ZONA_POR_ID[k] ? 'Região fechada' : 'Ainda fechado'}: ${nome}. Chegue no nível ${M.nv} para liberar`;
   return `${ZONA_POR_ID[k] ? 'Região fechada' : 'Ainda fechado'}: ${nome}. Conclua a missão "${M.nome}" (fale com ${nomeNpcHistoria(M.npc)}, Nv ${M.nv}) para desbloquear`;
 }
 

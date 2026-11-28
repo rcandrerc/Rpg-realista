@@ -16,10 +16,9 @@ const s = new Simulacao(MAPA_CLAREIRA), p = s.adicionarJogador('andre', 'Ruiva',
 const P = p.prog; P.nivel = 1; P.hist = { v: 2, p: 0, ac: false, e: 0, n: 0, m: 0 };
 ok(missaoAtual(P) === null && s.histInfo(p) === null, 'o jogador não tem missão (nem cartão, nem botão no NPC)');
 ok(!liberado(P, 'pesca') && !liberado(P, 'lobo'), 'Nv 1: pesca e lobo ainda fechados');
-ok(/Libera no nível 8/.test(textoNevoa(P, 'pesca')), `o aviso fala do nível, não de missão ("${textoNevoa(P, 'pesca')}")`);
+ok(/Chegue no nível 8 para liberar/.test(textoNevoa(P, 'pesca')), `o aviso fala do nível, não de missão ("${textoNevoa(P, 'pesca')}")`);
 P.nivel = 8; ok(liberado(P, 'pesca') && liberado(P, 'lobo') && liberado(P, 'forja'), 'Nv 8: pesca, lobo e forja abertos pelo nível');
-P.nivel = 1; ok(ZONAS_GEO.filter((Z) => !Z.selo).every((Z) => liberado(P, Z.id)), 'Nv 1: todas as regiões abertas (mapa sem trava, André 28/11)');
-ok(ZONAS_GEO.every((Z) => Z.selo || !zonaFechadaEm(P, (Z.poligono?.[0]?.[0]) ?? 0, (Z.poligono?.[0]?.[1]) ?? 0)), 'Nv 1: nenhuma região barra o herói (Cais de Aurora incluso)');
+P.nivel = 100; ok(ZONAS_GEO.filter((Z) => !Z.selo).every((Z) => liberado(P, Z.id)), 'Nv 100: todas as regiões abertas');
 const Q = { nivel: 1, hist: { v: 2, p: HISTORIA.length, ac: false, e: 0, n: 0, m: 0 } };
 ok(ZONAS_GEO.every((Z) => liberado(Q, Z.id)), 'quem já tinha feito as missões não perde nada que abriu');
 P.nivel = 1;
