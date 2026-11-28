@@ -1034,9 +1034,28 @@ func _teleportar() -> void:
 		return
 	fechar()
 
+# o recruta que o "Ver" do painel do clã está olhando (espiar.gd), ou null
+func _espiado():
+	if m.espiar == null or not m.espiar.ativo() or m.cam == null:
+		return null
+	var n = m.cam.espiar
+	return n if n is Node3D and is_instance_valid(n) else null
+
 func abrir() -> void:
 	var t0 := Time.get_ticks_usec()
 	_abrir()
+	# André 2026-11-28: "quando clico em ver nos recrutas, quero que apareça onde ele está, não eu": vendo o recruta, o
+	# mapa abre nele, com o ponto dele (o mesmo do "Ver no mapa"). Sem o "Ver", abre no herói como antes.
+	var ve = _espiado()
+	if ve != null and recruta.is_empty():
+		var rp := Vector2(ve.position.x, ve.position.z)
+		recruta = {"id": m.espiar.id, "nome": m.espiar.nome, "p": rp}
+		foco_alvo = _prender(rp, zoom)
+		foco = foco_alvo
+		if _em_3d():
+			mapa3d.foco_alvo = Vector3(rp.x, 0, rp.y)
+			mapa3d.foco = mapa3d.foco_alvo
+			mapa3d.marcas.queue_redraw()
 	if m.lentidao: # quanto o mapa levou para abrir (lentidao.gd, tipo "menu")
 		m.lentidao.menu_aberto("mapa", t0, 0)
 
@@ -1174,7 +1193,7 @@ func _process_parte(_dt: float) -> void:
 	# some junto com a HUD (menu do personagem, criador, conversa com NPC)
 	mini.visible = m.hud.visible and not m.hud.bloqueado or aberto
 	if mini.visible:
-		var p: Vector3 = m.heroi.position
+		var p: Vector3 = m.centro_visao() # o herói, ou o recruta do "Ver" (o minimapa vai até ele, como a câmera)
 		(mapa_mini.material as ShaderMaterial).set_shader_parameter("centro", _uv(p.x, p.z))
 		(mapa_mini.material as ShaderMaterial).set_shader_parameter("alcance", Vector2.ONE * ALCANCE * 2.0 / mundo_r.size)
 		if Engine.get_process_frames() % 3 == 0: # FPS (auditoria 2026-11-11): marcas do minimapa 20 vezes por segundo
@@ -1285,7 +1304,8 @@ func _desenhar_mini() -> void:
 	var c := marcas
 	var tam: Vector2 = c.size
 	var meio := tam * 0.5
-	var p: Vector3 = m.heroi.position
+	var p: Vector3 = m.centro_visao() # André 2026-11-28: no "Ver" do recruta, o minimapa mostra onde ELE está
+	var vendo = _espiado()
 	var k: float = RAIO / ALCANCE # px por metro
 	_nevoa_mini(c, meio, p, k) # zonas ainda fechadas pela névoa (progressão, André 2026-11-10)
 	# clareiras, veio de cobre e outros jogadores que estão dentro do círculo
@@ -1372,7 +1392,16 @@ func _desenhar_mini() -> void:
 	for i in 9:
 		leque.append(meio + fc.rotated(lerp(-0.55, 0.55, i / 8.0)) * 34.0)
 	c.draw_colored_polygon(leque, Color(1, 0.95, 0.75, 0.16))
-	_seta(c, meio, _frente_heroi(), 9.0, COR_OURO)
+	if vendo != null: # "Ver" o recruta: ele no meio (seta verde) e o herói na direção dele (seta dourada, na beirada se longe)
+		var dh: Vector2 = Vector2(m.heroi.position.x - p.x, m.heroi.position.z - p.z) * k
+		if dh.length() > RAIO - 10.0:
+			dh = dh.normalized() * (RAIO - 10.0)
+		_seta(c, meio + dh, _frente_heroi(), 7.0, COR_OURO)
+		var cor_r: Color = m.amigos.COR_TIME if m.amigos else Color("5fd16a")
+		_seta(c, meio, Vector2(sin(vendo.rotation.y), cos(vendo.rotation.y)), 9.0, cor_r)
+		_texto(c, meio + Vector2(0, -16), m.espiar.nome, 12, cor_r.lightened(0.35), true, 3)
+	else:
+		_seta(c, meio, _frente_heroi(), 9.0, COR_OURO)
 	# moldura e o norte
 	c.draw_arc(meio, RAIO + 1.0, 0, TAU, 72, Color(0.05, 0.04, 0.03, 0.9), 5.0, true)
 	c.draw_arc(meio, RAIO - 1.0, 0, TAU, 72, Color("c9a35a"), 2.0, true)

@@ -380,6 +380,10 @@ export const Cla = {
       if (fn?.k === 'proteger' && fn.p === 'mercante' && !this.navioFora(j)) return aviso('Coloque o navio mercante na água primeiro');
       if (fn?.k === 'proteger' && !VEIC_PROTEGE[fn.p] && fn.p !== 'lider' && (fn.p === r.id || !c.m.some((o) => o.id === fn.p))) return aviso('Escolha você ou outro membro do clã');
       if (fn) r.fn = fn; else delete r.fn;
+      // toda ordem dada zera o "Coletou" e o "desde a ordem", mesmo repetindo a mesma (André 2026-11-28: mandou de novo
+      // minerar ferro e o menu seguia em "36 h 29 min"). Contador novo já aqui, com t0 de agora: a cópia velha do clã
+      // (clasFora, linha do m.oc) só volta quando o t0 é igual, então não ressuscita o contador antigo
+      { const k = this.chaveOrdem(r.fn); if (k) r.oc = { k, t0: Date.now(), n: 0, x: 0, xp: 0, xpx: 0 }; else delete r.oc; }
       j.progSujo = true;
       const x = this.recrutasNoMundo(j).find((o) => o.AMIGA.id === r.id);
       if (x?.amiga) this.aplicarFuncao(j, x, r, true);
@@ -1258,6 +1262,7 @@ export const Cla = {
     if (fnBruto?.k && fnBruto.k !== 'livre' && !fn) return { texto: 'Ordem inválida' };
     if (fn?.k === 'proteger' && (fn.p === r.id || !c.m.some((o) => o.id === fn.p))) return { texto: 'Escolha outro membro do clã' };
     if (fn) r.fn = fn; else delete r.fn;
+    { const k = this.chaveOrdem(r.fn); if (k) r.oc = { k, t0: Date.now(), n: 0, x: 0, xp: 0, xpx: 0 }; else delete r.oc; } // ordem nova (mesmo repetida) zera o contador (2026-11-28)
     (this.clasFora ||= new Map()).set(conta, c);
     const L = this.liderPainel(conta, c, raca), x = this.recrutasNoMundo(L).find((o) => o.AMIGA.id === r.id);
     if (x?.amiga && !x.amiga.morto) this.funcaoSemLider(x, x.amiga, fn || { k: 'livre' }, L);
