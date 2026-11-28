@@ -11,7 +11,7 @@
 // - this.packsChao: packs largados no chão (qualquer um pega; somem depois de PACK_CHAO_DURA s). Os de cima de um palete
 //   na base do clã (fica = 1, pal = id da peça, sl = lugar) não somem e passam pelo reinício: packsBaseParaSalvar.
 import { PACKS, PACK_REGRAS as PR, VEICULOS as V, ITENS, CACA, PROF_MAX, tempoCriar, GUERRA, CLA, PALETE, CLAS_NPC } from './dados.js';
-import { contar, tirar, guardar, gastarVigor, vigorAgora, profNivel } from './progresso.js';
+import { contar, tirar, guardar, gastarVigor, vigorAgora, profNivel, bonusTitulo } from './progresso.js';
 import { noLago, AGUA } from './relevo.js';
 import { motivoLibera, missaoAtual, etapasDe } from './historia.js'; // progressão (André 2026-11-10)
 
@@ -69,12 +69,12 @@ export function fatorArea(x, z) {
 export const kMercador = (pts) => (profNivel(pts) - 1) / (PROF_MAX - 1);
 export const custoPack = (k, pts = 0) => Object.fromEntries(Object.entries(PACKS[k].custo).map(([c, n]) => [c, Math.max(1, Math.round(n * (1 - PR.mercador.material * kMercador(pts))))]));
 // quanto o mercador "para" paga pelo pack (sem o mercado cheio, que depende de quem entrega)
-export function precoPack(pack, para, pts = 0) {
+export function precoPack(pack, para, pts = 0, titulo = 0) { // titulo: bônus 'venda' do título em uso (Mercador), soma com o da profissão
   const P = PACKS[pack.k]; if (!P) return 0;
   const d = Math.hypot(para.x - pack.ox, para.z - pack.oz);
   const area = Math.max(fatorArea(pack.ox, pack.oz), fatorArea(para.x, para.z));
   const navio = (pack.nav || 0) >= PR.navioMin ? PR.navio : 1;
-  return Math.round(P.base * fatorDistancia(d) * PR.k * (1 + PR.mercador.preco * kMercador(pts)) * area * PR.extra * navio);
+  return Math.round(P.base * fatorDistancia(d) * PR.k * (1 + PR.mercador.preco * kMercador(pts) + titulo) * area * PR.extra * navio);
 }
 // mercado cheio (Quimera mgPkDm): por mercador e tipo de pack, guardado na conta (p.pkD = { 'npc:k': [n, ms] })
 const mercadoN = (p, chave, agora) => { const e = p.pkD?.[chave]; if (!e) return 0; const s = e[0] - Math.max(0, agora - e[1]) / (PR.mercado.volta * 1000); return s > 0 ? s : 0; };
@@ -273,7 +273,7 @@ export const Transporte = {
       const pk = lista ? lista[i] : p.pack; if (!pk) return;
       if (Math.hypot(n.x - pk.ox, n.z - pk.oz) < PR.perto) return aviso('Esse pack foi feito aqui. Leve pra outro mercador: quanto mais longe, mais paga!');
       { const dono = this.packDaMissao(j, pk.k, n.id); if (dono) return aviso(`Esse pack é da missão: leve até ${this.nomeNpc ? this.nomeNpc(dono) : dono}`); }
-      const k = mercadoK(p, n.id, pk.k, agora), preco = Math.max(1, Math.round(precoPack(pk, n, p.prof.mer) * k * (1 + (this.vantagensDe?.(j).pack || 0)) * (pk.rb ? 1 + GUERRA.roubado : 1))); // vantagem S da Guilda: +5%; roubado: +25%
+      const k = mercadoK(p, n.id, pk.k, agora), preco = Math.max(1, Math.round(precoPack(pk, n, p.prof.mer, bonusTitulo(p).venda || 0) * k * (1 + (this.vantagensDe?.(j).pack || 0)) * (pk.rb ? 1 + GUERRA.roubado : 1))); // vantagem S da Guilda: +5%; roubado: +25%
       if (lista) lista.splice(i, 1); else p.pack = null;
       mercadoConta(p, n.id, pk.k, agora);
       p.ouro = (p.ouro || 0) + preco; this.caixa?.(j, 'pack', preco);

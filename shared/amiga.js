@@ -27,7 +27,7 @@ import { QUADRADOS_PLANTIO, lugarNoQuadrado } from './plantio.js';
 import { diaDiarias, premioDiaria } from './diarias.js';
 import { ARVORES_PLANTIO, ENCOMENDA, TITULOS, PROFISSOES, MINA, PACK_BOT, PACKS, PACK_REGRAS, GUERRA, PACK_TIME, PALETE } from './dados.js'; // poção da Cecília e do Dario pelo preço da Rosa (André 2026-11-16)
 import { etapaAtual, missaoAtual, zonaFechadaEm, motivoLibera, QUEM_LIBERA, SEM_NEVOA } from './historia.js';
-import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, vigorMax, profNivel, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
+import { HABS, barraValida, PONTOS_POR_NIVEL, xpProximo, guardar, guardarQueCabe, contar, tirar, horaDoJogo, ehNoite, liberarPaginas, vigorAgora, vigorMax, profNivel, bonusTitulo, precoVenda, ehEquip, itemValido, reforcoOk, nomeItem as nomeDoItem, pecasGastas, durab as durabilidade, reforcar, reforcoMax, custoReforco, materialReforco, reforcoPrecisa, atributoDoReforco } from './progresso.js';
 import { motivoPeca, motivoTerreno, crescerPlanta, retPeca } from './simulacao.js';
 
 // sorteia sem repetir a última da mesma lista (André 2026-11-15: as respostas prontas pareciam de robô)
@@ -3549,7 +3549,7 @@ export const Amiga = {
     if (T.tipo === 'entregar') { // o pack é dele: preço, mercado, pontos de Mercador e missão contam pra ele
       const n = alvo, pk = p.pack, dp = dono.prog, agora = Date.now();
       if (Math.hypot(n.x - pk.ox, n.z - pk.oz) < PACK_REGRAS.perto) return fim(F.feitoAqui);
-      const k = mercadoK(dp, n.id, pk.k, agora), preco = Math.max(1, Math.round(precoPack(pk, n, dp.prof.mer) * k * (1 + (this.vantagensDe?.(dono).pack || 0))));
+      const k = mercadoK(dp, n.id, pk.k, agora), preco = Math.max(1, Math.round(precoPack(pk, n, dp.prof.mer, bonusTitulo(dp).venda || 0) * k * (1 + (this.vantagensDe?.(dono).pack || 0))));
       p.pack = null; ia.packDe = null; j.progSujo = true;
       mercadoConta(dp, n.id, pk.k, agora);
       dp.ouro = (dp.ouro || 0) + preco; this.caixa?.(dono, 'pack', preco);
@@ -3671,7 +3671,7 @@ export const Amiga = {
       if (this.packDaMissao(dono, pk.k, n.id)) return fim('Esse pack é da sua missão');
       const r = andar(n.x, n.z, T.perto.mercador); if (r !== true) return true;
       const dp = dono.prog, agora = Date.now(), k = mercadoK(dp, n.id, pk.k, agora);
-      const preco = Math.max(1, Math.round(precoPack(pk, n, dp.prof.mer) * k * (1 + (this.vantagensDe?.(dono).pack || 0)) * (pk.rb ? 1 + GUERRA.roubado : 1)));
+      const preco = Math.max(1, Math.round(precoPack(pk, n, dp.prof.mer, bonusTitulo(dp).venda || 0) * k * (1 + (this.vantagensDe?.(dono).pack || 0)) * (pk.rb ? 1 + GUERRA.roubado : 1)));
       mercadoConta(dp, n.id, pk.k, agora);
       const C = dp.cla;
       if (C) { C.cofre = (C.cofre || 0) + preco; this.logCla?.(C, `Pack entregue por ${String(j.nome).split(/[ ,]/)[0]}`, preco); }
