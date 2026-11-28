@@ -1,6 +1,6 @@
 // Recruta protegendo outro recruta conta como time no XP (André 2026-11-24: "contrato 3 nível 1, boto 90 para proteger,
 // eles vão upar na velocidade do capiroto"). Fora do time, o protegido de Nv 1 perto do Nv 90 que mata leva o desconto
-// de time (TIME_XP); sem a ordem de proteger, cada um segue sozinho como antes.
+// de time (TIME_XP); sem a ordem de proteger, quem só estava perto (não bateu) não ganha XP (André 2026-11-28).
 // Uso: node ferramentas/testes/xp-proteger-recruta.mjs
 import { Simulacao, MAPA_CLAREIRA } from '../../shared/index.js';
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };
@@ -20,5 +20,5 @@ const rodada = (protege) => {
 };
 const sem = rodada(false), com = rodada(true);
 ok(sem.bot, 'recrutas são bots (todos os clãs na mesma regra)');
-ok(sem.xp > 0, `sem proteger: o Nv 1 perto da morte ganha XP sozinho (${sem.xp})`);
+ok(sem.xp === 0, `sem proteger e sem time: o Nv 1 só perto (não bateu) não ganha XP (André 2026-11-28) (${sem.xp})`);
 ok(com.xp === 0, `protegido pelo Nv 90: desconto de time, 89 níveis abaixo não ganha XP (${com.xp})`);

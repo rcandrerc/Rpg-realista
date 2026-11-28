@@ -4385,8 +4385,10 @@ export class Simulacao {
       // XP para quem bateu nele ou estava perto (grupo). Time (André 2026-11-05): quem é do time de quem ganhou também ganha
       // XP e drop se está a até TIME.perto metros e lutou nos últimos TIME.combate segundos (parado longe da luta não ganha),
       // e cada um do time que ganhou soma TIME.bonus de XP para todos eles.
-      const ganham = new Set();
-      for (const j of this.jogadores.values()) if (!j.morto && !j.criando && (c.atacantes?.has(j.id) || dist(j, c) < 14)) ganham.add(j);
+      // André 2026-11-28: "se não tiver em time, não deveria ganhar XP". Só quem bateu ganha XP e drop (mais o time abaixo,
+      // com o desconto de nível do TIME_XP); quem só estava a até 14 m conta para a história e os títulos, sem XP nem drop.
+      const ganham = new Set(), perto = [];
+      for (const j of this.jogadores.values()) if (!j.morto && !j.criando) { if (c.atacantes?.has(j.id)) ganham.add(j); else if (dist(j, c) < 14) perto.push(j); }
       for (const j of [...ganham]) for (const k of j.time?.membros || []) {
         const o = this.jogadores.get(k);
         if (o && !o.morto && !o.criando && dist(o, c) < TIME.perto && this.tempo - (o.lutouT ?? -1e9) <= TIME.combate) ganham.add(o);
@@ -4394,6 +4396,8 @@ export class Simulacao {
       // recruta protegendo outro recruta (painel do clã) conta como time no XP (André 2026-11-24: "contrato 3 nível 1, boto
       // 90 para proteger, eles vão upar na velocidade do capiroto"): o protetor e quem ele protege dividem como um time
       // (desconto de quem está muito abaixo e bônus), mesmo fora do time. Vale para todos os clãs.
+      { const g0 = this.grupoXpProteger(new Set([...ganham, ...perto])), gs = new Set([...ganham].map(g0).filter((g) => typeof g === 'string' && g.startsWith('protege:')));
+        for (const j of perto) { const g = g0(j); if (typeof g === 'string' && gs.has(g)) ganham.add(j); } } // protetor/protegido perto de quem bateu: como time
       const grupo = this.grupoXpProteger(ganham);
       const doTime = new Map(), maiorDoTime = new Map(); // time -> quantos dele ganharam / o nível mais alto entre eles
       for (const j of ganham) { const g = grupo(j); if (g) { doTime.set(g, (doTime.get(g) || 0) + 1); maiorDoTime.set(g, Math.max(maiorDoTime.get(g) || 0, j.prog.nivel | 0)); } }
@@ -4406,6 +4410,7 @@ export class Simulacao {
         this.titulosDaVitoria(j, c); // títulos (André 2026-11-12): conta o monstro, boss de mundo e chefe da história
         this.contarHistoria(j, c); // missão principal (André 2026-11-10)
       }
+      for (const j of perto) if (!ganham.has(j)) { this.titulosDaVitoria(j, c); this.contarHistoria(j, c); } // perto sem bater: só história e títulos
       for (const ctx of this.amigosIa) ctx.cacaJuntosAmiga?.(ganham, c); // caçar junto com a Cecília/Dario sobe a amizade (André 2026-11-14)
       c.atacantes = null; c.parado = 0; c.ef = null; c.lento = null; c.vuln = null;
       if (c.sp.missao) this.mobMissaoMorreu(c); // Escolta do Clã: o corpo some e não volta (shared/missao-cla.js)
