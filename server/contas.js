@@ -134,11 +134,11 @@ export class Contas {
   // Nível 1, XP 0, atributos 3 e equipamento do corpo de volta ao set inicial (Comum +0). Mochila, ouro, clã, recrutas,
   // base e skills ficam. Acha a conta pelo nome do herói (sem acento/maiúscula) e só age se houver UMA só com esse nome e
   // ela tiver clã; senão não faz nada e tenta de novo na próxima subida. O progresso de antes fica em 'mundo' (CHAVE).
-  resetarPersonagem(nome = 'luisa', CHAVE = 'reset_filha_2026_11_28') {
+  resetarPersonagem(nomes = ['luiza', 'luisa'], CHAVE = 'reset_filha_2026_11_28') {
     if (this.lerMundo(CHAVE)) return 0;
     const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
     const achadas = this.q.todasContas.all().map((c) => { let prog = null; try { prog = JSON.parse(c.progresso || 'null'); } catch { /* estragado */ } return { c, prog }; })
-      .filter(({ c, prog }) => prog?.cla && norm(this.db.prepare('SELECT nome FROM contas WHERE id = ?').get(c.id)?.nome) === norm(nome));
+      .filter(({ c, prog }) => prog?.cla && nomes.map(norm).includes(norm(this.db.prepare('SELECT nome FROM contas WHERE id = ?').get(c.id)?.nome)));
     if (achadas.length !== 1) { console.log(`Reset da filha: ${achadas.length} conta(s) com esse nome, nada feito`); return 0; }
     const { c, prog } = achadas[0];
     const antes = JSON.stringify(prog);
