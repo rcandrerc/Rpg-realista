@@ -492,7 +492,13 @@ export const Guerra = {
     return true;
   },
   // algum bot da emboscada ainda atrás de j?
-  emboscadaAtiva(j) { return (this.amigosIa || []).some((x) => x.amiga && !x.amiga.morto && x.amiga.ia?.guerra?.emb?.dono === j.id); },
+  // André 2026-11-28: matou todos = acabou (antes o bloqueio de recolher/guardar o carrinho seguia até o tempo). Sem atacante vivo
+  // dentro do prazo (emboscada.dura), a emboscada termina e libera o carrinho/navio.
+  emboscadaAtiva(j) {
+    const t = this.tempo, viva = (this.amigosIa || []).some((x) => { const e = x.amiga && !x.amiga.morto && x.amiga.ia?.guerra?.emb; return e && e.dono === j.id && e.ate > t; });
+    if (!viva) j.embAte = 0;
+    return viva;
+  },
   // brigou com a outra raça ou o veículo v apanhou há menos de GUERRA.montaria s (conserto espera)
   emCombateGuerra(j, v = null) { const t = this.tempo, W = GUERRA.montaria; return t - (j.pvpT ?? -1e9) < W || (v?.danoT != null && t - v.danoT < W); },
   pararColetaGuerra(j) { if (j.coleta) this.pararColeta(j, null); if (j.pesca) this.pararPesca(j, null); },
