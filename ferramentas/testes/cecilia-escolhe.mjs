@@ -1,6 +1,7 @@
 // Cecília (André 2026-11-17): "se eu falar vamos fazer alguma coisa, escolhe aí, ela escolhe... e eu falar bora pra isso aí
 // mesmo" e "tá fazendo o quê? tô indo fazer os imps nível 36. Posso ir com você? Claro, vem. Me dá time. Aí eu aceito".
 // Sem rede (a resposta da IA é simulada). Uso: node ferramentas/testes/cecilia-escolhe.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, DARIO, TIME } from '../../shared/index.js';
 import './_amizade-antiga.mjs'; // o time com a Cecília e o Dario é do jeito antigo (antes do soldado de 2026-11-22)
 const ok = (c, m) => { if (!c) { console.error('FALHOU', m); process.exitCode = 1; } else console.log('ok', m); };

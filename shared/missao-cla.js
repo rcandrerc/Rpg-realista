@@ -8,7 +8,7 @@
 // nele por provoca s (segurar o monstro). Recruta que cai sai sem prêmio; todos caídos ou o tempo acabou: falhou.
 // Chegou: cada recruta de pé ganha CLA.missao.xp do XP do nível dele (não importa quem matou), o cofre ganha ouro e o
 // líder ganha Fragmento de Alma. Igual para todos os clãs: o líder bot abre a escolta dele também (missaoClaNpc).
-import { CLA, TOTENS, TIPOS_INIMIGO, almaDe } from './dados.js';
+import { MISSOES_LIGA, CLA, TOTENS, TIPOS_INIMIGO, almaDe } from './dados.js';
 import { guardar, xpProximo } from './progresso.js';
 import { fundoAgua } from './transporte.js';
 
@@ -35,7 +35,7 @@ export const MissaoCla = {
   esperaMissaoCla(B) { return Math.max(0, (B?.missaoOk || 0) + M_().entre - Date.now()); }, // só a escolta cumprida conta as 6 h (André 2026-11-23: falhou, tenta de novo na hora)
   // o que o painel do clã mostra
   missaoInfo(B) {
-    if (!B) return null;
+    if (!B || !MISSOES_LIGA.escolta) return null; // desligada (André 2026-11-27): o cartão da escolta some do menu do clã
     const M = this.missoesCla?.get(B.k);
     return M ? { ativa: 1, dest: M.dest.nome, x: M.dest.x, z: M.dest.z, emb: M.emb, embs: M_().emboscadas.length, falta: Math.max(0, Math.round(M.ate - this.tempo)), rec: M.rec.size }
       : { ativa: 0, espera: this.esperaMissaoCla(B) };
@@ -48,6 +48,7 @@ export const MissaoCla = {
   },
   // pedido do app (cla { acao: 'missao' }) ou do líder bot
   iniciarMissaoCla(j, aviso, B, ctxs) {
+    if (!MISSOES_LIGA.escolta) return aviso('A Escolta do Clã está desligada por enquanto: as missões vão voltar de um jeito novo'); // André 2026-11-27
     const Mc = M_();
     if (!B) return aviso('Funde a base do clã primeiro: a escolta sai do Baú do Clã');
     this.missoesCla ||= new Map();
@@ -157,6 +158,7 @@ export const MissaoCla = {
   // emboscadas (o líder e os recrutas lutam como sempre); longe de todo mundo, a viagem é contada (como o trabalho fora
   // dos recrutas): cada recruta chega vivo com botChega de chance, e o prêmio é o mesmo do jogador.
   missaoClaNpc(C, L, ctxs) {
+    if (!MISSOES_LIGA.escolta) return; // missões desligadas (André 2026-11-27): o líder bot não abre a escolta
     const Mc = M_(), B = this.basesCla?.['n' + C.id];
     if (!B || !L || L.morto || this.missoesCla?.has(B.k) || this.esperaMissaoCla(B) > 0 || this.baseTravada?.(B)) return;
     const rec = ctxs.map((x) => x.amiga).filter((a) => a && !a.morto);

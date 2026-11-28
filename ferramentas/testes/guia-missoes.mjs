@@ -3,6 +3,7 @@
 // Aqui: o servidor manda ev/k/min/de da etapa da vez, e todo tipo de etapa da história tem guia no app (ou é dos que só
 // usam o "Ir"). Também roda o teste do motor do guia no Godot, se o Godot estiver instalado (GODOT=caminho).
 // Uso: node ferramentas/testes/guia-missoes.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { Simulacao, MAPA_CLAREIRA, HISTORIA } from '../../shared/index.js';

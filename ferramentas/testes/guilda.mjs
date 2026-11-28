@@ -3,6 +3,7 @@
 // pontos cheios + nível liberam a Prova, o elite vermelho aparece no campo da faixa e vencer sobe o rank (com título),
 // a conta guarda tudo (progressoValido) e o dia vira à meia-noite de Brasília.
 // Uso: node ferramentas/testes/guilda.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, GUILDA, TITULOS, progressoValido } from '../../shared/index.js';
 import { ofertasGuilda, premioGuilda, textoContrato } from '../../shared/guilda.js';
 import './_tudo-aberto.mjs';

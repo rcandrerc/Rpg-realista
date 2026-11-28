@@ -7,7 +7,7 @@
 // Estado na conta: prog.guilda = { r: rank (0 = F), pg, d: 'AAAA-MM-DD', of: [{ id, k, n, a }] (ofertas do dia),
 // at: { id: quanto } (pegos), f: [ids recebidos], pv: 1 (Prova aceita), tr: trocas usadas hoje, vt: ms (Voltar à
 // Guilda pronto de novo) }. Vantagens fixas por rank (GUILDA.ranks[].v, Presidente 2026-11-19): vantagensGuilda.
-import { GUILDA, CATALISADOR, ITENS } from './dados.js';
+import { MISSOES_LIGA, GUILDA, CATALISADOR, ITENS } from './dados.js';
 import { xpProximo, NIVEL_MAX, guardar } from './progresso.js';
 import { diaDiarias, fimDoDia } from './diarias.js';
 import { zonaFechadaEm } from './historia.js';
@@ -78,7 +78,7 @@ export function guildaValida(v) {
 }
 
 export const Guilda = {
-  temGuilda(j) { return !!j && !j.bot && (j.prog?.nivel || 0) >= GUILDA.nivel; },
+  temGuilda(j) { return MISSOES_LIGA.guilda && !!j && !j.bot && (j.prog?.nivel || 0) >= GUILDA.nivel; },
   // o estado da guilda da conta (vira o dia sozinho: ofertas novas, os pegos e recebidos de ontem saem)
   guildaDe(j) {
     const p = j.prog, hoje = diaDiarias(this.agoraMs());
@@ -134,6 +134,7 @@ export const Guilda = {
   guilda(id, m) {
     const j = this.jogadores.get(id); if (!j || j.bot || !m) return;
     const aviso = (texto) => this.evento({ t: 'aviso', para: id, texto });
+    if (!MISSOES_LIGA.guilda) return aviso('A Guilda está fechada por enquanto: as missões vão voltar de um jeito novo'); // André 2026-11-27
     if (!this.temGuilda(j)) return aviso(`A Guilda abre no Nv ${GUILDA.nivel}, no Rio Claro`);
     const g = this.guildaDe(j);
     if (m.acao === 'ver') return this.avisarProg(j);

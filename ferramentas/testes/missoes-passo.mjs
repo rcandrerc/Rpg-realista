@@ -2,6 +2,7 @@
 // direto para o craft"). Confere o que a varredura das missões não pega: entregar ao NPC sem ter tudo, minerar ferro sem o
 // nível de Minerador, plantar sem semente, o pack no carrinho e a pesca no mar (barquinho + radar, spot de verdade).
 // Uso: node ferramentas/testes/missoes-passo.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, ITENS, PESCA } from '../../shared/index.js';
 import { etapasDe } from '../../shared/historia.js';
 import { contar, guardar } from '../../shared/progresso.js';

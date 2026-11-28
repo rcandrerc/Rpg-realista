@@ -345,6 +345,9 @@ func _abrir(n: Dictionary, toque: bool) -> void:
 		m.sons.tocar("q_anel_1", -14.0)
 		return
 	if n.funcao == "mural": # mural da Guilda (André 2026-11-18): abre direto a aba Guilda da janela de Missões
+		if not _liga("ligaGuilda"):
+			m.hud.aviso(Idioma.frase("A Guilda está fechada por enquanto: as missões vão voltar de um jeito novo"))
+			return
 		m.menu.abrir("guilda")
 		m.sons.tocar("q_anel_1", -14.0)
 		return
@@ -410,6 +413,8 @@ func _abrir(n: Dictionary, toque: bool) -> void:
 		if not ACOES.has(a):
 			continue
 		var t: String = ACOES[a][0]
+		if (a == "missao" and not _liga("liga")) or (a == "guilda" and not _liga("ligaGuilda")):
+			continue # missões desligadas (André 2026-11-27, MISSOES_LIGA em shared/dados.js)
 		if a == "missao" and str(n.get("missao", "")) != "":
 			t = "Missão: %s" % n.missao
 		elif a == "consertar":
@@ -1083,3 +1088,8 @@ func _sintetizar(n: Dictionary, k: String, da: int) -> void:
 	m.sons.tocar("magia", -6.0)
 	fechar() # André 2026-11-21: sintetizou, fecha; fala a resposta do servidor em aviso
 
+
+# missões desligadas (André 2026-11-27): habilidades.json historia.liga / ligaGuilda (shared/historia.js historiaParaApp)
+func _liga(k: String) -> bool:
+	var hi = m.P.dados.get("historia")
+	return not (hi is Dictionary and hi.get(k, true) == false)
