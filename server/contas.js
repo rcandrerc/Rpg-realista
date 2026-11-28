@@ -6,7 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { CLA, PERSONAGENS, visualValido, buildValida, aparenciaValida, progressoValido, RECOMECO, AMIGA } from '@rpg/shared';
+import { CLA, PERSONAGENS, visualValido, buildValida, aparenciaValida, progressoValido, equipInicial, RECOMECO, AMIGA } from '@rpg/shared';
 
 const DIA = 24 * 3600 * 1000;
 const VALIDADE_SESSAO = 60 * DIA;
@@ -127,6 +127,26 @@ export class Contas {
     try { this.devolverDispensados(); } catch (e) { console.error('Devolver dispensado: falhou', e.message); }
 
     try { this.corrigirRecruta(); } catch (e) { console.error('Corrigir recruta: falhou', e.message); }
+    try { this.resetarPersonagem(); } catch (e) { console.error('Reset da filha: falhou', e.message); }
+  }
+
+  // Reset da personagem da filha do André (2026-11-28: "resetar o nível pra 1 e grindar juntos"): uma vez só, ao subir.
+  // Nível 1, XP 0, atributos 3 e equipamento do corpo de volta ao set inicial (Comum +0). Mochila, ouro, clã, recrutas,
+  // base e skills ficam. Acha a conta pelo nome do herói (sem acento/maiúscula) e só age se houver UMA só com esse nome e
+  // ela tiver clã; senão não faz nada e tenta de novo na próxima subida. O progresso de antes fica em 'mundo' (CHAVE).
+  resetarPersonagem(nome = 'luisa', CHAVE = 'reset_filha_2026_11_28') {
+    if (this.lerMundo(CHAVE)) return 0;
+    const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    const achadas = this.q.todasContas.all().map((c) => { let prog = null; try { prog = JSON.parse(c.progresso || 'null'); } catch { /* estragado */ } return { c, prog }; })
+      .filter(({ c, prog }) => prog?.cla && norm(this.db.prepare('SELECT nome FROM contas WHERE id = ?').get(c.id)?.nome) === norm(nome));
+    if (achadas.length !== 1) { console.log(`Reset da filha: ${achadas.length} conta(s) com esse nome, nada feito`); return 0; }
+    const { c, prog } = achadas[0];
+    const antes = JSON.stringify(prog);
+    prog.nivel = 1; prog.xp = 0; prog.pontos = 0; prog.atr = { for: 3, des: 3, int: 3, vit: 3 }; prog.equip = equipInicial();
+    this.q.progresso.run(JSON.stringify(progressoValido(prog)), c.id);
+    this.gravarMundo(CHAVE, { t: Date.now(), conta: c.id, antes });
+    console.log(`Reset da filha: conta ${c.id} voltou ao Nv 1 com o equipamento inicial (clã, recrutas, mochila e ouro iguais)`);
+    return 1;
   }
 
   // Recomeço do zero (André 2026-11-11: "zera tudo como se a Cecília tivesse começado hoje; eu também, do zero").
