@@ -1,7 +1,7 @@
 // Progressão até o Nv 100 (André 2026-11-10): missões principais em ordem (HISTORIA), zonas fechadas pela névoa
 // (ZONAS) e o que abre por nível (LIBERA_NIVEL). Os dados ficam em shared/dados.js; aqui só as contas, que o servidor
 // (shared/simulacao.js) usa para decidir e o exportador manda para o app (habilidades.json, chave "historia").
-import { HISTORIA, ZONAS, LIBERA_NIVEL, RECURSOS_HISTORIA, MAPA_CLAREIRA, CAPITULOS, CENAS, CHEFES_HISTORIA } from './dados.js';
+import { MISSOES_LIGA, HISTORIA, ZONAS, LIBERA_NIVEL, RECURSOS_HISTORIA, MAPA_CLAREIRA, CAPITULOS, CENAS, CHEFES_HISTORIA } from './dados.js';
 import { LUGARES_MUNDO, TERRAS, dentroDaTerra } from './mundo.js';
 import { REGIOES_POLIGONOS } from './regioes.js';
 
@@ -118,10 +118,11 @@ export const liberado = (p, k) => {
   const i = QUEM_LIBERA[k]; if (i == null) return true;
   const h = histDe(p); if (h.p > i) return true;
   const M = HISTORIA[i];
+  if (!MISSOES_LIGA.historia) return (p?.nivel || 1) >= M.nv; // missões desligadas (André 2026-11-27): abre no nível
   return h.p === i && h.ac === true && M.liberaNaEtapa != null && (h.e || 0) >= M.liberaNaEtapa;
 };
 // a missão atual (a próxima a fazer) ou null (todas feitas)
-export const missaoAtual = (p) => HISTORIA[histDe(p).p] || null;
+export const missaoAtual = (p) => (MISSOES_LIGA.historia ? HISTORIA[histDe(p).p] || null : null); // desligada: ninguém tem missão
 // a etapa da vez (só com a missão aceita) ou null
 export function etapaAtual(p) {
   const h = histDe(p), M = HISTORIA[h.p]; if (!M || !h.ac) return null;
@@ -164,6 +165,7 @@ export const nomeNpcHistoria = (id) => (MAPA_CLAREIRA.npcs.find((n) => n.id === 
 export function textoNevoa(p, k) {
   const i = QUEM_LIBERA[k], M = HISTORIA[i]; if (!M) return '';
   const nome = ZONA_POR_ID[k]?.nome || RECURSOS_HISTORIA[k] || k;
+  if (!MISSOES_LIGA.historia) return `${ZONA_POR_ID[k] ? 'Região fechada' : 'Ainda fechado'}: ${nome}. Libera no nível ${M.nv}`;
   return `${ZONA_POR_ID[k] ? 'Região fechada' : 'Ainda fechado'}: ${nome}. Conclua a missão "${M.nome}" (fale com ${nomeNpcHistoria(M.npc)}, Nv ${M.nv}) para desbloquear`;
 }
 
@@ -206,6 +208,7 @@ export const historiaParaApp = () => ({
     liberaNaEtapa: M.liberaNaEtapa ?? -1, total: totalMissao(M), etapas: etapasDe(M).map((E) => E.txt) })),
   capitulos: CAPITULOS.map((c) => ({ n: c.n, nome: c.nome, nv: c.nv, ato: c.ato, frase: c.frase, diario: c.diario || '', rumores: c.rumores || [] })),
   libera: LIBERA_NIVEL, recursos: RECURSOS_HISTORIA,
+  liga: MISSOES_LIGA.historia, ligaDiarias: MISSOES_LIGA.diarias, ligaGuilda: MISSOES_LIGA.guilda, ligaEscolta: MISSOES_LIGA.escolta, // nevoa.gd: desligada abre pelo nível
   cenas: CENAS, // cenas da história (godot-prototipo/cinematica.gd)
   chefes: CHEFES_HISTORIA, // chefes com nome; humano = o app troca o corpo pelo do herói (online.gd _chefe_historia)
 });

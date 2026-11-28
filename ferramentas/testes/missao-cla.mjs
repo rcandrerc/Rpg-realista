@@ -2,6 +2,7 @@
 // totem mais perto a 300 m ou mais, emboscadas no nível do líder que vão nos recrutas (o líder segura batendo),
 // recruta que cai sai, chegar dá XP aos recrutas de pé, ouro no cofre e alma ao líder.
 // Uso: node ferramentas/testes/missao-cla.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, CLA, contar } from '../../shared/index.js';
 import { acharLugarBase } from '../../shared/base.js';
 import { almaDe } from '../../shared/dados.js';

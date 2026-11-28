@@ -187,3 +187,34 @@ ok(s.rondaT.geada > s.tempo + GUERRA.ronda.entre[0] - 40, 'a próxima ronda da G
   s5.passoEmboscadas(); ok(!b.embQuando, 'carrinho perto do totem (zona segura): sem emboscada');
   GUERRA.emboscada.chance = ch;
 }
+
+// André 2026-11-28: matou todos os atacantes = a emboscada acaba e libera guardar/recolher o carrinho; sem matar,
+// acaba sozinha no prazo (emboscada.dura); o atacante que morre e revive não reabre a emboscada
+{
+  const s6 = new Simulacao(MAPA_CLAREIRA);
+  const f = s6.adicionarJogador('fim', 'Fim', 'ruiva', {}); f.conta = 'c6'; f.prog.nivel = 45; s6.aplicarStatus(f);
+  for (const x of s6.amigosIa) x.amigaEntrar('fim');
+  const v = s6.cacas.find((c) => c.def.id === 'c_v5').def, fx = v.x + 40, fz = v.z;
+  Object.assign(f, { x: fx, z: fz, y: s6.terreno.altura(fx, fz), vy: 0, chao: true });
+  f.prog.carrinho = { ...carrinhoValido({ vida: 2500, vm: 2500 }), lv: 2, comb: 5000, packs: [{ k: 'couro', ox: 0, oz: 0, ra: 'chama' }], chao: null }; f.veiculo = 'carrinho';
+  ok(s6.iniciarEmboscada(f, 'carrinho'), 'fim: emboscada começou');
+  const vs = s6.amigosIa.map((x) => x.amiga).filter((a) => a?.ia?.guerra?.emb?.dono === f.id);
+  ok(vs.length >= 2 && s6.emboscadaAtiva(f), `fim: ${vs.length} atacantes, ativa`);
+  for (const b of vs) { b.vida = 0; s6.morrer(b, f); }
+  ok(vs.every((b) => b.morto && !b.ia.guerra.emb), 'fim: atacante morto sai da emboscada');
+  ok(!s6.emboscadaAtiva(f) && !(f.embAte > s6.tempo), 'fim: matou todos, emboscada acabou');
+  for (const b of vs) { b.morto = false; b.vida = b.vidaMax; }
+  ok(!s6.emboscadaAtiva(f), 'fim: quem revive não reabre');
+  s6.veiculo(f.id, { acao: 'recolher' });
+  ok(f.veiculo !== 'carrinho' || f.prog.carrinho.packs.length === 1, 'fim: recolher não é mais bloqueado pela emboscada');
+  // segurança: o atacante vivo mas fugido/sumido: passou o prazo, acaba
+  const s7 = new Simulacao(MAPA_CLAREIRA);
+  const h = s7.adicionarJogador('prazo', 'Prazo', 'ruiva', {}); h.conta = 'c7'; h.prog.nivel = 45; s7.aplicarStatus(h);
+  for (const x of s7.amigosIa) x.amigaEntrar('prazo');
+  Object.assign(h, { x: fx, z: fz, y: s7.terreno.altura(fx, fz), vy: 0, chao: true });
+  h.prog.carrinho = { ...carrinhoValido({ vida: 2500, vm: 2500 }), lv: 2, comb: 5000, packs: [{ k: 'couro', ox: 0, oz: 0, ra: 'chama' }], chao: null }; h.veiculo = 'carrinho';
+  s7.iniciarEmboscada(h, 'carrinho');
+  ok(s7.emboscadaAtiva(h), 'prazo: ativa no começo');
+  s7.tempo += GUERRA.emboscada.dura + 1;
+  ok(!s7.emboscadaAtiva(h) && !(h.embAte > s7.tempo), 'prazo: sem matar, acaba sozinha em emboscada.dura');
+}

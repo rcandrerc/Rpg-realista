@@ -14,7 +14,7 @@
 //   A amizade é de cada um (j.amizades[conta]); j.amizade é a de quem ela acompanha agora.
 // - L.amiga (o terreno dela): { prog, amizade, pedido } guardado junto com o terreno no banco (server/contas.js).
 // - j.ia: o que ela está fazendo agora { fase, alvo, rota, ate, ... } (não vai para o banco).
-import { DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, NPC_SOLDADO, CLA, CLAS_NPC_ORDENS, LIDERES_CLA, MORAL } from './dados.js';
+import { MISSOES_LIGA, DIARIAS, DUELO, PVP, IA_CONVERSA, DIALOGO, REACOES, COMANDOS_TIME, NPC_SOLDADO, CLA, CLAS_NPC_ORDENS, LIDERES_CLA, MORAL } from './dados.js';
 import { CLAS_NPC, AMIGA as CECILIA_DEF, DARIO as DARIO_DEF } from './dados.js'; // recusa do soldado com o clã (André 2026-11-25)
 import { CEREBRO, NPC_VIDA, NPC_SEM_NEVOA, NPC_CASA_BASE, HEROI, HABILIDADES, CURA, CONSTRUCOES, PLANTAS, HORTA, VILA_LOTES, CASA, ITENS, TIME, MONTARIAS, fasePlanta, COLETA, PESCA, FERRAMENTAS_FAZENDA, TIPOS_INIMIGO, VEICULOS, DROPS } from './dados.js';
 import { noLago, AGUA } from './relevo.js';
@@ -2749,7 +2749,7 @@ export const Amiga = {
       // chat básico (sem IA) com resposta de verdade (André 2026-11-16): nível, onde upar, a missão dele
       case 'nivel': { const S = this.saberAmiga(a, j); fala = `Tô nível ${a.prog.nivel}, de ${S.arma}. E você tá no ${j.prog.nivel}, né?`; break; }
       case 'ondeUpar': { const S = this.saberAmiga(a, j); fala = S.camposDele ? `Pro seu nível: ${S.camposDele.split('; ').slice(0, 2).map((x) => x.replace(/,.*$/, ')')).join(' ou ')}.` : 'Sei não, pergunta na vila!'; break; }
-      case 'missao': { const S = this.saberAmiga(a, j); fala = S.missaoDele ? `Sua missão: ${S.missaoDele}.` : 'Acho que você já fez todas, monstro!'; break; }
+      case 'missao': { const S = this.saberAmiga(a, j); fala = S.missaoDele ? `Sua missão: ${S.missaoDele}.` : !MISSOES_LIGA.historia ? 'Agora não tem missão nenhuma: as missões vão voltar de um jeito novo. Bora caçar!' : 'Acho que você já fez todas, monstro!'; break; }
       case 'missaoDela': fala = this.falaMissaoDelaAmiga(a); break; // André 2026-11-21: a missão e as diárias dela
       case 'ajudarMissao': { // André 2026-11-21: ele se oferece para ajudar na missão dela: ela leva ele até a etapa
         const v = this.ajudaMissaoAmiga(a, j);

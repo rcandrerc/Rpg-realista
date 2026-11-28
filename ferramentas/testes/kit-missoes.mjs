@@ -3,6 +3,7 @@
 // primeiro pack, ouro da primeira compra e do terreno), o primeiro reforço é grátis. Junta: carrinho, barquinho, navio e
 // toda criação nunca vêm de graça; a etapa vira "Corte Lenha: 0/30" e o Ir leva à fonte.
 // Uso: node ferramentas/testes/kit-missoes.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, ITENS, LOJA, precoLoja } from '../../shared/index.js';
 import { etapasDe } from '../../shared/historia.js';
 import { contar, guardar } from '../../shared/progresso.js';

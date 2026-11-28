@@ -3,7 +3,7 @@
 // história (Simulacao.historia chama contarDiaria). Terminou: o jogador toca em "Receber" (ouro + XP); recebendo as 4,
 // ganha o bônus. O estado fica na conta (prog.diarias = { d: 'AAAA-MM-DD', n: { id: quanto }, r: [ids recebidas],
 // b: 1 se já levou o bônus }) e vai para o app junto com o progresso (avisarProg manda "di", o resumo pronto).
-import { DIARIAS, PLANTIO, PESCA, COLETA } from './dados.js';
+import { MISSOES_LIGA, DIARIAS, PLANTIO, PESCA, COLETA } from './dados.js';
 import { xpProximo, NIVEL_MAX } from './progresso.js';
 import { QUADRADOS_PLANTIO } from './plantio.js';
 import { zonaFechadaEm } from './historia.js';
@@ -40,7 +40,9 @@ export const Diarias = {
     if (p.diarias?.d !== hoje) { p.diarias = { d: hoje, n: {}, r: [] }; j.progSujo = true; }
     return p.diarias;
   },
-  temDiarias(j) { return !!j && (!j.bot || !!j.semTeto || !!j.tarefas) && (j.prog?.nivel || 0) >= DIARIAS.nivel; }, // semTeto: Cecília e Dario também (André 2026-11-16)
+  temDiarias(j) { return (MISSOES_LIGA.diarias || !!j?.bot) && !!j && (!j.bot || !!j.semTeto || !!j.tarefas) && (j.prog?.nivel || 0) >= DIARIAS.nivel; }, // semTeto: Cecília e Dario também (André 2026-11-16)
+  // missões desligadas (André 2026-11-27): o jogador não vê as Diárias, mas os bots seguem plantando árvores, pescando e
+  // cortando como antes ("grindava um pouco, cuidava um pouco da plantação"): é a rotina deles, não missão
   // algo aconteceu (o mesmo ev/d da história): conta nas diárias que casam
   contarDiaria(j, ev, d = {}) {
     if (!this.temDiarias(j)) return;

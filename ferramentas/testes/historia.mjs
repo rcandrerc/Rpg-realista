@@ -1,6 +1,7 @@
 // Teste da história v2 (André 2026-11-11, "Aethra: a Crônica da Névoa"): o Ato I inteiro (capítulos 1 a 5) feito do
 // começo ao fim por um herói novo, as etapas, os chefes com nome, as pistas, a noite, o barquinho, os presentes, os
 // cartões de capítulo, os rumores e a conta da história antiga migrando. Uso: node ferramentas/testes/historia.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, CAPITULOS, CHEFES_HISTORIA, CACA, ITENS, CENAS, xpProximo } from '../../shared/index.js';
 import { TOTENS, TUNEIS_MUNDO, VEICULOS } from '../../shared/dados.js';
 import { noTunel } from '../../shared/caverna.js';
