@@ -5,7 +5,9 @@ import { dentroDoMapa, limitarAoMapa, raioNaDirecao } from './mapa.js';
 import { HABS, ATRIBUTOS, XP_INIMIGO, NIVEL_MAX, PONTOS_POR_NIVEL, BARRAS, barraValida, xpProximo, calcularStatus, habNoNivel, progressoValido, passivasDe, usosParaSubir, SKILL_MAX, NIVEL_SEM_TOMO, guardar, guardarQueCabe, moverQtd, pilhasIguais, nomeItem, precoVenda, ehEquip, profNivel, profBonus, mercador, chanceRaridade, vigorAgora, vigorMax, gastarVigor, ganharVigor, horaDoJogo, ehNoite, camaVigorEm, contar, tirar, xpDoInimigo, liberarPaginas, devolverPaginas, danoMonstroNivel, tetoMonstroNivel, golpeHeroiNivel, reducaoContra, itemValido, penalidadeMorte, consertarTudo, consertarPecas, reforcar, reforcoOk, textoReforcoPrecisa, organizar, filtroValido, filtrado, bonusTitulo, bonusTituloProf, titulosNovos, fatorDropNivel, desgasteGolpe } from './progresso.js';
 import { CLA, LUGARES, ORCAMENTO, A, DURACAO, ARMA, BASICO, BASICO_MAGIA, CURA, curaDe, ESCALADA, PARADO_PAREDE, SUBIDA, HABILIDADES, BUILD_PADRAO, buildValida, HEROI, MOVIMENTO, MISSOES, MONTARIAS, aparenciaValida, visualValido, nomeValido, TIPOS_INIMIGO, COMBATE_INIMIGO, PERSONAGENS, PERSONAGEM_PADRAO, ITENS, LOJA, LOJA_DISTANCIA, LOJA_MAX, DROPS, ROMANO, MOCHILA, MOCHILA_PAGINAS, PAGINA_PRECO, ESTAMINA, PROFISSOES, MERCADOR, COLETA, COLETA_DISTANCIA, VEIO_RAIO, TAMANHO_VEIO, RECEITAS, OFICINA, OFICINA_DISTANCIA, RARIDADE_CRIAR, RESET_BUILD, TREINO, NIVEL_INIMIGO, statusInimigo, LOTE, CONSTRUCOES, PLANTAS, HORTA, fasePlanta, VOLTA_VILA, RECEITA_ESTACAO, REGEN, VILA_LOTES, VILAS_TERRENO, vilaEm, chaoDaVila, LOTES_ANTIGOS, precoTerreno, maxPecasTerreno, TROCA, CASA, FERRAMENTAS_FAZENDA, BAU, FORNALHA, CRIAR_OBRA, tempoCriar, AMIGOS, TIME, TIME_XP, fatorXpTime, CHAT, CAVERNA, POCAO_RECARGA, DIA, CAMA, REFORCO, VIGOR, CATALISADOR, RARIDADES, PROF_MAX, FOGAO, bauLugares, tamanhoBauCla, PESCA, NOME, TOTENS, taxaTotem, totemPerto, totemMaisPerto, naAreaSegura, TITULOS, nomeReservado, avisoNomeReservado, patenteDe, pontosGuerra } from './dados.js';
 import { TUNEL, TUNEIS, noTunel, dentroDaCaverna } from './caverna.js';
-import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel } from './relevo.js';
+import { noLago, relevo, AGUA, MERGULHO_MAX, LAGOS, marNadavel, gradeDoMundo, MAR_BORDA } from './relevo.js';
+// fora da grade do mundo (longe da borda dela, como o marNadavel): mar sem fim, só para o jogador (André 2026-11-28, Bento)
+const foraDaGrade = (x, z) => { const G = gradeDoMundo(); if (!G) return false; const fx = (x - G.x0) / G.passo, fz = (z - G.z0) / G.passo, b = MAR_BORDA / G.passo; return fx < b || fz < b || fx > G.nx - 1 - b || fz > G.nz - 1 - b; };
 import { Transporte, carrinhoNovo, topoCarrinho, lugarDoVeiculo } from './transporte.js'; // FASE 1: packs e transportes do Quimera (André 2026-11-09)
 import { MISSOES_LIGA, PACK_REGRAS, AMIGA, AMIGOS_VIRTUAIS, CONTA_TESTE, npcNoMundo, IA_CONVERSA, LIDERES_CLA, COMBATE_TESTE } from './dados.js';
 import { HISTORIA, HISTORIA_PREMIO, LIBERA_NIVEL, CHEFES_HISTORIA, CAPITULOS, CENAS, VEICULOS } from './dados.js';
@@ -4521,6 +4523,10 @@ export class Simulacao {
       const h = T.altura(x, z, j.y); if (h > lim) return false;
       // no veículo (André 2026-11-21, navios no meio do continente): o barco não sai da água, o carrinho não entra nela
       if (j.veiculo && !lugarDoVeiculo(j.veiculo, x, z)) return false;
+      // bot não sai da grade do mundo (André 2026-11-28: o Bento remou/nadou até z -1980, 1440 m além da borda, z -540):
+      // fora dela o noLago devolve um mar sem fim e nada segurava. Na beirada ele fica "bloqueado" e desvia, desce ou
+      // guarda o barco como em qualquer parede (barcoAmiga, paredeAmiga)
+      if (j.bot && foraDaGrade(x, z) && !foraDaGrade(j.x, j.z)) return false;
       j.x = x; j.z = z;
       if (j.chao && j.vy <= 0) { if (h >= j.y - 0.4) j.y = h; else j.chao = false; } // desce a pedra andando ou cai da beirada
       return true;
