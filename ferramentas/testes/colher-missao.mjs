@@ -2,6 +2,7 @@
 // ele colheu já na etapa de regar e a etapa "Colha o que plantou 0/6" nunca andava (não sobrava planta). Agora o que
 // colheu antes conta, e terreno sem planta fecha a etapa. E os botões de teste de missão (só a conta do André).
 // Uso: node ferramentas/testes/colher-missao.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, contar } from '../../shared/index.js';
 import { etapasDe, histValida } from '../../shared/historia.js';
 import { CONTA_TESTE } from '../../shared/dados.js';

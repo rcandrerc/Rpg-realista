@@ -1,6 +1,7 @@
 // Horta da missão (André 2026-11-14: "coleta instantânea somente a qtd suficiente pra fazer a missão pra o cara não
 // ficar esperando um dia"). Planta de legume que a missão usa fica pronta ao plantar, só até a cota da missão; o resto,
 // a horta fora da missão e o replantio depois de vender crescem no tempo normal. Uso: node ferramentas/testes/horta-missao.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, PLANTAS, HORTA, contar } from '../../shared/index.js';
 import { plantasDaMissao } from '../../shared/kit.js';
 import { etapasDe, histValida } from '../../shared/historia.js';

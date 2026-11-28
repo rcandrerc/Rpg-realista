@@ -2,6 +2,7 @@
 // A IA pode mandar a Cecília/Dario caçar sozinhos num campo, voltar para a vila, e a ficha leva o jogo de verdade
 // (campos, chefes, loja, missão dele) para ela não inventar. Sem chave: testa o jogo, não a IA.
 // Uso: node ferramentas/testes/amigo-comandos.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, DARIO, LOJA, precoLoja } from '../../shared/index.js';
 import { register } from 'node:module';
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(s, c, n) { return s === '@rpg/shared' ? { url: ${JSON.stringify(new URL('../../shared/index.js', import.meta.url).href)}, shortCircuit: true } : n(s, c); }`));

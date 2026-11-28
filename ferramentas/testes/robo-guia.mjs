@@ -3,6 +3,7 @@
 // o texto pede, cria, colhe, fala. Falha se: a etapa ou o andamento voltam para trás; o guia pede de novo a mesma coisa
 // sem andar (vai-e-volta); o texto fica vazio; a missão não termina; a etapa com lugar fica sem "Ir".
 // Uso: node ferramentas/testes/robo-guia.mjs [id da missão]
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, HISTORIA, ITENS, RECEITAS, PLANTAS, LOJA } from '../../shared/index.js';
 import { guardar, contar } from '../../shared/progresso.js';
 import { etapasDe, totalEtapa } from '../../shared/historia.js';

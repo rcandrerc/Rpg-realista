@@ -2,6 +2,7 @@
 // o texto dos NPCs para que cada solicitação esteja dentro de um contexto, de uma história"). Trava: toda missão tem o
 // lembra (o porquê, curto); voltar ao NPC no meio da missão traz o lembra e o que falta, em vez de só a ordem; texto
 // curto (André: textos do jogo super curtos); o lembra tem inglês. Uso: node ferramentas/testes/missao-lembra.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { readFileSync } from 'node:fs';
 import { Simulacao, MAPA_CLAREIRA, HISTORIA } from '../../shared/index.js';
 import { guardar } from '../../shared/progresso.js';

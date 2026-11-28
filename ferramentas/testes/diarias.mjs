@@ -2,6 +2,7 @@
 // cortar/minerar), "Receber" paga ouro + XP uma vez só, as 4 dão o bônus, o dia vira à meia-noite de Brasília, a conta
 // guarda (progressoValido), o "Ir" de cada uma leva a um lugar, e a missão da Rosa "Tarefas do dia" ensina a aba.
 // Uso: node ferramentas/testes/diarias.mjs
+import './_missoes-ligadas.mjs'; // missões desligadas no jogo (André 2026-11-27): o motor delas segue testado ligado
 import { Simulacao, MAPA_CLAREIRA, DIARIAS, HISTORIA, PLANTIO, QUADRADOS_PLANTIO, lugarNoQuadrado, progressoValido, contar } from '../../shared/index.js';
 import { diaDiarias, fimDoDia, premioDiaria } from '../../shared/diarias.js';
 import { histValida } from '../../shared/historia.js';
