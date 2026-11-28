@@ -17,7 +17,7 @@ import { ESTRADAS_MUNDO } from './mundo.js';
 import { VILAS_MUNDO } from './dados.js';
 import { aguaRegador, pertoDeAgua, distRet, crescerPlanta, retPeca, semParede } from './simulacao.js'; // fazenda e cama (etapa 6); só usadas na hora, depois que tudo carregou
 import { PESCA, PLANTAS, HORTA, LOTE, fasePlanta } from './dados.js';
-import { horaDoJogo, ehNoite, HABS, BARRAS, cabeNaBarra } from './progresso.js';
+import { horaDoJogo, ehNoite, HABS, BARRAS, cabeNaBarra, ANDAR_ATIRANDO } from './progresso.js';
 
 export const LEVE = {
   envio: 0.5, // s entre as fotos para a página
@@ -182,7 +182,9 @@ export const Leve = {
     const j = this.jogadores.get(id); if (!j || !j.leve || !HABS[k]) return;
     this.leveParar(id, null);
     const e = this.alvoLeve(j) || this.maisPerto(j, 30), d = j.leveJoy ? [j.leveJoy.mx, j.leveJoy.mz] : [Math.sin(j.ry || 0), Math.cos(j.ry || 0)];
+    const seq = j.acaoSeq;
     this.usarHabQ(id, { id: k, dx: d[0], dz: d[1], ...(e && Number.isInteger(e.v) ? { v: e.v, b: true } : {}) });
+    if (HABS[k].tipo === 'basicoMagia' && j.acao && j.acaoSeq !== seq) j.acao.livre = true; // o tiro do cajado anda junto (passoLeve)
   },
   leveParar(id, texto = 'Parou') {
     const j = this.jogadores.get(id); if (!j) return;
@@ -196,6 +198,13 @@ export const Leve = {
   // boiando, na braçada (AGUA.nado, mais lento sem fôlego). Só no leve: o jogo 3D é do irmão do André
   passoLeve(j, dt) {
     this.passoLeve0(j, dt);
+    // tiro do cajado andando (varredura das skills, André 2026-11-27: "não consigo usar o ataque básico e andar ao mesmo
+    // tempo"): no jogo o tiro básico do cajado é livre (main.gd acao.livre) e o herói anda a ANDAR_ATIRANDO; o passoJogador
+    // para tudo enquanto trava, então o leve dá esse passo aqui, sem virar (ele segue olhando o alvo)
+    if (j.trava > 0 && j.acao?.livre && j.leveJoy && !j.morto && !j.canal && !j.arrancada) {
+      const e = j.entrada, v = (e.correr ? HEROI.correr : HEROI.andar) * ANDAR_ATIRANDO;
+      if (Math.hypot(e.mx, e.mz) > 0.15) this.mover(j, e.mx * v * dt, e.mz * v * dt);
+    }
     if (j.veiculo || j.morto || !noLago(j.x, j.z)) return;
     const a = AGUA.nivel - this.terreno.altura(j.x, j.z, j.y); if (!(a > 0.2)) return;
     if (j.montado) { j.montado = null; this.evento({ t: 'aviso', para: j.id, texto: 'Você desceu do lobo na água' }); }
@@ -330,6 +339,10 @@ export const Leve = {
     else if (e.t === 'proj') { const v = e.vel || 16, n = Math.hypot(e.dx, e.dz) || 1; f = ['p', r1(e.x), r1(e.z), r1((e.dx / n) * v), r1((e.dz / n) * v), r1(e.vida || 2.2), e.cor ?? 0xffaa44, e.id]; }
     else if (e.t === 'projFim') f = ['x', r1(e.x), r1(e.z), e.id, r1(e.explosao || 0)]; // fim do projétil e.id (a página para a bolinha ali)
     else if (e.t === 'esquiva') { const o = pos(e.id); if (o) f = ['e', r1(o.x), r1(o.z)]; }
+    // efeitos simples de cada skill (André 2026-11-27: "qd usar raio sair um raio... efeito a todas as skills, sem exagero")
+    else if (e.t === 'cadeia') f = ['r', r1(e.x), r1(e.z), r1(e.x0), r1(e.z0)]; // Raio em Cadeia: o risco de um bicho ao outro
+    else if (e.t === 'teleporte') f = ['t', r1(e.x), r1(e.z), r1(e.x0), r1(e.z0)]; // Salto Arcano: some num ponto, aparece no outro
+    else if (e.t === 'escudo') { const o = pos(e.id); if (o) f = ['a', r1(o.x), r1(o.z), 1.3, 'escudo']; } // Escudo Arcano: bolha azul
     return f && Math.hypot(f[1] - j.x, f[2] - j.z) <= LEVE.fxR ? f : null;
   },
   leveEvento(e) {
@@ -565,7 +578,7 @@ export const Leve = {
     const m = [];
     for (const e of this.inimigos) {
       if (e.morto || Math.hypot(e.x - j.x, e.z - j.z) > LEVE.bichos) continue;
-      m.push([r1(e.x), r1(e.z), e.nivel | 0, Math.round((e.vida / (e.vidaMax || 1)) * 100), e.id, e.nome || '']);
+      m.push([r1(e.x), r1(e.z), e.nivel | 0, Math.round((e.vida / (e.vidaMax || 1)) * 100), e.id, e.nome || '', e.parado > this.tempo ? (e.ef === 'congelado' ? 'g' : 'a') : e.lento?.ate > this.tempo ? 'l' : 0]); // [6] g congelado (branco), a atordoado, l lento
       if (m.length >= LEVE.max) break;
     }
     return {
