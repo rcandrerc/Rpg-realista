@@ -165,7 +165,8 @@ export const nomeNpcHistoria = (id) => (MAPA_CLAREIRA.npcs.find((n) => n.id === 
 export function textoNevoa(p, k) {
   const i = QUEM_LIBERA[k], M = HISTORIA[i]; if (!M) return '';
   const nome = ZONA_POR_ID[k]?.nome || RECURSOS_HISTORIA[k] || k;
-  if (!MISSOES_LIGA.historia) return `${ZONA_POR_ID[k] ? 'Região fechada' : 'Ainda fechado'}: ${nome}. Libera no nível ${M.nv}`;
+  // sem missões (André 2026-11-28: "tinha que aparecer... chegue no nível 80 pra liberar")
+  if (!MISSOES_LIGA.historia) return `${ZONA_POR_ID[k] ? 'Região fechada' : 'Ainda fechado'}: ${nome}. Chegue no nível ${M.nv} para liberar`;
   return `${ZONA_POR_ID[k] ? 'Região fechada' : 'Ainda fechado'}: ${nome}. Conclua a missão "${M.nome}" (fale com ${nomeNpcHistoria(M.npc)}, Nv ${M.nv}) para desbloquear`;
 }
 

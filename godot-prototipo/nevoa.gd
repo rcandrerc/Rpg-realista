@@ -134,6 +134,8 @@ func texto(k: String) -> String:
 		return ""
 	var M: Dictionary = H.missoes[int(quem_libera[k])]
 	var Z := zona(k)
+	if H.get("liga", true) == false: # missões desligadas (André 2026-11-28: "chegue no nível 80 pra liberar")
+		return "%s: %s. Chegue no nível %d para liberar" % ["Região fechada" if not Z.is_empty() else "Ainda fechado", Z.nome if not Z.is_empty() else str(H.get("recursos", {}).get(k, k)), int(M.nv)]
 	return "%s: %s. Conclua a missão \"%s\" (fale com %s, Nv %d) para desbloquear" % ["Região fechada" if not Z.is_empty() else "Ainda fechado", Z.nome if not Z.is_empty() else str(H.get("recursos", {}).get(k, k)), M.nome, str(M.get("npcNome", M.npc)), int(M.nv)]
 
 # andar.gd: o herói bateu na névoa em (x, z). Avisa qual missão abre (no máximo a cada 4 s)
