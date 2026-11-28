@@ -9,6 +9,7 @@ import colyseus from 'colyseus';
 import wsTransport from '@colyseus/ws-transport';
 import { Simulacao, MAPA_CLAREIRA, GOOGLE_CLIENT_ID, retTerreno, LOTES_ANTIGOS, AMIGOS, CHAT, AMIGOS_VIRTUAIS, RIVAIS, npcNoMundo, xpOfflineNpc, nomeValido, REINICIO, Leilao, LEILAO, LEILAO_BOT, TIPOS_LEILAO, anuncioParaApp, nomeItem, ehEquip, RARIDADES, estadoTomo, COR_TOMO, CAIXA, lancarCaixa, resumoCaixa, LEVE, moralAgora } from '@rpg/shared';
 import { Contas, verificadorGoogle, roboCel, roboCarga, ROBO } from './contas.js';
+import { Medidor } from './medidor.js'; // medidor de grind dos jogadores (André 2026-11-28)
 import { Visao } from './visao.js';
 import { Push } from './push.js'; // avisos no celular do painel do clã (André 2026-11-24)
 import { gerarCopia, limparSobrasCopia, chaveAssinaturaCopia, CHAVE_COPIA } from './copia-contas.js';
@@ -31,6 +32,11 @@ const LIMITE = { porSeg: 90, max: 150, custo: { leveIr: 60, leveIrRecurso: 60, l
 const ROBO_NAO = new Set(['troca', 'chat', 'amigo', 'time', 'amiga', 'chaveIa', 'trocarNome', 'lote', 'construir', 'desmontar', 'nivelTeste', 'verEquip', 'duelo', 'comando', 'pvp']);
 const carga = { ms: 0, pico: 0, silencioMs: 0, engasgos: 0, picoPing: 0, picoPingT: 0 }; // tempo de cada passo da sala (média e pico) e o medidor de engasgo, aparecem em /saude
 const salas = new Set(); // salas abertas (para tirar da sala quem apagou a conta)
+// medidor de grind dos jogadores (André 2026-11-28: "mapeie aí o tempo que eu vou gastar de grind em cada nível"; "Quero que
+// meça Yukimei e quero que meça Luísa"): só lê, a cada segundo, o estado do herói de cada conta de gente e soma o tempo por
+// nível (server/medidor.js). Nada muda no jogo. Os números saem só com o crachá, no /npcs.json (jogadores).
+const medidor = new Medidor(path.resolve(process.env.DADOS || 'dados', 'medidor-jogadores.json'));
+setInterval(() => { try { medidor.passo([...salas].map((s) => s.sim)); } catch (e) { console.error('Medidor: o passo falhou', e.message); } }, 1000).unref?.();
 // a conta já está jogando (ligada agora) em alguma sala, por outro aparelho (outra sessão de login: cada aparelho tem a
 // sua). O próprio aparelho com um socket velho que o servidor ainda não viu cair não conta: esse sai como sempre saiu
 const contaLigadaEmOutro = (id, sessao) => [...salas].some((s) => s.clients.some((c) => c.auth?.id === id && !c.userData?.painel && c.userData?.sessao !== sessao)); // o painel do clã não é "outro aparelho"
@@ -39,7 +45,7 @@ const heroiDe = (contaId) => { for (const s of salas) for (const j of s.sim.joga
 // painel do clã (página leve, André 2026-11-24): ver no máximo a cada 2 s e ordem no máximo a cada 0,5 s por página
 const PAINEL = { verMs: 2000, ordemMs: 500, volta: 20 };
 // modo leve: os avisos do herói que a página usa (o resto do jogo, como o 'prog' inteiro, não vai: pesa no celular fraco)
-const LEVE_EVENTOS = new Set(['aviso', 'leilao', 'bau', 'compra', 'leveRota', 'chat', 'chatHist', 'fabricando', 'pack', 'veiculo', 'vila', 'coleta', 'coletou', 'fala', 'diaria_ir', 'time', 'duelo', 'pvp', 'troca', 'amigos', 'amigo', 'pesca', 'colheu', 'dormiu', 'regador']); // pesca..regador: etapa 6 (pescar, fazenda, cama) // time..amigo: aba Gente e PvP (etapa 5) // fala e diaria_ir: aba Missões do jogo leve (2026-11-26)
+const LEVE_EVENTOS = new Set(['aviso', 'leilao', 'bau', 'compra', 'leveRota', 'chat', 'chatHist', 'fabricando', 'pack', 'veiculo', 'vila', 'coleta', 'coletou', 'fala', 'diaria_ir', 'time', 'duelo', 'pvp', 'troca', 'amigos', 'amigo', 'pesca', 'colheu', 'dormiu', 'regador', 'forno', 'jantarInfo', 'jantarSentar']); // pesca..regador: etapa 6 (pescar, fazenda, cama) // time..amigo: aba Gente e PvP (etapa 5) // fala e diaria_ir: aba Missões do jogo leve (2026-11-26)
 // '__proto__', 'constructor' e 'prototype' como texto ou chave numa mensagem do cliente: nunca é dado de jogo e serve para
 // mexer no Object.prototype (auditoria 2026-11-13). A mensagem inteira é descartada.
 const PROIBIDO = new Set(['__proto__', 'constructor', 'prototype']);
@@ -143,7 +149,7 @@ class SalaClareira extends Room {
     // (15 s do Colyseus). Celular fraco montando o mundo atrás da capa pode passar disso; 45 s não muda nada para quem entra rápido.
     this.setSeatReservationTime(45);
     this.sim = new Simulacao(MAPA_CLAREIRA);
-    this.sim.aoCaixa = (l) => { lancarCaixa(livroCaixa, l); caixaSujo = true; }; // livro-caixa: todas as salas no mesmo livro
+    this.sim.aoCaixa = (l) => { lancarCaixa(livroCaixa, l); caixaSujo = true; medidor.caixa(l); }; // livro-caixa: todas as salas no mesmo livro (e os abates e reforços no medidor)
     this.visao = new Visao((id) => this.sim.coletaveis.get(id)); // veios e árvores: só os de perto (onde está cada um); cada app Godot novo recebe só o que está perto do herói dele (server/visao.js)
     // Vila dos Lotes: dono, peças e horta guardados no servidor; a compra confere no banco (vale entre salas)
     if (contas) {
@@ -220,13 +226,15 @@ class SalaClareira extends Room {
     this.ouvir('guilda', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12 && (m.id == null || (typeof m.id === 'string' && m.id.length < 8))) this.sim.guilda(c.sessionId, { acao: m.acao, id: m.id }); }); // Guilda dos Aventureiros (mural e aba Guilda)
     // clã e recrutas (André 2026-11-22, shared/cla.js): fundar, recrutar, dispensar, cofre
     this.ouvir('painel', (c, m) => this.pedidoPainel(c, m)); // painel do clã (página leve, André 2026-11-24)
-    this.ouvir('cla', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) this.sim.cla(c.sessionId, { acao: m.acao, nome: typeof m.nome === 'string' ? m.nome.slice(0, 40) : null, tier: typeof m.tier === 'string' ? m.tier.slice(0, 12) : null, id: typeof m.id === 'string' ? m.id.slice(0, 20) : null, ouro: Number(m.ouro) || 0, ...(Number.isFinite(+m.x) && Number.isFinite(+m.z) && m.x != null && m.z != null ? { x: +m.x, z: +m.z } : {}), mudar: m.mudar === true, ...(Number.isInteger(+m.esc) && +m.esc >= 0 && +m.esc < 10 ? { esc: +m.esc } : {}) /* o candidato escolhido (André 2026-11-24: sem isso o servidor sorteava outro recruta: "Flora Brasa virou Bento Fogo") */, fn: m.fn && typeof m.fn === 'object' ? { k: String(m.fn.k || '').slice(0, 12), r: String(m.fn.r || '').slice(0, 12), p: String(m.fn.p || '').slice(0, 20), s: String(m.fn.s || '').slice(0, 16) } : null }); });
+    this.ouvir('cla', (c, m) => { if (m && typeof m.acao === 'string' && m.acao.length < 12) this.sim.cla(c.sessionId, { acao: m.acao, nome: typeof m.nome === 'string' ? m.nome.slice(0, 40) : null, tier: typeof m.tier === 'string' ? m.tier.slice(0, 12) : null, id: typeof m.id === 'string' ? m.id.slice(0, 20) : null, ouro: Number(m.ouro) || 0, ...(Number.isFinite(+m.x) && Number.isFinite(+m.z) && m.x != null && m.z != null ? { x: +m.x, z: +m.z } : {}), mudar: m.mudar === true, ...(Number.isInteger(+m.esc) && +m.esc >= 0 && +m.esc < 10 ? { esc: +m.esc } : {}) /* o candidato escolhido (André 2026-11-24: sem isso o servidor sorteava outro recruta: "Flora Brasa virou Bento Fogo") */, fn: m.fn && typeof m.fn === 'object' ? { k: String(m.fn.k || '').slice(0, 12), r: String(m.fn.r || '').slice(0, 12), p: String(m.fn.p || '').slice(0, 20), s: String(m.fn.s || '').slice(0, 16) } : null, ...(m.acao === 'jantar' ? { sub: String(m.sub || '').slice(0, 12), ids: Array.isArray(m.ids) ? m.ids.slice(0, 10).map((x) => String(x).slice(0, 20)) : [], i: Number(m.i) | 0, n: Number(m.n) | 0, s: Number(m.s) | 0 } : {}) /* jantar do clã (shared/jantar.js jantarAcao): sem isso o sub se perdia e a mesa não respondia */ }); });
     this.ouvir('item', (c, m) => this.sim.item(c.sessionId, m)); // mochila: equipar, tirar, usar, comprar, vender
     // modo leve (André 2026-11-25, shared/leve.js): a aba Jogar do painel manda o destino e o servidor anda o herói
     this.ouvir('leveIrRecurso', (c, m) => { if (c.userData?.leve && m && typeof m.t === 'string' && m.t.length < 12) this.sim.leveIrRecurso(c.sessionId, { t: m.t }); }); // Recursos: o mais perto não esgotado
     this.ouvir('leveColetar', (c, m) => { if (c.userData?.leve && m && typeof m.no === 'string' && m.no.length < 8) this.sim.leveColetar(c.sessionId, { no: m.no, parar: m.parar === true }); }); // Minerar/Cortar/Pegar no modo leve
     this.ouvir('leveIr', (c, m) => { if (c.userData?.leve && m && typeof m === 'object') this.sim.leveIr(c.sessionId, { x: m.x, z: m.z, nome: m.nome, ...(typeof m.alvo === 'string' && /^e\d{1,9}$/.test(m.alvo) ? { alvo: m.alvo } : {}) }); });
     this.ouvir('leveHab', (c, k) => { if (c.userData?.leve && typeof k === 'string' && k.length < 32) this.sim.leveHab(c.sessionId, k); }); // golpes do leve = as skills do jogo (habQ)
+    this.ouvir('leveMirar', (c, id) => { if (c.userData?.leve && (id == null || (typeof id === 'string' && id.length < 16))) this.sim.leveMirar(c.sessionId, id); }); // Trocar alvo do jogo
+    this.ouvir('leveDisparada', (c, on) => { if (c.userData?.leve) this.sim.leveDisparada(c.sessionId, on === true); }); // botão Disparada do jogo
     this.ouvir('leveMover', (c, m) => { if (c.userData?.leve && m && typeof m === 'object') this.sim.leveMover(c.sessionId, { mx: m.mx, mz: m.mz }); });
     this.ouvir('leveParar', (c) => { if (c.userData?.leve) this.sim.leveParar(c.sessionId); });
     this.ouvir('leveFazenda', (c, m) => { if (c.userData?.leve) { c.userData.leveFz = m?.ver !== false; c.userData.leveFzTxt = ''; } }); // aba Fazenda do jogo leve (etapa 6): só com a aba aberta
@@ -1013,7 +1021,7 @@ app.get('/saude', (_req, res) => {
   const A = saudeAnterior;
   // correcoes = "corrigir" mandados (rollback), silencioMaxMs = maior tempo sem posição de um celular, engasgos = silêncios
   // de mais de 1 s; todos da última janela fechada mais a atual (1 a 2 min)
-  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +Math.max(carga.pico, A.pico).toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes: A.correcoes + agora, silencioMaxMs: Math.max(carga.silencioMs, A.silencioMs), engasgos: A.engasgos + carga.engasgos, relogio: A.relogio, janelaS: SAUDE_JANELA / 1000, reserva: reserva.estado });
+  res.json({ ok: true, contas: !!contas, ligadoMin: Math.round(process.uptime() / 60), salas: salas.size, jogadores, tickMs: +carga.ms.toFixed(2), tickPicoMs: +Math.max(carga.pico, A.pico).toFixed(1), memMb: Math.round(process.memoryUsage().rss / 1048576), correcoes: A.correcoes + agora, silencioMaxMs: Math.max(carga.silencioMs, A.silencioMs), engasgos: A.engasgos + carga.engasgos, relogio: A.relogio, janelaS: SAUDE_JANELA / 1000, reserva: reserva.estado, medidor: medidor.saude() }); // medidor: só quantas contas são medidas
 });
 // Reinício com aviso na tela (André 2026-11-12): faixa "o servidor reinicia em 1 minuto" e depois a contagem grande de
 // REINICIO.contagem s (godot-prototipo/reinicio.gd). O servidor manda {t:'reinicio', s} a cada 10 s (quem entra no meio também vê)
@@ -1027,6 +1035,7 @@ function reiniciarComAviso(motivo, segundos = REINICIO.aviso) {
     const fim = Date.now() + (alguemOnline() ? segundos * 1000 : 0);
     const sair = () => {
       for (const s of salas) { try { s.salvarProgressos(); } catch (e) { console.error('reinício: gravar falhou', e); } }
+      try { medidor.salvar(); } catch { /* o medidor grava a cada minuto e a cada nível */ }
       console.log(`Reiniciando (${motivo}) depois de ${Math.round(process.uptime() / 60)} min ligado.`);
       pronto();
       setTimeout(() => process.exit(0), 1500);
@@ -1263,7 +1272,8 @@ app.get('/npcs.json', async (req, res) => {
         }) };
     });
   } catch (e) { recrutas = { erro: e.message }; }
-  res.json({ dia, npcs: l, ...(recrutas ? { recrutas } : {}) });
+  // jogadores (André 2026-11-28): o medidor de grind, nível a nível (server/medidor.js), só com o crachá
+  res.json({ dia, npcs: l, ...(recrutas ? { recrutas } : {}), ...(cracha ? { jogadores: medidor.relatorio() } : {}) });
 });
 // Cópia cifrada das contas para fora da máquina (plano v3, frente 2; desenho aprovado pelo Presidente 19/11). Só o
 // workflow contas-copia.yml da main deste repositório (crachá OIDC do GitHub: repositório, ramo main e nome do workflow
@@ -1361,6 +1371,7 @@ process.on('unhandledRejection', (e) => console.error('promessa sem catch:', e))
 process.on('uncaughtException', (e) => {
   console.error('erro solto, gravando e saindo:', e);
   for (const s of salas) { try { s.salvarProgressos(); } catch (e2) { console.error('gravar falhou', e2); } }
+  try { medidor.salvar(); } catch { /* o medidor grava a cada minuto e a cada nível */ }
   process.exit(1);
 });
 const servidor = http.createServer(app);
