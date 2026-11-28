@@ -75,3 +75,9 @@ P.prog.mochila[0] = { k: 'pocao', n: 5 }; P.vida = 10; q.item('P', { acao: 'usar
 q.item('P', { acao: 'usar', i: 0 }); ok(P.vida === v1 && P.prog.mochila[0].n === 4, 'poção seguida espera a recarga');
 for (let t = 0; t < POCAO_RECARGA + 0.2; t += 0.1) q.passo(0.1);
 P.vida = 10; q.item('P', { acao: 'usar', i: 0 }); ok(P.vida > 10 && P.prog.mochila[0].n === 3, 'depois da recarga toma de novo');
+// vida extra dos monstros a partir do Nv 40 (André 2026-11-28)
+import { vidaExtraInimigo } from '../../shared/dados.js';
+ok(vidaExtraInimigo(1) === 1 && vidaExtraInimigo(39) === 1 && vidaExtraInimigo(40) === 1, 'Nv 1-40 sem vida extra');
+ok(Math.abs(vidaExtraInimigo(50) - 2.6) < 1e-9 && Math.abs(vidaExtraInimigo(60) - 5) < 1e-9 && vidaExtraInimigo(120) === 6.5, 'vida extra 50/60/fim');
+ok(vidaExtraInimigo(45) > 1 && vidaExtraInimigo(70) > vidaExtraInimigo(60), 'vida extra sobe sem pular');
+ok(statusInimigo('golem', 30).vida === Math.round(130 * 1.6 * (1 + 0.16 * 29)), 'Nv 30 igual a antes');

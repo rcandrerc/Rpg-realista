@@ -1698,6 +1698,19 @@
    }
   }
  ],
+ "danoArma": {
+  "pct": [
+   0,
+   0.1,
+   0.4,
+   0.8,
+   1.2
+  ],
+  "reforco": 0.03,
+  "atr": 0.06,
+  "atrAte": 60,
+  "atrDepois": 0.01
+ },
  "vendaEquip": [
   6,
   25,
@@ -3292,7 +3305,25 @@
   "xpAlemDe": 7,
   "xpAlem": 0.9,
   "corFacil": -3,
-  "corForte": 2
+  "corForte": 2,
+  "vidaExtra": [
+   [
+    40,
+    1
+   ],
+   [
+    50,
+    2.6
+   ],
+   [
+    60,
+    5
+   ],
+   [
+    100,
+    6.5
+   ]
+  ]
  },
  "pocaoRecarga": 10,
  "voltaVila": {
@@ -26368,18 +26399,5 @@
     "nv": 20
    }
   }
- },
- "danoArma": {
-  "pct": [
-   0,
-   0.1,
-   0.4,
-   0.8,
-   1.2
-  ],
-  "reforco": 0.03,
-  "atr": 0.06,
-  "atrAte": 60,
-  "atrDepois": 0.01
  }
 }
