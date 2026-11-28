@@ -4139,6 +4139,18 @@ func _icone_req_cla(tex: Texture2D, texto: String, nome: String, tem: int, preci
 	bx.add_child(n)
 	return bx
 
+# ouro como mais um ingrediente (moedinha com tenho/preciso, "20k/40k"), igual aos materiais
+func icone_ouro_req(tem: int, precisa: int) -> Control:
+	return _icone_req_cla(icone_tex("it_ouro"), "", "Ouro", tem, precisa)
+
+# ouro que a receita ou obra cobra (0 = não cobra)
+func ouro_rec(e: Dictionary) -> int:
+	if e.tipo == "receita":
+		return int(P_menu.dados.receitas[e.k].get("ouro", 0))
+	var cons = m.get("construcao")
+	var C: Dictionary = cons.dados_criar(e.k) if cons != null else P_menu.dados.get("construcoes", {}).get(e.k, P_menu.dados.get("ferramentas", {}).get(e.k, {}))
+	return int(C.get("ouro", 0))
+
 # material como símbolo (acima): balao: outro texto ao tocar; so_qtd: só a quantidade (estoque, sem pedido), com a borda neutra
 func icone_material(k: String, tem: int, precisa: int, peca := {}, balao := "", so_qtd := false) -> Control:
 	var P = P_menu
@@ -4189,8 +4201,10 @@ func linha_criavel(e: Dictionary) -> Control:
 	var nv_ok := true
 	var custo := 0.0
 	var motivo := ""
+	var ouro_n := 0 # receita que cobra ouro (ex.: navio, 40 mil): vira mais um ingrediente com tenho/preciso
 	if e.tipo == "receita":
 		var R: Dictionary = D.receitas[e.k]
+		ouro_n = int(R.get("ouro", 0))
 		usa = R.usa
 		faz = {"k": str(R.faz), "r": 0} if D.itens[str(R.faz)].has("lugar") else {"k": str(R.faz), "n": 1}
 		var faz_s := str(R.faz)
@@ -4203,6 +4217,7 @@ func linha_criavel(e: Dictionary) -> Control:
 	else:
 		var C: Dictionary = cons.dados_criar(e.k) if cons != null else D.get("construcoes", {}).get(e.k, D.get("ferramentas", {}).get(e.k, {}))
 		usa = C.get("custo", {})
+		ouro_n = int(C.get("ouro", 0))
 		faz = {"k": ("obra_" + e.k) if D.get("construcoes", {}).has(e.k) else e.k, "n": 1}
 		if C.get("bancada", false):
 			est = "bancada"
@@ -4242,6 +4257,10 @@ func linha_criavel(e: Dictionary) -> Control:
 		if t2 < n:
 			tem = false
 		mats.add_child(icone_material(str(k), t2, n)) # André 2026-11-09: material em ícone, nada de lista
+	if ouro_n > 0: # André 2026-11-28: "tem que informar, até para os outros jogadores não ficarem putos"
+		var ouro_tem := int(P.prog.get("ouro", 0))
+		mats.add_child(icone_ouro_req(ouro_tem, ouro_n))
+		tem = tem and ouro_tem >= ouro_n
 	if custo > 0.0:
 		mats.add_child(rotulo("Vigor %s" % P.num(custo, 1), 12, COR_VIGOR if P.vigor() >= custo else Color("e0806a")))
 	txt.add_child(mats)
@@ -4497,6 +4516,7 @@ func linha_receita_rec(e: Dictionary) -> Control:
 	var usa := materiais_rec({"e": e})
 	var custo := 0.0
 	var nv_txt := ""
+	var ouro_n := ouro_rec(e)
 	if e.tipo == "receita":
 		var R0: Dictionary = D.receitas[e.k]
 		var R: Dictionary = P.receita_na_raridade(e.k, rar)
@@ -4554,6 +4574,8 @@ func linha_receita_rec(e: Dictionary) -> Control:
 		mats.add_child(icone_material(fk, qt, 1, {"k": fk, "r": rar - 1}))
 	for k in usa:
 		mats.add_child(icone_material(str(k), P.contar(k), int(usa[k])))
+	if ouro_n > 0:
+		mats.add_child(icone_ouro_req(int(P.prog.get("ouro", 0)), ouro_n))
 	if custo > 0.0:
 		var vg := rotulo("Vigor %s" % P.num(custo, 1), 12, COR_VIGOR)
 		vg.size_flags_vertical = Control.SIZE_SHRINK_CENTER

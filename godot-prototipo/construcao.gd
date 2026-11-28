@@ -2551,6 +2551,8 @@ func motivo_criar(k: String) -> String:
 	for c in C.custo:
 		if m.P.contar(c) < int(C.custo[c]):
 			return "Falta %s (%d/%d)" % [str(D.itens[c].nome).to_lower(), m.P.contar(c), int(C.custo[c])]
+	if int(C.get("ouro", 0)) > int(m.P.prog.get("ouro", 0)): # navio: 40.000 de ouro (o servidor confere de novo)
+		return "Falta ouro (%d/%d)" % [int(m.P.prog.get("ouro", 0)), int(C.ouro)]
 	return ""
 
 # o que o botão Criar faz agora ("" = nada): a peça escolhida, ou a ferramenta que falta na fazenda
