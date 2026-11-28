@@ -1410,6 +1410,14 @@ func montar_status() -> void:
 			tl.add_child(botao(("%+d" % d), func(): rede("nivelTeste", {"nv": int(p.nivel) + d}), 14))
 		tl.add_child(botao("Zerar pontos", func(): rede("nivelTeste", {"nv": int(p.nivel), "zerar": true}), 14))
 		conteudo.add_child(tl)
+		# André 2026-11-28: descer o nível e as skills para testar a progressão (clã, ouro e itens ficam; o servidor confere)
+		var tl2 := HBoxContainer.new()
+		tl2.add_theme_constant_override("separation", 8)
+		tl2.add_child(botao("Nível 1", func(): rede("nivelTeste", {"nv": 1}), 14))
+		tl2.add_child(rotulo("Skills:", 14, APAGADO))
+		tl2.add_child(botao("−1", func(): rede("skillTeste", {"acao": "menos"}), 14))
+		tl2.add_child(botao("Zerar skills", func(): rede("skillTeste", {"acao": "zerar"}), 14))
+		conteudo.add_child(tl2)
 	separador("Atributos")
 	# André 2026-11-06: + e − só mexem nos pontos pendentes; nada muda até apertar Confirmar (Desfazer zera).
 	# O − nunca tira ponto já confirmado.
