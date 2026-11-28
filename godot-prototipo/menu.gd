@@ -1416,6 +1416,7 @@ func montar_status() -> void:
 		tl2.add_child(botao("Nível 1", func(): rede("nivelTeste", {"nv": 1}), 14))
 		tl2.add_child(rotulo("Skills:", 14, APAGADO))
 		tl2.add_child(botao("−1", func(): rede("skillTeste", {"acao": "menos"}), 14))
+		tl2.add_child(botao("+1", func(): rede("skillTeste", {"acao": "mais"}), 14))
 		tl2.add_child(botao("Zerar skills", func(): rede("skillTeste", {"acao": "zerar"}), 14))
 		conteudo.add_child(tl2)
 	separador("Atributos")
