@@ -54,8 +54,10 @@ ok((await fetch(U + '/lentidao', { headers: { Authorization: 'Bearer a.b.c' } })
 const n0 = await get('/npcs.json');
 ok(Array.isArray(n0.npcs) && n0.npcs.every((x) => !('x' in x) && !('z' in x) && !('morto' in x) && !('evolucao' in x) && !('missao' in x)), '/npcs.json aberto: sem posição, missão nem diário dos NPCs');
 ok(!('recrutas' in n0), '/npcs.json aberto: sem os recrutas dos clãs dos jogadores');
+ok(!('jogadores' in n0), '/npcs.json aberto: sem o medidor de grind dos jogadores (André 2026-11-28, server/medidor.js)');
 const n1 = await get(`/npcs.json?teste=${TESTE}`);
 ok(Array.isArray(n1.recrutas), `/npcs.json com crachá: lista dos clãs dos jogadores (${JSON.stringify(n1.recrutas).slice(0, 80)})`);
+ok(Array.isArray(n1.jogadores), `/npcs.json com crachá: o medidor de grind dos jogadores (${JSON.stringify(n1.jogadores).slice(0, 80)})`);
 
 // /saude: ler não zera
 const s1 = await get('/saude'), s2 = await get('/saude');
